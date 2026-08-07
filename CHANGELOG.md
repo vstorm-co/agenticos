@@ -19,6 +19,26 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.81] - 2026-08-07
+
+### Fixed
+
+- **145 more keys came out of `messages/en.json`, and 82 of them had a
+  hand-written Polish translation** — done for nobody, because nothing read the
+  English either. Another 43 messages had their words written out in the source
+  beside the key that held them, so the catalogue looked migrated while the
+  literal stayed on screen. That is worse than an unmigrated string: the guard
+  counted it as handled (#425).
+- A sentence split across two keys, its tail beginning at a full stop, so neither
+  half reads as copy to anything looking at one key at a time.
+
+### Added
+
+- Three rules, all anchored on the **catalogue** rather than the source, so none
+  has to decide what a text node is — which is how two of them reach `.ts` files
+  the offence sweep has never opened: a key nothing reads, a message whose words
+  also sit in the source, and a value opening on `.` `,` `:` `;`.
+
 ## [0.0.80] - 2026-08-07
 
 ### Fixed

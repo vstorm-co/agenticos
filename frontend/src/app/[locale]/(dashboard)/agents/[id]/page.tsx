@@ -715,11 +715,13 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 <div className="min-w-0 space-y-1.5">
                   <CardTitle>{t("mcpServers")}</CardTitle>
                   <CardDescription>
-                    External tools this agent may call, from the servers{" "}
-                    <Link href={ROUTES.MCP_SERVERS} className="underline">
-                      {t("yourOrganizationHasConnected")}
-                    </Link>
-                    {t("onlyOrganizationAposS")}
+                    {t.rich("mcpServersDescription", {
+                      servers: (chunks) => (
+                        <Link href={ROUTES.MCP_SERVERS} className="underline">
+                          {chunks}
+                        </Link>
+                      ),
+                    })}
                   </CardDescription>
                 </div>
                 {/* Connecting a server was a different page, and the trip was

@@ -1,3 +1,5 @@
+import { useTranslations } from "next-intl";
+
 import { Badge } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import type { AgentStatus } from "@/types/agents";
@@ -22,11 +24,26 @@ const AGENT_DOT: Record<AgentStatus, string> = {
   archived: "bg-muted-foreground/50",
 };
 
+/**
+ * The word for a status, as a key rather than the word.
+ *
+ * The badge used to render the enum member itself, which is English by accident
+ * of the API rather than by choice - and `RUN_LABEL` below did carry the word,
+ * while `agents.failed` and `chat.steps.awaitingApproval` already held it in the
+ * catalog for somebody else to read (#425).
+ */
+const AGENT_LABEL: Record<AgentStatus, string> = {
+  published: "statusPublished",
+  draft: "statusDraft",
+  archived: "statusArchived",
+};
+
 export function AgentStatusBadge({ status }: { status: AgentStatus }) {
+  const t = useTranslations("agents");
   return (
     <Badge variant="outline" className="text-muted-foreground">
       <StatusDot className={AGENT_DOT[status]} />
-      {status}
+      {t(AGENT_LABEL[status])}
     </Badge>
   );
 }
@@ -47,19 +64,20 @@ const RUN_DOT: Record<RunStatus, string> = {
 };
 
 const RUN_LABEL: Record<RunStatus, string> = {
-  completed: "completed",
-  running: "running",
-  awaiting_approval: "waiting for approval",
-  budget_exceeded: "stopped by budget",
-  cancelled: "cancelled",
-  failed: "failed",
+  completed: "runCompleted",
+  running: "runRunning",
+  awaiting_approval: "runAwaitingApproval",
+  budget_exceeded: "runBudgetExceeded",
+  cancelled: "runCancelled",
+  failed: "runFailed",
 };
 
 export function RunStatusBadge({ status }: { status: RunStatus }) {
+  const t = useTranslations("agents");
   return (
     <Badge variant="outline" className="text-muted-foreground">
       <StatusDot className={RUN_DOT[status]} />
-      {RUN_LABEL[status]}
+      {t(RUN_LABEL[status])}
     </Badge>
   );
 }

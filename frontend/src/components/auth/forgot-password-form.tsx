@@ -52,11 +52,13 @@ export function ForgotPasswordForm() {
         <div className="space-y-2">
           <span className="eyebrow text-foreground/55">{t("checkYourInbox")}</span>
           <h1 className="text-display-md text-foreground [&_em]:font-normal [&_em]:italic">
-            Link sent. <em>{t("itsWay")}</em>
+            {t.rich("linkSentHeading", { em: (chunks) => <em>{chunks}</em> })}
           </h1>
           <p className="text-foreground/70 text-sm">
-            If an account exists for <span className="text-foreground font-medium">{email}</span>
-            {t("youAposLlGet")}
+            {t.rich("resetLinkSent", {
+              email,
+              strong: (chunks) => <span className="text-foreground font-medium">{chunks}</span>,
+            })}
           </p>
         </div>
         <Link
@@ -75,7 +77,7 @@ export function ForgotPasswordForm() {
       <div className="space-y-2">
         <span className="eyebrow text-foreground/55">{t("forgotPasswordPrompt")}</span>
         <h1 className="text-display-md text-foreground [&_em]:font-normal [&_em]:italic">
-          Happens to the <em>{t("bestUs")}</em>
+          {t.rich("forgotHeading", { em: (chunks) => <em>{chunks}</em> })}
         </h1>
         <p className="text-foreground/65 text-sm">{t("dropYourEmailBelow")}</p>
       </div>
@@ -116,7 +118,7 @@ export function ForgotPasswordForm() {
             t("sending")
           ) : (
             <>
-              Send reset link
+              {t("sendResetLink")}
               <ArrowRight className="ml-2 h-4 w-4" />
             </>
           )}

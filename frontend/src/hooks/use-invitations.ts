@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
@@ -15,6 +16,11 @@ import type {
 
 export function useInvitations(orgId: string) {
   const queryClient = useQueryClient();
+  // Two namespaces because the toasts belong to two surfaces: inviting and
+  // revoking happen on the members page, accepting on the invitation page. Every
+  // message below was already in the catalog and read by nothing (#425).
+  const t = useTranslations("members");
+  const tInvite = useTranslations("invitations");
 
   // React Query owns the list: cached per-org, deduped, no refetch storms.
   // Mutations patch the cache directly to keep the UI instant. The query stays
@@ -54,14 +60,14 @@ export function useInvitations(orgId: string) {
         // nothing here has a use for it, so nothing here keeps it.
         const { invitation_token: _token, ...invitation } = created;
         writeCache((prev) => [invitation, ...prev]);
-        toast.success(`Invitation sent to ${input.email}`);
+        toast.success(t("inviteSent", { email: input.email }));
         return invitation;
       } catch {
-        toast.error("Failed to send invitation");
+        toast.error(t("failedInvite"));
         return null;
       }
     },
-    [orgId, writeCache],
+    [orgId, writeCache, t],
   );
 
   // By id, under the organization. The backend also revokes by token, but that
@@ -73,12 +79,12 @@ export function useInvitations(orgId: string) {
       try {
         await apiClient.delete(`/orgs/${orgId}/invitations/${invitationId}`);
         writeCache((prev) => prev.filter((i) => i.id !== invitationId));
-        toast.success("Invitation revoked");
+        toast.success(t("revokeSuccess"));
       } catch {
-        toast.error("Failed to revoke invitation");
+        toast.error(t("failedRevoke"));
       }
     },
-    [orgId, writeCache],
+    [orgId, writeCache, t],
   );
 
   // POST /invitations/<token> *is* the accept - the proxy route maps it onto the
@@ -87,15 +93,18 @@ export function useInvitations(orgId: string) {
   // swallowed below, the accept screen then announced "You joined the
   // organization!" to people who had joined nothing. The error is rethrown so
   // that screen's error branch is reachable at all.
-  const acceptInvitation = useCallback(async (token: string) => {
-    try {
-      await apiClient.post(`/invitations/${token}`);
-      toast.success("Joined organization!");
-    } catch (error) {
-      toast.error("Failed to accept invitation");
-      throw error;
-    }
-  }, []);
+  const acceptInvitation = useCallback(
+    async (token: string) => {
+      try {
+        await apiClient.post(`/invitations/${token}`);
+        toast.success(tInvite("acceptSuccess"));
+      } catch (error) {
+        toast.error(tInvite("failedTitle"));
+        throw error;
+      }
+    },
+    [tInvite],
+  );
 
   /**
    * Mint a shareable link, and hand the URL back once.
