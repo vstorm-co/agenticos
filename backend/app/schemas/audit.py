@@ -11,7 +11,8 @@ class AuditEntryRead(BaseSchema):
     """One recorded action."""
 
     id: UUID
-    actor_user_id: UUID
+    actor_user_id: UUID | None = None
+    """Who did it, or `None` where the platform did - see `record_audit`."""
     action: str
     target_type: str | None = None
     target_id: str | None = None
