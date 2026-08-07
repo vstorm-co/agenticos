@@ -40,6 +40,14 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE_MB: int = 50  # Max file upload size in MB
     STORAGE_SOFT_LIMIT_BYTES: int = 5 * 1024 * 1024 * 1024
 
+    # Seconds the event loop may stop turning before the worker kills itself so
+    # its supervisor replaces it; `0` or below switches the check off, which is
+    # what a breakpoint needs. `cli/reload_supervisor.py` reads the same
+    # variable from the environment for the judgement it makes from outside the
+    # worker - one number, so switching the check off switches off both.
+    # `app/core/watchdog.py` has the whole reasoning.
+    EVENT_LOOP_WEDGED_AFTER: float = 15.0
+
     LOGFIRE_TOKEN: str | None = None
     LOGFIRE_SERVICE_NAME: str = "agenticos"
     LOGFIRE_ENVIRONMENT: str = "development"
