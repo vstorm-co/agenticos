@@ -35,7 +35,7 @@ from pydantic_ai.run import AgentRun, AgentRunResult
 from pydantic_ai.tools import DeferredToolRequests
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, metered_by
+from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
 from app.agents.deps import AgentDeps, AskUserCallback
 from app.agents.subagent_events import SubagentEventSink
 from app.core.exceptions import AuthorizationError, BadRequestError
@@ -364,24 +364,11 @@ class ChatAgentRunner:
         budget_scope: BudgetScope | None = None
         output = ""
         try:
-            # `metered_by` books what the request wrapper cannot see - the
-            # embedding calls a knowledge search makes - onto this run's ledger.
-            # It has to wrap the *iteration*, not the setup: the searches happen
-            # inside the tool calls the surface is streaming. Without it
-            # `record_ambient_usage` found no active ledger and dropped the spend
-            # on the floor, so a knowledge search was free on the product's
-            # primary surface - under-reporting `cost_usd`, leaving
-            # `cost_is_partial` unset so nothing on screen hinted at it, and
-            # never reaching the organization's monthly total. `agent_runner._run`
-            # has always had this; the streaming path never did (#16).
-            with metered_by(prepared.built.ledger):
-                async with prepared.built.agent.iter(
-                    user_input,
-                    deps=prepared.deps,
-                    message_history=message_history,
-                    usage_limits=prepared.built.usage_limits,
-                ) as agent_run:
-                    await stream(agent_run)
+            async with prepared.iterate(
+                user_input,
+                message_history=message_history,
+            ) as agent_run:
+                await stream(agent_run)
 
             result = _outcome(agent_run)
             if isinstance(result.output, DeferredToolRequests):

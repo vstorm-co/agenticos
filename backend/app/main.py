@@ -23,6 +23,7 @@ from app.core.logfire_setup import instrument_httpx
 from app.core.logfire_setup import instrument_pydantic_ai
 from app.core.logging import setup_logging
 from app.core.middleware import RequestIDMiddleware
+from app.core.watchdog import EventLoopWatchdog
 from app.core.cache import setup_cache
 from app.clients.redis import RedisClient
 from app.services.rag.embeddings import EmbeddingService
@@ -79,6 +80,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     See: https://asgi.readthedocs.io/en/latest/specs/lifespan.html#lifespan-state
     """
     state: LifespanState = {}
+    watchdog = EventLoopWatchdog(wedged_after=settings.EVENT_LOOP_WEDGED_AFTER)
     setup_logfire()
     # Capability modules register themselves on import; nothing the Builder can
     # offer exists until this has run.
@@ -129,6 +131,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
         await _start_channel_polling(_slack_adapter, "slack")
     except (OSError, ValueError, RuntimeError) as _slack_exc:
         logger.error("Slack: failed to start Socket Mode: %s", _slack_exc)
+
+    # Started once startup is done and stopped only at the very end, so it
+    # covers serving and shutdown: a worker whose event loop stops turning is
+    # invisible to every other recovery path this deployment has, and it kills
+    # its own process, which each stack's supervisor - or Docker's restart
+    # policy on the dev stack - already replaces. Startup is deliberately not
+    # watched; app/core/watchdog.py says why.
+    watchdog.start()
     yield state
     if "vector_store" in state:
         with suppress(Exception):
@@ -143,6 +153,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
         await state["redis"].close()
 
     await close_db()
+    watchdog.stop()
 
 
 SHOW_DOCS_ENVIRONMENTS = ("local", "staging", "development")

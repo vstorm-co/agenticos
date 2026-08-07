@@ -14,6 +14,7 @@ from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.user import User
+from app.repositories._search import contains_ci
 
 
 async def agents_in_conversations(
@@ -248,8 +249,9 @@ async def admin_list_with_users(
     count_query = select(func.count()).select_from(Conversation)
 
     if search:
-        query = query.where(Conversation.title.ilike(f"%{search}%"))
-        count_query = count_query.where(Conversation.title.ilike(f"%{search}%"))
+        title_matches = contains_ci(Conversation.title, search)
+        query = query.where(title_matches)
+        count_query = count_query.where(title_matches)
     if user_id is not None:
         query = query.where(Conversation.user_id == user_id)
         count_query = count_query.where(Conversation.user_id == user_id)
@@ -275,16 +277,25 @@ async def admin_list_with_users(
         query = query.where(Conversation.is_archived.is_(False))
         count_query = count_query.where(Conversation.is_archived.is_(False))
 
+    # Three of these columns are nullable, and Postgres sorts NULL *first* on a
+    # descending order - so the default page opened on every thread that had
+    # never been written to, above the one updated a second ago, and they held
+    # the top of page one permanently. `updated_at` is null until the first
+    # edit, which is what the member-facing listing above coalesces away for the
+    # same reason; `title` is null until one is generated, and `owner` is null
+    # for every conversation that arrived through a channel rather than a user.
     sort_columns: dict[str, Any] = {
         "title": Conversation.title,
         "created_at": Conversation.created_at,
-        "updated_at": Conversation.updated_at,
+        "updated_at": func.coalesce(Conversation.updated_at, Conversation.created_at),
         "owner": User.email,
         "messages": msg_count_col,
     }
-    sort_col = sort_columns.get(sort_by, Conversation.updated_at)
+    sort_col = sort_columns.get(sort_by, sort_columns["updated_at"])
     sort_col = sort_col.desc() if sort_dir == "desc" else sort_col.asc()
-    query = query.order_by(sort_col).offset(skip).limit(limit)
+    # A row with nothing in the sorted column sorts last whichever way the
+    # column is pointing: "no title" is not the largest title.
+    query = query.order_by(sort_col.nulls_last()).offset(skip).limit(limit)
 
     total = await db.scalar(count_query) or 0
     rows = (await db.execute(query)).all()

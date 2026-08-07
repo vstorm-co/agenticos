@@ -48,13 +48,20 @@ async def update_user(
     service: UserSvc,
 ) -> Any:
     user = await service.update(user_id, user_in)
+    # Which fields were set, never what they were set to. `UserUpdate` carries
+    # `password`, so dumping the submitted body wrote the plaintext an
+    # administrator typed into `app_admin_audit_logs.details`, where it sat in a
+    # JSONB column for as long as the trail is kept (agenticos#412). The names
+    # are what the trail is for; the values are on the row. `model_fields_set`
+    # rather than `model_dump`, so the plaintext is not even built to be thrown
+    # away.
     await record_audit(
         db,
         actor_user_id=admin.id,
         action="admin.user.update",
         target_type="user",
         target_id=str(user_id),
-        details=user_in.model_dump(exclude_unset=True),
+        details={"fields": sorted(user_in.model_fields_set)},
         ip_address=request.client.host if request.client else None,
     )
     return user

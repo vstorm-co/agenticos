@@ -57,9 +57,15 @@ services:
     # turning - deadlocked, spinning, or stopped - which has no exit code and so
     # looks healthy to everything else here. The worker beats from its own event
     # loop and the supervisor replaces it after fifteen silent seconds. Set
-    # `RELOAD_WEDGED_AFTER` in `backend/.env` to change that, or to `0` to switch
-    # it off, which is what a breakpoint needs: a stopped event loop is exactly
-    # what the check is looking for.
+    # `EVENT_LOOP_WEDGED_AFTER` in `backend/.env` to change that, or to `0` to
+    # switch it off, which is what a breakpoint needs: a stopped event loop is
+    # exactly what the check is looking for.
+    #
+    # The same variable switches off `app/core/watchdog.py`, which judges the
+    # same loop from inside the worker and is what covers the two stacks with no
+    # supervisor. Here it is the faster of the two judges; the supervisor is
+    # still the only one that can see a worker stopped outright, which cannot
+    # run a watchdog of its own.
     #
     # It, and not `cli.commands server run --reload`, because that entrypoint
     # imports `app.main` and would put the whole application - 464 MB against

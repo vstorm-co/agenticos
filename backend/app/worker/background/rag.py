@@ -11,6 +11,7 @@ from pathlib import Path
 
 from app.db.session import get_db_context
 from app.services.rag.connectors import CONNECTOR_REGISTRY
+from app.services.rag.failures import IngestionStage, failure_summary
 from app.services.rag.ingestion import IngestionService
 
 logger = logging.getLogger(__name__)
@@ -39,9 +40,15 @@ async def ingest_document_in_background(
                 rag_document_id, vector_document_id=result.document_id
             )
     except Exception as exc:
-        logger.error("background_ingestion_failed: %s", exc)
+        # Swallowed on purpose - this is the fallback handler, and nothing above
+        # it would report the failure - so this log line is the only copy of the
+        # upstream's own text. What goes on the row is a summary (#423).
+        logger.exception("background_ingestion_failed for %s", source_path)
         async with get_db_context() as db:
-            await RAGDocumentService(db).fail_ingestion(rag_document_id, error_message=str(exc))
+            await RAGDocumentService(db).fail_ingestion(
+                rag_document_id,
+                error_message=failure_summary(exc, stage=IngestionStage.INGEST),
+            )
     finally:
         Path(filepath).unlink(missing_ok=True)
 
@@ -138,5 +145,9 @@ async def sync_source_in_background(source_id: str, sync_log_id: str) -> None:
                 failed=failed,
             )
         except Exception as exc:
-            logger.error("source_sync_failed: %s", exc)
-            await sync_svc.complete_sync(sync_log_id, status="error", error_message=str(exc))
+            logger.exception("source_sync_failed for %s", source_id)
+            await sync_svc.complete_sync(
+                sync_log_id,
+                status="error",
+                error_message=failure_summary(exc, stage=IngestionStage.SYNC),
+            )

@@ -45,6 +45,19 @@ one expensive call every time.
     to the session context - which rolls back on any exception and is never
     reached at all on cancellation.
 
+### A run costs more than its model requests
+
+A knowledge search embeds the question before it can search it, and that embedding
+is billed to the run that asked for it. The embedding service is process-global -
+it serves every run and every ingestion job at once - so it books against whichever
+run is *currently metered* rather than taking a budget as an argument.
+
+Which makes the meter something a surface can forget, and forgetting it is silent:
+no exception and no warning, just a run that reports less than it spent and an
+organization's month that never sees it. So the meter belongs to the prepared run
+rather than to the surface. Opening one is not a step a new surface has to know
+about, because there is no way to execute a prepared agent without it.
+
 ### Delegation spends the parent's budget
 
 A run can contain another agent's whole conversation - see

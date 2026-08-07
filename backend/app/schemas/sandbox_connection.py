@@ -49,6 +49,12 @@ def _service_address(value: str) -> str:
       beats failing on a stack trace.
     * **A missing host**, which is a typo rather than an attack, and would
       otherwise be fetched as a relative path against an empty base.
+    * **Credentials in the URL.** A connection authenticates with a vault-held
+      token, so a `user:pass@` here is at best ignored and at worst the only
+      copy of a password - and the address is named back in every refusal this
+      service raises, which puts it in the response and in the log line beside
+      it (agenticos#342). `validate_endpoint_url` and `validate_webhook_url`
+      have refused it all along; this validator did not.
     * **Link-local addresses and the metadata hostnames**, because
       `169.254.169.254` and `metadata.google.internal` are never a sandbox
       service and are the one target where a single unauthenticated GET is worth
@@ -70,6 +76,11 @@ def _service_address(value: str) -> str:
     host = parsed.hostname
     if not host:
         raise ValueError("A sandbox service address must name a host")
+    if parsed.username is not None or parsed.password is not None:
+        raise ValueError(
+            "A sandbox service address must not carry credentials in the URL - "
+            "the connection authenticates with the key you pick for it"
+        )
     if host.lower() in _METADATA_HOSTS:
         raise ValueError("That host is an instance-metadata service, not a sandbox service")
     try:

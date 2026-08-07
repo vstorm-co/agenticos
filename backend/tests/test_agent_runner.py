@@ -31,6 +31,7 @@ from app.services.agent_runner import (
     ApprovalChannel,
     ParkedApproval,
     PausedRunState,
+    PreparedRun,
     RecordedDelegation,
     month_start,
 )
@@ -56,28 +57,38 @@ def _db(monthly_budget_usd: Decimal | None = None):
     return db
 
 
-def _prepared(ledger: SpendLedger | None = None, *, conversation_id: uuid.UUID | None = None):
-    prepared = MagicMock()
-    # No conversation unless a test asks for one. `_run` writes the transcript
-    # into the run's conversation, and a `MagicMock` here is truthy - which would
-    # send every accounting test through a write it is not about, against a
-    # session that cannot serve it.
-    prepared.run = MagicMock(
-        id=uuid.uuid4(),
-        agent_id=uuid.uuid4(),
-        agent_version_id=uuid.uuid4(),
-        conversation_id=conversation_id,
+def _prepared(
+    ledger: SpendLedger | None = None, *, conversation_id: uuid.UUID | None = None
+) -> PreparedRun:
+    """A run with its agent stubbed - but a real `PreparedRun`, and a real ledger.
+
+    Mocking the prepared run itself would mock away `execute`, which is what
+    opens the spend meter: the test would prove the runner calls something and
+    nothing at all about what the run was billed.
+
+    No conversation unless a test asks for one. `_run` writes the transcript into
+    the run's conversation, and a `MagicMock` there is truthy - which would send
+    every accounting test through a write it is not about, against a session that
+    cannot serve it.
+    """
+    built = MagicMock()
+    built.ledger = ledger or SpendLedger()
+    built.model_label = "gpt-4.1"
+    return PreparedRun(
+        run=MagicMock(
+            id=uuid.uuid4(),
+            agent_id=uuid.uuid4(),
+            agent_version_id=uuid.uuid4(),
+            conversation_id=conversation_id,
+        ),
+        agent=MagicMock(),
+        spec=MagicMock(),
+        built=built,
+        # Real containers, not mocks: `finish` walks both to fold the delegation
+        # tree into whatever parked state the surface reported, and a `MagicMock`
+        # is not iterable. An agent that never delegated leaves them empty.
+        approvals=MagicMock(parked={}, requested=[]),
     )
-    prepared.built = MagicMock()
-    prepared.built.ledger = ledger or SpendLedger()
-    prepared.built.model_label = "gpt-4.1"
-    prepared.approvals.parked = {}
-    # Real containers, not mocks: `finish` walks both to fold the delegation tree
-    # into whatever parked state the surface reported, and a `MagicMock` is not
-    # iterable. An agent that never delegated leaves them empty.
-    prepared.approvals.requested = []
-    prepared.stash = DelegationStash()
-    return prepared
 
 
 def _parked_run(**overrides):
@@ -588,8 +599,7 @@ class TestFilesAcrossOneTurn:
     async def test_an_attachment_is_routed_against_the_workspace_the_run_opened(self):
         service = AgentRunnerService(_db())
         prepared = _prepared()
-        prepared.outbound = []
-        prepared.outbound_refused = []
+        prepared.workspace = MagicMock()
         service.prepare = AsyncMock(return_value=prepared)
         service._run = AsyncMock(return_value=("answered", prepared.run))
         built = AsyncMock(return_value="a prompt with a reference")
@@ -661,11 +671,8 @@ class TestFilesAcrossOneTurn:
     async def test_a_run_with_no_workspace_produces_nothing_to_send(self):
         service = AgentRunnerService(_db())
         prepared = _prepared()
-        prepared.workspace = None
-        prepared.outbound = []
-        prepared.outbound_refused = []
 
-        service._collect_outbound(prepared)
+        await service._collect_outbound(prepared)
 
         assert prepared.outbound == []
 
@@ -673,8 +680,7 @@ class TestFilesAcrossOneTurn:
     async def test_what_the_workspace_gained_is_read_before_it_closes(self):
         service = AgentRunnerService(_db())
         prepared = _prepared()
-        prepared.outbound = []
-        prepared.outbound_refused = []
+        prepared.workspace = MagicMock()
         prepared.workspace_at_start = {"/run.py"}
 
         with patch("app.services.agent_runner.files_written", new_callable=AsyncMock) as written:
@@ -699,6 +705,8 @@ class TestSkillChangesARunProposed:
         service = AgentRunnerService(_db())
         prepared = _prepared()
         prepared.ctx = MagicMock(organization_id=uuid.uuid4())
+        prepared.workspace = MagicMock()
+        prepared.materialised_skills = MagicMock()
         change = MagicMock()
         record = AsyncMock(return_value=[MagicMock()])
         service.proposals = MagicMock(record=record)
@@ -719,6 +727,8 @@ class TestSkillChangesARunProposed:
         service = AgentRunnerService(_db())
         prepared = _prepared()
         prepared.ctx = MagicMock(organization_id=uuid.uuid4())
+        prepared.workspace = MagicMock()
+        prepared.materialised_skills = MagicMock()
         service.proposals = MagicMock(record=AsyncMock(side_effect=RuntimeError("name taken")))
 
         with (
@@ -730,10 +740,27 @@ class TestSkillChangesARunProposed:
         assert finish.call_args.kwargs["status"] == RunStatus.COMPLETED.value
 
     @pytest.mark.anyio
+    async def test_a_run_that_left_its_skills_alone_proposes_nothing(self):
+        """The ordinary case. A proposal per run would make the queue meaningless."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.ctx = MagicMock(organization_id=uuid.uuid4())
+        prepared.workspace = MagicMock()
+        prepared.materialised_skills = MagicMock()
+        service.proposals = MagicMock(record=AsyncMock())
+
+        with (
+            patch("app.services.agent_runner.collect_changes", return_value=[]),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+        ):
+            await service.finish(prepared, status=RunStatus.COMPLETED)
+
+        service.proposals.record.assert_not_called()
+
+    @pytest.mark.anyio
     async def test_a_run_with_no_workspace_proposes_nothing(self):
         service = AgentRunnerService(_db())
         prepared = _prepared()
-        prepared.workspace = None
         service.proposals = MagicMock(record=AsyncMock())
 
         with patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()):

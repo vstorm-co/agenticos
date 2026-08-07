@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.conversation import Conversation
 from app.db.models.user import User
+from app.repositories._search import contains_ci
 
 
 async def get_by_id(db: AsyncSession, user_id: UUID) -> User | None:
@@ -163,7 +164,7 @@ async def admin_list_with_counts(
     count_query = select(func.count()).select_from(User)
 
     if search:
-        condition = User.email.ilike(f"%{search}%") | User.full_name.ilike(f"%{search}%")
+        condition = contains_ci(User.email, search) | contains_ci(User.full_name, search)
         query = query.where(condition)
         count_query = count_query.where(condition)
 
@@ -175,7 +176,10 @@ async def admin_list_with_counts(
     }
     sort_col = sort_columns.get(sort_by, User.created_at)
     sort_col = sort_col.desc() if sort_dir == "desc" else sort_col.asc()
-    query = query.order_by(sort_col).offset(skip).limit(limit)
+    # `full_name` is nullable and Postgres sorts NULL first on a descending
+    # order, so sorting by name put every account that never filled one in
+    # ahead of the alphabet. A row with no name sorts last either way.
+    query = query.order_by(sort_col.nulls_last()).offset(skip).limit(limit)
 
     total = await db.scalar(count_query) or 0
     rows = (await db.execute(query)).all()
