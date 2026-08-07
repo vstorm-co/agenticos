@@ -19,6 +19,34 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.66] - 2026-08-07
+
+### Security
+
+- `POST /kb` accepted any `collection_name` and never claimed it, so a member with
+  `collections:edit` could point a knowledge base at another organization's vector
+  table and read and write it through every gate that followed. `claim` had
+  exactly one call site, the `/rag` route (#367).
+- A collection name over 45 characters truncated onto another collection's table.
+  The bound is derived from the longest identifier built from a name —
+  `rag_<name>_embedding_idx`, not `rag_<name>` — so a name of 46 to 59 characters
+  truncated only the *index* name, `CREATE INDEX IF NOT EXISTS` then found the
+  first collection's index and built nothing, and the second collection searched
+  unindexed at the first one's width (#368).
+- Upper case is refused. Postgres folds an unquoted identifier, so `Handbook` and
+  `handbook` were two rows, two collections the platform believed distinct, and
+  **one physical table** holding both tenants' vectors — #368's defect reached by
+  another route. Refused rather than normalised: this branch's argument is that an
+  unusable name is turned away, not silently rewritten into something the caller
+  never typed.
+
+### Fixed
+
+- A malformed or reserved collection name answers 400 rather than 500 (#371).
+- Dropping a collection whose name the new rules refuse no longer swallows the
+  refusal and orphan the vector table.
+
+
 ## [0.0.65] - 2026-08-07
 
 ### Security
