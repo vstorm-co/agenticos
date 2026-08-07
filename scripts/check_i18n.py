@@ -40,6 +40,15 @@ What it deliberately does not look at:
 False positives get an inline `{/* i18n-exempt: why */}` or a trailing
 `// i18n-exempt: why`. The comment is required to carry a reason, because "this
 one is fine" is the sentence that turns a gate into a rubber stamp.
+
+**A false positive takes an exemption. It never takes a key.** Answering one by
+moving the offending text into `messages/en.json` silences the guard and hands a
+translator something nobody reads: the migration that first ran this script did
+exactly that 166 times, filing 18 Tailwind class lists and 148 fragments of
+JavaScript source under keys with names like `caseStatsReturn` (#348).
+`frontend/messages/catalog.test.ts` now refuses both shapes, because neither the
+offence sweep nor `missing_keys` can see them - a class list reaching `cn()`
+through `t()` carries no `className`, and a key that exists is a key that exists.
 """
 
 from __future__ import annotations
@@ -57,6 +66,14 @@ CATALOG = ROOT / "frontend" / "messages" / "en.json"
 SKIPPED_DIRS = ("/dev/",)
 SKIPPED_NAMES = (".test.tsx", ".test.ts", ".spec.ts", ".stories.tsx", ".generated.ts")
 
+# Props a component renders for a person to read. A fixed list, which is the
+# whole weakness of the rule: copy passed through a name that is not here is
+# copy this script cannot see, and it stays invisible until somebody notices it
+# in English under `pl`. `noun` and `term` were added after exactly that (#362) -
+# `<Pager noun="skills">` at six call sites and `<Fact term="Chunking">` at four,
+# all of them rendered verbatim in every locale. Add the name when a component
+# starts taking copy through a new one; the alternative is #395's parser, which
+# would read the prop's *value* rather than trusting its name.
 READABLE_ATTRS = (
     "placeholder",
     "aria-label",
@@ -70,6 +87,8 @@ READABLE_ATTRS = (
     "submitLabel",
     "heading",
     "subtitle",
+    "noun",
+    "term",
 )
 ATTR = re.compile(rf'\b({"|".join(READABLE_ATTRS)})="([^"]*)"')
 JSX_TEXT = re.compile(r"(?<!=)>\s*([^<>{}\n][^<>{}\n]*?)\s*<")

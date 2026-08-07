@@ -1,9 +1,29 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ToolApprovalDialog } from "./tool-approval-dialog";
 import type { ActionRequest } from "@/types";
+import { Perm } from "@/types/permissions";
+import type { Permission } from "@/types/permissions";
+
+/**
+ * What the caller may do. Every case below describes the decision itself, which
+ * is offered only to somebody holding `approvals:decide` - the permission on the
+ * two endpoints `onDecisions` calls. `tool-approval-dialog.integration.test.tsx`
+ * covers that gate, against the real hook.
+ */
+const held: { permissions: Permission[] } = { permissions: [] };
+
+vi.mock("@/hooks", () => ({
+  usePermissions: () => ({
+    can: (permission: Permission) => held.permissions.includes(permission),
+  }),
+}));
+
+beforeEach(() => {
+  held.permissions = [Perm.approvalsDecide];
+});
 
 function action(id: string, overrides: Partial<ActionRequest> = {}): ActionRequest {
   return {
@@ -56,13 +76,13 @@ describe("the tool approval dialog", () => {
   it("counts what a submission covers, so nobody approves more than they read", () => {
     mount([action("ar-1"), action("ar-2")]);
 
-    expect(screen.getByRole("button", { name: "Submit (2)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Submit 2 calls" })).toBeInTheDocument();
   });
 
   it("approves every untouched call", async () => {
     const onDecisions = mount([action("ar-1"), action("ar-2")]);
 
-    await userEvent.click(screen.getByRole("button", { name: "Submit (2)" }));
+    await userEvent.click(screen.getByRole("button", { name: "Submit 2 calls" }));
 
     expect(onDecisions).toHaveBeenCalledWith([{ type: "approve" }, { type: "approve" }]);
   });
@@ -72,7 +92,7 @@ describe("the tool approval dialog", () => {
 
     await userEvent.clear(screen.getByRole("textbox"));
     await userEvent.type(screen.getByRole("textbox"), '{{"to":"someone@else.example"}');
-    await userEvent.click(screen.getByRole("button", { name: "Submit (1)" }));
+    await userEvent.click(screen.getByRole("button", { name: "Submit 1 call" }));
 
     expect(onDecisions).toHaveBeenCalledWith([
       {
@@ -93,7 +113,7 @@ describe("the tool approval dialog", () => {
 
     await userEvent.clear(screen.getByRole("textbox"));
     await userEvent.type(screen.getByRole("textbox"), '{{ "to" : "a@b.c" }');
-    await userEvent.click(screen.getByRole("button", { name: "Submit (1)" }));
+    await userEvent.click(screen.getByRole("button", { name: "Submit 1 call" }));
 
     expect(onDecisions).toHaveBeenCalledWith([{ type: "approve" }]);
   });
@@ -105,7 +125,7 @@ describe("the tool approval dialog", () => {
 
     await userEvent.clear(screen.getByRole("textbox"));
     await userEvent.type(screen.getByRole("textbox"), "{{ oops");
-    await userEvent.click(screen.getByRole("button", { name: "Submit (1)" }));
+    await userEvent.click(screen.getByRole("button", { name: "Submit 1 call" }));
 
     expect(onDecisions).toHaveBeenCalledWith([{ type: "reject" }]);
   });
@@ -119,7 +139,7 @@ describe("the tool approval dialog", () => {
     const [first] = screen.getAllByRole("textbox");
     await userEvent.clear(first!);
     await userEvent.type(first!, "not json");
-    await userEvent.click(screen.getByRole("button", { name: "Submit (2)" }));
+    await userEvent.click(screen.getByRole("button", { name: "Submit 2 calls" }));
 
     expect(onDecisions).toHaveBeenCalledWith([{ type: "reject" }, { type: "approve" }]);
   });
@@ -176,7 +196,7 @@ describe("the tool approval dialog", () => {
     );
 
     await userEvent.type(screen.getByRole("textbox"), "x");
-    await userEvent.click(screen.getByRole("button", { name: "Submit (1)" }));
+    await userEvent.click(screen.getByRole("button", { name: "Submit 1 call" }));
 
     expect(onDecisions).not.toHaveBeenCalled();
     expect(screen.getByRole("textbox")).toBeDisabled();

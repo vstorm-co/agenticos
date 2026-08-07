@@ -4,8 +4,9 @@ import { useState } from "react";
 import { ExternalLink, Eye, EyeOff, KeyRound, Plus } from "lucide-react";
 
 import { Button, Input, Label } from "@/components/ui";
-import { useSecrets } from "@/hooks";
+import { usePermissions, useSecrets } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
+import { Perm } from "@/types/permissions";
 import type { StorableSecretKind } from "@/types/secrets";
 import { useTranslations } from "next-intl";
 
@@ -62,6 +63,18 @@ interface InlineSecretProps {
  * it is not conditional: a picker that offers only the keys already stored, with
  * nowhere to go when the shape needed is not an opaque token, is a dead end. It
  * opens in a new tab so the half-filled form behind it survives.
+ *
+ * **It checks `secrets:edit` itself.** The permission belongs to the write, not to
+ * the surface: every one of these seven call sites posts the same `POST /secrets`,
+ * which is gated on `Perm.SECRETS_EDIT` and on nothing else. A gate at each caller
+ * is the same condition written seven times and forgotten six of them - which is
+ * exactly what happened, and is #361. The counter-argument was that a caller's own
+ * lead-in sentence goes wrong once the form disappears; that is true of one caller,
+ * `AddModel`, which already chooses its sentence on the same permission and so
+ * decides for itself whether to render this at all. The other six say something
+ * that stays true either way ("this key bills embeddings", "stored in the vault
+ * under Tracing"), so a refusal here is a line replacing a button rather than a
+ * panel going quiet.
  */
 export function InlineSecret({
   kind,
@@ -73,10 +86,19 @@ export function InlineSecret({
 }: InlineSecretProps) {
   const t = useTranslations("vault");
   const { create } = useSecrets();
+  const { can } = usePermissions();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(suggestedName);
   const [value, setValue] = useState("");
   const [revealed, setRevealed] = useState(false);
+
+  // Before the button, not on it: a disabled control still says "you could do
+  // this", and the answer here is that somebody else has to. Said rather than
+  // rendered blank, because the picker above it is empty for the same reason and
+  // a silent gap is the state this component was written to remove.
+  if (!can(Perm.secretsEdit)) {
+    return <p className="text-muted-foreground text-xs">{t("storingNeedsPermission")}</p>;
+  }
 
   if (!open) {
     return (
@@ -178,10 +200,17 @@ export function InlineSecret({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
+        {/* `disabled` again, not only on the button that opened this. A caller
+            passes it when its own surface may no longer be written to - a dialog
+            mid-save, a panel somebody may only read - and gating only the way in
+            left a form already open with a live Save, storing an
+            organization-wide secret out from under the surface that had just
+            said no. Same rule as the permission above: the check belongs on the
+            write. */}
         <Button
           type="button"
           size="sm"
-          disabled={create.isPending || !name.trim() || !value.trim()}
+          disabled={disabled || create.isPending || !name.trim() || !value.trim()}
           onClick={submit}
         >
           {t("saveKey")}

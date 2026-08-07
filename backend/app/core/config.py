@@ -40,6 +40,14 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE_MB: int = 50  # Max file upload size in MB
     STORAGE_SOFT_LIMIT_BYTES: int = 5 * 1024 * 1024 * 1024
 
+    # Seconds the event loop may stop turning before the worker kills itself so
+    # its supervisor replaces it; `0` or below switches the check off, which is
+    # what a breakpoint needs. `cli/reload_supervisor.py` reads the same
+    # variable from the environment for the judgement it makes from outside the
+    # worker - one number, so switching the check off switches off both.
+    # `app/core/watchdog.py` has the whole reasoning.
+    EVENT_LOOP_WEDGED_AFTER: float = 15.0
+
     LOGFIRE_TOKEN: str | None = None
     LOGFIRE_SERVICE_NAME: str = "agenticos"
     LOGFIRE_ENVIRONMENT: str = "development"
@@ -90,6 +98,13 @@ class Settings(BaseSettings):
 
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30  # 30 minutes
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+    # How long a parked tool call waits before the sweep denies it by timeout.
+    # Three days spans a weekend, which is the gap an approval most often falls
+    # into: the one that arrives on Friday afternoon is the one nobody decides,
+    # and expiring it on Saturday would be expiring it for being asked at the
+    # wrong hour. Long enough that a decision is never taken away from someone
+    # who was going to make it; short enough that the queue has a ceiling.
+    APPROVAL_EXPIRY_HOURS: int = 72
     ALGORITHM: str = "HS256"
     FRONTEND_URL: str = "http://localhost:3000"
     PUBLIC_BASE_URL: str = "http://localhost:8000"

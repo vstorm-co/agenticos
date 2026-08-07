@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 async def record_audit(
     db,
     *,
-    actor_user_id: UUID,
+    actor_user_id: UUID | None,
     action: str,
     organization_id: UUID | None = None,
     target_type: str | None = None,
@@ -20,7 +20,13 @@ async def record_audit(
     details: dict[str, Any] | None = None,
     ip_address: str | None = None,
 ) -> None:
-    """Persist an audit log entry. Failures are logged but do not raise."""
+    """Persist an audit log entry. Failures are logged but do not raise.
+
+    `actor_user_id` is `None` for the one caller that has no actor: the approval
+    expiry sweep, which records that *nobody* decided. It is required rather than
+    defaulted, so passing no actor stays a deliberate act at each call site
+    instead of the thing that happens when an argument is forgotten.
+    """
     try:
         entry = AppAdminAuditLog(
             actor_user_id=actor_user_id,

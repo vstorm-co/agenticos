@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Sequence
 from typing import Annotated
-from uuid import UUID
+from uuid import NAMESPACE_URL, UUID, uuid5
 
 from pydantic import StringConstraints, TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,7 +23,13 @@ from app.core.permissions import AuthContext, Perm
 from app.db.models.skill import Skill, SkillResource
 from app.repositories import resource_grant_repo, skill_repo
 from app.repositories.skill import SkillSort
-from app.schemas.skill import SkillList, SkillSummary
+from app.schemas.skill import (
+    LibrarySkillList,
+    LibrarySkillRead,
+    SkillList,
+    SkillResourceSummary,
+    SkillSummary,
+)
 from app.services import skill_library
 from app.services.access import SKILL, resolve_access, visible_resource_ids
 
@@ -223,6 +229,56 @@ class SkillService:
             categories=await self.list_categories(ctx),
             suggested_categories=list(SUGGESTED_CATEGORIES),
         )
+
+    async def list_library(self, ctx: AuthContext) -> LibrarySkillList:
+        """The skills this deployment ships with, each marked installed or not.
+
+        `installed` answers exactly one question - is this name already taken in
+        this organization - because that is the only question the Install button
+        leads to. It used to be derived from `list_skills(ctx, limit=100)`, which
+        is a *page* of what *this caller may see*, and both halves of that were
+        wrong:
+
+        - a page. An organization past its alphabetically hundredth skill lost
+          every name after it, so a taken name read as free.
+        - visibility-scoped. An install lands `private`
+          (:class:`app.db.models.skill.Skill`), so a skill another member
+          installed is invisible to anyone whose `SKILLS_VIEW` scope is not
+          `ALL`. Their gallery offered an Install, and
+          :meth:`install_from_library` refused it with a 409 naming a skill they
+          cannot open.
+
+        The rule behind that refusal is `skill_repo.get_by_name` - organization
+        wide, visibility-blind - so this asks the same query rather than a
+        listing that happens to overlap with it.
+
+        The gallery drops what is installed rather than greying it out, so a name
+        somebody else took simply stops being offered. There is deliberately no
+        link to the existing skill: the caller may have no access to it, and a
+        card that leads to a 404 is a worse answer than no card.
+        """
+        taken = await skill_repo.names_in_use(self.db, organization_id=ctx.organization_id)
+        items = [
+            LibrarySkillRead(
+                key=bundled.key,
+                name=bundled.name,
+                description=bundled.description,
+                category=bundled.category,
+                content=bundled.content,
+                resources=[
+                    SkillResourceSummary(
+                        id=uuid5(NAMESPACE_URL, f"{bundled.key}/{resource.name}"),
+                        name=resource.name,
+                        description=None,
+                        size_bytes=resource.size_bytes,
+                    )
+                    for resource in bundled.resources
+                ],
+                installed=bundled.name in taken,
+            )
+            for bundled in skill_library.library()
+        ]
+        return LibrarySkillList(items=items, total=len(items))
 
     async def list_categories(self, ctx: AuthContext) -> list[str]:
         """Every distinct category in this organization, for the listing's filter."""

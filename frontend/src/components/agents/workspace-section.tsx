@@ -345,9 +345,21 @@ function RuntimeField({ connection, runtime, disabled, onChange }: RuntimeFieldP
             {connection?.default_runtime ?? t("serviceSOwnDefault")}
           </SelectItem>
           {runtimes.map((entry) => (
-            <SelectItem key={entry.alias} value={entry.alias}>
+            <SelectItem
+              key={entry.alias}
+              value={entry.alias}
+              // A memory cap is how one runtime is chosen over another; on the
+              // closed trigger, which draws the selected item's `ItemText`, it
+              // is a number beside an alias with nothing to weigh it against.
+              trailing={
+                entry.mem_limit !== null && (
+                  <span className="text-muted-foreground ml-auto shrink-0 pl-3 text-xs">
+                    {entry.mem_limit}
+                  </span>
+                )
+              }
+            >
               {entry.alias}
-              {entry.mem_limit === null ? "" : ` · ${entry.mem_limit}`}
             </SelectItem>
           ))}
         </SelectContent>
@@ -359,8 +371,10 @@ function RuntimeField({ connection, runtime, disabled, onChange }: RuntimeFieldP
 
       {error === null && runtime !== null && !known && !isLoading && runtimes.length > 0 && (
         <p className="text-destructive text-xs">
-          This connection no longer allows <span className="font-mono">{runtime}</span>
-          {t("pickOneDoesAgent")}
+          {t.rich("connectionNoLongerAllows", {
+            runtime,
+            code: (chunks) => <span className="font-mono">{chunks}</span>,
+          })}
         </p>
       )}
 

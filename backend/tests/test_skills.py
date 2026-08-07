@@ -16,6 +16,7 @@ from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundErr
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.db.models.skill import Skill
+from app.services.skill_library import LibraryResource, LibrarySkill
 from app.services.skills import (
     MAX_RESOURCE_BYTES,
     SUGGESTED_CATEGORIES,
@@ -67,6 +68,23 @@ def _row(name: str) -> Skill:
         category=None,
         enabled=True,
         resources=[],
+    )
+
+
+def _bundled(key: str, *, resources: tuple[str, ...] = ()) -> LibrarySkill:
+    """One folder of the shipped library, as `skill_library.library()` reads it.
+
+    The real dataclass rather than a mock: `size_bytes` is derived from the
+    content, and a mock would answer with something for it whether the service
+    passed the file through or not.
+    """
+    return LibrarySkill(
+        key=key,
+        name=key,
+        description=f"What {key} is for.",
+        category=None,
+        content=f"# {key}",
+        resources=tuple(LibraryResource(name=name, content="body") for name in resources),
     )
 
 
@@ -487,6 +505,74 @@ class TestSkillManagement:
 
         assert categories == ["devops", "marketing"]
         assert list_categories.call_args.kwargs["organization_id"] == ctx.organization_id
+
+    @pytest.mark.anyio
+    async def test_the_library_marks_a_name_taken_by_a_skill_nobody_can_see(self):
+        """The gallery answers "may I install this", so it asks what installing asks.
+
+        A member installs a bundled skill and the copy lands `private`. Another
+        member's `SKILLS_VIEW` scope does not reach it, so the listing they can
+        read does not contain the name - but `install_from_library` refuses them
+        anyway, because uniqueness is organization-wide. Deciding this from a
+        visibility-scoped page offered an Install that answered 409 and pointed
+        at a skill they cannot open.
+        """
+        ctx = _ctx(OrgRoleName.MEMBER)
+
+        with (
+            patch(
+                f"{SKILLS_PATH}.skill_repo.names_in_use",
+                new=AsyncMock(return_value={"refund-policy"}),
+            ),
+            patch(
+                f"{SKILLS_PATH}.skill_repo.list_visible", new=AsyncMock(return_value=([], 0))
+            ) as list_visible,
+            patch(f"{SKILLS_PATH}.skill_library.library", return_value=[_bundled("refund-policy")]),
+        ):
+            listing = await SkillService(_db()).list_library(ctx)
+
+        assert [(item.key, item.installed) for item in listing.items] == [("refund-policy", True)]
+        # Not from a listing at all: a listing is scoped and paged, and both of
+        # those answer a question the Install button never asked.
+        assert list_visible.await_count == 0
+
+    @pytest.mark.anyio
+    async def test_the_library_asks_the_whole_organization_and_offers_a_free_name(self):
+        ctx = _ctx()
+
+        with (
+            patch(
+                f"{SKILLS_PATH}.skill_repo.names_in_use", new=AsyncMock(return_value=set())
+            ) as names_in_use,
+            patch(f"{SKILLS_PATH}.skill_library.library", return_value=[_bundled("code-review")]),
+        ):
+            listing = await SkillService(_db()).list_library(ctx)
+
+        assert names_in_use.call_args.kwargs == {"organization_id": ctx.organization_id}
+        assert listing.total == 1
+        assert listing.items[0].installed is False
+
+    @pytest.mark.anyio
+    async def test_a_library_card_carries_its_files_without_their_bodies(self):
+        """The gallery shows what a skill would bring with it, and how big.
+
+        The ids are derived from the key and the file name rather than stored:
+        nothing on disk has a row yet, and a card whose file ids changed per
+        request would make the response unusable as a cache key.
+        """
+        ctx = _ctx()
+        bundled = _bundled("incident-report", resources=("checklist.md",))
+
+        with (
+            patch(f"{SKILLS_PATH}.skill_repo.names_in_use", new=AsyncMock(return_value=set())),
+            patch(f"{SKILLS_PATH}.skill_library.library", return_value=[bundled]),
+        ):
+            first = await SkillService(_db()).list_library(ctx)
+            second = await SkillService(_db()).list_library(ctx)
+
+        resource = first.items[0].resources[0]
+        assert (resource.name, resource.size_bytes) == ("checklist.md", 4)
+        assert resource.id == second.items[0].resources[0].id
 
     @pytest.mark.anyio
     async def test_a_skill_is_created_on_the_shelf_it_was_given(self):

@@ -7,6 +7,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CapabilitySettings } from "./capability-settings";
 import { ApiError, apiClient } from "@/lib/api-client";
 import type { CapabilityBindingSpec, CapabilityCatalogEntry } from "@/types/agents";
+import { Perm } from "@/types/permissions";
+import type { Permission } from "@/types/permissions";
 import type { Secret } from "@/types/secrets";
 
 vi.mock("@/lib/api-client", async () => {
@@ -87,11 +89,23 @@ function wrapper({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
+/** What the caller may do. Storing a key from this card is `secrets:edit`. */
+const state = { permissions: [] as Permission[] };
+
 /** The vault answers with these. */
 function serve(secrets: Secret[]) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     if (path === "/secrets") return { items: secrets, total: secrets.length };
     if (path === "/secrets/kinds") return { items: [], total: 0 };
+    // A list shape here is not "no permissions", it is a `TypeError` inside
+    // `usePermissions`.
+    if (path === "/me/permissions")
+      return {
+        organization_id: "org-1",
+        role: "builder",
+        is_app_admin: false,
+        permissions: state.permissions.map((permission) => ({ permission, scope: "all" })),
+      };
     throw new Error(`unexpected GET ${path}`);
   });
 }
@@ -131,6 +145,7 @@ const picker = () => screen.getByLabelText("Secret");
 
 beforeEach(() => {
   vi.clearAllMocks();
+  state.permissions = [Perm.secretsEdit];
 });
 
 /**
@@ -187,7 +202,23 @@ describe("CapabilitySettings secret picker", () => {
 
     expect(await screen.findByText("No api_key secret in the vault")).toBeInTheDocument();
     expect(picker()).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Add a key: Weather" })).toBeInTheDocument();
+    // Awaited, not read: the form is a vault write, so it waits for the caller's
+    // permissions the way `usePermissions` waits for anything - answering false
+    // until it knows, rather than offering a control it may have to take back.
+    expect(await screen.findByRole("button", { name: "Add a key: Weather" })).toBeInTheDocument();
+  });
+
+  it("offers no such form to a caller who may not write to the vault", async () => {
+    // Binding a capability is `agents:edit`; storing the key it calls with is
+    // `secrets:edit`. A member holding the first and not the second was shown the
+    // form and refused by `POST /secrets` after pasting a key in (#361).
+    state.permissions = [];
+    serve([AWS_SECRET]);
+    mount(binding());
+
+    expect(await screen.findByText("No api_key secret in the vault")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add a key: Weather" })).toBeNull();
+    expect(screen.getByText(/permission you do not hold/)).toBeInTheDocument();
   });
 
   it("binds the secret that was chosen, by id", async () => {

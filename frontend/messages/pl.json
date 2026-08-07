@@ -723,5 +723,12 @@
   "ui": {
     "nextMonths": "Następne miesiące",
     "previousMonths": "Poprzednie miesiące"
+  },
+  "ragStatus": {
+    "processing": "Przetwarzanie",
+    "running": "W toku",
+    "done": "Gotowe",
+    "error": "Niepowodzenie",
+    "cancelled": "Anulowano"
   }
 }

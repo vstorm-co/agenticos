@@ -137,6 +137,20 @@ policy without a deploy, and a live link back to the repository's copy would tak
 exactly that away — the organization would be reading a file only an engineer can
 change.
 
+### What "installed" means on a library card
+
+A bundled skill is offered when its **name is free in the organization** — the
+same question `install_from_library` answers when it refuses a duplicate, asked
+organization-wide and without regard to who may see what.
+
+That matters because an install lands `private`. A skill one member installed is
+invisible to another whose `skills:view` scope is not the whole organization, so
+deciding the card from what the caller can *read* would offer them an Install
+that then fails with *"A skill named 'X' already exists."* The gallery drops what
+is installed rather than greying it out, so a name somebody else has taken simply
+stops being offered — and it does not link to the existing skill, which the
+caller may have no access to open.
+
 ### Why the library is bundled and not fetched
 
 Adding a skill to the shipped library is a deploy. The alternative — importing from

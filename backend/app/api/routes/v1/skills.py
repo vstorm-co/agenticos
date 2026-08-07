@@ -11,7 +11,7 @@ was explicitly given edit on a single skill - the exact case sharing exists for.
 """
 
 from typing import Any
-from uuid import NAMESPACE_URL, UUID, uuid5
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 
@@ -20,18 +20,15 @@ from app.core.permissions import Perm
 from app.repositories.skill import SkillSort
 from app.schemas.skill import (
     LibrarySkillList,
-    LibrarySkillRead,
     SkillCreate,
     SkillList,
     SkillRead,
     SkillResourceCreate,
     SkillResourceList,
     SkillResourceRead,
-    SkillResourceSummary,
     SkillResourceUpdate,
     SkillUpdate,
 )
-from app.services import skill_library
 
 router = APIRouter()
 
@@ -92,31 +89,7 @@ async def list_library(service: SkillSvc, ctx: Auth) -> Any:
     Declared above `/{skill_id}` because that route parses its segment as a
     UUID and would answer this path with a 422 instead.
     """
-    # Every skill, not a page of them: the gallery marks what is already
-    # installed, and a name missing from page one is not a name that is free.
-    installed, _ = await service.list_skills(ctx, limit=100)
-    existing = {skill.name for skill in installed}
-    items = [
-        LibrarySkillRead(
-            key=bundled.key,
-            name=bundled.name,
-            description=bundled.description,
-            category=bundled.category,
-            content=bundled.content,
-            resources=[
-                SkillResourceSummary(
-                    id=uuid5(NAMESPACE_URL, f"{bundled.key}/{resource.name}"),
-                    name=resource.name,
-                    description=None,
-                    size_bytes=resource.size_bytes,
-                )
-                for resource in bundled.resources
-            ],
-            installed=bundled.name in existing,
-        )
-        for bundled in skill_library.library()
-    ]
-    return LibrarySkillList(items=items, total=len(items))
+    return await service.list_library(ctx)
 
 
 @router.post(

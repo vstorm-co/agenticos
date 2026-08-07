@@ -1305,10 +1305,19 @@ def uploads(tmp_path, monkeypatch):
         "app.services.rag_document.get_file_storage",
         lambda: storage,
     )
-    monkeypatch.setattr(
-        "app.core.background.spawn",
-        lambda coroutine, name="": (coroutine.close(), queued.append(name))[1],
-    )
+
+    def capture(session, coroutine, *, name: str) -> None:
+        """Record the dispatch and close what would have parsed the file.
+
+        It patches `spawn_after_commit` rather than `spawn` because that is what
+        the upload path now hands the flow to (#417), and these tests run
+        against a real session: left queued, the flow would start for real when
+        the session committed.
+        """
+        coroutine.close()
+        queued.append(name)
+
+    monkeypatch.setattr("app.core.background.spawn_after_commit", capture)
     return queued
 
 

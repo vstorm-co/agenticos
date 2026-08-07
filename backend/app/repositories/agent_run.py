@@ -874,12 +874,43 @@ async def list_approvals_for_run(
     return list(result.scalars().all())
 
 
+async def list_stale_approvals(
+    db: AsyncSession, *, older_than: datetime, limit: int = 500
+) -> list[ToolApproval]:
+    """Every approval still pending that was raised before `older_than`.
+
+    **Deliberately not scoped to an organization**, and the only query here that
+    is not. Its caller is a schedule rather than a request: there is no tenant on
+    a sweep, and one that took an organization would have to be handed every
+    organization in the deployment by something that enumerated them - which is
+    the same read with a loop around it and one more place to leave a tenant out.
+    Nothing is returned to a caller who could see it; the rows go to the sweep,
+    which settles each in its own organization. Do not copy this shape into
+    anything a route can reach.
+
+    `limit` bounds one pass rather than the work: a backlog is expired over
+    several sweeps instead of one transaction holding every stale row in the
+    deployment. Oldest first, so the ones that have waited longest go first and a
+    backlog drains in the order it accumulated.
+    """
+    result = await db.execute(
+        select(ToolApproval)
+        .where(
+            ToolApproval.status == ApprovalStatus.PENDING.value,
+            ToolApproval.created_at < older_than,
+        )
+        .order_by(ToolApproval.created_at.asc())
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+
 async def decide_approval(
     db: AsyncSession,
     *,
     approval: ToolApproval,
     status: str,
-    decided_by_user_id: UUID,
+    decided_by_user_id: UUID | None,
     decided_at: datetime,
     note: str | None = None,
 ) -> ToolApproval:

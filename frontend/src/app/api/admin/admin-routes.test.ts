@@ -11,7 +11,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GET as conversationDetail } from "./conversations/[id]/route";
 import { GET as conversations } from "./conversations/route";
-import { GET as conversationUsers } from "./conversations/users/route";
 import { GET as organizations } from "./organizations/route";
 import { GET as ratingsExport } from "./ratings/export/route";
 import { GET as ratings } from "./ratings/route";
@@ -54,7 +53,6 @@ const GUARDED: [string, () => Promise<Response>][] = [
     "one conversation",
     () => conversationDetail(request(), { params: Promise.resolve({ id: "c-1" }) }),
   ],
-  ["conversation owners", () => conversationUsers(request())],
   ["organizations", () => organizations(request())],
   ["ratings", () => ratings(request())],
   ["a ratings export", () => ratingsExport(request())],
@@ -182,28 +180,32 @@ describe("what the admin screens filter on", () => {
     expect(forwarded()).toBe("/api/v1/admin/conversations");
   });
 
-  it("carries the conversation-owner filters", async () => {
-    await conversationUsers(
-      request("http://localhost:3000/api/admin/conversations/users?search=kacper&limit=5"),
-    );
-
-    expect(forwarded()).toContain("search=kacper");
-    expect(forwarded()).toContain("limit=5");
-  });
-
   it("addresses one conversation by id", async () => {
     await conversationDetail(request(), { params: Promise.resolve({ id: "c-9" }) });
 
     expect(forwarded()).toBe("/api/v1/admin/conversations/c-9");
   });
 
-  it("carries the user-list filters", async () => {
+  it("carries every user-list filter, sort included", async () => {
+    // The sort keys used to be dropped here while the screen went on sending
+    // them, so clicking a column header flipped the arrow and reordered
+    // nothing: the backend fell back to `created_at desc` every time.
     await users(
-      request("http://localhost:3000/api/admin/users?skip=50&limit=25&search=a&sort_by=email"),
+      request(
+        "http://localhost:3000/api/admin/users?skip=50&limit=25&search=a&sort_by=email&sort_dir=asc",
+      ),
     );
 
-    expect(forwarded()).toContain("skip=50");
-    expect(forwarded()).toContain("search=a");
+    const path = forwarded();
+    for (const expected of ["skip=50", "limit=25", "search=a", "sort_by=email", "sort_dir=asc"]) {
+      expect(path).toContain(expected);
+    }
+  });
+
+  it("forwards nothing at all when the user list was not filtered", async () => {
+    await users(request("http://localhost:3000/api/admin/users"));
+
+    expect(forwarded()).toBe("/api/v1/admin/users");
   });
 
   it("pages the ratings list, with defaults when the screen sent none", async () => {

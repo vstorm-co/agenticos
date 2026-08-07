@@ -85,7 +85,7 @@ export function AgentCard({
   return (
     <div
       className={cn(
-        t("groupBorderBorderBg"),
+        "border-border bg-card relative rounded-xl border p-4 transition-colors",
         "hover:border-foreground/25",
         archived && "opacity-70",
         busy && "pointer-events-none opacity-50",

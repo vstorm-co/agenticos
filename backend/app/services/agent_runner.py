@@ -55,7 +55,8 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections import Counter
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import AsyncIterator, Callable, Mapping, Sequence
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -64,7 +65,9 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic_ai import Agent as PydanticAgent
-from pydantic_ai.messages import ModelMessagesTypeAdapter
+from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter, UserContent
+from pydantic_ai.run import AgentRun as AgentIteration
+from pydantic_ai.run import AgentRunResult
 from pydantic_ai.tools import DeferredToolRequests, DeferredToolResults, ToolApproved
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -890,6 +893,59 @@ class PreparedRun:
     @property
     def deps(self) -> AgentDeps:
         return self.built.deps
+
+    async def execute(
+        self,
+        user_prompt: str | Sequence[UserContent] | None,
+        *,
+        message_history: Sequence[ModelMessage] | None,
+        deferred_tool_results: DeferredToolResults | None,
+    ) -> AgentRunResult[str | DeferredToolRequests]:
+        """Run the agent to an answer, metered.
+
+        The non-streaming half of :meth:`iterate`, and it exists for the same
+        reason.
+        """
+        with metered_by(self.built.ledger):
+            return await self.built.agent.run(
+                user_prompt,
+                deps=self.built.deps,
+                message_history=message_history,
+                deferred_tool_results=deferred_tool_results,
+                usage_limits=self.built.usage_limits,
+            )
+
+    @asynccontextmanager
+    async def iterate(
+        self,
+        user_prompt: str | Sequence[UserContent] | None,
+        *,
+        message_history: Sequence[ModelMessage] | None,
+    ) -> AsyncIterator[AgentIteration[AgentDeps, str | DeferredToolRequests]]:
+        """Iterate the agent's graph, metered, for a surface that streams.
+
+        **The meter is here rather than at the call site because a surface that
+        forgets it bills nothing and says nothing.** `metered_by` is what books
+        the spend a request wrapper cannot see - the embedding call behind a
+        knowledge search - to this run's ledger. Miss it and
+        :func:`~app.agents.capabilities.budget.record_ambient_usage` finds no
+        active ledger and drops the cost silently: the run under-reports, the
+        organization's month never sees it, and nothing raises. The web chat ran
+        that way for its whole life (agenticos#16), which is the argument for the
+        agent being unreachable from a surface except through here.
+
+        Yields the library's run object, so the caller drives the graph and
+        decides what to forward. It stays readable after the block closes; the
+        outcome is taken from it there.
+        """
+        with metered_by(self.built.ledger):
+            async with self.built.agent.iter(
+                user_prompt,
+                deps=self.built.deps,
+                message_history=message_history,
+                usage_limits=self.built.usage_limits,
+            ) as iteration:
+                yield iteration
 
 
 @dataclass
@@ -2767,17 +2823,11 @@ class AgentRunnerService:
         paused: PausedRunState | None = None
         budget_scope: BudgetScope | None = None
         try:
-            # `metered_by` books what the request wrapper cannot see - the
-            # embedding calls a knowledge search makes - to this run's ledger,
-            # so they land in `cost_usd` next to the model requests.
-            with metered_by(prepared.built.ledger):
-                result = await prepared.built.agent.run(
-                    user_prompt,
-                    deps=prepared.built.deps,
-                    message_history=message_history,
-                    deferred_tool_results=deferred_tool_results,
-                    usage_limits=prepared.built.usage_limits,
-                )
+            result = await prepared.execute(
+                user_prompt,
+                message_history=message_history,
+                deferred_tool_results=deferred_tool_results,
+            )
             if isinstance(result.output, DeferredToolRequests):
                 paused = PausedRunState(
                     messages=ModelMessagesTypeAdapter.dump_python(

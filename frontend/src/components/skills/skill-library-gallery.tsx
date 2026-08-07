@@ -104,7 +104,7 @@ export function SkillLibraryGallery({ canInstall }: { canInstall: boolean }) {
         matched={list.matched}
         total={list.total}
         onPage={list.setPage}
-        noun="ready-made skills"
+        counted={t("readyMadeSkillCount", { count: list.total })}
       />
     </div>
   );

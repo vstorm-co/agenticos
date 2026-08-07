@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "0.0.70"
+version = "0.0.80"
 description = "OS for your agents."
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -339,6 +339,10 @@ include = [
     "app/core/secret_kinds.py",
     "app/core/vault.py",
     "app/core/background.py",
+    # The worker's judgement of its own event loop. It decides to `SIGKILL` the
+    # process it runs in, on the two stacks that have no supervisor reading a
+    # beat from outside - so a wrong verdict is a restart loop in production.
+    "app/core/watchdog.py",
     # Which tables alembic owns and which the vector store makes at runtime. It is
     # two statements, and one of them decides whether `db-check` reports real drift.
     "app/db/vector_tables.py",
@@ -465,6 +469,10 @@ include = [
     "app/core/secret_kinds.py",
     "app/core/vault.py",
     "app/core/background.py",
+    # The worker's judgement of its own event loop. It decides to `SIGKILL` the
+    # process it runs in, on the two stacks that have no supervisor reading a
+    # beat from outside - so a wrong verdict is a restart loop in production.
+    "app/core/watchdog.py",
     # Which tables alembic owns and which the vector store makes at runtime. It is
     # two statements, and one of them decides whether `db-check` reports real drift.
     "app/db/vector_tables.py",

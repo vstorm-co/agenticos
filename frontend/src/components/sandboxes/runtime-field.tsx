@@ -93,30 +93,47 @@ export function RuntimeField({
           </SelectTrigger>
           <SelectContent className="max-w-[min(30rem,90vw)]">
             <SelectItem value={SERVICE_DEFAULT}>{t("serviceDefault")}</SelectItem>
-            {options.map((runtime) => (
-              <SelectItem key={runtime.alias} value={runtime.alias}>
-                <span className="flex min-w-0 flex-col">
-                  <span className="flex items-center gap-2">
-                    <span className="font-mono text-xs">{runtime.alias}</span>
-                    {runtime.builds && (
-                      <span className="text-muted-foreground text-[10px] uppercase">
-                        {t("builds")}
+            {options.map((runtime) => {
+              const missing = allowedAliases !== null && !allowedAliases.has(runtime.alias);
+              return (
+                <SelectItem
+                  key={runtime.alias}
+                  value={runtime.alias}
+                  // Both badges say something about this option *against the
+                  // others* - one image builds, one is missing from the host
+                  // that answered. Radix draws an item's `ItemText` in the
+                  // closed trigger, where there is nothing left to compare them
+                  // with and "not on this host" reads as a claim about the
+                  // selection. What that claim was worth is said below the
+                  // field instead, about the alias actually chosen.
+                  trailing={
+                    (runtime.builds || missing) && (
+                      <span className="ml-auto flex shrink-0 items-center gap-2 pl-3">
+                        {runtime.builds && (
+                          <span className="text-muted-foreground text-[10px] uppercase">
+                            {t("builds")}
+                          </span>
+                        )}
+                        {missing && (
+                          <span className="text-[10px] text-amber-600 uppercase">
+                            {t("notOnThisHost")}
+                          </span>
+                        )}
                       </span>
-                    )}
-                    {allowedAliases !== null && !allowedAliases.has(runtime.alias) && (
-                      <span className="text-[10px] text-amber-600 uppercase">
-                        {t("notOnThisHost")}
+                    )
+                  }
+                >
+                  <span className="flex min-w-0 flex-col">
+                    <span className="font-mono text-xs">{runtime.alias}</span>
+                    {runtime.description !== "" && (
+                      <span className="text-muted-foreground truncate text-xs">
+                        {runtime.description}
                       </span>
                     )}
                   </span>
-                  {runtime.description !== "" && (
-                    <span className="text-muted-foreground truncate text-xs">
-                      {runtime.description}
-                    </span>
-                  )}
-                </span>
-              </SelectItem>
-            ))}
+                </SelectItem>
+              );
+            })}
             {/* An alias the form is already carrying that neither the library nor
                 the service names. Kept rather than dropped: silently clearing a
                 stored value while somebody edits an unrelated field is how a
@@ -131,6 +148,17 @@ export function RuntimeField({
           placeholder={t("placeholder")}
           onChange={(event) => onChange(event.target.value)}
         />
+      )}
+
+      {/* The amber badge in the list says which options this host refused;
+          moving it out of `ItemText` means it no longer follows the chosen one
+          into the trigger, which is the point - and would have left the one
+          case that matters silent, because `connection-dialog.tsx` saves a
+          `default_runtime` without checking it against the allowlist. Said
+          here instead, about the alias actually selected, where it is a
+          sentence rather than a badge with nothing to compare it against. */}
+      {allowedAliases !== null && value !== "" && !allowedAliases.has(value) && (
+        <p className="text-xs text-amber-600">{t("selectedNotOnThisHost")}</p>
       )}
 
       <p className="text-muted-foreground text-xs">{t("imageAliasAgentGets")}</p>
