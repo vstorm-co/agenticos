@@ -3,7 +3,7 @@ from typing import Any, Literal
 from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from app.api.deps import CurrentAppAdmin, MessageRatingSvc
+from app.api.deps import CurrentAppAdmin, MessageRatingSvc, StreamingMessageRatingSvc
 from app.schemas.message_rating import MessageRatingList, RatingSummary
 
 router = APIRouter()
@@ -40,7 +40,7 @@ async def get_rating_summary(
 
 @router.get("/export", response_model=None)
 async def export_ratings(
-    rating_service: MessageRatingSvc,
+    rating_service: StreamingMessageRatingSvc,
     _: CurrentAppAdmin,
     export_format: Literal["json", "csv"] = Query("json", description="Export format"),
     rating_filter: int | None = Query(None, ge=-1, le=1, description="Filter by rating value"),
@@ -49,6 +49,11 @@ async def export_ratings(
     """Export all ratings as JSON or CSV (admin only).
 
     CSV is streamed row-by-row; JSON collects into a single document.
+
+    The one endpoint on a `StreamingDBSession`: the CSV generator reads its next
+    page after the response has started, which an ordinary `DBSession` has
+    already committed and closed by. It reads and never writes, so nothing here
+    depends on the acknowledgement ordering #353 is about.
     """
     result = await rating_service.export_ratings(
         export_format=export_format,
