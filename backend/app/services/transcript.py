@@ -128,29 +128,40 @@ class TranscriptService:
         either - a run that parked on an approval or broke has no answer, and a
         blank assistant message reads as the agent replying with silence.
 
-        Never raises. The answer has already been produced and the money already
-        spent; losing either to a failed write would be the worst possible
-        trade, and the run row remains the record that it happened.
+        Never raises, and never poisons the session it shares with the caller.
+        The answer has already been produced and the money already spent; losing
+        either to a failed write would be the worst possible trade, and the run
+        row remains the record that it happened.
+
+        The write runs inside a SAVEPOINT (`begin_nested`) for the second half of
+        that promise. A flush that fails here - a constraint, a lost connection -
+        leaves the session in a rolled-back state, and `finish()` commits the run
+        row two calls later on this same session: without the savepoint, catching
+        the exception is not enough, because that commit then fails too and the
+        run - its cost, its status - is lost along with the transcript. The
+        savepoint rolls back only this write, and the outer transaction the run
+        row rides on stays usable.
         """
         if run.conversation_id is None:
             return
         try:
-            if prompt:
-                await conversation_repo.create_message(
-                    self.db,
-                    conversation_id=run.conversation_id,
-                    role="user",
-                    content=prompt,
-                    run_id=run.id,
-                )
-            if answer:
-                await self._answer(
-                    run.conversation_id,
-                    run,
-                    answer=answer,
-                    tool_calls=tool_calls,
-                    model_label=model_label,
-                )
+            async with self.db.begin_nested():
+                if prompt:
+                    await conversation_repo.create_message(
+                        self.db,
+                        conversation_id=run.conversation_id,
+                        role="user",
+                        content=prompt,
+                        run_id=run.id,
+                    )
+                if answer:
+                    await self._answer(
+                        run.conversation_id,
+                        run,
+                        answer=answer,
+                        tool_calls=tool_calls,
+                        model_label=model_label,
+                    )
         except Exception:
             logger.warning(
                 "transcript_write_failed",

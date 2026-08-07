@@ -17,6 +17,8 @@ mouth.
 from __future__ import annotations
 
 import uuid
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -42,6 +44,26 @@ def _run(*, in_a_conversation: bool = True) -> MagicMock:
         agent_version_id=uuid.uuid4(),
         conversation_id=uuid.uuid4() if in_a_conversation else None,
     )
+
+
+@asynccontextmanager
+async def _noop_savepoint() -> AsyncIterator[None]:
+    yield
+
+
+def _session() -> AsyncMock:
+    """A mocked session whose SAVEPOINT is a no-op.
+
+    `record` wraps its writes in `db.begin_nested()` so a failed transcript write
+    rolls back only itself and cannot poison the transaction the run row commits
+    in. A unit test mocking the repository boundary still has to satisfy that
+    context manager, so it stands in a no-op that yields and rolls nothing back;
+    the savepoint's real behaviour - the run surviving a failed transcript - is
+    proved against a database in `tests/integration/test_transcript_savepoint.py`.
+    """
+    db = AsyncMock()
+    db.begin_nested = MagicMock(side_effect=_noop_savepoint)
+    return db
 
 
 def _called(tool_name: str, tool_call_id: str, **args: object) -> ModelResponse:
@@ -138,7 +160,7 @@ class TestWritingTheTranscript:
     async def test_both_turns_are_written_against_the_run(self, conversations):
         run = _run()
 
-        await TranscriptService(AsyncMock()).record(
+        await TranscriptService(_session()).record(
             run, prompt="how many are open?", answer="two", model_label="gpt-4.1"
         )
 
@@ -156,7 +178,7 @@ class TestWritingTheTranscript:
         to the spec it has today would rewrite what it was told to do."""
         run = _run()
 
-        await TranscriptService(AsyncMock()).record(run, prompt="hello", answer="hi")
+        await TranscriptService(_session()).record(run, prompt="hello", answer="hi")
 
         answer = conversations.create_message.await_args_list[1].kwargs
         assert (answer["agent_id"], answer["agent_version_id"]) == (
@@ -167,7 +189,7 @@ class TestWritingTheTranscript:
     async def test_a_tool_call_is_written_with_its_arguments_and_its_result(self, conversations):
         """ "The agent sent an email" is not reviewable; "to whom" is the whole
         question an approver and an auditor are asking."""
-        await TranscriptService(AsyncMock()).record(
+        await TranscriptService(_session()).record(
             _run(),
             prompt="email ada",
             answer="done",
@@ -189,7 +211,7 @@ class TestWritingTheTranscript:
         self, conversations
     ):
         """Completing it with an empty result would say the tool answered."""
-        await TranscriptService(AsyncMock()).record(
+        await TranscriptService(_session()).record(
             _run(),
             prompt="charge it",
             answer="waiting on approval",
@@ -204,7 +226,7 @@ class TestWritingTheTranscript:
     async def test_a_resumed_run_writes_no_user_turn(self, conversations):
         """It picks up at the tool call it stopped on. There is no new question,
         and inventing one would put words in somebody's mouth."""
-        await TranscriptService(AsyncMock()).record(_run(), prompt=None, answer="finished")
+        await TranscriptService(_session()).record(_run(), prompt=None, answer="finished")
 
         assert [call.kwargs["role"] for call in conversations.create_message.await_args_list] == [
             "assistant"
@@ -214,7 +236,7 @@ class TestWritingTheTranscript:
         """A run that parked, was stopped or broke. A blank assistant message
         would read as the agent replying with silence - and the question is what
         makes the run interpretable at all."""
-        await TranscriptService(AsyncMock()).record(_run(), prompt="charge it", answer="")
+        await TranscriptService(_session()).record(_run(), prompt="charge it", answer="")
 
         assert [call.kwargs["role"] for call in conversations.create_message.await_args_list] == [
             "user"
@@ -223,7 +245,7 @@ class TestWritingTheTranscript:
     async def test_a_run_with_no_conversation_writes_nothing(self, conversations):
         """The API may run an agent without one. There is nowhere to write a
         turn, and the run row is still the record that it happened."""
-        await TranscriptService(AsyncMock()).record(
+        await TranscriptService(_session()).record(
             _run(in_a_conversation=False), prompt="hello", answer="hi"
         )
 
@@ -236,6 +258,6 @@ class TestWritingTheTranscript:
         either to a failed insert would be the worst possible trade."""
         conversations.create_message = AsyncMock(side_effect=RuntimeError("no connection"))
 
-        await TranscriptService(AsyncMock()).record(_run(), prompt="hello", answer="hi")
+        await TranscriptService(_session()).record(_run(), prompt="hello", answer="hi")
 
         assert "transcript_write_failed" in caplog.text
