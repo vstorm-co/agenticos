@@ -17,6 +17,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.0.72] - 2026-08-07
+
 ### Fixed
 
 - The dev and production stacks notice a worker whose event loop has stopped
