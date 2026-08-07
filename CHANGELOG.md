@@ -19,6 +19,24 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.78] - 2026-08-07
+
+### Fixed
+
+- Seven select triggers repeated a badge that only means something in the list —
+  "deployment default", "not on this host" — where a comparison against the other
+  options has nothing to compare against. They move into `SelectItem`'s `trailing`
+  slot, which renders outside `ItemText` and so is not inherited by the closed
+  trigger (#341).
+- Create knowledge base could not say the embedding-model list had *failed*:
+  loading and refused were the same pixels. Refused now has its own branch and
+  names the default the collection will get anyway (#365).
+- The runtime field lost its only warning when the badge moved, and
+  `connection-dialog` saves `default_runtime` without validating it — so you could
+  probe a host, pick an alias it had just refused, and save with nothing
+  dissenting. An explicit line under the field restores it, and restores it for
+  screen readers too, since Radix names an option by `ItemText` alone.
+
 ## [0.0.77] - 2026-08-07
 
 ### Security
