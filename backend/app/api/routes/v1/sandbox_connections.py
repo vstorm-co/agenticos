@@ -1,9 +1,14 @@
 """Where an organization's sandboxes run.
 
-Gated on `connections:manage`, the same permission the vault and the MCP
-connections carry, and for the same reason: whoever edits these decides which
-host an agent's shell runs on, and the credential behind it can start containers
-there.
+Two gates, and which one a route carries is the difference between watching a
+host and owning it. Writing here decides which host an agent's shell runs on and
+attaches the credential that can start containers there, so it is
+`connections:manage` - the same permission the vault and the MCP connections
+carry, and for the same reason. Reading is `connections:view`: a session list, an
+activity log and the ceilings a service enforces are what somebody looks at when
+an agent keeps hitting a memory limit, and that is an operator's question. Under
+one permission the only way to answer it was to hand out create, edit and delete
+as well.
 
 The listing and the policy are separate calls on purpose. A listing is cheap and
 local; a policy is a round trip to a service that may be down, and folding it
@@ -39,7 +44,7 @@ router = APIRouter()
 @router.get(
     "",
     response_model=SandboxConnectionList,
-    dependencies=[Depends(require(Perm.CONNECTIONS_MANAGE))],
+    dependencies=[Depends(require(Perm.CONNECTIONS_VIEW))],
 )
 async def list_connections(service: SandboxConnectionSvc, ctx: Auth) -> Any:
     """Every place this organization's agents may be given a workspace."""
@@ -99,7 +104,7 @@ async def store_local_credential(service: SandboxConnectionSvc, ctx: Auth) -> An
 @router.get(
     "/runtimes",
     response_model=SandboxRuntimeCatalog,
-    dependencies=[Depends(require(Perm.CONNECTIONS_MANAGE))],
+    dependencies=[Depends(require(Perm.CONNECTIONS_VIEW))],
 )
 async def list_runtimes(service: SandboxConnectionSvc, ctx: Auth) -> Any:
     """Every runtime the sandbox library ships.
@@ -167,7 +172,7 @@ async def delete_connection(connection_id: UUID, service: SandboxConnectionSvc, 
 @router.get(
     "/{connection_id}/policy",
     response_model=SandboxPolicyRead,
-    dependencies=[Depends(require(Perm.CONNECTIONS_MANAGE))],
+    dependencies=[Depends(require(Perm.CONNECTIONS_VIEW))],
 )
 async def read_policy(connection_id: UUID, service: SandboxConnectionSvc, ctx: Auth) -> Any:
     """What the service allows, asked of the service.
@@ -186,7 +191,7 @@ async def read_policy(connection_id: UUID, service: SandboxConnectionSvc, ctx: A
 @router.get(
     "/{connection_id}/sessions",
     response_model=SandboxSessionList,
-    dependencies=[Depends(require(Perm.CONNECTIONS_MANAGE))],
+    dependencies=[Depends(require(Perm.CONNECTIONS_VIEW))],
 )
 async def list_sessions(
     connection_id: UUID,
@@ -210,7 +215,7 @@ async def list_sessions(
 @router.get(
     "/{connection_id}/sessions/{session_id}/events",
     response_model=SandboxEventList,
-    dependencies=[Depends(require(Perm.CONNECTIONS_MANAGE))],
+    dependencies=[Depends(require(Perm.CONNECTIONS_VIEW))],
 )
 async def read_session_events(
     connection_id: UUID,

@@ -51,6 +51,13 @@ class Perm(StrEnum):
 
     # Global permissions - binary, org-wide.
     APPROVALS_DECIDE = "approvals:decide"
+    # Watching a host and managing one are separate authorities. Reading a
+    # connection's session list, its activity log and the ceilings its service
+    # enforces answers "why did that agent get a 429", which is the question an
+    # operator is paged about; pointing a connection at an address and attaching
+    # a vault secret to it decides which host an agent's shell runs on. One
+    # permission for both meant the second had to be granted to permit the first.
+    CONNECTIONS_VIEW = "connections:view"
     CONNECTIONS_MANAGE = "connections:manage"
     MCP_MANAGE = "mcp:manage"
     CHANNELS_MANAGE = "channels:manage"
@@ -202,11 +209,19 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.SECRETS_VIEW: Scope.SHARED,
         Perm.SECRETS_EDIT: Scope.OWN,
         Perm.MCP_MANAGE: Scope.ALL,
+        # Both halves, spelled out. Nothing in this catalog models one permission
+        # implying another - `agents:edit` does not carry `agents:view` either -
+        # so a role that manages connections is given the read as well, or it
+        # loses the listing it used to have.
+        Perm.CONNECTIONS_VIEW: Scope.ALL,
         Perm.CONNECTIONS_MANAGE: Scope.ALL,
         Perm.RUNS_VIEW: Scope.ALL,
     },
     # Operator keeps the running system healthy: approves, watches, reruns -
-    # but does not build.
+    # but does not build. `connections:view` without `connections:manage` is
+    # that sentence applied to the hosts: how much memory a sandbox is allowed
+    # and what is running on one are answers to a page, and neither is reached
+    # by anything that can point a host at a new address.
     OrgRoleName.OPERATOR: {
         Perm.AGENTS_VIEW: Scope.ALL,
         Perm.AGENTS_RUN: Scope.ALL,
@@ -214,6 +229,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.SKILLS_VIEW: Scope.ALL,
         Perm.SECRETS_VIEW: Scope.SHARED,
         Perm.APPROVALS_DECIDE: Scope.ALL,
+        Perm.CONNECTIONS_VIEW: Scope.ALL,
         Perm.RUNS_VIEW: Scope.ALL,
     },
     # Member is the everyday user: builds their own agents, sees nobody else's

@@ -62,8 +62,18 @@ Two kinds of permission, and they behave differently.
 
 **Global** permissions are binary and org-wide: `members:manage`, `roles:manage`,
 `org:settings`, `org:delete`, `budgets:manage`, `approvals:decide`,
-`connections:manage`, `mcp:manage`, `channels:manage`, `runs:view`,
-`audit:read`.
+`connections:view`, `connections:manage`, `mcp:manage`, `channels:manage`,
+`runs:view`, `audit:read`.
+
+`connections:view` and `connections:manage` are deliberately two permissions,
+not one with an implied read. Watching a sandbox host - its session list, its
+activity log, the memory and CPU ceilings its service enforces - is what answers
+"why did that agent just get a 429", a question an operator is paged about.
+Registering a host, pointing it at an address and attaching the vault secret that
+can start containers there is a different authority. Folding both into
+`connections:manage` meant an operator could only get the read by being granted
+create, edit and delete as well. Nothing here implies one permission from
+another, so a role that manages connections holds both.
 
 **Resource** permissions carry a `Scope`, because they answer the second question
 a role cannot: not "may this role touch agents?" but *which* agents.
@@ -95,8 +105,8 @@ Ordered `NONE < OWN < SHARED < TEAM < ALL`.
 |---|---|---|---|---|
 | `owner` | owns the organization | all `ALL` | `ALL` | everything, including `org:delete` |
 | `admin` | runs it day to day | all `ALL` | `ALL` | everything **except** `org:delete` |
-| `builder` | builds, and learns from the whole org | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp`, `connections`, `runs:view` |
-| `operator` | keeps the running system healthy | `view`/`run` `ALL`, no edit | `view` `SHARED` | `approvals:decide`, `runs:view` |
+| `builder` | builds, and learns from the whole org | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp`, `connections:view`+`connections:manage`, `runs:view` |
+| `operator` | keeps the running system healthy | `view`/`run` `ALL`, no edit | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view` |
 | `member` | the everyday user | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | none |
 | `viewer` | reads | `view` `SHARED` | none | none |
 
