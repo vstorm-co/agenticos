@@ -68,7 +68,7 @@ export function RegisterForm() {
       <div className="space-y-2">
         <span className="eyebrow text-foreground/55">{t("getStarted")}</span>
         <h1 className="text-display-md text-foreground [&_em]:font-normal [&_em]:italic">
-          Create your <em>{t("workspace")}</em>
+          {t.rich("createHeading", { em: (chunks) => <em>{chunks}</em> })}
         </h1>
         <p className="text-foreground/65 text-sm">
           {t("hasAccount")}{" "}

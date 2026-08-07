@@ -79,8 +79,9 @@ export function TermsBodyEn() {
 
       <h2>{t("n13Contact")}</h2>
       <p>
-        Questions? Email <a href="mailto:legal@example.com">{t("legalExampleCom")}</a>
-        {t("weRespondWithinFive")}
+        {t.rich("contactQuestions", {
+          mail: (chunks) => <a href="mailto:legal@example.com">{chunks}</a>,
+        })}
       </p>
     </>
   );
@@ -155,8 +156,9 @@ export function TermsBodyPl() {
 
       <h2>{t("n13Kontakt")}</h2>
       <p>
-        Pytania? Napisz na <a href="mailto:legal@example.com">{t("legalExampleCom2")}</a>
-        {t("odpowiadamyWCiGu")}
+        {t.rich("contactQuestions", {
+          mail: (chunks) => <a href="mailto:legal@example.com">{chunks}</a>,
+        })}
       </p>
     </>
   );

@@ -326,7 +326,7 @@ export function SyncSourceWizard({
               </>
             ) : (
               <>
-                Continue
+                {t("continue")}
                 <ArrowRight className="h-4 w-4" />
               </>
             )}

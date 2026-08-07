@@ -192,8 +192,10 @@ function ActivityLog({ connectionId, sessionId }: ActivityLogProps) {
   if (log === null || log.events.length === 0)
     return (
       <p className="text-muted-foreground text-sm">
-        Nothing recorded for <span className="font-mono">{sessionId}</span>
-        {t("yet")}
+        {t.rich("nothingRecordedYet", {
+          session: sessionId,
+          id: (chunks) => <span className="font-mono">{chunks}</span>,
+        })}
       </p>
     );
 
