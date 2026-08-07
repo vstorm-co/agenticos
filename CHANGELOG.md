@@ -19,6 +19,24 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.70] - 2026-08-07
+
+### Fixed
+
+- A write was answered before its transaction committed, so the next read could
+  miss it. `get_db_session` commits in the exit code of a `Depends`-with-`yield`,
+  and FastAPI unwinds that stack **after** the response has been written — so a
+  2xx said the request had been handled, not that the write was readable. One
+  keyword argument, `scope="function"`, moves the commit in front of the response
+  (#353).
+- A failed request now rolls back before the error response is built rather than
+  after it, because the exception unwinds the same stack. A caller could be told
+  404 while the partial write causing it was still open.
+- A failed health probe left the session's transaction aborted, which on the new
+  ordering turned an intended 503 into a 500 — on the endpoint an operator reads
+  when something is already wrong (#416).
+
+
 ## [0.0.69] - 2026-08-07
 
 ### Fixed
