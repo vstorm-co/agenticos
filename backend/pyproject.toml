@@ -16,7 +16,11 @@ dependencies = [
     # bumps them, the `dependency-freshness` workflow tries the newest of
     # everything on a schedule, and Dependabot opens the PR. A cap here (it was
     # `<0.137`) turns all three into no-ops.
-    "fastapi>=0.135.3",
+    # The floor is a correctness floor, not a taste one: `Depends(..., scope=)`
+    # is what makes the request's transaction commit before the response is sent
+    # (#353), and an older FastAPI answers `TypeError` at import rather than
+    # quietly reverting - but only 0.141.1 has been run against this suite.
+    "fastapi>=0.141.1",
     "uvicorn[standard]>=0.52.0",
     "pydantic[email]>=2.13.4",
     "pydantic-settings>=2.14.2",

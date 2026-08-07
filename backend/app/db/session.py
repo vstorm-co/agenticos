@@ -45,9 +45,21 @@ async def _managed_session(
 
 
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
-    """Get async database session for FastAPI dependency injection.
+    """The request's session, for FastAPI dependency injection.
 
-    Use this with FastAPI Depends().
+    **Depend on it through `app.api.deps.DBSession`, never through a bare
+    `Depends(get_db_session)`.** The alias declares `scope="function"`, and that
+    is what decides whether a client can act on its own 2xx: the code after the
+    `yield` above runs when the exit stack it was registered on unwinds, and
+    FastAPI's default for a generator dependency is the stack that unwinds
+    *after* `await response(scope, receive, send)` - after the answer has gone
+    out. A bare `Depends(get_db_session)` therefore reintroduces #353, in which a
+    membership row was invisible to the very next request for 21.7ms and an
+    invitation token was spent 34ms before the transaction that minted it
+    committed.
+
+    `tests/api/test_db_session_scope.py` walks the mounted routes and refuses
+    one that asks for a session any other way.
     """
     async with _managed_session(async_session_maker) as session:
         yield session
