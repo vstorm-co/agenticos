@@ -1,33 +1,11 @@
 "use client";
 
-import { use, useEffect, useMemo, useRef, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  AlertCircle,
-  CheckCircle2,
-  Clock,
-  Download,
-  Eye,
-  FileText,
-  Loader2,
-  Plug,
-  Plus,
-  RotateCw,
-  Trash2,
-  Upload,
-} from "lucide-react";
+import { Plug, Plus, RotateCw, Trash2 } from "lucide-react";
 
 import { ROUTES } from "@/lib/constants";
-import {
-  Badge,
-  Button,
-  ConfirmDialog,
-  DataTable,
-  type Column,
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from "@/components/ui";
+import { Badge, Button, ConfirmDialog, Alert, AlertDescription, AlertTitle } from "@/components/ui";
 import { EmptyState, ErrorState } from "@/components/states";
 import { SyncSourceWizard } from "@/components/rag/sync-source-wizard";
 import { SyncSourceLogs } from "@/components/rag/sync-source-logs";
@@ -36,15 +14,15 @@ import { KBDetailHeader } from "@/components/rag/kb-detail-header";
 import { KBStatsStrip } from "@/components/rag/kb-stats-strip";
 import { FileDropZone } from "@/components/rag/file-drop-zone";
 import { UploadProgressList } from "@/components/rag/upload-progress-list";
+import { DocumentsTable } from "@/components/rag/documents-table";
 import { BrandIcon, connectorBrand } from "@/components/icons/brand-icon";
 import { FileViewer } from "@/components/kb/file-viewer";
 import { IngestionDialog } from "@/components/kb/ingestion-dialog";
 import { IngestionPanel } from "@/components/kb/ingestion-panel";
 import { UploadOverrideDialog } from "@/components/kb/upload-override-dialog";
 import { useKBDetail, usePermissions, usePollWhileIngesting } from "@/hooks";
-import { cn, formatBytes, formatDateTime } from "@/lib/utils";
+import { cn, formatDateTime } from "@/lib/utils";
 import { overrideSize } from "@/lib/ingestion-config";
-import { downloadKBDocument } from "@/lib/rag-api";
 import type { SyncSourceRead } from "@/lib/rag-api";
 import type { IngestionOverride, KBDocument } from "@/types";
 import { Perm } from "@/types/permissions";
@@ -99,7 +77,6 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
   const [creatingSource, setCreatingSource] = useState(false);
   const [syncSourcesExpanded, setSyncSourcesExpanded] = useState(false);
   const [viewerDoc, setViewerDoc] = useState<KBDocument | null>(null);
-  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [ingestionOpen, setIngestionOpen] = useState(false);
   const [overrideOpen, setOverrideOpen] = useState(false);
   /**
@@ -141,18 +118,6 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
    */
   const loadedVectors = documents.reduce((sum, doc) => sum + doc.chunk_count, 0);
 
-  const handleDownload = async (doc: KBDocument) => {
-    if (downloadingId) return;
-    setDownloadingId(doc.id);
-    try {
-      await downloadKBDocument(id, doc, "download");
-    } catch {
-      /* silently ignore */
-    } finally {
-      setDownloadingId(null);
-    }
-  };
-
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -171,106 +136,6 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
       }
     }
   };
-
-  const documentColumns = useMemo<Column<KBDocument>[]>(
-    () => [
-      {
-        key: "filename",
-        header: t("name"),
-        cell: (doc) => (
-          <div className="flex min-w-0 items-center gap-3">
-            <span className="bg-muted text-muted-foreground inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
-              <FileText className="h-3.5 w-3.5" />
-            </span>
-            <span className="text-foreground truncate font-medium" title={doc.filename}>
-              {doc.filename}
-            </span>
-          </div>
-        ),
-      },
-      {
-        key: "filetype",
-        header: t("typeSize"),
-        className: "hidden sm:table-cell",
-        cell: (doc) => (
-          <span className="text-muted-foreground text-xs">
-            {doc.filetype || "-"}
-            {doc.filesize !== null && ` · ${formatBytes(doc.filesize)}`}
-            {doc.chunk_count > 0 && ` · ${t("chunkCount", { count: doc.chunk_count })}`}
-          </span>
-        ),
-      },
-      {
-        // What read *this* document, which is not always what the collection is
-        // set to now. Without it, "why did this one come out differently" has no
-        // answer on any screen.
-        key: "parser",
-        header: t("parsedWith"),
-        className: "hidden md:table-cell",
-        cell: (doc) => <Provenance doc={doc} />,
-      },
-      {
-        key: "status",
-        header: t("status2"),
-        cell: (doc) => <StatusBadge status={doc.status} message={doc.error_message} />,
-      },
-      {
-        key: "actions",
-        header: "",
-        align: "right",
-        className: "w-0",
-        cell: (doc) => {
-          const dlBusy = downloadingId === doc.id;
-          return (
-            <div className="flex items-center gap-0.5">
-              {doc.has_file && (
-                <>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-muted-foreground hover:text-foreground h-8 w-8 p-0"
-                    onClick={() => setViewerDoc(doc)}
-                    title={t("previewFile")}
-                    aria-label={t("previewFile2")}
-                  >
-                    <Eye className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-muted-foreground hover:text-foreground h-8 w-8 p-0"
-                    onClick={() => handleDownload(doc)}
-                    disabled={!!downloadingId}
-                    title={t("downloadFile")}
-                    aria-label={t("downloadFile2")}
-                  >
-                    {dlBusy ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Download className="h-3.5 w-3.5" />
-                    )}
-                  </Button>
-                </>
-              )}
-              {mayEdit && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-muted-foreground hover:text-destructive h-8 w-8 p-0"
-                  onClick={() => setRemovingDocument(doc)}
-                  title={t("removeDocument")}
-                  aria-label={t("removeDocument2")}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              )}
-            </div>
-          );
-        },
-      },
-    ],
-    [downloadingId, handleDownload, setViewerDoc, mayEdit],
-  );
 
   if (isLoading && !kb) return <KBDetailSkeleton />;
   if (error && !kb) {
@@ -357,45 +222,19 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
 
       <UploadProgressList uploads={uploadProgress} />
 
-      <section className="mb-8">
-        <h2 className="text-foreground mb-3 text-sm font-semibold">{t("documents")}</h2>
-        <DataTable<KBDocument>
-          columns={documentColumns}
-          rows={documents}
-          getRowKey={(doc) => doc.id}
-          loading={isLoading && documents.length === 0}
-          empty={
-            <EmptyState
-              icon={Upload}
-              title={t("noDocumentsYet")}
-              description={mayEdit ? t("dragFilesAnywherePage") : t("nothingHasBeenUploaded")}
-              cta={
-                mayEdit
-                  ? { label: t("chooseFiles"), onClick: () => fileInputRef.current?.click() }
-                  : undefined
-              }
-            />
-          }
-        />
-        {documents.length > 0 && (
-          <div className="mt-3 flex flex-col items-center gap-2">
-            {hasMoreDocuments && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => loadMoreDocuments()}
-                disabled={isLoadingMoreDocs}
-              >
-                {isLoadingMoreDocs && <Loader2 className="h-4 w-4 animate-spin" />}
-                {isLoadingMoreDocs ? t("loading") : t("loadMore")}
-              </Button>
-            )}
-            <p className="text-muted-foreground text-center text-xs">
-              {t("showingOfTotal", { loaded: documents.length, total: documentsTotal })}
-            </p>
-          </div>
-        )}
-      </section>
+      <DocumentsTable
+        kbId={id}
+        documents={documents}
+        documentsTotal={documentsTotal}
+        hasMoreDocuments={hasMoreDocuments}
+        isLoading={isLoading}
+        isLoadingMoreDocs={isLoadingMoreDocs}
+        mayEdit={mayEdit}
+        onLoadMore={() => loadMoreDocuments()}
+        onPreview={setViewerDoc}
+        onRemove={setRemovingDocument}
+        onChooseFiles={() => fileInputRef.current?.click()}
+      />
 
       {/* Under the documents, because it is the answer to a question the table
           above raises: the parser column says what read each file, and this says
@@ -688,80 +527,6 @@ function SyncSourceRow({
       </div>
       <SyncSourceLogs logsPath={`/kb/${kbId}/sync-sources/${source.id}/logs`} />
     </li>
-  );
-}
-
-/**
- * What actually read one document, and whether that was the collection's doing.
- *
- * `was_overridden` is the answer to a question asked long after the fact, so it
- * is worth a badge rather than a tooltip: the collection's settings move on, and
- * a document parsed under the old ones looks identical to one somebody chose to
- * parse differently.
- *
- * A document ingested before any of this was recorded says so, rather than
- * naming the collection's current parser - which would be a guess, and the kind
- * that is impossible to catch.
- */
-function Provenance({ doc }: { doc: KBDocument }) {
-  const t = useTranslations("pages.kb");
-  if (doc.parser === null) {
-    return <span className="text-muted-foreground text-xs">{t("notRecorded")}</span>;
-  }
-  return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <span
-        className="text-muted-foreground font-mono text-xs"
-        title={
-          doc.embedding_model === null
-            ? undefined
-            : t("embeddedWith", { model: doc.embedding_model })
-        }
-      >
-        {doc.parser}
-      </span>
-      {doc.image_description_model !== null && (
-        <span
-          className="text-muted-foreground text-xs"
-          title={t("imagesDescribedBy", { model: doc.image_description_model })}
-        >
-          {t("images")}
-        </span>
-      )}
-      {doc.was_overridden && <Badge variant="secondary">{t("overridden")}</Badge>}
-    </div>
-  );
-}
-
-function StatusBadge({ status, message }: { status: string; message: string | null }) {
-  const t = useTranslations("pages.kb");
-  // Four one-word labels, which is under `check_i18n.py`'s two-word threshold -
-  // so they sat here in English and rendered that way under every locale. The
-  // fall-through keeps the server's own word for a status this build does not
-  // know: a value nothing has translated, rather than copy somebody wrote.
-  const config = {
-    completed: { Icon: CheckCircle2, label: t("statusReady"), spin: false },
-    processing: { Icon: Loader2, label: t("statusProcessing"), spin: true },
-    pending: { Icon: Clock, label: t("statusPending"), spin: false },
-    failed: { Icon: AlertCircle, label: t("statusFailed"), spin: false },
-  } as const;
-  const c = (config as Record<string, (typeof config)[keyof typeof config]>)[status] ?? {
-    Icon: Clock,
-    label: status,
-    spin: false,
-  };
-  return (
-    <Badge
-      variant="outline"
-      title={message ?? undefined}
-      className={cn(
-        "border-border gap-1 font-normal",
-        status === "failed" ? "text-destructive" : "text-muted-foreground",
-      )}
-    >
-      <c.Icon className={cn("h-3 w-3", c.spin && "animate-spin")} />
-      {c.label}
-    </Badge>
   );
 }
 
