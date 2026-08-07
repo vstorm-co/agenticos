@@ -341,14 +341,21 @@ class ObservabilitySpec(BaseModel):
         default=None,
         description="The organization secret holding a Logfire write token",
     )
+    # A slug, not a length. Both are interpolated into a Logfire URL path when a
+    # run's trace link is built, so a value with a slash, a dot-segment or a
+    # query character would escape the path rather than name a project - a
+    # length bound alone does not stop that. The pattern is the shape Logfire
+    # slugs actually take: lowercase alphanumerics in hyphen-joined segments.
     organization: str | None = Field(
         default=None,
         max_length=64,
+        pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
         description="The Logfire organization slug these traces land in, for a link into them",
     )
     project: str | None = Field(
         default=None,
         max_length=64,
+        pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
         description="The Logfire project slug, alongside `organization`",
     )
     service_name: str | None = Field(
