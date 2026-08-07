@@ -19,6 +19,19 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.60] - 2026-08-07
+
+### Fixed
+
+- `main` did not pass `make lint-backend`. Two ruff findings — `RET501` and a
+  `RUF100` for a `noqa` naming a rule this project does not select — arrived with
+  PRs merged during the GitHub Actions outage, when every check sat `pending` and
+  nobody could see them. Because the pre-commit hook runs `ruff check . --fix`
+  over the whole tree regardless of what is staged, it kept rewriting those two
+  files into unrelated commits and rolling them back, so every branch cut from
+  `main` started red on a gate it had not broken (#407).
+
+
 ## [0.0.59] - 2026-08-06
 
 ### Fixed
