@@ -348,13 +348,8 @@ export default function AdminConversationsPage() {
         rows={conversations}
         getRowKey={(conv) => conv.id}
         loading={isLoading && conversations.length === 0}
-        empty={
-          error ? (
-            <ErrorState title={t("couldnTLoadThisScreen")} description={error} />
-          ) : (
-            t("noConversations")
-          )
-        }
+        error={error ? <ErrorState title={t("couldnTLoadThisScreen")} description={error} /> : null}
+        empty={t("noConversations")}
         skeletonRows={5}
       />
 
