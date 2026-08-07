@@ -40,6 +40,9 @@ async def list_skills(
     q: str | None = Query(None, max_length=100, description="Match on name or description"),
     category: list[str] | None = Query(None, description="Exact categories to filter to"),
     sort: SkillSort = Query("name", description="`name` A-Z, or `updated` newest change first"),
+    shared_with_me: bool = Query(
+        False, description="Only what was shared with the caller - never their own rows"
+    ),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
@@ -49,7 +52,13 @@ async def list_skills(
     alongside the page, so the filters around it survive paging.
     """
     return await service.list_readable(
-        ctx, search=q, categories=category, sort=sort, skip=skip, limit=limit
+        ctx,
+        shared_with_me=shared_with_me,
+        search=q,
+        categories=category,
+        sort=sort,
+        skip=skip,
+        limit=limit,
     )
 
 

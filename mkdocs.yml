@@ -13,6 +13,12 @@ edit_uri: edit/main/docs/
 
 docs_dir: docs
 
+# Design artifacts (review demos and their notes) are engineering material for
+# pull-request review, not site pages - unlisted they would still build and
+# publish as orphans nothing links to, which is how a page goes stale unseen.
+exclude_docs: |
+  design/
+
 theme:
   name: material
   language: en

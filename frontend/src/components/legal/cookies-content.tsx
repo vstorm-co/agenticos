@@ -54,7 +54,7 @@ export function CookiesBodyEn() {
 
       <h2>{t("contact")}</h2>
       <p>
-        Questions: <a href="mailto:privacy@example.com">{t("privacyExampleCom")}</a>.
+        {t("questions")} <a href="mailto:privacy@example.com">{t("privacyExampleCom")}</a>.
       </p>
     </>
   );
@@ -114,7 +114,7 @@ export function CookiesBodyPl() {
 
       <h2>{t("kontakt")}</h2>
       <p>
-        Pytania: <a href="mailto:privacy@example.com">{t("privacyExampleCom2")}</a>.
+        {t("pytania")} <a href="mailto:privacy@example.com">{t("privacyExampleCom2")}</a>.
       </p>
     </>
   );

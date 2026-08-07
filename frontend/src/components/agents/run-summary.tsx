@@ -109,7 +109,7 @@ export function RunSummary({ agentId, runs }: RunSummaryProps) {
         href={activityHref}
         className="inline-flex items-center gap-1.5 text-sm underline underline-offset-4"
       >
-        See every run in Activity
+        {t("seeEveryRunActivity")}
         <ArrowRight className="h-3.5 w-3.5" />
       </Link>
     </div>

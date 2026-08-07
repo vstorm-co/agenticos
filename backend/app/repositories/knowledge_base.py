@@ -3,7 +3,7 @@
 from collections.abc import Sequence
 from uuid import UUID
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
@@ -22,6 +22,7 @@ async def get_accessible(
     organization_id: UUID | None = None,
     see_all_org: bool,
     shared_org_ids: Sequence[UUID],
+    shared_with_me: bool = False,
 ) -> list[KnowledgeBase]:
     """All KBs visible to this user: personal + reachable org rows + app.
 
@@ -30,11 +31,34 @@ async def get_accessible(
             whole organization; the ownership/visibility predicate on org rows
             is then skipped entirely.
         shared_org_ids: Org knowledge bases explicitly granted to this caller.
+        shared_with_me: Narrow to org rows deliberately shared with the
+            caller - org-visible or explicitly granted, and not their own -
+            whatever the role's scope. Personal rows are the caller's by
+            construction and app rows are the deployment's, so both are
+            excluded: neither was shared *with* anybody.
 
     The predicate form of :func:`app.services.collection_access.readable_kb`;
     the two must keep agreeing, or a listing hides a base its detail route
     serves - or the reverse, which is worse.
     """
+    if shared_with_me:
+        if organization_id is None:
+            return []
+        shared_cond = (
+            (KnowledgeBase.scope == KBScope.ORG.value)
+            & (KnowledgeBase.organization_id == organization_id)
+            & or_(
+                KnowledgeBase.visibility == Visibility.ORG.value,
+                KnowledgeBase.id.in_(shared_org_ids) if shared_org_ids else false(),
+            )
+            # IS DISTINCT FROM, not !=: an ownerless row is not the caller's.
+            & KnowledgeBase.owner_user_id.is_distinct_from(user_id)
+        )
+        result = await db.execute(
+            select(KnowledgeBase).where(shared_cond).order_by(KnowledgeBase.created_at)
+        )
+        return list(result.scalars().all())
+
     conditions = [
         (KnowledgeBase.scope == KBScope.PERSONAL.value) & (KnowledgeBase.owner_user_id == user_id),
         KnowledgeBase.scope == KBScope.APP.value,

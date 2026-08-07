@@ -100,6 +100,18 @@ export interface SyncSourceList {
   total: number;
 }
 
+/**
+ * Every sync source the caller can reach, or only one collection's.
+ *
+ * The knowledge pages read a collection's sources through `useKBDetail`; this
+ * is the unscoped call, and the dashboard is what makes it, to count what is
+ * connected across all of them.
+ */
+export async function listSyncSources(collectionName?: string): Promise<SyncSourceList> {
+  const params = collectionName ? `?collection_name=${encodeURIComponent(collectionName)}` : "";
+  return apiClient.get<SyncSourceList>(`/rag/sync/sources${params}`);
+}
+
 export interface ConnectorConfigField {
   type: string;
   required: boolean;

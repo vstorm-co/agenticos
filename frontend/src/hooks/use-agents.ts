@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { problemList } from "@/lib/api-error";
@@ -37,7 +38,7 @@ export interface PromoteSpecialist {
 export function useAgents({ includeArchived = false }: { includeArchived?: boolean } = {}) {
   const queryClient = useQueryClient();
 
-  const { data, isLoading, isFetching } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: qk.agents.list(includeArchived),
     queryFn: () =>
       apiClient.get<AgentList>(
@@ -136,6 +137,8 @@ export function useAgents({ includeArchived = false }: { includeArchived?: boole
     agents: data?.items ?? [],
     total: data?.total ?? 0,
     isLoading,
+    error,
+    refetch,
     // Stale data is served while a refetch is in flight, so "this agent is not
     // in the list" can mean "not yet". Anything that would act on an absence
     // has to know the difference - see the chat's agent picker.
@@ -152,6 +155,9 @@ export function useAgents({ includeArchived = false }: { includeArchived?: boole
 /** One agent, with the spec currently being edited. */
 export function useAgent(agentId: string | null) {
   const queryClient = useQueryClient();
+  // The one toast here the catalog already had a message for (#425). The rest of
+  // this file still writes its own, and no catalog message covers them.
+  const t = useTranslations("agents");
 
   const { data, isLoading } = useQuery({
     queryKey: qk.agents.detail(agentId ?? ""),
@@ -225,7 +231,7 @@ export function useAgent(agentId: string | null) {
     mutationFn: (file: File) => apiClient.upload<Agent>(`/agents/${agentId}/avatar`, file),
     onSuccess: async () => {
       await invalidate();
-      toast.success("Avatar updated");
+      toast.success(t("avatarUpdated"));
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   });

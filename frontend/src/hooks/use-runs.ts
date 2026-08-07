@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
+import { DASHBOARD_FRESHNESS } from "@/lib/query-freshness";
 import { qk } from "@/lib/query-keys";
 import { getErrorMessage } from "@/lib/utils";
 import type { AgentRun, AgentRunList, ApprovalList, CostSummary, ToolApproval } from "@/types/runs";
@@ -68,7 +69,7 @@ export function useDelegatedRuns(parentRunId: string) {
 export function useApprovals() {
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.runs.approvals(),
     queryFn: () => apiClient.get<ApprovalList>("/approvals"),
     refetchInterval: 30_000,
@@ -84,14 +85,29 @@ export function useApprovals() {
     onError: (error) => toast.error(getErrorMessage(error)),
   });
 
-  return { approvals: data?.items ?? [], total: data?.total ?? 0, isLoading, decide };
+  return {
+    approvals: data?.items ?? [],
+    total: data?.total ?? 0,
+    isLoading,
+    error,
+    refetch,
+    decide,
+  };
 }
 
-/** Month-to-date spend plus a per-agent breakdown. */
+/**
+ * Month-to-date cost and its breakdowns.
+ *
+ * Carries the dashboard's freshness even though the runs page and the
+ * organization's spending-limit control read it too: a spend figure is the
+ * last number anybody wants served from a five-minute cache, and refetching
+ * it when a tab regains focus is right on all three surfaces.
+ */
 export function useSpend(days = 30) {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.runs.spend(days),
     queryFn: () => apiClient.get<CostSummary>("/spend", { params: { days: String(days) } }),
+    ...DASHBOARD_FRESHNESS,
   });
-  return { spend: data, isLoading };
+  return { spend: data, isLoading, error, refetch };
 }

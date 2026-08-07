@@ -9,9 +9,15 @@ export async function GET(request: NextRequest) {
     const { accessToken } = adminCheck;
 
     const searchParams = request.nextUrl.searchParams;
-    const days = searchParams.get("days") || "30";
+    const params = new URLSearchParams();
+    const forward = ["from", "to"];
+    for (const key of forward) {
+      const v = searchParams.get(key);
+      if (v) params.set(key, v);
+    }
 
-    const data = await backendFetch(`/api/v1/admin/ratings/summary?days=${days}`, {
+    const qs = params.toString();
+    const data = await backendFetch(`/api/v1/admin/ratings/summary${qs ? `?${qs}` : ""}`, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },

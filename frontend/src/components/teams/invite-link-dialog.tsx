@@ -133,9 +133,10 @@ export function InviteLinkDialog({ open, onOpenChange, orgId }: InviteLinkDialog
 
             {maxUses.trim() === "" && domain.trim() === "" && (
               <p className="text-muted-foreground border-border rounded-md border border-dashed p-3 text-xs">
-                Unlimited and open to any address: whoever this URL reaches can join as{" "}
-                <span className="font-medium capitalize">{role}</span>
-                {t("linkForwardedOutChannel")}
+                {t.rich("openLinkWarning", {
+                  role,
+                  as: (chunks) => <span className="font-medium capitalize">{chunks}</span>,
+                })}
               </p>
             )}
           </div>

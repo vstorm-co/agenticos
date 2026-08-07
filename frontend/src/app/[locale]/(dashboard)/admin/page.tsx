@@ -21,27 +21,11 @@ import { LoadingState } from "@/components/states";
 import { Badge, Button } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
+import { qk } from "@/lib/query-keys";
 import { formatDate, timeAgo } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 
-interface AdminStats {
-  total_users?: number;
-  active_users_24h?: number;
-  total_organizations?: number;
-  total_agents?: number;
-  total_conversations?: number;
-  total_messages?: number;
-}
-
-interface AdminOrganization {
-  id: string;
-  name: string;
-  slug: string;
-  is_personal: boolean;
-  member_count: number;
-  agent_count: number;
-  created_at: string;
-}
+import type { AdminOrganization, AdminStats } from "@/types/admin";
 
 interface RecentEvent {
   id: string;
@@ -76,7 +60,7 @@ export default function AdminOverviewPage() {
   });
 
   const orgsQuery = useQuery({
-    queryKey: ["admin", "organizations"],
+    queryKey: qk.admin.organizations(),
     queryFn: async (): Promise<AdminOrganization[]> => {
       const data = await apiClient
         .get<{ items: AdminOrganization[] }>("/admin/organizations?limit=50")

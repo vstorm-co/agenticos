@@ -28,8 +28,8 @@ import { ROUTES } from "@/lib/constants";
  * table has to be readable by the test that guards it.
  */
 export const SETTINGS_TABS: readonly PageTab[] = [
-  { label: "Profile", href: ROUTES.SETTINGS_PROFILE, icon: UserCircle },
-  { label: "Account", href: ROUTES.SETTINGS_ACCOUNT, icon: Shield },
-  { label: "Slash commands", href: ROUTES.SETTINGS_SLASH_COMMANDS, icon: Slash },
-  { label: "Notifications", href: ROUTES.SETTINGS_NOTIFICATIONS, icon: Bell },
+  { labelKey: "profile", href: ROUTES.SETTINGS_PROFILE, icon: UserCircle },
+  { labelKey: "account", href: ROUTES.SETTINGS_ACCOUNT, icon: Shield },
+  { labelKey: "slashCommands", href: ROUTES.SETTINGS_SLASH_COMMANDS, icon: Slash },
+  { labelKey: "notifications", href: ROUTES.SETTINGS_NOTIFICATIONS, icon: Bell },
 ];

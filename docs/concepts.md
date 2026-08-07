@@ -84,6 +84,11 @@ that delegation gets an `agent_runs` row of its own carrying `parent_run_id` - s
 spend ledger. There is no `delegated` status, because how a run *ended* and how it
 *started* are two questions and `parent_run_id` answers the second.
 
+Run history filters on exactly this: `GET /runs` takes a comma-separated list of
+statuses (`?status=failed,budget_exceeded`), because the operator's question is
+a set of outcomes, not one status at a time. An unknown status is refused rather
+than silently matching nothing - an empty page must mean "no such runs".
+
 ---
 
 ## Three more, because they are easy to confuse

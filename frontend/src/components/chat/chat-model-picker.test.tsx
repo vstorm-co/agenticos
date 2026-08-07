@@ -34,9 +34,6 @@ vi.mock("@/hooks", () => ({
   useProviderModels: () => ({ models: listedModels(), source: "curated", isLoading: false }),
   useSecretPurposes: () => ({ purposes: PURPOSES, isLoading: false }),
   useSecrets: () => ({ secrets: listedSecrets(), create: { mutate: vi.fn(), isPending: false } }),
-  usePermissions: () => ({
-    can: (permission: Permission) => held.permissions.includes(permission),
-  }),
 }));
 
 const purpose = (

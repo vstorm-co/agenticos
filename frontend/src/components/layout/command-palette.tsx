@@ -60,26 +60,6 @@ interface ConversationItem {
   updated_at?: string | null;
 }
 
-/**
- * The `nav` message key for a section page, by the route it leads to.
- *
- * The tab tables carry English labels because that is what they render; the
- * palette is translated, so it needs the key. `command-palette.test.tsx` fails
- * if a tab is ever added without one, which is the only thing keeping this in
- * step with the two tables it annotates.
- */
-export const SECTION_LABEL_KEYS: Record<string, string> = {
-  [ROUTES.SETTINGS_PROFILE]: "profile",
-  [ROUTES.SETTINGS_ACCOUNT]: "account",
-  [ROUTES.SETTINGS_NOTIFICATIONS]: "notifications",
-  [ROUTES.SETTINGS_SLASH_COMMANDS]: "slashCommands",
-  [ROUTES.ADMIN]: "adminOverview",
-  [ROUTES.ADMIN_USERS]: "users",
-  [ROUTES.ADMIN_CONVERSATIONS]: "conversations",
-  [ROUTES.ADMIN_RATINGS]: "ratings",
-  [ROUTES.ADMIN_SYSTEM]: "system",
-};
-
 export function CommandPalette() {
   const router = useRouter();
   const t = useTranslations("nav");
@@ -143,20 +123,21 @@ export function CommandPalette() {
   // them - without this, Admin appears twice.
   const navigated = new Set(NAV_GROUPS.flatMap((group) => group.items).map((item) => item.href));
 
+  // A tab's own key, in this palette's own namespace: both tables name a `nav`
+  // message, which is what `useTranslations("nav")` above is scoped to. The
+  // palette used to keep a second table mapping each route to a key, because the
+  // tabs held English - see `PageTab.labelKey` for why they no longer do.
   const sectionItems = (tabs: readonly PageTab[]) =>
     tabs
       .filter((tab) => !navigated.has(tab.href))
-      .map((tab) => {
-        const key = SECTION_LABEL_KEYS[tab.href];
-        return (
-          <PaletteItem
-            key={tab.href}
-            icon={tab.icon ?? ArrowRight}
-            label={key ? t(key) : tab.label}
-            onSelect={() => go(tab.href)}
-          />
-        );
-      });
+      .map((tab) => (
+        <PaletteItem
+          key={tab.href}
+          icon={tab.icon ?? ArrowRight}
+          label={t(tab.labelKey)}
+          onSelect={() => go(tab.href)}
+        />
+      ));
 
   return (
     <Command.Dialog

@@ -5,8 +5,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ADMIN_TABS } from "@/app/[locale]/(dashboard)/admin/admin-tabs";
 import { SETTINGS_TABS } from "@/app/[locale]/(dashboard)/settings/settings-tabs";
+import { nav } from "@/../messages/en.json";
 import { NAV_GROUPS } from "./app-sidebar";
-import { CommandPalette, SECTION_LABEL_KEYS } from "./command-palette";
+import { CommandPalette } from "./command-palette";
 import { apiClient } from "@/lib/api-client";
 
 const can = vi.fn<(permission: string) => boolean>();
@@ -154,21 +155,17 @@ describe("the palette's named entities", () => {
   });
 });
 
-describe("the section label table", () => {
-  it("has a translation key for every settings and admin page", () => {
-    // Without one the palette falls back to the tab's English label, which is
-    // invisible until someone reads the product in Polish.
-    const untranslated = [...SETTINGS_TABS, ...ADMIN_TABS]
-      .map((tab) => tab.href)
-      .filter((href) => !SECTION_LABEL_KEYS[href]);
+describe("the tab tables", () => {
+  it("names a message the catalog holds for every settings and admin page", () => {
+    // Both tables used to hold the English word, and the palette carried a
+    // second table mapping each route back to a `nav` key so that *it* could be
+    // translated - the tab row itself never was (#425). The type now says these
+    // are keys; only the catalog can say they are keys that resolve, and a key
+    // that does not renders as its own name on screen.
+    const missing = [...SETTINGS_TABS, ...ADMIN_TABS]
+      .map((tab) => tab.labelKey)
+      .filter((key) => !(key in nav));
 
-    expect(untranslated).toEqual([]);
-  });
-
-  it("annotates only pages those tables actually lead to", () => {
-    // A key left behind after a page moves is a row nothing reads.
-    const tabbed = new Set([...SETTINGS_TABS, ...ADMIN_TABS].map((tab) => tab.href));
-
-    expect(Object.keys(SECTION_LABEL_KEYS).filter((href) => !tabbed.has(href))).toEqual([]);
+    expect(missing).toEqual([]);
   });
 });

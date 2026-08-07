@@ -161,7 +161,7 @@ class EmbedSession:
             ctx,
             self.embed.agent_id,
             prompt,
-            surface=RunSurface.WEB,
+            surface=RunSurface.EMBED,
             conversation_id=self.conversation_id,
         )
         return answer or "…"

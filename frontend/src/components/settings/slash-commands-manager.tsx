@@ -263,7 +263,10 @@ export function SlashCommandsManager() {
                 className="mt-1.5 font-mono text-sm"
               />
               <p className="text-foreground/45 mt-1 text-[11px]">
-                Sent as a regular user message when you type <code>/{draftName || "name"}</code>.
+                {t.rich("sentAsRegularUserMessage", {
+                  name: draftName || t("commandNamePlaceholder"),
+                  cmd: (chunks) => <code>{chunks}</code>,
+                })}
               </p>
             </div>
             {editingId !== "new" && (

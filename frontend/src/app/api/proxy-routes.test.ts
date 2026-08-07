@@ -18,6 +18,7 @@ import * as permissions from "./me/permissions/route";
 import * as builtinCommands from "./me/slash-commands/builtin/route";
 import * as providers from "./providers/[[...path]]/route";
 import * as rag from "./rag/[[...path]]/route";
+import * as ratings from "./ratings/[[...path]]/route";
 import * as roles from "./roles/[[...path]]/route";
 import * as runs from "./runs/[[...path]]/route";
 import * as sandboxConnections from "./sandbox-connections/[[...path]]/route";
@@ -26,6 +27,7 @@ import * as secrets from "./secrets/[[...path]]/route";
 import * as skillChanges from "./skill-changes/[[...path]]/route";
 import * as skills from "./skills/[[...path]]/route";
 import * as spend from "./spend/[[...path]]/route";
+import * as stats from "./stats/[[...path]]/route";
 import * as users from "./users/[userId]/route";
 
 /**
@@ -49,6 +51,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["mcp-connections", mcpConnections],
   ["providers", providers],
   ["rag", rag],
+  ["ratings", ratings],
   ["roles", roles],
   ["runs", runs],
   ["sandbox-connections", sandboxConnections],
@@ -57,6 +60,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["skill-changes", skillChanges],
   ["skills", skills],
   ["spend", spend],
+  ["stats", stats],
   ["users/[userId]", users],
   ["me/permissions", permissions],
 ];

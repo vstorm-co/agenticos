@@ -404,6 +404,16 @@ def get_approval_service(db: DBSession) -> ApprovalService:
 AgentRunnerSvc = Annotated[AgentRunnerService, Depends(get_agent_runner_service)]
 ApprovalSvc = Annotated[ApprovalService, Depends(get_approval_service)]
 
+from app.services.stats import StatsService
+
+
+def get_stats_service(db: DBSession) -> StatsService:
+    """Create StatsService instance with database session."""
+    return StatsService(db)
+
+
+StatsSvc = Annotated[StatsService, Depends(get_stats_service)]
+
 from app.services.skill_proposal import SkillProposalService
 from app.services.skills import SkillService
 

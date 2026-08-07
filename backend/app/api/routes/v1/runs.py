@@ -10,7 +10,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 
 from app.api.deps import AgentRunnerSvc, ApprovalSvc, Auth, require
+from app.core.exceptions import ValidationError
 from app.core.permissions import Perm
+from app.db.models.agent_run import RunStatus
 from app.schemas.agent import AgentRunResult
 from app.schemas.agent_run import (
     AgentRunList,
@@ -32,6 +34,9 @@ async def list_runs(
     service: AgentRunnerSvc,
     ctx: Auth,
     agent_id: UUID | None = Query(None),
+    status: str | None = Query(
+        None, description="Comma-separated run statuses, e.g. failed,budget_exceeded"
+    ),
     parent_run_id: UUID | None = Query(
         None, description="List one run's delegations instead of the top level"
     ),
@@ -45,16 +50,34 @@ async def list_runs(
 
     Top-level runs only by default - see the service for why a delegated row
     and a run somebody started are never summed down one column.
+
+    `status` takes a list because the operator's natural question is a set of
+    outcomes - "what failed or ran out of budget" - not one status at a time.
     """
     items, total = await service.list_runs(
         ctx,
         agent_id=agent_id,
+        statuses=_parse_statuses(status),
         parent_run_id=parent_run_id,
         include_delegations=include_delegations,
         skip=skip,
         limit=limit,
     )
     return AgentRunList(items=items, total=total)
+
+
+def _parse_statuses(raw: str | None) -> list[str] | None:
+    if raw is None:
+        return None
+    values = [part.strip() for part in raw.split(",") if part.strip()]
+    known = {member.value for member in RunStatus}
+    unknown = sorted(set(values) - known)
+    if unknown:
+        raise ValidationError(
+            message="Unknown run status",
+            details={"unknown": unknown, "expected": sorted(known)},
+        )
+    return values or None
 
 
 @router.get(
