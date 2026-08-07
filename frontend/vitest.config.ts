@@ -26,6 +26,10 @@ export default defineConfig({
         "src/stores/**",
         "src/hooks/**",
         "src/components/agents/**/*.{ts,tsx}",
+        // The sandbox cards only, not the whole widget directory: the twenty-seven
+        // cards #149 added are outside the gate, and pulling them in with a
+        // directory glob would make this branch responsible for covering them.
+        "src/components/dashboard/widgets/sandbox-*.tsx",
         "src/components/orgs/**/*.tsx",
         "src/components/runs/**/*.tsx",
         "src/components/sandboxes/**/*.tsx",
