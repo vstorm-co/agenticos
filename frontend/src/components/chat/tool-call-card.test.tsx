@@ -120,16 +120,16 @@ describe("a tool call in the transcript", () => {
 
   it("names each tool that has a renderer of its own", () => {
     const cases: [Partial<ToolCall>, string][] = [
-      [{ name: "get_current_datetime", result: "Current date: 2026-07-31" }, "Current Date & Time"],
       [
-        { name: "search_knowledge_base", result: "[1] Source: a.md (score: 0.5)\nx" },
+        { name: "search_documents", result: "[1] Source: a.md (score: 0.5)\nx" },
         "Knowledge Base Search",
       ],
       [
-        { name: "web_search_tool", result: JSON.stringify({ kind: "web_search", results: [] }) },
+        { name: "web_search", result: JSON.stringify({ kind: "web_search", results: [] }) },
         "Web Search",
       ],
-      [{ name: "fetch_url", args: { url: "https://acme.example/" } }, "Fetched page"],
+      [{ name: "create_chart", result: "the tool failed to draw one" }, "Chart"],
+      [{ name: "delegate", args: {} }, "Delegate"],
       [{ name: "run_python", args: { code: "x=1" }, result: "result: 1" }, "Run Python"],
       [{ name: "list_skills", result: "[]" }, "Available Skills"],
       [{ name: "load_skill", args: { skill_name: "refund_policy" } }, "Refund Policy"],
@@ -152,9 +152,9 @@ describe("a tool call in the transcript", () => {
   it("humanises a tool nobody named", () => {
     // A capability added by a backend release has to read sensibly with no
     // frontend change at all.
-    card({ name: "post_invoice_tool" });
+    card({ name: "issue_invoice" });
 
-    expect(screen.getByText("Post Invoice")).toBeInTheDocument();
+    expect(screen.getByText("Issue Invoice")).toBeInTheDocument();
   });
 
   it("names an MCP call by its server and what was asked of it", () => {
@@ -183,20 +183,22 @@ describe("a tool call in the transcript", () => {
   it("shows the query or the URL beside a finished call", () => {
     // Three calls in a row all called "Web Search" are indistinguishable without it.
     const { unmount } = card({
-      name: "search_web",
+      name: "web_search",
       args: { query: "refund law" },
       result: JSON.stringify({ kind: "web_search", results: [] }),
     });
     expect(screen.getByText("refund law")).toBeInTheDocument();
     unmount();
 
-    card({ name: "fetch_url", args: { url: "https://acme.example/help" } });
+    // A URL is the other subject worth repeating, and after #144 only a tool this side
+    // has never heard of carries one - every registered tool takes a path or a query.
+    card({ name: "http_request", args: { url: "https://acme.example/help" } });
     expect(screen.getByText("https://acme.example/help")).toBeInTheDocument();
   });
 
   it("says nothing about the input while the tool is still running", () => {
     // The caption already occupies that line.
-    card({ name: "search_web", args: { query: "refund law" }, status: "running" });
+    card({ name: "web_search", args: { query: "refund law" }, status: "running" });
 
     expect(screen.queryByText("refund law")).toBeNull();
   });
@@ -229,12 +231,6 @@ describe("a tool call in the transcript", () => {
     expect(screen.getByText("Available Skills")).toBeInTheDocument();
   });
 
-  it("opens a question without being asked, because it is a control", () => {
-    card({ name: "ask_user", args: { questions: [{ question: "Which?" }] }, result: "" });
-
-    expect(screen.getByText("Which?")).toBeInTheDocument();
-  });
-
   it("opens the newest turn's last call, which is the result somebody came back for", () => {
     // Probed by the card's own control rather than by the written text: a finished
     // write no longer repeats its contents under a card that opens the file, so
@@ -260,7 +256,7 @@ describe("a tool call in the transcript", () => {
     // Opening every finished call on mount turned a conversation somebody reopened
     // into a wall of results they came back for none of.
     const chart = card({
-      name: "create_chart_tool",
+      name: "create_chart",
       result: JSON.stringify({ kind: "chart", title: "Spend", series: [] }),
     });
     expect(screen.queryByTestId("chart")).toBeNull();
@@ -304,7 +300,7 @@ describe("a tool call in the transcript", () => {
   });
 
   it("leaves a chart result that is not a chart collapsed", () => {
-    card({ name: "create_chart_tool", result: "the tool failed to draw one" });
+    card({ name: "create_chart", result: "the tool failed to draw one" });
 
     expect(screen.queryByTestId("chart")).toBeNull();
   });
@@ -312,9 +308,7 @@ describe("a tool call in the transcript", () => {
   it("opens a chart that finishes after the step was already on screen", () => {
     // The same live rule, for the tool whose whole value is the picture.
     const { rerender } = render(
-      <ToolCallCard
-        toolCall={{ id: "tc-1", name: "create_chart_tool", args: {}, status: "running" }}
-      />,
+      <ToolCallCard toolCall={{ id: "tc-1", name: "create_chart", args: {}, status: "running" }} />,
     );
     expect(screen.queryByTestId("chart")).toBeNull();
 
@@ -322,7 +316,7 @@ describe("a tool call in the transcript", () => {
       <ToolCallCard
         toolCall={{
           id: "tc-1",
-          name: "create_chart_tool",
+          name: "create_chart",
           args: {},
           status: "completed",
           result: JSON.stringify({ kind: "chart", title: "Spend", series: [] }),
@@ -356,9 +350,9 @@ describe("a tool call in the transcript", () => {
 
   it("goes back to the formatted view", async () => {
     card({
-      name: "get_current_datetime",
-      args: { timezone: "UTC" },
-      result: "Current date: 2026-07-31",
+      name: "search_documents",
+      args: { query: "refunds" },
+      result: "[1] Source: a.md (score: 0.9)\nA passage.",
     });
     await open();
     await userEvent.click(raw());
@@ -367,7 +361,7 @@ describe("a tool call in the transcript", () => {
     await userEvent.click(raw());
 
     expect(screen.queryByText("Arguments")).toBeNull();
-    expect(screen.getByText("2026-07-31")).toBeInTheDocument();
+    expect(screen.getByText("A passage.")).toBeInTheDocument();
   });
 
   it("forgets the raw view when the step is closed", async () => {
@@ -392,14 +386,13 @@ describe("a tool call in the transcript", () => {
 
   it("hands each renderer what it needs, once opened", async () => {
     const cases: [Partial<ToolCall>, string][] = [
-      [{ name: "get_current_datetime", result: "Current date: 2026-07-31" }, "2026-07-31"],
       [
         { name: "search_documents", result: "[1] Source: a.md (score: 0.9)\nA passage." },
         "A passage.",
       ],
       [
         {
-          name: "web_search_tool",
+          name: "web_search",
           result: JSON.stringify({
             kind: "web_search",
             results: [{ title: "Hit", url: "https://a.example/" }],
@@ -407,7 +400,6 @@ describe("a tool call in the transcript", () => {
         },
         "Hit",
       ],
-      [{ name: "fetch_url", args: { url: "https://acme.example/" }, result: "" }, "acme.example"],
       [
         { name: "load_skill", result: "<description>How refunds work.</description>" },
         "How refunds work.",
@@ -441,26 +433,5 @@ describe("a tool call in the transcript", () => {
     await open();
 
     expect(screen.queryByText("undefined")).toBeNull();
-  });
-
-  it("keeps a fetched page's own renderer even before the page arrives", () => {
-    // `fetch_url` is recognised from its arguments rather than its result, so the
-    // step can name it while it is still fetching.
-    const running = card({
-      name: "fetch_url",
-      args: { url: "https://acme.example/" },
-      status: "running",
-    });
-    expect(screen.getByText("Reading a web page")).toBeInTheDocument();
-    running.unmount();
-
-    // `fetch` is the same renderer under a different name.
-    card({
-      name: "fetch",
-      args: { url: "https://acme.example/" },
-      status: "completed",
-      result: "",
-    });
-    expect(screen.getByText("Fetched page")).toBeInTheDocument();
   });
 });

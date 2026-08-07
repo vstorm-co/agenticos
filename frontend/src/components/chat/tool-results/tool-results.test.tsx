@@ -1,11 +1,8 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { AskUserResult } from "./ask-user";
-import { DateTimeResult } from "./datetime";
 import { GenericToolResult, RawToolView } from "./generic";
-import { FetchUrlResult } from "./fetch-url";
 import { RunPythonResult } from "./run-python";
 import { LoadSkillResult, formatSkillName, parseLoadSkillResult } from "./skills";
 import { RAGSearchResults, parseRAGResults } from "./rag";
@@ -402,124 +399,6 @@ describe("loading a skill", () => {
     expect(formatSkillName("fire")).toBe("Fire");
     expect(formatSkillName("__odd__name")).toBe("Odd Name");
     expect(formatSkillName("")).toBe("");
-  });
-});
-
-describe("the date and time", () => {
-  it("reads both out of the tool's sentence", () => {
-    render(<DateTimeResult result="Current date: 2026-07-31, Current time: 14:05:00" />);
-
-    expect(screen.getByText("2026-07-31")).toBeInTheDocument();
-    expect(screen.getByText("14:05:00")).toBeInTheDocument();
-  });
-
-  it("shows whichever half it found", () => {
-    const { rerender } = render(<DateTimeResult result="Current date: 2026-07-31" />);
-    expect(screen.getByText("Date")).toBeInTheDocument();
-    expect(screen.queryByText("Time")).toBeNull();
-
-    rerender(<DateTimeResult result="Current time: 14:05:00" />);
-    expect(screen.getByText("Time")).toBeInTheDocument();
-    expect(screen.queryByText("Date")).toBeNull();
-  });
-
-  it("shows the whole answer when it recognises neither", () => {
-    // A timezone-qualified answer, or a future change to the tool's wording.
-    render(<DateTimeResult result="It is Friday afternoon in Warsaw." />);
-
-    expect(screen.getByText("It is Friday afternoon in Warsaw.")).toBeInTheDocument();
-  });
-});
-
-describe("fetching a page", () => {
-  it("names the page by its domain and links to it", () => {
-    render(<FetchUrlResult url="https://www.gov.example/rights" content="# Rights" />);
-
-    const link = screen.getByRole("link");
-    expect(link).toHaveAttribute("href", "https://www.gov.example/rights");
-    expect(link).toHaveAttribute("rel", "noreferrer noopener");
-    expect(within(link).getByText("gov.example")).toBeInTheDocument();
-  });
-
-  it("falls back to the raw URL when it cannot be parsed", () => {
-    render(<FetchUrlResult url="not a url" content="" />);
-
-    expect(screen.getAllByText("not a url").length).toBeGreaterThan(0);
-  });
-
-  it("renders the page as Markdown, and says how much of it there was", () => {
-    const content = "# Title\n".repeat(200);
-    render(<FetchUrlResult url="https://acme.example/" content={content} />);
-
-    expect(screen.getByTestId("markdown")).toBeInTheDocument();
-    expect(
-      screen.getByText(`${content.length.toLocaleString()} chars fetched`),
-    ).toBeInTheDocument();
-  });
-
-  it("shows only the link for a page that returned nothing", () => {
-    // An empty body box under the link reads as a rendering failure.
-    render(<FetchUrlResult url="https://acme.example/" content="" />);
-
-    expect(screen.queryByTestId("markdown")).toBeNull();
-  });
-});
-
-describe("asking the user", () => {
-  it("shows the transcript once the questions were answered", () => {
-    // The result is already a Q/A transcript by then, so it renders as-is.
-    render(<AskUserResult args={{}} resultText={"Q: Which invoice?\nA: The March one."} />);
-
-    expect(screen.getByText(/Which invoice\?/)).toBeInTheDocument();
-    expect(screen.queryByText("Waiting for the user…")).toBeNull();
-  });
-
-  it("lists the questions while it waits", () => {
-    render(
-      <AskUserResult
-        args={{ questions: [{ question: "Which invoice?" }, { question: "Refund or credit?" }] }}
-        resultText=""
-      />,
-    );
-
-    expect(screen.getByText("Questions")).toBeInTheDocument();
-    expect(screen.getByText("Which invoice?")).toBeInTheDocument();
-    expect(screen.getByText("Waiting for the user…")).toBeInTheDocument();
-  });
-
-  it("uses the singular for one question", () => {
-    render(<AskUserResult args={{ questions: [{ question: "Which?" }] }} resultText="" />);
-
-    expect(screen.getByText("Question")).toBeInTheDocument();
-  });
-
-  it("reads args that arrived as a JSON string", () => {
-    // Which is how a replayed conversation stores them.
-    render(
-      <AskUserResult
-        args={JSON.stringify({ questions: [{ question: "Which?" }] })}
-        resultText=""
-      />,
-    );
-
-    expect(screen.getByText("Which?")).toBeInTheDocument();
-  });
-
-  it("says it is waiting even when it could not read the questions", () => {
-    // Three ways that happens: unparsable JSON, no questions key, no args at all.
-    for (const args of ["not json", { other: 1 }, null, { questions: "not a list" }]) {
-      const { unmount } = render(<AskUserResult args={args} resultText="" />);
-
-      expect(screen.getByText("Waiting for the user…")).toBeInTheDocument();
-      expect(screen.getByText("Question")).toBeInTheDocument();
-      unmount();
-    }
-  });
-
-  it("survives a question the tool left blank", () => {
-    render(<AskUserResult args={{ questions: [{}] }} resultText="" />);
-
-    expect(screen.getByText("Question")).toBeInTheDocument();
   });
 });
 

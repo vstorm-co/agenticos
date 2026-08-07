@@ -8,25 +8,24 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
-  Clock,
   Code2,
   FilePenLine,
   FilePlus2,
   FileText,
   FolderOpen,
   Globe,
-  MessageCircleQuestion,
   PauseCircle,
   Plug,
   Search,
   TerminalSquare,
+  Users,
   Wrench,
   X,
 } from "lucide-react";
 
 import { logoDataUri } from "@/lib/mcp-catalog";
 import { cn } from "@/lib/utils";
-import type { StepKind } from "@/lib/tool-steps";
+import type { StepKind } from "@/lib/tool-catalog";
 
 const ICONS: Record<StepKind, typeof FileText> = {
   write: FilePlus2,
@@ -35,13 +34,12 @@ const ICONS: Record<StepKind, typeof FileText> = {
   list: FolderOpen,
   search: Search,
   shell: TerminalSquare,
-  question: MessageCircleQuestion,
   chart: BarChart3,
   knowledge: BookOpen,
   web: Globe,
-  clock: Clock,
   skill: BookOpen,
   code: Code2,
+  delegate: Users,
   mcp: Plug,
   tool: Wrench,
 };

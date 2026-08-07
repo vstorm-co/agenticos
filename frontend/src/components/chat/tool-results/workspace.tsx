@@ -14,7 +14,7 @@ import { suffixOf, type FileSource } from "@/lib/workspace-files";
 import type { ToolCall } from "@/types";
 import { useTranslations } from "next-intl";
 
-export { isWorkspaceTool } from "@/lib/tool-steps";
+export { isWorkspaceTool } from "@/lib/tool-catalog";
 
 function asString(value: unknown): string | null {
   return typeof value === "string" && value.trim() !== "" ? value : null;
