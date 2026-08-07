@@ -13,6 +13,12 @@ done-callback that surfaces whatever went wrong.
 This is not a job queue. Work that must survive a restart belongs in Prefect;
 this is for the in-process handoff between "the request is answered" and "the
 slow part finishes".
+
+**Work that reads a row the caller has just written takes
+`spawn_after_commit`, not `spawn`.** The task starts at the first suspension
+point after it is created, and inside a request that is well before the
+transaction commits - so the flow opens its own session, looks for the row by
+id, and under `READ COMMITTED` does not find it (#417).
 """
 
 from __future__ import annotations
@@ -20,7 +26,10 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Coroutine
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, cast
+
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +70,75 @@ def spawn(coro: Coroutine[Any, Any, Any], *, name: str) -> asyncio.Task[Any]:
     _running.add(task)
     task.add_done_callback(_on_done)
     return task
+
+
+@dataclass(frozen=True, slots=True)
+class _Deferred:
+    """One coroutine waiting for a transaction it must not outrun."""
+
+    coro: Coroutine[Any, Any, Any]
+    name: str
+
+
+# The key this module keeps its queue under in `Session.info`, which is a plain
+# dict SQLAlchemy carries for exactly this: state belonging to one unit of work,
+# thrown away with it. Module-private, so nothing else writes it and the casts
+# below are the only place the queue's type is asserted rather than checked.
+_DEFERRED_KEY = "app.core.background.deferred"
+
+
+def _take(session: AsyncSession) -> list[_Deferred]:
+    """Empty the session's queue, so neither caller can run it twice."""
+    return cast(list[_Deferred], session.info.pop(_DEFERRED_KEY, []))
+
+
+def spawn_after_commit(session: AsyncSession, coro: Coroutine[Any, Any, Any], *, name: str) -> None:
+    """Queue background work to start once `session` has committed.
+
+    The task is not created here. It is created by `start_deferred`, which the
+    session's own lifecycle calls immediately after `commit()` - so work handed
+    over this way cannot observe the transaction that handed it over.
+
+    That is the whole of #417. `spawn` inside a request creates the task at
+    once, the loop starts it at the next suspension point, and the endpoint has
+    several of those left before its commit; a flow whose first act is to read
+    its own row by id therefore found nothing and stopped, leaving an upload
+    that answered `{"status": "processing"}` and stayed that way. Deferring the
+    *spawn* rather than teaching each flow to wait keeps the ordering one
+    property of one place, instead of a retry loop in every consumer that
+    cannot tell "not committed yet" from "never existed".
+
+    Args:
+        session: The unit of work whose commit this waits for. Any session from
+            `app.db.session` will do - a request's, a WebSocket's, a worker's.
+        coro: The work to run. Created now and started later, so it must not
+            hold anything belonging to `session`: ids and primitives only.
+        name: What it is, used in the log line when it fails.
+    """
+    queue = cast(list[_Deferred], session.info.setdefault(_DEFERRED_KEY, []))
+    queue.append(_Deferred(coro=coro, name=name))
+
+
+def start_deferred(session: AsyncSession) -> None:
+    """Start what the session deferred, now that its transaction has committed."""
+    for deferred in _take(session):
+        spawn(deferred.coro, name=deferred.name)
+
+
+def discard_deferred(session: AsyncSession) -> None:
+    """Drop what a session deferred and never committed.
+
+    Closing each coroutine is not tidiness: an un-awaited coroutine is a
+    `RuntimeWarning` raised at garbage collection, somewhere else entirely. The
+    warning says the work was dropped, because the row it was going to read was
+    rolled back and running it would only fail further away from the cause.
+    """
+    for deferred in _take(session):
+        deferred.coro.close()
+        logger.warning(
+            "Deferred task %s dropped: its transaction did not commit",
+            deferred.name,
+        )
 
 
 async def drain(timeout: float = 30.0) -> None:
