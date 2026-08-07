@@ -7,6 +7,8 @@ See: https://anyio.readthedocs.io/en/stable/testing.html
 # ruff: noqa: I001 - Imports structured for Jinja2 template conditionals
 
 import os
+import re
+from pathlib import Path
 
 # Before anything imports `app.core.config`, and therefore before anything can
 # open a connection: point every database name in this process at a test
@@ -35,6 +37,54 @@ import os
 # refused by the guard in the integration conftest instead of being made to look
 # like one.
 os.environ["POSTGRES_DB"] = f"{os.environ.get('POSTGRES_DB', 'agenticos_test')}_p{os.getpid()}"
+
+
+def _a_password_is_already_configured() -> bool:
+    """Would `app.core.config` resolve a Postgres password from somewhere?
+
+    The `.env` search mirrors `find_env_file`, which cannot be imported here:
+    importing `app.core.config` is precisely what this block has to precede.
+    An empty assignment does not count, because `env_ignore_empty` discards it.
+    """
+    if os.environ.get("POSTGRES_PASSWORD"):
+        return True
+    for directory in (Path.cwd(), Path.cwd().parent):
+        env_file = directory / ".env"
+        if env_file.exists():
+            return any(
+                re.match(r"\s*POSTGRES_PASSWORD\s*=\s*\S", line)
+                for line in env_file.read_text().splitlines()
+            )
+    return False
+
+
+# The credential those same two engines authenticate with, resolved here for the
+# same reason as the name above: `app/db/session.py` builds its engine at import
+# time, so anything the settings object must hold has to be in the environment
+# before it is constructed.
+#
+# `tests/integration/conftest.py` used to default this to "postgres" while
+# `app/core/config.py` defaults it to empty, and no test could tell, because
+# every one of them connected through the fixture's engine. The first test to
+# drive the *application's* engine found the disagreement: on a checkout with no
+# `backend/.env` - which is every git worktree, the file being untracked - it
+# failed to authenticate while the rest of the suite passed, which reads exactly
+# like a regression of whatever branch it turned up on (#485).
+#
+# The empty default in `app/core/config.py` stays, and this is deliberately not a
+# second copy of it. `make install` is built around that empty default: with no
+# `.env`, `alembic check` is refused with `fe_sendauth: no password supplied`,
+# which is a missing file announcing itself rather than a guessed credential
+# reaching a database. What is defaulted here is what the test suite connects
+# with, in one place, and `tests/integration/conftest.py` reads it back off the
+# settings object rather than defaulting it again.
+#
+# Seeded only when nothing else supplies one - unlike the database name above,
+# where overriding a developer's `.env` is the entire point. Here it would swap a
+# real password for a guess, so a `.env` that names one keeps it, and the
+# integration fixture now honours it too instead of ignoring it.
+if not _a_password_is_already_configured():
+    os.environ["POSTGRES_PASSWORD"] = "postgres"
 
 from collections.abc import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock
