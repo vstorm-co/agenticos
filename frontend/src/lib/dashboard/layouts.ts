@@ -69,13 +69,13 @@ export const SPAN_CLASS: Record<Span, string> = {
 };
 
 /**
- * Where agents run code, for the audiences that hold `connections:manage`.
+ * Where agents run code, for the audiences that can watch a host.
  *
- * Owner, admin and builder hold it; **operator does not** - read off
- * `ROLE_PERMS` in `app/core/permissions.py` rather than off the persona, which
- * points the other way. The section is therefore absent from the operator
- * layout instead of being listed there and gated away: a layout entry no gate
- * can ever pass is dead data. See #129 for the gap that leaves.
+ * The cards gate on `connections:view` - the read that owner, admin, builder
+ * and now operator all hold (`ROLE_PERMS` in `app/core/permissions.py`). The
+ * operator was the point of splitting the permission: "why did that agent just
+ * get a 429" is their question, and it needs the session list and the ceilings,
+ * not the authority to point a host somewhere. See #129 and #449.
  */
 const SANDBOX_SECTION: SectionDef = {
   id: "sandboxes",
@@ -178,6 +178,11 @@ export const LAYOUTS: Record<AudienceId, SectionDef[]> = {
         { widget: "top-people", span: "s12" },
       ],
     },
+    // The runtime allowlist and the capacity figure are an operator's to watch:
+    // a host's ceilings answer "why did that agent get a 429", which they are
+    // paged about and a builder is not. They hold `connections:view`, so the
+    // cards' gate passes (#449).
+    SANDBOX_SECTION,
     {
       id: "workspace",
       titleKey: "workspace",
@@ -224,7 +229,7 @@ export const LAYOUTS: Record<AudienceId, SectionDef[]> = {
     },
     // A builder is who gives an agent the code-execution capability, so the
     // memory ceiling their agents die on is their own question as much as an
-    // operator's - and they hold `connections:manage` where the operator does not.
+    // operator's - both hold `connections:view`, which is what the cards gate on.
     SANDBOX_SECTION,
     {
       id: "activity",

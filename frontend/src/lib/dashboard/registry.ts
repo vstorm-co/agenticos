@@ -154,25 +154,26 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     gate: holds(Perm.agentsView),
     defaultSpan: "s4",
   },
-  // The sandbox cards are read-only views of a host, and `connections:manage`
-  // is the permission that already gates every route behind them - there is no
-  // narrower "watch a connection" scope, so this is the honest gate rather than
-  // the ideal one.
+  // The sandbox cards are read-only views of a host, so they gate on
+  // `connections:view` - the watch-a-connection scope that reads its sessions
+  // and ceilings without the manage authority that points a host somewhere or
+  // attaches its credential. That is why an operator, who holds the read and not
+  // the write, sees these.
   "sandbox-capacity": {
     id: "sandbox-capacity",
-    gate: holds(Perm.connectionsManage),
+    gate: holds(Perm.connectionsView),
     defaultSpan: "s5",
     seeAll: ROUTES.SANDBOXES,
   },
   "sandbox-sessions": {
     id: "sandbox-sessions",
-    gate: holds(Perm.connectionsManage),
+    gate: holds(Perm.connectionsView),
     defaultSpan: "s12",
     seeAll: ROUTES.SANDBOXES,
   },
   "sandbox-policy": {
     id: "sandbox-policy",
-    gate: holds(Perm.connectionsManage),
+    gate: holds(Perm.connectionsView),
     defaultSpan: "s7",
     seeAll: ROUTES.SANDBOXES,
   },

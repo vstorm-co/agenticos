@@ -41,9 +41,9 @@ const GATE_TABLE: Record<WidgetId, Permission | "app_admin"> = {
   "my-top-agents": Perm.agentsRun,
   "my-quality": Perm.agentsRun,
   "shared-with-you": Perm.agentsView,
-  "sandbox-capacity": Perm.connectionsManage,
-  "sandbox-sessions": Perm.connectionsManage,
-  "sandbox-policy": Perm.connectionsManage,
+  "sandbox-capacity": Perm.connectionsView,
+  "sandbox-sessions": Perm.connectionsView,
+  "sandbox-policy": Perm.connectionsView,
 };
 
 describe("the widget catalog", () => {
