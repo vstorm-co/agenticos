@@ -60,6 +60,12 @@ There is no `(marketing)` route group.
   translator, so it holds *keys* and the component translates at the point of use;
   a pure helper either answers with a key or takes `t`.
 - Keep components under ~100 lines; extract when they grow.
+- **A response with no `Cache-Control` is not a response nobody caches.**
+  `platform-proxy.ts` stamps `no-store` on anything the backend left unmarked: every
+  answer on this surface depends on a cookie, a permission set and the organization
+  header, and a list refetched right after a write must reach the server. A
+  hand-rolled route file owes the same header - the proxy is the only place that
+  applies it for you.
 - Do not hand-edit `src/lib/mcp-logos.generated.ts` — run `bun run gen:mcp-logos`.
 
 ## Permissions

@@ -22,6 +22,7 @@ import time
 from multiprocessing import RawValue
 from multiprocessing.context import SpawnProcess
 from pathlib import Path
+from socket import socket
 from types import FrameType
 from typing import Any, Final
 
@@ -38,6 +39,8 @@ from cli.reload_supervisor import (
     BEAT_INTERVAL,
     NOT_YET_BEATEN,
     POLLS_BEFORE_WEDGED,
+    STOP_GRACE,
+    STOP_GRACE_BEFORE_THE_FIRST_BEAT,
     WEDGED_AFTER,
     WEDGED_AFTER_ENV_VAR,
     WS_PROTOCOL,
@@ -63,19 +66,37 @@ pytestmark = pytest.mark.anyio
 
 
 class FakeWorker:
-    """Enough of `multiprocessing.Process` for the supervisor's decision."""
+    """Enough of `multiprocessing.Process` for the supervisor's decision.
 
-    def __init__(self, exitcode: int | None, pid: int = 4242) -> None:
+    `ignores_sigterm` is the one interesting variation: the real worker catches
+    `SIGTERM` and acts on it from its event loop, so a worker whose loop has
+    stopped turning takes the signal and never exits. That is the difference
+    between a shutdown that returns and one that waits for Docker.
+    """
+
+    def __init__(
+        self, exitcode: int | None, pid: int = 4242, *, ignores_sigterm: bool = False
+    ) -> None:
         self.exitcode = exitcode
         self.pid = pid
         self.killed = False
+        self.terminated = False
+        self._ignores_sigterm = ignores_sigterm
+        # Every timeout the supervisor was willing to wait, in order.
+        self.waited_for: list[float | None] = []
 
     def kill(self) -> None:
         self.killed = True
         self.exitcode = -signal.SIGKILL
 
-    def join(self) -> None:
+    def terminate(self) -> None:
+        self.terminated = True
+        if not self._ignores_sigterm and self.exitcode is None:
+            self.exitcode = -signal.SIGTERM
+
+    def join(self, timeout: float | None = None) -> None:
         """A killed process is reaped immediately; a fake one has nothing to wait for."""
+        self.waited_for.append(timeout)
 
 
 class BeatingWorker:
@@ -108,6 +129,33 @@ class BeatingWorker:
         while not self._should_exit:
             await self._heartbeat()
             await asyncio.sleep(0.05)
+
+
+def _ignore_the_signal(sig: int, frame: FrameType | None) -> None:
+    """uvicorn's shape of signal handling: take it, and leave the loop to act on it."""
+
+
+class HungBeforeFirstBeatWorker:
+    """A worker that never reaches an event loop, the way one hangs on a database that is down.
+
+    Lifespan startup runs before `main_loop`, so a worker blocked there is
+    running, has no exit code, has never beaten - and, because it caught
+    `SIGTERM` and there is no loop to act on it, will not stop. Reproducing that
+    needs a real process: the hang #366 filed is `Process.join()` returning
+    never, which nothing in-process demonstrates.
+    """
+
+    def __init__(self, ready: ctypes.c_int) -> None:
+        self._ready = ready
+
+    def __call__(self, sockets: list[Any] | None = None) -> None:
+        signal.signal(signal.SIGTERM, _ignore_the_signal)
+        # Announced only once the handler is installed: a `SIGTERM` arriving
+        # before it would be the default action, and the test would prove
+        # nothing while passing.
+        self._ready.value = 1
+        while True:
+            time.sleep(A_PATIENT_WAIT)
 
 
 class RecordingReload(SupervisedReload):
@@ -485,7 +533,7 @@ def test_a_last_gasp_beat_from_a_dying_worker_does_not_reach_its_replacement(
 
 
 def test_shutting_down_kills_a_wedged_worker_rather_than_waiting_for_it(
-    supervisor: RecordingReload, beat: ctypes.c_double, monkeypatch: pytest.MonkeyPatch
+    supervisor: RecordingReload, beat: ctypes.c_double
 ) -> None:
     """`_replace_a_wedged_worker` steps aside during shutdown, so `shutdown` has to act.
 
@@ -493,30 +541,86 @@ def test_shutting_down_kills_a_wedged_worker_rather_than_waiting_for_it(
     wedged worker never acts on `SIGTERM` - so Ctrl+C would block until Docker
     killed the container ten seconds later.
     """
-    stopped: list[bool] = []
-    monkeypatch.setattr(BaseReload, "shutdown", lambda self: stopped.append(True))
-    wedged = FakeWorker(None)
+    wedged = FakeWorker(None, ignores_sigterm=True)
     supervisor.process = wedged
     beat.value = time.monotonic() - A_SHORT_WEDGE - 1
 
     supervisor.shutdown()
 
     assert wedged.killed
-    assert stopped == [True]
+    assert not wedged.terminated, "a worker judged wedged is killed, not asked politely first"
 
 
 def test_shutting_down_leaves_a_healthy_worker_to_drain(
-    supervisor: RecordingReload, beat: ctypes.c_double, monkeypatch: pytest.MonkeyPatch
+    supervisor: RecordingReload, beat: ctypes.c_double
 ) -> None:
     """`SIGTERM` is how in-flight requests finish; escalating always would drop them."""
-    monkeypatch.setattr(BaseReload, "shutdown", lambda self: None)
     healthy = FakeWorker(None)
     supervisor.process = healthy
     beat.value = time.monotonic()
 
     supervisor.shutdown()
 
+    assert healthy.terminated
     assert not healthy.killed
+    assert healthy.waited_for == [STOP_GRACE]
+
+
+def test_shutting_down_stops_waiting_on_a_worker_that_never_drains(
+    supervisor: RecordingReload, beat: ctypes.c_double, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The bound is not a timeout that hides a hang - it says what it killed."""
+    stuck = FakeWorker(None, ignores_sigterm=True)
+    supervisor.process = stuck
+    beat.value = time.monotonic()
+
+    supervisor.shutdown()
+
+    assert stuck.killed
+    assert stuck.waited_for == [STOP_GRACE, None]
+    assert "did not finish draining in 8s" in caplog.text
+
+
+def test_shutting_down_kills_a_worker_that_never_ran_its_event_loop(
+    supervisor: RecordingReload, beat: ctypes.c_double, caplog: pytest.LogCaptureFixture
+) -> None:
+    """#366: the one state the wedge verdict cannot see, and the one that hangs Ctrl+C.
+
+    A worker hung during lifespan startup - a Postgres that is down, a
+    `PREFECT_API_URL` that does not answer - has never beaten, so `_silent_for`
+    answers `None` and there is nothing to escalate on. It gets a second rather
+    than `STOP_GRACE`, because a worker that never finished starting is holding
+    nothing worth draining.
+    """
+    never_started = FakeWorker(None, ignores_sigterm=True)
+    supervisor.process = never_started
+    assert beat.value == NOT_YET_BEATEN
+
+    supervisor.shutdown()
+
+    assert never_started.terminated
+    assert never_started.killed
+    assert never_started.waited_for == [STOP_GRACE_BEFORE_THE_FIRST_BEAT, None]
+    assert "never ran its event loop and ignored SIGTERM for 1s" in caplog.text
+
+
+def test_shutting_down_closes_the_socket_it_bound(
+    supervisor: RecordingReload, beat: ctypes.c_double
+) -> None:
+    """Not delegating to `BaseReload.shutdown` means carrying what it did.
+
+    The parent binds the port so a replacement worker inherits one that never
+    stopped being bound; leaving it open on the way out is a reloader that
+    cannot be restarted without `Address already in use`.
+    """
+    listening = socket()
+    supervisor.sockets = [listening]
+    supervisor.process = FakeWorker(None)
+    beat.value = time.monotonic()
+
+    supervisor.shutdown()
+
+    assert listening.fileno() == -1
 
 
 def test_the_wedge_check_can_be_switched_off(
@@ -667,6 +771,41 @@ def test_a_worker_stopped_mid_flight_is_killed_and_replaced() -> None:
         _reap(wedged)
 
 
+def test_shutting_down_returns_from_a_worker_that_hung_before_its_first_beat() -> None:
+    """#366, against a real process: Ctrl+C has to come back without Docker's help.
+
+    `BaseReload.shutdown` joins with no timeout, and the wedge verdict cannot
+    see a worker that has never beaten - so before this the shutdown blocked
+    until the container's ten-second grace period expired and Docker killed the
+    whole thing. A regression hangs this test rather than failing it, which is
+    why the shutdown runs on a thread the test refuses to wait on for ever.
+    """
+    beat: ctypes.c_double = RawValue("d", NOT_YET_BEATEN)
+    ready: ctypes.c_int = RawValue("i", 0)
+    config = Config(APP, reload=True, ws=WS_PROTOCOL)
+    worker = HungBeforeFirstBeatWorker(ready)
+    supervisor = SupervisedReload(
+        config, target=worker, sockets=[], beat=beat, wedged_after=A_SHORT_WEDGE
+    )
+    supervisor.process = get_subprocess(config, target=worker, sockets=[])
+    supervisor.process.start()
+    hung = supervisor.process
+    stopping = threading.Thread(target=supervisor.shutdown, daemon=True)
+    try:
+        _wait_until_ready(ready)
+
+        stopping.start()
+        stopping.join(timeout=A_PATIENT_WAIT)
+
+        assert not stopping.is_alive(), "the shutdown is waiting on a worker that never answers"
+        assert beat.value == NOT_YET_BEATEN, "the worker beat, so this proved the wrong thing"
+        assert hung.exitcode == -signal.SIGKILL
+    finally:
+        _reap(hung)
+        if stopping.ident is not None:
+            stopping.join(timeout=A_PATIENT_WAIT)
+
+
 def _kill(process: SpawnProcess) -> None:
     """Send `SIGKILL` to a process that may already be gone, and do not wait for it."""
     with contextlib.suppress(ProcessLookupError):
@@ -677,6 +816,14 @@ def _reap(process: SpawnProcess) -> None:
     """Kill a process and wait for it, a no-op once it has been reaped already."""
     _kill(process)
     process.join()
+
+
+def _wait_until_ready(ready: ctypes.c_int, timeout: float = A_PATIENT_WAIT) -> None:
+    """Block until the spawned worker says it has installed its signal handler."""
+    deadline = time.monotonic() + timeout
+    while ready.value == 0:
+        assert time.monotonic() < deadline, "the worker never started"
+        time.sleep(0.05)
 
 
 def _wait_until_beating(beat: ctypes.c_double, timeout: float = A_PATIENT_WAIT) -> None:

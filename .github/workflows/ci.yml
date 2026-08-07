@@ -4,11 +4,30 @@ name: CI
 # Work reaches `main` by pull request from a short-lived branch, so the pull
 # request is where these run. The push trigger covers the merge itself - a
 # branch CI ignores is a branch whose status badge means nothing.
+#
+# **`pull_request` carries no `branches:` filter, and that is the point of #359.**
+# That filter matches on the *base*, so a pull request stacked on another feature
+# branch - which is what two branches touching one file are told to do here - matched
+# no trigger at all and ran nothing. Not red, not pending: `gh pr checks` answered
+# "no checks reported" and the rollup was empty, which reads as "still starting" to
+# anybody who does not go looking. Four pull requests merged that way on 2026-08-06,
+# each verified only on somebody's laptop, and the gap closed only when the child was
+# retargeted to `main` after the parent merged - the moment nobody waits seven minutes
+# for a branch that has looked settled for a day.
+#
+# Two things make this cheap rather than a doubling of the bill. The `changes` job
+# below already skips the three expensive suites a diff cannot affect, and it reads
+# `pulls/{n}/files`, which is the diff against *that* pull request's own base - so a
+# stacked child is classified on its own changes rather than on its parent's. And the
+# `concurrency` group is keyed on `github.ref`, so a stacked branch cancels its own
+# superseded runs like any other.
+#
+# The `push` trigger stays pinned to `main`: a branch push is already covered by its
+# pull request, and widening it would run everything twice.
 on:
   push:
     branches: [main, master]
   pull_request:
-    branches: [main, master]
 
 # One run per branch. `CLAUDE.md` asks for a commit and a push per finished piece,
 # which is right - but with nothing cancelling, each push started a fresh 24-minute
@@ -41,6 +60,20 @@ concurrency:
 permissions:
   contents: read
 
+# **Every job carries a `timeout-minutes`, and #364 is why.** `changes` was the only
+# one that did, so the other seven inherited GitHub's default of 360 minutes: one
+# stalled job would have held a required status check for six hours with nothing in
+# this repository ending it sooner. Nothing has been observed to stall - this is a
+# bound on the tail, not a fix for something seen.
+#
+# Each is set several times the job's observed worst case rather than just above it.
+# The bound exists to end a stall, and a timeout tight enough to trim a legitimately
+# cold cache is a red build for a reason unrelated to the diff. Measured on run
+# 31116003994, a full matrix on `main`: changes 7s, lint 22s, Security Scan 14s,
+# docker 2m30s, docs 4m34s, test-frontend 5m08s, test 7m43s, e2e 8m01s.
+#
+# `backend/tests/test_ci_workflow.py` asserts that a job added later carries one too,
+# and that none is so generous it bounds nothing.
 jobs:
   changes:
     # Which of the three expensive suites this pull request can provably not
@@ -105,6 +138,7 @@ jobs:
     # tracked file rather than a subtree, and a suite that skips is only defensible
     # while something still looks at the whole tree.
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -163,6 +197,7 @@ jobs:
     # check is a pass, so that is a green merge button over a suite that never ran.
     if: ${{ !cancelled() && needs.changes.outputs.backend != 'false' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     services:
       postgres:
         # pgvector, not stock postgres: the RAG store runs
@@ -265,6 +300,7 @@ jobs:
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.frontend != 'false' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -317,6 +353,7 @@ jobs:
     # backend, so it is only skippable for a change that touches neither.
     if: ${{ !cancelled() && needs.changes.outputs.e2e != 'false' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     services:
       postgres:
         # pgvector, not stock postgres: the RAG store runs
@@ -494,6 +531,7 @@ jobs:
   security:
     name: Security Scan
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -526,6 +564,7 @@ jobs:
 
   docs:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -554,6 +593,7 @@ jobs:
 
   docker:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: [lint, test]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:

@@ -196,13 +196,17 @@ eight). So:
 - **A fixture step asks the API, and keeps asking.** Every step of
   `seed.setup.ts` asserts through `/api/…`, because its job is that the fixture
   exists — and a fixture step that fails takes every product spec with it. After
-  a write it asks by polling (`nowThere`), never with a single read: a 2xx from
-  this backend means the request was answered, not that the write is readable,
-  because the commit runs in a dependency FastAPI unwinds after the response has
-  gone out ([#353](https://github.com/vstorm-co/agenticos/issues/353)). The
-  `alreadyThere` guard each step opens with stays a single read, since it runs
-  before the write. The one *post-write* check that read once cost 87 skipped
-  specs three times in a day
+  a write it asks by polling (`nowThere`), never with a single read. That began
+  as a workaround: a 2xx from this backend used to mean the request was answered
+  and not that the write was readable, because the commit ran in a dependency
+  FastAPI unwinds after the response has gone out
+  ([#353](https://github.com/vstorm-co/agenticos/issues/353)). **That is fixed**
+  — the commit now lands before the answer does — and the polling stays anyway,
+  because a fixture is the wrong place to discover that some *other* write is
+  slower than its acknowledgement, and because `nowThere` prints the rows it did
+  see where a single read prints nothing. The `alreadyThere` guard each step
+  opens with is a single read on purpose, since it runs before the write. The one
+  *post-write* check that read once cost 87 skipped specs three times in a day
   ([#335](https://github.com/vstorm-co/agenticos/issues/335)).
 - **A product spec that is about the rendering says so**, and reloads first if it
   needs a list it can trust. `vault.spec.ts` has three `page.reload()` calls

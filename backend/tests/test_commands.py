@@ -1,5 +1,11 @@
 """Tests for CLI commands module."""
 
+import asyncio
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+from types import SimpleNamespace
+from uuid import uuid4
+
 import click
 from click.testing import CliRunner
 
@@ -116,3 +122,53 @@ class TestSeedCommand:
         result = runner.invoke(seed, ["--dry-run", "--clear"])
         assert result.exit_code == 0
         assert "Would clear existing data" in result.output
+
+
+class TestRagSourceSyncWaitsForItsWork:
+    """#439: the command reported a sync and then cancelled it.
+
+    `asyncio.run` cancels every task still pending when the coroutine it was
+    given returns, so a command that dispatches and exits has killed the work
+    by the time it prints that the work started.
+    """
+
+    def test_the_command_does_not_return_until_the_sync_it_started_has_finished(
+        self, monkeypatch
+    ) -> None:
+        from app.commands import rag as rag_command
+        from app.core import background
+
+        finished: list[str] = []
+
+        async def sync() -> None:
+            # Two trips through the loop: one is about as far as a task gets
+            # before `asyncio.run` cancels it on the way out.
+            await asyncio.sleep(0)
+            await asyncio.sleep(0)
+            finished.append("done")
+
+        class DispatchingService:
+            """Stands in for the service, dispatching the way it dispatches."""
+
+            def __init__(self, db: object) -> None:
+                self.db = db
+
+            async def trigger_sync(self, source_id: str) -> SimpleNamespace:
+                background.spawn(sync(), name=f"sync-source-{source_id}")
+                return SimpleNamespace(id=uuid4())
+
+        @asynccontextmanager
+        async def session() -> AsyncGenerator[object, None]:
+            yield object()
+
+        monkeypatch.setattr(rag_command, "get_db_context", session)
+        monkeypatch.setattr(rag_command, "SyncSourceService", DispatchingService)
+        background._running.clear()
+
+        result = CliRunner().invoke(rag_command.rag_source_sync, ["a-source"])
+
+        assert result.exit_code == 0, result.output
+        assert finished == ["done"], (
+            "the command returned while its sync was still running, and "
+            "`asyncio.run` cancelled it on the way out (#439)"
+        )

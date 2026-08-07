@@ -1,6 +1,15 @@
 """API dependencies.
 
 Dependency injection factories for services, repositories, and authentication.
+
+**The session aliases below decide when the transaction commits.** A dependency
+with `yield` runs its exit code when the exit stack it was registered on
+unwinds, and FastAPI keeps two of them per request: the *function* stack, which
+unwinds after the path operation returns and **before** the response is sent,
+and the *request* stack, which unwinds **after**. `scope=` on `Depends` chooses
+between them, and `"request"` is the default for a generator dependency - which
+is why every write in this API used to be acknowledged before it was durable
+(#353).
 """
 # ruff: noqa: I001 - Imports structured for Jinja2 template conditionals
 
@@ -18,7 +27,44 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db_session
 
-DBSession = Annotated[AsyncSession, Depends(get_db_session)]
+DBSession = Annotated[AsyncSession, Depends(get_db_session, scope="function")]
+"""The request's session, committed before the response leaves the process.
+
+`scope="function"` is load-bearing, not decoration: it puts the commit on the
+exit stack FastAPI unwinds *between* the path operation returning and the
+response being written, so a 2xx means the write is readable rather than merely
+accepted. Without it a client acting on its own 2xx - a browser refetching after
+a mutation, an agent reading back what it just wrote, an E2E fixture - can be
+answered from a database the write has not reached (#353, #230, #335).
+
+A failed request is unaffected in ordering and unchanged in behaviour: the
+exception unwinds this stack too, so the rollback still happens, and it still
+happens before the error response is built.
+"""
+
+StreamingDBSession = Annotated[AsyncSession, Depends(get_db_session, scope="request")]
+"""A session that outlives the response start, for a body produced while sending.
+
+A `StreamingResponse` over a generator is iterated during `await response(...)`,
+which is after the function stack has unwound - so a body that pages through the
+database needs the session to survive that long, and this alias is the only
+supported way to ask for one.
+
+**Read-only.** Its transaction resolves after the client has been answered,
+which is exactly the ordering #353 is about, so a write made through it is a
+write nobody can be told the truth about. One endpoint uses it: the ratings
+export. `tests/api/test_db_session_scope.py` refuses a second without a decision
+being made about it.
+
+Taking this alias costs a second session, because FastAPI's dependency cache
+keys on the computed scope: the export endpoint holds this one *and* the
+function-scoped one its authentication resolves through, on two pool
+connections, in two transactions. Unavoidable while authentication reads the
+database, and free for a read - under `READ COMMITTED` every statement takes a
+fresh snapshot anyway, so one transaction guarantees these two reads no more
+than two do. Do not build on it: a *write* split across the two is two
+transactions that can half-commit.
+"""
 from uuid import UUID
 
 from app.db.session import get_db_context
@@ -109,6 +155,21 @@ def get_rating_service(db: DBSession) -> MessageRatingService:
 
 
 MessageRatingSvc = Annotated[MessageRatingService, Depends(get_rating_service)]
+
+
+def get_streaming_rating_service(db: StreamingDBSession) -> MessageRatingService:
+    """The ratings service for the CSV export, and nothing else.
+
+    `MessageRatingService.export_all_ratings` is an async generator that pages
+    through the database as the CSV is written, so it runs while the response is
+    being sent - after an ordinary `DBSession` has committed and closed. The
+    export writes nothing, which is what makes a request-scoped session
+    acceptable here; see `StreamingDBSession`.
+    """
+    return MessageRatingService(db)
+
+
+StreamingMessageRatingSvc = Annotated[MessageRatingService, Depends(get_streaming_rating_service)]
 from app.services.rag_document import RAGDocumentService
 from app.services.rag_sync import RAGSyncService
 from app.services.sync_source import SyncSourceService

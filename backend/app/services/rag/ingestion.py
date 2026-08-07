@@ -8,6 +8,7 @@ from app.core.config import settings
 from app.services.embedding_resolution import embeddings_for_collection
 from app.services.rag.documents import DocumentProcessor
 from app.services.rag.embeddings import EmbeddingService
+from app.services.rag.failures import IngestionStage, failure_summary
 from app.services.rag.models import Document, IngestionResult, IngestionStatus
 from app.services.rag.vectorstore import BaseVectorStore
 from app.services.rag.vectorstore import PgVectorStore as VectorStore
@@ -85,10 +86,21 @@ class IngestionService:
         replace: bool = True,
         source_path: str = "",
     ) -> IngestionResult:
-        """`source_path` accepts URI schemes like gdrive://id or s3://bucket/key."""
+        """`source_path` accepts URI schemes like gdrive://id or s3://bucket/key.
+
+        Parsing and indexing are caught separately so that the failure this
+        returns can say which of the two gave up. It is the one thing the
+        caller cannot work out afterwards, and the difference between a file
+        this collection's parser does not read and an embedding credential the
+        provider refused.
+        """
         try:
             document: Document = await self.processor.process_file(filepath)
+        except Exception as exc:
+            logger.exception("Parsing failed for %s", filepath.name)
+            return self._failed(exc, stage=IngestionStage.PARSE, filename=filepath.name)
 
+        try:
             if source_path:
                 document.metadata.source_path = source_path
                 document.metadata.filename = Path(source_path).name
@@ -134,13 +146,26 @@ class IngestionService:
                 message=f"Successfully {action} '{filepath.name}'",
             )
 
-        except Exception as e:
-            logger.error("Ingestion error for %s: %s", filepath.name, e)
-            return IngestionResult(
-                status=IngestionStatus.ERROR,
-                error_message=str(e),
-                message=f"Failed to process {filepath.name}",
-            )
+        except Exception as exc:
+            logger.exception("Indexing failed for %s", filepath.name)
+            return self._failed(exc, stage=IngestionStage.INDEX, filename=filepath.name)
+
+    @staticmethod
+    def _failed(exc: Exception, *, stage: IngestionStage, filename: str) -> IngestionResult:
+        """The failure a caller may store, for an exception it may not.
+
+        `error_message` reaches `rag_documents` and the documents page, so it
+        carries the stage and the exception's type rather than its text - see
+        `app.services.rag.failures` for why (#423). The text itself is in the
+        `logger.exception` above each call, which also replaced a
+        `logger.error(..., e)` that dropped the traceback: that traceback is now
+        the only full copy of what the upstream said.
+        """
+        return IngestionResult(
+            status=IngestionStatus.ERROR,
+            error_message=failure_summary(exc, stage=stage),
+            message=f"Failed to process {filename}",
+        )
 
     async def find_existing(self, collection_name: str, source_path: str) -> str | None:
         return await self._find_existing_by_source(collection_name, source_path)

@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill, SkillResource
+from app.repositories._search import contains_ci
 
 # How a listing may be ordered: by name, or by when a skill last changed.
 SkillSort = Literal["name", "updated"]
@@ -31,6 +32,19 @@ async def get_by_name(db: AsyncSession, name: str, *, organization_id: UUID) -> 
         select(Skill).where(Skill.name == name, Skill.organization_id == organization_id)
     )
     return result.scalar_one_or_none()
+
+
+async def names_in_use(db: AsyncSession, *, organization_id: UUID) -> set[str]:
+    """Every skill name taken in one organization.
+
+    Unpaged and visibility-blind, which is what makes it the same question
+    :func:`get_by_name` asks one name at a time. Uniqueness is a property of the
+    organization rather than of what a caller may see: a skill a member cannot
+    read is still a name they cannot take, and a name past the hundredth row of
+    a listing is not a free one.
+    """
+    result = await db.execute(select(Skill.name).where(Skill.organization_id == organization_id))
+    return set(result.scalars().all())
 
 
 async def get_many(
@@ -93,11 +107,10 @@ async def list_visible(
             )
         )
     if search:
-        safe = search.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
         where.append(
             or_(
-                Skill.name.ilike(f"%{safe}%", escape="\\"),
-                Skill.description.ilike(f"%{safe}%", escape="\\"),
+                contains_ci(Skill.name, search),
+                contains_ci(Skill.description, search),
             )
         )
     if categories:
