@@ -61,7 +61,7 @@ const DASHBOARD_PAGES: {
     proof: (page) => page.getByRole("heading", { name: "Nothing waiting" }),
   },
   {
-    path: "/kb",
+    path: "/rag",
     heading: "Knowledge bases",
     proof: (page) => page.getByText(SEEDED_KB_NAME, { exact: true }).first(),
   },

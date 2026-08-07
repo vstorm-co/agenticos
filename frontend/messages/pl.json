@@ -36,7 +36,6 @@
     "knowledge": "Wiedza",
     "knowledgeBases": "Bazy wiedzy",
     "rag": "RAG",
-    "ragSearch": "Wyszukiwanie RAG",
     "team": "Zespół",
     "organizations": "Organizacje",
     "admin": "Administracja",
@@ -281,6 +280,39 @@
     "cookies": {
       "title": "Polityka Cookies",
       "summary": "Co przechowujemy w Twojej przeglądarce, po co i jak to wyłączyć."
+    }
+  },
+  "pages": {
+    "kb": {
+      "search": "Szukaj",
+      "retry": "Spróbuj ponownie",
+      "listFailedTitle": "Nie udało się wczytać baz wiedzy",
+      "listFailedDescription": "Żądanie listy baz wiedzy nie powiodło się.",
+      "refreshFailedTitle": "Nie udało się odświeżyć tej bazy wiedzy",
+      "refreshFailedDescription": "Poniżej widzisz ostatnie wczytane dane, które mogą być nieaktualne.",
+      "syncSourcesFailedTitle": "Nie udało się wczytać źródeł synchronizacji",
+      "syncSourcesFailedDescription": "Żądanie o źródła synchronizacji tej bazy nie powiodło się, więc nie wiadomo, czy jakieś ma.",
+      "connectorsFailedTitle": "Nie udało się wczytać konektorów",
+      "connectorsFailedDescription": "Żądanie listy konektorów nie powiodło się, więc nie wiadomo, czy któryś jest włączony."
+    }
+  },
+  "rag": {
+    "orgIntegrationsLoadFailed": "Nie udało się wczytać istniejących integracji przestrzeni; nadal możesz utworzyć nowe źródło.",
+    "connectorLoadFailed": "Nie udało się wczytać listy konektorów. Zamknij okno i spróbuj ponownie.",
+    "search": {
+      "placeholder": "Przeszukaj swoje bazy wiedzy...",
+      "scopeLabel": "Zakres wyszukiwania",
+      "allBases": "Wszystkie bazy wiedzy",
+      "button": "Szukaj",
+      "searching": "Szukam...",
+      "noBases": "Nie ma jeszcze czego szukać - utwórz bazę wiedzy i wgraj dokument.",
+      "noResults": "Brak wyników",
+      "noResultsHint": "Spróbuj innego zapytania albo innej bazy wiedzy",
+      "failedTitle": "Nie udało się wykonać wyszukiwania",
+      "failedDescription": "Żądanie wyszukiwania nie powiodło się, więc nie wiadomo, czy cokolwiek pasuje.",
+      "retry": "Spróbuj ponownie",
+      "page": "s.{page}",
+      "resultCount": "{count, plural, =0 {Brak wyników} =1 {1 wynik} few {# wyniki} other {# wyników}} · {ms} ms"
     }
   },
   "dashboard": {

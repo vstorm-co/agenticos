@@ -125,7 +125,7 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     id: "knowledge-freshness",
     gate: holds(Perm.collectionsView),
     defaultSpan: "s4",
-    seeAll: ROUTES.KB,
+    seeAll: ROUTES.RAG,
   },
   members: {
     id: "members",

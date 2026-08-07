@@ -36,7 +36,6 @@ import {
   LayoutDashboard,
   MessageSquare,
   Plug,
-  Search,
   ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
@@ -87,11 +86,10 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       {
         labelKey: "knowledgeBases",
-        href: ROUTES.KB,
+        href: ROUTES.RAG,
         icon: Database,
         permission: Perm.collectionsView,
       },
-      { labelKey: "ragSearch", href: ROUTES.RAG, icon: Search, permission: Perm.collectionsView },
     ],
   },
   {

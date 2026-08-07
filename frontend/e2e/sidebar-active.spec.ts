@@ -19,8 +19,8 @@ test.use({ storageState: AUTH_STATE });
  * This is here rather than only in `app-sidebar.test.tsx` because that suite
  * mocks `usePathname`: it proves the matching rule against strings the test
  * chose, and nothing about that rule meeting a URL the router produced. The bug
- * it missed lived exactly in that gap — `/kb/<id>` reached the rule with its
- * `/kb` already eaten by locale stripping, so the reported page showed a sidebar
+ * it missed lived exactly in that gap — `/rag/<id>` reached the rule with its
+ * `/rag` already eaten by locale stripping, so the reported page showed a sidebar
  * with nothing lit at all.
  *
  * These specs only read, so there is nothing to undo; each still opens on
@@ -51,7 +51,7 @@ async function expectMarked(page: Page, entry: string): Promise<void> {
 
 test.describe("Sidebar section marking", () => {
   test("a list page marks its own section", async ({ page }) => {
-    await page.goto("/kb");
+    await page.goto("/rag");
 
     // The seeded row, so this fails on a dark sidebar rather than on a page that
     // rendered its empty state because the request behind it failed.
@@ -63,7 +63,7 @@ test.describe("Sidebar section marking", () => {
   test("a knowledge base detail page keeps Knowledge bases marked", async ({ page }) => {
     // The reported case, reached the way a user reaches it: the id in the URL is
     // a real one, so a rule that only works on paths a test made up fails here.
-    await page.goto("/kb");
+    await page.goto("/rag");
     // `.first()`: the seed creates its knowledge base on every run and the
     // database outlives the run, so by now there are several by that name. Which
     // one opens does not matter here — any of them is a detail page.
@@ -72,7 +72,7 @@ test.describe("Sidebar section marking", () => {
       .first()
       .click();
 
-    await expect(page).toHaveURL(/\/kb\/[0-9a-f-]{36}$/);
+    await expect(page).toHaveURL(/\/rag\/[0-9a-f-]{36}$/);
     await expect(pageHeading(page, SEEDED_KB_NAME)).toBeVisible();
 
     await expectMarked(page, "Knowledge bases");
