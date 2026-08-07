@@ -19,6 +19,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.64] - 2026-08-07
+
+### Fixed
+
+- Every JSON response the platform proxy returns now declares a cache policy. It
+  carried none — no `Cache-Control`, no `ETag`, no `Last-Modified` — on every
+  mutable collection on the surface, and silence is not "do not cache": a 200
+  with no policy is one the browser may reuse on its own judgement. Every answer
+  here depends on a cookie, a permission set and an organization header, so there
+  is nothing on this surface a shared or heuristic cache may keep. A backend that
+  does name a policy still wins, which is how the catalog icons and the embed
+  bundle keep theirs.
+
+
 ## [0.0.63] - 2026-08-07
 
 ### Fixed
