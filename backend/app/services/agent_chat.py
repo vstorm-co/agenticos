@@ -44,7 +44,7 @@ from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
 from app.db.models.user import User
-from app.repositories import member_repo
+from app.repositories import conversation_repo, member_repo
 from app.services.agent_runner import (
     AgentRunnerService,
     ParkedApproval,
@@ -172,6 +172,27 @@ def display_output(output: str | DeferredToolRequests) -> str:
 
 
 @dataclass(frozen=True)
+class OpenedRun:
+    """The run row, handed to the surface the moment it exists.
+
+    A streaming surface persists the answer itself, and until this existed it
+    could only do so for a turn that *finished*: everything it needs arrives on
+    `ChatTurn`, and a run that failed, was stopped by a budget or was cancelled
+    mid-stream never returns one. So the text the model had already streamed was
+    thrown away, and the run row in history pointed at a transcript holding the
+    question and nothing else - on exactly the runs somebody opens.
+
+    Three fields rather than the run row itself: a surface has no business
+    reaching into a `PreparedRun`, and these are what attributing a partial
+    answer takes.
+    """
+
+    run_id: UUID
+    model_label: str
+    agent_version_id: UUID | None
+
+
+@dataclass(frozen=True)
 class ChatTurn:
     """What one published-agent turn produced, for the surface to persist."""
 
@@ -235,8 +256,10 @@ class ChatAgentRunner:
         message_history: list[ModelMessage],
         attachments: list[ChatFile] | None = None,
         conversation_id: UUID | None,
+        prompt_message_id: UUID | None = None,
         ask_user: AskUserCallback,
         stream: ChatStream,
+        on_run_open: Callable[[OpenedRun], None] | None = None,
         subagent_events: SubagentEventSink | None = None,
         model_profile_id: UUID | None = None,
         environment_id: UUID | None = None,
@@ -257,9 +280,21 @@ class ChatAgentRunner:
                 surface is assembling its prompt.
             message_history: The conversation so far, in Pydantic AI's format.
             conversation_id: The chat thread, so the run is findable from it.
+            prompt_message_id: The row the surface already wrote the prompt to.
+                Linked to the run as soon as `prepare` opens one, which is what
+                puts the question in the run's own transcript. The surface writes
+                it first and hands the id here rather than waiting, because a
+                build that refuses must not lose what somebody typed - and that
+                refusal happens inside `prepare`.
             ask_user: How the agent puts a question to the person who is sitting
                 there. Only a live surface can offer this.
             stream: Iterates the run and forwards its events to the client.
+            on_run_open: Told the run row as soon as `prepare` has opened one,
+                so a surface can persist what it streamed even when this method
+                raises. Everything it would otherwise use arrives on `ChatTurn`,
+                and a run that failed, hit its budget or was cancelled produces
+                none - which is how a failed chat run came to keep the question
+                and lose the half-written answer.
             subagent_events: Where a delegation's frames go, for a surface that
                 can draw one. Defaults to `None`, and the default is load-bearing
                 rather than convenient: attaching a handler makes the library open
@@ -297,6 +332,25 @@ class ChatAgentRunner:
         # delegation is a tool call named `task` that goes quiet for thirty seconds.
         prepared.deps.ask_user = ask_user
         prepared.deps.subagent_events = subagent_events
+
+        # Before the run, not after: this run may fail, park or be cancelled, and
+        # a transcript that holds the answer but not the question is the one shape
+        # a reader cannot interpret.
+        if prompt_message_id is not None and conversation_id is not None:
+            await conversation_repo.link_message_to_run(
+                self.db,
+                message_id=prompt_message_id,
+                run_id=prepared.run.id,
+                conversation_id=conversation_id,
+            )
+        if on_run_open is not None:
+            on_run_open(
+                OpenedRun(
+                    run_id=prepared.run.id,
+                    model_label=prepared.built.model_label,
+                    agent_version_id=prepared.run.agent_version_id,
+                )
+            )
 
         if attachments:
             router = AttachmentRouter(

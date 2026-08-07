@@ -324,29 +324,115 @@ class TestTheThreeBreakdowns:
             fixture.researcher.id: Decimal("0.40"),
         }
 
-    async def test_the_provider_split_does_not_pay_two_vendors_for_one_request(self, db):
-        """The least visible of the three. The parent's row carries the parent's
-        provider *and* the delegate's tokens, so counting the child row too billed
-        OpenAI $1.00 and Anthropic $0.40 for $1.00 of work - and each figure looked
-        entirely plausible next to the other."""
+    async def test_each_vendor_is_paid_its_own_share_and_only_its_own(self, db):
+        """The least visible of the three, and it has now been wrong twice in
+        opposite directions.
+
+        Counting every row billed OpenAI $1.00 and Anthropic $0.40 for $1.00 of
+        work - each figure plausible next to the other. Counting only top-level
+        rows totalled correctly and attributed the delegate's $0.40 to the
+        *parent's* vendor, because that is the provider on the row being summed:
+        Anthropic did not appear at all, and nothing on screen could say so
+        (#194).
+
+        Own spend per row answers both at once. $0.60 stayed at OpenAI, $0.40 went
+        to Anthropic, and the two add up to the bill."""
         fixture = await _one_delegated_request(db)
 
         rows = await agent_run_repo.spend_by_provider(
             db, organization_id=fixture.org.id, since=month_start()
         )
 
-        assert rows == [("openai", Decimal("1.00"), 1)]
+        assert {provider: cost for provider, cost, _runs in rows} == {
+            "openai": Decimal("0.60"),
+            "anthropic": Decimal("0.40"),
+        }
+        assert sum(cost for _provider, cost, _runs in rows) == Decimal("1.00")
 
-    async def test_a_key_is_not_charged_for_the_same_request_twice(self, db):
+    async def test_a_key_is_charged_once_for_the_whole_request(self, db):
         """One key paid for both rows here, which is the ordinary case: a delegate
-        usually runs on the organization's key too."""
+        usually runs on the organization's key too. Own spend per row means the two
+        halves reassemble into one figure rather than doubling it - and a delegate
+        on a *different* key would now show up under that one."""
         fixture = await _one_delegated_request(db)
 
         rows = await agent_run_repo.spend_by_key(
             db, organization_id=fixture.org.id, since=month_start()
         )
 
-        assert rows == [(fixture.key.id, "Shared key", Decimal("1.00"), 1)]
+        assert [(row[0], row[1], row[2]) for row in rows] == [
+            (fixture.key.id, "Shared key", Decimal("1.00"))
+        ]
+
+    async def test_a_delegate_on_its_own_key_appears_under_that_key(self, db):
+        """The case #194 named and the old shape could not express. Attributing a
+        delegate's spend to the key its *parent* used is the same error as
+        attributing it to the parent's vendor, and it matters more here: a key is
+        what somebody rotates or revokes when a bill looks wrong."""
+        org = await _org(db)
+        orchestrator = await _agent(db, org, slug="orchestrator")
+        researcher = await _agent(db, org, slug="researcher")
+        shared = await _secret(db, org, name="Shared key")
+        theirs = await _secret(db, org, name="Research key")
+        parent = await _run(db, org=org, agent=orchestrator, cost=Decimal("1.00"), secret=shared)
+        await _delegated(
+            db,
+            org=org,
+            agent=researcher,
+            version=await _version(db, researcher),
+            parent=parent,
+            cost=Decimal("0.40"),
+            secret=theirs,
+        )
+
+        rows = await agent_run_repo.spend_by_key(db, organization_id=org.id, since=month_start())
+
+        assert {label: cost for _id, label, cost, _runs in rows} == {
+            "Shared key": Decimal("0.60"),
+            "Research key": Decimal("0.40"),
+        }
+
+    async def test_a_delegation_two_levels_deep_is_subtracted_once(self, db):
+        """Own spend nests. A delegate that delegates further has its own
+        grandchildren taken out by it, not twice and not by its parent - otherwise
+        the middle level's share would be removed at both levels and the totals
+        would come to less than the bill."""
+        org = await _org(db)
+        top = await _agent(db, org, slug="orchestrator")
+        middle = await _agent(db, org, slug="researcher")
+        bottom = await _agent(db, org, slug="summariser")
+        parent = await _run(db, org=org, agent=top, cost=Decimal("1.00"))
+        child = await _delegated(
+            db,
+            org=org,
+            agent=middle,
+            version=await _version(db, middle),
+            parent=parent,
+            cost=Decimal("0.40"),
+        )
+        await _delegated(
+            db,
+            org=org,
+            agent=bottom,
+            version=await _version(db, bottom),
+            parent=child,
+            cost=Decimal("0.15"),
+            task_id="9c1d2e3f",
+        )
+
+        rows = await agent_run_repo.spend_by_provider(
+            db, organization_id=org.id, since=month_start()
+        )
+
+        # 1.00 - 0.40 at the top, then 0.40 - 0.15 in the middle and 0.15 at the
+        # bottom - the last two on the same vendor, so 0.40 of the 1.00.
+        assert {provider: cost for provider, cost, _runs in rows} == {
+            "openai": Decimal("0.60"),
+            "anthropic": Decimal("0.40"),
+        }
+        assert sum(cost for _provider, cost, _runs in rows) == await organization_monthly_spend(
+            db, org.id
+        )
 
     async def test_every_breakdown_agrees_with_the_bill(self, db):
         """The invariant the three defaults exist for, asserted as one statement.
@@ -385,12 +471,15 @@ class TestTheCostScreen:
         ctx = AuthContext(user_id=None, organization_id=fixture.org.id, role=OrgRoleName.OWNER)
 
         month_to_date = await service.monthly_spend(ctx)
-        by_agent = await service.cost_breakdown(ctx)
-        by_provider = await service.spend_by_provider(ctx)
-        by_key = await service.spend_by_key(ctx)
+        by_agent = await service.spend_by_agent(ctx, since=month_start())
+        by_provider = await service.spend_by_provider(ctx, since=month_start())
+        by_key = await service.spend_by_key(ctx, since=month_start())
 
         assert month_to_date == Decimal("1.00")
-        assert sum(row[2] for row in by_agent) == month_to_date
+        # `spend_by_agent.cost_usd` is the window column the screen renders -
+        # top-level runs only - so it sums to the bill. The email's per-model
+        # `cost_breakdown` is a different question and is not what this screen shows.
+        assert sum(row.cost_usd for row in by_agent) == month_to_date
         assert sum(row[1] for row in by_provider) == month_to_date
         assert sum(row[2] for row in by_key) == month_to_date
 

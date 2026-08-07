@@ -162,6 +162,9 @@ describe("the run count and the spend beside it", () => {
     backend();
 
     render(<RunsPage />, { wrapper });
+    // Run history is asked for when its tab is opened: each tab fetches its own
+    // rows and Radix mounts only the selected one, which is Approvals.
+    await openRunsTab();
 
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/runs", undefined));
     expect(apiClient.get).not.toHaveBeenCalledWith("/runs", {

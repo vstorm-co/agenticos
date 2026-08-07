@@ -27,7 +27,25 @@ class AgentRunRead(BaseSchema):
         description="True when a model in this run had no price - the cost is a floor"
     )
     logfire_trace_id: str | None = Field(
-        default=None, description="Deep-link into the full trace; spans are not duplicated here"
+        default=None,
+        description=(
+            "The trace this run executed inside, as Logfire spells it. Useful to "
+            "anybody with Logfire access on its own; `logfire_url` is the link, "
+            "when there is somewhere to link to. Null when nothing was tracing - "
+            "a deployment with no `LOGFIRE_TOKEN`"
+        ),
+    )
+    logfire_url: str | None = Field(
+        default=None,
+        description=(
+            "Where this run's trace can be read. Sent on the single-run read only: "
+            "resolving it needs the version's stored spec, because an agent may "
+            "redirect its traces to a client's own project, and a list of fifty "
+            "runs has no use for fifty trace links. Null when no organization and "
+            "project slug are configured - a `LOGFIRE_TOKEN` is a write credential "
+            "and carries neither, so the absence is a configuration fact rather "
+            "than a promise this schema is failing to keep"
+        ),
     )
     error: str | None = None
     started_at: datetime | None = None
@@ -89,8 +107,36 @@ class ApprovalRead(BaseSchema):
     id: UUID
     run_id: UUID
     agent_id: UUID
+    agent_name: str | None = Field(
+        default=None,
+        description=(
+            "Whose run this is, as something readable. A UUID names nothing to an "
+            "approver, and a queue of tool ids with no agent beside them is one "
+            "people approve blind. Absent on the row a decision returns, which "
+            "carries the approval itself rather than the queue's projection of it"
+        ),
+    )
     tool_id: str
     tool_args: dict[str, Any]
+    triggered_by_user_id: UUID | None = Field(
+        default=None,
+        description=(
+            "Who started the run this call belongs to. Not on the approval itself: "
+            "an approval belongs to a run and a run belongs to a person. Null for "
+            "a run nobody started as themselves - an embedded widget's visitor is "
+            "anonymous - and for one whose user has since been deleted"
+        ),
+    )
+    triggered_by_email: str | None = Field(
+        default=None, description="That person, for a queue somebody has to read"
+    )
+    decided_by_email: str | None = Field(
+        default=None,
+        description=(
+            "Who decided, for the record view. The decided list is an "
+            "accountability trail and a bare UUID is not one"
+        ),
+    )
     subagent_name: str | None = Field(
         default=None,
         description=(
@@ -126,10 +172,63 @@ class ApprovalDecision(BaseSchema):
 
 
 class CostByAgent(BaseSchema):
+    """One agent's line on the Spend tab.
+
+    Two cost figures with two different names, which is the rule this page
+    follows throughout: a number needing a different denominator needs a
+    different word, never the same word with different arithmetic.
+    """
+
     agent_id: UUID
-    model_label: str | None = None
-    cost_usd: Decimal
+    agent_name: str | None = Field(
+        default=None,
+        description=(
+            "The agent's name. Absent from the usage email's breakdown, which "
+            "groups by agent *and model* and carries `model_label` instead"
+        ),
+    )
+    model_label: str | None = Field(
+        default=None,
+        description=(
+            "The model, on the email's per-model rows only. Null on the Spend "
+            "tab, which is one row per agent - listing a model label where a "
+            "reader expects an agent is what this row's `agent_name` fixed"
+        ),
+    )
+    cost_usd: Decimal = Field(
+        description=(
+            "This agent's share of the window, top-level runs only, so the "
+            "column sums to the total printed above it"
+        )
+    )
     run_count: int
+    partial_run_count: int = Field(
+        default=0,
+        description=(
+            "How many of those runs had a model with no price. The cost is a "
+            "floor by exactly that much, and '3 of 40 runs could not be priced' "
+            "is the difference between a figure a reader can act on and one "
+            "they have to take on trust"
+        ),
+    )
+    month_to_date_usd: Decimal | None = Field(
+        default=None,
+        description=(
+            "This agent's own calendar month, delegated runs **included** - "
+            "that is the spend its cap is a cap on, and a delegate's rows are "
+            "the only record of what it itself did. It does not sum to the "
+            "organization's month and must not be drawn as if it did"
+        ),
+    )
+    monthly_cap_usd: Decimal | None = Field(
+        default=None,
+        description=(
+            "The cap in the published spec, or null for an agent that sets "
+            "none. Always the calendar month, whatever window the tab is "
+            "showing: a rolling seven days measured against a monthly ceiling "
+            "reads as 20% used on the day the cap was actually reached"
+        ),
+    )
 
 
 class CostByProvider(BaseSchema):
@@ -162,8 +261,25 @@ class CostByKey(BaseSchema):
 class CostSummary(BaseSchema):
     """What the cost dashboard renders."""
 
-    period_days: int
+    period_days: int | None = Field(
+        default=None,
+        description=(
+            "The rolling window, when one was asked for that way. Null for an "
+            "explicit `from`/`to` range, which is not a number of days"
+        ),
+    )
+    from_date: datetime | None = Field(
+        default=None, description="Start of the window these figures cover"
+    )
+    to_date: datetime | None = Field(default=None, description="End of it, or null for 'up to now'")
     month_to_date_usd: Decimal
+    partial_run_count: int = Field(
+        default=0,
+        description=(
+            "Runs in the window whose cost is a floor because some model in "
+            "them had no price. How much of everything below is a fact"
+        ),
+    )
     by_agent: list[CostByAgent]
     by_provider: list[CostByProvider]
     by_key: list[CostByKey]

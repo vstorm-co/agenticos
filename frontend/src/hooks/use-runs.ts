@@ -20,15 +20,29 @@ import type { AgentRun, AgentRunList, ApprovalList, CostSummary, ToolApproval } 
  * figure of forty dollars.
  *
  * One run's delegations are asked for by parent, with `useDelegatedRuns`.
+ *
+ * `startedFrom` windows both the rows and `total`. It exists because a count with
+ * no window reads *all time* while a spend figure beside it reads one calendar
+ * month, so an organization three years old showed "8,412 runs" next to "$31.20"
+ * and the obvious reading of the pair was wrong by three years (#198). Any figure
+ * drawn next to money passes one.
  */
-export function useRuns(agentId?: string, options?: { enabled?: boolean }) {
+export function useRuns(agentId?: string, options?: { enabled?: boolean; startedFrom?: string }) {
+  const startedFrom = options?.startedFrom;
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: qk.runs.list(agentId),
-    queryFn: () =>
-      apiClient.get<AgentRunList>(
+    queryKey: qk.runs.list(agentId, startedFrom),
+    queryFn: () => {
+      const params: Record<string, string> = {};
+      if (agentId) {
+        params.agent_id = agentId;
+        params.include_delegations = "true";
+      }
+      if (startedFrom) params.started_from = startedFrom;
+      return apiClient.get<AgentRunList>(
         "/runs",
-        agentId ? { params: { agent_id: agentId, include_delegations: "true" } } : undefined,
-      ),
+        Object.keys(params).length > 0 ? { params } : undefined,
+      );
+    },
     enabled: options?.enabled ?? true,
   });
   return { runs: data?.items ?? [], total: data?.total ?? 0, isLoading, error, refetch };
@@ -65,14 +79,22 @@ export function useDelegatedRuns(parentRunId: string) {
  * Polled rather than pushed: a parked run is waiting on a person who may not
  * have the page open, and a thirty-second refresh is enough for a queue whose
  * items are minutes old.
+ *
+ * `enabled` is how a caller without `approvals:decide` opts out, and it is not a
+ * cosmetic choice: reading the queue takes the same permission as deciding one,
+ * so a refused caller would answer 403 every thirty seconds for as long as the
+ * page stayed open. It matters more that an empty list is then unambiguous -
+ * with the query disabled there is no `[]` from a refusal for the queue to draw
+ * as "nothing waiting".
  */
-export function useApprovals() {
+export function useApprovals(options?: { enabled?: boolean }) {
   const queryClient = useQueryClient();
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.runs.approvals(),
     queryFn: () => apiClient.get<ApprovalList>("/approvals"),
     refetchInterval: 30_000,
+    enabled: options?.enabled ?? true,
   });
 
   const decide = useMutation({
@@ -90,18 +112,23 @@ export function useApprovals() {
     total: data?.total ?? 0,
     isLoading,
     error,
-    refetch,
     decide,
+    refetch,
   };
 }
 
 /**
- * Month-to-date cost and its breakdowns.
+ * Month-to-date spend and its breakdowns.
  *
  * Carries the dashboard's freshness even though the runs page and the
  * organization's spending-limit control read it too: a spend figure is the
  * last number anybody wants served from a five-minute cache, and refetching
  * it when a tab regains focus is right on all three surfaces.
+ *
+ * `error` is returned because the tab reading it must be able to tell a failed
+ * request from a month with no spend in it. Drawn from `data` alone the two are
+ * the same "nothing spent yet", and on a page about money the wrong one of those
+ * is the reassuring one.
  */
 export function useSpend(days = 30) {
   const { data, isLoading, error, refetch } = useQuery({

@@ -35,6 +35,16 @@ interface DataTableProps<T> {
   loading?: boolean;
   /** Shown when not loading and rows is empty. */
   empty?: ReactNode;
+  /**
+   * Shown instead of the empty state when the request failed.
+   *
+   * Without it, a query that answered 502 and a collection with nothing in it
+   * render the same pixels — and "no runs yet" is a far more reassuring sentence
+   * than the truth. That is a live defect on another page (#32), and the reason
+   * this is a separate prop rather than something a caller folds into `empty`:
+   * a caller that has to remember is a caller that will not.
+   */
+  error?: ReactNode;
   onRowClick?: (row: T) => void;
   /** Number of skeleton rows while loading. */
   skeletonRows?: number;
@@ -50,12 +60,16 @@ export function DataTable<T>({
   getRowKey,
   loading,
   empty,
+  error,
   onRowClick,
   skeletonRows = 6,
   className,
 }: DataTableProps<T>) {
   const t = useTranslations("ui");
-  const showEmpty = !loading && rows && rows.length === 0;
+  // A failure wins over emptiness, because a failed request has no rows either
+  // and would otherwise be drawn as a collection with nothing in it.
+  const showError = !loading && error != null;
+  const showEmpty = !loading && !showError && rows && rows.length === 0;
 
   return (
     <div className={cn("border-border bg-card overflow-hidden rounded-xl border", className)}>
@@ -125,6 +139,12 @@ export function DataTable<T>({
           </tbody>
         </table>
       </div>
+
+      {showError && (
+        <div className="text-destructive px-4 py-12 text-center text-sm" role="alert">
+          {error}
+        </div>
+      )}
 
       {showEmpty && (
         <div className="text-muted-foreground px-4 py-12 text-center text-sm">

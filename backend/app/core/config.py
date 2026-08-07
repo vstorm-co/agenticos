@@ -51,6 +51,17 @@ class Settings(BaseSettings):
     LOGFIRE_TOKEN: str | None = None
     LOGFIRE_SERVICE_NAME: str = "agenticos"
     LOGFIRE_ENVIRONMENT: str = "development"
+    # Where a stored trace id can be *read*. `LOGFIRE_TOKEN` is a write
+    # credential and carries neither slug, so a deployment that traces
+    # successfully still cannot build a URL into what it sent. Both unset is the
+    # ordinary case and means no link is offered - the trace id is still
+    # recorded, because it is useful to anybody with Logfire access.
+    LOGFIRE_ORGANIZATION: str | None = None
+    LOGFIRE_PROJECT: str | None = None
+    # The Logfire deployment those slugs belong to. `logfire-us` and `logfire-eu`
+    # are different hosts, and a link built for the wrong one 404s rather than
+    # redirecting.
+    LOGFIRE_BASE_URL: str = "https://logfire-us.pydantic.dev"
 
     POSTGRES_HOST: str = "localhost"
     POSTGRES_PORT: int = 5432

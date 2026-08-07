@@ -8,6 +8,12 @@ separately that an unknown status is refused instead of matching nothing.
 The patch point is the repository as `AgentRunnerService` sees it, because the
 route reaches run history through the service rather than the repository - the
 layering the rest of this codebase follows.
+
+The status set travels *inside* `RunFilters`, not as a kwarg beside it, so the
+assertions read `filters.statuses`. That is deliberate: `RunFilters.conditions()`
+is the single place the page query and the count query both take their clauses
+from, which is the one arrangement in which a status predicate cannot end up
+applied to one and not the other.
 """
 
 from __future__ import annotations
@@ -51,7 +57,7 @@ async def test_a_status_list_reaches_the_repository_as_a_list(monkeypatch):
         resp = await client.get("/api/v1/runs", params={"status": "failed,budget_exceeded"})
 
     assert resp.status_code == 200
-    assert list_runs.call_args.kwargs["statuses"] == ["failed", "budget_exceeded"]
+    assert list_runs.call_args.kwargs["filters"].statuses == ["failed", "budget_exceeded"]
 
 
 async def test_no_status_param_means_no_status_predicate(monkeypatch):
@@ -62,7 +68,7 @@ async def test_no_status_param_means_no_status_predicate(monkeypatch):
         resp = await client.get("/api/v1/runs")
 
     assert resp.status_code == 200
-    assert list_runs.call_args.kwargs["statuses"] is None
+    assert list_runs.call_args.kwargs["filters"].statuses is None
 
 
 async def test_an_unknown_status_is_refused_not_matched_against_nothing(monkeypatch):
@@ -86,7 +92,7 @@ async def test_stray_commas_and_spaces_do_not_change_the_question(monkeypatch):
         resp = await client.get("/api/v1/runs", params={"status": " failed , ,budget_exceeded,"})
 
     assert resp.status_code == 200
-    assert list_runs.call_args.kwargs["statuses"] == ["failed", "budget_exceeded"]
+    assert list_runs.call_args.kwargs["filters"].statuses == ["failed", "budget_exceeded"]
 
 
 async def test_the_status_filter_composes_with_the_delegation_default(monkeypatch):
@@ -105,7 +111,7 @@ async def test_the_status_filter_composes_with_the_delegation_default(monkeypatc
 
     assert resp.status_code == 200
     kwargs = list_runs.call_args.kwargs
-    assert kwargs["statuses"] == ["failed"]
+    assert kwargs["filters"].statuses == ["failed"]
     assert kwargs["include_delegations"] is False
 
 
@@ -120,5 +126,5 @@ async def test_a_delegation_listing_can_still_be_narrowed_by_status(monkeypatch)
 
     assert resp.status_code == 200
     kwargs = list_runs.call_args.kwargs
-    assert kwargs["statuses"] == ["failed"]
+    assert kwargs["filters"].statuses == ["failed"]
     assert kwargs["include_delegations"] is True

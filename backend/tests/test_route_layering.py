@@ -32,6 +32,15 @@ ALLOWED = {
     # A `Literal` of the sort orders the skill list accepts. It lives beside the
     # query it parameterises and reaches the route as a type, not as a row.
     ("app/api/routes/v1/skills.py", "SkillSort"),
+    # Two frozen value objects holding what a caller asked to narrow by - nine
+    # fields for run history, four for the approvals queue. They live beside the
+    # queries they parameterise because each field becomes a `WHERE` clause, and
+    # they exist as one value rather than nine keyword arguments precisely so a
+    # filter cannot reach the page and miss the count. Neither reads a row, and
+    # the tenant scope is still the service's answer: these can only ever shrink
+    # what a caller already had access to.
+    ("app/api/routes/v1/runs.py", "RunFilters"),
+    ("app/api/routes/v1/runs.py", "ApprovalFilters"),
 }
 
 

@@ -62,7 +62,11 @@ from app.services.usage_report import (
 _MENTION = re.compile(r"^\s*@([a-z0-9][a-z0-9-]{0,63})\b[:,]?\s*(.*)$", re.DOTALL)
 
 # Which surface a run is stamped with, so run history can be filtered by where
-# it came from. Anything else is recorded as an API run rather than guessed at.
+# it came from. Anything else is recorded as an API run rather than guessed at -
+# which is why every platform this router serves has to be in here. Mattermost
+# was not, so a Mattermost mention was recorded as an HTTP API call: nothing
+# errored, the number simply landed in the wrong bucket and every reader of the
+# column inherited it (#208).
 _SURFACES: dict[str, RunSurface] = {
     "slack": RunSurface.SLACK,
     "telegram": RunSurface.TELEGRAM,

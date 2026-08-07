@@ -69,6 +69,7 @@ from app.repositories import (
     organization_secret_repo,
     rag_document_repo,
 )
+from app.repositories.agent_run import RunFilters
 from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseUpdate
 from app.schemas.mcp_connection import OrgMcpConnectionCreate, OrgMcpConnectionUpdate
 from app.services.access import AGENT, COLLECTION, SKILL, resolve_access
@@ -768,7 +769,7 @@ class TestTenantIsolation:
         items, total = await agent_run_repo.list_runs(
             db,
             organization_id=estate.home.organization.id,
-            statuses=[RunStatus.FAILED.value, RunStatus.BUDGET_EXCEEDED.value],
+            filters=RunFilters(statuses=[RunStatus.FAILED.value, RunStatus.BUDGET_EXCEEDED.value]),
         )
 
         assert {run.id for run in items} == {failed.id, broke.id}

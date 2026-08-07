@@ -11,6 +11,7 @@ Framework-specific concerns (multimodal input, streaming events) stay in the rou
 
 import json
 import logging
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
@@ -100,6 +101,24 @@ def truncate_title(text: str, limit: int = 50) -> str:
     return text[:limit] if len(text) > limit else text
 
 
+@dataclass(frozen=True)
+class PersistedPrompt:
+    """What writing the user's turn produced, for the caller to act on.
+
+    Attributes:
+        conversation_id: The thread the turn was written to, resolved or created.
+        newly_created: Whether the conversation was created by this call. The
+            caller emits a `conversation_created` event when it was.
+        message_id: The row the prompt was written to, so the caller can link it
+            to the run once one is open. `None` when the write failed - which is
+            logged and swallowed, because a lost message must not abort a turn.
+    """
+
+    conversation_id: str | None
+    newly_created: bool
+    message_id: UUID | None = None
+
+
 async def persist_user_turn(
     user: Any,
     user_message: str,
@@ -107,7 +126,7 @@ async def persist_user_turn(
     requested_conversation_id: str | None,
     current_conversation_id: str | None,
     organization_id: UUID,
-) -> tuple[str | None, bool]:
+) -> PersistedPrompt:
     """Resolve the conversation, persist the user message, and link any uploaded files.
 
     `organization_id` is the session's active organization; new conversations are
@@ -115,8 +134,10 @@ async def persist_user_turn(
     is refused. Ownership by user alone is not enough - a user can belong to several
     organizations, and a run must not read one org's knowledge while billed to another.
 
-    Returns `(conversation_id, was_newly_created)`. When `was_newly_created` is
-    True the caller should emit a `conversation_created` WebSocket event.
+    The prompt is written before a run exists, and so carries no `run_id` yet: a
+    build that refuses - a deleted secret, a model profile removed in a deploy -
+    must not lose what somebody typed. `PersistedPrompt.message_id` is how the
+    caller closes that gap once the run row is open.
 
     Raises:
         AuthorizationError: If the requested conversation belongs to another
@@ -124,6 +145,7 @@ async def persist_user_turn(
             message must not abort a turn - but a scope violation must.
     """
     newly_created = False
+    message_id: UUID | None = None
     try:
         async with get_db_context() as db:
             conv_service = get_conversation_service(db)
@@ -161,6 +183,7 @@ async def persist_user_turn(
                 organization_id=organization_id,
                 user_id=user.id,
             )
+            message_id = user_msg.id
             if file_ids:
                 try:
                     await conv_service.link_files_to_message(user_msg.id, file_ids)
@@ -171,7 +194,11 @@ async def persist_user_turn(
     except Exception as e:
         logger.warning("Failed to persist conversation: %s", e)
 
-    return current_conversation_id, newly_created
+    return PersistedPrompt(
+        conversation_id=current_conversation_id,
+        newly_created=newly_created,
+        message_id=message_id,
+    )
 
 
 def normalize_tool_args(args: Any) -> dict[str, Any]:
@@ -193,6 +220,7 @@ async def persist_assistant_turn(
     agent_id: UUID | None = None,
     agent_version_id: UUID | None = None,
     usage: UsageReport | None = None,
+    run_id: UUID | None = None,
 ) -> str | None:
     """Persist the assistant message and any tool calls. Returns the saved message id.
 
@@ -210,6 +238,13 @@ async def persist_assistant_turn(
     `usage` is stored for the same reason it is streamed: the cost of an answer is
     asked about after the fact. A turn nobody could measure passes `None`, which
     reads back as "not recorded" rather than as free.
+
+    `run_id` is what makes this turn readable from run history rather than only
+    from the conversation. It is written here rather than linked afterwards
+    because by this point the run row exists - unlike the prompt, which is
+    persisted before the run is built. It is passed beside `data` rather than
+    inside it: `MessageCreate` is bound from a request body elsewhere, and a run
+    id a caller could set is one they could aim at another organization's run.
     """
     try:
         async with get_db_context() as db:
@@ -217,6 +252,7 @@ async def persist_assistant_turn(
             assistant_msg = await conv_service.add_message(
                 UUID(conversation_id),
                 organization_id=organization_id,
+                run_id=run_id,
                 data=MessageCreate(
                     role="assistant",
                     content=output,

@@ -4,7 +4,8 @@ Three views of the same fact - that an agent did something - from three angles:
 what happened (runs), what needs a person (approvals), and what it cost (spend).
 """
 
-from typing import Any
+from datetime import UTC, datetime, timedelta
+from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
@@ -12,7 +13,14 @@ from fastapi import APIRouter, Depends, Query
 from app.api.deps import AgentRunnerSvc, ApprovalSvc, Auth, require
 from app.core.exceptions import ValidationError
 from app.core.permissions import Perm
-from app.db.models.agent_run import RunStatus
+from app.db.models.agent_run import (
+    ApprovalStatus,
+    RunOrder,
+    RunRating,
+    RunStatus,
+    RunSurface,
+)
+from app.repositories.agent_run import ApprovalFilters, RunFilters
 from app.schemas.agent import AgentRunResult
 from app.schemas.agent_run import (
     AgentRunList,
@@ -43,6 +51,23 @@ async def list_runs(
     include_delegations: bool = Query(
         False, description="Include delegated runs - what one agent itself did"
     ),
+    surface: RunSurface | None = Query(None, description="Where the run came from"),
+    user_id: UUID | None = Query(None, description="Who the run ran as"),
+    started_from: datetime | None = Query(
+        None, description="Runs started at or after this instant"
+    ),
+    started_to: datetime | None = Query(None, description="Runs started at or before this instant"),
+    environment_id: UUID | None = Query(
+        None, description="Runs on the version this environment pins. Never a delegated run"
+    ),
+    exposure_id: UUID | None = Query(None, description="Runs admitted through this binding"),
+    agent_version_id: UUID | None = Query(None, description="Runs that executed this frozen spec"),
+    took_over_ms: int | None = Query(
+        None, ge=0, description="Only runs slower than this. A run still going has no duration"
+    ),
+    rated: RunRating | None = Query(None, description="Only runs somebody rated this way"),
+    order_by: RunOrder = Query(RunOrder.STARTED_AT, description="Sort by start time or duration"),
+    descending: bool = Query(True, description="Newest or slowest first"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
@@ -51,15 +76,50 @@ async def list_runs(
     Top-level runs only by default - see the service for why a delegated row
     and a run somebody started are never summed down one column.
 
-    `status` takes a list because the operator's natural question is a set of
-    outcomes - "what failed or ran out of budget" - not one status at a time.
+    `status` takes a set, comma-separated - `?status=failed,budget_exceeded` is
+    the "show me the problems" query, and the two are separate statuses precisely
+    so that asking for one does not mean asking for the other. An unknown value is
+    refused by name rather than ignored, because a filter that silently matches
+    nothing looks exactly like an organization with nothing wrong.
+
+    `started_from` and `started_to` are what let the count beside this list be
+    reconciled with a spend figure. Without a window the count reads all time
+    while the money reads one calendar month, and the obvious comparison between
+    the two is wrong by however old the organization is (#198).
+
+    `order_by=duration` sorts on `ended_at - started_at`, computed in SQL over
+    the whole narrowed set - which is what gets from "p95 is 14.8s" on the
+    dashboard to *those runs*. Sorting a page of twenty-five would sort the wrong
+    set. Unfinished runs have no duration and sort last in both directions rather
+    than as zero.
+
+    `rated=down` is the highest-signal queue here: the answers real people said
+    were wrong. A run matches if *anybody* rated a message it produced that way,
+    so a run one person liked and another disliked matches both - collapsing that
+    into one verdict per run would invent a consensus the rows do not record.
+
+    Every filter narrows both the page and `total`, so the number always
+    describes the rows under it.
     """
     items, total = await service.list_runs(
         ctx,
         agent_id=agent_id,
-        statuses=_parse_statuses(status),
         parent_run_id=parent_run_id,
         include_delegations=include_delegations,
+        filters=RunFilters(
+            statuses=_parse_statuses(status),
+            surface=None if surface is None else surface.value,
+            user_id=user_id,
+            started_from=started_from,
+            started_to=started_to,
+            environment_id=environment_id,
+            exposure_id=exposure_id,
+            agent_version_id=agent_version_id,
+            took_over_ms=took_over_ms,
+            rated=rated,
+        ),
+        order_by=order_by,
+        descending=descending,
         skip=skip,
         limit=limit,
     )
@@ -84,8 +144,16 @@ def _parse_statuses(raw: str | None) -> list[str] | None:
     "/runs/{run_id}", response_model=AgentRunRead, dependencies=[Depends(require(Perm.RUNS_VIEW))]
 )
 async def get_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
-    """One run. The step-by-step trace lives in Logfire under its trace id."""
-    return await service.get_run(ctx, run_id)
+    """One run, and where its trace can be read if anywhere can.
+
+    `logfire_url` is on this read and not on the list: resolving it needs the
+    version's stored spec, because an agent may redirect its traces to a client's
+    own Logfire project, and fifty rows have no use for fifty trace links.
+    """
+    run = await service.get_run(ctx, run_id)
+    return AgentRunRead.model_validate(run).model_copy(
+        update={"logfire_url": await service.trace_url(ctx, run)}
+    )
 
 
 @router.post(
@@ -120,11 +188,40 @@ async def resume_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
 async def list_approvals(
     service: ApprovalSvc,
     ctx: Auth,
+    status: Annotated[list[ApprovalStatus] | None, Query()] = None,
+    triggered_by_user_id: UUID | None = Query(
+        None, description="Only calls parked by runs this person started"
+    ),
+    created_from: datetime | None = Query(None, description="Parked at or after this instant"),
+    created_to: datetime | None = Query(None, description="Parked at or before this instant"),
+    oldest_first: bool = Query(True, description="The queue drains from the top"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
-    """Tool calls waiting on a human, oldest first."""
-    items, total = await service.list_pending(ctx, skip=skip, limit=limit)
+    """Tool calls waiting on a human, oldest first - or the record of decisions.
+
+    `status` defaults to pending, which is the queue. Asking for `approved` and
+    `rejected` gives the same rows read as an accountability trail: each carries
+    the decider and the note, and there is deliberately no way to decide one
+    again - a second decision on a decided approval is one of the things this
+    platform refuses.
+
+    Oldest first by default, and the default is load-bearing. Nothing expires a
+    parked call, so the oldest row can be from months ago; a newest-first queue
+    would bury exactly the row somebody needs to see.
+    """
+    items, total = await service.list_approvals(
+        ctx,
+        filters=ApprovalFilters(
+            statuses=None if not status else [value.value for value in status],
+            triggered_by_user_id=triggered_by_user_id,
+            created_from=created_from,
+            created_to=created_to,
+        ),
+        oldest_first=oldest_first,
+        skip=skip,
+        limit=limit,
+    )
     return ApprovalList(items=items, total=total)
 
 
@@ -144,29 +241,64 @@ async def decide_approval(
 async def get_spend(
     service: AgentRunnerSvc,
     ctx: Auth,
-    days: int = Query(30, ge=1, le=365),
+    days: int = Query(30, ge=1, le=365, description="A rolling window. Ignored if `from` is given"),
+    from_date: datetime | None = Query(
+        None, alias="from", description="Start of an explicit window, instead of `days`"
+    ),
+    to_date: datetime | None = Query(None, alias="to", description="End of it. Defaults to now"),
 ) -> Any:
     """Month-to-date spend plus a per-agent breakdown over the chosen window.
 
-    Month-to-date is calendar-aligned rather than rolling, so the number can be
-    reconciled against an invoice.
+    Two ways to say which window, because the page asks for both kinds: `days`
+    for the "last N days" presets, `from`/`to` for "this month", "last month" and
+    a calendar range. `from` wins when both arrive - an explicit range is a more
+    specific request than a default nobody changed.
+
+    **Month-to-date ignores the window entirely**, and every per-agent cap is
+    measured against it rather than against the range on screen. A monthly
+    ceiling compared with a rolling seven days reads as 20% used on the day the
+    cap was actually reached.
+
+    Month-to-date is also calendar-aligned rather than rolling, so the number can
+    be reconciled against an invoice.
     """
-    breakdown = await service.cost_breakdown(ctx, days=days)
+    since = from_date if from_date is not None else datetime.now(UTC) - timedelta(days=days)
+    agents = await service.spend_by_agent(ctx, since=since, until=to_date)
     return CostSummary(
-        period_days=days,
+        # Null once a range is explicit: "30 days" beside a `from`/`to` that says
+        # otherwise is a second answer to a question already answered.
+        period_days=None if from_date is not None else days,
+        from_date=since,
+        to_date=to_date,
         month_to_date_usd=await service.monthly_spend(ctx),
+        # How much of everything below is a fact. Summed from the per-agent rows
+        # rather than queried again, so the figure and its breakdown cannot
+        # disagree about which runs could not be priced.
+        partial_run_count=sum(row.partial_run_count for row in agents),
         by_agent=[
-            CostByAgent(agent_id=agent_id, model_label=model_label, cost_usd=cost, run_count=runs)
-            for agent_id, model_label, cost, runs in breakdown
+            CostByAgent(
+                agent_id=row.agent_id,
+                agent_name=row.agent_name,
+                cost_usd=row.cost_usd,
+                run_count=row.run_count,
+                partial_run_count=row.partial_run_count,
+                month_to_date_usd=row.month_to_date_usd,
+                monthly_cap_usd=row.monthly_cap_usd,
+            )
+            for row in agents
         ],
         # The two questions an invoice raises, which a per-agent breakdown
         # cannot answer: which vendor was paid, and through which key.
         by_provider=[
             CostByProvider(provider=provider, cost_usd=cost, run_count=runs)
-            for provider, cost, runs in await service.spend_by_provider(ctx, days=days)
+            for provider, cost, runs in await service.spend_by_provider(
+                ctx, since=since, until=to_date
+            )
         ],
         by_key=[
             CostByKey(secret_id=secret_id, label=label, cost_usd=cost, run_count=runs)
-            for secret_id, label, cost, runs in await service.spend_by_key(ctx, days=days)
+            for secret_id, label, cost, runs in await service.spend_by_key(
+                ctx, since=since, until=to_date
+            )
         ],
     )

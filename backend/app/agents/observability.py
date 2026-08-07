@@ -22,11 +22,38 @@ import logging
 from typing import Any
 
 import logfire
+from opentelemetry import trace
 from pydantic_ai import Agent as PydanticAgent
 
 logger = logging.getLogger(__name__)
 
 _instances: dict[tuple[str, str, str], logfire.Logfire] = {}
+
+# What OpenTelemetry answers when nothing is tracing: a span whose context is all
+# zeroes. Formatting it would store `000…0` as a trace id and every link built
+# from it would resolve to nothing, which is worse than an empty column.
+_NO_TRACE = 0
+
+
+def current_trace_id() -> str | None:
+    """The trace this run is executing inside, as Logfire spells it.
+
+    Read here rather than passed in by each surface, for the reason
+    `PreparedRun.stash` gives about the run's budget caps: a thing every caller
+    has to remember is a thing the next caller will not. `finish()` accepted a
+    `logfire_trace_id` from the day the column existed and **no caller ever
+    passed one**, so the write was guarded by a condition that was always false
+    and the field the public API documents as a deep link was always null.
+
+    32 lowercase hex characters, which is the W3C trace-id format and what
+    Logfire puts in a URL. `None` when nothing is tracing - a deployment with no
+    `LOGFIRE_TOKEN`, or a unit test - because a column of zeroes is a link that
+    resolves to nothing.
+    """
+    context = trace.get_current_span().get_span_context()
+    if context.trace_id == _NO_TRACE:
+        return None
+    return format(context.trace_id, "032x")
 
 
 def instrument_agent(

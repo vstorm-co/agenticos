@@ -56,7 +56,16 @@ class MessageBase(BaseSchema):
 
 
 class MessageCreate(MessageBase):
-    """Schema for creating a message."""
+    """Schema for creating a message.
+
+    Deliberately carries no `run_id`. This schema is a request body -
+    `POST /conversations/{id}/messages` binds it straight from JSON - and a run
+    id accepted from a caller would let anybody append a turn to *another
+    organization's* run transcript: the route scopes the conversation, and there
+    is nothing on a bare id to scope. Which run produced a turn is decided by
+    the runner, so it is a keyword on `ConversationService.add_message`, next to
+    the organization and the user, which are server-derived for the same reason.
+    """
 
     model_name: str | None = Field(default=None, max_length=100, description="AI model used")
     tokens_used: int | None = Field(default=None, ge=0, description="Token count")
@@ -91,6 +100,13 @@ class MessageRead(MessageBase, TimestampSchema):
 
     id: UUID
     conversation_id: UUID
+    run_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The agent run that produced this turn. Null for a turn written outside a "
+            "run, which is what lets a client say so rather than draw an empty panel."
+        ),
+    )
     model_name: str | None = None
     tokens_used: int | None = None
     input_tokens: int | None = Field(

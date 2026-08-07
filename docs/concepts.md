@@ -84,6 +84,31 @@ that delegation gets an `agent_runs` row of its own carrying `parent_run_id` - s
 spend ledger. There is no `delegated` status, because how a run *ended* and how it
 *started* are two questions and `parent_run_id` answers the second.
 
+### A run and its transcript
+
+A run says what it cost; `messages.run_id` says what it *did*. Every turn a run
+produced carries the run's id, so "the steps of this run" is one query rather
+than a guess - which is what a drill-down from run history reads.
+
+The link is a column rather than a time window on purpose. Two runs started in
+one conversation interleave, so windowing messages between `started_at` and
+`ended_at` returns the first run's turns *and* the second's, and a run with no
+`ended_at` - cancelled, or still going - returns nothing at all. Both are wrong
+in a way the reader cannot see.
+
+The prompt is written before the run row exists, because a build that refuses -
+a deleted secret, a model profile removed in a deploy - must not lose what
+somebody typed; it is linked as soon as there is a run to link it to. Deleting a
+run nulls the column instead of deleting the turns: the words were still said,
+and the conversation is where somebody reads them.
+
+Linking a turn is not the same as writing one, and what each surface actually
+writes is a separate question - one this column cannot answer, since it links
+rows that already exist. The non-streaming surfaces are written by the runner
+rather than by themselves, which is what made them uniform; the exceptions and
+what they leave out are listed under
+[Surfaces](channels.md#what-each-surface-records).
+
 Run history filters on exactly this: `GET /runs` takes a comma-separated list of
 statuses (`?status=failed,budget_exceeded`), because the operator's question is
 a set of outcomes, not one status at a time. An unknown status is refused rather

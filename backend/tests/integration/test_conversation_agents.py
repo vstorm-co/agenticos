@@ -5,8 +5,9 @@ It drew nothing for every conversation in existence, because the only source was
 `messages.agent_id` and the call that writes a message silently dropped that field
 for as long as web chat has existed.
 
-Per-message attribution is not recoverable - nothing links a run to the message it
-produced - but *participation* is: `agent_runs` has carried `conversation_id` and
+Per-message attribution is not recoverable for the rows already written - `run_id`
+links a turn to its run from here on, but nothing links the ones written before it -
+while *participation* is: `agent_runs` has carried `conversation_id` and
 `agent_id` since it existed. So the listing merges the two sources, and what has to
 be true of the merge is exactly what a statement test cannot show: the join lands on
 real rows, an agent recorded twice appears once, and the order is the order the

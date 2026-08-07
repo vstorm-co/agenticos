@@ -72,7 +72,11 @@ export const qk = {
   },
   runs: {
     all: () => ["runs"] as const,
-    list: (agentId?: string) => ["runs", "list", agentId ?? "all"] as const,
+    // The window is part of the key: the same agent over two windows is two
+    // answers, and caching one as the other is how a figure ends up describing a
+    // period nobody asked for.
+    list: (agentId?: string, startedFrom?: string) =>
+      ["runs", "list", agentId ?? "all", startedFrom ?? "all-time"] as const,
     detail: (id: string) => ["runs", id] as const,
     // A separate key from `list`, because it is a separate question: `list`
     // answers "the top level", this answers "what did this run delegate", and

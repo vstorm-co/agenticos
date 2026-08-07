@@ -43,7 +43,12 @@ from app.agents.capabilities import CapabilityBinding, ToolOverride
 
 logger = logging.getLogger(__name__)
 
-SPEC_VERSION = 7
+# 8 adds `observability.organization` and `observability.project` - where an
+# agent's traces can be *read*, which a write token does not say. Both optional
+# with a default, so every stored document keeps loading unchanged and there is no
+# migration to write: this is the free half of the table in the `agent-spec`
+# skill, and the bump is here so a reader can tell when the field appeared.
+SPEC_VERSION = 8
 
 ApprovalMode = Literal["default", "required", "never"]
 
@@ -320,6 +325,14 @@ class ObservabilitySpec(BaseModel):
     The token is a reference, never a value - like every other credential a spec
     names. A spec is exported as YAML into somebody's repository, and a write
     token in a checked-in file is a token that has to be rotated.
+
+    `organization` and `project` are the other half of that redirection, and they
+    are here rather than in deployment settings for the same reason the token is:
+    a token is a *write* credential and names neither, so a deployment knows
+    where it sends an agent's traces and not where to read them. Both are slugs a
+    client tells us; nothing can derive them. With neither set the run's trace id
+    is still recorded and no link is offered - which is a configuration fact
+    rather than a promise the schema is failing to keep (#206).
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -327,6 +340,23 @@ class ObservabilitySpec(BaseModel):
     token_secret_id: UUID | None = Field(
         default=None,
         description="The organization secret holding a Logfire write token",
+    )
+    # A slug, not a length. Both are interpolated into a Logfire URL path when a
+    # run's trace link is built, so a value with a slash, a dot-segment or a
+    # query character would escape the path rather than name a project - a
+    # length bound alone does not stop that. The pattern is the shape Logfire
+    # slugs actually take: lowercase alphanumerics in hyphen-joined segments.
+    organization: str | None = Field(
+        default=None,
+        max_length=64,
+        pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
+        description="The Logfire organization slug these traces land in, for a link into them",
+    )
+    project: str | None = Field(
+        default=None,
+        max_length=64,
+        pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
+        description="The Logfire project slug, alongside `organization`",
     )
     service_name: str | None = Field(
         default=None,

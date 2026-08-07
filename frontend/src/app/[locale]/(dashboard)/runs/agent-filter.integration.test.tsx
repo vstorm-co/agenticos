@@ -60,11 +60,24 @@ function runsCalls() {
   return vi.mocked(apiClient.get).mock.calls.filter(([path]) => path === "/runs");
 }
 
+/**
+ * Open the Runs tab, which is where run history is asked for.
+ *
+ * Each tab fetches its own rows, and Radix mounts only the selected one - so the
+ * table's request is made when the tab is opened rather than when the page loads.
+ * The page still opens on Approvals; what `?agent=` has to do is narrow the
+ * table, not decide which tab is in front.
+ */
+async function openRunHistory() {
+  await userEvent.click(await screen.findByRole("tab", { name: "Runs" }));
+}
+
 describe("Activity, arriving from the Builder", () => {
   it("asks for one agent's runs when the URL names one", async () => {
     params.set("agent", "agent-42");
 
     render(<RunsPage />, { wrapper });
+    await openRunHistory();
 
     await waitFor(() => expect(runsCalls()).not.toHaveLength(0));
     // Including what the agent did as somebody's delegate: narrowed to one
@@ -83,14 +96,24 @@ describe("Activity, arriving from the Builder", () => {
     render(<RunsPage />, { wrapper });
 
     await waitFor(() => expect(runsCalls()).not.toHaveLength(0));
-    expect(runsCalls().map((call) => call[1])).toContainEqual(undefined);
+    // No `agent_id`, so it is still the organization's count - and windowed to
+    // the calendar month, which is what makes it comparable to the money beside
+    // it rather than a total since the organization was created (#198).
+    const organizationCall = runsCalls()
+      .map((call) => call[1])
+      .find((options) => options?.params?.agent_id === undefined);
+    expect(organizationCall?.params?.started_from).toBeDefined();
   });
 
   it("asks for the whole organization when the URL names nobody", async () => {
     render(<RunsPage />, { wrapper });
+    await openRunHistory();
 
-    await waitFor(() => expect(runsCalls()).not.toHaveLength(0));
-    expect(runsCalls()[0]?.[1]).toBeUndefined();
+    // Unnarrowed and unwindowed: run history is every top-level run, where the
+    // count above it is one calendar month. Found rather than taken as the first
+    // call - the figures ask for their own windowed count, and which of the two
+    // lands first is not this test's subject.
+    await waitFor(() => expect(runsCalls().map((call) => call[1])).toContainEqual(undefined));
   });
 
   it("says the table is narrowed, and offers the way out", async () => {
@@ -100,7 +123,7 @@ describe("Activity, arriving from the Builder", () => {
     params.set("agent", "agent-42");
 
     render(<RunsPage />, { wrapper });
-    await userEvent.click(await screen.findByRole("tab", { name: "Runs" }));
+    await openRunHistory();
 
     expect(await screen.findByText(/Narrowed to one agent/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Show every agent" })).toHaveAttribute("href", "/runs");
@@ -108,7 +131,7 @@ describe("Activity, arriving from the Builder", () => {
 
   it("says nothing about narrowing when nothing is narrowed", async () => {
     render(<RunsPage />, { wrapper });
-    await userEvent.click(await screen.findByRole("tab", { name: "Runs" }));
+    await openRunHistory();
 
     expect(screen.queryByText(/Narrowed to one agent/)).toBeNull();
   });
