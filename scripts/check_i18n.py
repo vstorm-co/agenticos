@@ -438,7 +438,9 @@ TRANSLATOR = re.compile(
 # A string that could be the name of a key. A module-level table of labels cannot call a
 # translator, so it holds keys - `{ labelKey: "agentsTitle" }` - and the component reads
 # them back through `t(item.labelKey)`, which names nothing this script can resolve.
-KEY_SHAPED = re.compile(r'"([A-Za-z][\w]*(?:\.[A-Za-z][\w]*)*)"')
+# A segment may be kebab-case: 101 keys here are filed under an id like `my-agents`, and
+# a segment of `\w` alone cannot see any of them.
+KEY_SHAPED = re.compile(r'"([A-Za-z][\w-]*(?:\.[A-Za-z][\w-]*)*)"')
 # A message with an ICU argument in it cannot be compared against a run of source: the run
 # would have to hold the braces too, and a component writing `{count, plural, …}` by hand
 # is a different defect with its own rule.
@@ -482,6 +484,19 @@ def key_reads(text: str) -> tuple[set[str], list[re.Pattern[str]]]:
     return named, built
 
 
+def _namespace_relative(key: str) -> set[str]:
+    """Every spelling of `key` a table could hold, whole key first.
+
+    A table holds a key relative to whatever namespace the component that reads it
+    binds - `{ titleKey: "widgets.my-agents.sharedTitle" }` beside a
+    `useTranslations("dashboard")` - and which namespace that is, is the parse this
+    script does not do. So each dot-suffix counts, from the whole key down to the
+    last segment.
+    """
+    parts = key.split(".")
+    return {".".join(parts[index:]) for index in range(len(parts))}
+
+
 def unread_keys(catalog: dict, sources: list[Path]) -> list[str]:
     """Catalog keys nothing in the frontend reads.
 
@@ -493,9 +508,10 @@ def unread_keys(catalog: dict, sources: list[Path]) -> list[str]:
     on the sync wizard and `(inactive)` in the bot picker shipped that way (#425).
 
     A key counts as read when a translator names it, when a `` t(`…`) `` pattern could
-    build it, or when its own name appears as a plain string anywhere in the frontend -
-    the last because a table of keys is read back through `t(item.labelKey)`, and this
-    script cannot follow the table to the call. That third clause is loose on purpose: it
+    build it, or when any namespace-relative spelling of it appears as a plain string
+    anywhere in the frontend - the last because a table of keys is read back through
+    `t(item.labelKey)`, and this script cannot follow the table to the call. That third
+    clause is loose on purpose: it
     is what makes the rule safe to fail a build on, and it is also the ceiling on what the
     rule can find. `rag.error`, `rag.pending` and `rag.running` were dead and it read them
     as live, because `"error"` is a plain string in half the files here; they had to be
@@ -514,8 +530,7 @@ def unread_keys(catalog: dict, sources: list[Path]) -> list[str]:
         key
         for key in catalog_keys(catalog)
         if key not in named
-        and key not in spelled
-        and key.rsplit(".", 1)[-1] not in spelled
+        and not spelled.intersection(_namespace_relative(key))
         and not any(pattern.match(key) for pattern in built)
     )
 

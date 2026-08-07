@@ -2309,7 +2309,6 @@
     },
     "root": {
       "dashboard": "Dashboard",
-      "dashboardLink": "Dashboard",
       "error": "Error",
       "errorId": "Error ID: {id}",
       "errorOccurredWhileLoading": "An error occurred while loading this page. Please try again.",
@@ -2321,8 +2320,6 @@
       "onboardingTitle": "Get started",
       "onboardingUnderConstruction": "Onboarding is under construction",
       "pageError": "Page error:",
-      "pageMissingOrMoved": "The page you're looking for doesn't exist or has been moved.",
-      "pageNotFound": "Page not found",
       "pitchAgents": "Agents built in a UI, versioned on publish",
       "pitchGovernance": "Budgets, approvals and an audit trail on every run",
       "pitchKnowledge": "Knowledge, skills and tools switched on per agent",
