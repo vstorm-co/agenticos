@@ -27,6 +27,7 @@ from app.services.embedding_resolution import embeddings_for_collection
 from app.services.rag.config import DEFAULT_COLLECTION_NAME, DocumentExtensions, RAGSettings
 from app.services.rag.documents import DocumentProcessor
 from app.services.rag.embeddings import EmbeddingService
+from app.services.rag.failures import IngestionStage, failure_summary
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.retrieval import RetrievalService
 from app.services.rag.sources.google_drive import GoogleDriveSource
@@ -223,9 +224,16 @@ async def ingest_path_async(
                         )
             except Exception as e:
                 error_count += 1
+                # The operator running this command reads the whole exception on
+                # their own terminal; the row they leave behind is read on the
+                # documents page by anyone in the organization, so it gets the
+                # summary (#423).
                 tqdm.write(f"  ✗ {filepath.name}: {e!s}")
                 async with get_db_context() as db:
-                    await RAGDocumentService(db).fail_ingestion(doc_id, error_message=str(e))
+                    await RAGDocumentService(db).fail_ingestion(
+                        doc_id,
+                        error_message=failure_summary(e, stage=IngestionStage.INGEST),
+                    )
 
     async with get_db_context() as db:
         await RAGSyncService(db).complete_sync(
