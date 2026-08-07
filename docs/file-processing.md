@@ -1,7 +1,9 @@
 # File Processing
 
-This document covers how files are handled in two contexts: chat file uploads
-(user-facing) and RAG document ingestion (admin/CLI).
+This document covers how files are handled in two contexts: chat file uploads,
+which belong to the person who made them, and RAG document ingestion, which
+belongs to a collection and is gated on
+[who may reach it](#who-may-reach-a-collection).
 
 ## Chat File Uploads
 
@@ -143,8 +145,10 @@ The `ChatFile` database model tracks uploaded files:
 - Only the file owner can download their files (`GET /files/{id}`).
 - The `FileUploadService.get_user_file()` method compares `chat_file.user_id`
   against the requesting user's ID. Returns `NotFoundError` on mismatch.
-- There is no admin override -- admins cannot access other users' chat files
-  through the file API.
+- **Ownership is the whole rule, and nothing widens it.** No permission, no
+  organization role and no grant reaches another person's chat file through this
+  API — unlike a collection, which a grant can open up. The comparison is against
+  `user_id` and there is no second branch to hold a wider case.
 
 ## RAG Document Ingestion
 
@@ -292,15 +296,53 @@ can be ingested into it — delete it and create one under another name. Nothing
 lost in doing so: an ingest into that collection has never succeeded, because
 building the vector index on a table with no `embedding` column fails.
 
-### RAG is Global
+### Who may reach a collection
 
-Collections are shared across **all users**:
+Collections are not global, and nobody inside an organization is an "admin" for
+this purpose — there are no roles on a route here, only permissions
+([permissions](permissions.md)).
 
-- Any authenticated user can search any collection via `POST /rag/search` or
-  through the AI agent's RAG tool.
-- Only admins can manage collections, upload documents, configure sync sources,
-  and view ingestion logs.
-- There is no per-user document isolation.
+A collection has two names. One is the vector table the chunks live in, which is a
+string any caller can type into a URL; the other is the `knowledge_bases` row that
+owns it, and only that row knows an organization. **The row is the authority**: every
+`/rag` and `/kb` route resolves the name through it, in
+`app/services/collection_access.py`, before touching a vector, a document or a sync
+source. The listing and the per-resource routes read the rule from that one place,
+because it was two copies of it — `/rag/collections` filtering by organization while
+`/rag/collections/{name}/info` did not — that once let one tenant read another's.
+
+Three scopes on the row, and no fourth:
+
+| Scope | May read | May write |
+|---|---|---|
+| `personal` | its owner | its owner |
+| `org` | `collections:view` reaching the row | `collections:edit` reaching the row |
+| `app` | anybody in the deployment | the deployment superadmin (`is_app_admin`) |
+
+"Reaching the row" is `resolve_access`, the same decision every shareable resource
+takes: the caller's scope for that permission, widened by any explicit grant on that
+one collection. A grant widens what a role allows and never narrows it, so **a Viewer
+holding an explicit `edit` grant can manage that collection** — the case a role gate
+would refuse before ever looking. That is why the per-resource routes carry no
+`require(...)` and hand the decision to the service instead.
+
+What that buys, per operation:
+
+| | |
+|---|---|
+| Search — `POST /rag/search`, and the agent's retrieval tool | `collections:view`. Every collection named is resolved before the first vector is read, and one the caller cannot reach refuses the **whole** search rather than being quietly dropped from it |
+| Read — listing collections and documents, collection stats, a document's parsed text or original file, sync and ingestion logs | `collections:view`, and each answer holds only the collections that caller can reach |
+| Write — creating and dropping a collection, uploading, ingesting, retrying, deleting a document, configuring or cancelling a sync source | `collections:edit` |
+| `POST /rag/sync/local` | The one exception, and it keeps `is_app_admin`: its `path` names a directory on the **server** rather than anything a tenant owns, so opening it to `collections:edit` would hand every member a read of arbitrary server files, ingested into a collection they can then search |
+
+A refusal is reported as **"Collection not found"**, with the same message and details
+an absent collection produces. Anything else turns the API into an oracle: these names
+are derived from what people call their knowledge bases, so confirming that
+`acme_handbook_d1fac1` exists somewhere is already information.
+
+**Within a collection there is no per-document isolation.** Access is decided at the
+collection, so reaching one reaches every document in it — which is the thing to weigh
+when deciding what to ingest where.
 
 ### Document Tracking
 
