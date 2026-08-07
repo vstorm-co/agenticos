@@ -378,7 +378,10 @@ class SandboxConnectionService:
             base_url=data.base_url,
             token=secret.api_key.get_secret_value(),
             path="/policy",
-            details={"base_url": data.base_url},
+            # The field, not the address it was given - the same answer
+            # `_check_shape` gives sixteen lines down, and for the reason in
+            # agenticos#342: `details` is logged as well as serialized.
+            details={"field": "base_url"},
         )
         payload["kind"] = "docker"
         return payload
