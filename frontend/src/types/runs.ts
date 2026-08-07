@@ -103,11 +103,30 @@ export interface ApprovalList {
   total: number;
 }
 
+/**
+ * One agent's line on the Spend tab.
+ *
+ * Two cost figures with two different names, which is the rule this row follows:
+ * a number needing a different denominator needs a different word, never the same
+ * word with different arithmetic. `cost_usd` is this agent's share of the window
+ * with top-level runs only, so the column sums to the total printed above it;
+ * `month_to_date_usd` is its own calendar month with delegated runs *included*,
+ * because that is the spend its cap is a cap on.
+ */
 export interface CostByAgent {
   agent_id: string;
+  /** The agent's name. Null only on the usage email's rows, which group by model. */
+  agent_name: string | null;
+  /** The model, on the usage email's per-model rows only. Null on the Spend tab. */
   model_label: string | null;
   cost_usd: string;
   run_count: number;
+  /** How many of those runs had a model with no price: the cost is a floor by that much. */
+  partial_run_count: number;
+  /** Delegated runs included, and always the calendar month whatever window the tab shows. */
+  month_to_date_usd: string | null;
+  /** The cap in the published spec, or null for an agent that sets none. */
+  monthly_cap_usd: string | null;
 }
 
 /** One model provider's share of the bill. */

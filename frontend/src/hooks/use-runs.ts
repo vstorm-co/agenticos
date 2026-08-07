@@ -89,7 +89,7 @@ export function useDelegatedRuns(parentRunId: string) {
 export function useApprovals(options?: { enabled?: boolean }) {
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.runs.approvals(),
     queryFn: () => apiClient.get<ApprovalList>("/approvals"),
     refetchInterval: 30_000,
@@ -106,14 +106,28 @@ export function useApprovals(options?: { enabled?: boolean }) {
     onError: (error) => toast.error(getErrorMessage(error)),
   });
 
-  return { approvals: data?.items ?? [], total: data?.total ?? 0, isLoading, decide };
+  return {
+    approvals: data?.items ?? [],
+    total: data?.total ?? 0,
+    isLoading,
+    error,
+    decide,
+    refetch,
+  };
 }
 
-/** Month-to-date spend plus a per-agent breakdown. */
+/**
+ * Month-to-date spend plus a per-agent breakdown.
+ *
+ * `error` is returned because the tab reading it must be able to tell a failed
+ * request from a month with no spend in it. Drawn from `data` alone the two are
+ * the same "nothing spent yet", and on a page about money the wrong one of those
+ * is the reassuring one.
+ */
 export function useSpend(days = 30) {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.runs.spend(days),
     queryFn: () => apiClient.get<CostSummary>("/spend", { params: { days: String(days) } }),
   });
-  return { spend: data, isLoading };
+  return { spend: data, isLoading, error, refetch };
 }
