@@ -84,32 +84,37 @@ question to ask of a fallback here is not "is it graceful" but "can it ever run"
 
 ### The migration is necessary and not sufficient
 
-`run_id` links messages to runs; it does not create messages. Writing the transcript is the
-caller's job, and only web chat on its success path does it in full:
+`run_id` links messages to runs; it does not create messages. When this section was
+written, writing the transcript was the *caller's* job and only web chat on its success
+path did it in full, which is what the plan was priced against:
 
-| Surface | What a detail view could show today |
+| Surface | What a detail view could show, before `e841cac` |
 |---|---|
 | web chat, run succeeded | everything — prompt, reasoning, tool arguments and results |
-| web chat, run failed | the prompt only; the exception skips `persist_assistant_turn` (`agent_session.py:226`) |
-| a channel bot's default agent | prompt and answer as text — no tool calls, model or version (`channels/router.py:126`, `:136`) |
-| embed widget | nothing; a conversation row is created and left empty (`embed_session.py:142`) |
-| `@mention` on a channel | nothing (`channels/router.py:176`) |
-| API | nothing, even when the caller passes a `conversation_id` (`agents.py:368`) |
-| a run resumed after an approval | nothing — `resume` replays through `_run`, which writes no messages (`agent_runner.py:838`) |
+| web chat, run failed | the prompt only; the exception skipped `persist_assistant_turn` |
+| a channel bot's default agent | prompt and answer as text — no tool calls, model or version |
+| embed widget | nothing; a conversation row was created and left empty |
+| `@mention` on a channel | nothing |
+| API | nothing, even when the caller passed a `conversation_id` |
+| a run resumed after an approval | nothing — `resume` replays through `_run`, which wrote no messages |
 
-`tool_calls` rows are written in exactly one place in the repository — `app/services/agent.py:238`,
-inside `persist_assistant_turn` — from a list only the streaming path fills. A non-streaming
-surface has no access to them at all.
+**Decision, taken and then reversed: #205 is fixed here.** The plan said five write paths
+across the chat and channel subsystems was not an Activity change and would roughly
+double this branch. That reasoning was sound about *five write paths* and wrong about the
+fix: the recording moved into `_run` instead, as one, so every surface that does not
+stream is recorded by the method they all already reach. `app/services/transcript.py`,
+`e841cac`. A thing five surfaces have to remember is a thing the sixth will not.
 
-**Decision: #205 fixes the recording; this page does not.** Five write paths in the chat and
-channel subsystems is not an Activity change, and folding it in would roughly double this
-branch. So the detail view carries a second case beside *we recorded this*: **this surface
-does not record steps**, naming the surface. When #205 lands the same view fills in with no
-frontend change.
+So the case this section designed — **this surface does not record steps**, naming the
+surface — is gone, and was deleted rather than kept as a branch nothing can reach. The
+streaming chat still writes its own, because it has events to attach and a socket to
+answer on.
 
-This is the one fallback on this page that survives the test set out above — it is not a
-compatibility concession, it is reachable today on five surfaces out of seven, and a test
-can produce it.
+**One case does remain**, and it is not about the surface: a run with no conversation to
+write to. An API call that passed no `conversation_id` has nowhere to put a transcript,
+and `TranscriptService.record` writes nothing and does not raise —
+`test_a_run_with_no_conversation_writes_nothing`. A detail view still owes that reader a
+sentence, which is a frontend case rather than a recording one.
 
 A panel that is empty and silent is the failure this page exists to remove. A panel that is
 empty and says why is the deliverable.
@@ -681,9 +686,15 @@ the denominator of the first.
 
 ## 9. What stage 2 is verified by
 
-- a test that mocks a 502 per tab and asserts the **error** state, not the empty one
+- a test that mocks a 502 per tab and asserts the **error** state, not the empty one —
+  `tab-failures.integration.test.tsx`, which fails one of the three requests with the
+  other two served, because they have to fail *independently*: one page-wide error state
+  would hide a Spend tab that is answering
 - an integration test proving Approve/Reject and the Approvals tab are **absent** without
-  `approvals:decide`
+  `approvals:decide` — `approvals-permission.integration.test.tsx`. This was a live
+  defect and not only a missing test: the page computed `canDecide` and gated the two
+  buttons with it while the tab, its default selection and the figure above it rendered
+  unconditionally, so a member without the permission read a 403 as *"Nothing waiting"*
 - an integration test proving the run count is `total`, not the length of the first page
 - the new `list_runs` filters proven against a real database: a staging run absent when
   `environment_id` narrows to production, a `status` list returning both `failed` and
@@ -706,17 +717,32 @@ the denominator of the first.
   integration test still passes after the tab is rebuilt as three components
 - the decided view proven: a decided approval renders its decider and is refused a
   second decision; the pending queue and the decided list never share a row
-- the three tabs land as separate components — the 338-line page is already over the
-  ~100-line guidance, and #45 counts the split as part of the work, not extra
+- the three tabs land as separate components — the page had reached 358 lines against the
+  ~100-line guidance, and #45 counts the split as part of the work, not extra. Five
+  components under `components/runs/`, each fetching its own rows, which is what makes the
+  line above possible: a page holding every query has one loading flag and one empty state
+  to spend across four concerns. It also moved the code from `src/app/**`, which the
+  coverage gate does not measure, into `src/components/**`, which it holds to 100% — the
+  Spend tab landed there at 75%, so its rows had never once been rendered with money in
+  them
 - `messages.run_id` covered by an integration test against a real database: two runs in
   one conversation, each detail view showing only its own steps
 - the detail read proven to be authorized rather than owned: an owner opening a
   **colleague's** run gets its steps, the same request for another tenant's run is
   refused, and the conversation endpoint one route over is left exactly as strict as it
   is today
-- a run on a surface that records nothing renders the third case of §2, naming the
-  surface — asserted by a test, because "empty" and "not recorded" are the same pixels
-  and this page exists to stop that
+- a run with **no conversation** is accounted for rather than left as an empty panel —
+  the case that survived `e841cac`. This line used to read *"a run on a surface that
+  records nothing renders the third case of §2, naming the surface"*, and that case no
+  longer exists: the runner writes the transcript for every non-streaming surface, so
+  there is no surface that records nothing. What remains is a run with nowhere to write
+  to — an API call that passed no `conversation_id`, an `@mention` — and it is covered
+  where it happens, by
+  `test_transcript.py::test_a_run_with_no_conversation_writes_nothing`: the recorder
+  writes nothing and does not raise, because a transcript that cannot be written must
+  not fail the run it belongs to. The **frontend** half of it is a detail view that says
+  so, and there is no run detail view yet — that is its own issue, not a box this branch
+  can tick
 - `make lint-frontend && make test-frontend-cov` clean. **Not `bun run test:run`**,
   which this line used to say: it measures no coverage, and the job CI runs is
   `bun run test:coverage` against 100% lines/statements/functions and 97.5% branches.
