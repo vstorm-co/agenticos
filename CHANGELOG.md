@@ -19,6 +19,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.73] - 2026-08-07
+
+### Fixed
+
+- The web chat billed nothing for the embedding calls behind a knowledge search.
+  Metering lived at the call site, so a surface that forgot it under-reported
+  silently: `record_ambient_usage` found no active ledger and dropped the cost,
+  the run's own total was short, the organization's month never saw it, and
+  nothing raised. The meter moved inside `execute` and `iterate`, so every
+  surface that runs an agent is metered by construction rather than by
+  remembering (#16).
+
 ## [0.0.72] - 2026-08-07
 
 ### Fixed
