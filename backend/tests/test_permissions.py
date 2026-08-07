@@ -115,6 +115,24 @@ class TestAuthContext:
         assert ctx.has(Perm.APPROVALS_DECIDE)
         assert not ctx.has(Perm.AGENTS_EDIT)
 
+    def test_operator_watches_connections_but_does_not_manage_them(self):
+        """The whole point of splitting the permission: an operator can read a
+        host's sessions and ceilings without being handed create, edit and delete
+        - which is what pointing a connection at an address and attaching its
+        vault secret would have been."""
+        ctx = _ctx(OrgRoleName.OPERATOR)
+        assert ctx.has(Perm.CONNECTIONS_VIEW)
+        assert not ctx.has(Perm.CONNECTIONS_MANAGE)
+
+    @pytest.mark.parametrize("role", [OrgRoleName.OWNER, OrgRoleName.ADMIN, OrgRoleName.BUILDER])
+    def test_managing_connections_carries_watching_them(self, role: OrgRoleName):
+        """Nothing in the catalog implies one permission from another, so a role
+        that manages connections is given the read explicitly or loses the
+        listing it had before the split."""
+        ctx = _ctx(role)
+        assert ctx.has(Perm.CONNECTIONS_MANAGE)
+        assert ctx.has(Perm.CONNECTIONS_VIEW)
+
     def test_unknown_role_holds_nothing(self):
         ctx = _ctx("not-a-role")
         assert ctx.permissions == {}

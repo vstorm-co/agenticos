@@ -17,7 +17,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- **`connections:view`, so an operator can watch where sandboxes run without
+  being handed the keys to them.** `connections:manage` did two jobs: reading a
+  host's session list, its activity log and the memory and CPU ceilings its
+  service enforces, and pointing a connection at an address and attaching the
+  vault secret that starts containers there. Only owner, admin and builder held
+  it, so the operator dashboard had no sandbox section at all — despite those
+  reads being exactly the operator's questions ("why did that agent just get a
+  429"). The reads (`GET /sandbox-connections`, `/runtimes`, `/{id}/policy`,
+  `/{id}/sessions`, and the session events) now carry `connections:view`, which
+  operator holds; create, edit, delete, probe, the local-service peek and the
+  credential store stay on `connections:manage`. Nothing in the catalog implies
+  one permission from another, so the roles that manage connections were given
+  the read alongside it and lose no access.
 
 ## [0.0.81] - 2026-08-07
 

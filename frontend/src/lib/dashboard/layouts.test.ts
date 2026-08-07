@@ -62,14 +62,15 @@ describe("the layouts", () => {
   });
 
   it("offers the sandbox section only where a gate could pass it", () => {
-    // `connections:manage` is held by owner, admin and builder - and not by
-    // operator, whatever the persona suggests (`ROLE_PERMS`). Listing the section
-    // on the operator layout would be an entry no caller can ever see.
+    // The cards gate on `connections:view`, held by owner, admin, builder and
+    // operator (`ROLE_PERMS`) - so all four carry the section and member and
+    // viewer, who hold neither connections permission, do not. Listing it on a
+    // layout whose gate can never pass would be an entry no caller can see.
     const carrying = AUDIENCES.filter((audience) =>
       LAYOUTS[audience].some((section) => section.id === "sandboxes"),
     );
 
-    expect(carrying).toEqual(["app_admin", "steward", "builder"]);
+    expect(carrying).toEqual(["app_admin", "steward", "operator", "builder"]);
   });
 });
 
@@ -112,7 +113,7 @@ describe("visibleSections", () => {
     expect(sections.map((section) => section.id)).not.toContain("deployment");
   });
 
-  it("withholds the sandbox section, heading included, without connections:manage", () => {
+  it("withholds the sandbox section, heading included, without connections:view", () => {
     // Not rendered and then 403'd: a caller who cannot ask a host what it runs
     // must not be told the section exists.
     const sections = visibleSections("steward", holds(Perm.runsView, Perm.membersManage), false);
@@ -120,8 +121,8 @@ describe("visibleSections", () => {
     expect(sections.map((section) => section.id)).not.toContain("sandboxes");
   });
 
-  it("gives the sandbox section to a caller holding connections:manage and nothing else", () => {
-    const sections = visibleSections("builder", holds(Perm.connectionsManage), false);
+  it("gives an operator the sandbox section on the strength of connections:view", () => {
+    const sections = visibleSections("operator", holds(Perm.connectionsView), false);
 
     expect(sections.map((section) => section.id)).toEqual(["sandboxes"]);
     expect(sections[0]?.entries.map((entry) => entry.widget)).toEqual([
@@ -129,5 +130,14 @@ describe("visibleSections", () => {
       "sandbox-policy",
       "sandbox-sessions",
     ]);
+  });
+
+  it("does not offer the sandbox cards for connections:manage alone", () => {
+    // The cards gate on the read, and the catalog implies neither permission
+    // from the other - the same rule the backend keeps. A real manage-holding
+    // role also holds the view; a caller with only manage is not one.
+    const sections = visibleSections("builder", holds(Perm.connectionsManage), false);
+
+    expect(sections.map((section) => section.id)).not.toContain("sandboxes");
   });
 });
