@@ -9,12 +9,13 @@ it was parked on, with the spend it had already booked.
 import asyncio
 import uuid
 from collections.abc import Awaitable, Callable
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic_ai.messages import ModelRequest, ModelResponse, ToolCallPart, ToolReturnPart
 from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.usage import RequestUsage
 
@@ -56,17 +57,30 @@ def _db(monthly_budget_usd: Decimal | None = None):
     return db
 
 
-def _prepared(ledger: SpendLedger | None = None) -> PreparedRun:
+def _prepared(
+    ledger: SpendLedger | None = None, *, conversation_id: uuid.UUID | None = None
+) -> PreparedRun:
     """A run with its agent stubbed - but a real `PreparedRun`, and a real ledger.
 
     Mocking the prepared run itself would mock away `execute`, which is what
     opens the spend meter: the test would prove the runner calls something and
     nothing at all about what the run was billed.
+
+    No conversation unless a test asks for one. `_run` writes the transcript into
+    the run's conversation, and a `MagicMock` there is truthy - which would send
+    every accounting test through a write it is not about, against a session that
+    cannot serve it.
     """
     built = MagicMock()
     built.ledger = ledger or SpendLedger()
+    built.model_label = "gpt-4.1"
     return PreparedRun(
-        run=MagicMock(id=uuid.uuid4()),
+        run=MagicMock(
+            id=uuid.uuid4(),
+            agent_id=uuid.uuid4(),
+            agent_version_id=uuid.uuid4(),
+            conversation_id=conversation_id,
+        ),
         agent=MagicMock(),
         spec=MagicMock(),
         built=built,
@@ -443,23 +457,6 @@ class TestSpendReporting:
 
         assert spent == Decimal("10")
         ingested.assert_not_called()
-
-    @pytest.mark.anyio
-    async def test_the_cost_breakdown_looks_back_the_number_of_days_it_was_asked_for(self):
-        """Unlike the budget, the dashboard window is rolling - "the last 7 days" means that."""
-        ctx = _ctx()
-        rows = [(uuid.uuid4(), "gpt-4.1", Decimal("3.00"), 12)]
-
-        with patch(
-            "app.services.agent_runner.agent_run_repo.cost_breakdown",
-            new=AsyncMock(return_value=rows),
-        ) as breakdown:
-            reported = await AgentRunnerService(_db()).cost_breakdown(ctx, days=7)
-
-        assert reported == rows
-        assert breakdown.call_args.kwargs["organization_id"] == ctx.organization_id
-        looked_back = datetime.now(UTC) - breakdown.call_args.kwargs["since"]
-        assert timedelta(days=7) <= looked_back < timedelta(days=7, seconds=30)
 
 
 class TestReadingRunHistory:
@@ -846,6 +843,107 @@ class TestRunAccounting:
         assert finish.call_args.kwargs["status"] == RunStatus.FAILED.value
 
 
+class TestWhatANonStreamingRunRecords:
+    """The transcript, written by the runner rather than by each surface.
+
+    Four surfaces reached `_run` and recorded nothing: the embedded widget, a
+    channel mention, the HTTP API and every resumed run. An organization was
+    billed for an answer given to a visitor on a client's site, with no row
+    saying what was asked or what was said back. The channel bot did write two
+    lines of text and dropped the tool calls, the model and the version.
+
+    So the write moved to the one place a non-streaming run executes. The
+    streaming chat does not come through here and keeps its own, because it has
+    events to attach and a socket to answer on.
+    """
+
+    @staticmethod
+    def _answered(output: object, messages: list[Any] | None = None) -> MagicMock:
+        return MagicMock(output=output, new_messages=MagicMock(return_value=messages or []))
+
+    @pytest.mark.anyio
+    async def test_the_question_the_answer_and_the_tool_calls_all_reach_the_transcript(self):
+        conversation_id = uuid.uuid4()
+        service = AgentRunnerService(_db())
+        prepared = _prepared(conversation_id=conversation_id)
+        prepared.built.agent.run = AsyncMock(
+            return_value=self._answered(
+                "sent",
+                [
+                    ModelResponse(
+                        parts=[
+                            ToolCallPart(
+                                tool_name="send_email",
+                                args={"to": "ada@example.com"},
+                                tool_call_id="c1",
+                            )
+                        ]
+                    ),
+                    ModelRequest(
+                        parts=[
+                            ToolReturnPart(tool_name="send_email", content="ok", tool_call_id="c1")
+                        ]
+                    ),
+                ],
+            )
+        )
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service.transcript, "record", new=AsyncMock()) as record,
+        ):
+            await service.execute(_ctx(), uuid.uuid4(), "email ada")
+
+        written = record.await_args.kwargs
+        assert (written["prompt"], written["answer"]) == ("email ada", "sent")
+        assert written["model_label"] == "gpt-4.1"
+        assert [(call.tool_name, call.args, call.result) for call in written["tool_calls"]] == [
+            ("send_email", {"to": "ada@example.com"}, "ok")
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_run_that_broke_still_records_what_was_asked(self):
+        """The run that failed is the one somebody opens. Without the question
+        there is nothing on the page to interpret the failure against."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared(conversation_id=uuid.uuid4())
+        prepared.built.agent.run = AsyncMock(side_effect=RuntimeError("provider down"))
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service.transcript, "record", new=AsyncMock()) as record,
+            pytest.raises(RuntimeError),
+        ):
+            await service.execute(_ctx(), uuid.uuid4(), "email ada")
+
+        written = record.await_args.kwargs
+        assert (written["prompt"], written["answer"]) == ("email ada", "")
+
+    @pytest.mark.anyio
+    async def test_an_attached_file_is_not_recorded_as_a_repr_of_itself(self):
+        """A prompt an attachment was folded into arrives as parts. Only the text
+        is the turn; the binary part is the file, and its `repr` in the message
+        body is worse than nothing."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared(conversation_id=uuid.uuid4())
+        prepared.built.agent.run = AsyncMock(return_value=self._answered("read it"))
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch(
+                "app.services.agent_runner.AttachmentRouter.build_prompt",
+                new=AsyncMock(return_value=["summarise this", object()]),
+            ),
+            patch.object(service.transcript, "record", new=AsyncMock()) as record,
+        ):
+            await service.execute(_ctx(), uuid.uuid4(), "summarise this", attachments=[MagicMock()])
+
+        assert record.await_args.kwargs["prompt"] == "summarise this"
+
+
 class TestStoppingANonStreamingRun:
     """A cancelled run, through `execute`.
 
@@ -1221,6 +1319,51 @@ class TestResume:
         assert channel.decided["call-1"] == ApprovalGranted(
             tool_args={"to": "customer@example.com"}
         )
+
+    @pytest.mark.anyio
+    async def test_a_resumed_run_records_its_continuation_and_invents_no_question(self):
+        """A resumed run used to record nothing at all: `resume` replays through
+        `_run`, and the write lived in each surface. So the decision a person made
+        produced work with no transcript.
+
+        `prompt=None` is the other half. The run picks up at the tool call it
+        stopped on - there is no new question, and writing one would put words in
+        somebody's mouth."""
+        service = AgentRunnerService(_db())
+        approval = self._approval(
+            status=ApprovalStatus.APPROVED.value, tool_args={"to": "customer@example.com"}
+        )
+        run = _parked_run(
+            conversation_id=uuid.uuid4(),
+            paused_state={"messages": [], "tool_call_ids": {str(approval.id): "call-1"}},
+        )
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                new=AsyncMock(return_value=run),
+            ),
+            patch(
+                "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
+                new=AsyncMock(return_value=[approval]),
+            ),
+            patch(
+                "app.services.agent_runner.agent_repo.get_version",
+                new=AsyncMock(return_value=self._version()),
+            ),
+            patch("app.services.agent_runner.build_agent", return_value=self._built()),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service.registry, "get", new=AsyncMock(return_value=MagicMock())),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch.object(service.transcript, "record", new=AsyncMock()) as record,
+        ):
+            await service.resume(_ctx(), run.id)
+
+        written = record.await_args.kwargs
+        assert (written["prompt"], written["answer"]) == (None, "sent")
 
     @pytest.mark.anyio
     async def test_a_resumed_run_keeps_the_spend_it_had_already_booked(self):

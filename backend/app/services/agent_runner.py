@@ -58,12 +58,12 @@ from collections import Counter
 from collections.abc import AsyncIterator, Callable, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from pydantic_ai import Agent as PydanticAgent
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter, UserContent
 from pydantic_ai.run import AgentRun as AgentIteration
@@ -91,6 +91,7 @@ from app.agents.capabilities.subagents import SubagentsConfig, acting_delegate
 from app.agents.deps import AgentDeps
 from app.agents.factory import BuiltAgent, build_agent
 from app.agents.model_resolver import ModelRequestSpec
+from app.agents.observability import current_trace_id
 from app.agents.spec import (
     AgentSpec,
     CapabilityBindingSpec,
@@ -113,12 +114,13 @@ from app.agents.subagent_runtime import (
     ResumedDelegation,
     SubagentRuntime,
 )
+from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError, RunExecutionError
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import StorableSecret
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_exposure import AgentExposure
-from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, RunSurface
+from app.db.models.agent_run import AgentRun, ApprovalStatus, RunOrder, RunStatus, RunSurface
 from app.db.models.chat_file import ChatFile
 from app.repositories import (
     agent_environment_repo,
@@ -126,6 +128,7 @@ from app.repositories import (
     agent_run_repo,
     knowledge_base_repo,
 )
+from app.repositories.agent_run import AgentSpendRow, RunFilters
 from app.services.agent_registry import (
     DEFAULT_GRANTED_SCOPES,
     DELEGATION_CAPABILITY_ID,
@@ -151,6 +154,7 @@ from app.services.skill_workspace import MaterialisedSkills, collect_changes
 from app.services.skill_workspace import materialise as materialise_skills
 from app.services.skills import SkillService
 from app.services.spend import month_start, organization_monthly_spend
+from app.services.transcript import RecordedToolCall, TranscriptService, tool_calls_in
 
 logger = logging.getLogger(__name__)
 
@@ -1182,6 +1186,42 @@ def _spend_already_booked(run: AgentRun) -> SpendEntry:
     )
 
 
+def _observability_of(stored: dict[str, Any]) -> ObservabilitySpec | None:
+    """The observability block of a stored spec, without validating the rest of it.
+
+    One block out of the document rather than `AgentSpec.model_validate`, because
+    a spec that has stopped validating - a capability dropped in a deploy, a
+    narrowed rule - is exactly the agent somebody is trying to read a trace for.
+    Refusing them the link would make a debugging aid fail on the runs that need
+    debugging.
+    """
+    block = stored.get("observability")
+    if not isinstance(block, dict):
+        return None
+    try:
+        return ObservabilitySpec.model_validate(block)
+    except ValidationError:
+        logger.warning("run_trace_observability_unreadable")
+        return None
+
+
+def _prompt_text(user_prompt: str | list[Any] | None) -> str | None:
+    """The words to record as the user's turn, if there are any.
+
+    `None` stays `None`: a resumed run has no new prompt - it picks up at the
+    tool call it stopped on - and writing a turn there would put words in
+    somebody's mouth.
+
+    A list is a prompt an attachment was folded into, where the non-text parts
+    are the file itself. Only the text is recorded; the transcript's own file
+    rows are where an attachment belongs, and a `repr` of `BinaryContent` in the
+    message body is worse than nothing.
+    """
+    if user_prompt is None or isinstance(user_prompt, str):
+        return user_prompt
+    return "".join(part for part in user_prompt if isinstance(part, str))
+
+
 class AgentRunnerService:
     """Prepare, execute and account for agent runs."""
 
@@ -1195,6 +1235,7 @@ class AgentRunnerService:
         self.organizations = OrganizationService(db)
         self.workspaces = SandboxWorkspaceService(db)
         self.proposals = SkillProposalService(db)
+        self.transcript = TranscriptService(db)
 
     async def _collection_names(self, spec: AgentSpec, ctx: AuthContext) -> list[str]:
         """Vector-store collection names for the agent's bound collections.
@@ -1222,7 +1263,9 @@ class AgentRunnerService:
         ctx: AuthContext,
         agent_id: UUID,
         *,
-        surface: RunSurface = RunSurface.PLAYGROUND,
+        # The same default `execute` carries, so the two cannot disagree about
+        # what an unnamed surface is. Every production caller passes one.
+        surface: RunSurface = RunSurface.API,
         conversation_id: UUID | None = None,
         channel_key: str | None = None,
         user_name: str | None = None,
@@ -2314,14 +2357,22 @@ class AgentRunnerService:
         *,
         status: RunStatus,
         error: str | None = None,
-        logfire_trace_id: str | None = None,
         paused_state: PausedRunState | None = None,
         budget_scope: BudgetScope | None = None,
     ) -> AgentRun:
         """Record what the run consumed and how it ended.
 
         Called from a `finally` block by every surface: a crashed run still
-        spent money, and a budget that ignores failures is not a budget.
+        spent money, and a budget that ignores failures is not a budget. That is
+        also what makes this the right place to read the **trace id**: it is
+        reached however the run ended, and the run somebody most wants a trace for
+        is the one that failed.
+
+        The id is read here rather than accepted as a parameter, which is what it
+        used to be. No caller ever passed one, so the write was guarded by a
+        condition that was always false and `AgentRunRead.logfire_trace_id` -
+        documented as a deep link into the trace - was null on every row ever
+        written (#206).
 
         `paused_state` is what a parked run is resumed from. Passing nothing
         clears it, which is what makes a finished run un-resumable rather than
@@ -2366,7 +2417,7 @@ class AgentRunnerService:
             cost_is_partial=ledger.has_unpriced_models,
             ended_at=datetime.now(UTC),
             error=error,
-            logfire_trace_id=logfire_trace_id,
+            logfire_trace_id=current_trace_id(),
             paused_state=None if parked is None else parked.model_dump(mode="json"),
         )
         # After the parent's row and on every path out of the run, for the reason
@@ -2804,6 +2855,15 @@ class AgentRunnerService:
         cancellation and a crash are all recorded the same way whether the run is
         new or resumed.
 
+        **It is also where the transcript is written, for the same reason.** Every
+        surface that does not stream reaches this method, and every one of them
+        used to be responsible for recording what the run said: the embedded
+        widget, a channel mention, the HTTP API and every resumed run recorded
+        nothing at all, so an organization was billed for answers no row
+        described. A thing four surfaces have to remember is a thing the fifth
+        will not. The streaming chat does not come through here and keeps writing
+        its own, because it has events to attach and a socket to answer on.
+
         **A cancellation is one of those endings, and it needs both halves.**
         `asyncio.CancelledError` is a `BaseException`, so it reaches neither
         handler below on its own: the status stayed at its initial `FAILED` with
@@ -2822,12 +2882,17 @@ class AgentRunnerService:
         output = ""
         paused: PausedRunState | None = None
         budget_scope: BudgetScope | None = None
+        called: list[RecordedToolCall] = []
         try:
             result = await prepared.execute(
                 user_prompt,
                 message_history=message_history,
                 deferred_tool_results=deferred_tool_results,
             )
+            # `new_messages`, not `all_messages`: a resumed run is handed
+            # everything up to the park as history, and the wider list would
+            # write the first attempt's calls again under the same run.
+            called = tool_calls_in(result.new_messages())
             if isinstance(result.output, DeferredToolRequests):
                 paused = PausedRunState(
                     messages=ModelMessagesTypeAdapter.dump_python(
@@ -2868,6 +2933,16 @@ class AgentRunnerService:
                 paused_state=paused,
                 budget_scope=budget_scope,
             )
+            # In the `finally`, so a run that failed, parked or was stopped still
+            # says what was asked and what it managed to do. Those are the runs
+            # somebody opens.
+            await self.transcript.record(
+                prepared.run,
+                prompt=_prompt_text(user_prompt),
+                answer=output,
+                tool_calls=called,
+                model_label=prepared.built.model_label,
+            )
             # Committed here rather than left to the session context: that exit
             # rolls back on any exception, and cancellation never reaches it at
             # all, since `CancelledError` is not an `Exception`. A run that
@@ -2882,9 +2957,11 @@ class AgentRunnerService:
         ctx: AuthContext,
         *,
         agent_id: UUID | None = None,
-        statuses: Sequence[str] | None = None,
         parent_run_id: UUID | None = None,
         include_delegations: bool = False,
+        filters: RunFilters | None = None,
+        order_by: RunOrder = RunOrder.STARTED_AT,
+        descending: bool = True,
         skip: int = 0,
         limit: int = 50,
     ) -> tuple[list[AgentRun], int]:
@@ -2899,18 +2976,27 @@ class AgentRunnerService:
         already contains its children's. `parent_run_id` lists one run's own
         delegations; `include_delegations` keeps them in an agent's own history.
 
-        `statuses` narrows to a set of outcomes and composes with all three.
-        The route validates the words against `RunStatus` before they reach
-        here, so an unknown one is a 422 naming the vocabulary rather than a
-        filter that silently matches nothing.
+        `filters` is the caller's narrowing, and the tenant clause is applied
+        here regardless of it: a filter can only ever shrink what this returns,
+        never reach outside the organization.
+
+        `filters.statuses` narrows to a set of outcomes and composes with all
+        three. The route validates the words against `RunStatus` before they
+        reach here, so an unknown one is refused by name rather than becoming a
+        filter that silently matches nothing. It travels *inside* `RunFilters`
+        rather than beside it, because `conditions()` is what the page query and
+        the count query share - a status clause applied on its own is the one way
+        those two could come to describe different rows.
         """
         return await agent_run_repo.list_runs(
             self.db,
             organization_id=ctx.organization_id,
             agent_id=agent_id,
-            statuses=statuses,
             parent_run_id=parent_run_id,
             include_delegations=include_delegations,
+            filters=filters,
+            order_by=order_by,
+            descending=descending,
             skip=skip,
             limit=limit,
         )
@@ -2927,6 +3013,48 @@ class AgentRunnerService:
         if run is None:
             raise NotFoundError(message="Run not found", details={"run_id": str(run_id)})
         return run
+
+    async def trace_url(self, ctx: AuthContext, run: AgentRun) -> str | None:
+        """Where this run's trace can be read, if anywhere can.
+
+        `None` on three honest paths, and a client renders no link for any of
+        them: the run has no trace id (nothing was tracing), no slugs are
+        configured, or the agent redirects its traces to a project whose slugs
+        nobody told us. All three are configuration facts. The trace id stays on
+        the row regardless, because it is useful to anybody with Logfire access
+        even with no URL in the product.
+
+        Resolved per run rather than once per deployment because
+        `ObservabilitySpec` exists to send *one agent's* traces to a client's own
+        project - so a link built from the deployment's slugs would point at a
+        project that does not contain this run. The agent's own slugs win; the
+        deployment's are the fallback for every agent that redirects nothing.
+
+        Offered on the detail read only. Resolving it needs the version's stored
+        spec, which is a lookup per row, and a list of fifty runs has no use for
+        fifty trace links.
+
+        `ctx` is taken rather than derived from the run because the version lookup
+        is tenant-scoped and every read in this service goes through the same
+        boundary - a spec fetched by id alone would be one place a listing could
+        widen.
+        """
+        if run.logfire_trace_id is None:
+            return None
+        organization, project = settings.LOGFIRE_ORGANIZATION, settings.LOGFIRE_PROJECT
+        if run.agent_version_id is not None:
+            version = await agent_repo.get_version(
+                self.db, run.agent_version_id, organization_id=ctx.organization_id
+            )
+            observability = None if version is None else _observability_of(version.spec)
+            if observability is not None and observability.organization and observability.project:
+                organization, project = observability.organization, observability.project
+        if not organization or not project:
+            return None
+        return (
+            f"{settings.LOGFIRE_BASE_URL.rstrip('/')}/{organization}/{project}"
+            f"?q=trace_id%3D%27{run.logfire_trace_id}%27"
+        )
 
     async def monthly_spend(self, ctx: AuthContext, *, agent_id: UUID | None = None) -> Decimal:
         """Spend so far this calendar month, for the org or one agent.
@@ -2961,30 +3089,50 @@ class AgentRunnerService:
         return await organization_monthly_spend(self.db, ctx.organization_id)
 
     async def spend_by_provider(
-        self, ctx: AuthContext, *, days: int = 30
+        self, ctx: AuthContext, *, since: datetime, until: datetime | None = None
     ) -> list[tuple[str | None, Decimal, int]]:
-        """What each model provider was paid over a window."""
+        """What each model provider was paid over a window.
+
+        Every run contributes its **own** spend, its delegations' share taken
+        back out, so a delegate on a second vendor appears under that vendor
+        rather than under the one its parent happened to use. The rows still sum
+        to the bill.
+
+        The window is passed in rather than derived from a day count, so this and
+        the per-agent rows beside it always describe the same runs. Two figures
+        on one screen over two windows is the defect #198 is about, one panel
+        further down.
+        """
         return await agent_run_repo.spend_by_provider(
-            self.db,
-            organization_id=ctx.organization_id,
-            since=datetime.now(UTC) - timedelta(days=days),
+            self.db, organization_id=ctx.organization_id, since=since, until=until
         )
 
     async def spend_by_key(
-        self, ctx: AuthContext, *, days: int = 30
+        self, ctx: AuthContext, *, since: datetime, until: datetime | None = None
     ) -> list[tuple[UUID | None, str | None, Decimal, int]]:
-        """What each stored key was spent through over a window."""
+        """What each stored key was spent through over a window.
+
+        Own spend per run, as :meth:`spend_by_provider` - a delegate running on a
+        different stored key is the same question about the same money.
+        """
         return await agent_run_repo.spend_by_key(
-            self.db,
-            organization_id=ctx.organization_id,
-            since=datetime.now(UTC) - timedelta(days=days),
+            self.db, organization_id=ctx.organization_id, since=since, until=until
         )
 
-    async def cost_breakdown(
-        self, ctx: AuthContext, *, days: int = 30
-    ) -> list[tuple[UUID, str | None, Decimal, int]]:
-        """Spend per agent and model over a window - the dashboard's data."""
-        since = datetime.now(UTC) - timedelta(days=days)
-        return await agent_run_repo.cost_breakdown(
-            self.db, organization_id=ctx.organization_id, since=since
+    async def spend_by_agent(
+        self, ctx: AuthContext, *, since: datetime, until: datetime | None = None
+    ) -> list[AgentSpendRow]:
+        """One row per agent for the Spend tab - the window, the month, the cap.
+
+        The month-to-date figure is always the calendar month regardless of the
+        window asked for, because that is the period a cap is a cap on. A tile
+        comparing a rolling seven days against a monthly ceiling would read as
+        20% used on the day the cap was actually reached.
+        """
+        return await agent_run_repo.spend_by_agent(
+            self.db,
+            organization_id=ctx.organization_id,
+            since=since,
+            until=until,
+            month_since=month_start(),
         )

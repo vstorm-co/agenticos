@@ -294,20 +294,25 @@ export default function AdminRatingsPage() {
         getRowKey={(r) => r.id}
         loading={ratingsPending}
         skeletonRows={8}
-        empty={
+        // Through `error`, not folded into `empty`. Folded in it never rendered
+        // at all: a failed request leaves `ratings` null, so `rows` is undefined,
+        // and `showEmpty` requires rows to be an array - the table drew its header
+        // and nothing under it, with the refusal sitting in a prop nothing reached.
+        error={
           ratingsError ? (
             <ErrorState
               title={t("couldnTLoadRatings")}
               description={getErrorMessage(ratingsError, t("ratingsRequestFailed"))}
               cta={{ label: t("tryAgain2"), onClick: () => void refetchRatings() }}
             />
-          ) : (
-            <div className="py-8">
-              <MessageSquare className="text-muted-foreground mx-auto mb-3 h-8 w-8" />
-              <p className="text-foreground text-sm">{t("noRatingsFound")}</p>
-              <p className="text-muted-foreground mt-1 text-xs">{t("tryAdjustingFiltersAbove")}</p>
-            </div>
-          )
+          ) : null
+        }
+        empty={
+          <div className="py-8">
+            <MessageSquare className="text-muted-foreground mx-auto mb-3 h-8 w-8" />
+            <p className="text-foreground text-sm">{t("noRatingsFound")}</p>
+            <p className="text-muted-foreground mt-1 text-xs">{t("tryAdjustingFiltersAbove")}</p>
+          </div>
         }
       />
 

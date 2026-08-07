@@ -85,9 +85,17 @@ describe("the query key factory", () => {
 
   it("names the whole-organization run list rather than keying it on undefined", () => {
     // `["runs","list",undefined]` and `["runs","list"]` are different keys to
-    // React Query and the same list to a reader.
-    expect(qk.runs.list()).toEqual(["runs", "list", "all"]);
-    expect(qk.runs.list("a1")).toEqual(["runs", "list", "a1"]);
+    // React Query and the same list to a reader. The window is named the same
+    // way, and for the same reason.
+    expect(qk.runs.list()).toEqual(["runs", "list", "all", "all-time"]);
+    expect(qk.runs.list("a1")).toEqual(["runs", "list", "a1", "all-time"]);
+  });
+
+  it("keys a run list by its window as well as its agent", () => {
+    // The same agent over two windows is two answers. Caching one as the other
+    // is how a figure ends up describing a period nobody asked for - which is
+    // the shape of #198, one layer up.
+    expect(qk.runs.list(undefined, "2026-08-01T00:00:00.000Z")).not.toEqual(qk.runs.list());
   });
 
   it("keys a paged list by its window", () => {

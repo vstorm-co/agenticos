@@ -191,13 +191,29 @@ organization's monthly number also carries ingestion spend, which the per-agent
 number does not: indexing a shared knowledge base is nobody's agent's spend.
 
 **Every query has to say which of the two it is answering**, and the first column
-is the default. The month-to-date figure, the per-agent breakdown behind it and the
-splits by provider and by key all exclude child rows, so the three breakdowns on
-the cost screen add up to the total printed above them - and the organization's
-usage email reports that same total rather than a sum of one of them. Only a
-question asked *about one agent* includes them. Three of these five queries shipped
-without the distinction and each reported $1.40 for $1.00 of work; if a new one is
-added, the default is the safe one.
+is the default. The month-to-date figure and the per-agent breakdown behind it
+exclude child rows, so they add up to the total printed above them — and the
+organization's usage email reports that same total rather than a sum of one of
+them. Only a question asked *about one agent* includes them. Three of these five
+queries shipped without the distinction and each reported $1.40 for $1.00 of work;
+if a new one is added, the default is the safe one.
+
+#### The two vendor questions need a third answer
+
+**By provider** and **by key** cannot use either column, and getting that wrong is
+invisible on screen. Excluding child rows totals correctly and then attributes the
+delegate's money to the *parent's* vendor, because that is the provider on the row
+being summed: an orchestrator on OpenAI delegating $0.40 of work to an agent on
+Anthropic reported `openai $1.00` and no Anthropic row at all. Including them
+reported `openai $1.00` + `anthropic $0.40` — more than the bill.
+
+So these two sum each run's **own** spend: its cost with its direct delegations'
+costs subtracted. `openai $0.60` + `anthropic $0.40`, which is both the right
+attribution and the right total. It nests — a delegate that delegated further has
+its grandchildren taken out by it, once — and summed over every row it still comes
+to the bill, because each child's cost is added by its own row and removed by its
+parent's. A key works the same way, and matters more: a key is what somebody
+rotates when a bill looks wrong.
 
 ### What run history shows
 
@@ -256,6 +272,111 @@ Nesting delegated rows inside the top-level table is deliberately *not* done her
 a table primitive shared by the whole product is
 [proposed separately](https://github.com/vstorm-co/agenticos/issues/139), and
 nesting belongs in that rather than in one bespoke run table.
+
+### What the cost screen shows
+
+`GET /spend` takes its window two ways, because the page asks for both kinds:
+`days` for the *last N days* presets, and `from`/`to` for *this month*, *last
+month* and a calendar range. `from` wins when both arrive — an explicit range is a
+more specific request than a default nobody changed — and `period_days` comes back
+null in that case rather than repeating a number the range contradicts.
+
+**Every panel on the screen reads the same window.** The per-agent rows, By
+provider and By key all take the resolved `since`/`until` rather than a day count
+of their own, so two figures beside each other cannot end up describing different
+runs. That is the same defect #198 names one panel further up.
+
+**Month-to-date ignores the window entirely**, and so does every per-agent cap
+measured against it. A monthly ceiling compared with a rolling seven days reads as
+20% used on the day the cap was actually reached.
+
+Each per-agent row carries **two cost figures under two different names**, which is
+this page's rule throughout:
+
+| | |
+|---|---|
+| `cost_usd` | Its share of the window, **top-level runs only**, so the column sums to the total above it |
+| `month_to_date_usd` | Its **own** calendar month, delegated rows **included** — the spend its `monthly_cap_usd` is a cap on. It does not sum to the organization's month and is not drawn as if it did |
+
+`partial_run_count` says how much of any of it is a fact: how many runs in the
+window had a model with no price, so the cost is a floor by exactly that many.
+*"3 of 40 runs could not be priced"* is something a reader can act on; a figure
+wearing a plus sign is not.
+
+A row is **one per agent**, with `agent_name` on it. It used to be one per agent
+*and model*, carrying only `model_label` — so the tab listed model names where a
+reader expects an agent, and split one agent across two rows for having answered on
+two models. The per-model shape survives where it is the question being asked: the
+usage email still groups that way.
+
+### Narrowing the approvals queue
+
+`GET /approvals` serves two views of the same rows. Pending only by default, which
+is the queue somebody acts on; `?status=approved&status=rejected` is the record of
+what was decided, and it carries the decider's name and note because a bare UUID is
+not an accountability trail. There are deliberately no controls on a decided row.
+
+| Parameter | |
+|---|---|
+| `status` | Repeats. Absent means pending — the queue |
+| `triggered_by_user_id` | Whose runs parked the call. Read off `agent_runs`: an approval belongs to a run and a run belongs to a person |
+| `created_from`, `created_to` | When the call was parked, inclusive both ends |
+| `oldest_first` | Defaults to true, and the default is load-bearing — see above: nothing ages a call out, so newest-first would bury the row that most needs seeing |
+
+Each row names three things that live in other tables — the agent, the person whose
+run parked the call, and the person who decided. The agent and the run are inner
+joins because both foreign keys cascade, so an approval cannot outlive either; the
+two people are outer joins, because a decision has to survive its decider's account
+being deleted and a widget's visitor is anonymous to begin with.
+
+### Narrowing run history
+
+| Parameter | |
+|---|---|
+| `status` | Repeats. `?status=failed&status=budget_exceeded` is the show-me-the-problems query, and the two are separate statuses precisely so that asking for one is not asking for the other |
+| `surface` | Where the run came from |
+| `user_id` | Who the run ran **as**, which is not always who asked — a widget's runs carry the widget owner's identity, because the visitor is anonymous |
+| `started_from`, `started_to` | Inclusive both ends, because a range picker hands over whole days |
+| `environment_id` | Runs on the version that environment pins. **Never a delegated run:** a delegate's version comes from a pin, so the column is deliberately never written on one, and narrowing to `production` drops every delegation. A surface that includes delegations has to say so |
+| `exposure_id` | Runs admitted through one binding. Null for the dashboard and the API |
+| `agent_version_id` | Runs that executed one frozen spec — the version strip's "show me the rows behind this number" |
+| `took_over_ms` | Only runs slower than this. A run that has not finished has no duration and is excluded, not counted as zero |
+| `rated` | `down` or `up` — runs where somebody rated a message the run produced |
+| `order_by`, `descending` | `started_at` (the default, newest first) or `duration` |
+
+**Every filter narrows the count as well as the page**, so `total` always
+describes the rows under it. The list and the count are two queries, and a filter
+reaching only one of them reads as a paging bug rather than as a missing clause.
+
+`started_from` is also what makes that count reconcilable with the money beside
+it. Unwindowed it reads *all time* while a spend figure reads one calendar month,
+so an organization three years old showed "8,412 runs" next to "$31.20" and the
+obvious reading of the pair was wrong by three years. A figure and a spend figure
+on one screen share one window, or they say which window each is.
+
+A value outside its type is refused with a 422 rather than matched against
+nothing: `status` and `surface` are string columns, so `?status=complete` would
+otherwise answer with an empty page — and an empty page reads as *nothing went
+wrong this week*. `order_by` takes one of two orders rather than a column name,
+for the same reason plus one more: an `ORDER BY` assembled from a query string is
+an injection surface.
+
+**Duration is computed in SQL, over the whole narrowed set.** That is what gets
+from *"p95 is 14.8s"* on the dashboard to **those runs** — sorting one page of
+twenty-five sorts the wrong set, because the slowest run of a month is not in
+whichever rows a newest-first page happened to return. A run with no `ended_at`
+sorts **last in both directions**: it has no duration, and it is not the fastest
+run either. How long a *still-running* run has been going is a different question
+and this column deliberately does not answer it.
+
+**`rated=down` is the highest-signal queue here** — the answers real people said
+were wrong, in their own words. A rating hangs off a message, so this join runs
+through `messages.run_id`: two runs in one conversation keep their own ratings,
+which is why that column exists rather than a time window over the thread. It is
+an `EXISTS`, so a run three people disliked is one row and not three; and a run
+one person liked while another disliked matches **both** `up` and `down`, because
+both are true of it. Reducing that to one verdict per run would invent a consensus
+the rows do not record.
 
 Activity's three figures above the tabs stay the organization's, including the run
 count, even when the table below is narrowed to one agent. A per-agent count beside
@@ -324,6 +445,12 @@ Four properties worth knowing:
   stands and resuming works again once the spec does.
 - **A decided approval cannot be decided twice.** The second decision is refused —
   including a decision arriving a second after the expiry sweep took the call.
+- **A parked call is denied by timeout once it passes `APPROVAL_EXPIRY_HOURS`**, and
+  the run behind it is settled rather than left parked for ever. The status is
+  `expired` with a null `decided_by_user_id`, which is what tells an expiry from a
+  rejection in the accountability trail. The Activity page still surfaces the **age**
+  of the oldest wait, because a queue under its expiry window is the one somebody can
+  still act on.
 - **`required` works on any capability**, not only side-effecting ones. "This only
   reads, but in my organization somebody approves it anyway" is a real decision
   and is expressible.

@@ -33,8 +33,8 @@ async def agents_in_conversations(
     accurate one: `messages.agent_id` says which agent produced *that answer*, which
     is what a transcript needs. But it was written by a call that silently dropped
     the field for as long as web chat has existed, so every row before that fix has
-    it null - and per-message attribution is not recoverable, because nothing links a
-    run to the message it produced.
+    it null - and for those rows the attribution is not recoverable. `run_id` links a
+    turn to its run from here on; nothing links the ones written before it.
 
     A *run* is recoverable: `agent_runs` has carried `conversation_id` and `agent_id`
     since it existed. It cannot say which answer came from which agent, and it does
@@ -424,6 +424,7 @@ async def create_message(
     cost_usd: Decimal | None = None,
     agent_id: UUID | None = None,
     agent_version_id: UUID | None = None,
+    run_id: UUID | None = None,
 ) -> Message:
     """Create a new message."""
     message = Message(
@@ -438,6 +439,7 @@ async def create_message(
         cost_usd=cost_usd,
         agent_id=agent_id,
         agent_version_id=agent_version_id,
+        run_id=run_id,
     )
     db.add(message)
     await db.flush()
@@ -450,6 +452,26 @@ async def create_message(
     )
 
     return message
+
+
+async def link_message_to_run(
+    db: AsyncSession, *, message_id: UUID, run_id: UUID, conversation_id: UUID
+) -> None:
+    """Stamp `run_id` on a message that was already written.
+
+    The prompt is persisted before the run row exists, on purpose: a build that
+    refuses - a deleted secret, a removed model profile - must not lose what
+    somebody typed. So the link is made once there is a run to link to.
+
+    `conversation_id` narrows the statement rather than being taken on trust. A
+    message id belonging to another thread then updates nothing, instead of
+    moving that thread's turn into this run's transcript.
+    """
+    await db.execute(
+        sql_update(Message)
+        .where(Message.id == message_id, Message.conversation_id == conversation_id)
+        .values(run_id=run_id)
+    )
 
 
 async def delete_message(db: AsyncSession, message_id: UUID) -> bool:

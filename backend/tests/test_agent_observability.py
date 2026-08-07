@@ -83,4 +83,26 @@ class TestSpec:
         from pydantic import ValidationError
 
         with pytest.raises(ValidationError):
-            ObservabilitySpec(project="acme")  # ty: ignore[unknown-argument]
+            # `project` used to stand in for an unknown key here and is now a real
+            # field - where a client's traces can be *read*, which a write token
+            # does not say (#206). A plausible wrong name for it is the better
+            # example anyway: that is what somebody actually types.
+            ObservabilitySpec(project_slug="acme")  # ty: ignore[unknown-argument]
+
+    def test_a_slug_that_would_escape_the_url_is_refused(self):
+        """`organization` and `project` are interpolated into a Logfire URL path
+        when a run's trace link is built, so a value with a slash or a query
+        character would point the link somewhere other than the project. A length
+        bound does not stop that; the slug pattern does."""
+        import pytest
+        from pydantic import ValidationError
+
+        for bad in ["../evil", "acme/prod", "acme?x=1", "Acme Corp", "acme_prod"]:
+            with pytest.raises(ValidationError):
+                ObservabilitySpec(organization=bad)
+            with pytest.raises(ValidationError):
+                ObservabilitySpec(project=bad)
+
+    def test_an_ordinary_slug_is_accepted(self):
+        spec = ObservabilitySpec(organization="vstorm", project="agenticos-eu")
+        assert (spec.organization, spec.project) == ("vstorm", "agenticos-eu")

@@ -119,16 +119,11 @@ class ChannelMessageRouter:
 
         files, file_refusals = await self._receive_files(db, bot, incoming, identity)
 
-        # Loaded before the user message is persisted, so the turn being run is
-        # the prompt and everything before it is the history - persisting first
-        # would put the same message in both.
+        # Loaded before the run, so the turn being run is the prompt and
+        # everything before it is the history. The turn itself is written by the
+        # runner, which is also what records the tool calls, the model and the
+        # version this bot's own write dropped.
         history = await self._load_history(db, session.conversation_id)
-        await conversation_repo.create_message(
-            db,
-            conversation_id=session.conversation_id,
-            role="user",
-            content=incoming.text,
-        )
         try:
             answered = await ChannelAgentRouter(db).answer_default(
                 incoming.text,
@@ -158,14 +153,10 @@ class ChannelMessageRouter:
             await self._send_reply(bot, incoming, "Sorry, something went wrong. Please try again.")
             return
 
+        # The notes are about what this reply could not carry - a file too large
+        # for Slack - so they belong to the delivery and not to the transcript,
+        # which holds what the agent actually said.
         answer = self._with_notes(answered.text, file_refusals, _kept_back(answered.refused))
-        if answer:
-            await conversation_repo.create_message(
-                db,
-                conversation_id=session.conversation_id,
-                role="assistant",
-                content=answer,
-            )
         await self._send_reply(
             bot,
             incoming,

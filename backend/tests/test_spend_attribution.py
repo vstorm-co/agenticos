@@ -10,7 +10,7 @@ or rotating a key never rewrites what last month appears to have cost.
 """
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -60,7 +60,9 @@ class TestAggregation:
         with patch(
             f"{RUNNER}.agent_run_repo.spend_by_provider", new=AsyncMock(return_value=rows)
         ) as query:
-            result = await AgentRunnerService(MagicMock()).spend_by_provider(_ctx(), days=7)
+            result = await AgentRunnerService(MagicMock()).spend_by_provider(
+                _ctx(), since=datetime.now(UTC) - timedelta(days=7)
+            )
 
         assert result == rows
         # The window is a window, not "everything": a monthly bill is not
@@ -73,7 +75,9 @@ class TestAggregation:
         secret_id = uuid.uuid4()
         rows = [(secret_id, "OpenAI production", Decimal("9.00"), 12)]
         with patch(f"{RUNNER}.agent_run_repo.spend_by_key", new=AsyncMock(return_value=rows)):
-            result = await AgentRunnerService(MagicMock()).spend_by_key(_ctx(), days=30)
+            result = await AgentRunnerService(MagicMock()).spend_by_key(
+                _ctx(), since=datetime.now(UTC) - timedelta(days=30)
+            )
 
         assert result[0][0] == secret_id
         assert result[0][1] == "OpenAI production"
@@ -84,6 +88,8 @@ class TestAggregation:
         row would make a month's total quietly stop adding up."""
         rows = [(None, None, Decimal("4.20"), 3)]
         with patch(f"{RUNNER}.agent_run_repo.spend_by_key", new=AsyncMock(return_value=rows)):
-            result = await AgentRunnerService(MagicMock()).spend_by_key(_ctx(), days=30)
+            result = await AgentRunnerService(MagicMock()).spend_by_key(
+                _ctx(), since=datetime.now(UTC) - timedelta(days=30)
+            )
 
         assert result[0][2] == Decimal("4.20")

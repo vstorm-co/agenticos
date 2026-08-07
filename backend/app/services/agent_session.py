@@ -37,6 +37,7 @@ from app.services.agent import (
 )
 from app.services.agent_chat import (
     ChatAgentRunner,
+    OpenedRun,
     display_output,
     requested_agent_id,
     requested_environment_id,
@@ -166,7 +167,7 @@ class AgentSession:
             await send_event(self.websocket, "error", {"message": _PICK_AN_AGENT})
             return
         try:
-            self.current_conversation_id, newly_created = await persist_user_turn(
+            prompt = await persist_user_turn(
                 self.user,
                 user_message,
                 file_ids,
@@ -177,7 +178,8 @@ class AgentSession:
         except AuthorizationError as e:
             await send_event(self.websocket, "error", {"message": e.message})
             return
-        if newly_created and self.current_conversation_id:
+        self.current_conversation_id = prompt.conversation_id
+        if prompt.newly_created and self.current_conversation_id:
             await send_event(
                 self.websocket,
                 "conversation_created",
@@ -186,6 +188,26 @@ class AgentSession:
 
         await send_event(self.websocket, "user_prompt", {"content": user_message})
 
+        collected_tool_calls: list[dict[str, Any]] = []
+        collected_thinking: list[str] = []
+        # What the model has said so far, kept for the turn that does not finish.
+        # On the success path `turn.output` is the answer and this is never read;
+        # nothing can tell in advance which path a turn is on, and the
+        # alternative is throwing away a half-written answer on exactly the runs
+        # somebody opens afterwards.
+        collected_output: list[str] = []
+        # The run row, as soon as `prepare` opens one. A list because the
+        # callback is `list.append` and a turn opens at most one run - it is
+        # empty when the run was refused before it existed.
+        opened: list[OpenedRun] = []
+        # Whether the assistant turn reached the database. Read by the `finally`,
+        # which exists for the paths where `turn` was never assigned and so
+        # cannot be consulted.
+        answered = False
+
+        # Declared above the `try` because the `finally` reads all five, and a
+        # failure inside it - the history, the attachment lookup - must not turn
+        # a lost answer into a `NameError`.
         try:
             model_history = build_message_history(self.conversation_history)
             # The files, not a prompt built from them. Where an attachment goes
@@ -193,12 +215,13 @@ class AgentSession:
             # knows that - so the routing happens one layer down.
             attachments = await self._attached_files(file_ids)
 
-            collected_tool_calls: list[dict[str, Any]] = []
-            collected_thinking: list[str] = []
-
             async def stream(agent_run: Any) -> None:
                 await self._stream_agent_run(
-                    agent_run, user_message, collected_tool_calls, collected_thinking
+                    agent_run,
+                    user_message,
+                    collected_tool_calls,
+                    collected_thinking,
+                    collected_output,
                 )
 
             # One session for the whole turn: the run row, the approvals it
@@ -215,8 +238,10 @@ class AgentSession:
                     conversation_id=(
                         UUID(self.current_conversation_id) if self.current_conversation_id else None
                     ),
+                    prompt_message_id=prompt.message_id,
                     ask_user=self._ask_one,
                     stream=stream,
+                    on_run_open=opened.append,
                     subagent_events=self._subagent_event,
                     # The chat may run a published agent on another of the
                     # organization's models. Only the model changes; the run
@@ -243,7 +268,12 @@ class AgentSession:
                     agent_id=agent_id,
                     agent_version_id=agent_version_id,
                     usage=turn.usage,
+                    run_id=turn.run_id,
                 )
+                # Written, so the `finally` below has nothing left to save. It
+                # cannot read `turn` to work that out - the whole point of it is
+                # the paths where `turn` was never assigned.
+                answered = True
 
             if assistant_msg_id:
                 await send_event(
@@ -307,6 +337,59 @@ class AgentSession:
         except Exception as e:
             logger.exception("Error processing agent request")
             await send_event(self.websocket, "error", {"message": str(e)})
+        finally:
+            if not answered:
+                await self._persist_partial_turn(
+                    opened,
+                    agent_id=agent_id,
+                    output="".join(collected_output),
+                    tool_calls=collected_tool_calls,
+                    thinking="".join(collected_thinking) or None,
+                )
+
+    async def _persist_partial_turn(
+        self,
+        opened: list[OpenedRun],
+        *,
+        agent_id: UUID,
+        output: str,
+        tool_calls: list[dict[str, Any]],
+        thinking: str | None,
+    ) -> None:
+        """Keep what the agent produced on a turn that did not finish.
+
+        A run that failed, hit its budget, was stopped or lost its socket never
+        returns a `ChatTurn`, so the write on the success path is skipped and
+        everything the model had already streamed was discarded - leaving the run
+        in history pointing at a transcript with the question and nothing else.
+        That is the run somebody opens.
+
+        Written from the collectors rather than from a result, because there is no
+        result: this is the text that reached the client. `usage` is deliberately
+        absent - the accounting is on the run row, written by `finish`, and a
+        partial figure invented here would disagree with it.
+
+        Nothing is written when nothing was produced. A turn refused before its
+        run existed - an unpublished agent, a membership revoked mid-session - has
+        an empty `opened` and no output, and a blank assistant message would read
+        as the agent having answered with silence.
+        """
+        if not opened or not (output or tool_calls):
+            return
+        run = opened[0]
+        if self.current_conversation_id is None:
+            return
+        await persist_assistant_turn(
+            self.current_conversation_id,
+            output,
+            run.model_label,
+            tool_calls,
+            organization_id=self.organization_id,
+            thinking=thinking,
+            agent_id=agent_id,
+            agent_version_id=run.agent_version_id,
+            run_id=run.run_id,
+        )
 
     async def _ask_one(self, question: str, options: list[str]) -> str:
         """Put one question to the client and return the answer as a string.
@@ -384,6 +467,7 @@ class AgentSession:
         user_message: str,
         collected_tool_calls: list[dict[str, Any]],
         collected_thinking: list[str],
+        collected_output: list[str],
     ) -> None:
         """Drive the agent_run iterator, dispatching each node to its streaming helper."""
         async for node in agent_run:
@@ -395,7 +479,9 @@ class AgentSession:
             elif Agent.is_model_request_node(node):
                 await send_event(self.websocket, "model_request_start", {})
                 async with node.stream(agent_run.ctx) as request_stream:
-                    await self._stream_request_events(request_stream, collected_thinking)
+                    await self._stream_request_events(
+                        request_stream, collected_thinking, collected_output
+                    )
             elif Agent.is_call_tools_node(node):
                 await send_event(self.websocket, "call_tools_start", {})
                 async with node.stream(agent_run.ctx) as handle_stream:
@@ -419,9 +505,14 @@ class AgentSession:
                 )
 
     async def _stream_request_events(
-        self, request_stream: Any, collected_thinking: list[str]
+        self, request_stream: Any, collected_thinking: list[str], collected_output: list[str]
     ) -> None:
-        """Forward model-request events (text/thinking/tool deltas + final-result start)."""
+        """Forward model-request events (text/thinking/tool deltas + final-result start).
+
+        `collected_output` accumulates exactly what was sent as `text_delta`, so a
+        turn that never finishes can still be written down as what the person
+        watching it actually saw.
+        """
         async for event in request_stream:
             if isinstance(event, PartStartEvent):
                 await send_event(
@@ -430,6 +521,7 @@ class AgentSession:
                     {"index": event.index, "part_type": type(event.part).__name__},
                 )
                 if isinstance(event.part, TextPart) and event.part.content:
+                    collected_output.append(event.part.content)
                     await send_event(
                         self.websocket,
                         "text_delta",
@@ -447,6 +539,7 @@ class AgentSession:
             elif isinstance(event, PartDeltaEvent):
                 delta = event.delta
                 if isinstance(delta, TextPartDelta):
+                    collected_output.append(delta.content_delta)
                     await send_event(
                         self.websocket,
                         "text_delta",

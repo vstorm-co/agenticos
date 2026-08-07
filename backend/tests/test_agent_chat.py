@@ -234,6 +234,8 @@ async def _run(
     organization_id: uuid.UUID | None = None,
     agent_id: uuid.UUID | None = None,
     conversation_id: uuid.UUID | None = None,
+    prompt_message_id: uuid.UUID | None = None,
+    on_run_open: Any = None,
     ask_user: Any = None,
     stream: Any = _nothing,
     user_input: Any = "what is the refund window",
@@ -247,6 +249,8 @@ async def _run(
         user_input=user_input,
         message_history=[],
         conversation_id=conversation_id,
+        prompt_message_id=prompt_message_id,
+        on_run_open=on_run_open,
         attachments=attachments,
         ask_user=ask_user or AsyncMock(return_value=[]),
         stream=stream,
@@ -520,6 +524,159 @@ class TestRecordingTheRun:
             await _run(_db())
 
         assert runner.finish.call_args.kwargs["status"] is RunStatus.FAILED
+
+
+class TestLinkingThePromptToTheRun:
+    """`messages.run_id` on the question, not only on the answer.
+
+    The surface writes the prompt before this method is called, because a build
+    that refuses - a deleted secret, a model profile removed in a deploy - must
+    not lose what somebody typed. There is no run row to name at that moment, so
+    the link is made here, as soon as `prepare` has opened one.
+    """
+
+    async def test_the_prompt_is_stamped_with_the_run_that_answers_it(self):
+        prepared = _prepared()
+        conversation_id = uuid.uuid4()
+        message_id = uuid.uuid4()
+
+        with (
+            _runner(prepared),
+            patch("app.services.agent_chat.conversation_repo") as conversations,
+        ):
+            conversations.link_message_to_run = AsyncMock()
+            await _run(_db(), conversation_id=conversation_id, prompt_message_id=message_id)
+
+        assert conversations.link_message_to_run.await_args.kwargs == {
+            "message_id": message_id,
+            "run_id": prepared.run.id,
+            # Off the run rather than taken on trust, so a message id from
+            # another thread cannot be pulled into this run's transcript.
+            "conversation_id": conversation_id,
+        }
+
+    async def test_a_run_that_failed_still_has_the_question_that_started_it(self):
+        """Linked before the run rather than after it. A transcript holding the
+        answer but not the question can still be read; one holding neither cannot,
+        and a failed run is exactly the one somebody opens."""
+        prepared = _prepared()
+        message_id = uuid.uuid4()
+
+        with (
+            _runner(prepared),
+            patch("app.services.agent_chat.conversation_repo") as conversations,
+            pytest.raises(RuntimeError, match="went away"),
+        ):
+            conversations.link_message_to_run = AsyncMock()
+            await _run(
+                _db(),
+                conversation_id=uuid.uuid4(),
+                prompt_message_id=message_id,
+                stream=AsyncMock(side_effect=RuntimeError("the model went away")),
+            )
+
+        assert conversations.link_message_to_run.await_args.kwargs["message_id"] == message_id
+
+    @pytest.mark.parametrize(
+        ("conversation_id", "message_id"),
+        [
+            (None, uuid.uuid4()),
+            (uuid.uuid4(), None),
+            (None, None),
+        ],
+        ids=["no conversation", "prompt not persisted", "neither"],
+    )
+    async def test_nothing_is_linked_when_there_is_no_row_to_link(
+        self, conversation_id, message_id
+    ):
+        """`persist_user_turn` logs and swallows a write failure, so a turn can
+        reach here with no prompt row at all. Writing `run_id` against `None`
+        would raise inside a run that is otherwise fine."""
+        with (
+            _runner(_prepared()),
+            patch("app.services.agent_chat.conversation_repo") as conversations,
+        ):
+            conversations.link_message_to_run = AsyncMock()
+            await _run(_db(), conversation_id=conversation_id, prompt_message_id=message_id)
+
+        conversations.link_message_to_run.assert_not_awaited()
+
+
+class TestTellingTheSurfaceItsRunIsOpen:
+    """`on_run_open`, for the surface that has to persist what it streamed.
+
+    Everything a streaming surface needs to attribute an answer arrives on
+    `ChatTurn` - and a run that failed, hit its budget or was cancelled returns
+    none, because this method raises instead. So the row is handed over the
+    moment `prepare` opens it, before anything can go wrong.
+    """
+
+    async def test_the_row_is_handed_over_before_the_run_executes(self):
+        prepared = _prepared()
+        prepared.run.agent_version_id = uuid.uuid4()
+        seen: list[Any] = []
+
+        with _runner(prepared):
+            await _run(
+                _db(),
+                on_run_open=seen.append,
+                stream=AsyncMock(side_effect=lambda _run: seen.append("streamed")),
+            )
+
+        # Order is the point: handed over first, so a failure in the stream still
+        # leaves the surface able to file what it had.
+        assert [type(item).__name__ for item in seen] == ["OpenedRun", "str"]
+        assert seen[0].run_id == prepared.run.id
+        assert seen[0].model_label == "gpt-4.1"
+        assert seen[0].agent_version_id == prepared.run.agent_version_id
+
+    async def test_a_surface_that_does_not_persist_is_told_nothing(self):
+        """The Playground and the API do not write transcripts of their own."""
+        with _runner(_prepared()):
+            turn = await _run(_db())
+
+        assert turn.output == "the refund window is 30 days"
+
+
+class TestMeteringWhatTheRequestWrapperCannotSee:
+    """A knowledge search's embedding cost, on the product's primary surface.
+
+    `record_ambient_usage` books onto whichever ledger is active, and having none
+    is deliberately a no-op - an embedding provider should not refuse to embed
+    because nobody is counting. That makes forgetting the meter silent: this path
+    had no `metered_by` at all, so every knowledge search in web chat was free.
+    The run under-reported its `cost_usd`, `cost_is_partial` stayed unset so
+    nothing on screen hinted at it, and the organization's monthly total never saw
+    it (#16).
+    """
+
+    async def test_an_embedding_during_the_stream_lands_on_the_run(self):
+        prepared = _prepared()
+        prepared.built.ledger = SpendLedger()
+
+        async def searches(_agent_run: Any) -> None:
+            """A tool call that embeds, as a knowledge search does."""
+            record_ambient_usage(
+                "text-embedding-3-small", RequestUsage(input_tokens=1_000_000), "openai"
+            )
+
+        with _runner(prepared) as runner:
+            await _run(_db(), stream=searches)
+
+        # Through `finish`, because that is what writes the ledger to the row -
+        # asserting on the ledger alone would pass with the meter still missing.
+        assert runner.finish.await_args.args[0].built.ledger.total_usd > 0
+
+    async def test_the_meter_is_closed_once_the_turn_is_over(self):
+        """A ledger left active would bill the next thing that embeds - an
+        ingestion job, a warmup - to a run that has already been paid for."""
+        with _runner(_prepared()):
+            await _run(_db())
+
+        ledger = SpendLedger()
+        record_ambient_usage("text-embedding-3-small", RequestUsage(input_tokens=1000), "openai")
+
+        assert ledger.total_usd == Decimal(0)
 
 
 class TestPausingMidRun:

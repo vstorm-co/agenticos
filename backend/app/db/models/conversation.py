@@ -62,6 +62,7 @@ class Message(Base, TimestampMixin):
     Attributes:
         id: Unique message identifier
         conversation_id: The conversation this message belongs to
+        run_id: The agent run this turn belongs to, when one produced it
         role: Message role (user, assistant, system)
         content: Message text content
         model_name: AI model used (for assistant messages)
@@ -104,6 +105,24 @@ class Message(Base, TimestampMixin):
         UUID(as_uuid=True),
         ForeignKey("agent_versions.id", ondelete="SET NULL"),
         nullable=True,
+    )
+    # Which run produced this turn. A conversation holds many runs, so
+    # "the steps of *this* run" is a question the conversation cannot answer:
+    # two runs started in one thread interleave, and windowing by the run's
+    # `started_at`/`ended_at` yields the wrong rows for the first and no rows
+    # at all for a run that never ended.
+    #
+    # Null means the turn was written outside a run - a system message, or a
+    # prompt whose run row could not be opened. Not "old data": there is no
+    # deployment whose history predates this column.
+    #
+    # SET NULL, not CASCADE: deleting a run must not delete the transcript. The
+    # words were still said, and the conversation is what a person reads them in.
+    run_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("agent_runs.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     tokens_used: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
