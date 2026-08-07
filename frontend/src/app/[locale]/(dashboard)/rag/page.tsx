@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, type ComponentType } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -35,6 +35,8 @@ import {
   Plus,
   Upload,
   CheckCircle,
+  CircleSlash,
+  HelpCircle,
   XCircle,
   Eye,
   RefreshCw,
@@ -56,6 +58,7 @@ import {
   deleteSyncSource,
   triggerSyncSource,
   listConnectors,
+  MAX_COLLECTION_NAME_LENGTH,
   type RAGCollectionInfo,
   type RAGTrackedDocument,
   type RAGSearchResult,
@@ -71,7 +74,9 @@ import { useOrgStore } from "@/stores";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { usePollWhileIngesting } from "@/hooks";
 
-import { getErrorMessage, isAppAdmin, MAX_UPLOAD_SIZE_MB, timeAgo } from "@/lib/utils";
+import { ragStatus } from "@/lib/rag-status";
+import type { RAGStatusTone } from "@/lib/rag-status";
+import { cn, getErrorMessage, isAppAdmin, MAX_UPLOAD_SIZE_MB, timeAgo } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 
 interface CollectionWithInfo {
@@ -79,15 +84,54 @@ interface CollectionWithInfo {
   info: RAGCollectionInfo | null;
 }
 
-function StatusIcon({ status }: { status: string }) {
-  const label = status === "done" ? "Completed" : status === "error" ? "Failed" : "Processing";
+/**
+ * How each tone is drawn. Keyed by tone so a new status needs no entry here.
+ *
+ * `unknown` is its own mark rather than the spinner everything unrecognised
+ * used to fall into: a cancelled sync is not `done` and not `error`, so it drew
+ * a spinner and went on spinning for the life of the page (#356).
+ */
+const TONE_MARK: Record<
+  RAGStatusTone,
+  { Icon: ComponentType<{ className?: string }>; className: string }
+> = {
+  progress: { Icon: Spinner, className: "text-muted-foreground" },
+  success: { Icon: CheckCircle, className: "text-foreground" },
+  failure: { Icon: XCircle, className: "text-destructive" },
+  cancelled: { Icon: CircleSlash, className: "text-muted-foreground" },
+  unknown: { Icon: HelpCircle, className: "text-muted-foreground" },
+};
+
+/**
+ * When a sync source last ran, and how it went.
+ *
+ * The status used to be interpolated raw, so the line read "Last sync: 2h ago -
+ * error" in every locale and in the same grey as a sync that worked (#356).
+ */
+function SyncStatusLine({ when, status }: { when: string; status: string | null }) {
+  const t = useTranslations("pages.rag");
+  const tStatus = useTranslations("ragStatus");
+  // A source that has run but recorded no status is `unknown` like any other
+  // value this build cannot name, and says the empty string it really holds.
+  const token = status ?? "";
+  const { words, tone } = ragStatus(token);
   return (
-    <span role="status" aria-label={label}>
-      {status === "done" && <CheckCircle className="text-foreground h-4 w-4" />}
-      {status === "error" && <XCircle className="text-destructive h-4 w-4" />}
-      {status !== "done" && status !== "error" && (
-        <Spinner className="text-muted-foreground h-4 w-4" />
-      )}
+    <p className={cn("text-xs", tone === "failure" && "text-destructive")}>
+      {t("lastSyncStatus", {
+        when: timeAgo(when),
+        status: words === null ? token : tStatus(words),
+      })}
+    </p>
+  );
+}
+
+function StatusIcon({ status }: { status: string }) {
+  const tStatus = useTranslations("ragStatus");
+  const { words, tone } = ragStatus(status);
+  const { Icon, className } = TONE_MARK[tone];
+  return (
+    <span role="status" aria-label={words === null ? status : tStatus(words)}>
+      <Icon className={cn("h-4 w-4", className)} />
     </span>
   );
 }
@@ -138,6 +182,8 @@ export default function RAGPage() {
   } | null>(null);
   const [newName, setNewName] = useState("");
   const [showCreate, setShowCreate] = useState(false);
+  /** Why the server refused the last create, shown under the input it was about. */
+  const [createError, setCreateError] = useState<string | null>(null);
   const [tab, setTabState] = useState<"documents" | "search" | "sync">(() => {
     if (typeof window !== "undefined") {
       const t = new URLSearchParams(window.location.search).get("tab");
@@ -299,12 +345,18 @@ export default function RAGPage() {
   }, [docs, refetchCollections]);
 
   const handleCreate = async () => {
+    // Whitespace and case only, deliberately. The server owns the rules a name
+    // has to meet and refuses rather than reinterprets - completing this
+    // client-side would be a second copy of them, and a rewriting one at that,
+    // storing a name nobody typed. What it must not do is hide the refusal,
+    // which is the rest of this function.
     const name = newName.trim().toLowerCase().replace(/\s+/g, "_");
     if (!name) return;
     const startedIn = orgId;
+    setCreateError(null);
     try {
       await createCollection(name);
-      toast.success(`"${name}" created`);
+      toast.success(t("collectionCreated", { name }));
       setNewName("");
       setShowCreate(false);
       // The collection was created in the organization the request started in;
@@ -313,15 +365,26 @@ export default function RAGPage() {
       if (!stillCurrent(startedIn)) return;
       await refetchCollections();
       if (stillCurrent(startedIn)) setChosen(name);
-    } catch {
-      toast.error(t("failedCreateCollection"));
+    } catch (err) {
+      // Beside the input rather than in a toast, and the server's own sentence
+      // rather than one string for every cause. The backend distinguishes a
+      // malformed name from a reserved one from one 45 characters too long
+      // from one another organization already holds, and each names the value
+      // that broke - all five used to arrive as "Failed to create collection"
+      // on the only screen in the product that creates a collection by name.
+      //
+      // The sentence rather than a key chosen from `error.code`: the four
+      // refusals share `BAD_REQUEST` and differ only in what they say, so
+      // mapping the code would collapse them back into the one string this is
+      // fixing.
+      setCreateError(getErrorMessage(err, t("failedCreateCollection")));
     }
   };
 
   const handleDelete = async (name: string) => {
     try {
       await deleteCollection(name);
-      toast.success(`"${name}" deleted`);
+      toast.success(t("collectionDeleted", { name }));
       queryClient.setQueryData<CollectionWithInfo[]>(qk.rag.collections(orgId), (prev = []) =>
         prev.filter((c) => c.name !== name),
       );
@@ -330,8 +393,11 @@ export default function RAGPage() {
         queryClient.removeQueries({ queryKey: qk.rag.documents(orgId, name) });
         setSearchResults([]);
       }
-    } catch {
-      toast.error(t("failedDelete"));
+    } catch (err) {
+      // Same shape as the create above, and for the same reason: a drop can be
+      // refused by the vector store for a name it will not touch, which is a
+      // different thing from the collection not being there.
+      toast.error(getErrorMessage(err, t("failedDelete")));
     }
   };
 
@@ -514,9 +580,21 @@ export default function RAGPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {collections.map((col) => (
-                    <SelectItem key={col.name} value={col.name}>
+                    <SelectItem
+                      key={col.name}
+                      value={col.name}
+                      // Sizes are for comparing collections; the closed trigger
+                      // draws the selected item's `ItemText`, and the page
+                      // already prints the chosen collection's size beside it.
+                      trailing={
+                        col.info && (
+                          <span className="text-muted-foreground ml-auto shrink-0 pl-3 font-mono text-xs">
+                            {t("vectorCount", { count: col.info.total_vectors })}
+                          </span>
+                        )
+                      }
+                    >
                       {col.name}
-                      {col.info ? ` · ${col.info.total_vectors.toLocaleString()} vectors` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -524,7 +602,7 @@ export default function RAGPage() {
             )}
             {info && (
               <span className="text-muted-foreground font-mono text-xs">
-                {info.total_vectors.toLocaleString()} vectors · {info.dim}d
+                {t("vectorSummary", { count: info.total_vectors, dim: info.dim })}
               </span>
             )}
           </div>
@@ -605,28 +683,45 @@ export default function RAGPage() {
         </div>
 
         {showCreate && (
-          <div className="border-border mt-3 flex gap-2 border-t pt-3">
-            <Input
-              placeholder={t("collectionName")}
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => e.key === t("enter4") && handleCreate()}
-              className="h-9 max-w-xs rounded-xl"
-            />
-            <Button size="sm" className="h-9 rounded-xl" onClick={handleCreate}>
-              {t("create")}
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-9 rounded-xl"
-              onClick={() => {
-                setShowCreate(false);
-                setNewName("");
-              }}
-            >
-              {t("cancel")}
-            </Button>
+          <div className="border-border mt-3 border-t pt-3">
+            <div className="flex gap-2">
+              <Input
+                placeholder={t("collectionName")}
+                value={newName}
+                // The server is the authority on every rule a name has to meet;
+                // this is the one worth stopping at the keyboard, because a
+                // name over the limit is refused for a reason - two names
+                // agreeing up to the truncation point become one table.
+                maxLength={MAX_COLLECTION_NAME_LENGTH}
+                onChange={(e) => {
+                  setNewName(e.target.value);
+                  setCreateError(null);
+                }}
+                onKeyDown={(e) => e.key === t("enter4") && handleCreate()}
+                aria-invalid={createError !== null}
+                className="h-9 max-w-xs rounded-xl"
+              />
+              <Button size="sm" className="h-9 rounded-xl" onClick={handleCreate}>
+                {t("create")}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-9 rounded-xl"
+                onClick={() => {
+                  setShowCreate(false);
+                  setNewName("");
+                  setCreateError(null);
+                }}
+              >
+                {t("cancel")}
+              </Button>
+            </div>
+            {createError && (
+              <p role="alert" className="text-destructive mt-2 text-xs">
+                {createError}
+              </p>
+            )}
           </div>
         )}
 
@@ -914,12 +1009,10 @@ export default function RAGPage() {
                             &bull; {source.sync_mode}
                           </p>
                           {source.last_sync_at && (
-                            <p className="text-xs">
-                              {t("lastSyncStatus", {
-                                when: timeAgo(source.last_sync_at),
-                                status: source.last_sync_status ?? "",
-                              })}
-                            </p>
+                            <SyncStatusLine
+                              when={source.last_sync_at}
+                              status={source.last_sync_status}
+                            />
                           )}
                           {source.last_error && (
                             <p className="text-destructive truncate text-xs">{source.last_error}</p>
@@ -988,9 +1081,7 @@ export default function RAGPage() {
                       <div key={log.id} className="border-border bg-card rounded-xl border p-3">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <StatusIcon
-                              status={log.status === "running" ? "processing" : log.status}
-                            />
+                            <StatusIcon status={log.status} />
                             <span className="text-foreground text-sm font-medium">
                               {log.collection_name}
                             </span>

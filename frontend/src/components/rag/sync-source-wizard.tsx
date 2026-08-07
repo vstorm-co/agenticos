@@ -39,7 +39,14 @@ interface SyncSourceWizardProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   connectors: ConnectorInfo[];
-  collections: { name: string; label?: string }[];
+  /**
+   * Every collection this caller will let the source be filed under.
+   *
+   * One entry pins it; more than one draws a picker on the schedule step. An
+   * empty list is an integration no collection owns yet.
+   */
+  collections: { name: string }[];
+  /** Which of {@link collections} the picker starts on, and what clone mode fills. */
   defaultCollection?: string;
   /** Existing org integrations (without this KB's collection_name) for "pick existing" flow. */
   orgIntegrations?: SyncSourceRead[];
@@ -274,12 +281,7 @@ export function SyncSourceWizard({
                 <ConfigureStep connector={selectedConnector} form={form} setForm={setForm} />
               )}
               {step === "schedule" && (
-                <ScheduleStep
-                  collections={collections}
-                  form={form}
-                  setForm={setForm}
-                  defaultCollection={defaultCollection}
-                />
+                <ScheduleStep collections={collections} form={form} setForm={setForm} />
               )}
             </>
           )}
@@ -611,50 +613,48 @@ function ScheduleStep({
   collections,
   form,
   setForm,
-  defaultCollection,
 }: {
-  collections: { name: string; label?: string }[];
+  collections: { name: string }[];
   form: SyncSourceCreate;
   setForm: React.Dispatch<React.SetStateAction<SyncSourceCreate>>;
-  defaultCollection?: string;
 }) {
   const t = useTranslations("rag");
   return (
     <div className="space-y-5">
-      {/* The picker appears only when there is a choice to make: a KB context
-          already pinned the collection, and an empty list means the caller is
-          creating an integration no collection owns yet. Rendering it regardless
-          used to offer an empty dropdown as if something were missing. */}
-      {!defaultCollection && collections.length > 0 && (
+      {/* The picker appears when there is more than one collection to pick
+          from, and `defaultCollection` seeds it rather than hiding it.
+
+          It used to require `defaultCollection` to be absent, which no call
+          site could satisfy: `/rag` passes the sidebar's selection, `kb/[id]`
+          the base's own collection, and the org integration list an empty
+          array (#434). So a source added from `/rag` - where the sync tab
+          lists the whole organization's sources, not one collection's - was
+          filed against whichever collection the sidebar happened to have
+          selected, with nothing on screen saying which.
+
+          One collection is not a choice, which is what keeps `kb/[id]` pinned
+          to its own and the org list free of a control that would file an
+          integration under a base. */}
+      {collections.length > 1 && (
         <div className="space-y-1.5">
           <Label className="text-foreground/80 text-xs font-medium tracking-wider uppercase">
             {t("targetCollection")}
           </Label>
           <Select
             value={form.collection_name ?? ""}
-            onValueChange={(val) => setForm((f) => ({ ...f, collection_name: val || null }))}
+            onValueChange={(val) => setForm((f) => ({ ...f, collection_name: val }))}
           >
             <SelectTrigger className="h-10 rounded-xl">
-              <SelectValue placeholder={t("selectCollectionOptional")} />
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {collections.map((c) => (
                 <SelectItem key={c.name} value={c.name}>
-                  {c.label ? (
-                    <span>
-                      {c.label}
-                      <span className="text-foreground/45 ml-1 font-mono text-[10px]">
-                        ({c.name})
-                      </span>
-                    </span>
-                  ) : (
-                    c.name
-                  )}
+                  {c.name}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <p className="text-foreground/45 text-xs">{t("leaveEmptySaveAs")}</p>
         </div>
       )}
 

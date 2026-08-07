@@ -62,6 +62,13 @@ class BaseDocumentSource(ABC):
     async def download_file(self, file_id: str, dest_dir: Path) -> Path:
         """Download a file from the source to a local directory.
 
+        An implementation must put the file where `destination_within` says it
+        may go, never at `dest_dir / <a name the source chose>`: a remote name
+        is not a path component until something makes it one, and a Drive file
+        may legally be called `../../../evil`. Unlike `BaseSyncConnector`, this
+        contract cannot hand down a path - it discovers the name mid-download -
+        so each implementation calls the helper itself.
+
         Args:
             file_id: Source-specific file identifier.
             dest_dir: Local directory to download to.

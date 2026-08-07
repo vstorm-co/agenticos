@@ -730,7 +730,23 @@ class TestTestingAnAddressBeforeItIsSaved:
             )
 
         assert "http://typo:8080 did not answer" in refused.value.message
-        assert refused.value.details == {"base_url": "http://typo:8080"}
+        # The message names the address the operator typed; `details` names the
+        # field, because it is logged as well as returned (agenticos#342).
+        assert refused.value.details == {"field": "base_url"}
+
+    async def test_an_address_carrying_a_password_is_refused_before_it_is_stored(self):
+        """A `user:pass@` here would be echoed back by every refusal below.
+
+        The service names the address it could not reach in `message`, and the
+        handler logs `message` and `details` together - so an address allowed to
+        carry a credential is a credential written to the deployment's log the
+        first time the port is wrong. It is refused at the schema instead, which
+        is where `validate_endpoint_url` and `validate_webhook_url` refuse it.
+        """
+        with pytest.raises(ValidationError) as refused:
+            SandboxProbeRequest(base_url="http://svc:hunter2@sandboxd:8080", secret_id=uuid.uuid4())
+
+        assert "must not carry credentials" in str(refused.value)
 
 
 class TestReadingTheSessions:

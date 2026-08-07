@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -84,9 +84,10 @@ describe("the default runtime", () => {
 
     await userEvent.click(screen.getByRole("combobox", { name: "Default runtime" }));
 
-    expect(
-      await screen.findByRole("option", { name: /node-minimal[\s\S]*not on this host/ }),
-    ).toBeVisible();
+    // Matched inside the option rather than through its accessible name: the
+    // badge is `trailing`, and Radix names an item by its `ItemText` alone.
+    const marked = await screen.findByRole("option", { name: /node-minimal/ });
+    expect(within(marked).getByText("not on this host")).toBeVisible();
     expect(screen.getByText("This host allows 1 of them.")).toBeVisible();
   });
 
@@ -104,7 +105,8 @@ describe("the default runtime", () => {
 
     await userEvent.click(screen.getByRole("combobox", { name: "Default runtime" }));
 
-    expect(await screen.findByRole("option", { name: /coding[\s\S]*builds/ })).toBeVisible();
+    const builder = await screen.findByRole("option", { name: /coding/ });
+    expect(within(builder).getByText("builds")).toBeVisible();
   });
 
   it("offers taking whatever the service defaults to", async () => {
@@ -176,6 +178,63 @@ describe("the default runtime", () => {
     field({ onTest: null });
 
     expect(screen.queryByRole("button", { name: /Test and check/ })).toBeNull();
+  });
+
+  it("keeps both badges in the list instead of repeating them on the trigger", async () => {
+    // Radix draws the selected item's `ItemText` in the closed trigger, so a
+    // badge in `children` was inherited by it: the field said "not on this
+    // host" beside the very runtime the form was about to save, with nothing
+    // left to compare it against. `trailing` renders outside `ItemText`.
+    field({ value: "coding", allowed: [allowed("node-minimal")] });
+
+    const trigger = screen.getByRole("combobox", { name: "Default runtime" });
+    expect(trigger).toHaveTextContent("coding");
+    expect(trigger).not.toHaveTextContent("builds");
+    expect(trigger).not.toHaveTextContent("not on this host");
+
+    await userEvent.click(trigger);
+
+    // Both halves, because "absent from the trigger" alone is also true of a
+    // component that stopped drawing them at all.
+    const chosen = await screen.findByRole("option", { name: /coding/ });
+    expect(within(chosen).getByText("builds")).toBeVisible();
+    expect(within(chosen).getByText("not on this host")).toBeVisible();
+  });
+
+  it("says in words that the host refused the runtime actually selected", async () => {
+    // The badge left the trigger, and this is where what it was worth went.
+    // `connection-dialog.tsx` saves `default_runtime` without checking it
+    // against the allowlist, so without this the one case that matters - the
+    // alias about to be stored is one the host named nothing about - would be
+    // visible only while the list happened to be open.
+    field({ value: "coding", allowed: [allowed("node-minimal")] });
+
+    expect(screen.getByText(/This host did not name the runtime selected/)).toBeVisible();
+  });
+
+  it("says nothing when the host did name the runtime selected", async () => {
+    field({ value: "coding", allowed: [allowed("coding")] });
+
+    expect(screen.queryByText(/This host did not name/)).toBeNull();
+  });
+
+  it("says nothing about a host that has not been asked yet", async () => {
+    // `allowed === null` is "nobody has checked", which is not the same claim
+    // and must not be drawn as one.
+    field({ value: "coding" });
+
+    expect(screen.queryByText(/This host did not name/)).toBeNull();
+  });
+
+  it("keeps the runtime's own description on the trigger, which does describe it", async () => {
+    // The line under the alias says what the image is for, which is true of the
+    // option wherever it is drawn - so it stays in `children` and the trigger
+    // is right to inherit it.
+    field({ value: "coding" });
+
+    expect(screen.getByRole("combobox", { name: "Default runtime" })).toHaveTextContent(
+      "what coding is for",
+    );
   });
 
   it("keeps the trigger inside its container, whatever the label says", () => {

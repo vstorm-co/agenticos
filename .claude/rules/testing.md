@@ -71,10 +71,11 @@ Traps, each of which has cost a red job here:
   `element(s) not found` for a refusal it never looked at (#132). And a **fixture** step
   asserts through the API, never on the row appearing - the refetch after a write is
   sometimes answered with the pre-write list (#230), which is a product bug and must not
-  be reported as a broken fixture. It asserts by **polling** that API, because a 2xx
-  from this backend says the request was answered and not that the write is readable:
-  the commit runs after the response goes out (#353). One step read once instead and
-  took all 87 specs down three times in a day (#335).
+  be reported as a broken fixture. It asserts by **polling** that API. The backend half
+  of that is fixed - a 2xx now means the write is readable, because the commit lands
+  before the response goes out (#353) - but #230 is a browser-side staleness nobody has
+  closed, so the polling stays until it is. One step read once instead and took all 87
+  specs down three times in a day (#335).
 - **Coverage instrumentation slows tests enough to trip a 5s `testTimeout`.** A
   heavy spec that passes under `test:run` can time out under `test:coverage`; re-run
   before believing it.

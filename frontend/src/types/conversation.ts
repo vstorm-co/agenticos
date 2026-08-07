@@ -147,12 +147,23 @@ export interface AdminConversationListResponse {
   total: number;
 }
 
+/**
+ * One user as the deployment admin sees them - `AdminUserRead`, field for field.
+ *
+ * Field for field is the point. This is hand-written against a schema nothing
+ * checks it against, and the copy that used to live in `use-admin-users.ts`
+ * declared a `role: string` that the API stopped returning when `users.role` was
+ * dropped in migration `0066` - so the users table drew a Role column that was
+ * empty on every row, and TypeScript was happy because the type said otherwise.
+ * There is one copy now, and `conversation_count` is in it because the backend
+ * computes it with a join on every page load.
+ */
 export interface AdminUser {
   id: string;
   email: string;
-  full_name?: string;
+  full_name: string | null;
   is_active: boolean;
-  is_app_admin?: boolean;
+  is_app_admin: boolean;
   conversation_count: number;
   created_at: string;
 }

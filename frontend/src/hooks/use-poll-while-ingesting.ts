@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { ragStatus } from "@/lib/rag-status";
+
 /**
  * Refresh a document list while the worker is still ingesting into it.
  *
@@ -22,9 +24,6 @@ import { useEffect, useRef, useState } from "react";
  * interval whenever anything actually changes, so the tail of a long ingest is
  * cheap while the moment a status flips stays responsive.
  */
-
-/** Statuses that mean the worker has not finished with a document yet. */
-const PENDING: ReadonlySet<string> = new Set(["pending", "processing"]);
 
 const POLL_MIN_MS = 2000;
 const POLL_MAX_MS = 30000;
@@ -73,7 +72,11 @@ export function usePollWhileIngesting(
       delayRef.current = POLL_MIN_MS;
     }
 
-    if (!documents.some((document) => PENDING.has(document.status))) return;
+    // "Still under way" is `ragStatus`'s question, not a private set of tokens.
+    // The set this replaced held `pending`, which nothing writes to a
+    // `RAGDocument` - a fourth copy of the vocabulary, and a fourth chance to
+    // be wrong about it (#356).
+    if (!documents.some((document) => ragStatus(document.status).tone === "progress")) return;
 
     const timeout = setTimeout(() => {
       delayRef.current = Math.min(Math.round(delayRef.current * POLL_FACTOR), POLL_MAX_MS);

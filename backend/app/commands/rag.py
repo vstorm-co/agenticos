@@ -21,12 +21,14 @@ from pathlib import Path
 import click
 
 from app.commands import command, error, info, success, warning
+from app.core.background import drain
 from app.db.session import get_db_context
 from app.schemas.sync_source import SyncSourceCreate
 from app.services.embedding_resolution import embeddings_for_collection
 from app.services.rag.config import DEFAULT_COLLECTION_NAME, DocumentExtensions, RAGSettings
 from app.services.rag.documents import DocumentProcessor
 from app.services.rag.embeddings import EmbeddingService
+from app.services.rag.failures import IngestionStage, failure_summary
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.retrieval import RetrievalService
 from app.services.rag.sources.google_drive import GoogleDriveSource
@@ -35,6 +37,13 @@ from app.services.rag.vectorstore import BaseVectorStore, PgVectorStore
 from app.services.rag_document import RAGDocumentService
 from app.services.rag_sync import RAGSyncService
 from app.services.sync_source import SyncSourceService
+
+# How long `rag-source-sync` waits for the syncs it started before giving up on
+# them. A connector sync is minutes of network I/O over somebody else's rate
+# limit, so `drain`'s 30-second default - written for a shutdown, where the work
+# is about to be restarted anyway - would cancel an ordinary run. An hour is a
+# bound rather than a promise: a sync that overruns it is cancelled and said so.
+_SYNC_TIMEOUT_SECONDS = 3600.0
 
 
 def get_rag_services() -> tuple[
@@ -223,9 +232,16 @@ async def ingest_path_async(
                         )
             except Exception as e:
                 error_count += 1
+                # The operator running this command reads the whole exception on
+                # their own terminal; the row they leave behind is read on the
+                # documents page by anyone in the organization, so it gets the
+                # summary (#423).
                 tqdm.write(f"  ✗ {filepath.name}: {e!s}")
                 async with get_db_context() as db:
-                    await RAGDocumentService(db).fail_ingestion(doc_id, error_message=str(e))
+                    await RAGDocumentService(db).fail_ingestion(
+                        doc_id,
+                        error_message=failure_summary(e, stage=IngestionStage.INGEST),
+                    )
 
     async with get_db_context() as db:
         await RAGSyncService(db).complete_sync(
@@ -641,6 +657,7 @@ def rag_source_sync(source_id: str | None, sync_all: bool) -> None:
         return
 
     async def _sync() -> None:
+        triggered = 0
         async with get_db_context() as db:
             svc = SyncSourceService(db)
 
@@ -653,6 +670,7 @@ def rag_source_sync(source_id: str | None, sync_all: bool) -> None:
                 for s in sources:
                     try:
                         log = await svc.trigger_sync(str(s.id))
+                        triggered += 1
                         success(f"  {s.name}: sync started (log_id={log.id})")
                     except Exception as e:
                         error(f"  {s.name}: failed - {e}")
@@ -660,8 +678,19 @@ def rag_source_sync(source_id: str | None, sync_all: bool) -> None:
                 try:
                     assert source_id is not None
                     log = await svc.trigger_sync(source_id)
+                    triggered += 1
                     success(f"Sync triggered (log_id={log.id})")
                 except Exception as e:
                     error(f"Failed to trigger sync: {e}")
+
+        if not triggered:
+            return
+        # The syncs run in tasks started when the session above committed, and
+        # `asyncio.run` cancels whatever is still pending when this coroutine
+        # returns - so without the wait the command reports syncs it then kills.
+        # It reported them before this too: the tasks were created earlier but
+        # died at exactly the same moment.
+        info(f"Waiting for {triggered} sync(s) to finish...")
+        await drain(timeout=_SYNC_TIMEOUT_SECONDS)
 
     asyncio.run(_sync())

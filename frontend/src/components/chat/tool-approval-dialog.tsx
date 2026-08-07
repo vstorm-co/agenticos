@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui";
+import { usePermissions } from "@/hooks";
 import type { ActionRequest, ReviewConfig, Decision } from "@/types";
+import { Perm } from "@/types/permissions";
 import { Wrench, AlertTriangle } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
@@ -14,12 +16,31 @@ interface ToolApprovalDialogProps {
   disabled?: boolean;
 }
 
+/**
+ * The decision a parked run is waiting on, taken where the conversation is.
+ *
+ * **It checks `approvals:decide` itself**, for the same reason the model picker
+ * beside it checks `connections:manage`: the permission belongs to the write, and
+ * `onDecisions` sends `POST /approvals/{id}` followed by `POST /runs/{id}/resume`,
+ * both gated on `Perm.APPROVALS_DECIDE`. Running an agent is not - `member` and
+ * `builder` hold `agents:run` and not the decision - so the everyday chat user was
+ * offered editable arguments and a Submit, and refused by the API on the first
+ * call. `/runs` had this right from the start (`canDecide`); its copy of the
+ * control in chat never asked.
+ *
+ * What stays is what is not a write: the banner and each parked call's arguments,
+ * which arrived over this caller's own socket and are how they know what the run
+ * is waiting for. Only the controls go, replaced by the sentence that says who can
+ * decide - a panel that goes quiet leaves a stopped conversation unexplained.
+ */
 export function ToolApprovalDialog({
   actionRequests,
   onDecisions,
   disabled = false,
 }: ToolApprovalDialogProps) {
   const t = useTranslations("chat");
+  const { can } = usePermissions();
+  const mayDecide = can(Perm.approvalsDecide);
   const [editedArgs, setEditedArgs] = useState<Record<string, string>>(() =>
     Object.fromEntries(actionRequests.map((a) => [a.id, JSON.stringify(a.args, null, 2)])),
   );
@@ -89,39 +110,47 @@ export function ToolApprovalDialog({
             )}
             value={editedArgs[action.id]}
             onChange={(e) => handleArgsChange(action.id, e.target.value)}
-            disabled={disabled}
+            // Editing the arguments is part of the decision, so it goes with the
+            // buttons; reading them is not, which is why the field stays.
+            disabled={disabled || !mayDecide}
             rows={Math.min(10, (editedArgs[action.id]?.split("\n").length || 3) + 1)}
           />
         </div>
       ))}
 
-      <div className="flex justify-end gap-2 border-t pt-1">
-        {hasChanges && (
-          <>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 text-xs"
-              onClick={handleCancel}
-              disabled={disabled}
-            >
-              {t("cancel")}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs"
-              onClick={handleSave}
-              disabled={disabled}
-            >
-              {t("save")}
-            </Button>
-          </>
-        )}
-        <Button size="sm" className="h-7 text-xs" onClick={handleSubmit} disabled={disabled}>
-          Submit ({actionRequests.length})
-        </Button>
-      </div>
+      {mayDecide ? (
+        <div className="flex justify-end gap-2 border-t pt-1">
+          {hasChanges && (
+            <>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 text-xs"
+                onClick={handleCancel}
+                disabled={disabled}
+              >
+                {t("cancel")}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs"
+                onClick={handleSave}
+                disabled={disabled}
+              >
+                {t("save")}
+              </Button>
+            </>
+          )}
+          <Button size="sm" className="h-7 text-xs" onClick={handleSubmit} disabled={disabled}>
+            {t("submitDecisions", { count: actionRequests.length })}
+          </Button>
+        </div>
+      ) : (
+        <p className="text-muted-foreground border-t pt-2 text-xs">
+          {t("decidingNeedsPermission")}
+        </p>
+      )}
     </div>
   );
 }

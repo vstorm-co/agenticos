@@ -37,6 +37,10 @@ vi.mock("next-intl", async (importOriginal) => {
   const mark = (message: string) => `PL·${message}`;
   const messages = {
     ...en,
+    // The status badge reads the shared `ragStatus` namespace rather than
+    // `pages.kb`, so marking only the page's own messages would leave its word
+    // indistinguishable from one the component wrote itself.
+    ragStatus: Object.fromEntries(Object.entries(en.ragStatus).map(([key, m]) => [key, mark(m)])),
     pages: {
       ...en.pages,
       kb: Object.fromEntries(Object.entries(en.pages.kb).map(([key, m]) => [key, mark(m)])),
@@ -105,7 +109,10 @@ const DOCUMENT: KBDocument = {
   filename: "handbook.pdf",
   filetype: "pdf",
   filesize: 1024,
-  status: "completed",
+  // `done`, which is what `app/services/rag_document.py` writes. This said
+  // `completed` - a word the badge mapped and the backend has never written, so
+  // the fixture agreed with the bug rather than with the server (#356).
+  status: "done",
   error_message: null,
   vector_document_id: "vec-1",
   chunk_count: 12,
@@ -181,7 +188,7 @@ describe("what a collection's own page says", () => {
   it("takes a document's status badge from the catalog", async () => {
     await mountDetail();
 
-    expect(screen.getByText(`${MARK}Ready`)).toBeVisible();
+    expect(screen.getByText(`${MARK}Done`)).toBeVisible();
   });
 
   it("counts a document's chunks through a plural message", async () => {

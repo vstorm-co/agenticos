@@ -13,6 +13,7 @@ import asyncio
 import logging
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import background
 
@@ -91,6 +92,116 @@ class TestWhatHappensWhenBackgroundWorkFails:
 
         assert caplog.text == ""
         assert task not in background._running
+
+
+class TestWorkThatMustNotOutrunItsTransaction:
+    """#417. A session with no bind is enough: only `Session.info` is in play."""
+
+    async def test_deferred_work_has_not_started_when_it_is_registered(self) -> None:
+        """The whole point. `spawn` here would have the loop start it at once."""
+        started = asyncio.Event()
+
+        async def work() -> None:
+            started.set()
+
+        session = AsyncSession()
+        background.spawn_after_commit(session, work(), name="ingest-document-7")
+        await asyncio.sleep(0)
+
+        assert not started.is_set()
+        assert not background._running
+
+        background.start_deferred(session)
+        await asyncio.sleep(0)
+
+        assert started.is_set()
+
+    async def test_a_committed_session_starts_its_work_under_the_name_it_was_given(
+        self,
+    ) -> None:
+        finished: list[str] = []
+
+        async def work(label: str) -> None:
+            finished.append(label)
+
+        session = AsyncSession()
+        background.spawn_after_commit(session, work("first"), name="first")
+        background.spawn_after_commit(session, work("second"), name="second")
+
+        background.start_deferred(session)
+        await background.drain(timeout=5.0)
+
+        assert finished == ["first", "second"]
+
+    async def test_starting_a_session_twice_does_not_run_its_work_twice(self) -> None:
+        """A retry must not double-index a document, and the queue is the guard."""
+        runs: list[None] = []
+
+        async def work() -> None:
+            runs.append(None)
+
+        session = AsyncSession()
+        background.spawn_after_commit(session, work(), name="ingest-document-7")
+
+        background.start_deferred(session)
+        background.start_deferred(session)
+        await background.drain(timeout=5.0)
+
+        assert len(runs) == 1
+
+    async def test_one_sessions_work_is_not_started_by_another(self) -> None:
+        """The queue hangs off the unit of work, not off this module."""
+        started = asyncio.Event()
+
+        async def work() -> None:
+            started.set()
+
+        writer = AsyncSession()
+        somebody_else = AsyncSession()
+        background.spawn_after_commit(writer, work(), name="ingest-document-7")
+
+        background.start_deferred(somebody_else)
+        await asyncio.sleep(0)
+
+        assert not started.is_set()
+
+        background.start_deferred(writer)
+        await background.drain(timeout=5.0)
+        assert started.is_set()
+
+    async def test_work_deferred_by_a_session_that_never_committed_is_dropped(self, caplog) -> None:
+        """Running it would only fail further from the cause: its row is gone."""
+        started = asyncio.Event()
+
+        async def work() -> None:
+            started.set()
+
+        session = AsyncSession()
+        background.spawn_after_commit(session, work(), name="ingest-document-7")
+
+        with caplog.at_level(logging.WARNING, logger=background.__name__):
+            background.discard_deferred(session)
+        await asyncio.sleep(0)
+
+        assert not started.is_set()
+        assert not background._running
+        assert "ingest-document-7" in caplog.text
+
+    async def test_discarding_a_committed_session_finds_nothing_to_drop(self, caplog) -> None:
+        """`_managed_session` discards in a `finally`, so it runs after every commit."""
+
+        async def work() -> None:
+            return None
+
+        session = AsyncSession()
+        background.spawn_after_commit(session, work(), name="ingest-document-7")
+        background.start_deferred(session)
+
+        with caplog.at_level(logging.WARNING, logger=background.__name__):
+            background.discard_deferred(session)
+        await background.drain(timeout=5.0)
+
+        assert caplog.text == ""
 
 
 class TestDrainingOnShutdown:

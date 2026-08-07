@@ -3,21 +3,7 @@
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
-
-export interface AdminUserRead {
-  id: string;
-  email: string;
-  full_name: string | null;
-  role: string;
-  is_active: boolean;
-  is_app_admin: boolean;
-  created_at: string;
-}
-
-interface AdminUserList {
-  items: AdminUserRead[];
-  total: number;
-}
+import type { AdminUser, AdminUserListResponse } from "@/types";
 
 interface ImpersonateResponse {
   access_token: string;
@@ -28,7 +14,7 @@ interface ImpersonateResponse {
 }
 
 export function useAdminUsers() {
-  const [users, setUsers] = useState<AdminUserRead[]>([]);
+  const [users, setUsers] = useState<AdminUser[]>([]);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [impersonating, setImpersonating] = useState<string | null>(null);
@@ -53,7 +39,7 @@ export function useAdminUsers() {
         if (search) params.set("search", search);
         if (sortBy) params.set("sort_by", sortBy);
         if (sortDir) params.set("sort_dir", sortDir);
-        const data = await apiClient.get<AdminUserList>(`/admin/users?${params}`);
+        const data = await apiClient.get<AdminUserListResponse>(`/admin/users?${params}`);
         setUsers(data.items);
         setTotal(data.total);
       } catch {
@@ -65,9 +51,9 @@ export function useAdminUsers() {
     [],
   );
 
-  const updateUser = useCallback(async (userId: string, patch: Partial<AdminUserRead>) => {
+  const updateUser = useCallback(async (userId: string, patch: Partial<AdminUser>) => {
     try {
-      const updated = await apiClient.patch<AdminUserRead>(`/admin/users/${userId}`, patch);
+      const updated = await apiClient.patch<AdminUser>(`/admin/users/${userId}`, patch);
       setUsers((prev) => prev.map((u) => (u.id === userId ? updated : u)));
       toast.success("User updated");
     } catch {

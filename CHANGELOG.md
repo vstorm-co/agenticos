@@ -19,6 +19,370 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.79] - 2026-08-07
+
+### Fixed
+
+- A failed sync source was drawn exactly like a successful one. `SyncStatusBadge`
+  tested `status === "failed"`, which the worker never writes — it writes `done`
+  and `error` — so every finished and every failed sync fell through to the same
+  grey token (#356).
+- The document badge twenty lines above it was wrong the same way, and worse:
+  three of its four keys (`completed`, `pending`, `failed`) are names nothing
+  writes, against the service's `processing`/`done`/`error`. It had been "fixed"
+  onto that wrong vocabulary once already.
+- `/rag`'s status icon drew anything it did not recognise as a spinner, so a
+  cancelled sync spun for the life of the page.
+- The sync wizard's target-collection picker could not be reached from any of its
+  three call sites, so "Add source" on `/rag` — where the tab lists the whole
+  organization's sources — filed against whichever collection the sidebar
+  happened to have selected, invisibly (#434).
+- Creating a collection on `/rag` reported every refusal as "Failed to create
+  collection", discarding the server's own message — which is what made 0.0.66's
+  better 400 invisible on the only screen that creates one by name (#436).
+
+### Added
+
+- `frontend/src/lib/rag-status.ts` — one source for the vocabulary, naming the
+  three columns that share it and what writes each.
+
+## [0.0.78] - 2026-08-07
+
+### Fixed
+
+- Seven select triggers repeated a badge that only means something in the list —
+  "deployment default", "not on this host" — where a comparison against the other
+  options has nothing to compare against. They move into `SelectItem`'s `trailing`
+  slot, which renders outside `ItemText` and so is not inherited by the closed
+  trigger (#341).
+- Create knowledge base could not say the embedding-model list had *failed*:
+  loading and refused were the same pixels. Refused now has its own branch and
+  names the default the collection will get anyway (#365).
+- The runtime field lost its only warning when the badge moved, and
+  `connection-dialog` saves `default_runtime` without validating it — so you could
+  probe a host, pick an alias it had just refused, and save with nothing
+  dissenting. An explicit line under the field restores it, and restores it for
+  screen readers too, since Radix names an option by `ItemText` alone.
+
+## [0.0.77] - 2026-08-07
+
+### Security
+
+- The chat's model picker created an organization-wide model profile without
+  checking `connections:manage`, so anybody who could open a conversation was
+  offered the form and refused by the API (#419).
+- The chat's approval panel offered editable arguments and Submit to anybody a
+  parked run streamed to, though deciding an approval needs `approvals:decide`,
+  which neither `member` nor `builder` holds. The banner and the arguments stay,
+  read-only; the controls become a sentence (#438).
+
+## [0.0.76] - 2026-08-07
+
+### Security
+
+- `InlineSecret` offered a vault write at seven call sites and only one checked
+  `secrets:edit`, so six of them showed the form and let the API answer 403. The
+  permission is now checked inside the component, because every call site posts
+  the same endpoint — a per-caller gate is one condition written seven times and
+  forgotten six of them (#361).
+
+### Fixed
+
+- Two test fixtures answered `/me/permissions` with a list, which is a `TypeError`
+  inside `usePermissions` rather than "no permissions" — so those specs had been
+  passing for the wrong reason.
+
+## [0.0.75] - 2026-08-07
+
+### Fixed
+
+- The admin conversations screen's Owner filter was permanently empty. Its BFF
+  proxy forwarded to a route that has never existed — the path matched
+  `/admin/conversations/{conversation_id}` instead, which 422'd trying to parse a
+  UUID — and both admin proxies dropped `sort_by` and `sort_dir` on the way
+  through (#413).
+- The admin users table drew a `Role` column for a field the API stopped
+  returning in migration `0066`, so it had been blank since. It now renders
+  `conversation_count`, which the backend had been joining for on every page load
+  and nothing read (#414).
+- The skills library marked a skill uninstalled that cannot be installed, so
+  Install answered 409 (#415).
+
+### Added
+
+- `test_bff_forwarded_paths.py` reads every `/api/v1/…` literal out of the route
+  handlers and checks it against the application's own route table, in
+  declaration order, validating each hard-coded segment through the field FastAPI
+  would use. Over 46 forwarded paths it finds exactly one defect — the one above.
+
+## [0.0.74] - 2026-08-07
+
+### Fixed
+
+- A tool call nobody decided parked its run for ever. Approvals still pending
+  after their window are now swept to `expired` — recorded as a decision nobody
+  made (`decided_by_user_id IS NULL`) rather than as a denial somebody issued,
+  so the audit trail says what actually happened (#178).
+
+## [0.0.73] - 2026-08-07
+
+### Fixed
+
+- The web chat billed nothing for the embedding calls behind a knowledge search.
+  Metering lived at the call site, so a surface that forgot it under-reported
+  silently: `record_ambient_usage` found no active ledger and dropped the cost,
+  the run's own total was short, the organization's month never saw it, and
+  nothing raised. The meter moved inside `execute` and `iterate`, so every
+  surface that runs an agent is metered by construction rather than by
+  remembering (#16).
+
+## [0.0.72] - 2026-08-07
+
+### Fixed
+
+- The dev and production stacks notice a worker whose event loop has stopped
+  turning (#358). Both were where #336 found them: `docker-compose-dev.yml` runs
+  a single unsupervised uvicorn, and `docker-compose-prod.yml` runs uvicorn's
+  `Multiprocess`, which pings each worker over a pipe answered by a thread — and
+  a thread keeps answering while the loop is blocked, so the one stack with
+  cover had cover against the least likely failure. The worker now judges its
+  own loop from a thread (`app/core/watchdog.py`) and kills its own process,
+  which turns a wedge into the one failure all three stacks already handle.
+  Neither supervisor was replaced and PID 1 is untouched in all three.
+- Ctrl+C returns from a worker that wedged *before* its first beat (#366). The
+  reload supervisor escalated to `SIGKILL` on a verdict it could not reach for a
+  worker that had never beaten — one hung on a Postgres that is down, say — so
+  the shutdown waited out Docker's ten-second grace period instead. It now
+  terminates and joins with a bound, and says which of the two it killed.
+
+### Changed
+
+- **`RELOAD_WEDGED_AFTER` is now `EVENT_LOOP_WEDGED_AFTER`.** It is no longer
+  only the reload supervisor's: the worker's own watchdog reads the same
+  variable, so one number turns the check off for a debugging session rather
+  than leaving one of the two judges running to kill it.
+
+## [0.0.71] - 2026-08-07
+
+### Fixed
+
+- Ingestion and sync flows were spawned before the transaction that wrote the row
+  they read had committed, so a flow could start, look for its own document row
+  and not find it — an upload answered `processing` that stayed that way.
+  `spawn_after_commit` queues the work on the session and `_managed_session`
+  starts it two statements after `commit()` (#417).
+- `rag-source-sync` cancelled the sync it had just reported starting: `asyncio.run`
+  kills pending tasks on the way out (#439).
+- `POST /rag/documents/{id}/retry` queued nothing and cleared the error message,
+  so a retry was a one-way trip into permanent `processing`. A bare `ValueError`
+  on a decided refusal is now a 400 rather than a 500 (#441).
+
+
+## [0.0.70] - 2026-08-07
+
+### Fixed
+
+- A write was answered before its transaction committed, so the next read could
+  miss it. `get_db_session` commits in the exit code of a `Depends`-with-`yield`,
+  and FastAPI unwinds that stack **after** the response has been written — so a
+  2xx said the request had been handled, not that the write was readable. One
+  keyword argument, `scope="function"`, moves the commit in front of the response
+  (#353).
+- A failed request now rolls back before the error response is built rather than
+  after it, because the exception unwinds the same stack. A caller could be told
+  404 while the partial write causing it was still open.
+- A failed health probe left the session's transaction aborted, which on the new
+  ordering turned an intended 503 into a 500 — on the endpoint an operator reads
+  when something is already wrong (#416).
+
+
+## [0.0.69] - 2026-08-07
+
+### Fixed
+
+- Admin user and conversation search did not escape `LIKE` wildcards, so a caller
+  typing `%` or `_` changed what the query meant rather than searching for it: `_`
+  matched any single character and `%` matched everything, which is a wrong-rows
+  bug and a cheap way to make an admin listing scan far more than it should. All
+  three sites now go through one helper on SQLAlchemy's `icontains(autoescape=True)`
+  (#372).
+- Admin listings sorted on nullable columns without ordering nulls, so the emptiest
+  rows led page one (#411).
+
+### Removed
+
+- `escape_sql_like` in `core/sanitize.py` — dead, and half-right in a way that
+  would have been worse than nothing had anything called it.
+
+
+## [0.0.68] - 2026-08-07
+
+### Security
+
+- An app admin's password reset was written to the audit trail in plaintext. The
+  request body was dumped into `app_admin_audit_logs.details`, so resetting a
+  password recorded it (#412).
+- A refusal's `details` described the server rather than the refusal: an upstream
+  client's exception text on a 503, container filesystem paths on a 500, and a
+  provider base URL echoed back on four validation errors — one of which exists
+  *because* the URL carries a password. The diagnosis moves to the log; the
+  response names the field that explains the refusal (#342).
+- A sandbox address could carry userinfo, which `probe_policy` echoed into both
+  the response and the log. `ServiceAddress` was the only one of the three URL
+  validators not refusing credentials.
+
+### Fixed
+
+- The capability registry echoed a rejected configuration back to the caller in a
+  400, unlike the identical call one module over.
+
+
+## [0.0.67] - 2026-08-07
+
+### Security
+
+- A failed ingest stored a vendor SDK's exception text in `rag_documents.error_message`
+  and the dashboard rendered it. An embedding or vector-store client's message can
+  carry an endpoint, a key fragment, a bucket name or an internal host — and stored,
+  that is a durable leak read later by whoever looks at a failed upload, rather than
+  the transient one 0.0.38 closed on the HTTP path. Nine sites now record the stage,
+  the exception **type** as a symbol, and what to do about it; the text goes to the
+  worker log (#423).
+
+### Fixed
+
+- The outermost ingestion handler overwrote the innermost one's message, so a parse
+  failure — the commonest path — reported "could not be ingested" rather than "could
+  not be read". Harmless while all three wrote the same `str(exc)`; not harmless once
+  the innermost knew which stage had failed.
+
+
+## [0.0.66] - 2026-08-07
+
+### Security
+
+- `POST /kb` accepted any `collection_name` and never claimed it, so a member with
+  `collections:edit` could point a knowledge base at another organization's vector
+  table and read and write it through every gate that followed. `claim` had
+  exactly one call site, the `/rag` route (#367).
+- A collection name over 45 characters truncated onto another collection's table.
+  The bound is derived from the longest identifier built from a name —
+  `rag_<name>_embedding_idx`, not `rag_<name>` — so a name of 46 to 59 characters
+  truncated only the *index* name, `CREATE INDEX IF NOT EXISTS` then found the
+  first collection's index and built nothing, and the second collection searched
+  unindexed at the first one's width (#368).
+- Upper case is refused. Postgres folds an unquoted identifier, so `Handbook` and
+  `handbook` were two rows, two collections the platform believed distinct, and
+  **one physical table** holding both tenants' vectors — #368's defect reached by
+  another route. Refused rather than normalised: this branch's argument is that an
+  unusable name is turned away, not silently rewritten into something the caller
+  never typed.
+
+### Fixed
+
+- A malformed or reserved collection name answers 400 rather than 500 (#371).
+- Dropping a collection whose name the new rules refuse no longer swallows the
+  refusal and orphan the vector table.
+
+
+## [0.0.65] - 2026-08-07
+
+### Security
+
+- A Drive file whose name is a path escaped the sync directory. A remote filename
+  is attacker-controlled from this system's point of view — anyone who can share
+  a file into a synced folder chooses it — so the write target is now **resolved
+  and confirmed** to be inside the directory rather than sanitised by
+  substitution, which makes `..`, its encodings, homoglyphs and a pre-existing
+  symlink one question instead of a blacklist that is always one entry short
+  (#370).
+- A sync source's `folder_id` was interpolated into the Drive query unescaped.
+  It is now allowlisted where the query is built — the single funnel both the
+  configured folder and every recursed sub-folder pass through, so rows written
+  before the check are covered too — and asked again by every route that stores a
+  config, not only by create (#369).
+- Two deployment-wide credential fallbacks removed. A tenant's `folder_id` or
+  `bucket` could widen a query running under the **operator's** identity, which
+  turns one field of a source's own configuration into a reach across
+  organizations. The S3 case was the worse of the two: both settings default to
+  empty, so the fallback resolved to `None` and boto3 fell through to the
+  container's own credential chain.
+
+### Changed
+
+- The write target is now `BaseSyncConnector.download_file`'s decision, with
+  connectors implementing `_fetch`. A connector added later cannot choose a path,
+  and a test asserts none overrides it.
+
+
+## [0.0.64] - 2026-08-07
+
+### Fixed
+
+- Every JSON response the platform proxy returns now declares a cache policy. It
+  carried none — no `Cache-Control`, no `ETag`, no `Last-Modified` — on every
+  mutable collection on the surface, and silence is not "do not cache": a 200
+  with no policy is one the browser may reuse on its own judgement. Every answer
+  here depends on a cookie, a permission set and an organization header, so there
+  is nothing on this surface a shared or heuristic cache may keep. A backend that
+  does name a policy still wins, which is how the catalog icons and the embed
+  bundle keep theirs.
+
+
+## [0.0.63] - 2026-08-07
+
+### Fixed
+
+- A stacked pull request ran no CI at all, and its checks list was empty rather
+  than red. `ci.yml` triggered on `pull_request: branches: [main, master]`, which
+  matches on the **base**, so a branch opened against another branch matched no
+  trigger — and an empty check list reads as "still running" rather than "nobody
+  looked". Four pull requests merged that way in one day, each verified only
+  locally. The trigger no longer filters on the base (#359).
+- `docs/file-processing.md` described a platform-admin RAG model this project
+  replaced: "any authenticated user can search any collection", "only admins can
+  manage them". All three claims were false, and the same paragraph sat under its
+  own heading in `docs/architecture.md`, which a search for "only admins" misses
+  because that copy reads `Only **admins**` (#354).
+
+### Changed
+
+- Every CI job now carries a `timeout-minutes`, each several times its measured
+  runtime. Only `changes` had one, so a hung job ran to the platform default
+  rather than to a number somebody chose (#364).
+
+
+## [0.0.62] - 2026-08-07
+
+### Fixed
+
+- None of the ten cases around `mask_generics` in the i18n guard's test file
+  tested it: stub the function to `return text` and all ten still passed, while
+  the guard then reported three false positives over the real tree. It was
+  load-bearing and untested, so a refactor could have broken it with only a
+  tree-wide `make lint` to notice. One case now fails without it.
+
+
+## [0.0.61] - 2026-08-07
+
+### Security
+
+- `h2` bumped past CVE-2026-71554.
+
+
+## [0.0.60] - 2026-08-07
+
+### Fixed
+
+- `main` did not pass `make lint-backend`. Two ruff findings — `RET501` and a
+  `RUF100` for a `noqa` naming a rule this project does not select — arrived with
+  PRs merged during the GitHub Actions outage, when every check sat `pending` and
+  nobody could see them. Because the pre-commit hook runs `ruff check . --fix`
+  over the whole tree regardless of what is staged, it kept rewriting those two
+  files into unrelated commits and rolling them back, so every branch cut from
+  `main` started red on a gate it had not broken (#407).
+
+
 ## [0.0.59] - 2026-08-06
 
 ### Fixed

@@ -54,8 +54,16 @@ changes" is. Concretely, in this repo:
 
 Easy to violate, cross-cutting, and each one has been violated here at least once.
 
-- Repositories use `db.flush()` + `db.refresh()`, **never** `db.commit()` — the session
-  auto-commits via `get_db_session`.
+- Repositories use `db.flush()` + `db.refresh()`, **never** `db.commit()` — the request's
+  session commits once, after the route returns and **before the response is written**.
+  That ordering is `scope="function"` on the `DBSession` alias and nothing else; a bare
+  `Depends(get_db_session)` puts the commit after the answer has gone out, which is #353.
+  `docs/architecture.md#the-requests-transaction` has the order and its three consequences.
+- **Background work that reads a row this request wrote is handed over with
+  `spawn_after_commit`, never `spawn`.** `spawn` creates the task at once and the loop
+  starts it before the commit, so the flow opens its own session and cannot see the row
+  it was given the id of — an upload answered `processing` that stays that way (#417).
+  `docs/architecture.md#dispatching-background-work-from-a-request` has both.
 - Routes call services only — **never** import or call a repository directly.
 - **`require(...)` gates belong on collection routes, not per-resource ones.** Listing,
   creating and reading catalogs carry a permission gate; anything acting on *one* agent,
