@@ -19,6 +19,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.77] - 2026-08-07
+
+### Security
+
+- The chat's model picker created an organization-wide model profile without
+  checking `connections:manage`, so anybody who could open a conversation was
+  offered the form and refused by the API (#419).
+- The chat's approval panel offered editable arguments and Submit to anybody a
+  parked run streamed to, though deciding an approval needs `approvals:decide`,
+  which neither `member` nor `builder` holds. The banner and the arguments stay,
+  read-only; the controls become a sentence (#438).
+
 ## [0.0.76] - 2026-08-07
 
 ### Security
