@@ -19,6 +19,26 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.67] - 2026-08-07
+
+### Security
+
+- A failed ingest stored a vendor SDK's exception text in `rag_documents.error_message`
+  and the dashboard rendered it. An embedding or vector-store client's message can
+  carry an endpoint, a key fragment, a bucket name or an internal host — and stored,
+  that is a durable leak read later by whoever looks at a failed upload, rather than
+  the transient one 0.0.38 closed on the HTTP path. Nine sites now record the stage,
+  the exception **type** as a symbol, and what to do about it; the text goes to the
+  worker log (#423).
+
+### Fixed
+
+- The outermost ingestion handler overwrote the innermost one's message, so a parse
+  failure — the commonest path — reported "could not be ingested" rather than "could
+  not be read". Harmless while all three wrote the same `str(exc)`; not harmless once
+  the innermost knew which stage had failed.
+
+
 ## [0.0.66] - 2026-08-07
 
 ### Security
