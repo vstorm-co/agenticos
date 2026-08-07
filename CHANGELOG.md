@@ -19,6 +19,36 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.65] - 2026-08-07
+
+### Security
+
+- A Drive file whose name is a path escaped the sync directory. A remote filename
+  is attacker-controlled from this system's point of view — anyone who can share
+  a file into a synced folder chooses it — so the write target is now **resolved
+  and confirmed** to be inside the directory rather than sanitised by
+  substitution, which makes `..`, its encodings, homoglyphs and a pre-existing
+  symlink one question instead of a blacklist that is always one entry short
+  (#370).
+- A sync source's `folder_id` was interpolated into the Drive query unescaped.
+  It is now allowlisted where the query is built — the single funnel both the
+  configured folder and every recursed sub-folder pass through, so rows written
+  before the check are covered too — and asked again by every route that stores a
+  config, not only by create (#369).
+- Two deployment-wide credential fallbacks removed. A tenant's `folder_id` or
+  `bucket` could widen a query running under the **operator's** identity, which
+  turns one field of a source's own configuration into a reach across
+  organizations. The S3 case was the worse of the two: both settings default to
+  empty, so the fallback resolved to `None` and boto3 fell through to the
+  container's own credential chain.
+
+### Changed
+
+- The write target is now `BaseSyncConnector.download_file`'s decision, with
+  connectors implementing `_fetch`. A connector added later cannot choose a path,
+  and a test asserts none overrides it.
+
+
 ## [0.0.64] - 2026-08-07
 
 ### Fixed
