@@ -17,6 +17,10 @@ collision is waiting for the first ingest.
 Neither guard knows the name `documents`. Both ask whether the models declare
 that table, which is what keeps `documents_archive` a collection somebody may
 have.
+
+Both now ask it as one of four questions about a caller-chosen name -
+`tests/test_collection_name_rules.py` covers the other three and the single
+function all of them live in.
 """
 
 from __future__ import annotations
@@ -94,6 +98,19 @@ def test_a_name_no_model_declares_is_an_ordinary_collection() -> None:
     assert not collides_with_model_table("company_handbook", metadata=Base.metadata)
 
 
+def test_the_predicate_folds_the_way_postgres_does() -> None:
+    """It answers for a spelling no caller can supply any more, and must.
+
+    `validate_collection_name` refuses upper case outright, so nothing in the
+    product reaches this with `Documents`. The predicate is public and has its
+    own contract - `alembic/env.py` reasons with its sibling, and a caller with
+    a name from somewhere other than a request has no shape rule in front of it.
+    Its folding is therefore its own guarantee rather than a consequence of the
+    validator's order, and this is what keeps it one if the order changes.
+    """
+    assert collides_with_model_table("Documents", metadata=Base.metadata)
+
+
 def test_the_default_collection_name_is_not_a_model_table() -> None:
     """The default is what an omitted `--collection` and an omitted field get.
 
@@ -139,6 +156,13 @@ async def test_a_spelling_postgres_folds_onto_a_model_table_is_refused_too() -> 
     `DROP TABLE IF EXISTS rag_Documents` drops the tracking table exactly as the
     lower-case spelling would. A reserved-name check comparing the name as typed
     would have refused one and handed the other the `DROP`.
+
+    Two rules refuse it now and the shape rule gets there first, because upper
+    case is refused outright - `Handbook` and `handbook` are one table too, and
+    that one has no model table to be caught by. `collides_with_model_table`
+    still folds, and `test_the_predicate_folds_the_way_postgres_does` still
+    asserts it: it is a public predicate a caller may reach without the shape
+    rule in front of it.
     """
     store, executed = _store()
 
@@ -163,7 +187,16 @@ async def test_a_collection_whose_name_only_starts_like_one_still_works() -> Non
 
 
 class TestKnowledgeBaseCreate:
-    """The other door: a row written with a name the store never sees."""
+    """The other door: a row written with a name the store never sees.
+
+    It reaches the refusal through
+    :meth:`app.services.collection_access.CollectionAccessService.claim` rather
+    than through a check of its own, which is why every test here also patches
+    the lookup that method makes. That is the fix for #367 read from this side:
+    the KB service used to have a private model-table check and *no* claim, so
+    the name was judged for one of the four things that can be wrong with it and
+    never compared against the rows that already hold it.
+    """
 
     @staticmethod
     def _ctx() -> AuthContext:
@@ -174,12 +207,21 @@ class TestKnowledgeBaseCreate:
             is_app_admin=False,
         )
 
+    @staticmethod
+    def _unclaimed() -> AsyncMock:
+        """The name is held by nobody, so only the rule about it can refuse."""
+        return AsyncMock(return_value=[])
+
     async def test_a_knowledge_base_cannot_claim_a_model_tables_name(self) -> None:
         service = KnowledgeBaseService(MagicMock())
         created = AsyncMock()
 
         with (
             patch("app.repositories.knowledge_base_repo.create", new=created),
+            patch(
+                "app.repositories.knowledge_base_repo.list_by_collection_name",
+                new=self._unclaimed(),
+            ),
             pytest.raises(BadRequestError) as refused,
         ):
             await service.create(
@@ -187,14 +229,20 @@ class TestKnowledgeBaseCreate:
                 ctx=self._ctx(),
             )
 
-        assert refused.value.details == {"collection_name": "documents"}
+        assert refused.value.details == {"collection": "documents", "table": "rag_documents"}
         created.assert_not_awaited()
 
     async def test_a_near_miss_name_is_still_created(self) -> None:
         service = KnowledgeBaseService(MagicMock())
         created = AsyncMock(return_value=MagicMock())
 
-        with patch("app.repositories.knowledge_base_repo.create", new=created):
+        with (
+            patch("app.repositories.knowledge_base_repo.create", new=created),
+            patch(
+                "app.repositories.knowledge_base_repo.list_by_collection_name",
+                new=self._unclaimed(),
+            ),
+        ):
             await service.create(
                 KnowledgeBaseCreate(name="Handbook", collection_name="documents_archive"),
                 ctx=self._ctx(),

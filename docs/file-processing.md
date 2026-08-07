@@ -279,15 +279,57 @@ declares it. Matching the prefix alone had it reporting `rag_documents` as a
 collection called `documents` — one nobody created, whose "vector count" was the
 number of ingested documents, and which any caller could then ask to search.
 
-**A collection may not be named after a table the models own**, which is that
-predicate read a third way — asked of a name before its table exists. Creating one
-is refused with a 400, both at the API and in the store itself, because
-`rag-drop <name>` reaches the store with no route in between. The name that made
-this necessary is `documents`: prefixed, it *is* the tracking table, so dropping
-such a collection aimed `DROP TABLE IF EXISTS` at every organization's ingestion
-history. The refusal is derived rather than listed, so a `rag_`-prefixed model
-table added later is covered, and a collection called `documents_archive` — which a
-literal exclusion would have taken with it — is not affected.
+#### What a collection may be called
+
+A collection name is a string a caller chooses and the store builds identifiers
+out of, so **one function decides whether it is usable** —
+`validate_collection_name` in `app/db/vector_tables.py`. Four refusals, each a 400:
+
+| Refused | Because |
+|---|---|
+| Not a bare identifier — `foo-bar`, `2024_reports`, anything with a space or a quote | The store interpolates the name into DDL unquoted. A leading digit only *looks* safe: the `rag_` prefix supplies the letter the name is missing. |
+| Any upper case — `Handbook` | Postgres folds an unquoted identifier, so `Handbook` and `handbook` are one table. Nothing above the database can see it: names are compared as whole strings everywhere else, so the two are two rows the platform believes are two collections. Refused rather than lower-cased — storing a name the caller did not type is exactly the reinterpretation this rule exists to avoid. |
+| Longer than 45 characters | Postgres keeps 63 bytes of an identifier and truncates the rest silently. `rag_<name>` fits at 59, but `rag_<name>_embedding_idx` does not, and the bound is the longest identifier — not the shortest. |
+| `all` | Reserved. |
+| A table the models own — `documents` | See below. |
+
+Two of these are the same failure reached differently, and both are worth a
+sentence. The length bound is the one that reads as pedantry and is not. Two collections
+agreeing up to the truncation point are **one object**: one table if the name was
+too long, so either organization's `DROP` destroys the other's vectors and every
+search crosses between them; and one index if only the index name was, which is
+quieter — `CREATE INDEX IF NOT EXISTS` finds the first collection's index already
+there and builds nothing, leaving the second unindexed at whatever width the first
+was built at. Nothing above the database can see either, because a collection name
+is compared as a whole string everywhere else — which is also why case matters: a
+spelling is a shorter road to the same shared table, and refusing upper case
+closes a second one with it. `_collection_exists` compared `rag_Handbook` against
+`information_schema.tables`, which stores the folded name, so it never matched and
+`search`, `get_documents` and `get_document_chunks` answered **empty** for any
+collection with a capital in it. That path is gone rather than fixed: such a name
+is now refused where the table name is built, before anything can ask.
+
+**A collection may not be named after a table the models own**, which is the
+runtime-table predicate read a third way — asked of a name before its table exists.
+Refused both at the API and in the store itself, because `rag-drop <name>` reaches
+the store with no route in between. The name that made this necessary is
+`documents`: prefixed, it *is* the tracking table, so dropping such a collection
+aimed `DROP TABLE IF EXISTS` at every organization's ingestion history. The refusal
+is derived rather than listed, so a `rag_`-prefixed model table added later is
+covered, and a collection called `documents_archive` — which a literal exclusion
+would have taken with it — is not affected.
+
+**And the name has to be free.** The vector namespace is deployment-global: two
+knowledge bases holding one collection name share one table, so a name already held
+outside the caller's reach is refused with a 409 —
+`CollectionAccessService.claim`, which `POST /kb` and `POST /rag/collections/{name}`
+both call. Only one of them used to. `POST /kb` wrote whatever `collection_name` it
+was sent, so a member with `collections:edit` could aim a knowledge base at another
+organization's vector table and then read and write it through every gate
+afterwards, because a collection resolves through whichever knowledge base the
+caller *can* read — and now one of them is theirs. A name a caller does not supply
+is derived from the display name plus six random hex characters, and is claimed on
+the same path rather than trusted for being random.
 
 `documents` was also the **default** collection, so the CLI quickstart used to aim
 at the tracking table; the default is now `default`. A knowledge base created with
