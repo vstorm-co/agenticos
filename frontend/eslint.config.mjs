@@ -62,7 +62,7 @@ const eslintConfig = [
     // own code still fails the build — this list shrinking is the progress
     // marker, exactly as with the backend's per-file ruff ignores.
     files: [
-      "src/app/**/kb/**",
+      "src/app/**/rag/*/**",
       "src/components/chat/**",
       "src/components/rag/**",
       "src/components/ui/**",

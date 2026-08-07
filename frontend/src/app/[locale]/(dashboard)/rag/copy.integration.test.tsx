@@ -71,7 +71,7 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), back: vi.fn() }),
-  usePathname: () => "/kb",
+  usePathname: () => "/rag",
   useSearchParams: () => new URLSearchParams(),
   useParams: () => ({ id: "kb-1" }),
 }));

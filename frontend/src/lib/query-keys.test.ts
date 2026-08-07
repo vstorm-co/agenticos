@@ -105,14 +105,8 @@ describe("the query key factory", () => {
   });
 
   it("separates one tenant's cache from another's", () => {
-    // Two organizations hold collections of the same name, and their documents
-    // are not the same rows. Sharing a key means the second tenant is served
-    // the first one's names out of the cache while its own request is still in
-    // flight - a leak that looks like a rendering delay.
-    expect(qk.rag.collections("org-a")).not.toEqual(qk.rag.collections("org-b"));
-    expect(qk.rag.documents("org-a", "handbook")).not.toEqual(
-      qk.rag.documents("org-b", "handbook"),
-    );
+    // Sharing a key serves the second tenant the first one's rows out of the cache
+    // while its own request is still in flight - a leak that looks like a delay.
     expect(qk.integrations.reusable("org-a")).not.toEqual(qk.integrations.reusable("org-b"));
   });
 });

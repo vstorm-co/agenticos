@@ -218,7 +218,7 @@ is needed.
 
 Parser, OCR, chunk size, chunk overlap, chunking strategy and the
 image-description model are **not** environment variables. They are stored on
-each knowledge base (`knowledge_bases.ingestion_config`) and edited on `/kb`,
+each knowledge base (`knowledge_bases.ingestion_config`) and edited on `/rag`,
 and any one of them can additionally be overridden for a single upload.
 
 The reason is that one installation-wide value made the same form produce
@@ -441,7 +441,20 @@ organization's open sandboxes on its default host — runtime, what shares each 
 idle time, and memory against its own ceiling when asked — plus the activity log
 per sandbox: which paths were read, which commands ran, and how each went. Neither
 file contents nor command output is recorded by the service, which is what keeps
-an audit trail from becoming a way to read another agent's work.
+an audit trail from becoming a way to read another agent's work. The dashboard
+answers the same three questions in its own section, for a caller holding
+`connections:manage`; memory is behind a switch there for the same reason it is on
+the screen, because the service samples each sandbox individually for it.
+
+**`SANDBOXD_MAX_SESSIONS_PER_TENANT` is the only one of the three ceilings anything
+renders as a fraction**, and that is a property of the answer rather than a choice
+about the view. The session listing is filtered to the caller's organization but
+carries `SANDBOXD_MAX_SESSIONS` and `SANDBOXD_MAX_OPEN_SESSIONS` through from the
+service untouched, so those two count every tenant on the host while the rows count
+one. There is no host-wide resident or open *count* in any response, so nothing puts
+a bar against them; they are named as host-wide ceilings beside the per-organization
+figure instead. If an agent is refused a session while that figure is short of its
+ceiling, the host is full of somebody else's work.
 
 That listing is **filtered, not forwarded**. One `sandboxd` answers for every
 organization that registered a connection at its address, so passing its response
@@ -455,8 +468,13 @@ ceiling behind each alias (`SANDBOXD_RUNTIMES`, `SANDBOXD_MEM_LIMIT`,
 `SANDBOXD_NETWORK_MODE`, `SANDBOXD_MAX_SESSIONS_PER_TENANT` and the rest) are its
 own boot configuration, and there is deliberately no endpoint to write them: a
 browser that could reconfigure the process holding the Docker socket would own the
-host. The Sandboxes screen *reads* them so what is in force is visible, and the
-Builder offers an agent only the aliases the service will actually accept.
+host. The Sandboxes screen and the dashboard's runtimes card both *read* them so
+what is in force is visible, and the Builder offers an agent only the aliases the
+service will actually accept.
+
+Neither view asks a Daytona connection any of this. It publishes no allowlist of its
+own and holds none of our sessions to enumerate — what it permits is a setting on
+that account, and what runs there is visible in its own dashboard.
 
 ## Messaging Channels
 

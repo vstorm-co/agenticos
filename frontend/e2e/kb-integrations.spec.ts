@@ -38,7 +38,7 @@ async function activeOrgId(request: APIRequestContext): Promise<string> {
  * Configure a connector once, use it in a knowledge base.
  *
  * This is the journey that used to live on `/orgs/{id}/integrations` and now
- * lives on `/kb`, and it is worth a browser: an integration with no collection
+ * lives on `/rag`, and it is worth a browser: an integration with no collection
  * can only be made through a wizard whose collection step is deliberately
  * absent, and cloning one is a Radix select that jsdom cannot open. Its
  * credentials are write-only — the API answers with `••••••` — so a copy that
@@ -69,8 +69,8 @@ test.describe("Reusable integrations", () => {
     }
   });
 
-  test("an integration configured on /kb can be used in a knowledge base", async ({ page }) => {
-    await page.goto("/kb");
+  test("an integration configured on /rag can be used in a knowledge base", async ({ page }) => {
+    await page.goto("/rag");
     await expect(pageHeading(page, "Knowledge bases")).toBeVisible();
     await expect(page.getByText(SEEDED_KB_NAME, { exact: true }).first()).toBeVisible();
 
@@ -104,7 +104,7 @@ test.describe("Reusable integrations", () => {
     await expect(page.getByText(REUSABLE_NAME)).toBeVisible();
 
     const kbId = await seededKbId(page.request);
-    await page.goto(`/kb/${kbId}`);
+    await page.goto(`/rag/${kbId}`);
     await expect(pageHeading(page, SEEDED_KB_NAME)).toBeVisible();
     await expect(page.getByText(CLONE_NAME)).toBeVisible();
   });

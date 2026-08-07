@@ -237,6 +237,22 @@ The suite still refuses any database whose name does not contain `test` or `ci`:
 drops tables unconditionally, so the guard is the only thing between it and a
 development database.
 
+**The credential is resolved once, in `tests/conftest.py`, and everything reads it
+back off the settings object.** Two engines reach that database — the fixture's, and
+the application's, built at import time in `app/db/session.py` — and a test asking
+whether a write is visible needs both. They used to resolve the password separately,
+the fixture defaulting to `postgres` where `app/core/config.py` defaults to empty, and
+nothing could see it while every test connected through the fixture. The first one to
+drive the application's engine failed to authenticate on a checkout with no
+`backend/.env` — which is **every git worktree**, the file being untracked — two
+failures against a full green everywhere else, reading exactly like a branch
+regression ([#485](https://github.com/vstorm-co/agenticos/issues/485)). The suite now
+seeds `POSTGRES_PASSWORD=postgres` before the settings object is built, and only when
+neither the environment nor a `.env` supplies one, so a real password is never
+replaced by the default. `app/core/config.py` still defaults it to empty, which is
+what makes a missing `.env` announce itself in `alembic check` rather than reaching a
+database with a guess.
+
 ### The migration suite has a third one
 
 `tests/test_migrations.py` applies the whole chain to an empty database and rolls it

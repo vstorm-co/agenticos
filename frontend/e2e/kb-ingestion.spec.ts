@@ -41,7 +41,7 @@ async function clearPrevious(request: APIRequestContext): Promise<void> {
  * by a sibling. A `hasText` filter over the anchors matches nothing at all.
  */
 async function openCollection(page: Page, name: string): Promise<void> {
-  await page.goto("/kb");
+  await page.goto("/rag");
   await expect(pageHeading(page, "Knowledge bases")).toBeVisible();
   const card = page.getByRole("link", { name: `Open ${name}` });
   await expect(card).toBeVisible();
@@ -67,7 +67,7 @@ test.describe("Ingestion settings", () => {
   test("a collection keeps the parser it was created with, and says so", async ({ page }) => {
     await clearPrevious(page.request);
 
-    await page.goto("/kb");
+    await page.goto("/rag");
     await expect(pageHeading(page, "Knowledge bases")).toBeVisible();
     // The seed's collection, so a passing spec cannot be one run against a list
     // that failed to load — an empty list and a refused request look the same.
