@@ -129,9 +129,15 @@ export function ChatControls({
               {/* One line, because this is a popover over a text box, not a
                   settings page. What it costs to say the rest here is the four
                   lines of prose that pushed the models themselves below the
-                  fold on a laptop. */}
+                  fold on a laptop.
+
+                  It says what the panel is rather than what the reader may do
+                  with it: the picker below checks `connections:manage` and
+                  replaces itself with a refusal for a caller without it (#419),
+                  and "Run this conversation on a different model" sitting above
+                  that refusal promised a control that had gone. */}
               <p className="text-foreground/55 mb-3 text-xs leading-relaxed">
-                {t("runConversationDifferentModel")}
+                {t("whichModelRunsHere")}
               </p>
               <ChatModelPicker
                 value={profileId}
