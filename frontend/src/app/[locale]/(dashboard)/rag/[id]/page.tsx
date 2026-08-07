@@ -2,36 +2,27 @@
 
 import { use, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plug, Plus, RotateCw, Trash2 } from "lucide-react";
 
 import { ROUTES } from "@/lib/constants";
-import { Badge, Button, ConfirmDialog, Alert, AlertDescription, AlertTitle } from "@/components/ui";
-import { EmptyState, ErrorState } from "@/components/states";
+import { Button, ConfirmDialog, Alert, AlertDescription, AlertTitle } from "@/components/ui";
 import { SyncSourceWizard } from "@/components/rag/sync-source-wizard";
-import { SyncSourceLogs } from "@/components/rag/sync-source-logs";
 import { KBDetailSkeleton } from "@/components/rag/kb-detail-skeleton";
 import { KBDetailHeader } from "@/components/rag/kb-detail-header";
 import { KBStatsStrip } from "@/components/rag/kb-stats-strip";
 import { FileDropZone } from "@/components/rag/file-drop-zone";
 import { UploadProgressList } from "@/components/rag/upload-progress-list";
 import { DocumentsTable } from "@/components/rag/documents-table";
-import { BrandIcon, connectorBrand } from "@/components/icons/brand-icon";
+import { SyncSourcesSection } from "@/components/rag/sync-sources-section";
 import { FileViewer } from "@/components/kb/file-viewer";
 import { IngestionDialog } from "@/components/kb/ingestion-dialog";
 import { IngestionPanel } from "@/components/kb/ingestion-panel";
 import { UploadOverrideDialog } from "@/components/kb/upload-override-dialog";
 import { useKBDetail, usePermissions, usePollWhileIngesting } from "@/hooks";
-import { cn, formatDateTime } from "@/lib/utils";
 import { overrideSize } from "@/lib/ingestion-config";
 import type { SyncSourceRead } from "@/lib/rag-api";
 import type { IngestionOverride, KBDocument } from "@/types";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
-
-// Sync sources have no server-side pagination (the backend returns every source
-// for the KB's collection). They're typically few, so collapse past this count
-// behind a client-side "show all" toggle.
-const SYNC_SOURCES_VISIBLE = 10;
 
 interface KBDetailPageProps {
   params: Promise<{ id: string }>;
@@ -75,7 +66,6 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
 
   const [wizardOpen, setWizardOpen] = useState(false);
   const [creatingSource, setCreatingSource] = useState(false);
-  const [syncSourcesExpanded, setSyncSourcesExpanded] = useState(false);
   const [viewerDoc, setViewerDoc] = useState<KBDocument | null>(null);
   const [ingestionOpen, setIngestionOpen] = useState(false);
   const [overrideOpen, setOverrideOpen] = useState(false);
@@ -243,84 +233,18 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
         <IngestionPanel kb={kb} onEdit={mayEdit ? () => setIngestionOpen(true) : undefined} />
       </div>
 
-      <section>
-        <div className="mb-3 flex items-center justify-between gap-2">
-          <h2 className="text-foreground text-sm font-semibold">{t("syncSources")}</h2>
-          {mayEdit && connectors.length > 0 && (
-            <Button variant="outline" size="sm" onClick={() => setWizardOpen(true)}>
-              <Plus className="h-4 w-4" />
-              {t("connect")}
-            </Button>
-          )}
-        </div>
-
-        {/* Its own line rather than a branch of the states below, because a failed
-            connector list is orthogonal to whether any sources loaded: it is what
-            hides the Connect button above, and hiding a capability without saying
-            why reads as the product not having it. */}
-        {sectionFailures.connectors && (
-          <div className="mb-3">
-            <ErrorState
-              title={t("connectorsFailedTitle")}
-              description={t("connectorsFailedDescription")}
-              cta={{ label: t("retry"), onClick: () => refresh() }}
-            />
-          </div>
-        )}
-
-        {sectionFailures.syncSources ? (
-          <ErrorState
-            title={t("syncSourcesFailedTitle")}
-            description={t("syncSourcesFailedDescription")}
-            cta={{ label: t("retry"), onClick: () => refresh() }}
-          />
-        ) : syncSources.length > 0 ? (
-          <>
-            <ul className="border-border bg-card divide-border divide-y overflow-hidden rounded-xl border">
-              {(syncSourcesExpanded ? syncSources : syncSources.slice(0, SYNC_SOURCES_VISIBLE)).map(
-                (source) => (
-                  <SyncSourceRow
-                    key={source.id}
-                    source={source}
-                    kbId={id}
-                    onTrigger={mayEdit ? () => triggerSyncSource(source.id) : undefined}
-                    onDelete={mayEdit ? () => setDisconnectingSource(source) : undefined}
-                  />
-                ),
-              )}
-            </ul>
-            {syncSources.length > SYNC_SOURCES_VISIBLE && (
-              <div className="mt-3 flex justify-center">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSyncSourcesExpanded((v) => !v)}
-                >
-                  {syncSourcesExpanded
-                    ? t("showLess")
-                    : t("showAllSources", { count: syncSources.length })}
-                </Button>
-              </div>
-            )}
-          </>
-        ) : sectionFailures.connectors ? null : (
-          // No sources, and the connector list did load: "none connected" and
-          // "none configured" are both facts here, and the notice above has
-          // already spoken for the case where neither is established.
-          <EmptyState
-            icon={Plug}
-            title={connectors.length > 0 ? t("noSourcesConnected") : t("noConnectorsConfigured")}
-            description={
-              connectors.length > 0 ? t("addOneKeepKnowledge") : t("configureConnectorsAtWorkspace")
-            }
-            cta={
-              mayEdit && connectors.length > 0
-                ? { label: t("connectSource"), onClick: () => setWizardOpen(true) }
-                : undefined
-            }
-          />
-        )}
-      </section>
+      <SyncSourcesSection
+        kbId={id}
+        syncSources={syncSources}
+        connectors={connectors}
+        syncSourcesFailed={sectionFailures.syncSources}
+        connectorsFailed={sectionFailures.connectors}
+        mayEdit={mayEdit}
+        onConnect={() => setWizardOpen(true)}
+        onTrigger={(sourceId) => triggerSyncSource(sourceId)}
+        onDisconnect={setDisconnectingSource}
+        onRetry={() => refresh()}
+      />
 
       {/* The count is the collection's, not the table's. Documents page in
           twenty at a time, so `documents.length` would promise to destroy far
@@ -454,93 +378,5 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
         }}
       />
     </FileDropZone>
-  );
-}
-
-function SyncSourceRow({
-  source,
-  kbId,
-  onTrigger,
-  onDelete,
-}: {
-  source: SyncSourceRead;
-  kbId: string;
-  /** Absent when the caller may not write - the buttons are then not drawn. */
-  onTrigger?: () => void;
-  /** Asks for the disconnection; the page owns the confirmation and the call. */
-  onDelete?: () => void;
-}) {
-  const t = useTranslations("pages.kb");
-  const lastSync = source.last_sync_at ? formatDateTime(source.last_sync_at) : t("never");
-  const brand = connectorBrand(source.connector_type);
-  return (
-    <li className="overflow-hidden">
-      <div className="hover:bg-accent flex items-center gap-3 px-4 py-3 transition-colors">
-        <span className="bg-muted text-muted-foreground inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
-          {brand ? (
-            <BrandIcon name={brand} className="h-4 w-4" />
-          ) : (
-            <Plug className="h-3.5 w-3.5" />
-          )}
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <p className="text-foreground truncate text-sm font-medium">{source.name}</p>
-          </div>
-          <div className="text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-2 text-xs">
-            <span>{t("lastSyncAt", { when: lastSync })}</span>
-            {source.schedule_minutes && source.schedule_minutes > 0 && (
-              <>
-                <span>·</span>
-                <span>{t("everyMinutes", { minutes: source.schedule_minutes })}</span>
-              </>
-            )}
-          </div>
-        </div>
-        {source.last_sync_status && (
-          <SyncStatusBadge status={source.last_sync_status} message={source.last_error} />
-        )}
-        {onTrigger && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-muted-foreground hover:text-foreground h-8 w-8 p-0"
-            onClick={onTrigger}
-            title={t("triggerSyncNow")}
-            aria-label={t("triggerSyncNow2")}
-          >
-            <RotateCw className="h-3.5 w-3.5" />
-          </Button>
-        )}
-        {onDelete && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-muted-foreground hover:text-destructive h-8 w-8 p-0"
-            onClick={onDelete}
-            title={t("removeSource")}
-            aria-label={t("removeSource2")}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
-        )}
-      </div>
-      <SyncSourceLogs logsPath={`/kb/${kbId}/sync-sources/${source.id}/logs`} />
-    </li>
-  );
-}
-
-function SyncStatusBadge({ status, message }: { status: string; message: string | null }) {
-  return (
-    <Badge
-      variant="outline"
-      title={message ?? undefined}
-      className={cn(
-        "border-border shrink-0 font-normal",
-        status === "failed" ? "text-destructive" : "text-muted-foreground",
-      )}
-    >
-      {status}
-    </Badge>
   );
 }
