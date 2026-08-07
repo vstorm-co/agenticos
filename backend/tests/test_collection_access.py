@@ -21,13 +21,14 @@ from dataclasses import dataclass, field
 
 import pytest
 
-from app.core.exceptions import AlreadyExistsError, NotFoundError
+from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.rag_document import RAGDocument
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.db.models.sync_log import SyncLog
 from app.db.models.sync_source import SyncSource
+from app.db.vector_tables import MAX_COLLECTION_NAME_LENGTH
 from app.services.collection_access import CollectionAccessService, readable_kb, writable_kb
 
 pytestmark = pytest.mark.anyio
@@ -344,6 +345,24 @@ class TestClaimingACollectionName:
 
         with pytest.raises(AlreadyExistsError):
             await service.claim(_ctx(), "handbook")
+
+    @pytest.mark.parametrize(
+        "name", ["foo-bar", "all", "documents", "a" * (MAX_COLLECTION_NAME_LENGTH + 1)]
+    )
+    async def test_a_name_that_could_not_be_an_identifier_is_refused_before_the_rows(
+        self, service: CollectionAccessService, rows: Rows, name: str
+    ) -> None:
+        """Claiming is two questions, and this is the one needing no database.
+
+        Asserted here rather than only against the pure function because this is
+        the method both write paths call, and it is the reason neither of them
+        needs a rule of its own. The rules themselves are
+        `tests/test_collection_name_rules.py`.
+        """
+        rows.collections = []
+
+        with pytest.raises(BadRequestError):
+            await service.claim(_ctx(), name)
 
 
 def _document(collection_name: str) -> RAGDocument:
