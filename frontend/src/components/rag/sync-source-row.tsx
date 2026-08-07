@@ -3,11 +3,12 @@
 import { Plug, RotateCw, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { Badge, Button } from "@/components/ui";
+import { Button } from "@/components/ui";
 import { BrandIcon, connectorBrand } from "@/components/icons/brand-icon";
 import { SyncSourceLogs } from "@/components/rag/sync-source-logs";
+import { RagStatusBadge } from "@/components/rag/rag-status-badge";
 import type { SyncSourceRead } from "@/lib/rag-api";
-import { cn, formatDateTime } from "@/lib/utils";
+import { formatDateTime } from "@/lib/utils";
 
 export function SyncSourceRow({
   source,
@@ -50,7 +51,11 @@ export function SyncSourceRow({
           </div>
         </div>
         {source.last_sync_status && (
-          <SyncStatusBadge status={source.last_sync_status} message={source.last_error} />
+          <RagStatusBadge
+            status={source.last_sync_status}
+            message={source.last_error}
+            className="shrink-0"
+          />
         )}
         {onTrigger && (
           <Button
@@ -79,20 +84,5 @@ export function SyncSourceRow({
       </div>
       <SyncSourceLogs logsPath={`/kb/${kbId}/sync-sources/${source.id}/logs`} />
     </li>
-  );
-}
-
-function SyncStatusBadge({ status, message }: { status: string; message: string | null }) {
-  return (
-    <Badge
-      variant="outline"
-      title={message ?? undefined}
-      className={cn(
-        "border-border shrink-0 font-normal",
-        status === "failed" ? "text-destructive" : "text-muted-foreground",
-      )}
-    >
-      {status}
-    </Badge>
   );
 }

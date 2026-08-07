@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UserDetailDrawer } from "./admin/user-detail-drawer";
 import { SyncSourceWizard } from "./rag/sync-source-wizard";
-import type { AdminUserRead } from "@/hooks/use-admin-users";
+import type { AdminUser } from "@/types";
 
 /**
  * Two components that read a row somebody else derives for them.
@@ -67,14 +67,17 @@ describe("the sync source wizard", () => {
 });
 
 describe("the admin user drawer", () => {
-  const user: AdminUserRead = {
+  // No cast: the object is the whole of `AdminUser`. It used to need one,
+  // because the type claimed a `role` the API has not returned since `0066`.
+  const user: AdminUser = {
     id: "u-1",
     email: "kacper@example.com",
     full_name: "Kacper",
     is_active: true,
     is_app_admin: false,
+    conversation_count: 3,
     created_at: "2026-07-01T00:00:00Z",
-  } as AdminUserRead;
+  };
 
   it("keeps showing the row it was given while the sheet closes", () => {
     // The page holds the id and derives the row, so deleting the user takes it

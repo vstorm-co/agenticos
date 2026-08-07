@@ -312,10 +312,13 @@ class SyncSourceService:
             mode=source.sync_mode,
             sync_source_id=source.id,
         )
-        from app.core.background import spawn
+        from app.core.background import spawn_after_commit
         from app.worker.tasks.rag_tasks import sync_single_source_flow
 
-        spawn(
+        # The flow reads this sync log by id on its own session, so it starts
+        # after the commit rather than after this line (#417).
+        spawn_after_commit(
+            self.db,
             sync_single_source_flow(source_id, str(sync_log.id)),
             name=f"sync-source-{source_id}",
         )

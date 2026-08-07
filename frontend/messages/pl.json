@@ -399,5 +399,12 @@
       "page": "s.{page}",
       "resultCount": "{count, plural, =0 {Brak wyników} =1 {1 wynik} few {# wyniki} other {# wyników}} · {ms} ms"
     }
+  },
+  "ragStatus": {
+    "processing": "Przetwarzanie",
+    "running": "W toku",
+    "done": "Gotowe",
+    "error": "Niepowodzenie",
+    "cancelled": "Anulowano"
   }
 }

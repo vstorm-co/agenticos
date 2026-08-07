@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
+from app.core.background import discard_deferred, start_deferred
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -30,7 +31,20 @@ async_session_maker = async_sessionmaker(
 async def _managed_session(
     factory: async_sessionmaker[AsyncSession],
 ) -> AsyncGenerator[AsyncSession, None]:
-    """Shared session lifecycle: commit on success, rollback on error."""
+    """Shared session lifecycle: commit on success, rollback on error.
+
+    Background work registered with `spawn_after_commit` starts here, in the
+    two statements after the commit and nowhere else. That is what makes the
+    ordering a property of the session rather than of each call site: a flow
+    dispatched from a service reads a row the database has already agreed to,
+    whether the session belongs to a request, a WebSocket or a worker (#417).
+
+    The `finally` closes anything still queued. A commit that raised, an
+    exception thrown in at the `yield`, a cancelled request - each leaves
+    coroutines that were created and will now never be awaited, and an
+    un-awaited coroutine reports itself as a `RuntimeWarning` from wherever the
+    garbage collector happens to be.
+    """
     async with factory() as session:
         try:
             yield session
@@ -42,6 +56,10 @@ async def _managed_session(
             except Exception:
                 logger.exception("DB session rollback failed")
             raise
+        else:
+            start_deferred(session)
+        finally:
+            discard_deferred(session)
 
 
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
@@ -82,6 +100,11 @@ async def get_worker_db_context() -> AsyncGenerator[AsyncSession, None]:
     Creates a fresh engine with NullPool on every call so there are no
     cross-fork / cross-event-loop connection issues.  The engine is disposed
     automatically when the context manager exits.
+
+    It is `_managed_session` and not a second copy of it: the copy it used to be
+    committed and rolled back identically, but would have been the one session
+    lifecycle in the codebase where `spawn_after_commit` queued work that
+    nothing ever started - which is worse than not offering it at all.
     """
     worker_engine = create_async_engine(
         settings.DATABASE_URL,
@@ -93,19 +116,11 @@ async def get_worker_db_context() -> AsyncGenerator[AsyncSession, None]:
         class_=AsyncSession,
         expire_on_commit=False,
     )
-    async with factory() as session:
-        try:
+    try:
+        async with _managed_session(factory) as session:
             yield session
-            await session.commit()
-        except Exception:
-            logger.exception("DB session error, rolling back")
-            try:
-                await session.rollback()
-            except Exception:
-                logger.exception("DB session rollback failed")
-            raise
-        finally:
-            await worker_engine.dispose()
+    finally:
+        await worker_engine.dispose()
 
 
 async def close_db() -> None:

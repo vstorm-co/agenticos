@@ -63,7 +63,7 @@ export function WorkspaceFileViewer({ source, path, onClose }: WorkspaceFileView
             the right on its own rather than beside an empty slot. */}
         <div
           className={cn(
-            t("flexItemsCenterGap"),
+            "flex items-center gap-2",
             isMarkdown(path) ? "justify-between" : "justify-end",
           )}
         >

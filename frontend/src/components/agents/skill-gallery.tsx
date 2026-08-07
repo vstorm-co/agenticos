@@ -91,7 +91,7 @@ export function SkillGallery({
               disabled={disabled}
               onClick={() => onToggle(skill.id)}
               className={cn(
-                t("flexItemsStartGap3"),
+                "flex items-start gap-3 rounded-xl border p-4 text-left transition-colors",
                 isOn ? "border-brand bg-brand/5" : "hover:border-foreground/20",
                 disabled && "cursor-not-allowed opacity-60",
               )}
@@ -124,7 +124,7 @@ export function SkillGallery({
         matched={list.matched}
         total={list.total}
         onPage={list.setPage}
-        noun="skills"
+        counted={t("skillCount", { count: list.total })}
       />
 
       {orphaned.length > 0 && (

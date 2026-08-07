@@ -21,8 +21,15 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { InlineSecret } from "@/components/vault/inline-secret";
-import { useModelProviders, useProviderModels, useSecretPurposes, useSecrets } from "@/hooks";
+import {
+  useModelProviders,
+  usePermissions,
+  useProviderModels,
+  useSecretPurposes,
+  useSecrets,
+} from "@/hooks";
 import { getErrorMessage } from "@/lib/utils";
+import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 
 interface ChatModelPickerProps {
@@ -41,9 +48,28 @@ interface ChatModelPickerProps {
  * one of the organization's profiles reuses it, and a new combination creates
  * one on the provider's vault key. A provider with no key in the vault cannot
  * answer, and the refusal says so here rather than after the first message.
+ *
+ * **It checks `connections:manage` itself, over the whole form.** Creating that
+ * profile is `POST /providers/model-profiles`, which is gated on
+ * `Perm.CONNECTIONS_MANAGE` and on nothing else, while opening a conversation is
+ * `agents:run` - so anybody who could type a message was offered these fields and
+ * refused by the API after filling them in (#419). The gate is here rather than in
+ * `ChatControls` because the permission belongs to the write and this component is
+ * the only thing that makes it; the Model tab is also the one that opens by
+ * default, so gating the tab button would leave the panel rendering anyway.
+ *
+ * It covers the fields and not only the submit, which is what #329 decided for the
+ * Builder's copy of this control: three fields that lead nowhere are worse than
+ * none. That does take the reuse path with it - matching an existing profile is a
+ * read, and `GET /providers/model-profiles` is `agents:view` - but nothing here
+ * lists those profiles, so reaching one means typing a provider and a model id
+ * that happen to match, and every other combination is the 403 this exists to
+ * stop. A sentence replaces the form, because a panel that goes blank explains
+ * itself to nobody.
  */
 export function ChatModelPicker({ value, onChange }: ChatModelPickerProps) {
   const t = useTranslations("chat.modelPicker");
+  const { can } = usePermissions();
   const { profiles, createProfile } = useModelProviders();
   const { purposes } = useSecretPurposes();
   const { secrets } = useSecrets();
@@ -56,6 +82,14 @@ export function ChatModelPicker({ value, onChange }: ChatModelPickerProps) {
   const provider = providers.find((entry) => entry.id === providerId);
   const { models: suggestions } = useProviderModels(providerId);
   const active = profiles.find((profile) => profile.id === value) ?? null;
+
+  // Before the fields, not on the button: a disabled submit under three filled-in
+  // fields still says "you could do this", and the answer here is that somebody
+  // else has to. `can` answers false while the permission set is still loading,
+  // so the form arrives once rather than appearing and being taken back.
+  if (!can(Perm.connectionsManage)) {
+    return <p className="text-muted-foreground text-xs">{t("needsConnectionsManage")}</p>;
+  }
 
   const canApply =
     provider !== undefined &&

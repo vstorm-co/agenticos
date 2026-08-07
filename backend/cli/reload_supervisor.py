@@ -75,21 +75,32 @@ Four properties of that choice are the reason for it:
   consecutive silent polls are therefore needed rather than one: by the second,
   a healthy worker has beaten again and the verdict clears.
 
+## The other two stacks, which do not run this module
+
+`docker-compose-dev.yml` is a single unsupervised uvicorn and
+`docker-compose-prod.yml` is `--workers 4` under uvicorn's own `Multiprocess`,
+so neither has a parent that reads a beat, and neither could grow one without
+replacing a supervisor (#358). They are covered from the other side instead:
+`app.core.watchdog` makes the same judgement *inside* the worker and kills its
+own process, which turns a wedge into the one failure every stack already
+handles - a worker that is gone. That watchdog runs here too, and the two are
+not one mechanism twice: a process stopped outright (`kill -STOP`, a frozen
+cgroup) cannot run its own watchdog and only this supervisor sees it, while a
+blocked event loop is exactly what a watchdog on a thread sees.
+
 **What this does not cover**, deliberately:
 
-- **A worker that wedges before it serves.** `main_loop` - and so the first beat
-  - starts only once lifespan startup has finished, so a worker hung on a
-  database connect at boot never beats and is never judged. Judging it would
-  mean a startup grace period long enough to be meaningless on a cold container.
-  `shutdown` inherits the gap: with nothing to judge it cannot escalate, so
-  Ctrl+C on a worker hung against a Postgres that is down still waits out
-  Docker's grace period.
-- **The dev and production stacks.** Neither runs this module: `docker-compose-dev.yml`
-  is a single unsupervised uvicorn and `docker-compose-prod.yml` is `--workers`,
-  where uvicorn's own `Multiprocess` pings over the pipe described above.
+- **Replacing a worker that wedges before it serves.** `main_loop` - and so the
+  first beat - starts only once lifespan startup has finished, so a worker hung
+  on a database connect at boot never beats and is never *judged*. Judging it
+  would mean a startup grace period long enough to be meaningless on a cold
+  container. `shutdown` no longer inherits that gap (#366): it cannot judge such
+  a worker either, but it does not have to, because stopping one needs no
+  verdict - `SIGTERM`, a second, then `SIGKILL`.
 - **A debugger.** A breakpoint blocks the event loop and is indistinguishable
   from a deadlock by construction, so 15 seconds on one wedges the worker and it
-  is replaced. `RELOAD_WEDGED_AFTER=0` turns the whole check off.
+  is replaced. `EVENT_LOOP_WEDGED_AFTER=0` turns the whole check off, here and
+  in the worker's own watchdog.
 - **A worker in uninterruptible sleep.** `SIGKILL` is not delivered to a process
   in `D` state - a dead network mount is the way in - so the join after it hangs
   as `SIGTERM` would have. A bounded join would only move the hang into
@@ -165,8 +176,27 @@ POLLS_BEFORE_WEDGED: Final = 2
 
 # Seconds without a beat before a worker is replaced, `0` or below to switch the
 # check off - which is what somebody sitting on a breakpoint wants, a stopped
-# event loop being indistinguishable from a deadlock.
-WEDGED_AFTER_ENV_VAR: Final = "RELOAD_WEDGED_AFTER"
+# event loop being indistinguishable from a deadlock. The same variable is read
+# by `app.core.watchdog`, which judges the same event loop from inside the
+# worker on the two stacks that have no supervisor at all - one number, so
+# switching the check off for a breakpoint switches off both judges rather than
+# leaving the in-process one to kill the debugging session.
+WEDGED_AFTER_ENV_VAR: Final = "EVENT_LOOP_WEDGED_AFTER"
+
+# How long `shutdown` waits for a worker to act on `SIGTERM` before killing it.
+#
+# Two numbers, because "has not stopped yet" means different things either side
+# of the first beat. A worker that has served drains what it is holding -
+# in-flight requests, and the background tasks `app.core.background.drain`
+# waits on - so the wait has to cover that; eight seconds does, and stays inside
+# Docker's ten-second grace so the container exits because the supervisor
+# stopped it rather than because Docker gave up on it. A worker that has never
+# beaten never finished lifespan startup, so it is holding nothing and has
+# nothing to drain: all the wait buys there is the moment it takes to notice a
+# signal, and the rest of it is the hang #366 filed - Ctrl+C against a Postgres
+# that is down, waiting out a grace period for a worker that will never answer.
+STOP_GRACE: Final = 8.0
+STOP_GRACE_BEFORE_THE_FIRST_BEAT: Final = 1.0
 
 # The value of the shared cell before the worker's first beat. A worker is
 # judged only once it has beaten at least once, so a slow boot is never mistaken
@@ -268,20 +298,43 @@ class SupervisedReload(ChangeReload):
         self._beat.value = NOT_YET_BEATEN
 
     def shutdown(self) -> None:
-        """Stop the worker, killing it outright if it is wedged.
+        """Stop the worker, and stop waiting on one that is never going to stop.
 
         `BaseReload.shutdown` sends `SIGTERM` and joins without a timeout, which
-        for a wedged worker is the hang this class exists to avoid: Ctrl+C or
-        `docker compose stop` would block until the ten-second grace period ran
-        out and Docker killed the container. A worker that is merely running
-        still gets `SIGTERM` and still drains its connections.
+        for a worker whose event loop has stopped turning is a hang: the worker
+        catches `SIGTERM` and acts on it *from the loop*, so Ctrl+C or
+        `docker compose stop` blocks until the ten-second grace period runs out
+        and Docker kills the container. This is not delegated for that reason,
+        which costs the socket close and the log line below.
 
-        There is one shot at this, so the verdict is the instantaneous one -
-        `POLLS_BEFORE_WEDGED` cannot apply to a decision taken once. A healthy
-        worker whose host has just thawed is therefore killed rather than
-        drained. On a development server, dropping the requests in flight beats
-        hanging the terminal, and it is the same trade the container's own
-        `SIGKILL` makes ten seconds later.
+        Three cases, and the difference between the last two is the whole of
+        #366:
+
+        - **Judged wedged**, i.e. it beat and then went silent. Killed outright.
+          There is one shot at this, so the verdict is the instantaneous one -
+          `POLLS_BEFORE_WEDGED` cannot apply to a decision taken once, so a
+          healthy worker whose host has just thawed is killed rather than
+          drained. Dropping the requests in flight beats hanging the terminal,
+          and it is the trade Docker's own `SIGKILL` makes ten seconds later.
+        - **Beating.** `SIGTERM`, and `STOP_GRACE` to drain.
+        - **Never beaten.** `_silent_for` answers `None` for a worker that has
+          not beaten at all, because the first beat only lands once lifespan
+          startup has finished - so a worker hung *before* it serves, on a
+          Postgres that is not up or a `PREFECT_API_URL` that does not answer,
+          is the one case the wedge verdict cannot see. It gets `SIGTERM` and a
+          second, because it never started serving and so is holding nothing
+          worth draining, and then the same `SIGKILL`.
+
+        The escalation is not a timeout that hides a hang: it says which of the
+        two it killed, so a worker that never ran its event loop is still
+        reported as one rather than as a slow shutdown.
+
+        What delegating also carried was `BaseReload.shutdown`'s Windows branch,
+        which sets `should_exit` instead of terminating. It is not reproduced:
+        this module is PID 1 of a Linux container and the entrypoint of
+        `agenticos server run --reload`, and a branch nothing here can exercise
+        is a branch that rots. On Windows the worker is terminated rather than
+        asked, which is what `Multiprocess` does there anyway.
         """
         silent_for = self._silent_for()
         if silent_for is not None:
@@ -291,7 +344,31 @@ class SupervisedReload(ChangeReload):
                 silent_for,
             )
             self.process.kill()
-        super().shutdown()
+        else:
+            self.process.terminate()
+
+        never_beaten = self._beat.value == NOT_YET_BEATEN
+        grace = STOP_GRACE_BEFORE_THE_FIRST_BEAT if never_beaten else STOP_GRACE
+        self.process.join(timeout=grace)
+        if self.process.exitcode is None:
+            if never_beaten:
+                logger.error(
+                    "Server process [%s] never ran its event loop and ignored SIGTERM for %.0fs. Killing it.",
+                    self.process.pid,
+                    grace,
+                )
+            else:
+                logger.error(
+                    "Server process [%s] did not finish draining in %.0fs. Killing it.",
+                    self.process.pid,
+                    grace,
+                )
+            self.process.kill()
+            self.process.join()
+
+        for sock in self.sockets:
+            sock.close()
+        logger.info("Stopping reloader process [%s]", self.pid)
 
     def _replace_a_dead_worker(self) -> None:
         """Reap a worker that is gone, and replace it if a signal took it.
@@ -380,7 +457,7 @@ class SupervisedReload(ChangeReload):
 
 
 def wedged_after_from_environment() -> float:
-    """Read `RELOAD_WEDGED_AFTER`, the one knob on the wedge check.
+    """Read `EVENT_LOOP_WEDGED_AFTER`, the one knob on the wedge check.
 
     Seconds without a beat before the worker is replaced; `0` switches the check
     off entirely, which is what a breakpoint needs. A value that is not a number

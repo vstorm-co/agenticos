@@ -104,6 +104,32 @@ describe("MembersTable", () => {
     expect(labels).not.toContain("owner");
   });
 
+  it("keeps each role's blurb in the list and out of the trigger", async () => {
+    // The blurb answers "which of these lets them build but not publish",
+    // which is a question about the set. Radix draws the selected item's
+    // `ItemText` in the closed trigger, so in `children` it became a second
+    // line of explanation inside `h-7 w-36`, wrapped, about a role already
+    // chosen.
+    render(
+      <MembersTable
+        members={[member()]}
+        currentUserId="somebody-else"
+        canManage
+        onRoleChange={vi.fn()}
+        onRemove={vi.fn()}
+      />,
+      { wrapper },
+    );
+
+    const picker = await screen.findByLabelText("Role for dev@acme.test");
+    expect(picker).toHaveTextContent("member");
+    expect(picker).not.toHaveTextContent("Uses what is shared with them");
+
+    await userEvent.click(picker);
+    const viewer = screen.getByRole("option", { name: "viewer" });
+    expect(within(viewer).getByText("Reads only")).toBeVisible();
+  });
+
   it("shows the owner as a badge rather than a control", () => {
     render(
       <MembersTable

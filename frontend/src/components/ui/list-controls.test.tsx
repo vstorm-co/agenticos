@@ -79,16 +79,38 @@ describe("Pager", () => {
   it("renders nothing at all when one page holds everything", () => {
     // A control that cannot do anything is one somebody reaches for anyway.
     const { container } = render(
-      <Pager page={0} pageCount={1} matched={4} total={4} onPage={() => {}} noun="servers" />,
+      <Pager page={0} pageCount={1} matched={4} total={4} onPage={() => {}} counted="4 servers" />,
     );
 
     expect(container).toBeEmptyDOMElement();
   });
 
   it("still reports a filtered count on a single page", () => {
-    render(<Pager page={0} pageCount={1} matched={3} total={40} onPage={() => {}} noun="skills" />);
+    render(
+      <Pager page={0} pageCount={1} matched={3} total={40} onPage={() => {}} counted="40 skills" />,
+    );
 
     expect(screen.getByText("3 of 40 skills")).toBeInTheDocument();
+  });
+
+  it("frames the count it is handed and owns no noun of its own", () => {
+    // What this replaces took `noun="skills"` and built `{matched} of {total}
+    // {noun}`, so `3 of 40 skills` rendered verbatim under `pl` - English is the
+    // only language where a noun beside a number needs no agreement. The noun
+    // now arrives already inside an ICU plural, from the caller's namespace, and
+    // the pager cannot tell one language from another.
+    render(
+      <Pager
+        page={0}
+        pageCount={2}
+        matched={3}
+        total={40}
+        onPage={() => {}}
+        counted="40 umiejętności"
+      />,
+    );
+
+    expect(screen.getByText("3 of 40 umiejętności · page 1 of 2")).toBeInTheDocument();
   });
 
   it("moves a page when asked", async () => {
@@ -100,7 +122,7 @@ describe("Pager", () => {
         matched={120}
         total={120}
         onPage={(p) => pages.push(p)}
-        noun="servers"
+        counted="120 servers"
       />,
     );
 
@@ -112,7 +134,14 @@ describe("Pager", () => {
 
   it("cannot step off either end", () => {
     render(
-      <Pager page={0} pageCount={2} matched={60} total={60} onPage={() => {}} noun="skills" />,
+      <Pager
+        page={0}
+        pageCount={2}
+        matched={60}
+        total={60}
+        onPage={() => {}}
+        counted="60 skills"
+      />,
     );
 
     expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();

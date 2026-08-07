@@ -63,6 +63,13 @@ half of the tree for each of the two unit suites. `e2e` is exempted from neither
 half. `lint` is never gated at all, because `make lint-spelling` is the only thing
 that reads every tracked file.
 
+The second exemption stops short of one directory. `frontend/src/app/api/**` is
+the BFF, and `backend/tests/api/test_bff_forwarded_paths.py` checks the
+`/api/v1/…` paths those handlers hard-code against the backend's own route table
+— so a change to a proxy runs the backend suite too. Skipping it there would be
+the same green-with-a-gate-missing failure as above, on the one test written to
+catch it.
+
 Two details the timid direction needs in order to actually hold, both of which the
 first version of this got wrong:
 

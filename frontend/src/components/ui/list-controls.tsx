@@ -105,22 +105,32 @@ export function Pager({
   matched,
   total,
   onPage,
-  noun,
+  counted,
 }: {
   page: number;
   pageCount: number;
   matched: number;
   total: number;
   onPage: (page: number) => void;
-  /** Plural, for the count line: "servers", "skills". */
-  noun: string;
+  /**
+   * `total`, already counted through an ICU plural: "40 skills", "1 server".
+   *
+   * A word rather than a phrase was what this used to take - `noun="skills"`,
+   * six call sites, six English words - and `{matched} of {total} {noun}`
+   * rendered `3 of 40 skills` under `pl`. English is the only language where a
+   * noun beside a number needs no agreement; Polish declines it three ways, so
+   * the noun has to sit *inside* the plural and no parameter can carry it.
+   *
+   * Formatted by the caller because the noun belongs to the caller's namespace:
+   * `mcp.serverCount`, `pages.skills.skillCount`. `ui` would otherwise collect a
+   * count message for every list in the product (#362).
+   */
+  counted: string;
 }) {
   const t = useTranslations("ui");
   if (pageCount <= 1) {
     return matched === total ? null : (
-      <p className="text-muted-foreground text-xs">
-        {t("matchedOfTotal", { matched, total, noun })}
-      </p>
+      <p className="text-muted-foreground text-xs">{t("matchedOfTotal", { matched, counted })}</p>
     );
   }
 
@@ -128,8 +138,8 @@ export function Pager({
     <div className="flex flex-wrap items-center justify-between gap-2">
       <p className="text-muted-foreground text-xs">
         {matched === total
-          ? t("pagerAll", { total, noun, page: page + 1, pageCount })
-          : t("pagerMatched", { matched, total, noun, page: page + 1, pageCount })}
+          ? t("pagerAll", { counted, page: page + 1, pageCount })
+          : t("pagerMatched", { matched, counted, page: page + 1, pageCount })}
       </p>
       <div className="flex items-center gap-1">
         <Button

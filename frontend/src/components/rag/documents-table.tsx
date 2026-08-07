@@ -6,7 +6,8 @@ import { useTranslations } from "next-intl";
 
 import { Button, DataTable, type Column } from "@/components/ui";
 import { EmptyState } from "@/components/states";
-import { DocumentProvenance, DocumentStatusBadge } from "@/components/rag/document-cells";
+import { DocumentProvenance } from "@/components/rag/document-cells";
+import { RagStatusBadge } from "@/components/rag/rag-status-badge";
 import { downloadKBDocument } from "@/lib/rag-api";
 import { formatBytes } from "@/lib/utils";
 import type { KBDocument } from "@/types";
@@ -103,7 +104,7 @@ export function DocumentsTable({
       {
         key: "status",
         header: t("status2"),
-        cell: (doc) => <DocumentStatusBadge status={doc.status} message={doc.error_message} />,
+        cell: (doc) => <RagStatusBadge status={doc.status} message={doc.error_message} />,
       },
       {
         key: "actions",
@@ -188,8 +189,17 @@ export function DocumentsTable({
               {isLoadingMoreDocs ? t("loading") : t("loadMore")}
             </Button>
           )}
+          {/* The count is for everybody; the hint beside it is an instruction
+              to do something a Viewer cannot, so it is gated like every other
+              write affordance on this page rather than rendered and refused. */}
           <p className="text-muted-foreground text-center text-xs">
             {t("showingOfTotal", { loaded: documents.length, total: documentsTotal })}
+            {mayEdit && (
+              <>
+                {" · "}
+                {t("dragFilesToAdd")}
+              </>
+            )}
           </p>
         </div>
       )}
