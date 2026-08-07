@@ -1225,6 +1225,15 @@ async def list_approvals(
     Both the page and the count are narrowed by the same filters. They are two
     queries, and a filter reaching one and not the other gives a total that
     describes different rows from the page under it.
+
+    `created_at` alone is not an order, so `id` breaks the ties - and here they
+    are the ordinary case rather than a coincidence. A run parks on *all* of its
+    outstanding calls at once, in one loop inside one transaction, and
+    `created_at` is `server_default=func.now()`, which Postgres answers with the
+    *transaction* timestamp. So every call a fan-out parked carries a
+    byte-identical value, their relative order is the planner's to choose, and a
+    page boundary drawn through them lets one row come back on two pages or on
+    neither.
     """
     narrowing = filters or ApprovalFilters()
     triggered_by = aliased(User)
@@ -1262,7 +1271,7 @@ async def list_approvals(
         .outerjoin(triggered_by, triggered_by.id == AgentRun.user_id)
         .outerjoin(decided_by, decided_by.id == ToolApproval.decided_by_user_id)
         .where(*clauses)
-        .order_by(ordering)
+        .order_by(ordering, ToolApproval.id)
         .offset(skip)
         .limit(limit)
     )

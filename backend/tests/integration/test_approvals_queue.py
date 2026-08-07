@@ -292,3 +292,29 @@ class TestTheOrderTheQueueDrainsIn:
         rows, _ = await ApprovalService(db).list_approvals(_ctx(org, owner), oldest_first=False)
 
         assert [row.id for row in rows] == [fresh.id, ancient.id]
+
+    async def test_calls_parked_by_one_run_still_have_a_total_order(self, db) -> None:
+        """A run parks on *all* of its outstanding calls at once, in one loop
+        inside one transaction, and `created_at` is `server_default=func.now()` -
+        the transaction timestamp. So a fan-out's approvals share an instant
+        exactly, not by coincidence, and `ORDER BY created_at` alone leaves their
+        relative order to the planner: a page boundary drawn through them lets a
+        row come back on two pages or on neither. `id` is the secondary key that
+        makes the order total."""
+        org, owner = await _org(db)
+        agent = await _agent(db, org)
+        run = await _run(db, org, agent, started_by=owner)
+        parked = [await _approval(db, org, run) for _ in range(5)]
+
+        expected = sorted(str(approval.id) for approval in parked)
+
+        service = ApprovalService(db)
+        paged: list[str] = []
+        for skip in (0, 2, 4):
+            rows, _ = await service.list_approvals(_ctx(org, owner), skip=skip, limit=2)
+            paged.extend(str(row.id) for row in rows)
+
+        # No row repeats or is skipped across the three pages, and the order is
+        # the one the tiebreaker fixes.
+        assert paged == expected
+        assert len(set(paged)) == 5
