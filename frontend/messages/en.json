@@ -800,7 +800,7 @@
     "modelPicker": {
       "chooseProvider": "Choose a provider",
       "model": "Model",
-      "noProviderKey": "No {provider} key in the vault yet. Add one below.",
+      "noProviderKey": "No {provider} key in the vault yet.",
       "provider": "Provider",
       "runModel": "Run on this model"
     },
@@ -2991,6 +2991,7 @@
     "shownNextPickerWhich": "Shown next to the picker - which account this is, whose it is, anything the next person needs.",
     "storeSecret": "Store secret",
     "storedOrganizationAposS": "Stored in this organization's vault, encrypted, and never shown again.",
+    "storingNeedsPermission": "Storing a key needs a permission you do not hold. Somebody who can manage this organization's vault has to add it.",
     "usedBy": "Used by",
     "visibilityOrg": "Organization",
     "visibilityPrivate": "Private",

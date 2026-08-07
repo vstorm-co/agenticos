@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ObservabilityCard } from "./observability-card";
 import type { ObservabilitySpec } from "@/types/agents";
+import { Perm } from "@/types/permissions";
+import type { Permission } from "@/types/permissions";
 
 interface Secret {
   id: string;
@@ -18,9 +20,17 @@ const state = {
   // The inline form writes through `useSecrets().create`, and what this card owes
   // it is the callback: a key added there is the key selected here.
   create: { mutate: vi.fn(), isPending: false },
+  // And whether it may write at all: storing the token is `secrets:edit`, which
+  // an agent editor need not hold.
+  permissions: [] as Permission[],
 };
 
-vi.mock("@/hooks", () => ({ useSecrets: () => state }));
+vi.mock("@/hooks", () => ({
+  useSecrets: () => state,
+  usePermissions: () => ({
+    can: (permission: Permission) => state.permissions.includes(permission),
+  }),
+}));
 
 function secret(overrides: Partial<Secret> = {}): Secret {
   return {
@@ -43,6 +53,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.secrets = [secret()];
   state.create = { mutate: vi.fn(), isPending: false };
+  state.permissions = [Perm.secretsEdit];
 });
 
 describe("the tracing card", () => {
@@ -90,6 +101,19 @@ describe("the tracing card", () => {
       screen.getByRole("button", { name: "Add a key: Logfire write token" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Open the Vault/ })).toBeInTheDocument();
+  });
+
+  it("offers no such form to somebody who may not write to the vault", () => {
+    // Editing an agent is `agents:edit`; storing the token it traces with is
+    // `secrets:edit`, and this card asked nobody until #361. The picker stays -
+    // the deployment's own project is still a choice - and only the write goes.
+    state.secrets = [];
+    state.permissions = [];
+    mount();
+
+    expect(screen.getByLabelText("Write token")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add a key: Logfire write token" })).toBeNull();
+    expect(screen.getByText(/permission you do not hold/)).toBeInTheDocument();
   });
 
   it("selects a token added inline, so nobody has to re-pick it", async () => {
