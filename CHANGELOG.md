@@ -19,6 +19,28 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.68] - 2026-08-07
+
+### Security
+
+- An app admin's password reset was written to the audit trail in plaintext. The
+  request body was dumped into `app_admin_audit_logs.details`, so resetting a
+  password recorded it (#412).
+- A refusal's `details` described the server rather than the refusal: an upstream
+  client's exception text on a 503, container filesystem paths on a 500, and a
+  provider base URL echoed back on four validation errors — one of which exists
+  *because* the URL carries a password. The diagnosis moves to the log; the
+  response names the field that explains the refusal (#342).
+- A sandbox address could carry userinfo, which `probe_policy` echoed into both
+  the response and the log. `ServiceAddress` was the only one of the three URL
+  validators not refusing credentials.
+
+### Fixed
+
+- The capability registry echoed a rejected configuration back to the caller in a
+  400, unlike the identical call one module over.
+
+
 ## [0.0.67] - 2026-08-07
 
 ### Security
