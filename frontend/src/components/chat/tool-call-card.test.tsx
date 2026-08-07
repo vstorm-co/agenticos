@@ -25,7 +25,7 @@ const servers = vi.hoisted(() => ({ list: [] as { name: string; url: string }[] 
 vi.mock("@/hooks", () => ({
   useMcpToolServers: () => servers.list,
   useConversationWorkspace: () => ({ workspace: null, isLoading: false, error: null }),
-  useFileDownload: () => ({ download: () => {}, error: null }),
+  useFileActions: () => ({ download: () => {}, openInNewTab: () => {}, error: null }),
 }));
 
 function card(overrides: Partial<ToolCall> = {}) {
@@ -262,8 +262,10 @@ describe("a tool call in the transcript", () => {
     expect(screen.queryByTestId("chart")).toBeNull();
     chart.unmount();
 
+    // On the code, not on the block it opens: a finished `run_python` closes its code
+    // in favour of its output, so an absent code block says nothing about the step.
     const python = card({ name: "run_python", args: { code: "print(1)" }, result: "stdout:\n1" });
-    expect(screen.queryByTestId("markdown")).toBeNull();
+    expect(screen.queryByText("python")).toBeNull();
     python.unmount();
 
     card({
