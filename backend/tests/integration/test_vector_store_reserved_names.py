@@ -39,7 +39,6 @@ async def _no_collection_of_its_own(name: str) -> None:
     answers `None` is the state this helper was always describing, and it is what
     sends the store to its deployment defaults.
     """
-    return None
 
 
 def _store_on(engine: AsyncEngine) -> PgVectorStore:
