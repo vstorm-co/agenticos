@@ -14,9 +14,12 @@ const listedSecrets = vi.fn<() => { id: string; purpose: string }[]>(() => []);
 const listedModels = vi.fn<() => ProviderModel[]>(() => []);
 const mutateAsync = vi.fn();
 /**
- * Two permissions, and this picker needs both to be fully usable: choosing a
- * model creates an organization-wide profile (`connections:manage`), and the key
- * it runs on is a vault write (`secrets:edit`).
+ * Two permissions, and this picker needs both. Choosing a model creates an
+ * organization-wide profile (`connections:manage`), which is the gate on the form
+ * itself; the key it runs on is a vault write (`secrets:edit`), which is the gate
+ * inside `InlineSecret`. Everything below describes the form, so it holds both.
+ * `chat-model-picker.integration.test.tsx` covers the outer gate against the real
+ * hook.
  */
 const held: { permissions: Permission[] } = { permissions: [] };
 
@@ -24,6 +27,9 @@ vi.mock("@/hooks", () => ({
   useModelProviders: () => ({
     profiles: listedProfiles(),
     createProfile: { mutateAsync, isPending: false },
+  }),
+  usePermissions: () => ({
+    can: (permission: Permission) => held.permissions.includes(permission),
   }),
   useProviderModels: () => ({ models: listedModels(), source: "curated", isLoading: false }),
   useSecretPurposes: () => ({ purposes: PURPOSES, isLoading: false }),
