@@ -44,6 +44,11 @@ export function useRuns(agentId?: string, options?: { enabled?: boolean; started
       );
     },
     enabled: options?.enabled ?? true,
+    // The RUNS figure and the Run history tab are left open while an agent runs
+    // and read back on return, so they carry the dashboard's freshness like the
+    // spend figure beside them; on the app-wide five-minute cache the list only
+    // moves on a full page reload.
+    ...DASHBOARD_FRESHNESS,
   });
   return { runs: data?.items ?? [], total: data?.total ?? 0, isLoading, error, refetch };
 }
