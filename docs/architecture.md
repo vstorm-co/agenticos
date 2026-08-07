@@ -89,7 +89,8 @@ type rather than as data access.
 ### Repositories (`repositories/`)
 - Database operations only
 - No business logic
-- Uses `db.flush()` not `commit()` (the dependency-injected session manages transactions)
+- Uses `db.flush()` not `commit()` — the request's session owns the transaction,
+  and [commits it before the response is sent](#the-requests-transaction)
 - Returns domain models
 
 ### Schemas (`schemas/`)
@@ -102,8 +103,63 @@ type rather than as data access.
 
 ### RAG Connectors (`rag/connectors/`)
 - Pluggable sync adapters that implement `BaseSyncConnector`
-- Each connector provides `list_files()` and `download_file()`
+- Each connector provides `list_files()` and `_fetch()`; `download_file()` is
+  the base class's, and is what decides where a remote name may be written
 - Registered in `CONNECTOR_REGISTRY` for discovery at runtime
+
+## The request's transaction
+
+One request, one session, one transaction, committed in one place — and the place
+matters as much as the fact.
+
+A route asks for `DBSession` (`app/api/deps.py`), which resolves `get_db_session`
+(`app/db/session.py`). Everything below the route shares that one session:
+services take it in their constructor, repositories take it as their first
+argument, and neither ever calls `commit()`. `flush()` sends the statements so
+the row has an id and the constraints have been checked; the commit happens once,
+on the way out.
+
+**On the way out means before the response is written.** The alias declares
+`Depends(get_db_session, scope="function")`, which registers the session's exit
+code on the exit stack FastAPI unwinds between the path operation returning and
+`await response(scope, receive, send)`. So the order for a request is:
+
+1. the route returns, and `response_model` serializes what it returned;
+2. the transaction commits — or, if anything raised, rolls back;
+3. the response is written to the socket;
+4. the session is closed.
+
+That ordering is the whole contract, and it is what lets a client act on its own
+answer: **a 2xx means the write is readable, not merely accepted.** FastAPI's
+default for a dependency with `yield` is `scope="request"`, which puts steps 2
+and 3 the other way round — and did here until [#353][353], where an acceptance
+answered 204 while the membership row it created stayed invisible to the very
+next request for 21.7ms, and an invitation token was spent 34ms before the
+transaction that minted it committed.
+
+Three consequences worth knowing before writing a route:
+
+- **A commit that fails is a 500, not a log line.** The response has not been
+  written yet, so a deferred constraint or a lost connection reaches the client
+  as an error rather than being discovered behind an already-sent 2xx.
+- **Anything that swallows a database error must reset the session.** A statement
+  that raised leaves its transaction aborted, and the commit in step 2 raises
+  too. The health probes (`app/services/health.py`) are the case in the codebase:
+  they refuse to propagate, on purpose, so they roll back before returning.
+- **A body produced while the response is being sent needs a different session.**
+  A `StreamingResponse` over a generator is iterated during step 3, by which time
+  the session is closed. Those endpoints take `StreamingDBSession`, which keeps
+  FastAPI's default scope and is therefore read-only: its transaction resolves
+  after the client has been answered. Exactly one endpoint uses it — the ratings
+  CSV export — and `tests/api/test_db_session_scope.py` refuses a second without
+  a decision being made about it.
+
+Work that outlives the request does not use this session at all. WebSocket
+handlers and CLI commands open `get_db_context()`, and worker tasks
+`get_worker_db_context()`; both commit on a clean exit of their own `async with`,
+which has nothing to do with a response.
+
+[353]: https://github.com/vstorm-co/agenticos/issues/353
 
 ## Agent runs: a capability never fetches
 
@@ -301,15 +357,21 @@ Documents -> Parse -> Chunk -> Embed -> Vector Store
 User Query -> Embed -> Search -> Rerank? -> Results -> Agent Prompt
 ```
 
-### Key Principle: RAG is Global
+### Key Principle: the collection is the unit of access
 
-**Collections are shared across ALL users.** There is no per-user document
-isolation. This means:
+**Collections are not global.** Each one is owned by a `knowledge_bases` row, and
+that row is the only half of the pair that knows an organization — so every `/rag`
+and `/kb` route resolves the name through `app/services/collection_access.py` before
+touching a vector, a document or a sync source. Reading takes `collections:view`
+reaching that row and writing takes `collections:edit`, either of which an explicit
+grant widens on one collection without promoting anybody.
 
-- Any authenticated user can **search** any collection.
-- Only **admins** can create/delete collections, upload documents, configure sync
-  sources, and view sync logs.
-- The knowledge base serves as an organization-wide shared resource.
+Within a collection there is no per-document isolation: reaching one reaches every
+document in it.
+
+[Who may reach a collection](file-processing.md#who-may-reach-a-collection) is the
+whole rule, scope by scope and operation by operation. This page does not keep a
+second copy of it.
 
 ### Components
 
@@ -327,7 +389,8 @@ isolation. This means:
 Documents can be ingested via:
 
 1. **CLI** -- `uv run agenticos cmd rag-ingest <path>`
-2. **API** -- `POST /api/v1/rag/collections/{name}/ingest` (admin only, file upload)
+2. **API** -- `POST /api/v1/rag/collections/{name}/ingest` (file upload, gated on
+   `collections:edit` reaching that collection)
 3. **Sync Sources** -- Configured connectors (Google Drive, S3) that pull documents
    on a schedule or on-demand.
 
@@ -349,5 +412,8 @@ Each ingested document gets:
 ### Sync Connectors
 
 Remote document sources use pluggable connectors in `rag/connectors/`. Each
-connector implements `BaseSyncConnector` with `list_files()` and `download_file()`
-methods. See `docs/patterns.md` for how to add a new connector.
+connector implements `BaseSyncConnector` with `list_files()` and `_fetch()`.
+`download_file()` stays the base class's: it resolves the remote name against
+the sync directory and confirms containment before handing an implementation a
+path, so a connector cannot decide where a file lands. See `docs/patterns.md`
+for how to add a new connector.

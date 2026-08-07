@@ -226,7 +226,12 @@ belongs to no collection, so there is no stored configuration to read.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `GOOGLE_DRIVE_CREDENTIALS_FILE` | `credentials/google-drive-sa.json` | Path to Google service account credentials |
+| `GOOGLE_DRIVE_CREDENTIALS_FILE` | `credentials/google-drive-sa.json` | Path to Google service account credentials, for `rag-sync-gdrive` only |
+
+**This is the CLI's credential, not a fallback for a sync source.** A `gdrive`
+sync source carries its own `service_account_json` and runs on that or does not
+run: a deployment-wide key standing in for a missing field meant a tenant's
+`folder_id` chose what was listed under the operator's service account.
 
 The file is a service account's key: [Cloud console](https://console.cloud.google.com/iam-admin/serviceaccounts)
 → create a service account → Keys → Add key → JSON. Then **share the Drive

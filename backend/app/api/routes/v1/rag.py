@@ -40,6 +40,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
 from fastapi.responses import FileResponse
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.api.deps import (
     Auth,
@@ -188,10 +189,15 @@ async def drop_collection(
     collection returned.
 
     The vector table may not exist yet for a zero-document KB, so the
-    vector-store drop is best-effort; the KB + SQL cleanup still runs.
+    vector-store drop is best-effort - but only against the database. It used to
+    suppress `Exception`, which now also covers the store *refusing* the name:
+    the drop would be skipped, the row and the document records deleted anyway,
+    and the table left behind with nobody left who can name it. `SQLAlchemyError`
+    is the "no such table" case this was written for; a `BadRequestError` is the
+    store saying it will not touch that name, and the caller has to hear it.
     """
     collection = await access.writable(ctx, name)
-    with contextlib.suppress(Exception):
+    with contextlib.suppress(SQLAlchemyError):
         await vector_store.delete_collection(collection.collection_name)
     await rag_doc_svc.delete_by_collection(collection.collection_name)
     await kb_svc.delete_for_rag_collection(collection)
