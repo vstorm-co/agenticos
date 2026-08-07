@@ -215,7 +215,7 @@ is needed.
 
 Parser, OCR, chunk size, chunk overlap, chunking strategy and the
 image-description model are **not** environment variables. They are stored on
-each knowledge base (`knowledge_bases.ingestion_config`) and edited on `/kb`,
+each knowledge base (`knowledge_bases.ingestion_config`) and edited on `/rag`,
 and any one of them can additionally be overridden for a single upload.
 
 The reason is that one installation-wide value made the same form produce

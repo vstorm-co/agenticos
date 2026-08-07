@@ -103,7 +103,7 @@ describe("a stale organization does not permanently empty the navigation", () =>
     // What the fix adds: the refusal is recognised, the selection moves to an
     // organization the caller belongs to, and the nav comes back on its own.
     await waitFor(() => expect(screen.getByText("agents")).toBeInTheDocument());
-    for (const entry of ["skills", "activity", "knowledgeBases", "ragSearch"]) {
+    for (const entry of ["skills", "activity", "knowledgeBases"]) {
       expect(screen.getByText(entry)).toBeInTheDocument();
     }
     expect(useOrgStore.getState().activeOrgId).toBe(PERSONAL);
