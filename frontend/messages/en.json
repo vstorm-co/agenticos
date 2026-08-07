@@ -904,7 +904,8 @@
       "workspace": "Your workspace",
       "build": "Your agents",
       "adoption": "How your builds behave",
-      "health": "Health"
+      "health": "Health",
+      "sandboxes": "Where agents run code"
     },
     "actions": {
       "newChat": "New chat",
@@ -1220,6 +1221,73 @@
         "empty": {
           "title": "Nothing shared yet",
           "description": "When somebody shares an agent, a collection or a skill, it counts here."
+        }
+      },
+      "sandbox-capacity": {
+        "title": "Sandbox capacity",
+        "openOfTenantLimit": "{used} of {limit}",
+        "openUncapped": "{count, plural, =1 {1 open} other {# open}}",
+        "elsewhere": "Runs on Daytona - those sandboxes are counted in that account, not here.",
+        "subline": "Open sandboxes against the ceiling that applies to this organization - the number a 429 comes from.",
+        "hostUncounted": "How full a host itself is cannot be shown here. Its own two ceilings are shared with every organization on it and no count of them is published, so this is the only figure that divides. Being refused a sandbox while this one is short of its ceiling means somebody else filled the host.",
+        "empty": {
+          "title": "No sandbox host registered",
+          "description": "Register one and the room left for agents to run code lands here."
+        }
+      },
+      "sandbox-sessions": {
+        "title": "Open sandboxes",
+        "runningOn": "on {name}",
+        "sampleUsage": "Memory",
+        "sampleUsageHint": "Sample memory and CPU - one round trip to the host per sandbox",
+        "nothingRunning": "Nothing is running. A sandbox opens the first time an agent runs code.",
+        "unattributed": "No agent recorded",
+        "memoryOfLimit": "{used} of {limit}",
+        "activityOf": "Show what was done in sandbox {id}",
+        "showActivity": "Activity",
+        "hideActivity": "Hide",
+        "noActivity": "Nothing recorded for this sandbox yet.",
+        "tookMs": "{ms}ms",
+        "scope": {
+          "run": "one run only",
+          "agent": "shared across the whole agent",
+          "conversation": "shared in one conversation",
+          "channel": "shared in one channel",
+          "user": "shared by one person",
+          "unknown": "a scope this version does not recognise"
+        },
+        "idle": {
+          "seconds": "{count}s idle",
+          "minutes": "{count}m idle",
+          "hours": "{count}h idle"
+        },
+        "empty": {
+          "title": "No sandbox host registered",
+          "description": "Register one and the sandboxes your agents open land here."
+        },
+        "elsewhere": {
+          "title": "Sandboxes run on Daytona",
+          "description": "Sessions opened there appear in that account's own dashboard, not here."
+        }
+      },
+      "sandbox-policy": {
+        "title": "Sandbox runtimes",
+        "ceilings": {
+          "perOrganization": "This organization",
+          "hostResident": "Resident, host-wide",
+          "hostOpen": "Open, host-wide"
+        },
+        "default": "default",
+        "noMemoryCeiling": "no ceiling",
+        "noRuntime": "This service allows no runtime, so no agent can run code on it.",
+        "subline": "Ceilings, not counts. The host-wide two are shared with every organization on it and nothing publishes how many are in use, so only the per-organization figure can be drawn as a fraction. All of this is the service's own environment, set where it starts.",
+        "empty": {
+          "title": "No sandbox host registered",
+          "description": "Register one and the runtimes it allows land here."
+        },
+        "elsewhere": {
+          "title": "Sandboxes run on Daytona",
+          "description": "Daytona publishes no allowlist of its own - what it permits is a setting on that account."
         }
       }
     }

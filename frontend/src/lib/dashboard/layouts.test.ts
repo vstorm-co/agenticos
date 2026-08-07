@@ -60,6 +60,17 @@ describe("the layouts", () => {
       expect(LAYOUTS[audience][0]?.titleKey).toBeNull();
     }
   });
+
+  it("offers the sandbox section only where a gate could pass it", () => {
+    // `connections:manage` is held by owner, admin and builder - and not by
+    // operator, whatever the persona suggests (`ROLE_PERMS`). Listing the section
+    // on the operator layout would be an entry no caller can ever see.
+    const carrying = AUDIENCES.filter((audience) =>
+      LAYOUTS[audience].some((section) => section.id === "sandboxes"),
+    );
+
+    expect(carrying).toEqual(["app_admin", "steward", "builder"]);
+  });
 });
 
 describe("visibleSections", () => {
@@ -99,5 +110,24 @@ describe("visibleSections", () => {
     const sections = visibleSections("steward", () => true, false);
 
     expect(sections.map((section) => section.id)).not.toContain("deployment");
+  });
+
+  it("withholds the sandbox section, heading included, without connections:manage", () => {
+    // Not rendered and then 403'd: a caller who cannot ask a host what it runs
+    // must not be told the section exists.
+    const sections = visibleSections("steward", holds(Perm.runsView, Perm.membersManage), false);
+
+    expect(sections.map((section) => section.id)).not.toContain("sandboxes");
+  });
+
+  it("gives the sandbox section to a caller holding connections:manage and nothing else", () => {
+    const sections = visibleSections("builder", holds(Perm.connectionsManage), false);
+
+    expect(sections.map((section) => section.id)).toEqual(["sandboxes"]);
+    expect(sections[0]?.entries.map((entry) => entry.widget)).toEqual([
+      "sandbox-capacity",
+      "sandbox-policy",
+      "sandbox-sessions",
+    ]);
   });
 });

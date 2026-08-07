@@ -95,7 +95,9 @@ The layouts, in the order each page reads:
   the adoption count that summarises it), then *People &amp; quality* —
   members with a per-role split and a "View members" link, beside the
   answer-quality trend. Members is deliberately **not** under Needs
-  attention: a headcount is context, not a queue. Workspace last.
+  attention: a headcount is context, not a queue. Then *Where agents run
+  code* — the sandbox zone #129 added, gated on `connections:manage`.
+  Workspace last.
 - **Operator** — *Needs attention* first and widest: the approvals queue
   beside recent failures, because both are the operator's inbox. Then
   *Health* (outcomes, latency, answer quality), then usage, workspace last.
@@ -105,7 +107,10 @@ The layouts, in the order each page reads:
   `agent_runs.agent_version_id`), adoption per agent, recent failures,
   answer quality, and the plumbing their agents stand on: MCP server health
   and knowledge-sync freshness, both of which fail quietly and take the
-  agent's tools or its knowledge with them. Then org usage. A builder holds
+  agent's tools or its knowledge with them. Then org usage, then the sandbox
+  zone — a builder is who gives an agent code execution, so the memory
+  ceiling it dies on is their question, and they hold `connections:manage`
+  where the operator does not. A builder holds
   `runs:view`, so the data is the same; the page just leads with what a
   builder can act on. (This also removes the old sore spot: builder held one
   small governance card and three-quarters of a row of air.)
@@ -449,9 +454,6 @@ the product.
   navigation, not a request flow.
 - **An audit strip** (`audit:read`) — the audit log has its own page;
   duplicating it here earns nothing yet.
-- **Sandbox capacity / sessions / activity** — issue #129 owns that view and
-  its data layer already exists. The zone model absorbs it cleanly later: one
-  more section, gated on `connections:manage`.
 - **Deployment-wide time series.** `/admin/stats` is point-in-time counts;
   giving the app admin adoption curves would mean cross-tenant aggregation
   with its own questions. The strip stays counts-plus-health for now.

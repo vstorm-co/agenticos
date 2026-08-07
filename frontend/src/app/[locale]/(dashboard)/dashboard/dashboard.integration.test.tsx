@@ -119,7 +119,22 @@ const RATINGS = {
 };
 
 function respond(path: string, options?: { params?: Record<string, string> }): unknown {
+  // The sandbox cards carry their query in the path rather than in params, so
+  // they are matched before the switch. What they answer is exercised properly in
+  // `widgets/sandbox.integration.test.tsx`; here it only has to be well-shaped.
+  if (path.startsWith("/sandbox-connections/")) {
+    return path.includes("/policy")
+      ? { kind: "docker", runtimes: [], default_runtime: null, max_sessions_per_tenant: 8 }
+      : { sessions: [], limit: null, open_limit: null, tenant_limit: 8 };
+  }
   switch (path) {
+    case "/sandbox-connections":
+      return {
+        items: [
+          { id: "sb1", name: "Local Docker", kind: "docker", is_default: true, is_active: true },
+        ],
+        total: 1,
+      };
     case "/stats/usage":
       if (options?.params?.group_by === "user") {
         return { ...USAGE, by_user: PEOPLE };
@@ -274,12 +289,13 @@ beforeEach(() => {
 });
 
 describe("the steward's dashboard", () => {
-  it("renders the four sections and reads org-scoped usage", async () => {
+  it("renders the five sections and reads org-scoped usage", async () => {
     render(<DashboardPage />, { wrapper });
 
     expect(screen.getByText("dashboard.sections.attention")).toBeInTheDocument();
     expect(screen.getByText("dashboard.sections.usage")).toBeInTheDocument();
     expect(screen.getByText("dashboard.sections.people")).toBeInTheDocument();
+    expect(screen.getByText("dashboard.sections.sandboxes")).toBeInTheDocument();
     expect(screen.getByText("dashboard.sections.workspace")).toBeInTheDocument();
     expect(screen.queryByText("dashboard.sections.deployment")).not.toBeInTheDocument();
 
@@ -355,6 +371,30 @@ describe("the steward's dashboard", () => {
     expect(screen.queryByText("dashboard.sections.attention")).not.toBeInTheDocument();
     // "deployment" is somebody else's section; a pasted URL cannot conjure it.
     expect(screen.queryByText("dashboard.sections.deployment")).not.toBeInTheDocument();
+  });
+});
+
+describe("the sandbox section", () => {
+  it("is there for a caller holding connections:manage, and asks the host about itself", async () => {
+    auth.can = holds("connections:manage");
+
+    render(<DashboardPage />, { wrapper });
+
+    expect(screen.getByText("dashboard.sections.sandboxes")).toBeInTheDocument();
+    await waitFor(() => expect(callsTo("/sandbox-connections").length).toBeGreaterThan(0));
+  });
+
+  it("is absent without it, and the browser never asks where agents run code", async () => {
+    // Not rendered, not rendered-then-403: an operator holds every other
+    // org-wide permission and still does not hold this one (`ROLE_PERMS`).
+    auth.role = "operator";
+    auth.can = holds("agents:view", "agents:run", "approvals:decide", "runs:view");
+
+    render(<DashboardPage />, { wrapper });
+
+    await waitFor(() => expect(callsTo("/stats/usage").length).toBeGreaterThan(0));
+    expect(screen.queryByText("dashboard.sections.sandboxes")).not.toBeInTheDocument();
+    expect(callsTo("/sandbox-connections")).toHaveLength(0);
   });
 });
 
