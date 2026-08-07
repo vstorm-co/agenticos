@@ -35,8 +35,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  Progress,
-  Skeleton,
   type Column,
   Alert,
   AlertDescription,
@@ -45,6 +43,9 @@ import {
 import { EmptyState, ErrorState } from "@/components/states";
 import { SyncSourceWizard } from "@/components/rag/sync-source-wizard";
 import { SyncSourceLogs } from "@/components/rag/sync-source-logs";
+import { KBDetailSkeleton } from "@/components/rag/kb-detail-skeleton";
+import { FileDropZone } from "@/components/rag/file-drop-zone";
+import { UploadProgressList } from "@/components/rag/upload-progress-list";
 import { BrandIcon, connectorBrand } from "@/components/icons/brand-icon";
 import { FileViewer } from "@/components/kb/file-viewer";
 import { IngestionDialog } from "@/components/kb/ingestion-dialog";
@@ -77,17 +78,6 @@ const SCOPE_META: Record<KBScope, { labelKey: string; icon: LucideIcon }> = {
 // for the KB's collection). They're typically few, so collapse past this count
 // behind a client-side "show all" toggle.
 const SYNC_SOURCES_VISIBLE = 10;
-
-/**
- * The `DataTransfer` type a dragged file carries, spelled as the DOM spells it.
- *
- * A machine value, not copy - and it was in `messages/en.json` as `files2` and
- * `files3`, where a translator opening `pl.json` would have been asked to
- * translate it. "Pliki" is never in `dataTransfer.types`, so the whole
- * drag-and-drop path would have gone quiet under `pl` with nothing on screen
- * explaining it.
- */
-const DRAGGED_FILES = "Files";
 
 interface KBDetailPageProps {
   params: Promise<{ id: string }>;
@@ -129,7 +119,6 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
   const { can } = usePermissions();
   const mayEdit = can(Perm.collectionsEdit);
 
-  const [isDragging, setIsDragging] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [creatingSource, setCreatingSource] = useState(false);
   const [syncSourcesExpanded, setSyncSourcesExpanded] = useState(false);
@@ -189,7 +178,6 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
   };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const dragCounterRef = useRef(0);
 
   useEffect(() => {
     refresh();
@@ -319,47 +307,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
   const scopeMeta = SCOPE_META[kb.scope];
 
   return (
-    <div
-      className="relative pb-8"
-      onDragEnter={(e) => {
-        if (e.dataTransfer.types.includes(DRAGGED_FILES)) {
-          dragCounterRef.current += 1;
-          setIsDragging(true);
-        }
-      }}
-      onDragLeave={() => {
-        dragCounterRef.current = Math.max(0, dragCounterRef.current - 1);
-        if (dragCounterRef.current === 0) setIsDragging(false);
-      }}
-      onDragOver={(e) => {
-        if (e.dataTransfer.types.includes(DRAGGED_FILES)) e.preventDefault();
-      }}
-      onDrop={(e) => {
-        e.preventDefault();
-        dragCounterRef.current = 0;
-        setIsDragging(false);
-        handleFiles(e.dataTransfer.files);
-      }}
-    >
-      {isDragging && (
-        <div className="bg-background/80 fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm">
-          <div className="border-foreground/30 bg-card flex flex-col items-center gap-4 rounded-xl border-2 border-dashed px-12 py-16">
-            <span className="bg-muted text-foreground inline-flex h-14 w-14 items-center justify-center rounded-xl">
-              <Upload className="h-6 w-6" />
-            </span>
-            <div className="text-center">
-              <p className="text-foreground text-lg font-semibold">{t("dropUpload")}</p>
-              <p className="text-muted-foreground mt-1 text-sm">
-                {t.rich("filesWillBeAddedTo", {
-                  name: kb.name,
-                  strong: (chunks) => <span className="text-foreground font-medium">{chunks}</span>,
-                })}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
+    <FileDropZone collectionName={kb.name} onFiles={handleFiles}>
       <input
         ref={fileInputRef}
         type="file"
@@ -516,33 +464,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
         </div>
       )}
 
-      {uploadProgress.length > 0 && (
-        <section className="border-border bg-card mb-6 space-y-3 rounded-xl border p-4">
-          {uploadProgress.map((up) => (
-            <div key={up.uploadId}>
-              <div className="mb-1.5 flex items-center justify-between gap-3 text-xs">
-                <span className="text-foreground flex min-w-0 items-center gap-2 font-medium">
-                  <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
-                  <span className="truncate" title={up.filename}>
-                    {up.filename}
-                  </span>
-                </span>
-                <span className="text-muted-foreground shrink-0 tabular-nums">
-                  {up.percent === null
-                    ? t("uploading2")
-                    : up.percent >= 100
-                      ? t("processing")
-                      : `${up.percent}%`}
-                </span>
-              </div>
-              <Progress
-                value={up.percent ?? undefined}
-                className={cn(up.percent === null && "animate-pulse")}
-              />
-            </div>
-          ))}
-        </section>
-      )}
+      <UploadProgressList uploads={uploadProgress} />
 
       <section className="mb-8">
         <h2 className="text-foreground mb-3 text-sm font-semibold">{t("documents")}</h2>
@@ -801,39 +723,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
           }
         }}
       />
-    </div>
-  );
-}
-
-/** Skeleton mirroring the page layout: header, meta strip, and a few doc rows. */
-function KBDetailSkeleton() {
-  return (
-    <div className="pb-8">
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-2">
-          <Skeleton className="h-3 w-40" />
-          <Skeleton className="h-7 w-56" />
-          <Skeleton className="h-4 w-72" />
-        </div>
-        <div className="flex gap-2">
-          <Skeleton className="h-9 w-24 rounded-lg" />
-          <Skeleton className="h-9 w-24 rounded-lg" />
-        </div>
-      </div>
-
-      <Skeleton className="mb-6 h-4 w-64" />
-
-      <Skeleton className="mb-3 h-4 w-24" />
-      <div className="border-border bg-card divide-border divide-y overflow-hidden rounded-xl border">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="flex items-center gap-3 px-4 py-3">
-            <Skeleton className="h-8 w-8 shrink-0 rounded-lg" />
-            <Skeleton className="h-4 flex-1" />
-            <Skeleton className="h-5 w-20 rounded-full" />
-          </div>
-        ))}
-      </div>
-    </div>
+    </FileDropZone>
   );
 }
 
