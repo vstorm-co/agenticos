@@ -91,6 +91,7 @@ PLATFORM_MODULES = (
     "app/services/model_profile.py",
     "app/services/notifications.py",
     "app/services/organization_secret.py",
+    "app/services/rag/remote_names.py",
     "app/services/sharing.py",
     "app/services/skills.py",
     "app/repositories/agent_environment.py",

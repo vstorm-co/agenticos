@@ -70,12 +70,24 @@ class S3Connector(BaseSyncConnector):
     }
 
     def _get_s3_client(self, config: dict):
-        """Build a boto3 S3 client from per-source config with settings fallback."""
+        """Build a boto3 S3 client from this source's own credentials.
+
+        The key and secret come from the source and nowhere else. They used to
+        fall back to `S3_RAG_ACCESS_KEY` / `S3_RAG_SECRET_KEY`, and that is the
+        same shape removed from the Drive connector alongside it: a fallback
+        means the caller's `bucket` chooses what is read under the *operator's*
+        identity rather than their own, which turns one field of a source's
+        configuration into a reach across organizations. Worse than the Drive
+        case, because both settings default to empty - so the fallback resolved
+        to `None`, boto3 fell through to the container's own credential chain,
+        and the reach was whatever the task role could see.
+
+        Only the endpoint and region still fall back. Neither names a principal;
+        they say where the store is, not who is asking.
+        """
         client_kwargs: dict[str, Any] = {
-            "aws_access_key_id": config.get("access_key_id") or settings.S3_RAG_ACCESS_KEY or None,
-            "aws_secret_access_key": config.get("secret_access_key")
-            or settings.S3_RAG_SECRET_KEY
-            or None,
+            "aws_access_key_id": config.get("access_key_id") or None,
+            "aws_secret_access_key": config.get("secret_access_key") or None,
             "region_name": config.get("region") or settings.S3_RAG_REGION,
         }
         endpoint = config.get("endpoint_url") or settings.S3_RAG_ENDPOINT
@@ -128,21 +140,16 @@ class S3Connector(BaseSyncConnector):
 
         return await asyncio.to_thread(_list)
 
-    async def download_file(
-        self, file: RemoteFile, dest_dir: Path, config: dict | None = None
-    ) -> Path:
-        """Download a file from S3."""
-        cfg = config or {}
+    async def _fetch(self, file: RemoteFile, dest_path: Path, config: dict) -> None:
+        """Download a file from S3 to the path the base class chose."""
         parts = file.source_path.replace("s3://", "").split("/", 1)
         bucket = parts[0]
 
-        def _download():
-            client = self._get_s3_client(cfg)
-            dest_path = dest_dir / file.name
+        def _download() -> None:
+            client = self._get_s3_client(config)
             client.download_file(bucket, file.id, str(dest_path))
             logger.info(
                 "Downloaded s3://%s/%s (%d bytes)", bucket, file.id, dest_path.stat().st_size
             )
-            return dest_path
 
-        return await asyncio.to_thread(_download)
+        await asyncio.to_thread(_download)
