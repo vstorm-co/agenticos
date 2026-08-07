@@ -19,6 +19,23 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.80] - 2026-08-07
+
+### Fixed
+
+- **166 values came out of `messages/en.json`**: 18 Tailwind class lists, still
+  being read back through `cn(t("…"))` so a translator opening `pl.json` was
+  asked to translate CSS, and 148 fragments of JavaScript source that nothing
+  read at all. The catalogue goes 2849 → 2696 (#348).
+- `check_i18n.py` could not see copy passed through a prop it did not know:
+  `READABLE_ATTRS` had no `noun`, so `<Pager>` took one from six call sites as a
+  plain English word and rendered `3 of 40 skills` under `pl`, where no plural
+  can agree with the count. The word is inside the message now (#362).
+- The knowledge-base document table told a Viewer to drag in files they may not
+  upload (#349).
+- `SharingPanel` interpolated an English noun into five sentences and pluralised
+  it with an `s` (#420).
+
 ## [0.0.79] - 2026-08-07
 
 ### Fixed
