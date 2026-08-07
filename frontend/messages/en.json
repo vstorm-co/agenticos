@@ -740,7 +740,6 @@
     "resizeFilePreview": "Resize file preview",
     "restore": "Restore",
     "revokeAccess": "Revoke access",
-    "runConversationDifferentModel": "Run this conversation on a different model. Everything else about the agent stays as it is.",
     "runModel": "Run on this model",
     "save": "Save",
     "saveConversationToRate": "Save conversation first to rate",
