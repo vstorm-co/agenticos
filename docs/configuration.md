@@ -476,6 +476,53 @@ Production validation: `CORS_ORIGINS` cannot contain `"*"` in
 | `RATE_LIMIT_REQUESTS` | `100` | Maximum requests per period |
 | `RATE_LIMIT_PERIOD` | `60` | Period in seconds |
 
+## A worker whose event loop has stopped turning
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `EVENT_LOOP_WEDGED_AFTER` | `15` | Seconds the event loop may stop turning before the worker is killed and replaced. `0` or below switches the check off |
+
+A worker that is *alive but not answering* — deadlocked on a lock, spinning in a
+synchronous call, blocked on a socket that never answers — has no exit code, so
+every recovery path in every stack used to read it as healthy while requests
+timed out. The container goes `unhealthy`, and a status is not a mechanism.
+
+So the worker judges its own event loop. A timer callback stamps the loop once a
+second; a thread reads the stamp, and if the loop has not turned for
+`EVENT_LOOP_WEDGED_AFTER` across two consecutive checks it ends the process —
+`SIGKILL`, or `os._exit(137)` where the worker is PID 1, because the kernel
+delivers no signal to a namespace's init that init has no handler for. Either
+way `docker inspect` reports `137`, and "wedged", which nothing handled, becomes
+"gone", which every stack already handles:
+
+| Stack | What replaces the worker |
+|---|---|
+| `docker-compose.yml` | the reload supervisor, on its next poll |
+| `docker-compose-dev.yml` | PID 1 is the server, so the container exits and `restart: unless-stopped` acts |
+| `docker-compose-prod.yml` | uvicorn's `Multiprocess`, within about half a second; the other three workers keep serving |
+
+Two properties are the reason for the design, and both are worth knowing before
+changing the number:
+
+- **It measures liveness, not readiness.** The stamp is a timer callback, not a
+  request, so a slow database or a model provider that takes twenty seconds is
+  not a wedge — the loop is turning, it is waiting. An HTTP probe would have
+  been fewer moving parts and would restart-loop a healthy server against a
+  broken dependency.
+- **Two checks, not one.** `docker pause`, a frozen cgroup and a laptop waking
+  from sleep stop the watchdog as thoroughly as the loop, so the first check
+  after one reads a stale stamp that says nothing.
+
+The local stack's reload supervisor reads the same variable for the judgement it
+makes from *outside* the worker, so one number covers both. Set it to `0` while
+debugging: a breakpoint blocks the event loop and nothing can tell that from a
+deadlock, so a worker sitting on one is otherwise killed under you.
+
+It cannot see a process that is not running at all — `kill -STOP`, a frozen
+cgroup — because a watchdog inside a stopped process is stopped too. That case
+is the one the supervisors already cover: the reload supervisor's beat goes
+stale and production's pipe ping goes unanswered.
+
 ## Docker / Production
 
 | Variable | Default | Description |

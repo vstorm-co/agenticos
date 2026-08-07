@@ -38,6 +38,18 @@ services:
     # --ws websockets-sansio: uvicorn's `auto` picks the legacy websockets impl,
     # which is broken with websockets >=14 (handshake → HTTP 500). Required for
     # the chat WS. No --reload: there is no mounted source to watch.
+    #
+    # One process, and PID 1 is the server itself - so there is no supervisor
+    # here and deliberately none added (#358). A worker that *dies* takes the
+    # container with it and `restart: unless-stopped` below acts; a worker whose
+    # event loop stops turning used to keep the container `Up` and serving
+    # nothing, and now ends its own process from `app/core/watchdog.py` after
+    # fifteen silent seconds, which lands it in the first case. `--workers 2` would have
+    # bought uvicorn's own supervisor instead, at a second interpreter on a
+    # small box, and only for a *stopped* PID 1 - which the kernel makes
+    # unreachable anyway, dropping `SIGSTOP` sent to a namespace's init from
+    # inside it. `EVENT_LOOP_WEDGED_AFTER` in `backend/.env` changes the
+    # threshold, `0` switches it off.
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --ws websockets-sansio
     ports:
       - "8000:8000"

@@ -162,10 +162,17 @@ a request, so a slow database cannot make a healthy server look wedged.
 
 | | |
 |---|---|
-| `RELOAD_WEDGED_AFTER` | Seconds of silence before a worker is replaced. Default `15`; `0` or below switches the check off |
+| `EVENT_LOOP_WEDGED_AFTER` | Seconds of silence before a worker is replaced. Default `15`; `0` or below switches the check off |
 
 Switch it off while debugging. A breakpoint blocks the event loop and no probe
 can tell that from a deadlock, so a worker sitting on one is replaced under you.
+
+The same variable is read by the worker itself, which watches its own event loop
+and kills its own process — that is what covers the dev and production stacks,
+where there is no supervisor reading a beat from outside. One number, so
+switching the check off for a breakpoint switches off both judges.
+[Configuration](configuration.md#a-worker-whose-event-loop-has-stopped-turning)
+has the whole picture.
 
 `server run` also selects the `websockets-sansio` implementation in both modes.
 uvicorn's `auto` picks the legacy one, which fails the handshake against
