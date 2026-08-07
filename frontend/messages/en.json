@@ -2216,7 +2216,7 @@
       "delegatedCostIsAlreadyIn": "A delegated run's cost is already inside the run it was delegated from, so these do not add up down the column.",
       "delegatedTask": "Delegated · {taskId}",
       "delegationsAlreadyCounted": "{count, plural, =1 {One delegation, and its cost is already inside the run above} other {# delegations, and their cost is already inside the run above}}",
-      "delegationsCountedInTheir": "Delegations are counted in the run they came from, like the spend beside this.",
+      "delegationsCountedInTheir": "This calendar month, like the spend beside it. Delegations are counted in the run they came from.",
       "deletedKey": "Deleted key",
       "executedSoWhatHappened": "it executed, so what happened last week stays answerable after the agent has been rewritten.",
       "inlineSpecialist": "Inline specialist",

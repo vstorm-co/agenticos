@@ -19,15 +19,29 @@ import type { AgentRun, AgentRunList, ApprovalList, CostSummary, ToolApproval } 
  * figure of forty dollars.
  *
  * One run's delegations are asked for by parent, with `useDelegatedRuns`.
+ *
+ * `startedFrom` windows both the rows and `total`. It exists because a count with
+ * no window reads *all time* while a spend figure beside it reads one calendar
+ * month, so an organization three years old showed "8,412 runs" next to "$31.20"
+ * and the obvious reading of the pair was wrong by three years (#198). Any figure
+ * drawn next to money passes one.
  */
-export function useRuns(agentId?: string, options?: { enabled?: boolean }) {
+export function useRuns(agentId?: string, options?: { enabled?: boolean; startedFrom?: string }) {
+  const startedFrom = options?.startedFrom;
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: qk.runs.list(agentId),
-    queryFn: () =>
-      apiClient.get<AgentRunList>(
+    queryKey: qk.runs.list(agentId, startedFrom),
+    queryFn: () => {
+      const params: Record<string, string> = {};
+      if (agentId) {
+        params.agent_id = agentId;
+        params.include_delegations = "true";
+      }
+      if (startedFrom) params.started_from = startedFrom;
+      return apiClient.get<AgentRunList>(
         "/runs",
-        agentId ? { params: { agent_id: agentId, include_delegations: "true" } } : undefined,
-      ),
+        Object.keys(params).length > 0 ? { params } : undefined,
+      );
+    },
     enabled: options?.enabled ?? true,
   });
   return { runs: data?.items ?? [], total: data?.total ?? 0, isLoading, error, refetch };

@@ -83,7 +83,13 @@ describe("Activity, arriving from the Builder", () => {
     render(<RunsPage />, { wrapper });
 
     await waitFor(() => expect(runsCalls()).not.toHaveLength(0));
-    expect(runsCalls().map((call) => call[1])).toContainEqual(undefined);
+    // No `agent_id`, so it is still the organization's count - and windowed to
+    // the calendar month, which is what makes it comparable to the money beside
+    // it rather than a total since the organization was created (#198).
+    const organizationCall = runsCalls()
+      .map((call) => call[1])
+      .find((options) => options?.params?.agent_id === undefined);
+    expect(organizationCall?.params?.started_from).toBeDefined();
   });
 
   it("asks for the whole organization when the URL names nobody", async () => {

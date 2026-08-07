@@ -28,6 +28,20 @@ import { formatDate } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 
+/**
+ * The first instant of the current calendar month, in UTC.
+ *
+ * Calendar-aligned rather than a rolling thirty days, because that is what the
+ * spend figure beside it reports and what an invoice can be reconciled against.
+ * UTC because the backend's own `month_start` is UTC: a browser in Warsaw asking
+ * for its local month boundary would ask for a different set of rows than the
+ * money was summed over.
+ */
+function monthStart(): string {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+}
+
 export default function RunsPage() {
   const t = useTranslations("pages.runs");
   // `?agent=` is how the Builder hands over. Its Recent runs panel answers the
@@ -45,9 +59,14 @@ export default function RunsPage() {
   // without the agent filter even when the table below carries it. Narrowed, it
   // would be one agent's runs - counted the per-agent way, delegations included -
   // sitting beside the organization's bill, which is two different questions with
-  // one label between them. Same query as the table when nothing is narrowed, so
-  // it costs a request only on the way in from the Builder.
-  const { total: organizationRuns } = useRuns();
+  // one label between them.
+  //
+  // Windowed to the same calendar month the spend figure beside it reports.
+  // Unwindowed it read *all time*, so an organization three years old showed
+  // "8,412 runs" next to "$31.20" and the obvious reading of the pair was wrong
+  // by three years (#198). Two figures on one row share one window, or each says
+  // which window it is - and these two share.
+  const { total: organizationRuns } = useRuns(undefined, { startedFrom: monthStart() });
   const { approvals, decide } = useApprovals();
   const { spend } = useSpend(30);
   const { can } = usePermissions();
@@ -94,9 +113,10 @@ export default function RunsPage() {
           <CardContent className="space-y-1 p-5">
             <p className="text-muted-foreground text-xs tracking-wide uppercase">{t("runs")}</p>
             {/* The count the server reports, not the length of one page of
-                fifty - and top-level runs only, which is what makes it agree
-                with the figure beside it. A fan-out turn is one run here and
-                one run in that total; it used to be four and one. */}
+                fifty - top-level runs only, and over the same calendar month,
+                which together are what make it agree with the figure beside it.
+                A fan-out turn is one run here and one run in that total; it used
+                to be four and one, over all time against one month. */}
             <p className="font-mono text-2xl">{organizationRuns}</p>
             <p className="text-muted-foreground text-xs">{t("delegationsCountedInTheir")}</p>
           </CardContent>
