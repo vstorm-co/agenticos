@@ -230,6 +230,29 @@ class TestTheWindowAndTheTenant:
 
         assert rows["Clerk"].cost_usd == Decimal("0.00")
 
+    async def test_an_agent_whose_only_runs_predate_the_window_is_absent(self, db) -> None:
+        """The `or_` precedence guard. An agent with one run long before the
+        window and before this month must not appear at all - not as a $0.00 row.
+        With the window's clauses spread into the `or_` rather than `and`-ed, the
+        `started_at <= until` disjunct admits almost every historical row, so this
+        agent leaked in with its cost filtered to zero: a name on the bill for an
+        agent that did nothing in the period the bill is for."""
+        org, owner = await _org(db)
+        ancient = await _agent(db, org, name="Ancient")
+        await _run(
+            db, org, ancient, cost="4.00", started_at=datetime.now(UTC) - timedelta(days=400)
+        )
+
+        rows = await _rows(
+            db,
+            org,
+            owner,
+            since=datetime.now(UTC) - timedelta(days=7),
+            until=datetime.now(UTC) - timedelta(days=1),
+        )
+
+        assert "Ancient" not in rows
+
     async def test_another_tenants_agent_is_absent_entirely(self, db) -> None:
         mine, me = await _org(db)
         theirs, _them = await _org(db)

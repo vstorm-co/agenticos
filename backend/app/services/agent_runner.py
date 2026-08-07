@@ -58,7 +58,7 @@ from collections import Counter
 from collections.abc import AsyncIterator, Callable, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID, uuid4
@@ -3117,15 +3117,6 @@ class AgentRunnerService:
         """
         return await agent_run_repo.spend_by_key(
             self.db, organization_id=ctx.organization_id, since=since, until=until
-        )
-
-    async def cost_breakdown(
-        self, ctx: AuthContext, *, days: int = 30
-    ) -> list[tuple[UUID, str | None, Decimal, int]]:
-        """Spend per agent and model over a window - the usage email's data."""
-        since = datetime.now(UTC) - timedelta(days=days)
-        return await agent_run_repo.cost_breakdown(
-            self.db, organization_id=ctx.organization_id, since=since
         )
 
     async def spend_by_agent(

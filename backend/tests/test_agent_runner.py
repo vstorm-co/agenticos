@@ -9,7 +9,7 @@ it was parked on, with the spend it had already booked.
 import asyncio
 import uuid
 from collections.abc import Awaitable, Callable
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -457,23 +457,6 @@ class TestSpendReporting:
 
         assert spent == Decimal("10")
         ingested.assert_not_called()
-
-    @pytest.mark.anyio
-    async def test_the_cost_breakdown_looks_back_the_number_of_days_it_was_asked_for(self):
-        """Unlike the budget, the dashboard window is rolling - "the last 7 days" means that."""
-        ctx = _ctx()
-        rows = [(uuid.uuid4(), "gpt-4.1", Decimal("3.00"), 12)]
-
-        with patch(
-            "app.services.agent_runner.agent_run_repo.cost_breakdown",
-            new=AsyncMock(return_value=rows),
-        ) as breakdown:
-            reported = await AgentRunnerService(_db()).cost_breakdown(ctx, days=7)
-
-        assert reported == rows
-        assert breakdown.call_args.kwargs["organization_id"] == ctx.organization_id
-        looked_back = datetime.now(UTC) - breakdown.call_args.kwargs["since"]
-        assert timedelta(days=7) <= looked_back < timedelta(days=7, seconds=30)
 
 
 class TestReadingRunHistory:

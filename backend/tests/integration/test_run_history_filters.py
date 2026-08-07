@@ -23,6 +23,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy import select
 
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent, AgentVersion
@@ -206,6 +207,38 @@ class TestNarrowingByWindow:
 
         assert (await _listed(db, org, user, filters=RunFilters(started_from=_NOW)))[1] == 0
         assert (await _listed(db, org, user))[1] == 1
+
+
+class TestPagingIsStableWhenTheSortColumnTies:
+    async def test_runs_that_share_an_instant_still_have_a_total_order(self, db) -> None:
+        """A fan-out starts several runs in the same instant, so `started_at` is
+        not unique - and a page boundary drawn through a set of equal keys lets
+        Postgres return a row on two pages or skip one between them. `id` is the
+        secondary key that makes the order total: with every `started_at` equal,
+        the rows come back in `id` order, which is what lets paging carve them
+        cleanly. Without the tiebreaker this order is arbitrary and the assertion
+        below is at the mercy of the planner."""
+        org, user = await _org(db)
+        agent = await _agent(db, org)
+        for _ in range(5):
+            await _run(db, org, agent, started_at=_NOW)
+
+        expected = sorted(
+            str(run_id)
+            for (run_id,) in (
+                await db.execute(select(AgentRun.id).where(AgentRun.organization_id == org.id))
+            ).all()
+        )
+
+        first, _ = await _listed(db, org, user, skip=0, limit=2)
+        second, _ = await _listed(db, org, user, skip=2, limit=2)
+        third, _ = await _listed(db, org, user, skip=4, limit=2)
+        paged = first + second + third
+
+        # No row repeats or is skipped across the three pages, and the order is
+        # the one the tiebreaker fixes.
+        assert paged == expected
+        assert len(set(paged)) == 5
 
 
 class TestNarrowingByWhereItCameFrom:

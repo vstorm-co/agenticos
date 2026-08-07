@@ -471,12 +471,15 @@ class TestTheCostScreen:
         ctx = AuthContext(user_id=None, organization_id=fixture.org.id, role=OrgRoleName.OWNER)
 
         month_to_date = await service.monthly_spend(ctx)
-        by_agent = await service.cost_breakdown(ctx)
+        by_agent = await service.spend_by_agent(ctx, since=month_start())
         by_provider = await service.spend_by_provider(ctx, since=month_start())
         by_key = await service.spend_by_key(ctx, since=month_start())
 
         assert month_to_date == Decimal("1.00")
-        assert sum(row[2] for row in by_agent) == month_to_date
+        # `spend_by_agent.cost_usd` is the window column the screen renders -
+        # top-level runs only - so it sums to the bill. The email's per-model
+        # `cost_breakdown` is a different question and is not what this screen shows.
+        assert sum(row.cost_usd for row in by_agent) == month_to_date
         assert sum(row[1] for row in by_provider) == month_to_date
         assert sum(row[2] for row in by_key) == month_to_date
 

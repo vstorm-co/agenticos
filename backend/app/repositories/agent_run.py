@@ -399,7 +399,11 @@ async def list_runs(
 
     column = _duration_ms() if order_by is RunOrder.DURATION else AgentRun.started_at
     ordering = column.desc() if descending else column.asc()
-    query = query.order_by(ordering.nullslast()).offset(skip).limit(limit)
+    # `id` breaks ties, because neither sort column is unique: a fan-out starts
+    # several runs in the same instant and `started_at` alone lets two rows swap
+    # places between the page query and the next page's, so paging repeats or
+    # skips one. `id` is the stable secondary key that makes the order total.
+    query = query.order_by(ordering.nullslast(), AgentRun.id).offset(skip).limit(limit)
     items = list((await db.execute(query)).scalars().all())
     total = (await db.execute(count_query)).scalar() or 0
     return items, total
@@ -585,8 +589,13 @@ async def spend_by_agent(
             Agent.organization_id == organization_id,
             # The union of the two windows, so one pass serves both filters. A
             # row outside both contributes to neither aggregate and only costs
-            # the scan it would have cost twice otherwise.
-            or_(*window, AgentRun.started_at >= month_since),
+            # the scan it would have cost twice otherwise. `and_(*window)` before
+            # the `or_`, not `or_(*window, ...)`: `window` is a *conjunction*
+            # (`started_at >= since` and, when set, `<= until`), and spreading its
+            # terms into the `or_` reads as `since_lo OR until_hi OR month`. The
+            # `until_hi` disjunct then admits nearly every historical row, so an
+            # agent whose only runs predate the window leaks in as a $0.00 line.
+            or_(and_(*window), AgentRun.started_at >= month_since),
         )
         .group_by(Agent.id, Agent.name, cap.as_float())
         .order_by(func.coalesce(func.sum(AgentRun.cost_usd).filter(top_level), 0).desc())
