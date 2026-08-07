@@ -2391,6 +2391,7 @@
       "runs2": "Runs",
       "showEveryAgent": "Show every agent",
       "showEveryRun": "Show every run",
+      "showingTheOldestOf": "{shown, plural, =1 {Showing the oldest of {total} waiting} other {Showing the oldest # of {total} waiting}}. The queue drains from the top, so deciding these brings up the next.",
       "someRunsCouldNotBePriced": "{count, plural, =1 {1 run in this window could not be priced, so the figures below are a floor} other {# runs in this window could not be priced, so the figures below are a floor}}",
       "specialistHasNoAgent": "Defined inside its parent's agent rather than published on its own, so there is no agent page to open.",
       "spend": "Spend",

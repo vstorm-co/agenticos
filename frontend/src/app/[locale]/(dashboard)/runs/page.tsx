@@ -45,7 +45,9 @@ export default function RunsPage() {
   const canDecide = can(Perm.approvalsDecide);
   // Only for the count on the tab. The queue itself is `ApprovalsTab`'s, and both
   // read one query key, so this is the same request rather than a second one.
-  const { approvals } = useApprovals({ enabled: canDecide });
+  // `total` rather than the page's length: the endpoint answers fifty rows at a
+  // time, and a badge that stops at fifty is a badge that stops being a count.
+  const { total: waiting } = useApprovals({ enabled: canDecide });
 
   return (
     <div className="space-y-6">
@@ -67,9 +69,9 @@ export default function RunsPage() {
             {canDecide && (
               <TabsTrigger value="approvals">
                 {t("approvals")}
-                {approvals.length > 0 && (
+                {waiting > 0 && (
                   <Badge variant="secondary" className="ml-2">
-                    {approvals.length}
+                    {waiting}
                   </Badge>
                 )}
               </TabsTrigger>

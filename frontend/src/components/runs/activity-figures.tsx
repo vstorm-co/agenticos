@@ -48,7 +48,11 @@ export function ActivityFigures({ canDecide }: { canDecide: boolean }) {
     isLoading: runsLoading,
     error: runsError,
   } = useRuns(undefined, { startedFrom: monthStart() });
-  const { approvals, error: approvalsError } = useApprovals({ enabled: canDecide });
+  // `total`, not the length of the page. `GET /approvals` answers fifty rows at
+  // a time and nothing here asks for more, so a queue of a hundred and twenty
+  // read "50" and went on reading it however long the queue grew - the same
+  // page-length-as-a-count defect (#198) the Runs figure beside it was fixed for.
+  const { total: waiting, error: approvalsError } = useApprovals({ enabled: canDecide });
 
   if (spendLoading || runsLoading) {
     return (
@@ -79,7 +83,7 @@ export function ActivityFigures({ canDecide }: { canDecide: boolean }) {
       </Figure>
       {canDecide && (
         <Figure label={t("waitingPerson")} failed={!!approvalsError}>
-          {approvals.length}
+          {waiting}
         </Figure>
       )}
     </div>
