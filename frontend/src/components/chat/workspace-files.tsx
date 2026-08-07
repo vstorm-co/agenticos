@@ -4,11 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { AlertTriangle, FolderOpen, Info, X } from "lucide-react";
 
-import { FileIcon } from "@/components/sandboxes/file-tile";
-import { WorkspaceFileViewer } from "@/components/sandboxes/file-viewer";
+import { FileIcon, FileViewer } from "@/components/files";
 import { useConversationWorkspace } from "@/hooks";
 import { useFilePreviewStore } from "@/stores";
-import type { FileSource } from "@/lib/workspace-files";
+import { formatBytes } from "@/lib/utils";
+import { workspaceFileAccess, type FileSource } from "@/lib/workspace-files";
+import type { ConversationFile } from "@/lib/conversation-workspace-api";
 import type { ChatMessageFile } from "@/types";
 
 interface WorkspaceFilesProps {
@@ -28,14 +29,6 @@ interface WorkspaceFilesProps {
    * gets nothing, and before this the panel had nothing to show either.
    */
   attachments: ChatMessageFile[];
-}
-
-/** Bytes as a person reads them. */
-function size(bytes: number | null): string {
-  if (bytes === null) return "";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KiB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
 }
 
 /**
@@ -61,7 +54,7 @@ export function WorkspaceFiles({ conversationId, revision, attachments }: Worksp
   const { workspace, error, refresh } = useConversationWorkspace(conversationId);
   const openAttachment = useFilePreviewStore((state) => state.open);
   const [open, setOpen] = useState(false);
-  const [reading, setReading] = useState<string | null>(null);
+  const [reading, setReading] = useState<ConversationFile | null>(null);
   // The chat addresses files through its conversation, not through the workspace's
   // id: that route authorises by fetching the conversation, so somebody this chat
   // was shared with reaches the same files.
@@ -154,7 +147,7 @@ export function WorkspaceFiles({ conversationId, revision, attachments }: Worksp
           <p className="text-muted-foreground text-xs">
             {workspace.owner_label}
             {workspace.backend === "state" && workspace.bytes_total > 0 && (
-              <> · {t("storedSuffix", { size: size(workspace.bytes_total) })}</>
+              <> · {t("storedSuffix", { size: formatBytes(workspace.bytes_total) })}</>
             )}
           </p>
         )}
@@ -195,15 +188,17 @@ export function WorkspaceFiles({ conversationId, revision, attachments }: Worksp
             <li key={file.path}>
               <button
                 type="button"
-                onClick={() => setReading(file.path)}
+                onClick={() => setReading(file)}
                 title={file.path}
                 className="border-border hover:bg-accent/60 flex h-full w-full flex-col items-start gap-1.5 rounded-lg border p-2.5 text-left"
               >
-                <FileIcon path={file.path} className="text-muted-foreground h-4 w-4" />
+                <FileIcon name={file.path} className="text-muted-foreground h-4 w-4" />
                 <span className="w-full truncate font-mono text-[11px]">
                   {file.path.split("/").filter(Boolean).pop() ?? file.path}
                 </span>
-                <span className="text-muted-foreground text-[10px]">{size(file.size)}</span>
+                <span className="text-muted-foreground text-[10px]">
+                  {file.size == null ? "" : formatBytes(file.size)}
+                </span>
               </button>
             </li>
           ))}
@@ -229,7 +224,11 @@ export function WorkspaceFiles({ conversationId, revision, attachments }: Worksp
                   title={file.filename}
                   className="border-border hover:bg-accent/60 flex h-full w-full flex-col items-start gap-1.5 rounded-lg border p-2.5 text-left"
                 >
-                  <FileIcon path={file.filename} className="text-muted-foreground h-4 w-4" />
+                  <FileIcon
+                    name={file.filename}
+                    mimeType={file.mime_type}
+                    className="text-muted-foreground h-4 w-4"
+                  />
                   <span className="w-full truncate font-mono text-[11px]">{file.filename}</span>
                 </button>
               </li>
@@ -239,7 +238,15 @@ export function WorkspaceFiles({ conversationId, revision, attachments }: Worksp
       )}
 
       {source !== null && reading !== null && (
-        <WorkspaceFileViewer source={source} path={reading} onClose={() => setReading(null)} />
+        <FileViewer
+          file={{
+            name: reading.path.split("/").filter(Boolean).pop() ?? reading.path,
+            path: reading.path,
+            size: reading.size,
+          }}
+          access={workspaceFileAccess(source, reading.path)}
+          onClose={() => setReading(null)}
+        />
       )}
     </aside>
   );

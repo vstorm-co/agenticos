@@ -71,7 +71,7 @@ describe("the workspace panel", () => {
     // The name, not the path: a 288-pixel column of monospace paths is unreadable,
     // and the whole path is on the tile's title and in the viewer it opens.
     await waitFor(() => expect(screen.getByText("report.csv")).toBeVisible());
-    expect(screen.getByText("2 KiB")).toBeVisible();
+    expect(screen.getByText("2.0 KB")).toBeVisible();
   });
 
   it("says whose files these are", async () => {
@@ -85,7 +85,7 @@ describe("the workspace panel", () => {
     draw(<WorkspaceFiles conversationId="c1" attachments={[]} revision={0} />);
     await openPanel();
 
-    await waitFor(() => expect(screen.getByText(/2 KiB stored/)).toBeVisible());
+    await waitFor(() => expect(screen.getByText(/2\.0 KB stored/)).toBeVisible());
   });
 
   it("is still reachable for an agent that keeps no files, and says so inside", async () => {
@@ -204,7 +204,9 @@ describe("the workspace panel", () => {
     await openPanel();
 
     await userEvent.click(await screen.findByRole("button", { name: /report\.csv/ }));
-    await waitFor(() => expect(screen.getByText("month,total")).toBeVisible());
+    // A table, which is what the panel could not do: a CSV an agent wrote used to
+    // render as a wall of commas here and as bytes-and-a-download for every other kind.
+    await waitFor(() => expect(screen.getByRole("columnheader", { name: "month" })).toBeVisible());
     expect(screen.getByRole("dialog")).toBeVisible();
 
     await userEvent.click(screen.getByRole("button", { name: "Close" }));
@@ -265,7 +267,11 @@ describe("the workspace panel", () => {
     await openPanel();
     await userEvent.click(await screen.findByRole("button", { name: /report\.csv/ }));
 
-    await waitFor(() => expect(screen.getByText(/Shortened/)).toBeVisible());
+    await waitFor(() =>
+      expect(
+        screen.getByText("This has been shortened. The agent reads the whole file."),
+      ).toBeVisible(),
+    );
   });
 
   it("reports a file it could not read where the file was", async () => {
@@ -296,7 +302,7 @@ describe("the workspace panel", () => {
     expect(screen.queryByRole("figure")).toBeNull();
   });
 
-  it("reads bytes and megabytes in their own units", async () => {
+  it("reads bytes and megabytes in the units a person uses", async () => {
     vi.mocked(apiClient.get).mockResolvedValue(
       workspace({
         items: [
@@ -312,7 +318,7 @@ describe("the workspace panel", () => {
     await openPanel();
 
     await waitFor(() => expect(screen.getByText("12 B")).toBeVisible());
-    expect(screen.getByText("2.0 MiB")).toBeVisible();
+    expect(screen.getByText("2.0 MB")).toBeVisible();
     expect(screen.getByRole("button", { name: /unmeasured\.bin/ })).toBeVisible();
   });
 

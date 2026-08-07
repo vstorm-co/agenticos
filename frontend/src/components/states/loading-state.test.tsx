@@ -136,8 +136,8 @@ describe("no page asks for a shapeless wait", () => {
   it("renders no bare shared LoadingState in a page or panel", () => {
     // A bare `<LoadingState />` still gets a skeleton, but it gets a generic
     // one - the shape is the caller's decision, so it has to be made. Scoped to
-    // files that import the shared component: `file-preview-card.tsx` defines a
-    // private one of its own for a fetch with no layout to promise.
+    // files that import the shared component: `files/file-content.tsx` reaches for
+    // `Skeleton` directly, sized to the body it is standing in for.
     const offenders = sourceFiles(SRC).filter((file) => {
       const source = readFileSync(file, "utf8");
       const importsShared =

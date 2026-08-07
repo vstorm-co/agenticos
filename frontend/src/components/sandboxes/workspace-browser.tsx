@@ -21,20 +21,13 @@ import {
 } from "@/components/ui";
 import Link from "next/link";
 
-import { FileIcon } from "./file-tile";
-import { WorkspaceFileViewer } from "./file-viewer";
-import { downloadWorkspaceFile, useAllWorkspaceFiles, useSandboxWorkspaces } from "@/hooks";
+import { FileIcon, FileViewer } from "@/components/files";
+import { useAllWorkspaceFiles, useSandboxWorkspaces } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
+import { workspaceFileAccess } from "@/lib/workspace-files";
+import { formatBytes } from "@/lib/utils";
 import type { FlatFile } from "@/lib/sandbox-workspaces-api";
 import { useTranslations } from "next-intl";
-
-/** Bytes as a person reads them. */
-function size(bytes: number | null): string {
-  if (bytes === null) return "—";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KiB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
-}
 
 /** One file's identity across workspaces: the same path exists in several. */
 function key(file: { workspace_id: string; path: string }): string {
@@ -165,7 +158,9 @@ export function WorkspaceBrowser() {
                         {/* Only meaningful for a stored workspace: a container's
                             files are on its host volume and this column is the
                             JSONB document's size. */}
-                        {workspace.backend === "state" ? size(workspace.bytes_total) : t("host")}
+                        {workspace.backend === "state"
+                          ? formatBytes(workspace.bytes_total)
+                          : t("host")}
                       </TableCell>
                       <TableCell className="text-muted-foreground text-xs">
                         {used(workspace.last_used_at, t)}
@@ -228,7 +223,7 @@ function FlatFiles() {
           <li key={key(file)} className="border-border rounded-lg border">
             <div className="flex items-start gap-2 p-3">
               <FileIcon
-                path={file.path}
+                name={file.path}
                 className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0"
               />
               <div className="min-w-0 flex-1 space-y-1">
@@ -251,17 +246,17 @@ function FlatFiles() {
                   >
                     {file.agent_name}
                   </Link>{" "}
-                  · {file.access_label} · {size(file.size)}
+                  · {file.access_label} · {file.size == null ? "—" : formatBytes(file.size)}
                 </p>
               </div>
               <button
                 type="button"
                 aria-label={`Download ${file.path}`}
                 onClick={() =>
-                  void downloadWorkspaceFile(
+                  void workspaceFileAccess(
                     { kind: "workspace", id: file.workspace_id },
                     file.path,
-                  )
+                  ).download()
                 }
                 className="text-muted-foreground hover:text-foreground shrink-0 rounded-md p-1"
               >
@@ -272,9 +267,13 @@ function FlatFiles() {
         ))}
       </ul>
       {opened !== null && (
-        <WorkspaceFileViewer
-          source={{ kind: "workspace", id: opened.workspace_id }}
-          path={opened.path}
+        <FileViewer
+          file={{
+            name: opened.path.split("/").filter(Boolean).pop() ?? opened.path,
+            path: opened.path,
+            size: opened.size,
+          }}
+          access={workspaceFileAccess({ kind: "workspace", id: opened.workspace_id }, opened.path)}
           onClose={() => setOpened(null)}
         />
       )}

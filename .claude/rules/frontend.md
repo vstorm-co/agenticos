@@ -91,6 +91,19 @@ There is no `(marketing)` route group.
   hand-rolled route file owes the same header - the proxy is the only place that
   applies it for you.
 - Do not hand-edit `src/lib/mcp-logos.generated.ts` — run `bun run gen:mcp-logos`.
+- **Opening a file is `components/files`, and there is no second one.** `FileViewer` is
+  the dialog every surface opens; `FileContent` is it without the dialog, for a surface
+  with its own chrome; `FileTextView` is it without the fetching, for content already in
+  hand. What kind of file it is comes from `resolveFileKind` in `src/lib/file-kinds.ts`
+  and nowhere else — that one answer decides which request is made, which viewer
+  renders, and which icon `FileIcon` draws. How a surface *reaches* the bytes is a
+  `FileAccess` the caller builds (`workspaceFileAccess`, `kbDocumentAccess`,
+  `attachmentAccess`), because the addresses authorise different callers and the viewer
+  must never branch on which it was handed. There were four viewers, three notions of
+  "what kind of file is this" and two icon sets before #136: a `.csv` an agent wrote was
+  a spreadsheet to the icon, plain text to the workspace dialog and a table to the
+  composer's card, on the same screen — and a PDF, an image or an HTML page opened from
+  the chat panel was a byte count with a download link.
 - **A tool the backend registers is one row in `src/lib/tool-catalog.ts`, and nowhere
   else.** Icon, what the step says while it runs, what it is called once finished, and
   which renderer opens under it — one table, keyed on the id a capability declares.

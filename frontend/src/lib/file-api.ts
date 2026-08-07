@@ -3,6 +3,8 @@
  */
 
 import { apiClient } from "./api-client";
+import type { FileAccess } from "./file-access";
+import { qk } from "./query-keys";
 
 export interface FileUploadResponse {
   id: string;
@@ -26,4 +28,38 @@ export function uploadFile(file: File): Promise<FileUploadResponse> {
 
 export function getFileUrl(fileId: string): string {
   return `/api/files/${fileId}`;
+}
+
+/**
+ * One chat attachment, as the shared viewer reads it.
+ *
+ * A same-origin route handler rather than `apiClient`, which is what lets a plain
+ * `fetch` work here: `/files` is scoped to the user rather than the tenant, so there
+ * is no organization header to lose. The session cookie is the whole of the
+ * authorisation, hence `credentials: "include"`.
+ *
+ * `?disposition=attachment` on the download rather than saving bytes the preview
+ * already holds: the route sets the header, and letting the browser follow a link is
+ * one fewer copy of the file in memory.
+ */
+export function attachmentAccess(file: { id: string; filename: string }): FileAccess {
+  const url = getFileUrl(file.id);
+  const read = async () => {
+    const response = await fetch(url, { credentials: "include" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response;
+  };
+
+  return {
+    textKey: qk.attachments.text(file.id),
+    bytesKey: qk.attachments.bytes(file.id),
+    readText: async () => ({ content: await (await read()).text(), truncated: false }),
+    readBytes: async () => (await read()).blob(),
+    download: async () => {
+      const link = document.createElement("a");
+      link.href = `${url}?disposition=attachment`;
+      link.download = file.filename;
+      link.click();
+    },
+  };
 }

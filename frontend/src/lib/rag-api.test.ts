@@ -76,48 +76,53 @@ describe("downloading a knowledge-base document", () => {
     useOrgStore.getState().setActiveOrgId(null);
   });
 
-  it("holds the viewing URL open for a minute, then releases it", async () => {
-    // Revoking straight away would close the tab that was just opened; never
-    // revoking leaks the blob for the life of the page. The delay is the whole
-    // behaviour, so the timer has to be run to see it.
-    vi.useFakeTimers();
-    const open = vi.spyOn(window, "open").mockReturnValue(null);
-
-    await rag.downloadKBDocument("kb-1", { id: "d-1", filename: "handbook.pdf" }, "view");
-
-    expect(open).toHaveBeenCalled();
-    expect(revoked).toEqual([]);
-    vi.advanceTimersByTime(60_000);
-    expect(revoked).toEqual(created);
-
-    open.mockRestore();
-    vi.useRealTimers();
-  });
-
   it("saves the original bytes under the document's own filename", async () => {
     // Not the id: a file called `9f3c…pdf` in somebody's downloads folder is a
     // file they cannot find again.
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
 
-    await rag.downloadKBDocument("kb-1", { id: "d-1", filename: "handbook.pdf" });
+    await rag.kbDocumentAccess("kb-1", { id: "d-1", filename: "handbook.pdf" }).download();
 
-    expect(click).toHaveBeenCalled();
-    expect(revoked).toEqual(created);
+    const anchor = click.mock.instances[0] as HTMLAnchorElement;
+    expect(anchor.download).toBe("handbook.pdf");
     click.mockRestore();
   });
 
-  it("opens a document for reading in a tab that cannot reach back", async () => {
-    // `noopener` because the blob is rendered by the browser and the opened
-    // context has no business touching this one.
-    const open = vi.fn();
-    vi.stubGlobal("open", open);
+  it("reads the document as bytes for what is rendered from them", async () => {
+    const blob = new Blob(["%PDF-"], { type: "application/pdf" });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, status: 200, blob: () => Promise.resolve(blob) }),
+    );
 
-    await rag.downloadKBDocument("kb-1", { id: "d-1", filename: "handbook.pdf" }, "view");
+    const bytes = await rag
+      .kbDocumentAccess("kb-1", { id: "d-1", filename: "handbook.pdf" })
+      .readBytes();
 
-    expect(open).toHaveBeenCalledWith("blob:0", "_blank", "noopener,noreferrer");
-    // Revoked on a timer rather than at once: revoking it immediately closes the
-    // tab that was just opened.
-    expect(revoked).toEqual([]);
+    expect(bytes).toBe(blob);
+  });
+
+  it("keys its two bodies apart, because one route answers both", async () => {
+    // Text and bytes come back from the same `/download`, so nothing but the key
+    // stops a cached string being handed to a viewer showing a PDF.
+    const access = rag.kbDocumentAccess("kb-1", { id: "d-1", filename: "handbook.pdf" });
+
+    expect(access.textKey).not.toEqual(access.bytesKey);
+  });
+
+  it("reads the document as characters when that is what the viewer asked for", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve("# Handbook"),
+      }),
+    );
+
+    const text = await rag.kbDocumentAccess("kb-1", { id: "d-1", filename: "h.md" }).readText();
+
+    expect(text).toEqual({ content: "# Handbook", truncated: false });
   });
 
   it("says the download failed rather than saving an empty file", async () => {
@@ -131,7 +136,8 @@ describe("downloading a knowledge-base document", () => {
     );
 
     const failure = await rag
-      .downloadKBDocument("kb-1", { id: "d-1", filename: "handbook.pdf" })
+      .kbDocumentAccess("kb-1", { id: "d-1", filename: "handbook.pdf" })
+      .download()
       .catch((error: unknown) => error);
 
     expect(failure).toBeInstanceOf(ApiError);
@@ -143,7 +149,7 @@ describe("downloading a knowledge-base document", () => {
     useOrgStore.getState().setActiveOrgId("org-b");
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
 
-    await rag.downloadKBDocument("kb-1", { id: "d-1", filename: "handbook.pdf" });
+    await rag.kbDocumentAccess("kb-1", { id: "d-1", filename: "handbook.pdf" }).download();
 
     const init = vi.mocked(fetch).mock.calls[0]![1] as { headers: Record<string, string> };
     expect(init.headers["X-Organization-Id"]).toBe("org-b");

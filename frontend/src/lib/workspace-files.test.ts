@@ -1,61 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  bytesKey,
-  isMarkdown,
-  isTextual,
-  readFileBytes,
-  readFileText,
-  suffixOf,
-  textKey,
-} from "./workspace-files";
+import { bytesKey, readFileBytes, readFileText, textKey } from "./workspace-files";
 import { apiClient } from "./api-client";
 
 vi.mock("./api-client", () => ({
   apiClient: { get: vi.fn().mockResolvedValue({}), raw: vi.fn().mockResolvedValue(new Response()) },
 }));
-
-describe("reading a path", () => {
-  it("takes the suffix off the name, not off the folders", () => {
-    expect(suffixOf("/skills/code-review/SKILL.md")).toBe("md");
-  });
-
-  it("has no suffix for a file with none", () => {
-    expect(suffixOf("/Makefile")).toBe("");
-    expect(suffixOf("/.env")).toBe("");
-  });
-
-  it("lowercases it, because a listing does not", () => {
-    expect(suffixOf("/CHART.PNG")).toBe("png");
-  });
-});
-
-/**
- * Which request a file gets, which is the only thing a suffix decides here.
- *
- * Whether the answer can be *shown* is the server's call, read off the response type -
- * so `.svg` asks for its text like any other text file, and it is the API refusing to
- * serve one inline that keeps it off the screen.
- */
-describe("choosing text or bytes", () => {
-  it("asks for text for what can be read as a string", () => {
-    expect(isTextual("/report.csv")).toBe(true);
-    expect(isTextual("/notes.md")).toBe(true);
-    expect(isTextual("/logo.svg")).toBe(true);
-  });
-
-  it("asks for bytes for a picture, a PDF and anything it does not know", () => {
-    expect(isTextual("/chart.png")).toBe(false);
-    expect(isTextual("/report.pdf")).toBe(false);
-    expect(isTextual("/Makefile")).toBe(false);
-  });
-
-  it("offers a rendered view only for markdown", () => {
-    expect(isMarkdown("/notes.md")).toBe(true);
-    expect(isMarkdown("/notes.markdown")).toBe(true);
-    expect(isMarkdown("/notes.txt")).toBe(false);
-  });
-});
 
 /**
  * The two addresses one file can have.

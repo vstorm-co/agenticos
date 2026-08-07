@@ -209,7 +209,7 @@ describe("the file viewer", () => {
     // same-origin access are all things it has no reason to need.
     mount({ name: "page.html", content: "<p>hi</p>" });
 
-    const frame = screen.getByTitle("page.html preview");
+    const frame = screen.getByTitle("page.html, rendered");
     expect(frame).toHaveAttribute("sandbox", "");
     expect(frame).toHaveAttribute("srcdoc", "<p>hi</p>");
   });
