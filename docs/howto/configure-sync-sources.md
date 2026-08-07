@@ -219,8 +219,11 @@ For MinIO, the endpoint is typically `http://minio:9000` (Docker) or
 
 ## API Reference
 
-All sync source endpoints live under `/api/v1/rag/sync/`. They require
-admin-level authentication when JWT auth is enabled.
+All sync source endpoints live under `/api/v1/rag/sync/`. Listing takes
+`collections:view` and everything that changes a source takes `collections:edit`,
+in both cases reaching the collection the source belongs to — there is no admin
+role in it. See
+[who may reach a collection](../file-processing.md#who-may-reach-a-collection).
 
 ### Sync Sources CRUD
 

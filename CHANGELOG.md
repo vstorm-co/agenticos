@@ -19,6 +19,74 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.64] - 2026-08-07
+
+### Fixed
+
+- Every JSON response the platform proxy returns now declares a cache policy. It
+  carried none — no `Cache-Control`, no `ETag`, no `Last-Modified` — on every
+  mutable collection on the surface, and silence is not "do not cache": a 200
+  with no policy is one the browser may reuse on its own judgement. Every answer
+  here depends on a cookie, a permission set and an organization header, so there
+  is nothing on this surface a shared or heuristic cache may keep. A backend that
+  does name a policy still wins, which is how the catalog icons and the embed
+  bundle keep theirs.
+
+
+## [0.0.63] - 2026-08-07
+
+### Fixed
+
+- A stacked pull request ran no CI at all, and its checks list was empty rather
+  than red. `ci.yml` triggered on `pull_request: branches: [main, master]`, which
+  matches on the **base**, so a branch opened against another branch matched no
+  trigger — and an empty check list reads as "still running" rather than "nobody
+  looked". Four pull requests merged that way in one day, each verified only
+  locally. The trigger no longer filters on the base (#359).
+- `docs/file-processing.md` described a platform-admin RAG model this project
+  replaced: "any authenticated user can search any collection", "only admins can
+  manage them". All three claims were false, and the same paragraph sat under its
+  own heading in `docs/architecture.md`, which a search for "only admins" misses
+  because that copy reads `Only **admins**` (#354).
+
+### Changed
+
+- Every CI job now carries a `timeout-minutes`, each several times its measured
+  runtime. Only `changes` had one, so a hung job ran to the platform default
+  rather than to a number somebody chose (#364).
+
+
+## [0.0.62] - 2026-08-07
+
+### Fixed
+
+- None of the ten cases around `mask_generics` in the i18n guard's test file
+  tested it: stub the function to `return text` and all ten still passed, while
+  the guard then reported three false positives over the real tree. It was
+  load-bearing and untested, so a refactor could have broken it with only a
+  tree-wide `make lint` to notice. One case now fails without it.
+
+
+## [0.0.61] - 2026-08-07
+
+### Security
+
+- `h2` bumped past CVE-2026-71554.
+
+
+## [0.0.60] - 2026-08-07
+
+### Fixed
+
+- `main` did not pass `make lint-backend`. Two ruff findings — `RET501` and a
+  `RUF100` for a `noqa` naming a rule this project does not select — arrived with
+  PRs merged during the GitHub Actions outage, when every check sat `pending` and
+  nobody could see them. Because the pre-commit hook runs `ruff check . --fix`
+  over the whole tree regardless of what is staged, it kept rewriting those two
+  files into unrelated commits and rolling them back, so every branch cut from
+  `main` started red on a gate it had not broken (#407).
+
+
 ## [0.0.59] - 2026-08-06
 
 ### Fixed
