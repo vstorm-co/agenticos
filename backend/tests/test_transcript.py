@@ -255,9 +255,16 @@ class TestWritingTheTranscript:
         self, conversations, caplog
     ):
         """The answer is already produced and the money already spent. Losing
-        either to a failed insert would be the worst possible trade."""
+        either to a failed insert would be the worst possible trade.
+
+        The cause is logged with the traceback rather than as a bare warning: the
+        run row surviving is what makes this recoverable, and a swallowed
+        exception nobody recorded leaves a reader knowing only that a transcript
+        is missing."""
         conversations.create_message = AsyncMock(side_effect=RuntimeError("no connection"))
 
         await TranscriptService(_session()).record(_run(), prompt="hello", answer="hi")
 
         assert "transcript_write_failed" in caplog.text
+        assert "no connection" in caplog.text
+        assert "RuntimeError" in caplog.text

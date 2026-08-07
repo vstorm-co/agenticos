@@ -163,7 +163,12 @@ class TranscriptService:
                         model_label=model_label,
                     )
         except Exception:
-            logger.warning(
+            # `exception`, not `warning`: this is the only place in this file that
+            # swallows one, and a swallowed exception whose cause is recorded
+            # nowhere leaves a reader knowing a transcript is missing and nothing
+            # about why. The run row survives by design, so the traceback is the
+            # only account of what took the transcript with it.
+            logger.exception(
                 "transcript_write_failed",
                 extra={"run_id": str(run.id), "conversation_id": str(run.conversation_id)},
             )
