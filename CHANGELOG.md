@@ -19,6 +19,29 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.75] - 2026-08-07
+
+### Fixed
+
+- The admin conversations screen's Owner filter was permanently empty. Its BFF
+  proxy forwarded to a route that has never existed — the path matched
+  `/admin/conversations/{conversation_id}` instead, which 422'd trying to parse a
+  UUID — and both admin proxies dropped `sort_by` and `sort_dir` on the way
+  through (#413).
+- The admin users table drew a `Role` column for a field the API stopped
+  returning in migration `0066`, so it had been blank since. It now renders
+  `conversation_count`, which the backend had been joining for on every page load
+  and nothing read (#414).
+- The skills library marked a skill uninstalled that cannot be installed, so
+  Install answered 409 (#415).
+
+### Added
+
+- `test_bff_forwarded_paths.py` reads every `/api/v1/…` literal out of the route
+  handlers and checks it against the application's own route table, in
+  declaration order, validating each hard-coded segment through the field FastAPI
+  would use. Over 46 forwarded paths it finds exactly one defect — the one above.
+
 ## [0.0.74] - 2026-08-07
 
 ### Fixed
