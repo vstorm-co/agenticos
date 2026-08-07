@@ -79,6 +79,7 @@ async def test_every_deployment_is_registered_before_the_runner_starts(
         "sync-collection",
         "rag-sync-check",
         "mcp-connection-sweep",
+        "approval-expiry-sweep",
         "weekly-usage-report",
         "monthly-usage-report",
     }

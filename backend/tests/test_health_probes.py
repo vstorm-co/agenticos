@@ -40,18 +40,29 @@ class _Result:
 
 
 class _Session:
-    """A session that answers queries from a queue, raises, or never returns."""
+    """A session that answers queries from a queue, raises, or never returns.
+
+    It records `rollback` because a probe that swallows a failed query has to
+    reset the transaction it broke: the request's session commits *before* the
+    response is written, so an abandoned transaction turns the 503 the probe
+    diagnosed into a 500 (#416). A fake without `rollback` would let that pass -
+    `AttributeError` is an exception like any other, and the guard in
+    `_abandon_the_transaction` would swallow it.
+    """
 
     def __init__(
         self,
         *answers: Any,
         raises: Exception | None = None,
         hangs: bool = False,
+        rollback_raises: Exception | None = None,
     ) -> None:
         self._answers = list(answers)
         self._raises = raises
         self._hangs = hangs
+        self._rollback_raises = rollback_raises
         self.queries = 0
+        self.rolled_back = False
 
     async def execute(self, statement: Any) -> _Result:
         self.queries += 1
@@ -61,6 +72,11 @@ class _Session:
             raise self._raises
         assert self._answers, "the probe ran more queries than the fake was given"
         return _Result(self._answers.pop(0))
+
+    async def rollback(self) -> None:
+        if self._rollback_raises is not None:
+            raise self._rollback_raises
+        self.rolled_back = True
 
 
 class _Redis:
@@ -119,6 +135,52 @@ class TestDatabaseProbe:
 
         assert check.status == "unhealthy"
         assert "did not answer within" in check.detail
+
+    async def test_a_refused_query_leaves_the_session_usable(self) -> None:
+        """Diagnosing a broken database must not break the response carrying it.
+
+        A statement that raised leaves the transaction aborted, and the request's
+        session commits on the way out - before the response is written, since
+        #353. Without the rollback the endpoint an operator reads *because*
+        something is wrong answers 500 rather than the 503 it worked out (#416).
+        """
+        session = _Session(raises=RuntimeError("connection refused"))
+
+        await health.probe_database(session)  # type: ignore[arg-type]
+
+        assert session.rolled_back
+
+    async def test_a_hanging_query_leaves_the_session_usable(self, impatient: None) -> None:
+        """The timeout path abandons the transaction too.
+
+        It is the likelier of the two in production - a database under load
+        answers slowly before it stops answering - and it leaves the session in
+        the same state.
+        """
+        session = _Session(hangs=True)
+
+        await health.probe_database(session)  # type: ignore[arg-type]
+
+        assert session.rolled_back
+
+    async def test_a_session_that_cannot_be_reset_still_answers_with_the_diagnosis(
+        self,
+    ) -> None:
+        """The guard around the rollback, and the reason it is there.
+
+        A session too broken to roll back is not a reason for a health endpoint
+        to raise - that is the one thing every probe in this module refuses to
+        do. The commit after it will fail, and that is the honest floor.
+        """
+        session = _Session(
+            raises=RuntimeError("connection refused"),
+            rollback_raises=RuntimeError("the connection is gone"),
+        )
+
+        check = await health.probe_database(session)  # type: ignore[arg-type]
+
+        assert check.status == "unhealthy"
+        assert not session.rolled_back
 
 
 class TestRedisProbe:

@@ -70,16 +70,19 @@ class MySourceConnector(BaseSyncConnector):
 
         return await asyncio.to_thread(_list)
 
-    async def download_file(self, file: RemoteFile, dest_dir: Path) -> Path:
-        """Download a single file to a local directory."""
-        def _download():
-            dest_path = dest_dir / file.name
+    async def _fetch(self, file: RemoteFile, dest_path: Path, config: dict) -> None:
+        """Write one file's bytes to the path the base class chose.
+
+        `BaseSyncConnector.download_file` resolved `dest_path` against the sync
+        directory and confirmed containment, because a remote name may be
+        `../../evil`. Do not build a path from `file.name` here.
+        """
+        def _download() -> None:
             # Your download logic here
             # ...
-            logger.info(f"Downloaded {file.name} ({dest_path.stat().st_size} bytes)")
-            return dest_path
+            logger.info(f"Downloaded {file.id} ({dest_path.stat().st_size} bytes)")
 
-        return await asyncio.to_thread(_download)
+        await asyncio.to_thread(_download)
 
     async def validate_config(self, config: dict) -> tuple[bool, str | None]:
         """Test connectivity to MySource (optional but recommended)."""

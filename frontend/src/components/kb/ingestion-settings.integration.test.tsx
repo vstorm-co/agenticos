@@ -123,6 +123,18 @@ function show(modelProfileId: string | null = null, disabled = false) {
   );
 }
 
+/** The form with LlamaParse chosen, which is what renders its key picker. */
+function showLlamaParse() {
+  render(
+    <IngestionSettings
+      idPrefix="test"
+      value={{ ...DEFAULT_INGESTION_CONFIG, pdf_parser: "llamaparse" }}
+      onChange={vi.fn()}
+    />,
+    { wrapper },
+  );
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   state.profiles = [profile()];
@@ -227,5 +239,33 @@ describe("the model that describes the images", () => {
 
     await waitFor(() => expect(screen.getByText("Use a saved model (1)")).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: /^Remove/ })).toBeNull();
+  });
+});
+
+describe("the LlamaParse key", () => {
+  /**
+   * The second vault write this panel offers, and a different one: it says whose
+   * account each parse is billed to. It reads the same permission as every other
+   * one - `POST /secrets` is `secrets:edit` whichever form posted it - and until
+   * #361 it asked nobody.
+   */
+
+  it("can be stored here rather than in another tab", async () => {
+    showLlamaParse();
+
+    expect(
+      await screen.findByRole("button", { name: "Add a key: LlamaParse" }),
+    ).toBeInTheDocument();
+  });
+
+  it("is not offered to a caller who may not write to the vault", async () => {
+    state.permissions = [Perm.collectionsEdit];
+    showLlamaParse();
+
+    // The picker itself stays - the deployment's own key is still a choice
+    // somebody with `collections:edit` may make - and only the write goes.
+    expect(await screen.findByLabelText("LlamaParse key")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add a key: LlamaParse" })).toBeNull();
+    expect(screen.getByText(/permission you do not hold/)).toBeInTheDocument();
   });
 });

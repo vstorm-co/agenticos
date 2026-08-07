@@ -41,14 +41,18 @@ describe("CreateKBDialog", () => {
     // Every list this dialog reads is empty, except the one that is not a list:
     // `/rag/embedding-models` answers `{default, models}`, and the model select
     // is built from it rather than tolerating whatever arrives.
-    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
-      path === "/rag/embedding-models"
-        ? {
-            default: "text-embedding-3-large",
-            models: [{ model: "text-embedding-3-large", dim: 3072 }],
-          }
-        : { items: [], total: 0 },
-    );
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path === "/rag/embedding-models")
+        return {
+          default: "text-embedding-3-large",
+          models: [{ model: "text-embedding-3-large", dim: 3072 }],
+        };
+      // Nor is `/me/permissions`, which the two key forms read: a list shape
+      // there is a `TypeError` in `usePermissions`, not "no permissions".
+      if (path === "/me/permissions")
+        return { organization_id: "org-1", role: "member", is_app_admin: false, permissions: [] };
+      return { items: [], total: 0 };
+    });
     vi.mocked(apiClient.post).mockResolvedValue({ id: "kb-1", name: "Handbook" });
     render(<CreateKBDialog open onOpenChange={vi.fn()} />, { wrapper });
   });

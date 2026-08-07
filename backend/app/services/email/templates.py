@@ -1,9 +1,18 @@
-"""Template loader - reads pre-rendered HTML/text from `emails/compiled/`."""
+"""Template loader - reads pre-rendered HTML/text from `emails/compiled/`.
 
+`EmailTemplateError` is an `AppException`, so everything it carries reaches a
+caller as a 500 body. Where the templates were looked for is an operator's
+question and is answered in the log; the refusal names the template, which is
+the only part of this a reader can act on (agenticos#342).
+"""
+
+import logging
 from pathlib import Path
 from typing import Any
 
 from app.services.email.exceptions import EmailTemplateError
+
+logger = logging.getLogger(__name__)
 
 # Where the compiled templates sit, relative to whichever ancestor holds them.
 _COMPILED_RELATIVE = Path("emails") / "compiled"
@@ -33,18 +42,23 @@ def _compiled_dir() -> Path:
         candidate = parent / _COMPILED_RELATIVE
         if candidate.is_dir():
             return candidate
+    logger.error(
+        "Compiled email templates not found",
+        extra={"searched_for": str(_COMPILED_RELATIVE), "searched_from": str(_SEARCH_ORIGIN)},
+    )
     raise EmailTemplateError(
         message=f"Compiled email template directory '{_COMPILED_RELATIVE}' not found",
-        details={"searched_from": str(_SEARCH_ORIGIN)},
+        details={"directory": str(_COMPILED_RELATIVE)},
     )
 
 
 def _load_raw(key: str, ext: str) -> str:
     path = _compiled_dir() / f"{key}.{ext}"
     if not path.exists():
+        logger.error("Email template not found", extra={"template": key, "path": str(path)})
         raise EmailTemplateError(
             message=f"Email template '{key}.{ext}' not found",
-            details={"path": str(path)},
+            details={"template": key, "format": ext},
         )
     return path.read_text(encoding="utf-8")
 

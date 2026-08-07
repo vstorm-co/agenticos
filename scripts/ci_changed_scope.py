@@ -22,7 +22,12 @@ Which is why the exemptions are only these, each true because it was checked:
 
 `frontend/**` for the backend suite, `backend/**` for the frontend suite
 :   The two halves share no source. They do share the *pull request*, which is
-    why `e2e` is exempted from neither.
+    why `e2e` is exempted from neither - and they share one directory, which is
+    why the backend exemption stops short of `frontend/src/app/api/**`. Those
+    are the BFF proxies, and `tests/api/test_bff_forwarded_paths.py` checks the
+    paths they hard-code against the backend's own route table. A guard that
+    skipped on the change it guards is the gate reading green because the thing
+    is not in it, which is the mistake above.
 
 Everything else runs everything, `.github/**` and `Makefile` emphatically
 included: `tests/test_ci_parity.py` reads both, so a workflow edit is a change
@@ -62,7 +67,8 @@ def _irrelevant_to(job: str, path: str) -> bool:
     if _is_documentation(path):
         return True
     if job == "backend":
-        return path.startswith("frontend/")
+        # The BFF proxies are the exception: the backend suite reads them.
+        return path.startswith("frontend/") and not path.startswith("frontend/src/app/api/")
     if job == "frontend":
         return path.startswith("backend/")
     # `e2e` drives the frontend against the backend, so either half affects it.

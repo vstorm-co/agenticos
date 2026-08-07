@@ -18,6 +18,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 
 from app.core.config import settings
+from app.services.rag.remote_names import checked_drive_folder_id, destination_within
 from app.services.rag.sources.base import BaseDocumentSource, SourceFile
 
 logger = logging.getLogger(__name__)
@@ -59,16 +60,24 @@ class GoogleDriveSource(BaseDocumentSource):
     ) -> list[SourceFile]:
         """List files in a Google Drive folder.
 
+        The folder id is checked before it reaches the query. `rag-sync-gdrive
+        --folder-id` takes it from the shell, and a value carrying a single
+        quote closes the parent literal and appends its own clauses to the
+        query.
+
         Args:
             path: Google Drive folder ID. Empty string = root.
             extensions: Optional list of extensions to filter by.
 
         Returns:
             List of SourceFile objects.
+
+        Raises:
+            BadRequestError: `path` is not a Drive identifier.
         """
         query_parts = ["trashed = false"]
         if path:
-            query_parts.append(f"'{path}' in parents")
+            query_parts.append(f"'{checked_drive_folder_id(path)}' in parents")
 
         query_parts.append("mimeType != 'application/vnd.google-apps.folder'")
         query = " and ".join(query_parts)
@@ -121,6 +130,9 @@ class GoogleDriveSource(BaseDocumentSource):
 
         Returns:
             Path to the downloaded file.
+
+        Raises:
+            BadRequestError: the Drive name does not name a file inside `dest_dir`.
         """
         meta = self.service.files().get(fileId=file_id, fields="name, mimeType").execute()
         mime = meta.get("mimeType", "")
@@ -134,7 +146,7 @@ class GoogleDriveSource(BaseDocumentSource):
         else:
             request = self.service.files().get_media(fileId=file_id)
 
-        dest_path = dest_dir / name
+        dest_path = destination_within(dest_dir, name)
         with open(dest_path, "wb") as f:
             downloader = MediaIoBaseDownload(f, request)
             done = False

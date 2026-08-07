@@ -162,10 +162,17 @@ a request, so a slow database cannot make a healthy server look wedged.
 
 | | |
 |---|---|
-| `RELOAD_WEDGED_AFTER` | Seconds of silence before a worker is replaced. Default `15`; `0` or below switches the check off |
+| `EVENT_LOOP_WEDGED_AFTER` | Seconds of silence before a worker is replaced. Default `15`; `0` or below switches the check off |
 
 Switch it off while debugging. A breakpoint blocks the event loop and no probe
 can tell that from a deadlock, so a worker sitting on one is replaced under you.
+
+The same variable is read by the worker itself, which watches its own event loop
+and kills its own process — that is what covers the dev and production stacks,
+where there is no supervisor reading a beat from outside. One number, so
+switching the check off for a breakpoint switches off both judges.
+[Configuration](configuration.md#a-worker-whose-event-loop-has-stopped-turning)
+has the whole picture.
 
 `server run` also selects the `websockets-sansio` implementation in both modes.
 uvicorn's `auto` picks the legacy one, which fails the handshake against
@@ -397,6 +404,12 @@ uv run agenticos cmd rag-source-sync <source-id>
 # Trigger sync for all active sources
 uv run agenticos cmd rag-source-sync --all
 ```
+
+`rag-source-sync` **waits for the syncs it starts**, up to an hour, and says so
+while it does. The sync itself runs in a background task, and the command's
+process ends when its coroutine returns — so a command that only triggered and
+exited was cancelling the work it had just reported as started. Over the API
+that task belongs to a long-lived worker and nothing has to wait for it.
 
 ## Adding Custom Commands
 

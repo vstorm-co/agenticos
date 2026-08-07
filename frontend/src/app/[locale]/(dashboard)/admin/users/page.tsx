@@ -26,7 +26,7 @@ import {
   type Column,
 } from "@/components/ui";
 import { useAdminUsers } from "@/hooks";
-import type { AdminUserRead } from "@/hooks/use-admin-users";
+import type { AdminUser } from "@/types";
 import { cn, formatDate } from "@/lib/utils";
 import { useChanged } from "@/hooks/use-changed";
 
@@ -34,7 +34,7 @@ import { useTranslations } from "next-intl";
 const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
 type SortDir = "asc" | "desc";
 // Keys the backend can sort on (route → service → repo).
-type SortKey = "email" | "full_name" | "created_at";
+type SortKey = "email" | "full_name" | "conversations" | "created_at";
 
 function getInitials(nameOrEmail: string): string {
   return nameOrEmail
@@ -90,7 +90,7 @@ export default function AdminUsersPage() {
     return () => clearTimeout(timer);
   }, [load, page, search, pageSize, sort.by, sort.dir]);
 
-  const handleOpenUser = useCallback((user: AdminUserRead) => {
+  const handleOpenUser = useCallback((user: AdminUser) => {
     setDrawerUserId(user.id);
     setDrawerOpen(true);
   }, []);
@@ -102,7 +102,7 @@ export default function AdminUsersPage() {
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
-  const columns = useMemo<Column<AdminUserRead>[]>(
+  const columns = useMemo<Column<AdminUser>[]>(
     () => [
       {
         key: "email",
@@ -124,29 +124,41 @@ export default function AdminUsersPage() {
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0">
-              <p className="text-foreground truncate text-sm font-medium">
-                {u.full_name || u.email.split("@")[0]}
-              </p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-foreground truncate text-sm font-medium">
+                  {u.full_name || u.email.split("@")[0]}
+                </p>
+                {/* The deployment superadmin, which is the only authority a user
+                    row carries. There is no `users.role` since `0066` -
+                    authority inside an organization is a membership row plus
+                    the permission catalog, and neither is on this screen. */}
+                {u.is_app_admin && (
+                  <Badge variant="outline" className="shrink-0 gap-0.5 font-normal">
+                    <Shield className="h-2.5 w-2.5" />
+                    {t("app")}
+                  </Badge>
+                )}
+              </div>
               <p className="text-muted-foreground truncate text-xs">{u.email}</p>
             </div>
           </div>
         ),
       },
       {
-        key: "role",
+        key: "conversations",
+        align: "right",
         hideBelow: "md",
-        header: t("role"),
-        cell: (u) => (
-          <div className="flex items-center gap-1.5">
-            <span className="text-sm capitalize">{u.role}</span>
-            {u.is_app_admin && (
-              <Badge variant="outline" className="gap-0.5 font-normal">
-                <Shield className="h-2.5 w-2.5" />
-                {t("app")}
-              </Badge>
-            )}
-          </div>
+        header: (
+          <SortHeader
+            active={sort.by === "conversations"}
+            dir={sort.dir}
+            onClick={() => toggleSort("conversations")}
+          >
+            {t("conversations")}
+          </SortHeader>
         ),
+        // The count the list query has always paid a join for and nothing read.
+        cell: (u) => <span className="tabular-nums">{u.conversation_count}</span>,
       },
       {
         key: "is_active",
@@ -238,7 +250,7 @@ export default function AdminUsersPage() {
         </span>
       </div>
 
-      <DataTable<AdminUserRead>
+      <DataTable<AdminUser>
         columns={columns}
         rows={users}
         getRowKey={(u) => u.id}

@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "0.0.59"
+version = "0.0.78"
 description = "OS for your agents."
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -16,7 +16,11 @@ dependencies = [
     # bumps them, the `dependency-freshness` workflow tries the newest of
     # everything on a schedule, and Dependabot opens the PR. A cap here (it was
     # `<0.137`) turns all three into no-ops.
-    "fastapi>=0.135.3",
+    # The floor is a correctness floor, not a taste one: `Depends(..., scope=)`
+    # is what makes the request's transaction commit before the response is sent
+    # (#353), and an older FastAPI answers `TypeError` at import rather than
+    # quietly reverting - but only 0.141.1 has been run against this suite.
+    "fastapi>=0.141.1",
     "uvicorn[standard]>=0.52.0",
     "pydantic[email]>=2.13.4",
     "pydantic-settings>=2.14.2",
@@ -335,6 +339,10 @@ include = [
     "app/core/secret_kinds.py",
     "app/core/vault.py",
     "app/core/background.py",
+    # The worker's judgement of its own event loop. It decides to `SIGKILL` the
+    # process it runs in, on the two stacks that have no supervisor reading a
+    # beat from outside - so a wrong verdict is a restart loop in production.
+    "app/core/watchdog.py",
     # Which tables alembic owns and which the vector store makes at runtime. It is
     # two statements, and one of them decides whether `db-check` reports real drift.
     "app/db/vector_tables.py",
@@ -363,6 +371,7 @@ include = [
     "app/services/health.py",
     "app/services/email/templates.py",
     "app/services/ingestion_config.py",
+    "app/services/rag/failures.py",
     # Who hears that a run stopped on its budget or parked on an approval. The
     # emails are the only signal for a run nobody was watching — a Slack
     # mention, a schedule — so a silent failure here is indistinguishable from
@@ -372,6 +381,11 @@ include = [
     "app/services/mcp_connection.py",
     "app/services/model_profile.py",
     "app/services/organization_secret.py",
+    # The rest of `app/services/rag/` came with the template and is reported
+    # rather than gated. This module is ours and is only refusals - where a
+    # remote file may be written, and what may reach a Drive query - so the
+    # branch that is never taken in normal operation is the whole point of it.
+    "app/services/rag/remote_names.py",
     "app/services/sharing.py",
     "app/services/skills.py",
     "app/services/spend.py",
@@ -453,6 +467,10 @@ include = [
     "app/core/secret_kinds.py",
     "app/core/vault.py",
     "app/core/background.py",
+    # The worker's judgement of its own event loop. It decides to `SIGKILL` the
+    # process it runs in, on the two stacks that have no supervisor reading a
+    # beat from outside - so a wrong verdict is a restart loop in production.
+    "app/core/watchdog.py",
     # Which tables alembic owns and which the vector store makes at runtime. It is
     # two statements, and one of them decides whether `db-check` reports real drift.
     "app/db/vector_tables.py",
@@ -501,6 +519,11 @@ include = [
     # whose collection, on whose model credential — which is platform layer,
     # and is the difference between a setting and a policy.
     "app/services/ingestion_config.py",
+    # What a failed ingest is allowed to say. The rest of the RAG pipeline is
+    # template-inherited and reported rather than gated, but this module decides
+    # what leaves a worker for a stored column the whole organization reads —
+    # the same judgement the vault and the exception handlers are held to.
+    "app/services/rag/failures.py",
     # Who hears that a run stopped on its budget or parked on an approval. The
     # emails are the only signal for a run nobody was watching — a Slack
     # mention, a schedule — so a silent failure here is indistinguishable from
@@ -510,6 +533,11 @@ include = [
     "app/services/mcp_connection.py",
     "app/services/model_profile.py",
     "app/services/organization_secret.py",
+    # The rest of `app/services/rag/` came with the template and is reported
+    # rather than gated. This module is ours and is only refusals - where a
+    # remote file may be written, and what may reach a Drive query - so the
+    # branch that is never taken in normal operation is the whole point of it.
+    "app/services/rag/remote_names.py",
     "app/services/sharing.py",
     "app/services/skills.py",
     "app/services/spend.py",
