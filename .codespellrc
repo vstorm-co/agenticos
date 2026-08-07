@@ -18,7 +18,10 @@
 #              Style preferences, not misspellings.
 #   selectin   SQLAlchemy's `lazy="selectin"` strategy.
 #   ans        A local variable holding an answer.
-ignore-words-list = dependant,nam,adres,ue,couldn,re-use,re-declaring,selectin,ans,oraz,jest,informacji
+#   falied     The misspelling is the subject of a test: `?status=falied` must
+#              be refused rather than answered with an empty 200 that reads as
+#              "no failures". Correcting it would delete what it proves.
+ignore-words-list = dependant,nam,adres,ue,couldn,re-use,re-declaring,selectin,ans,oraz,jest,informacji,falied
 
 # Lockfiles, generated code, uploaded media and the Polish message catalog are
 # not English prose. `messages/pl.json` in particular is a translation file:

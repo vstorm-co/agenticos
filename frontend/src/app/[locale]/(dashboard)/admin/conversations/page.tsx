@@ -23,6 +23,7 @@ import {
 } from "@/components/ui";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { ConversationAgents } from "@/components/agents/conversation-agents";
+import { ErrorState } from "@/components/states";
 import { useAdminConversations, useAgents } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
@@ -64,8 +65,15 @@ function UserAvatar({
 
 export default function AdminConversationsPage() {
   const t = useTranslations("admin");
-  const { conversations, conversationsTotal, users, isLoading, fetchConversations, fetchUsers } =
-    useAdminConversations();
+  const {
+    conversations,
+    conversationsTotal,
+    users,
+    isLoading,
+    error,
+    fetchConversations,
+    fetchUsers,
+  } = useAdminConversations();
   // Archived included: a thread answered by an agent that has since been
   // retired is exactly the one somebody comes here looking for.
   const { agents } = useAgents({ includeArchived: true });
@@ -331,12 +339,22 @@ export default function AdminConversationsPage() {
         {t("total", { count: conversationsTotal })}
       </div>
 
+      {/* "No conversations found" and "the request was refused" are the same
+          pixels, and this screen fans out to two lists - the threads and the
+          owners the filter above is built from. Whichever failed, say so here
+          rather than leaving an empty table to be read as an empty deployment. */}
       <DataTable<Conversation>
         columns={columns}
         rows={conversations}
         getRowKey={(conv) => conv.id}
         loading={isLoading && conversations.length === 0}
-        empty={t("noConversations")}
+        empty={
+          error ? (
+            <ErrorState title={t("couldnTLoadThisScreen")} description={error} />
+          ) : (
+            t("noConversations")
+          )
+        }
         skeletonRows={5}
       />
 

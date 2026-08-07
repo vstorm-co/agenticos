@@ -520,7 +520,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                         rel="noopener noreferrer"
                         className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs underline underline-offset-4"
                       >
-                        Documentation
+                        {t("documentation")}
                         <ExternalLink className="h-3 w-3" />
                       </a>
                     )}
@@ -599,7 +599,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
           matched={list.matched}
           total={list.total}
           onPage={list.setPage}
-          noun="servers"
+          counted={t("serverCount", { count: list.total })}
         />
       </ServersCard>
 
@@ -855,6 +855,7 @@ function ScopeChip({
   scope: Scope;
   connection: McpConnectionRecord | null;
 }) {
+  const t = useTranslations("mcp");
   const state = connectionState(connection);
   const Icon = scope === "organization" ? Building2 : User;
 
@@ -868,12 +869,12 @@ function ScopeChip({
             ? "border-destructive/40 bg-destructive/10 text-foreground"
             : "border-border text-muted-foreground",
       )}
-      title={`${SCOPE_LABEL[scope]}: ${MCP_STATE_LABEL[state]}`}
+      title={`${SCOPE_LABEL[scope]}: ${t(MCP_STATE_LABEL[state])}`}
     >
       <Icon className="h-3 w-3 shrink-0" aria-hidden />
       {SCOPE_LABEL[scope]}
       <span aria-hidden>·</span>
-      {MCP_STATE_LABEL[state]}
+      {t(MCP_STATE_LABEL[state])}
     </span>
   );
 }
@@ -932,7 +933,7 @@ function ConnectionMenu({
           variant="outline"
           disabled={busy}
           aria-label={`Manage ${owner}`}
-          title={`${owner}: ${MCP_STATE_LABEL[state]}`}
+          title={`${owner}: ${t(MCP_STATE_LABEL[state])}`}
         >
           <Icon className="mr-1 h-3.5 w-3.5" />
           {owner}

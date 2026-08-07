@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -416,6 +416,32 @@ describe("WorkspaceSection", () => {
       expect(onChange).toHaveBeenCalledWith(
         expect.objectContaining({ config: expect.objectContaining({ runtime: null }) }),
       );
+    });
+
+    it("keeps a runtime's memory cap in the list and off the closed trigger", async () => {
+      // The cap is how one runtime is weighed against another. Radix draws the
+      // selected item's `ItemText` in the trigger, so in `children` it followed
+      // the choice out and sat there as a bare number with nothing to compare.
+      render(
+        <WorkspaceSection
+          definition={SANDBOX}
+          binding={binding({ backend: "service", runtime: "python" })}
+          onChange={vi.fn()}
+        />,
+        { wrapper },
+      );
+
+      // `not.toHaveTextContent`, not `queryByText`: the cap used to be a text
+      // node glued to the alias, which `queryByText("512m")` would not have
+      // matched - and a regression test that passes against the bug is worse
+      // than none.
+      const picker = screen.getByRole("combobox", { name: "Runtime" });
+      expect(picker).toHaveTextContent("python");
+      expect(picker).not.toHaveTextContent("512m");
+
+      await userEvent.click(picker);
+      const chosen = await screen.findByRole("option", { name: "python" });
+      expect(within(chosen).getByText("512m")).toBeVisible();
     });
 
     it("names an alias the connection no longer allows", () => {

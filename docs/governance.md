@@ -32,6 +32,13 @@ is present at its own number whatever the spec asks for, and an agent's spend is
 part of the organization's - so a $100 agent under a $10 organization is stopped
 at $10.
 
+Both caps are readable where their spend is: the organization's on its own row
+(`GET /orgs/{org_id}`), and each agent's as `budget_monthly_usd` on the agent
+listing - the *published* version's number, since that is the one the runner
+enforces, not whatever the draft currently promises. The dashboard's headroom
+card joins these against `GET /spend`, so a cap can be seen approaching before
+`budget_exceeded` starts appearing in run history.
+
 ### Enforcement is before the request
 
 Checked *before* each model request, not after. Checking afterwards means the
@@ -229,6 +236,34 @@ work included:
 | `GET /runs?parent_run_id=<id>` | What that run delegated — the query `agent_runs_parent_run_id_idx` exists for. Takes precedence over `include_delegations` |
 | `GET /runs/<id>` | One run, delegated or not. Where a link from a transcript lands |
 
+### What the dashboard's aggregates show
+
+`GET /stats/usage` takes the same two sides, and the same default. The composed
+response is the organization's question, so every block in it counts top-level
+rows only: the period cost and its split by provider (the double bill above),
+but also the run total, the day series, the outcomes split, the surfaces, the
+latency percentiles, the active-people count and the per-person table. Beyond
+cost, a delegated row *copies* its parent's `user_id` and `surface`, so counting
+it would additionally invent a second person and a second arrival on a channel
+somebody used once.
+
+Two aggregates take the other side, and both are asked about one agent:
+
+| Ask | Child rows |
+|---|---|
+| `by_agent` — the adoption card | **included.** Excluded, an agent that runs four hundred times a day as somebody's delegate has no row, and the card names every published agent without one as forgotten and offers to archive it. Its bars can therefore exceed the run total beside them; nothing sums them |
+| `?group_by=version` — the version-compare card | **included.** A specialist that only ever executes as a delegate would otherwise have nothing to compare across its versions |
+
+The invariant that survives either way: the outcomes donut's segments still sum
+to `total_runs`, and its `awaiting_approval` segment still counts the same
+parked runs as the approvals card, because those three come from the same side
+of the switch.
+
+The one query with no delegation filter at all is the count of the caller's
+runs parked on a decision. A parked child is a stuck parent, and that card
+answers "why is my agent not finishing"; today it changes nothing, because a
+delegation is written to the database already finished and so never parks.
+
 The last two are `?run=<id>` on the Activity page: one run, the delegations under
 it each badged with the task id its `subagent_*` frames carried, and a link up to
 the run a delegation was charged to. A delegation panel in a chat links there with
@@ -408,15 +443,14 @@ Four properties worth knowing:
   deploy, an MCP connection unshared. The spec is assembled before the run leaves
   the approval queue, so a refusal there refuses the *attempt*: the decision
   stands and resuming works again once the spec does.
-- **A decided approval cannot be decided twice.** The second decision is refused.
-- **Nothing expires a parked call, and the queue says so rather than pretending.**
-  There are three states — `pending`, `approved`, `rejected` — and there was a fourth,
-  `expired`, which nothing ever assigned: a schema promising a ceiling the product did
-  not have. It is gone. Expiry is a designed feature rather than a missing line, because
-  what should happen to the parked *run* when its approval lapses — fail it, cancel it,
-  ask again — is a decision nobody has made, and inventing one to retire an enum value
-  would be the worse mistake. So the queue surfaces the **age** of the oldest wait
-  instead, and a call waiting past a day is drawn as the problem it is.
+- **A decided approval cannot be decided twice.** The second decision is refused —
+  including a decision arriving a second after the expiry sweep took the call.
+- **A parked call is denied by timeout once it passes `APPROVAL_EXPIRY_HOURS`**, and
+  the run behind it is settled rather than left parked for ever. The status is
+  `expired` with a null `decided_by_user_id`, which is what tells an expiry from a
+  rejection in the accountability trail. The Activity page still surfaces the **age**
+  of the oldest wait, because a queue under its expiry window is the one somebody can
+  still act on.
 - **`required` works on any capability**, not only side-effecting ones. "This only
   reads, but in my organization somebody approves it anyway" is a real decision
   and is expressible.
@@ -426,6 +460,36 @@ Four properties worth knowing:
   when the run parks rather than as each call is gated, because the calls run
   concurrently and the run's database session is not concurrency-safe
   ([#169](https://github.com/vstorm-co/agenticos/issues/169)).
+
+### A decision nobody makes
+
+An approval waits on a person, and some of them wait for ever: the reviewer left,
+the tool was asked for on a Friday, nobody knew it was theirs to decide. Nothing in
+a request path can end one — the whole premise is that no request is coming — so an
+hourly sweep denies by timeout anything still pending past `APPROVAL_EXPIRY_HOURS`
+(three days by default, which spans a weekend).
+
+**It is the run that matters, not the row.** An approval left pending keeps its run
+in `awaiting_approval` indefinitely: work that is neither finished nor going to be,
+sitting in run history and in the oldest-waiting age on the dashboard. So the sweep
+follows each expired call down to the run behind it and ends it, `cancelled` —
+nobody came back, and what it spent before it parked stands.
+
+Three things it deliberately does not do:
+
+- **It does not continue the run.** A *rejected* call is settled by resuming: the
+  denial is replayed and the agent carries on to an answer. That is a model request
+  against the organization's own keys, and making one on a schedule, for a run
+  nobody is waiting on, is not a cost to incur unasked.
+- **It does not end a run with a call still inside its window.** A run parks on all
+  of its outstanding calls at once, so it is ended only when none of them is pending.
+- **It does not name a decider.** `decided_by_user_id` stays null and so does the
+  audit entry's actor, because that is the fact being recorded. Null there means the
+  platform on a schedule, and nothing else can produce one.
+
+This is the only read in the codebase that crosses every organization, for the
+reason a schedule has no tenant to be scoped to. Every write it makes is still in
+the row's own organization.
 
 ### An approval inside a delegation
 

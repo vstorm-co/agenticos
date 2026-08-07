@@ -14,16 +14,17 @@ the model cannot change its mind between asking and acting.
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
+from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
-from app.db.models.agent_run import ApprovalStatus, ToolApproval
+from app.db.models.agent_run import ApprovalStatus, RunStatus, ToolApproval
 from app.repositories import agent_run_repo
 from app.repositories.agent_run import ApprovalFilters, ApprovalRow
 
@@ -155,10 +156,131 @@ class ApprovalService:
             decided_at=datetime.now(UTC),
             note=note,
         )
+        await self._record_decision(approval, status, actor_user_id=ctx.subject_id, note=note)
+        return decided
+
+    async def expire_stale(self) -> int:
+        """Deny by timeout every parked call nobody decided in time.
+
+        **The point of this is the run, not the row.** An approval left pending
+        keeps its run in `awaiting_approval` for ever: the queue grows without a
+        ceiling, and a person looking at run history sees work that is neither
+        finished nor going to be. So each expired call is followed down to the
+        run behind it, and the run is ended.
+
+        `cancelled` rather than a status of its own. Nobody came back, and that
+        is what `cancelled` already means here - "the caller went away, and the
+        tokens spent up to here were still spent". `failed` would be worse than
+        imprecise: it puts a run that worked correctly into the filter an
+        operator uses to find ones that did not, which is the same reasoning that
+        gave `budget_exceeded` a status instead of leaving it under `failed`.
+
+        The run is *not* continued the way a rejection is. A rejected call is
+        settled by `resume`, which replays the denial and runs the agent again -
+        a model request, against an organization's own keys, costing money. On a
+        schedule, for a run nobody is waiting on, that is not a thing to do
+        unasked. An expiry ends the run where it stopped.
+
+        **This is the one place in this codebase that reads across every
+        organization**, because a schedule has no tenant to be scoped to. See
+        :func:`~app.repositories.agent_run.list_stale_approvals`. Every write
+        below is still made in the row's own organization.
+
+        Returns:
+            How many approvals were expired. Zero on the ordinary sweep, which
+            is why the flow logs only when it is not.
+        """
+        now = datetime.now(UTC)
+        stale = await agent_run_repo.list_stale_approvals(
+            self.db, older_than=now - timedelta(hours=settings.APPROVAL_EXPIRY_HOURS)
+        )
+        if not stale:
+            return 0
+
+        for approval in stale:
+            await agent_run_repo.decide_approval(
+                self.db,
+                approval=approval,
+                status=ApprovalStatus.EXPIRED.value,
+                # Nobody decided it. A run's owner written here would read as a
+                # rejection they made, which is the one claim this must not make.
+                decided_by_user_id=None,
+                decided_at=now,
+            )
+            await self._record_decision(
+                approval, ApprovalStatus.EXPIRED, actor_user_id=None, note=None
+            )
+
+        settled = 0
+        for run_id, organization_id in {
+            (approval.run_id, approval.organization_id) for approval in stale
+        }:
+            settled += await self._settle_expired_run(
+                run_id, organization_id=organization_id, at=now
+            )
+
+        logger.info("Approval sweep: expired %d approval(s), ended %d run(s)", len(stale), settled)
+        return len(stale)
+
+    async def _settle_expired_run(
+        self, run_id: UUID, *, organization_id: UUID, at: datetime
+    ) -> int:
+        """End one parked run whose calls have all been decided one way or another.
+
+        Returns 1 if this ended a run, 0 if it left one alone - which is the
+        ordinary answer for a run with a second call still inside its window. A
+        run parks on *all* of its outstanding calls at once, so ending it while
+        one is still pending would take away a decision somebody can still make.
+        """
+        run = await agent_run_repo.get_run(self.db, run_id, organization_id=organization_id)
+        if run is None or run.status != RunStatus.AWAITING_APPROVAL.value:
+            return 0
+        approvals = await agent_run_repo.list_approvals_for_run(
+            self.db, run_id=run_id, organization_id=organization_id
+        )
+        if any(approval.status == ApprovalStatus.PENDING.value for approval in approvals):
+            return 0
+
+        await agent_run_repo.finish_run(
+            self.db,
+            run=run,
+            status=RunStatus.CANCELLED.value,
+            # What it spent stands. The run reached a gated tool, so the model
+            # requests before it were real, and re-deriving them from anywhere
+            # but the row would be inventing a second answer to what it cost.
+            input_tokens=run.input_tokens,
+            output_tokens=run.output_tokens,
+            cost_usd=run.cost_usd,
+            cost_is_partial=run.cost_is_partial,
+            ended_at=at,
+            error=(
+                f"No decision within {settings.APPROVAL_EXPIRY_HOURS}h - "
+                "the parked tool call expired"
+            ),
+            # Cleared by passing nothing, which is what makes the run
+            # un-resumable: state left on an ended run is state somebody replays.
+            paused_state=None,
+        )
+        return 1
+
+    async def _record_decision(
+        self,
+        approval: ToolApproval,
+        status: ApprovalStatus,
+        *,
+        actor_user_id: UUID | None,
+        note: str | None,
+    ) -> None:
+        """Write one decision to the audit trail, however it was reached.
+
+        One shape for all three outcomes, so an expiry cannot come to be recorded
+        with less than a rejection is. `actor_user_id` is `None` only for an
+        expiry, where it carries the fact: nobody decided this.
+        """
         await record_audit(
             self.db,
-            actor_user_id=ctx.subject_id,
-            organization_id=ctx.organization_id,
+            actor_user_id=actor_user_id,
+            organization_id=approval.organization_id,
             action=f"approval.{status.value}",
             target_type="tool_approval",
             target_id=str(approval.id),
@@ -171,4 +293,3 @@ class ApprovalService:
                 "note": note,
             },
         )
-        return decided

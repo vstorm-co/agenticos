@@ -99,11 +99,11 @@ class TestWhatIsRefused:
 
         assert response.status_code == 422
 
-    async def test_expired_is_not_a_status_anything_can_be_asked_for(self):
-        """Nothing ever assigned it (#178), so the value is gone from the enum and
-        from the CHECK constraint. Accepting it here would offer a filter that can
-        only ever answer with nothing."""
-        async with _client(_service()) as client:
-            response = await client.get("/api/v1/approvals?status=expired")
+    async def test_expired_is_a_status_the_queue_can_be_filtered_to(self):
+        """`expire_stale` assigns it (#457), so it is a real outcome a reader can
+        ask for - "what lapsed undecided" is a question the accountability trail
+        answers. #178's plan to delete the value was reversed once expiry had its
+        settlement semantics."""
+        called = await _called_with("?status=expired")
 
-        assert response.status_code == 422
+        assert called["filters"].statuses == ["expired"]

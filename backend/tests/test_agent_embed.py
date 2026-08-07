@@ -18,8 +18,9 @@ import jwt
 import pytest
 
 from app.core.exceptions import BadRequestError
+from app.db.models.agent_run import RunSurface
 from app.services.agent_embed import AgentEmbedService, EmbedDenied, _origin_of
-from app.services.embed_session import _allowed, _buckets
+from app.services.embed_session import EmbedSession, _allowed, _buckets
 
 MODULE = "app.services.agent_embed"
 
@@ -216,6 +217,33 @@ class TestSecretRules:
         """Stored and never consulted is a secret somebody believes protects them."""
         with pytest.raises(BadRequestError):
             _service()._check_secret("public", "s" * 32)
+
+
+class TestTheRunRecordsItsSurface:
+    @pytest.mark.anyio
+    async def test_a_widget_run_is_recorded_as_embed_not_web(self):
+        """The by-surface chart tells widget traffic from signed-in web chat
+        only if the recorder does - regressing to WEB folds the two silently."""
+        with patch("app.services.embed_session.AgentRunnerService") as runner_cls:
+            execute = AsyncMock(return_value=("hi", MagicMock()))
+            runner_cls.return_value.execute = execute
+            session = EmbedSession(
+                db=MagicMock(), embed=_embed(), visitor=None, websocket=MagicMock()
+            )
+            with (
+                patch(
+                    "app.services.embed_session.conversation_repo.create_conversation",
+                    new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+                ),
+                patch(
+                    "app.services.embed_session.member_repo.get",
+                    new=AsyncMock(return_value=MagicMock(role="builder")),
+                ),
+            ):
+                answer = await session._answer("hello")
+
+        assert answer == "hi"
+        assert execute.call_args.kwargs["surface"] is RunSurface.EMBED
 
 
 class TestRateLimit:

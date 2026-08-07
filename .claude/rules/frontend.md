@@ -54,6 +54,30 @@ There is no `(marketing)` route group.
   together, so `{used} of {max} used` is caught with neither `>` nor `<` on its line.
   A *plain* node broken across lines is still missed - that is #141, and it is 70 more
   nodes.
+- **A key nothing reads is not a translation, and a sentence is one message.** The
+  guard asks the catalog both questions now: `check_i18n.py` refuses a key no component
+  reads, and a message whose words are also written out in the source. Both are anchored
+  on the catalog rather than on the source, which is what lets them reach a `.ts` file -
+  the offence sweep walks `*.tsx` alone, so `src/hooks/**` had never been read by it at
+  all and nineteen toasts sat there in English beside the keys holding them. 141 keys
+  were unread, 82 of them translated into Polish for nobody (#425).
+  `messages/catalog.test.ts` adds the third and cheapest: **a value opening on `.`, `,`,
+  `:` or `;` is half a sentence** - the other half is still in the JSX. A sentence with
+  emphasis or a link in it is *one* message with a tag, read with `t.rich`
+  (`Sign in to <em>your workspace.</em>`), never a head, a `<span>` and a tail.
+- **The catalog holds copy, and only copy.** A false positive from the guard takes an
+  `i18n-exempt`; it never takes a key. Answering one by moving the offending text into
+  `en.json` silences the guard and hands a translator something nobody reads - which is
+  how 18 Tailwind class lists and 148 fragments of source ended up in there, the class
+  lists read back through `cn(t("flexItemsStartGap"))` where translating one strips the
+  component of its styling (#348). `messages/catalog.test.ts` refuses both shapes now.
+- **A noun the sentence agrees with is not a parameter, and not a prop.**
+  `{matched} of {total} {noun}` with `noun="skills"` reads as translated and renders
+  `3 of 40 skills` under `pl`. The noun goes inside the ICU `plural` or `select`, so
+  each locale writes its own forms; a component that needs one takes the *formatted
+  phrase* (`counted="40 skills"`, from the caller's namespace) or a key, never a word.
+  The guard only reads props named in `READABLE_ATTRS`, so copy arriving through a new
+  prop name is invisible until that name is added - `noun` and `term` were (#362).
 - **English is the source language, and `pl.json` holds only what is translated.**
   `src/i18n.ts` merges `en.json` underneath every locale, so a missing translation
   renders English instead of the key. A module-level table of labels cannot call a

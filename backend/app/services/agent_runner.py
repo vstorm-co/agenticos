@@ -2979,6 +2979,14 @@ class AgentRunnerService:
         `filters` is the caller's narrowing, and the tenant clause is applied
         here regardless of it: a filter can only ever shrink what this returns,
         never reach outside the organization.
+
+        `filters.statuses` narrows to a set of outcomes and composes with all
+        three. The route validates the words against `RunStatus` before they
+        reach here, so an unknown one is refused by name rather than becoming a
+        filter that silently matches nothing. It travels *inside* `RunFilters`
+        rather than beside it, because `conditions()` is what the page query and
+        the count query share - a status clause applied on its own is the one way
+        those two could come to describe different rows.
         """
         return await agent_run_repo.list_runs(
             self.db,

@@ -152,7 +152,7 @@ export function McpServerPicker({
         matched={list.matched}
         total={list.total}
         onPage={list.setPage}
-        noun="servers"
+        counted={t("serverCount", { count: list.total })}
       />
 
       <OrphanedIds ids={orphaned} />
@@ -190,6 +190,8 @@ function ServerCard({
   disabled?: boolean;
 }) {
   const t = useTranslations("agents");
+  // The state words belong to the MCP page, which is where they are also read.
+  const tMcp = useTranslations("mcp");
   const state = connectionState(connection);
   const isOn = connection !== null && selected(connection.id);
   const bindable = connection !== null;
@@ -215,7 +217,7 @@ function ServerCard({
           {auth && <Badge variant="outline">{auth}</Badge>}
           {state !== "connected" && (
             <Badge variant={state === "error" ? "destructive" : "secondary"}>
-              {MCP_STATE_LABEL[state]}
+              {tMcp(MCP_STATE_LABEL[state])}
             </Badge>
           )}
         </span>
@@ -248,7 +250,7 @@ function ServerCard({
       disabled={disabled}
       onClick={() => onToggle(connection.id)}
       className={cn(
-        t("flexItemsStartGap2"),
+        "flex items-start gap-3 rounded-xl border p-4 text-left transition-colors",
         isOn ? "border-brand bg-brand/5" : "hover:border-foreground/20",
         disabled && "cursor-not-allowed opacity-60",
       )}

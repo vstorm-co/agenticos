@@ -26,6 +26,7 @@ from prefect import aserve
 from prefect.client.schemas.schedules import IntervalSchedule
 
 from app.core.config import settings
+from app.worker.tasks.approval_tasks import approval_expiry_sweep_flow
 from app.worker.tasks.mcp_tasks import mcp_connection_sweep_flow
 from app.worker.tasks.rag_tasks import (
     check_scheduled_syncs_flow,
@@ -63,6 +64,15 @@ async def main() -> None:
         await mcp_connection_sweep_flow.ato_deployment(
             name="mcp-connection-sweep",
             schedules=[IntervalSchedule(interval=900)],
+        )
+    )
+    # Hourly, against a threshold measured in days: precision here buys nothing,
+    # and an approval expiring 40 minutes late has cost nobody anything. One
+    # query an hour, which on the ordinary sweep returns no rows and stops.
+    deployments.append(
+        await approval_expiry_sweep_flow.ato_deployment(
+            name="approval-expiry-sweep",
+            schedules=[IntervalSchedule(interval=3600)],
         )
     )
     # Usage reports. An interval rather than a cron because the schedule only

@@ -62,12 +62,24 @@ async def _filters_for(query: str) -> Any:
 
 
 class TestTheFiltersReachTheService:
-    async def test_a_repeated_status_arrives_as_all_of_them(self):
-        """`?status=failed&status=budget_exceeded` is the show-me-the-problems
-        query. Taking the last value would silently answer half of it."""
-        filters = await _filters_for("?status=failed&status=budget_exceeded")
+    async def test_a_comma_separated_status_arrives_as_all_of_them(self):
+        """`?status=failed,budget_exceeded` is the show-me-the-problems query.
+        Taking one value would silently answer half of it. The set travels inside
+        `RunFilters`, so the page query and the count query cannot come to apply a
+        different status clause."""
+        filters = await _filters_for("?status=failed,budget_exceeded")
 
         assert filters.statuses == ["failed", "budget_exceeded"]
+
+    async def test_an_unknown_status_is_refused_rather_than_matching_nothing(self):
+        """A status the vocabulary does not hold is a 422 naming it, not a filter
+        that silently returns an empty page - which reads as an organization with
+        nothing wrong."""
+        async with _client(_service()) as client:
+            response = await client.get("/api/v1/runs?status=exploded")
+
+        assert response.status_code == 422
+        assert "exploded" in response.text
 
     async def test_a_request_with_no_filters_narrows_nothing(self):
         filters = await _filters_for("")

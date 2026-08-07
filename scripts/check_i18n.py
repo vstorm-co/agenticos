@@ -35,11 +35,35 @@ What it deliberately does not look at:
   interpolation rules now are reports 70 more nodes across 42 files, 54 of them real
   copy and the rest the `) : cond ? (` a ternary leaves between two elements, which
   wants a discriminator of its own. That is #141, a copy migration of its own size
-  rather than part of closing #314.
+  rather than part of closing #314;
+* **any `.ts` file at all.** Every rule above anchors on a JSX bracket, so a hook or a
+  module table is not merely unchecked but uncheckable by them - `; return` would read
+  as a text node. That leaves 406 offences across 91 files, measured: #446, which wants
+  #395's parser first because a parser reads a `.ts` file by construction.
 
 False positives get an inline `{/* i18n-exempt: why */}` or a trailing
 `// i18n-exempt: why`. The comment is required to carry a reason, because "this
 one is fine" is the sentence that turns a gate into a rubber stamp.
+
+Two more rules read the catalog and ask a question of the source, rather than reading
+the source and asking a question of it - which is why neither needs the parser #395
+wants, and why both reach the `.ts` files the sweep above never opens:
+
+* `unread_keys` - a key nothing reads. 141 of them, and 82 had a Polish translation
+  somebody had written for nobody. The extraction pass sometimes lifted a string into
+  the catalog and left the component reading the literal, so both halves looked clean
+  while the English stayed on screen (#425);
+* `duplicated_in_source` - a message whose words are also written out somewhere. That
+  is the other half of the same defect, and it is what points at the line.
+
+**A false positive takes an exemption. It never takes a key.** Answering one by
+moving the offending text into `messages/en.json` silences the guard and hands a
+translator something nobody reads: the migration that first ran this script did
+exactly that 166 times, filing 18 Tailwind class lists and 148 fragments of
+JavaScript source under keys with names like `caseStatsReturn` (#348).
+`frontend/messages/catalog.test.ts` now refuses both shapes, because neither the
+offence sweep nor `missing_keys` can see them - a class list reaching `cn()`
+through `t()` carries no `className`, and a key that exists is a key that exists.
 """
 
 from __future__ import annotations
@@ -57,6 +81,14 @@ CATALOG = ROOT / "frontend" / "messages" / "en.json"
 SKIPPED_DIRS = ("/dev/",)
 SKIPPED_NAMES = (".test.tsx", ".test.ts", ".spec.ts", ".stories.tsx", ".generated.ts")
 
+# Props a component renders for a person to read. A fixed list, which is the
+# whole weakness of the rule: copy passed through a name that is not here is
+# copy this script cannot see, and it stays invisible until somebody notices it
+# in English under `pl`. `noun` and `term` were added after exactly that (#362) -
+# `<Pager noun="skills">` at six call sites and `<Fact term="Chunking">` at four,
+# all of them rendered verbatim in every locale. Add the name when a component
+# starts taking copy through a new one; the alternative is #395's parser, which
+# would read the prop's *value* rather than trusting its name.
 READABLE_ATTRS = (
     "placeholder",
     "aria-label",
@@ -70,6 +102,8 @@ READABLE_ATTRS = (
     "submitLabel",
     "heading",
     "subtitle",
+    "noun",
+    "term",
 )
 ATTR = re.compile(rf'\b({"|".join(READABLE_ATTRS)})="([^"]*)"')
 JSX_TEXT = re.compile(r"(?<!=)>\s*([^<>{}\n][^<>{}\n]*?)\s*<")
@@ -394,6 +428,171 @@ def missing_keys(path: Path, catalog: dict) -> list[tuple[int, str]]:
     return found
 
 
+# What binds a translator to a namespace: `const t = useTranslations("agents")`, and the
+# awaited `getTranslations` a server component uses. The *name* is captured because it is
+# not always `t` - `tc`, `ts` and `tAgents` are all in this tree - and a rule that read
+# only `t(` would call every key those three name dead.
+TRANSLATOR = re.compile(
+    r"\b([A-Za-z_$][\w$]*)\s*=\s*(?:await\s+)?(?:use|get)Translations\(\s*(?:\"([^\"]*)\")?\s*\)"
+)
+# A string that could be the name of a key. A module-level table of labels cannot call a
+# translator, so it holds keys - `{ labelKey: "agentsTitle" }` - and the component reads
+# them back through `t(item.labelKey)`, which names nothing this script can resolve.
+# A segment may be kebab-case: 101 keys here are filed under an id like `my-agents`, and
+# a segment of `\w` alone cannot see any of them.
+KEY_SHAPED = re.compile(r'"([A-Za-z][\w-]*(?:\.[A-Za-z][\w-]*)*)"')
+# A message with an ICU argument in it cannot be compared against a run of source: the run
+# would have to hold the braces too, and a component writing `{count, plural, …}` by hand
+# is a different defect with its own rule.
+ARGUMENT = re.compile(r"[{}<>]")
+# A run of prose in a `.tsx` file: whatever sits between the characters that end one. A
+# quote ends a string, a brace ends a text node at an interpolation, an angle bracket ends
+# it at the next element - so `Sign in to <em>{t("workspace")}</em>` is the run `Sign in to`
+# and the run `workspace`, either of which can be compared against a whole message.
+RUN = re.compile(r"""[^<>{}"'`\n]+""")
+
+
+def key_reads(text: str) -> tuple[set[str], list[re.Pattern[str]]]:
+    """Every catalog key one file names outright, and the patterns it builds by hand.
+
+    Two shapes, because a component uses both. `t("pickProviderFirst")` names one key and
+    resolves against the file's namespaces. `` t(`${option.words}Label`) `` names a family
+    of them, and the interpolation is whatever a module-level table holds - so it becomes
+    `^\\w*Label$` rather than a key, and any key it could build counts as read.
+
+    Namespaces are unioned across the file rather than tracked per binding: one file holds
+    up to seven components with a `t` each, and telling which `t` is in scope on a line is
+    the parse this script does not do. Over-reading is the safe direction here - it reports
+    fewer dead keys, never a live one.
+    """
+    bindings = TRANSLATOR.findall(text)
+    if not bindings:
+        return set(), []
+    namespaces = {namespace for _, namespace in bindings}
+    names = sorted({name for name, _ in bindings})
+    call = re.compile(rf'\b(?:{"|".join(names)})(?:\.rich|\.markup|\.has)?\(\s*(["`])(.*?)\1', re.S)
+    named: set[str] = set()
+    built: list[re.Pattern[str]] = []
+    for quote, body in call.findall(text):
+        for namespace in namespaces:
+            dotted = f"{namespace}.{body}" if namespace else body
+            if quote == '"':
+                named.add(dotted)
+            else:
+                parts = [re.escape(part) for part in re.split(r"\$\{[^{}]*\}", dotted)]
+                built.append(re.compile("^" + r"\w*".join(parts) + "$"))
+    return named, built
+
+
+def _namespace_relative(key: str) -> set[str]:
+    """Every spelling of `key` a table could hold, whole key first.
+
+    A table holds a key relative to whatever namespace the component that reads it
+    binds - `{ titleKey: "widgets.my-agents.sharedTitle" }` beside a
+    `useTranslations("dashboard")` - and which namespace that is, is the parse this
+    script does not do. So each dot-suffix counts, from the whole key down to the
+    last segment.
+    """
+    parts = key.split(".")
+    return {".".join(parts[index:]) for index in range(len(parts))}
+
+
+def unread_keys(catalog: dict, sources: list[Path]) -> list[str]:
+    """Catalog keys nothing in the frontend reads.
+
+    `missing_keys` run the other way round, and it catches what neither that sweep nor the
+    offence sweep can: the extraction pass that produced this catalog sometimes lifted a
+    string into a key and left the component reading the literal beside it. Both halves
+    then look clean - the key is valid, and the line the guard cannot parse is a line it
+    reports nothing about - while the English stays on screen under every locale. `Continue`
+    on the sync wizard and `(inactive)` in the bot picker shipped that way (#425).
+
+    A key counts as read when a translator names it, when a `` t(`…`) `` pattern could
+    build it, or when any namespace-relative spelling of it appears as a plain string
+    anywhere in the frontend - the last because a table of keys is read back through
+    `t(item.labelKey)`, and this script cannot follow the table to the call. That third
+    clause is loose on purpose: it
+    is what makes the rule safe to fail a build on, and it is also the ceiling on what the
+    rule can find. `rag.error`, `rag.pending` and `rag.running` were dead and it read them
+    as live, because `"error"` is a plain string in half the files here; they had to be
+    deleted by hand. Following the table to the call would need #395's parser.
+    """
+    named: set[str] = set()
+    built: list[re.Pattern[str]] = []
+    spelled: set[str] = set()
+    for path in sources:
+        text = path.read_text()
+        file_named, file_built = key_reads(text)
+        named |= file_named
+        built += file_built
+        spelled |= set(KEY_SHAPED.findall(text))
+    return sorted(
+        key
+        for key in catalog_keys(catalog)
+        if key not in named
+        and not spelled.intersection(_namespace_relative(key))
+        and not any(pattern.match(key) for pattern in built)
+    )
+
+
+def duplicated_in_source(catalog: dict, sources: list[Path]) -> list[tuple[Path, int, str, str]]:
+    """Catalog messages whose words are also sitting in the frontend, written out.
+
+    The signature of #425, and the half `unread_keys` cannot see on its own: a key read
+    *somewhere* while another component spells the same sentence out. It is also the only
+    rule here that reaches a `.ts` file - `offences` walks `*.tsx` alone, so every
+    `toast.success("Member removed")` in `src/hooks/**` had been invisible to it since the
+    guard was written.
+
+    Anchored on the catalog rather than on the source, which is what keeps it cheap and
+    what makes it worth having beside a guard that cannot read a text node broken over two
+    lines (#141). There is no JSX to parse: the sentence is already known, so the file is
+    cut on the characters that end a run of prose - the quotes, the braces and the angle
+    brackets - and each run is compared whole. That finds the words wherever they sit: in
+    a string, in an attribute, or in a text node with an `<em>` after it. All five `auth`
+    headings were the last of those, and none of them is inside quotes.
+
+    Whole runs rather than a substring search, which was the first shape and reported
+    `Failed to load` inside `Failed to load conversations` eleven times. Skipped: a message
+    holding an ICU argument or a tag, which no run can equal verbatim; and anything under
+    two words, where a match says nothing.
+    """
+    wanted = {
+        value: key
+        for key, value in catalog_entries(catalog)
+        if is_copy(value) and not ARGUMENT.search(value) and len(value.split()) >= 2
+    }
+    found: list[tuple[Path, int, str, str]] = []
+    for path in sources:
+        lines = readable(path.read_text().splitlines())
+        starts: list[int] = []
+        offset = 0
+        for line in lines:
+            starts.append(offset)
+            offset += len(line) + 1
+        for run in RUN.finditer("\n".join(lines)):
+            words = run.group(0).strip()
+            key = wanted.get(words)
+            if key is not None:
+                found.append((path, bisect_right(starts, run.start()), key, words))
+    return sorted(found)
+
+
+def catalog_entries(node: object, prefix: str = "") -> list[tuple[str, str]]:
+    """Every message the catalog holds: its dotted key, and its text.
+
+    `en.json` is a tree of namespaces whose leaves are messages, so anything that is not
+    a dict is one. The assertion is what says so out loud - a number or a list in there
+    would otherwise be compared against source as `str(value)` and quietly match nothing.
+    """
+    if not isinstance(node, dict):
+        assert isinstance(node, str), f"{prefix.rstrip('.')} is not a message"
+        return [(prefix.rstrip("."), node)]
+    return [
+        pair for key, value in node.items() for pair in catalog_entries(value, f"{prefix}{key}.")
+    ]
+
+
 def _holds(catalog: dict, dotted: str) -> bool:
     node: object = catalog
     for part in dotted.split("."):
@@ -404,12 +603,7 @@ def _holds(catalog: dict, dotted: str) -> bool:
 
 
 def catalog_keys(node: object, prefix: str = "") -> set[str]:
-    if not isinstance(node, dict):
-        return {prefix.rstrip(".")}
-    keys: set[str] = set()
-    for key, value in node.items():
-        keys |= catalog_keys(value, f"{prefix}{key}.")
-    return keys
+    return {key for key, _ in catalog_entries(node, prefix)}
 
 
 def main() -> int:
@@ -420,10 +614,20 @@ def main() -> int:
     catalog = json.loads(CATALOG.read_text())
     failures: list[str] = []
     absent: list[str] = []
-    for path in sorted(SRC.rglob("*.tsx")):
+    # Three file sets, and the difference between them is what each rule can honestly say.
+    # `sources` is everything: the catalog rules read a `.ts` file because a hook's toast
+    # is copy, and read the `dev/` playground because a key it reads is not dead. `product`
+    # drops the playground, whose copy is nobody's to translate. `sweep` is `.tsx` alone -
+    # every rule in `offences` anchors on a JSX bracket, and `; return` in a `.ts` file
+    # would read as a text node (#446). Tests are out of all three: a test names its copy.
+    sources = [
+        path
+        for path in sorted(SRC.rglob("*.ts*"))
+        if path.suffix in (".ts", ".tsx") and not path.name.endswith(SKIPPED_NAMES)
+    ]
+    product = [path for path in sources if not any(part in str(path) for part in SKIPPED_DIRS)]
+    for path in [one for one in product if one.suffix == ".tsx"]:
         relative = str(path.relative_to(ROOT))
-        if path.name.endswith(SKIPPED_NAMES) or any(part in relative for part in SKIPPED_DIRS):
-            continue
         for number, what in offences(path):
             failures.append(f"{relative}:{number}: {what}")
         for number, what in missing_keys(path, catalog):
@@ -451,6 +655,32 @@ def main() -> int:
             print(f"  {one}")
         if len(absent) > len(shown):
             print(f"  … and {len(absent) - len(shown)} more (--all to list them)")
+        return 1
+
+    unread = unread_keys(catalog, sources)
+    if unread:
+        shown = unread if "--all" in sys.argv else unread[:200]
+        print(f"{len(unread)} message(s) in messages/en.json that nothing reads:\n")
+        for one in shown:
+            print(f"  {one}")
+        if len(unread) > len(shown):
+            print(f"  … and {len(unread) - len(shown)} more (--all to list them)")
+        print(
+            "\nDelete the key, or read it. A key nothing reads is a key a translator\n"
+            "translates for nobody - and where a component kept the literal beside it,\n"
+            "the English is still on screen in every locale."
+        )
+        return 1
+
+    duplicated = duplicated_in_source(catalog, product)
+    if duplicated:
+        shown = duplicated if "--all" in sys.argv else duplicated[:200]
+        print(f"{len(duplicated)} message(s) also written out in the source:\n")
+        for path, number, key, words in shown:
+            print(f"  {path.relative_to(ROOT)}:{number}: {key} = {words!r}")
+        if len(duplicated) > len(shown):
+            print(f"  … and {len(duplicated) - len(shown)} more (--all to list them)")
+        print("\nRead the key that already holds this sentence.")
         return 1
 
     keys = catalog_keys(catalog)

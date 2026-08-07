@@ -11,6 +11,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 
 from app.api.deps import AgentRunnerSvc, ApprovalSvc, Auth, require
+from app.core.exceptions import ValidationError
 from app.core.permissions import Perm
 from app.db.models.agent_run import (
     ApprovalStatus,
@@ -41,13 +42,15 @@ async def list_runs(
     service: AgentRunnerSvc,
     ctx: Auth,
     agent_id: UUID | None = Query(None),
+    status: str | None = Query(
+        None, description="Comma-separated run statuses, e.g. failed,budget_exceeded"
+    ),
     parent_run_id: UUID | None = Query(
         None, description="List one run's delegations instead of the top level"
     ),
     include_delegations: bool = Query(
         False, description="Include delegated runs - what one agent itself did"
     ),
-    status: Annotated[list[RunStatus] | None, Query()] = None,
     surface: RunSurface | None = Query(None, description="Where the run came from"),
     user_id: UUID | None = Query(None, description="Who the run ran as"),
     started_from: datetime | None = Query(
@@ -73,9 +76,11 @@ async def list_runs(
     Top-level runs only by default - see the service for why a delegated row
     and a run somebody started are never summed down one column.
 
-    `status` repeats: `?status=failed&status=budget_exceeded` is the "show me the
-    problems" query, and the two are separate statuses precisely so that asking
-    for one does not mean asking for the other.
+    `status` takes a set, comma-separated - `?status=failed,budget_exceeded` is
+    the "show me the problems" query, and the two are separate statuses precisely
+    so that asking for one does not mean asking for the other. An unknown value is
+    refused by name rather than ignored, because a filter that silently matches
+    nothing looks exactly like an organization with nothing wrong.
 
     `started_from` and `started_to` are what let the count beside this list be
     reconciled with a spend figure. Without a window the count reads all time
@@ -102,7 +107,7 @@ async def list_runs(
         parent_run_id=parent_run_id,
         include_delegations=include_delegations,
         filters=RunFilters(
-            statuses=None if not status else [value.value for value in status],
+            statuses=_parse_statuses(status),
             surface=None if surface is None else surface.value,
             user_id=user_id,
             started_from=started_from,
@@ -119,6 +124,20 @@ async def list_runs(
         limit=limit,
     )
     return AgentRunList(items=items, total=total)
+
+
+def _parse_statuses(raw: str | None) -> list[str] | None:
+    if raw is None:
+        return None
+    values = [part.strip() for part in raw.split(",") if part.strip()]
+    known = {member.value for member in RunStatus}
+    unknown = sorted(set(values) - known)
+    if unknown:
+        raise ValidationError(
+            message="Unknown run status",
+            details={"unknown": unknown, "expected": sorted(known)},
+        )
+    return values or None
 
 
 @router.get(

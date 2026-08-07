@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -276,9 +276,28 @@ describe("ExposuresPanel", () => {
 
     await userEvent.click(await screen.findByRole("combobox", { name: "Add a channel" }));
 
-    expect(
-      await screen.findByRole("option", { name: "Slack - Ops bot (inactive)" }),
-    ).toBeInTheDocument();
+    // Matched inside the option, not through its accessible name: the mark is
+    // `trailing`, and Radix names an item by its `ItemText` alone.
+    const off = await screen.findByRole("option", { name: "Slack - Ops bot" });
+    expect(within(off).getByText("inactive")).toBeVisible();
+  });
+
+  it("does not repeat that mark on the closed trigger, which chose the bot", async () => {
+    // Radix draws the selected item's `ItemText` in the trigger, so "(inactive)"
+    // in `children` followed the choice out of the list - where it read as the
+    // state of the binding somebody had just made rather than of the bot.
+    serve([], [target({ id: "b2", name: "Ops bot", is_active: false })]);
+    await mount();
+
+    const picker = await screen.findByRole("combobox", { name: "Add a channel" });
+    await userEvent.click(picker);
+    await userEvent.click(await screen.findByRole("option", { name: "Slack - Ops bot" }));
+
+    // `not.toHaveTextContent`, not `queryByText`: the mark used to be the text
+    // node " (inactive)" beside the name, which `queryByText("inactive")` would
+    // not have matched - a regression test that passes against the bug.
+    expect(picker).toHaveTextContent("Ops bot");
+    expect(picker).not.toHaveTextContent("inactive");
   });
 
   it("warns that an approval parks a channel thread, where files are in play", async () => {

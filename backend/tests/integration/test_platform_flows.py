@@ -69,6 +69,7 @@ from app.repositories import (
     organization_secret_repo,
     rag_document_repo,
 )
+from app.repositories.agent_run import RunFilters
 from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseUpdate
 from app.schemas.mcp_connection import OrgMcpConnectionCreate, OrgMcpConnectionUpdate
 from app.services.access import AGENT, COLLECTION, SKILL, resolve_access
@@ -330,12 +331,20 @@ async def _exposure_row(
     return exposure
 
 
-async def _run_row(db, *, organization_id, agent_id, cost: Decimal, started_at: datetime):
+async def _run_row(
+    db,
+    *,
+    organization_id,
+    agent_id,
+    cost: Decimal,
+    started_at: datetime,
+    status: str = RunStatus.COMPLETED.value,
+):
     run = AgentRun(
         id=uuid.uuid4(),
         organization_id=organization_id,
         agent_id=agent_id,
-        status=RunStatus.COMPLETED.value,
+        status=status,
         cost_usd=cost,
         started_at=started_at,
     )
@@ -733,6 +742,38 @@ class TestTenantIsolation:
 
         assert [run.id for run in items] == [estate.home_run.id]
         assert total == 1
+
+    async def test_a_status_list_narrows_both_the_page_and_the_total(
+        self, db, estate: TwoTenants
+    ) -> None:
+        """The count must carry the same predicate as the page - a total counted
+        without it offers a pager full of rows the filter then removes."""
+        now = datetime.now(UTC)
+        failed = await _run_row(
+            db,
+            organization_id=estate.home.organization.id,
+            agent_id=estate.home_agent.id,
+            cost=Decimal("0.100000"),
+            started_at=now,
+            status=RunStatus.FAILED.value,
+        )
+        broke = await _run_row(
+            db,
+            organization_id=estate.home.organization.id,
+            agent_id=estate.home_agent.id,
+            cost=Decimal("0.200000"),
+            started_at=now,
+            status=RunStatus.BUDGET_EXCEEDED.value,
+        )
+
+        items, total = await agent_run_repo.list_runs(
+            db,
+            organization_id=estate.home.organization.id,
+            filters=RunFilters(statuses=[RunStatus.FAILED.value, RunStatus.BUDGET_EXCEEDED.value]),
+        )
+
+        assert {run.id for run in items} == {failed.id, broke.id}
+        assert total == 2
 
     async def test_spend_counts_only_the_callers_own_runs(self, db, estate: TwoTenants) -> None:
         """The other tenant's run costs nine dollars; it must not appear on this bill."""
@@ -3903,3 +3944,161 @@ class TestWhoStillHearsAboutRuns:
         )
 
         assert recipients == [tenant.user.email]
+
+
+class TestSharedWithMeIsWhatWasDeliberatelyShared:
+    """The listings' shared_with_me filter: shared or org-visible, never mine.
+
+    Two properties matter and both are easy to lose. The caller's own rows
+    must not appear however visible they are, and a role that already reaches
+    the whole organization must still get the grants-and-visibility answer -
+    not "everything minus mine".
+    """
+
+    async def test_a_member_sees_the_granted_and_the_org_visible_but_not_their_own(
+        self, db, estate: TwoTenants
+    ) -> None:
+        member = await _join(db, estate.home, OrgRoleName.MEMBER)
+        await SharingService(db).share(
+            estate.home.ctx,
+            estate.home_agent,
+            resource_type=AGENT,
+            subject_user_id=member.user_id,
+            level=GrantLevel.READ,
+        )
+        org_visible = await _agent_row(
+            db,
+            organization_id=estate.home.organization.id,
+            owner_user_id=estate.home.user.id,
+            slug="orgwide",
+        )
+        org_visible.visibility = Visibility.ORG.value
+        mine = await _agent_row(
+            db,
+            organization_id=estate.home.organization.id,
+            owner_user_id=member.user_id,
+            slug="my-own",
+        )
+        mine.visibility = Visibility.ORG.value
+        await db.flush()
+
+        rows, total = await AgentRegistryService(db).list_agents(member, shared_with_me=True)
+
+        assert {row.id for row in rows} == {estate.home_agent.id, org_visible.id}
+        assert total == 2
+
+    async def test_a_wide_role_gets_grants_and_visibility_not_the_whole_org(
+        self, db, estate: TwoTenants
+    ) -> None:
+        """An owner reaches every agent; "shared with me" still means shared."""
+        member = await _join(db, estate.home, OrgRoleName.MEMBER)
+        private_granted_to_owner = await _agent_row(
+            db,
+            organization_id=estate.home.organization.id,
+            owner_user_id=member.user_id,
+            slug="theirs",
+        )
+        await SharingService(db).share(
+            member,
+            private_granted_to_owner,
+            resource_type=AGENT,
+            subject_user_id=estate.home.user.id,
+            level=GrantLevel.READ,
+        )
+
+        rows, total = await AgentRegistryService(db).list_agents(
+            estate.home.ctx, shared_with_me=True
+        )
+
+        # estate.home_agent is the owner's own private agent - not shared with
+        # them, however wide their role.
+        assert {row.id for row in rows} == {private_granted_to_owner.id}
+        assert total == 1
+
+    async def test_skills_answer_the_same_question(self, db, estate: TwoTenants) -> None:
+        member = await _join(db, estate.home, OrgRoleName.MEMBER)
+        await SharingService(db).share(
+            estate.home.ctx,
+            estate.home_skill,
+            resource_type=SKILL,
+            subject_user_id=member.user_id,
+            level=GrantLevel.READ,
+        )
+
+        items, total = await SkillService(db).list_skills(member, shared_with_me=True)
+
+        assert [skill.id for skill in items] == [estate.home_skill.id]
+        assert total == 1
+
+    async def test_collections_exclude_personal_and_app_rows(self, db) -> None:
+        """A personal base is mine by construction and an app base is the
+        deployment's - neither was shared *with* anybody."""
+        tenant = await _tenant(db, name="KbShare")
+        member = await _join(db, tenant, OrgRoleName.MEMBER)
+        org_visible = await _kb_row(db, tenant=tenant, collection_name="kb_org_visible")
+        await _kb_row(
+            db,
+            tenant=tenant,
+            collection_name="kb_personal",
+            scope=KBScope.PERSONAL,
+            owner_user_id=member.user_id,
+        )
+        await _kb_row(db, tenant=tenant, collection_name="kb_app", scope=KBScope.APP)
+        my_org_row = await _kb_row(
+            db,
+            tenant=tenant,
+            collection_name="kb_my_org_row",
+            owner_user_id=member.user_id,
+        )
+
+        bases = await KnowledgeBaseService(db).list_accessible(member, shared_with_me=True)
+
+        assert {kb.id for kb in bases} == {org_visible.id}
+        assert my_org_row.id not in {kb.id for kb in bases}
+
+
+class TestTheListingCarriesThePublishedCap:
+    """`budget_monthly_usd` on the agent listing - the headroom card's cap.
+
+    Read off the published version's frozen spec by JSONB path, which only a
+    real Postgres can prove: a mock cannot say whether `spec -> 'budget' ->>
+    'monthly_usd'` survives the round trip through publish.
+    """
+
+    async def _publish(self, db, estate: TwoTenants, spec: dict) -> None:
+        version = AgentVersion(
+            id=uuid.uuid4(),
+            agent_id=estate.home_agent.id,
+            organization_id=estate.home.organization.id,
+            version=1,
+            spec=spec,
+        )
+        db.add(version)
+        await db.flush()
+        estate.home_agent.current_version_id = version.id
+        estate.home_agent.status = AgentStatus.PUBLISHED.value
+        await db.flush()
+
+    async def test_the_cap_comes_off_the_frozen_spec_not_the_draft(
+        self, db, estate: TwoTenants
+    ) -> None:
+        await self._publish(db, estate, {"name": "Support", "budget": {"monthly_usd": 60}})
+        # The draft promises a different number; the runner does not enforce
+        # promises, so the listing must not report one.
+        estate.home_agent.draft_spec = {"name": "Support", "budget": {"monthly_usd": 999}}
+        await db.flush()
+
+        rows, _total = await AgentRegistryService(db).list_agents(estate.home.ctx)
+
+        by_id = {row.id: row for row in rows}
+        assert by_id[estate.home_agent.id].budget_monthly_usd == 60.0
+
+    async def test_a_version_with_no_budget_block_answers_null(
+        self, db, estate: TwoTenants
+    ) -> None:
+        await self._publish(db, estate, {"name": "Support"})
+
+        rows, _total = await AgentRegistryService(db).list_agents(estate.home.ctx)
+
+        by_id = {row.id: row for row in rows}
+        assert by_id[estate.home_agent.id].budget_monthly_usd is None

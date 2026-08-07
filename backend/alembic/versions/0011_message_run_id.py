@@ -1,7 +1,7 @@
 """Which run produced a turn
 
-Revision ID: 0010_message_run_id
-Revises: 0009_align_index_names
+Revision ID: 0011_message_run_id
+Revises: 0010_audit_without_an_actor
 Create Date: 2026-08-06
 
 `0006_message_usage` recorded what a turn cost and said plainly what was still
@@ -36,8 +36,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision = "0010_message_run_id"
-down_revision = "0009_align_index_names"
+revision = "0011_message_run_id"
+down_revision = "0010_audit_without_an_actor"
 branch_labels = None
 depends_on = None
 

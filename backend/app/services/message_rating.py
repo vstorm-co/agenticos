@@ -3,7 +3,7 @@
 import csv
 from collections.abc import AsyncGenerator, AsyncIterable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from io import StringIO
 from typing import Any
 from uuid import UUID
@@ -21,6 +21,7 @@ from app.schemas.message_rating import (
     RatingSummary,
     RatingValue,
 )
+from app.services.stats import resolve_window
 
 
 @dataclass
@@ -250,9 +251,20 @@ class MessageRatingService:
             if skip >= total:
                 break
 
-    async def get_summary(self, *, days: int = 30) -> RatingSummary:
-        """Get aggregated rating statistics."""
-        summary_data = await rating_repo.get_rating_summary(self.db, days=days)
+    async def get_summary(
+        self, *, from_date: date | None = None, to_date: date | None = None
+    ) -> RatingSummary:
+        """Aggregated rating statistics for a window, across every organization.
+
+        Takes the same inclusive dates as the organization-scoped summary and
+        resolves them the same way, so the dashboard's period filter means one
+        thing on both cards. Absent dates keep the old meaning: the last thirty
+        days, ending today.
+        """
+        window = resolve_window(from_date, to_date)
+        summary_data = await rating_repo.get_rating_summary(
+            self.db, start=window.start, end=window.end
+        )
         return RatingSummary(**summary_data)
 
     _CSV_INJECTION_PREFIXES = ("=", "+", "-", "@", "\t", "\r")

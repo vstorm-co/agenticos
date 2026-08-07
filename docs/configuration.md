@@ -158,6 +158,20 @@ There is no `HEALTHCHECK` in `backend/Dockerfile`. The image is started as two
 different processes — the API and this runner — and a probe for one is a
 permanent false alarm on the other, so each service definition carries its own.
 
+### Approval expiry
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `APPROVAL_EXPIRY_HOURS` | `72` | How long a parked tool call waits before the hourly sweep denies it by timeout |
+
+Three days because it has to span a weekend: the approval that arrives on Friday
+afternoon is the one nobody decides, and expiring it on Saturday would be expiring
+it for having been asked at the wrong hour. Shorten it where a queue is watched
+during the working day and a stale ask is worse than a slow one; lengthen it where
+approvals are a weekly ritual. Expiring a call also **ends its run** — see
+[Governance](governance.md#a-decision-nobody-makes) for what that settles and what
+it deliberately leaves alone.
+
 ## AI Models — configured in the app, not here
 
 Chat models are not environment variables. Each organization stores its own

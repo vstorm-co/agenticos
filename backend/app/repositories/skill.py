@@ -9,7 +9,7 @@ from collections.abc import Sequence
 from typing import Literal
 from uuid import UUID
 
-from sqlalchemy import false, func, or_, select
+from sqlalchemy import and_, false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.resource_grant import Visibility
@@ -34,6 +34,19 @@ async def get_by_name(db: AsyncSession, name: str, *, organization_id: UUID) -> 
     return result.scalar_one_or_none()
 
 
+async def names_in_use(db: AsyncSession, *, organization_id: UUID) -> set[str]:
+    """Every skill name taken in one organization.
+
+    Unpaged and visibility-blind, which is what makes it the same question
+    :func:`get_by_name` asks one name at a time. Uniqueness is a property of the
+    organization rather than of what a caller may see: a skill a member cannot
+    read is still a name they cannot take, and a name past the hundredth row of
+    a listing is not a free one.
+    """
+    result = await db.execute(select(Skill.name).where(Skill.organization_id == organization_id))
+    return set(result.scalars().all())
+
+
 async def get_many(
     db: AsyncSession, skill_ids: list[UUID], *, organization_id: UUID
 ) -> dict[UUID, Skill]:
@@ -53,6 +66,7 @@ async def list_visible(
     user_id: UUID,
     see_all: bool,
     shared_ids: list[UUID],
+    shared_with_me: bool = False,
     search: str | None = None,
     categories: Sequence[str] | None = None,
     sort: SkillSort = "name",
@@ -65,6 +79,9 @@ async def list_visible(
         see_all: True when the caller's role reaches the whole organization;
             the ownership predicate is then skipped entirely.
         shared_ids: Skill ids explicitly shared with this member.
+        shared_with_me: Narrow to rows deliberately shared with the caller -
+            org-visible or explicitly granted, and not their own - whatever
+            the role's scope.
 
     The total is what a pager needs and a page cannot supply: "showing 50 of 50"
     and "50 of 380" are the same list until somebody counts the rest.
@@ -81,7 +98,18 @@ async def list_visible(
     say otherwise.
     """
     where = [Skill.organization_id == organization_id]
-    if not see_all:
+    if shared_with_me:
+        where.append(
+            and_(
+                or_(
+                    Skill.visibility == Visibility.ORG.value,
+                    Skill.id.in_(shared_ids) if shared_ids else false(),
+                ),
+                # IS DISTINCT FROM, not !=: an ownerless row is not the caller's.
+                Skill.owner_user_id.is_distinct_from(user_id),
+            )
+        )
+    elif not see_all:
         # The same predicate every shared resource here uses: mine, the
         # organization's, or one explicitly shared with me. A team-visible
         # skill nobody granted is deliberately invisible - "team" means named

@@ -10,30 +10,8 @@ import { Button } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { cn, getErrorMessage } from "@/lib/utils";
+import type { CheckStatus, SystemHealth } from "@/types/admin";
 import { useTranslations } from "next-intl";
-
-/**
- * Every status this page can show, and none it can invent.
- *
- * There is deliberately no "unknown". A row that reports a service nobody
- * checked is noise, and one that reports a service as healthy without checking
- * is worse - it will be believed during an incident. Each of these comes from a
- * probe that ran, including `not_checked`, which is a probe that was skipped and
- * says why.
- */
-type CheckStatus = "healthy" | "unhealthy" | "unconfigured" | "not_checked";
-
-interface SystemCheck {
-  key: string;
-  status: CheckStatus;
-  detail: string;
-  latency_ms: number | null;
-}
-
-interface SystemHealth {
-  checked_at: string;
-  checks: SystemCheck[];
-}
 
 const REFRESH_INTERVAL_MS = 30_000;
 

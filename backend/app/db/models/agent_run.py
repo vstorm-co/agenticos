@@ -263,25 +263,26 @@ class AgentRun(Base, TimestampMixin):
 
 
 class ApprovalStatus(enum.StrEnum):
-    """Where a parked tool call ended up. Three states, and no fourth.
+    """Where a parked tool call ended up.
 
-    There was an `EXPIRED`, defined and permitted by the CHECK constraint, and
-    nothing ever assigned it. So the model promised a ceiling on the queue that
-    did not exist: a call nobody decides stays `pending` indefinitely and its run
-    stays parked, with nothing escalating or settling either.
+    `EXPIRED` is assigned by `ApprovalService.expire_stale`, which denies by
+    timeout everything still pending past `APPROVAL_EXPIRY_HOURS` and then settles
+    the run behind it. It is a decision nobody made rather than a decision made by
+    nobody: `decided_by_user_id` stays null, which is what tells an expiry from a
+    rejection in the accountability trail.
 
-    Removed rather than implemented, because expiry is a designed feature and not
-    a missing line. What should happen to a parked run whose approval lapses -
-    fail it, cancel it, re-ask - is a product decision nobody has made, and
-    inventing one to retire an enum value would be the worse of the two
-    mistakes. The Activity page therefore surfaces the *age* of the oldest wait
-    instead, and a call waiting past a day wears the loud tone. If expiry is
-    wanted later it arrives with its settlement semantics and a new value.
+    This page's design argued for deleting the value instead, on the grounds that
+    a call nobody decides stayed `pending` for ever and no settlement semantics
+    had been chosen. The second half is what changed - #457 chose them - so the
+    value stays and the Activity page reads it. The *age* of the oldest wait is
+    still surfaced, because a queue under its expiry window is the one somebody
+    can still act on.
     """
 
     PENDING = "pending"
     APPROVED = "approved"
     REJECTED = "rejected"
+    EXPIRED = "expired"
 
 
 class ToolApproval(Base, TimestampMixin):

@@ -109,6 +109,11 @@ rather than by themselves, which is what made them uniform; the exceptions and
 what they leave out are listed under
 [Surfaces](channels.md#what-each-surface-records).
 
+Run history filters on exactly this: `GET /runs` takes a comma-separated list of
+statuses (`?status=failed,budget_exceeded`), because the operator's question is
+a set of outcomes, not one status at a time. An unknown status is refused rather
+than silently matching nothing - an empty page must mean "no such runs".
+
 ---
 
 ## Three more, because they are easy to confuse

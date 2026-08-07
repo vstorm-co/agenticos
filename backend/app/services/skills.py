@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Sequence
 from typing import Annotated
-from uuid import UUID
+from uuid import NAMESPACE_URL, UUID, uuid5
 
 from pydantic import StringConstraints, TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,7 +23,13 @@ from app.core.permissions import AuthContext, Perm
 from app.db.models.skill import Skill, SkillResource
 from app.repositories import resource_grant_repo, skill_repo
 from app.repositories.skill import SkillSort
-from app.schemas.skill import SkillList, SkillSummary
+from app.schemas.skill import (
+    LibrarySkillList,
+    LibrarySkillRead,
+    SkillList,
+    SkillResourceSummary,
+    SkillSummary,
+)
 from app.services import skill_library
 from app.services.access import SKILL, resolve_access, visible_resource_ids
 
@@ -134,6 +140,7 @@ class SkillService:
         self,
         ctx: AuthContext,
         *,
+        shared_with_me: bool = False,
         search: str | None = None,
         categories: Sequence[str] | None = None,
         sort: SkillSort = "name",
@@ -145,7 +152,9 @@ class SkillService:
         Scoped like every shared resource: a role that reaches the whole
         organization lists everything, anyone else lists their own skills, the
         org-visible ones and those explicitly shared with them - the same set
-        :func:`resolve_access` would admit one row at a time.
+        :func:`resolve_access` would admit one row at a time. `shared_with_me`
+        narrows to what was deliberately shared with the caller - org-visible
+        or explicitly granted, and not their own.
         """
         # `None` is `visible_resource_ids` saying the role already reaches every
         # skill, which is exactly what `see_all` tells the query - so both come
@@ -154,12 +163,25 @@ class SkillService:
         shared = await visible_resource_ids(
             self.db, ctx, resource_type=SKILL, perm=Perm.SKILLS_VIEW
         )
+        grant_ids = [] if shared is None else shared
+        if shared_with_me and shared is None:
+            # A role that reaches everything never looks its grants up - but
+            # "shared with me" is a question about grants and visibility, not
+            # reach, and without them the answer would degenerate into "the
+            # whole organization minus mine".
+            grant_ids = await resource_grant_repo.list_shared_ids(
+                self.db,
+                organization_id=ctx.organization_id,
+                subject_user_id=ctx.subject_id,
+                resource_type=SKILL.key,
+            )
         return await skill_repo.list_visible(
             self.db,
             organization_id=ctx.organization_id,
             user_id=ctx.subject_id,
             see_all=shared is None,
-            shared_ids=[] if shared is None else shared,
+            shared_ids=grant_ids,
+            shared_with_me=shared_with_me,
             search=search,
             categories=categories,
             sort=sort,
@@ -171,6 +193,7 @@ class SkillService:
         self,
         ctx: AuthContext,
         *,
+        shared_with_me: bool = False,
         search: str | None = None,
         categories: Sequence[str] | None = None,
         sort: SkillSort = "name",
@@ -185,9 +208,19 @@ class SkillService:
         filter chip that vanished with the page it filtered would strand
         whoever pressed it. `suggested_categories` is the shipped list, for an
         organization that has not invented its own yet.
+
+        `categories` stays the organization's under `shared_with_me` too: the
+        chips describe what can be filtered to, and narrowing them to the
+        shared subset would make the filter disappear as soon as it was used.
         """
         items, total = await self.list_skills(
-            ctx, search=search, categories=categories, sort=sort, skip=skip, limit=limit
+            ctx,
+            shared_with_me=shared_with_me,
+            search=search,
+            categories=categories,
+            sort=sort,
+            skip=skip,
+            limit=limit,
         )
         bundled_names = frozenset(entry.name for entry in skill_library.library())
         return SkillList(
@@ -196,6 +229,56 @@ class SkillService:
             categories=await self.list_categories(ctx),
             suggested_categories=list(SUGGESTED_CATEGORIES),
         )
+
+    async def list_library(self, ctx: AuthContext) -> LibrarySkillList:
+        """The skills this deployment ships with, each marked installed or not.
+
+        `installed` answers exactly one question - is this name already taken in
+        this organization - because that is the only question the Install button
+        leads to. It used to be derived from `list_skills(ctx, limit=100)`, which
+        is a *page* of what *this caller may see*, and both halves of that were
+        wrong:
+
+        - a page. An organization past its alphabetically hundredth skill lost
+          every name after it, so a taken name read as free.
+        - visibility-scoped. An install lands `private`
+          (:class:`app.db.models.skill.Skill`), so a skill another member
+          installed is invisible to anyone whose `SKILLS_VIEW` scope is not
+          `ALL`. Their gallery offered an Install, and
+          :meth:`install_from_library` refused it with a 409 naming a skill they
+          cannot open.
+
+        The rule behind that refusal is `skill_repo.get_by_name` - organization
+        wide, visibility-blind - so this asks the same query rather than a
+        listing that happens to overlap with it.
+
+        The gallery drops what is installed rather than greying it out, so a name
+        somebody else took simply stops being offered. There is deliberately no
+        link to the existing skill: the caller may have no access to it, and a
+        card that leads to a 404 is a worse answer than no card.
+        """
+        taken = await skill_repo.names_in_use(self.db, organization_id=ctx.organization_id)
+        items = [
+            LibrarySkillRead(
+                key=bundled.key,
+                name=bundled.name,
+                description=bundled.description,
+                category=bundled.category,
+                content=bundled.content,
+                resources=[
+                    SkillResourceSummary(
+                        id=uuid5(NAMESPACE_URL, f"{bundled.key}/{resource.name}"),
+                        name=resource.name,
+                        description=None,
+                        size_bytes=resource.size_bytes,
+                    )
+                    for resource in bundled.resources
+                ],
+                installed=bundled.name in taken,
+            )
+            for bundled in skill_library.library()
+        ]
+        return LibrarySkillList(items=items, total=len(items))
 
     async def list_categories(self, ctx: AuthContext) -> list[str]:
         """Every distinct category in this organization, for the listing's filter."""

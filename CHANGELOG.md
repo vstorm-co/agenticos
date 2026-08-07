@@ -19,6 +19,148 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.81] - 2026-08-07
+
+### Fixed
+
+- **145 more keys came out of `messages/en.json`, and 82 of them had a
+  hand-written Polish translation** — done for nobody, because nothing read the
+  English either. Another 43 messages had their words written out in the source
+  beside the key that held them, so the catalogue looked migrated while the
+  literal stayed on screen. That is worse than an unmigrated string: the guard
+  counted it as handled (#425).
+- A sentence split across two keys, its tail beginning at a full stop, so neither
+  half reads as copy to anything looking at one key at a time.
+
+### Added
+
+- Three rules, all anchored on the **catalogue** rather than the source, so none
+  has to decide what a text node is — which is how two of them reach `.ts` files
+  the offence sweep has never opened: a key nothing reads, a message whose words
+  also sit in the source, and a value opening on `.` `,` `:` `;`.
+
+## [0.0.80] - 2026-08-07
+
+### Fixed
+
+- **166 values came out of `messages/en.json`**: 18 Tailwind class lists, still
+  being read back through `cn(t("…"))` so a translator opening `pl.json` was
+  asked to translate CSS, and 148 fragments of JavaScript source that nothing
+  read at all. The catalogue goes 2849 → 2696 (#348).
+- `check_i18n.py` could not see copy passed through a prop it did not know:
+  `READABLE_ATTRS` had no `noun`, so `<Pager>` took one from six call sites as a
+  plain English word and rendered `3 of 40 skills` under `pl`, where no plural
+  can agree with the count. The word is inside the message now (#362).
+- The knowledge-base document table told a Viewer to drag in files they may not
+  upload (#349).
+- `SharingPanel` interpolated an English noun into five sentences and pluralised
+  it with an `s` (#420).
+
+## [0.0.79] - 2026-08-07
+
+### Fixed
+
+- A failed sync source was drawn exactly like a successful one. `SyncStatusBadge`
+  tested `status === "failed"`, which the worker never writes — it writes `done`
+  and `error` — so every finished and every failed sync fell through to the same
+  grey token (#356).
+- The document badge twenty lines above it was wrong the same way, and worse:
+  three of its four keys (`completed`, `pending`, `failed`) are names nothing
+  writes, against the service's `processing`/`done`/`error`. It had been "fixed"
+  onto that wrong vocabulary once already.
+- `/rag`'s status icon drew anything it did not recognise as a spinner, so a
+  cancelled sync spun for the life of the page.
+- The sync wizard's target-collection picker could not be reached from any of its
+  three call sites, so "Add source" on `/rag` — where the tab lists the whole
+  organization's sources — filed against whichever collection the sidebar
+  happened to have selected, invisibly (#434).
+- Creating a collection on `/rag` reported every refusal as "Failed to create
+  collection", discarding the server's own message — which is what made 0.0.66's
+  better 400 invisible on the only screen that creates one by name (#436).
+
+### Added
+
+- `frontend/src/lib/rag-status.ts` — one source for the vocabulary, naming the
+  three columns that share it and what writes each.
+
+## [0.0.78] - 2026-08-07
+
+### Fixed
+
+- Seven select triggers repeated a badge that only means something in the list —
+  "deployment default", "not on this host" — where a comparison against the other
+  options has nothing to compare against. They move into `SelectItem`'s `trailing`
+  slot, which renders outside `ItemText` and so is not inherited by the closed
+  trigger (#341).
+- Create knowledge base could not say the embedding-model list had *failed*:
+  loading and refused were the same pixels. Refused now has its own branch and
+  names the default the collection will get anyway (#365).
+- The runtime field lost its only warning when the badge moved, and
+  `connection-dialog` saves `default_runtime` without validating it — so you could
+  probe a host, pick an alias it had just refused, and save with nothing
+  dissenting. An explicit line under the field restores it, and restores it for
+  screen readers too, since Radix names an option by `ItemText` alone.
+
+## [0.0.77] - 2026-08-07
+
+### Security
+
+- The chat's model picker created an organization-wide model profile without
+  checking `connections:manage`, so anybody who could open a conversation was
+  offered the form and refused by the API (#419).
+- The chat's approval panel offered editable arguments and Submit to anybody a
+  parked run streamed to, though deciding an approval needs `approvals:decide`,
+  which neither `member` nor `builder` holds. The banner and the arguments stay,
+  read-only; the controls become a sentence (#438).
+
+## [0.0.76] - 2026-08-07
+
+### Security
+
+- `InlineSecret` offered a vault write at seven call sites and only one checked
+  `secrets:edit`, so six of them showed the form and let the API answer 403. The
+  permission is now checked inside the component, because every call site posts
+  the same endpoint — a per-caller gate is one condition written seven times and
+  forgotten six of them (#361).
+
+### Fixed
+
+- Two test fixtures answered `/me/permissions` with a list, which is a `TypeError`
+  inside `usePermissions` rather than "no permissions" — so those specs had been
+  passing for the wrong reason.
+
+## [0.0.75] - 2026-08-07
+
+### Fixed
+
+- The admin conversations screen's Owner filter was permanently empty. Its BFF
+  proxy forwarded to a route that has never existed — the path matched
+  `/admin/conversations/{conversation_id}` instead, which 422'd trying to parse a
+  UUID — and both admin proxies dropped `sort_by` and `sort_dir` on the way
+  through (#413).
+- The admin users table drew a `Role` column for a field the API stopped
+  returning in migration `0066`, so it had been blank since. It now renders
+  `conversation_count`, which the backend had been joining for on every page load
+  and nothing read (#414).
+- The skills library marked a skill uninstalled that cannot be installed, so
+  Install answered 409 (#415).
+
+### Added
+
+- `test_bff_forwarded_paths.py` reads every `/api/v1/…` literal out of the route
+  handlers and checks it against the application's own route table, in
+  declaration order, validating each hard-coded segment through the field FastAPI
+  would use. Over 46 forwarded paths it finds exactly one defect — the one above.
+
+## [0.0.74] - 2026-08-07
+
+### Fixed
+
+- A tool call nobody decided parked its run for ever. Approvals still pending
+  after their window are now swept to `expired` — recorded as a decision nobody
+  made (`decided_by_user_id IS NULL`) rather than as a denial somebody issued,
+  so the audit trail says what actually happened (#178).
+
 ## [0.0.73] - 2026-08-07
 
 ### Fixed
