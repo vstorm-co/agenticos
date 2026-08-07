@@ -17,14 +17,21 @@ import asyncio
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
+from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic_ai.tools import DeferredToolRequests
+from pydantic_ai.usage import RequestUsage
 
-from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
+from app.agents.capabilities.budget import (
+    BudgetExceeded,
+    BudgetScope,
+    SpendLedger,
+    record_ambient_usage,
+)
 from app.agents.deps import AgentDeps
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import OrgRoleName
@@ -36,6 +43,7 @@ from app.services.agent_chat import (
     requested_environment_id,
     requested_model_profile_id,
 )
+from app.services.agent_runner import AgentRunnerService, PreparedRun
 
 pytestmark = pytest.mark.anyio
 
@@ -172,15 +180,25 @@ def _agent_run(output: object) -> MagicMock:
     return agent_run
 
 
-def _prepared(output: object = "the refund window is 30 days") -> MagicMock:
-    """A run the runner has already opened, with its agent stubbed."""
-    prepared = MagicMock()
-    prepared.run = MagicMock(id=uuid.uuid4())
-    prepared.deps = AgentDeps()
-    prepared.built.model_label = "gpt-4.1"
-    prepared.built.agent.iter = MagicMock(return_value=_Iteration(_agent_run(output)))
-    prepared.approvals.parked = {"approval-1": "call-1"}
-    return prepared
+def _prepared(output: object = "the refund window is 30 days") -> PreparedRun:
+    """A run the runner has already opened, with its agent stubbed.
+
+    A real `PreparedRun`, because `iterate` is what opens the spend meter -
+    mocking the prepared run would mock that away and leave the accounting
+    tests proving only that the chat called something.
+    """
+    built = MagicMock()
+    built.model_label = "gpt-4.1"
+    built.ledger = SpendLedger()
+    built.deps = AgentDeps()
+    built.agent.iter = MagicMock(return_value=_Iteration(_agent_run(output)))
+    return PreparedRun(
+        run=MagicMock(id=uuid.uuid4()),
+        agent=MagicMock(),
+        spec=MagicMock(),
+        built=built,
+        approvals=MagicMock(parked={"approval-1": "call-1"}, requested=[]),
+    )
 
 
 def _membership(role: OrgRoleName = OrgRoleName.MEMBER) -> MagicMock:
@@ -338,6 +356,98 @@ class TestWhoTheRunBelongsTo:
                 await _run(_db())
 
             runner.prepare.assert_not_called()
+
+
+class TestMeteringWhatTheTurnEmbedded:
+    """A knowledge search embeds the question, and somebody has to pay for it.
+
+    The embedding service is process-global - it serves every run and every
+    ingestion job at once - so it books through a context variable rather than
+    an argument, and a surface that opens no meter drops the cost on the floor.
+    Silently: no exception, no warning, a run that reports less than it spent
+    and an organization's month that never sees it. The chat did exactly that
+    for its whole life (agenticos#16), which is why the meter now belongs to the
+    prepared run rather than to whoever remembered to open it.
+    """
+
+    @staticmethod
+    @contextmanager
+    def _billed(*prepared: PreparedRun) -> Iterator[AsyncMock]:
+        """Run turns against a real `finish`, and hand back the rows it wrote.
+
+        `finish` bills from the ledger, so a test asserting on the ledger would
+        be asserting on the object it is trying to prove reaches the row. This
+        reads the row.
+        """
+        with (
+            patch("app.services.agent_chat.member_repo") as members,
+            patch.object(AgentRunnerService, "prepare", AsyncMock(side_effect=prepared)),
+            patch(
+                "app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()
+            ) as finish_run,
+        ):
+            members.get = AsyncMock(return_value=_membership())
+            yield finish_run
+
+    @staticmethod
+    def _searches(tokens: int = 1000, provider: str | None = "openai"):
+        """A turn whose tool embeds something while the agent is working."""
+
+        async def stream(agent_run: Any) -> None:
+            record_ambient_usage(
+                "text-embedding-3-small", RequestUsage(input_tokens=tokens), provider
+            )
+
+        return stream
+
+    async def test_an_embedding_made_during_the_turn_reaches_the_runs_cost(self):
+        with self._billed(_prepared()) as finish_run:
+            await _run(_db(), stream=self._searches())
+
+        billed = finish_run.await_args.kwargs
+        assert billed["cost_usd"] == Decimal("0.00002")
+        assert billed["input_tokens"] == 1000
+
+    async def test_an_unpriced_embedding_makes_the_turns_cost_a_floor(self):
+        """`cost_is_partial` is what the chat draws its `+` from. An embedding
+        model nobody prices costs something, and reporting the run's total as
+        exact would say the opposite of what is known."""
+        with self._billed(_prepared()) as finish_run:
+            await _run(_db(), stream=self._searches(provider=None))
+
+        billed = finish_run.await_args.kwargs
+        assert (billed["cost_usd"], billed["cost_is_partial"]) == (Decimal(0), True)
+
+    async def test_two_chats_in_one_process_do_not_bill_each_other(self):
+        """Every socket in a deployment is served by one process, so the meter is
+        a context variable rather than a field - and the reason to prove it is
+        that the failure would be a person paying for a stranger's search.
+
+        The barrier makes the overlap real: neither turn embeds until both are
+        inside their own metered block, and neither leaves until both have.
+        """
+        first, second = _prepared(), _prepared()
+        overlapping = asyncio.Barrier(2)
+
+        def embeds(tokens: int):
+            async def stream(agent_run: Any) -> None:
+                await overlapping.wait()
+                record_ambient_usage(
+                    "text-embedding-3-small", RequestUsage(input_tokens=tokens), "openai"
+                )
+                await overlapping.wait()
+
+            return stream
+
+        with self._billed(first, second):
+            await asyncio.gather(
+                _run(_db(), stream=embeds(1000)),
+                _run(_db(), stream=embeds(2000)),
+            )
+
+        ledgers = [first.built.ledger, second.built.ledger]
+        assert [len(ledger.entries) for ledger in ledgers] == [1, 1]
+        assert sorted(ledger.input_tokens for ledger in ledgers) == [1000, 2000]
 
 
 class TestRecordingTheRun:
