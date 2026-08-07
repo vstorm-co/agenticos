@@ -19,6 +19,25 @@ Two things are versioned separately from this file and worth knowing about:
 
 Nothing yet.
 
+## [0.0.69] - 2026-08-07
+
+### Fixed
+
+- Admin user and conversation search did not escape `LIKE` wildcards, so a caller
+  typing `%` or `_` changed what the query meant rather than searching for it: `_`
+  matched any single character and `%` matched everything, which is a wrong-rows
+  bug and a cheap way to make an admin listing scan far more than it should. All
+  three sites now go through one helper on SQLAlchemy's `icontains(autoescape=True)`
+  (#372).
+- Admin listings sorted on nullable columns without ordering nulls, so the emptiest
+  rows led page one (#411).
+
+### Removed
+
+- `escape_sql_like` in `core/sanitize.py` — dead, and half-right in a way that
+  would have been worse than nothing had anything called it.
+
+
 ## [0.0.68] - 2026-08-07
 
 ### Security
