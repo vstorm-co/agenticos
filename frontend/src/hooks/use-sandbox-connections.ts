@@ -108,6 +108,8 @@ interface UseSandboxPolicyResult {
   isLoading: boolean;
   /** Why the service could not be asked. A string, because it is shown as one. */
   error: string | null;
+  /** Ask again. Nothing here polls, so a failure stays until somebody retries. */
+  refetch: () => void;
 }
 
 /**
@@ -123,6 +125,7 @@ export function useSandboxPolicy(connectionId: string | null): UseSandboxPolicyR
     data: policy = null,
     isLoading,
     error,
+    refetch,
   } = useQuery({
     queryKey: qk.sandboxConnections.policy(connectionId ?? "none"),
     queryFn: () => readSandboxPolicy(connectionId as string),
@@ -136,6 +139,7 @@ export function useSandboxPolicy(connectionId: string | null): UseSandboxPolicyR
     isLoading: connectionId !== null && isLoading,
     error:
       error instanceof Error ? error.message : error ? "The sandbox service did not answer" : null,
+    refetch: () => void refetch(),
   };
 }
 

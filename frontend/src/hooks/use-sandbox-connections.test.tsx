@@ -190,6 +190,19 @@ describe("useSandboxPolicy", () => {
 
     await waitFor(() => expect(result.current.error).toBe("The sandbox service did not answer"));
   });
+
+  it("asks the host again on request, which is the only way back from a failure", async () => {
+    // Nothing polls this query, so a host that was down when the page loaded
+    // stays down on screen until somebody says try again.
+    vi.mocked(api.readSandboxPolicy).mockRejectedValueOnce(new Error("did not answer"));
+    const { result } = renderHook(() => useSandboxPolicy("c-1"), { wrapper });
+    await waitFor(() => expect(result.current.error).toBe("did not answer"));
+
+    act(() => result.current.refetch());
+
+    await waitFor(() => expect(result.current.policy).toEqual(POLICY));
+    expect(result.current.error).toBeNull();
+  });
 });
 
 describe("useSandboxSessions", () => {
