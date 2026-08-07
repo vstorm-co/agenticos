@@ -6,7 +6,7 @@ Notable changes to AgenticOS. The format follows
 
 Two things are versioned separately from this file and worth knowing about:
 
-- **`SPEC_VERSION`** — the agent spec format, currently **7**. A published agent
+- **`SPEC_VERSION`** — the agent spec format, currently **8**. A published agent
   and a client's exported YAML both carry it, so it only ever moves forward with a
   migration that keeps old documents loading. See
   [the spec reference](docs/reference/spec.md).
@@ -17,8 +17,47 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.82] - 2026-08-07
+
 ### Added
 
+- **Activity is rebuilt on our own rows.** `/runs` reads `agent_runs`,
+  `messages` and `tool_calls`, so no panel goes blank on a deployment that never
+  set `LOGFIRE_TOKEN`. Three tabs — Runs, Approvals, Spend — each owning its own
+  request, loading state, empty state and retry, which is the only arrangement in
+  which "nothing is waiting" and "we could not ask" stay different sentences. The
+  Approvals tab is withheld whole from a caller without `approvals:decide` rather
+  than shown with its buttons removed: reading the queue takes the same permission
+  as deciding one, so a refused caller was reading a 403 drawn as "Nothing waiting
+  — agents are running without needing you".
+- **`messages.run_id`** — which run produced a turn, and what a run detail view
+  is built on. Nullable, `ON DELETE SET NULL`, no backfill: deleting a run must
+  not delete the transcript, and a turn written outside a run has no run to name.
+  Chosen over windowing `messages` between a run's `started_at` and `ended_at`,
+  which is quietly wrong — two runs in one thread interleave, so the first run's
+  window contains the second's turns, and a run that never ended yields an empty
+  window that reads as "nothing was recorded".
+- **Nine filters on run history**, each narrowing the page and the count
+  together: a *set* of statuses (`failed,budget_exceeded` is the query somebody
+  actually types), surface, who it ran as, a time window, environment, exposure,
+  version, "slower than", and whether anybody rated it down. Sorting by duration
+  is computed in SQL over the whole narrowed set, because sorting a page of
+  twenty-five sorts the wrong set — that is the gap between "p95 is 14.8s" on the
+  dashboard and *those runs*.
+- **Spend by provider and by key**, which a per-agent breakdown cannot answer: an
+  invoice arrives from a vendor, and a leaked key is found by what was spent
+  through it.
+- **The role-aware dashboard** (#149): one route, one widget registry,
+  twenty-seven cards. Which cards a caller gets is decided by the permissions they
+  hold, never by their role name.
+- **Where agents run code** (#455): sandbox capacity, sessions and runtime cards
+  in that registry — how much room is left, what is running, and what the host
+  allows, which are the three questions an operator has when an agent dies inside
+  a container.
+- **One knowledge surface** (#221): `/rag` lists the bases, `/rag/[id]` is the
+  base itself, and `/kb` only redirects. Search now defaults to every base the
+  caller can read instead of one collection at a time, and each result carries its
+  document, page, score and which base it came from.
 - **`connections:view`, so an operator can watch where sandboxes run without
   being handed the keys to them.** `connections:manage` did two jobs: reading a
   host's session list, its activity log and the memory and CPU ceilings its
@@ -32,6 +71,78 @@ Two things are versioned separately from this file and worth knowing about:
   credential store stay on `connections:manage`. Nothing in the catalog implies
   one permission from another, so the roles that manage connections were given
   the read alongside it and lose no access.
+- **Two host-wide session numerators** (#495), so all three ceilings on
+  `GET /sandbox-connections/{id}/sessions` divide against something honest.
+  `len(sessions)` is scoped to the caller's organization and was being divided by
+  `SANDBOXD_MAX_SESSIONS` and `SANDBOXD_MAX_OPEN_SESSIONS`, both host-wide — so an
+  operator under their own ceiling and still refused a session had no way to see
+  the host was full of another tenant's work.
+
+### Fixed
+
+- **Four surfaces were recording nothing at all.** Writing the transcript was
+  each surface's job and they were not equal: web chat recorded everything, a
+  channel bot recorded two lines of text, and the embedded widget, a channel
+  mention, the HTTP API and every resumed run recorded nothing — so an
+  organization was billed for an answer given to a visitor on a client's site with
+  no row saying what was asked or what was said back. It is written from
+  `AgentRunnerService._run` now, the one place a non-streaming run executes,
+  because a thing every surface has to remember is a thing the next surface will
+  not. The write runs inside a SAVEPOINT: a failed transcript rolls back only
+  itself, and the run row's status, cost and tokens still commit.
+- **A streaming chat turn that did not finish threw its answer away.** A run that
+  failed, hit its budget, was stopped or lost its socket never returns a
+  `ChatTurn`, so the write on the success path was skipped and everything the
+  model had already streamed was discarded — leaving the run in history pointing
+  at a transcript holding the question and nothing else. That is the run somebody
+  opens.
+- **A delegate's spend was billed to its parent's vendor.** Every run in a tree
+  shares one ledger, so a parent's `cost_usd` already contains its children's:
+  counting every row billed the money twice, and counting only top-level rows
+  totalled correctly while attributing the delegate's spend to the wrong provider
+  and the wrong key. Each row now carries what it spent *itself*, which nests and
+  still sums to the bill.
+- **`logfire_trace_id` was null on every row ever written.** `finish()` accepted
+  one from the day the column existed and no caller ever passed it, so the write
+  was guarded by a condition that was always false and the field the public API
+  documents as a deep link into the trace was empty. It is read at the point of
+  writing now, on every path out of a run — including the failed ones, which are
+  the runs somebody wants a trace for.
+- **An embedded run was recorded as `web`, and a Mattermost mention as `api`.**
+  Nothing errored; the numbers simply landed in the wrong bucket, and every reader
+  of the column inherited it. A widget on somebody else's public site and an
+  employee in the dashboard are not the same thing to anyone asking how this
+  product is used.
+- **The approvals queue had no stable order to page through.** `created_at` comes
+  from `server_default=func.now()`, which Postgres answers with the *transaction*
+  timestamp, and a run parks on all of its outstanding calls at once — so every
+  call a fan-out parked shared an instant exactly, and a page boundary drawn
+  through them let a row come back on two pages or on neither.
+- **The count of what is waiting stopped at fifty.** `GET /approvals` answers
+  fifty rows at a time and the figure drew `items.length`, so a queue of a hundred
+  and twenty read 50 and went on reading 50 however long it grew. A count that
+  saturates is worse than a missing one: nothing on screen looks unusual.
+- **`kind` never reached a client** (#494). `SandboxConnectionService.sessions()`
+  sets it on both return paths, but `SandboxSessionList` never declared the field,
+  so `response_model` stripped it — and a Daytona host holding no sessions by
+  design was byte-for-byte identical to an idle docker host.
+- **The ratings table drew nothing at all on a failed request.** Its error state
+  was folded into `empty`, and a failure leaves no rows array for the empty branch
+  to fire on — so neither rendered, and an app admin reading a broken endpoint saw
+  a header row over blank space with no reason to think anything was wrong.
+- **The test suite resolved its Postgres password twice** (#491), with two
+  different defaults, so any checkout without a `backend/.env` failed two tests
+  for a reason that had nothing to do with the code.
+
+### Changed
+
+- **`SPEC_VERSION` is 8.** `observability.organization` and
+  `observability.project` say where an agent's traces can be *read*, which a write
+  token does not carry. Both optional with a default, so every stored document and
+  every client's exported YAML keeps loading unchanged and there is no migration
+  to write. Both are validated as slugs rather than only length-bounded: they are
+  interpolated into a URL path, and a value with a slash or a query character
+  would escape it.
 
 ## [0.0.81] - 2026-08-07
 
