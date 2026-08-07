@@ -147,7 +147,21 @@ export interface CostByKey {
 }
 
 export interface CostSummary {
-  period_days: number;
+  /**
+   * How many days the rolling window covered, or null once `from`/`to` made it
+   * explicit.
+   *
+   * Nullable because `GET /spend` answers `None` whenever `from` was given: a
+   * range and a count of days are two answers to one question, and the route
+   * sends only the one that was asked for. Typed as `number` it read as always
+   * present, so a caption built from it would render the default over a range
+   * that is nothing like it - and nothing would have pointed at the line.
+   */
+  period_days: number | null;
+  /** Where the window starts, however it was chosen - `from`, or `days` ago. */
+  from_date: string;
+  /** Where it ends, or null for "up to now". */
+  to_date: string | null;
   /** Calendar-aligned, so it can be reconciled against an invoice. */
   month_to_date_usd: string;
   /**

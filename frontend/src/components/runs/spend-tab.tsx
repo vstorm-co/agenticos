@@ -6,7 +6,31 @@ import { ErrorState, LoadingState } from "@/components/states";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
 import { SpendBreakdown } from "@/components/runs/spend-breakdown";
 import { useSpend } from "@/hooks";
-import { getErrorMessage } from "@/lib/utils";
+import { formatDate, getErrorMessage } from "@/lib/utils";
+import type { CostSummary } from "@/types/runs";
+
+/**
+ * What window these figures cover, in the terms it was asked for.
+ *
+ * Two shapes because `GET /spend` takes two: `days` for the "last N days"
+ * presets, `from`/`to` for a calendar range - and it answers `period_days: null`
+ * for the second, because a count of days beside an explicit range is a second
+ * answer to a question already answered. Reading that null as a number is how a
+ * range came to be captioned "Last 30 days".
+ */
+function windowLabel(
+  spend: CostSummary | undefined,
+  t: ReturnType<typeof useTranslations<"pages.runs">>,
+): string {
+  if (spend?.period_days != null) return t("lastDays", { days: spend.period_days });
+  const from = formatDate(spend?.from_date);
+  // Null means "up to now", which is a word rather than a date - and rendering
+  // it through `formatDate` would put a bare dash where the end of the window
+  // should be.
+  return spend?.to_date == null
+    ? t("fromDateToNow", { from })
+    : t("fromDateToDate", { from, to: formatDate(spend.to_date) });
+}
 
 /**
  * Where the money went, asked three ways.
@@ -76,7 +100,12 @@ export function SpendTab() {
       <Card>
         <CardHeader>
           <CardTitle>{t("spendByAgent")}</CardTitle>
-          <CardDescription>{t("lastDays", { days: spend?.period_days ?? 30 })}</CardDescription>
+          {/* The window the server chose, said the way it was chosen. There is no
+              `?? 30` here on purpose: `period_days` is null the moment `from` is
+              sent - `runs.py` refuses to answer "30 days" and a range at once -
+              and a default in its place renders "Last 30 days" over a range that
+              is nothing of the sort. Silently, which is what a fallback buys. */}
+          <CardDescription>{windowLabel(spend, t)}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
           {!spend || spend.by_agent.length === 0 ? (

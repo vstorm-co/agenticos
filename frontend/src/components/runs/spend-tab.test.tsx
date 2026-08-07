@@ -32,6 +32,8 @@ function wrapper({ children }: { children: ReactNode }) {
 function serve(spend: Partial<CostSummary>) {
   vi.mocked(apiClient.get).mockResolvedValue({
     period_days: 30,
+    from_date: "2026-07-08T00:00:00Z",
+    to_date: null,
     month_to_date_usd: "0.00",
     partial_run_count: 0,
     by_agent: [],
@@ -215,5 +217,35 @@ describe("the spend breakdown by agent", () => {
 
     expect(await screen.findByText("Spend by agent")).toBeVisible();
     expect(screen.getByText("Last 30 days.")).toBeVisible();
+  });
+});
+
+describe("the window these figures cover", () => {
+  it("names an explicit range rather than the default number of days", async () => {
+    // `GET /spend` answers `period_days: null` whenever `from` was sent, because
+    // a count of days beside a range is a second answer to a settled question.
+    // Read through a `?? 30` it rendered "Last 30 days." over July, which is the
+    // reassuring wrong answer: nothing on screen looks unusual.
+    serve({
+      period_days: null,
+      from_date: "2026-07-01T00:00:00Z",
+      to_date: "2026-07-31T00:00:00Z",
+    });
+
+    render(<SpendTab />, { wrapper });
+
+    expect(await screen.findByText("Jul 1, 2026 to Jul 31, 2026.")).toBeVisible();
+    expect(screen.queryByText(/Last 30 days/)).toBeNull();
+  });
+
+  it("says the range runs up to now when it has no end", async () => {
+    // A word, not a date. `to` is optional on the route and defaults to now, and
+    // putting that through the date formatter writes a bare dash where the end
+    // of the window should be.
+    serve({ period_days: null, from_date: "2026-07-01T00:00:00Z", to_date: null });
+
+    render(<SpendTab />, { wrapper });
+
+    expect(await screen.findByText("Jul 1, 2026 to now.")).toBeVisible();
   });
 });

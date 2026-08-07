@@ -2367,6 +2367,8 @@
       "deletedKey": "Deleted key",
       "executedSoWhatHappened": "it executed, so what happened last week stays answerable after the agent has been rewritten.",
       "figureCouldNotLoad": "Couldn't load",
+      "fromDateToDate": "{from} to {to}.",
+      "fromDateToNow": "{from} to now.",
       "inlineSpecialist": "Inline specialist",
       "lastDays": "Last {days} days.",
       "model": "Model",
