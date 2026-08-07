@@ -59,13 +59,16 @@ import {
  * server layers answer a list containing it, and the page goes on rendering the
  * one without it.
  *
- * Asking the API is necessary and not sufficient: a 2xx here means the request
- * was answered, not that the write is readable. The commit runs in a dependency
- * FastAPI unwinds after the response has gone out (#353), so the next read can
- * arrive at a database the write has not been applied to — measured at 21.7ms
- * on one acceptance. So a check that follows a write is a poll (`nowThere`),
- * never a single read. The `alreadyThere` guard at the head of each step is one
- * read on purpose: it runs *before* the write, and the worst a stale answer
+ * Asking the API used to be necessary and not sufficient: a 2xx meant the
+ * request was answered, not that the write was readable, because the commit ran
+ * in a dependency FastAPI unwinds after the response has gone out — measured at
+ * 21.7ms on one acceptance. That is #353, and it is fixed: the commit now lands
+ * before the answer does. A check that follows a write is still a poll
+ * (`nowThere`) rather than a single read, deliberately and no longer for that
+ * reason — a fixture is the wrong place to find out that some other write is
+ * slower than its acknowledgement, and a poll says what it did see where a
+ * single read says nothing. The `alreadyThere` guard at the head of each step is
+ * one read on purpose: it runs *before* the write, and the worst a stale answer
  * costs there is doing work that was already done. `a draft agent exists` is the
  * remaining exception in either direction — it waits on the Builder's heading.
  *
@@ -261,9 +264,9 @@ setup("a colleague is a member of the organization", async ({ page, browser }) =
   await acceptAsColleague(browser, token);
 
   // `acceptAsColleague` returns only once the colleague's own screen says they
-  // joined, so the server has answered 204 before this line - and that is still
-  // not the same as the row being readable by the owner, because the acceptance
-  // commits *after* the response goes out (#353).
+  // joined, so the server has answered 204 before this line. Since #353 that
+  // does mean the membership row is readable; before it, the acceptance
+  // committed *after* the response went out, which is what this step lost to.
   //
   // This step used to read the list once and assert on it. It was the only one
   // in the file that did: #222 converted four call sites to `nowThere` and did
@@ -308,17 +311,20 @@ async function alreadyThere(
  * project dependency the whole suite is reported red having run no product spec —
  * three branches paid a diagnosis for that in one day (#132).
  *
- * **Polled because the API is answered before the write is durable**, which is
- * not a courtesy about ordering but a measured property of this backend. A
- * dependency with `yield` has its exit code unwound by FastAPI *after*
- * `await response(...)` (`fastapi/routing.py`, `request_response`, read at
- * 0.141.1 — the teardown has moved relative to the send before), and
- * `get_db_session` is where the commit lives — so a 2xx reaches the client with
- * the transaction still open, and the client's next request can read a database
- * the write has not been applied to. Measured against this backend: an
- * acceptance answered 204, and the membership it created was invisible to the
- * very next read for **21.7ms**. Filed as #353; when it closes, every caller
- * here can go back to asking once.
+ * **Polled, though the API is no longer answered before the write is durable.**
+ * It used to be: a dependency with `yield` has its exit code unwound by FastAPI
+ * *after* `await response(...)`, and `get_db_session` is where the commit lives,
+ * so a 2xx reached the client with the transaction still open — an acceptance
+ * answered 204 and the membership it created was invisible to the very next read
+ * for **21.7ms**. #353 moved that commit onto the exit stack FastAPI unwinds
+ * *before* the send (`Depends(get_db_session, scope="function")`), and
+ * `backend/tests/integration/test_commit_before_response.py` holds it there.
+ *
+ * The polling stays. Reverting these call sites to a single read is a change
+ * only twenty green runs of this project can justify, and the ordering it would
+ * be relying on is a backend property this file cannot see. It also costs
+ * nothing when the write is already durable — the first poll answers — while
+ * buying a failure message that names the rows that *were* there.
  *
  * Polling the list and matching on it, rather than polling a boolean, so a
  * failure prints the values that *were* there. "never listed a row whose email

@@ -26,12 +26,19 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+# Registers every model table on `Base.metadata`, which `claim` judges a
+# caller-chosen name against. Named here rather than left to whichever import
+# happens to reach the models first: on an empty metadata the collision check
+# answers "nothing collides" with no error to say so.
+import app.db.models  # noqa: F401
 from app.core.exceptions import AlreadyExistsError, NotFoundError
 from app.core.permissions import AuthContext, Perm
+from app.db.base import Base
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.rag_document import RAGDocument
 from app.db.models.sync_log import SyncLog
 from app.db.models.sync_source import SyncSource
+from app.db.vector_tables import validate_collection_name
 from app.repositories import (
     knowledge_base_repo,
     rag_document_repo,
@@ -182,7 +189,22 @@ class CollectionAccessService:
         return [(await self.readable(ctx, name)).collection_name]
 
     async def claim(self, ctx: AuthContext, name: str) -> None:
-        """Refuse a collection name that is already somebody else's.
+        """Refuse a collection name this caller may not have.
+
+        Everything that writes a `collection_name` a caller chose comes through
+        here - `POST /rag/collections/{name}` and `POST /kb` alike. The second
+        one did not, and called nothing at all: a member with `collections:edit`
+        could point a knowledge base at a name another organization holds, and
+        every gate afterwards passed, because :meth:`_first_readable` stops at
+        the row the caller *can* read - their own (#367). One call site is what
+        made that possible, so this method now has the two it needs rather than
+        the KB service growing a second opinion.
+
+        Two refusals, and they are different questions. Whether the string can
+        be an identifier at all is
+        :func:`app.db.vector_tables.validate_collection_name`, which needs no
+        database and is asked in the store as well. Whether it is *taken* needs
+        the rows, and only this can ask it.
 
         The vector namespace is deployment-global: two knowledge bases with one
         collection name share one table, so granting a name that is taken
@@ -193,9 +215,11 @@ class CollectionAccessService:
         what is in it.
 
         Raises:
+            BadRequestError: If the name could not safely become an identifier.
             AlreadyExistsError: If a knowledge base outside the caller's reach
                 already owns the name.
         """
+        validate_collection_name(name, metadata=Base.metadata)
         for kb in await knowledge_base_repo.list_by_collection_name(self.db, name):
             if not await writable_kb(self.db, ctx, kb):
                 raise AlreadyExistsError(

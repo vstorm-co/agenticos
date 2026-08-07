@@ -1,7 +1,9 @@
 # File Processing
 
-This document covers how files are handled in two contexts: chat file uploads
-(user-facing) and RAG document ingestion (admin/CLI).
+This document covers how files are handled in two contexts: chat file uploads,
+which belong to the person who made them, and RAG document ingestion, which
+belongs to a collection and is gated on
+[who may reach it](#who-may-reach-a-collection).
 
 ## Chat File Uploads
 
@@ -143,8 +145,10 @@ The `ChatFile` database model tracks uploaded files:
 - Only the file owner can download their files (`GET /files/{id}`).
 - The `FileUploadService.get_user_file()` method compares `chat_file.user_id`
   against the requesting user's ID. Returns `NotFoundError` on mismatch.
-- There is no admin override -- admins cannot access other users' chat files
-  through the file API.
+- **Ownership is the whole rule, and nothing widens it.** No permission, no
+  organization role and no grant reaches another person's chat file through this
+  API — unlike a collection, which a grant can open up. The comparison is against
+  `user_id` and there is no second branch to hold a wider case.
 
 ## RAG Document Ingestion
 
@@ -275,15 +279,57 @@ declares it. Matching the prefix alone had it reporting `rag_documents` as a
 collection called `documents` — one nobody created, whose "vector count" was the
 number of ingested documents, and which any caller could then ask to search.
 
-**A collection may not be named after a table the models own**, which is that
-predicate read a third way — asked of a name before its table exists. Creating one
-is refused with a 400, both at the API and in the store itself, because
-`rag-drop <name>` reaches the store with no route in between. The name that made
-this necessary is `documents`: prefixed, it *is* the tracking table, so dropping
-such a collection aimed `DROP TABLE IF EXISTS` at every organization's ingestion
-history. The refusal is derived rather than listed, so a `rag_`-prefixed model
-table added later is covered, and a collection called `documents_archive` — which a
-literal exclusion would have taken with it — is not affected.
+#### What a collection may be called
+
+A collection name is a string a caller chooses and the store builds identifiers
+out of, so **one function decides whether it is usable** —
+`validate_collection_name` in `app/db/vector_tables.py`. Four refusals, each a 400:
+
+| Refused | Because |
+|---|---|
+| Not a bare identifier — `foo-bar`, `2024_reports`, anything with a space or a quote | The store interpolates the name into DDL unquoted. A leading digit only *looks* safe: the `rag_` prefix supplies the letter the name is missing. |
+| Any upper case — `Handbook` | Postgres folds an unquoted identifier, so `Handbook` and `handbook` are one table. Nothing above the database can see it: names are compared as whole strings everywhere else, so the two are two rows the platform believes are two collections. Refused rather than lower-cased — storing a name the caller did not type is exactly the reinterpretation this rule exists to avoid. |
+| Longer than 45 characters | Postgres keeps 63 bytes of an identifier and truncates the rest silently. `rag_<name>` fits at 59, but `rag_<name>_embedding_idx` does not, and the bound is the longest identifier — not the shortest. |
+| `all` | Reserved. |
+| A table the models own — `documents` | See below. |
+
+Two of these are the same failure reached differently, and both are worth a
+sentence. The length bound is the one that reads as pedantry and is not. Two collections
+agreeing up to the truncation point are **one object**: one table if the name was
+too long, so either organization's `DROP` destroys the other's vectors and every
+search crosses between them; and one index if only the index name was, which is
+quieter — `CREATE INDEX IF NOT EXISTS` finds the first collection's index already
+there and builds nothing, leaving the second unindexed at whatever width the first
+was built at. Nothing above the database can see either, because a collection name
+is compared as a whole string everywhere else — which is also why case matters: a
+spelling is a shorter road to the same shared table, and refusing upper case
+closes a second one with it. `_collection_exists` compared `rag_Handbook` against
+`information_schema.tables`, which stores the folded name, so it never matched and
+`search`, `get_documents` and `get_document_chunks` answered **empty** for any
+collection with a capital in it. That path is gone rather than fixed: such a name
+is now refused where the table name is built, before anything can ask.
+
+**A collection may not be named after a table the models own**, which is the
+runtime-table predicate read a third way — asked of a name before its table exists.
+Refused both at the API and in the store itself, because `rag-drop <name>` reaches
+the store with no route in between. The name that made this necessary is
+`documents`: prefixed, it *is* the tracking table, so dropping such a collection
+aimed `DROP TABLE IF EXISTS` at every organization's ingestion history. The refusal
+is derived rather than listed, so a `rag_`-prefixed model table added later is
+covered, and a collection called `documents_archive` — which a literal exclusion
+would have taken with it — is not affected.
+
+**And the name has to be free.** The vector namespace is deployment-global: two
+knowledge bases holding one collection name share one table, so a name already held
+outside the caller's reach is refused with a 409 —
+`CollectionAccessService.claim`, which `POST /kb` and `POST /rag/collections/{name}`
+both call. Only one of them used to. `POST /kb` wrote whatever `collection_name` it
+was sent, so a member with `collections:edit` could aim a knowledge base at another
+organization's vector table and then read and write it through every gate
+afterwards, because a collection resolves through whichever knowledge base the
+caller *can* read — and now one of them is theirs. A name a caller does not supply
+is derived from the display name plus six random hex characters, and is claimed on
+the same path rather than trusted for being random.
 
 `documents` was also the **default** collection, so the CLI quickstart used to aim
 at the tracking table; the default is now `default`. A knowledge base created with
@@ -292,15 +338,53 @@ can be ingested into it — delete it and create one under another name. Nothing
 lost in doing so: an ingest into that collection has never succeeded, because
 building the vector index on a table with no `embedding` column fails.
 
-### RAG is Global
+### Who may reach a collection
 
-Collections are shared across **all users**:
+Collections are not global, and nobody inside an organization is an "admin" for
+this purpose — there are no roles on a route here, only permissions
+([permissions](permissions.md)).
 
-- Any authenticated user can search any collection via `POST /rag/search` or
-  through the AI agent's RAG tool.
-- Only admins can manage collections, upload documents, configure sync sources,
-  and view ingestion logs.
-- There is no per-user document isolation.
+A collection has two names. One is the vector table the chunks live in, which is a
+string any caller can type into a URL; the other is the `knowledge_bases` row that
+owns it, and only that row knows an organization. **The row is the authority**: every
+`/rag` and `/kb` route resolves the name through it, in
+`app/services/collection_access.py`, before touching a vector, a document or a sync
+source. The listing and the per-resource routes read the rule from that one place,
+because it was two copies of it — `/rag/collections` filtering by organization while
+`/rag/collections/{name}/info` did not — that once let one tenant read another's.
+
+Three scopes on the row, and no fourth:
+
+| Scope | May read | May write |
+|---|---|---|
+| `personal` | its owner | its owner |
+| `org` | `collections:view` reaching the row | `collections:edit` reaching the row |
+| `app` | anybody in the deployment | the deployment superadmin (`is_app_admin`) |
+
+"Reaching the row" is `resolve_access`, the same decision every shareable resource
+takes: the caller's scope for that permission, widened by any explicit grant on that
+one collection. A grant widens what a role allows and never narrows it, so **a Viewer
+holding an explicit `edit` grant can manage that collection** — the case a role gate
+would refuse before ever looking. That is why the per-resource routes carry no
+`require(...)` and hand the decision to the service instead.
+
+What that buys, per operation:
+
+| | |
+|---|---|
+| Search — `POST /rag/search`, and the agent's retrieval tool | `collections:view`. Every collection named is resolved before the first vector is read, and one the caller cannot reach refuses the **whole** search rather than being quietly dropped from it |
+| Read — listing collections and documents, collection stats, a document's parsed text or original file, sync and ingestion logs | `collections:view`, and each answer holds only the collections that caller can reach |
+| Write — creating and dropping a collection, uploading, ingesting, retrying, deleting a document, configuring or cancelling a sync source | `collections:edit` |
+| `POST /rag/sync/local` | The one exception, and it keeps `is_app_admin`: its `path` names a directory on the **server** rather than anything a tenant owns, so opening it to `collections:edit` would hand every member a read of arbitrary server files, ingested into a collection they can then search |
+
+A refusal is reported as **"Collection not found"**, with the same message and details
+an absent collection produces. Anything else turns the API into an oracle: these names
+are derived from what people call their knowledge bases, so confirming that
+`acme_handbook_d1fac1` exists somewhere is already information.
+
+**Within a collection there is no per-document isolation.** Access is decided at the
+collection, so reaching one reaches every document in it — which is the thing to weigh
+when deciding what to ingest where.
 
 ### Document Tracking
 
@@ -314,7 +398,7 @@ Ingested documents are tracked in the SQL database via the `RAGDocument` model:
 | `filesize` | File size in bytes |
 | `filetype` | File extension (without dot) |
 | `status` | `processing`, `done`, or `error` |
-| `error_message` | Error details (if status is `error`) |
+| `error_message` | What failed, if `status` is `error` — see below |
 | `vector_document_id` | ID in the vector store |
 | `chunk_count` | Number of chunks created |
 | `storage_path` | Path to original file (for re-ingestion/download) |
@@ -322,6 +406,52 @@ Ingested documents are tracked in the SQL database via the `RAGDocument` model:
 | `completed_at` | Ingestion completion time |
 
 Failed ingestions can be retried via `POST /rag/documents/{id}/retry`.
+
+### What a failed ingest says
+
+`error_message` is a stored column, rendered on the documents page and in a
+source's sync history to everyone who can see the collection. So it carries a
+summary rather than whatever the client that failed happened to say:
+
+```
+The document could not be indexed (AuthenticationError) - check the
+collection's embedding credential, then retry the upload. The worker log has
+the full error.
+```
+
+Three parts, and each is there for a reason. **The stage** — parsing, indexing,
+recording the outcome, or a whole sync — is the one thing the reader cannot
+work out afterwards, and it separates a file this collection's parser does not
+read from a credential the provider refused. **The exception's type** is kept
+because a class name is a symbol: it says the credential was refused or the
+upstream timed out without naming the host that said so. **The advice** is what
+the reader can actually do.
+
+One failure is reported by up to three handlers — the stage that raised, the
+check that a returned failure is not `done`, and the flow's backstop — and the
+**first** one to record it keeps the row, because it is the innermost and the
+most specific. A retry clears the message, so the next attempt records its own.
+
+A refusal this platform raised itself is passed through whole instead, because
+its message is written here and is the most useful thing to show: *"No embedding
+credential is configured for this collection"*, *"Organization monthly budget
+exhausted: $40.15 spent of $40.00 limit"*.
+
+What is **not** stored is the failing client's own text. A provider SDK, `httpx`,
+`boto3` and the Google Drive client all put the request they were making into
+their exception message, which routinely means an endpoint, an internal host, a
+bucket, or a URL with a key in its query string — and unlike an HTTP error body,
+a column is read again weeks later by anyone who opens the failed document. That
+text is not lost: every one of these call sites logs it with `logger.exception`,
+so the worker log has the message and the traceback, and a Prefect flow that
+re-raises has both in its run. `app/services/rag/failures.py` is where the two
+are separated.
+
+The log is a smaller audience than the column, not a safe one — treat a worker
+log as something only operators read, and see [#440] for why the redaction
+filter this deployment ships does not currently scrub it.
+
+[#440]: https://github.com/vstorm-co/agenticos/issues/440
 
 
 ### Sync Operations
@@ -338,6 +468,42 @@ are then read by source id, which is what keeps `limit` and `total` describing t
 same set of rows: a source repointed at another base keeps its earlier runs under
 the collection name it had then, and those used to be dropped from the page after
 `limit` had already cut it.
+
+### What a sync source is not allowed to decide
+
+A source's contents are not the deployment's to trust, and on a Drive folder
+shared outside the organization they are not even the tenant's: sharing is what
+folder sharing is *for*, so whoever can drop a file in one chooses the string
+the next sync handles. Two of those strings used to be taken at face value, and
+`app/services/rag/remote_names.py` is where both are now refused.
+
+**A file name is a label, not a path component.** `../../../../home/app/.ssh/authorized_keys`
+is a legal Drive file name, and the connector wrote `dest_dir / file.name`
+verbatim — outside the temporary directory the worker had made, wherever its uid
+could write, and then ingested from there. The name is now reduced to its final
+component and the result *resolved and confirmed* to be a child of the sync
+directory, so `..`, its encodings, its lookalikes and a symlink already sitting
+in the directory are one question rather than a list of spellings to keep up
+with. A name that is no component at all — `..`, `.`, `/` — is refused; anything
+else lands inside as one file. **The destination is `BaseSyncConnector`'s
+answer, not a connector's**: an implementation is handed a path and writes to it
+(`_fetch`), which is what makes a connector added later inherit the refusal
+rather than have to remember it.
+
+**A folder id reaches a query language.** The Drive query wraps a parent id in
+single quotes, so `x' in parents or name contains 'salary` is a well-formed,
+wider query. A folder id is now checked against what Google can issue — letters,
+digits, `-` and `_` — where the query is built, which is the one funnel both the
+configured folder and every sub-folder id pass through. `validate_config`
+asks the same question, so a hostile value is answered by the route that
+accepted it rather than by a sync log an hour later.
+
+**A Google Drive source runs on its own credential or not at all.** The
+connector used to fall back to `GOOGLE_DRIVE_CREDENTIALS_FILE` whenever
+`service_account_json` was absent, which meant a tenant's folder id chose what
+was listed under the *operator's* service account and whatever that account had
+been shared. The fallback is gone; the setting now serves only the
+`rag-sync-gdrive` CLI command, which an operator runs from their own shell.
 
 ### Image Description
 

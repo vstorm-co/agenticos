@@ -5,16 +5,11 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-# Registers every model table on `Base.metadata`, which a caller-chosen collection
-# name is judged against below. The models arrive through `app.repositories` today;
-# naming the dependency here keeps the refusal from resting on somebody else's import.
-import app.db.models  # noqa: F401
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
-from app.db.base import Base
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.resource_grant import Visibility
-from app.db.vector_tables import collides_with_model_table
+from app.db.vector_tables import MAX_COLLECTION_NAME_LENGTH
 from app.repositories import (
     knowledge_base_repo,
     organization_secret_repo,
@@ -29,7 +24,7 @@ from app.schemas.knowledge_base import (
     KnowledgeBaseUpdate,
 )
 from app.services.access import COLLECTION, visible_resource_ids
-from app.services.collection_access import readable_kb, writable_kb
+from app.services.collection_access import CollectionAccessService, readable_kb, writable_kb
 from app.services.embedding_resolution import EMBEDDING_KEY_PURPOSES
 from app.services.ingestion_config import (
     IngestionConfig,
@@ -42,35 +37,28 @@ from app.services.ingestion_config import (
 logger = logging.getLogger(__name__)
 
 
+_DERIVED_SUFFIX_BYTES = 3
+"""How much randomness a derived name carries, as bytes of `secrets.token_hex`."""
+
+_DERIVED_SLUG_LENGTH = MAX_COLLECTION_NAME_LENGTH - 1 - 2 * _DERIVED_SUFFIX_BYTES
+"""What is left for the slug: the bound, less the separator and the hex suffix."""
+
+
 def _derive_collection_name(name: str) -> str:
-    """Slugify the KB name and append a short random suffix to avoid collisions."""
-    slug = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_") or "kb"
-    return f"{slug[:48]}_{secrets.token_hex(3)}"
+    """Slugify the KB name and append a short random suffix to avoid collisions.
 
-
-def _refuse_a_model_table_name(collection_name: str | None) -> None:
-    """Refuse a collection whose vector table the models already declare.
-
-    Creating a knowledge base needs its own guard because it never reaches the
-    store: `POST /rag/collections/{name}` is refused where the store builds the
-    table name, but this writes a row and stops, so nothing would notice until
-    the first ingest hit `rag_documents` - or until the collection was dropped
-    and aimed at every organization's document tracking (#345).
-
-    `None` is the caller leaving the name to :func:`_derive_collection_name`,
-    which cannot collide - it appends a random suffix - so this is only ever
-    about a name somebody chose.
-
-    Raises:
-        BadRequestError: The name would land on a table the models own.
+    The result has to satisfy
+    :func:`app.db.vector_tables.validate_collection_name` like any other name,
+    and two of its rules are why this is not one line. A slug is a leading digit
+    away from an identifier the store cannot use unquoted - `2024 Reports`
+    becomes `2024_reports` - so a slug that does not start with a letter is
+    given one. And the slug is trimmed to what leaves room for the suffix,
+    rather than to whatever fit under the old absent length bound.
     """
-    if collection_name is not None and collides_with_model_table(
-        collection_name, metadata=Base.metadata
-    ):
-        raise BadRequestError(
-            message=f"'{collection_name}' is a reserved collection name",
-            details={"collection_name": collection_name},
-        )
+    slug = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_") or "kb"
+    if not slug[0].isalpha():
+        slug = f"kb_{slug}"
+    return f"{slug[:_DERIVED_SLUG_LENGTH]}_{secrets.token_hex(_DERIVED_SUFFIX_BYTES)}"
 
 
 def _no_knowledge_base(kb_id: UUID) -> NotFoundError:
@@ -278,13 +266,30 @@ class KnowledgeBaseService:
         The credential can be one of the organization's own vault keys, so a
         tenant's embeddings are billed to the tenant rather than the operator.
 
+        The collection name is claimed through
+        :meth:`app.services.collection_access.CollectionAccessService.claim`,
+        which is the same call `POST /rag/collections/{name}` makes and which
+        this route made no version of: an explicit `collection_name` was written
+        to the row unexamined, so a member with `collections:edit` could aim a
+        knowledge base at another organization's vector table and read and write
+        it through every gate that came afterwards (#367).
+
+        The derived name is claimed too, rather than trusted for having six hex
+        characters on the end. It costs one indexed lookup, it is the only way
+        the invariant "the name on this row was validated" is true of every row,
+        and the alternative to a 409 once in sixteen million is silently sharing
+        a table with a stranger.
+
         Raises:
             BadRequestError: If the named model has no known vector width, the
                 named key is not an API key this organization holds, or the
-                collection name is one the platform's own tables answer to.
+                collection name could not safely become an identifier.
+            AlreadyExistsError: If the collection name is already held outside
+                this caller's reach.
         """
         self._check_create_permission(scope=data.scope, ctx=ctx)
-        _refuse_a_model_table_name(data.collection_name)
+        collection_name = data.collection_name or _derive_collection_name(data.name)
+        await CollectionAccessService(self.db).claim(ctx, collection_name)
         config = await self._usable_config(ctx, data.ingestion_config)
         # The creator owns what they create, org scope included: `own` in the
         # permission matrix is meaningless for a row nobody owns, and sharing
@@ -302,7 +307,7 @@ class KnowledgeBaseService:
         return await knowledge_base_repo.create(
             self.db,
             name=data.name,
-            collection_name=data.collection_name or _derive_collection_name(data.name),
+            collection_name=collection_name,
             scope=data.scope,
             description=data.description,
             owner_user_id=owner_user_id,

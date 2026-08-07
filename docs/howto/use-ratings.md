@@ -131,4 +131,7 @@ For programmatic access to ratings data, use the admin API endpoints:
 | `/admin/ratings/export` | GET | Export ratings (JSON/CSV) |
 | `/admin/conversations` | GET | List all conversations |
 
-All admin endpoints require admin authentication via JWT token.
+Every `/admin` endpoint is gated on `CurrentAppAdmin` — a signed-in user whose
+`users.is_app_admin` is true. That is the **deployment** superadmin, not a role inside
+an organization: there is no `users.role` column and no organization role reaches
+these routes. See [permissions](../permissions.md#layer-1-usersis_app_admin-the-deployment-superadmin).

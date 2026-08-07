@@ -382,27 +382,3 @@ def sanitize_numeric[T: (int, float)](
         return result
     except (ValueError, TypeError):
         return default
-
-
-def escape_sql_like(pattern: str, escape_char: str = "\\") -> str:
-    """Escape special characters in a LIKE pattern.
-
-    Use this when building LIKE queries with user input.
-
-    Args:
-        pattern: The pattern to escape.
-        escape_char: The escape character to use.
-
-    Returns:
-        Escaped pattern safe for use in LIKE queries.
-
-    Example:
-        >>> escape_sql_like("100%")
-        "100\\%"
-        >>> escape_sql_like("under_score")
-        "under\\_score"
-    """
-    # Escape the escape character first, then special chars
-    pattern = pattern.replace(escape_char, escape_char + escape_char)
-    pattern = pattern.replace("%", escape_char + "%")
-    return pattern.replace("_", escape_char + "_")
