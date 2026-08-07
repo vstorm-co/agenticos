@@ -71,6 +71,7 @@ def service() -> MagicMock:
                     "scope": "conversation",
                 }
             ],
+            "kind": "docker",
             "limit": 20,
             "tenant_limit": 5,
         }
@@ -208,6 +209,29 @@ class TestTheSessions:
         body = response.json()
         assert body["sessions"][0]["session_id"] == "xc-1"
         assert body["tenant_limit"] == 5
+
+    async def test_the_response_says_which_sort_of_host_answered(self, client) -> None:
+        """The service sets `kind` on this payload; the response model must keep it."""
+        async with client() as opened:
+            response = await opened.get(_url(f"/{_CONNECTION_ID}/sessions"))
+
+        assert response.json()["kind"] == "docker"
+
+    async def test_a_daytona_connection_is_told_apart_from_an_idle_docker_host(
+        self, client, service
+    ) -> None:
+        """A Daytona host holds none of our sessions by design, and an idle Docker
+        host holds none by chance; both list nothing, so only `kind` distinguishes
+        them - and it must survive serialization to do so."""
+        service.sessions = AsyncMock(return_value={"sessions": [], "kind": "daytona"})
+
+        async with client() as opened:
+            response = await opened.get(_url(f"/{_CONNECTION_ID}/sessions"))
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["kind"] == "daytona"
+        assert body["sessions"] == []
 
     async def test_a_row_names_the_agent_rather_than_only_a_hex_string(self, client) -> None:
         """Read from `agent_workspaces`; the id is deliberately not decoded."""

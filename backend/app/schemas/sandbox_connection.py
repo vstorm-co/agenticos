@@ -309,6 +309,9 @@ class SandboxSessionList(BaseSchema):
     """
 
     sessions: list[SandboxSessionRead] = Field(default_factory=list)
+    kind: Literal["docker", "daytona"] = Field(
+        description="Which sort of host answered, so an empty daytona listing is told apart from an idle docker one",
+    )
     limit: int | None = None
     open_limit: int | None = None
     tenant_limit: int | None = None
