@@ -286,6 +286,25 @@ describe("publishing a new widget", () => {
     expect(screen.getByLabelText("Signing secret")).toBeInTheDocument();
   });
 
+  it("keeps each mode's explanation in the list and off the closed trigger", async () => {
+    // The second line exists to tell the two modes apart. Radix draws the
+    // selected item's `ItemText` in the trigger, so in `children` it followed
+    // the choice out and sat there explaining the one option left - "no
+    // sign-in, for a marketing page" under a field somebody had just answered.
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await openTheForm();
+
+    const picker = screen.getByLabelText("Who can use it");
+    await userEvent.click(picker);
+
+    const anyone = screen.getByRole("option", { name: "Anyone on those sites" });
+    expect(within(anyone).getByText(/No sign-in/)).toBeVisible();
+
+    await userEvent.click(anyone);
+    expect(picker).toHaveTextContent("Anyone on those sites");
+    expect(picker).not.toHaveTextContent("No sign-in");
+  });
+
   it("sends the secret with a jwt widget", async () => {
     render(<EmbedsPanel agentId="a-1" canManage />);
     await openTheForm();

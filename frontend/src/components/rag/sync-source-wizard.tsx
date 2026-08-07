@@ -324,7 +324,7 @@ export function SyncSourceWizard({
               </>
             ) : (
               <>
-                Continue
+                {t("continue")}
                 <ArrowRight className="h-4 w-4" />
               </>
             )}
@@ -639,17 +639,22 @@ function ScheduleStep({
             </SelectTrigger>
             <SelectContent>
               {collections.map((c) => (
-                <SelectItem key={c.name} value={c.name}>
-                  {c.label ? (
-                    <span>
-                      {c.label}
-                      <span className="text-foreground/45 ml-1 font-mono text-[10px]">
+                <SelectItem
+                  key={c.name}
+                  value={c.name}
+                  // The physical name qualifies a label two collections could
+                  // share, which is a comparison the closed trigger cannot
+                  // draw: it renders the selected item's `ItemText`, where the
+                  // qualifier is left disambiguating nothing.
+                  trailing={
+                    c.label && (
+                      <span className="text-foreground/45 ml-auto shrink-0 pl-3 font-mono text-[10px]">
                         ({c.name})
                       </span>
-                    </span>
-                  ) : (
-                    c.name
-                  )}
+                    )
+                  }
+                >
+                  {c.label || c.name}
                 </SelectItem>
               ))}
             </SelectContent>

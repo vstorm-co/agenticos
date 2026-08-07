@@ -514,9 +514,21 @@ export default function RAGPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {collections.map((col) => (
-                    <SelectItem key={col.name} value={col.name}>
+                    <SelectItem
+                      key={col.name}
+                      value={col.name}
+                      // Sizes are for comparing collections; the closed trigger
+                      // draws the selected item's `ItemText`, and the page
+                      // already prints the chosen collection's size beside it.
+                      trailing={
+                        col.info && (
+                          <span className="text-muted-foreground ml-auto shrink-0 pl-3 font-mono text-xs">
+                            {t("vectorCount", { count: col.info.total_vectors })}
+                          </span>
+                        )
+                      }
+                    >
                       {col.name}
-                      {col.info ? ` · ${col.info.total_vectors.toLocaleString()} vectors` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -524,7 +536,7 @@ export default function RAGPage() {
             )}
             {info && (
               <span className="text-muted-foreground font-mono text-xs">
-                {info.total_vectors.toLocaleString()} vectors · {info.dim}d
+                {t("vectorSummary", { count: info.total_vectors, dim: info.dim })}
               </span>
             )}
           </div>
