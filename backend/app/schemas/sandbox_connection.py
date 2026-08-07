@@ -306,12 +306,31 @@ class SandboxSessionList(BaseSchema):
     `tenant` is deliberately absent from the rows: every one of them is this
     organization's, because the service is asked for all of them and the ones
     belonging to other tenants are dropped before this is built.
+
+    `host_session_count` and `host_open_count` are the two host-wide numerators
+    that make `limit` and `open_limit` dividable, the way `len(sessions)` already
+    divides against `tenant_limit`. They count every tenant on the host, taken
+    before the tenant filter, so a caller refused a session while under their own
+    ceiling can see the host itself is full rather than reading the daemon's logs.
+    Two aggregate integers naming nothing - a long way from the rows the filter
+    withholds - and the route is gated on `connections:view`, the authority to
+    watch a host rather than any member's. `None` on a Daytona connection, which
+    enforces no ceilings of ours and so has no counts to divide, matching how
+    `limit`/`open_limit`/`tenant_limit` are already `None` there.
     """
 
     sessions: list[SandboxSessionRead] = Field(default_factory=list)
     limit: int | None = None
     open_limit: int | None = None
     tenant_limit: int | None = None
+    host_session_count: int | None = Field(
+        default=None,
+        description="Resident sandboxes host-wide, before the tenant filter; the numerator for `limit`.",
+    )
+    host_open_count: int | None = Field(
+        default=None,
+        description="Open sessions host-wide (resident and hibernated); the numerator for `open_limit`.",
+    )
 
 
 class SandboxEventRead(BaseSchema):
