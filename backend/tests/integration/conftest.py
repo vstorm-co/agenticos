@@ -32,6 +32,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from app.core.config import settings
 from app.db.base import Base
 
 # Where to connect to issue `CREATE DATABASE` / `DROP DATABASE`, neither of
@@ -41,11 +42,20 @@ _MAINTENANCE_DATABASE = "postgres"
 
 
 def _database_url(name: str) -> str:
-    host = os.getenv("POSTGRES_HOST", "localhost")
-    port = os.getenv("POSTGRES_PORT", "5432")
-    user = os.getenv("POSTGRES_USER", "postgres")
-    password = os.getenv("POSTGRES_PASSWORD", "postgres")
-    return f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{name}"
+    """Where the application would connect, with the database name replaced.
+
+    Every part but the name comes from `settings`, so this engine and the one in
+    `app/db/session.py` cannot disagree about where they are connecting or as
+    whom. They did: this function defaulted the password to "postgres" while
+    `app/core/config.py` defaults it to empty, which no test could see until one
+    drove the application's engine directly and failed to authenticate on any
+    checkout without a `backend/.env` (#485). `tests/conftest.py` seeds the
+    fallback, in the only place that still precedes the settings object.
+    """
+    return (
+        f"postgresql+asyncpg://{settings.POSTGRES_USER}:{settings.POSTGRES_PASSWORD}"
+        f"@{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{name}"
+    )
 
 
 async def _reachable(url: str) -> bool:
