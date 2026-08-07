@@ -363,6 +363,7 @@ include = [
     "app/services/health.py",
     "app/services/email/templates.py",
     "app/services/ingestion_config.py",
+    "app/services/rag/failures.py",
     # Who hears that a run stopped on its budget or parked on an approval. The
     # emails are the only signal for a run nobody was watching — a Slack
     # mention, a schedule — so a silent failure here is indistinguishable from
@@ -506,6 +507,11 @@ include = [
     # whose collection, on whose model credential — which is platform layer,
     # and is the difference between a setting and a policy.
     "app/services/ingestion_config.py",
+    # What a failed ingest is allowed to say. The rest of the RAG pipeline is
+    # template-inherited and reported rather than gated, but this module decides
+    # what leaves a worker for a stored column the whole organization reads —
+    # the same judgement the vault and the exception handlers are held to.
+    "app/services/rag/failures.py",
     # Who hears that a run stopped on its budget or parked on an approval. The
     # emails are the only signal for a run nobody was watching — a Slack
     # mention, a schedule — so a silent failure here is indistinguishable from

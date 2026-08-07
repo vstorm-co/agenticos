@@ -39,6 +39,19 @@ Exception handlers in `api/exception_handlers.py` automatically:
 - Return consistent JSON error format, `details` included
 - Add `WWW-Authenticate: Bearer` header on 401
 
+**A column that holds a failure takes the same rule, and takes it harder.**
+`rag_documents.error_message`, `sync_logs.error_message` and
+`sync_sources.last_error` are rendered in the product to everyone who can see
+the collection, and a body is read once where a row is read weeks later. So
+`error_message=str(exc)` is the same defect as `details={"error": str(e)}`, and
+`app/services/rag/failures.py` is the answer to it: what the stage was, what
+class of thing raised, and what the reader can do - with the client's own text
+in the `logger.exception` beside the call, never in the column (#423). Our own
+refusals - an `AppException`, a `BudgetExceeded` - are passed through whole,
+because their messages are written in this repository. A bare `RuntimeError`
+we raised is not: one of them interpolates the absolute path of a temporary
+file.
+
 ## Security Patterns
 
 JWT auth (`core/security.py`):
