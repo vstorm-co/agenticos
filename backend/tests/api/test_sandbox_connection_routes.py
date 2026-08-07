@@ -73,7 +73,10 @@ def service() -> MagicMock:
             ],
             "kind": "docker",
             "limit": 20,
+            "open_limit": 100,
             "tenant_limit": 5,
+            "host_session_count": 12,
+            "host_open_count": 30,
         }
     )
     stub.session_events = AsyncMock(
@@ -209,6 +212,16 @@ class TestTheSessions:
         body = response.json()
         assert body["sessions"][0]["session_id"] == "xc-1"
         assert body["tenant_limit"] == 5
+
+    async def test_the_host_wide_counts_ride_alongside_the_ceilings(self, client) -> None:
+        """Both numerators reach the response through `response_model`, so the two
+        host ceilings become dividable the way the per-tenant one already is."""
+        async with client() as opened:
+            response = await opened.get(_url(f"/{_CONNECTION_ID}/sessions"))
+
+        body = response.json()
+        assert body["host_session_count"] == 12
+        assert body["host_open_count"] == 30
 
     async def test_the_response_says_which_sort_of_host_answered(self, client) -> None:
         """The service sets `kind` on this payload; the response model must keep it."""

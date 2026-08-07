@@ -535,6 +535,18 @@ class SandboxConnectionService:
         that format a schema - the first change to it would mislabel every row.
         The row already carries the agent and the conversation, so it is joined.
 
+        The two host-wide counts are taken from the unfiltered list before the
+        filter narrows it, so `limit` and `open_limit` gain the numerators
+        `tenant_limit` already has - the answer to "why was I refused a session
+        while under my own ceiling". Each divides against what its ceiling bounds:
+        `open_limit` (`SANDBOXD_MAX_OPEN_SESSIONS`) caps every session that
+        exists, resident or hibernated, so `host_open_count` is the whole list;
+        `limit` (`SANDBOXD_MAX_SESSIONS`) caps only the resident ones, which the
+        service marks `state == "running"` - a hibernated session frees its slot
+        and is never resident, and a crashed session keeps its resident slot until
+        it is reaped, so `state` rather than `alive` is what the resident ceiling
+        actually bounds. No extra daemon call: the unfiltered list is already here.
+
         Args:
             usage: Also sample memory and CPU. Off by default because the service
                 pays a daemon round trip per sandbox for it.
@@ -553,9 +565,12 @@ class SandboxConnectionService:
             resolved, f"/sessions?usage={'true' if usage else 'false'}", connection_id
         )
         tenant = str(ctx.organization_id)
-        mine = [
-            session for session in payload.get("sessions", []) if session.get("tenant") == tenant
-        ]
+        all_sessions = payload.get("sessions", [])
+        mine = [session for session in all_sessions if session.get("tenant") == tenant]
+        payload["host_open_count"] = len(all_sessions)
+        payload["host_session_count"] = sum(
+            1 for session in all_sessions if session.get("state") == "running"
+        )
         payload["sessions"] = await self._attributed(ctx, mine)
         payload["kind"] = resolved.kind
         return payload
