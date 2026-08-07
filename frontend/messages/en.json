@@ -17,6 +17,7 @@
     "copy": "Copy",
     "copyFailed": "Copy failed",
     "couldnTLoadConversations": "Couldn't load conversations.",
+    "couldnTLoadThisScreen": "Couldn't load this screen",
     "created": "Created",
     "date": "Date",
     "delete": "Delete",
@@ -663,14 +664,14 @@
       "modelDependent": "model-dependent",
       "off": "Off",
       "resetToServerDefault": "Reset to server default",
-      "runConversationDifferentModel": "Run this conversation on a different model. Everything else about the agent stays as it is.",
       "savedForChat": "Saved for this chat",
       "savesOnSend": "Saves on send",
       "settings": "Settings",
       "settingsPersistCurrentChat": "Settings persist for the current chat session. Some controls are no-ops on models that don't support them.",
       "temperature": "Temperature",
       "temperatureDefault": "default",
-      "thinkingEffort": "Thinking effort"
+      "thinkingEffort": "Thinking effort",
+      "whichModelRunsHere": "Which model this conversation runs on. Everything else about the agent stays as it is."
     },
     "conversationArchived": "This conversation is archived",
     "conversationShared": "Conversation shared",
@@ -700,6 +701,7 @@
       "tokens": "{input, number} input · {output, number} output tokens",
       "working": "working…"
     },
+    "decidingNeedsPermission": "Approving or refusing this needs a permission you do not hold. The run waits until somebody who can decide approvals does.",
     "delete": "Delete",
     "deleteConversation": "Delete conversation",
     "deleteUppercase": "DELETE",
@@ -798,7 +800,8 @@
     "modelPicker": {
       "chooseProvider": "Choose a provider",
       "model": "Model",
-      "noProviderKey": "No {provider} key in the vault yet. Add one below.",
+      "needsConnectionsManage": "Choosing another model needs a permission you do not hold. This conversation runs on the agent's own model, and somebody who can manage this organization's connections can change that.",
+      "noProviderKey": "No {provider} key in the vault yet.",
       "provider": "Provider",
       "runModel": "Run on this model"
     },
@@ -903,6 +906,7 @@
       "failed": "Failed",
       "running": "Running"
     },
+    "submitDecisions": "Submit {count, plural, =1 {1 call} other {# calls}}",
     "thankYouFeedback": "Thanks for your feedback!",
     "thinking": "Thinking...",
     "title": "Chat",
@@ -1743,7 +1747,6 @@
       "refresh2": "Refresh",
       "responseRatings": "Response ratings",
       "resultCount": "{count, plural, =1 {1 result} other {# results}}",
-      "role": "Role",
       "searchByEmailName": "Search by email or name…",
       "searchSuspendImpersonate": "Search, suspend, impersonate",
       "serviceDatabase": "Database",
@@ -2994,6 +2997,7 @@
     "shownNextPickerWhich": "Shown next to the picker - which account this is, whose it is, anything the next person needs.",
     "storeSecret": "Store secret",
     "storedOrganizationAposS": "Stored in this organization's vault, encrypted, and never shown again.",
+    "storingNeedsPermission": "Storing a key needs a permission you do not hold. Somebody who can manage this organization's vault has to add it.",
     "usedBy": "Used by",
     "visibilityOrg": "Organization",
     "visibilityPrivate": "Private",

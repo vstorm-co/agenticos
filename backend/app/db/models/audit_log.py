@@ -16,7 +16,12 @@ class AppAdminAuditLog(Base, TimestampMixin):
     __tablename__ = "app_admin_audit_logs"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    actor_user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    # Null is "the platform, on a schedule" - an approval the expiry sweep
+    # settled because nobody decided it. That is the only thing it can mean:
+    # every authenticated path has a subject and passes it.
+    actor_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True, index=True
+    )
     organization_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), nullable=True, index=True
     )

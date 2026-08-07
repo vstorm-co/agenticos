@@ -33,11 +33,35 @@ same applies to the caller's own input: `exc.errors(include_url=False,
 include_input=False)` - a form needs to know which field is wrong, not to be sent a
 copy of what it posted.
 
+**And the refusal, not the server** - in `message` as much as in `details`, since
+the envelope carries both and the handler logs both on one line. `str(exc)` from a
+vendor SDK is not a controlled string - provider clients put the failing request
+URL in the message and a URL carries a key in its query string - and an absolute
+path says where the container keeps its files. Neither is deleted: it goes in the
+`logger.exception` line beside the raise, and the refusal names what the reader
+can act on (#342). A URL the refusal is *about* is named by its field rather than
+repeated - `{"field": "base_url"}`, never the endpoint with the password still in
+it. An audit entry is `details` with a longer life and takes the same rule:
+`{"fields": sorted(update_data)}`, not the body that was submitted (#412).
+
 Exception handlers in `api/exception_handlers.py` automatically:
 - Map to HTTP status codes
 - Log with structured context (path, method, error code)
 - Return consistent JSON error format, `details` included
 - Add `WWW-Authenticate: Bearer` header on 401
+
+**A column that holds a failure takes the same rule, and takes it harder.**
+`rag_documents.error_message`, `sync_logs.error_message` and
+`sync_sources.last_error` are rendered in the product to everyone who can see
+the collection, and a body is read once where a row is read weeks later. So
+`error_message=str(exc)` is the same defect as `details={"error": str(e)}`, and
+`app/services/rag/failures.py` is the answer to it: what the stage was, what
+class of thing raised, and what the reader can do - with the client's own text
+in the `logger.exception` beside the call, never in the column (#423). Our own
+refusals - an `AppException`, a `BudgetExceeded` - are passed through whole,
+because their messages are written in this repository. A bare `RuntimeError`
+we raised is not: one of them interpolates the absolute path of a temporary
+file.
 
 ## Security Patterns
 

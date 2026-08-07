@@ -150,3 +150,30 @@ def test_a_message_call_broken_across_lines_is_not_read_as_copy(tmp_path: Path) 
     """The remedy has to pass once the lines are joined, or the rule forbids its own fix."""
     source = '<p>\n  {t("savedModelCount", {\n    count: profiles.length,\n  })}\n</p>\n'
     assert _offences(tmp_path, source) == []
+def test_masking_a_generic_is_what_keeps_a_whole_file_quiet(tmp_path: Path) -> None:
+    """The one case that fails when `mask_generics` stops working.
+
+    Reading the file as one string is what makes a multi-line generic reachable
+    at all, and it is also what makes it dangerous: `SVGProps<SVGSVGElement>`
+    closes with a `>`, the next `<` is a tag several lines below, and everything
+    between them reads as one long text node of ordinary words.
+
+    Worth having because the ten cases above do not test this. Every one of them
+    passes with `mask_generics` stubbed to `return text` - they are kept quiet by
+    the two-word threshold or by holding no `<` at all, not by the masking - so
+    the function could be broken by a refactor and only a tree-wide `make lint`
+    would notice. This snippet is `components/icons/brand-icon.tsx` trimmed to
+    the shape that regressed, and it reports one offence without the mask.
+    """
+    source = (
+        "interface BrandIconProps extends SVGProps<SVGSVGElement> {\n"
+        "  name: BrandName;\n"
+        "}\n"
+        "\n"
+        'export function BrandIcon({ name, "aria-label": ariaLabel, ...props }: BrandIconProps) {\n'
+        "  const Icon = ICONS[name];\n"
+        '  const a11y = ariaLabel ? { role: "img" } : { "aria-hidden": true };\n'
+        "  return <Icon {...a11y} {...props} />;\n"
+        "}\n"
+    )
+    assert _offences(tmp_path, source) == []

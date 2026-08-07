@@ -11,6 +11,7 @@ Sync connectors are pluggable adapters that fetch files from external systems
 | Class | Location | Purpose |
 |-------|----------|---------|
 | `BaseSyncConnector` | `app/services/rag/connectors/__init__.py` | Abstract base class for all connectors |
+| `remote_names` | `app/services/rag/remote_names.py` | Where a remote name may be written, and what may reach a query |
 | `RemoteFile` | `app/services/rag/connectors/__init__.py` | Pydantic model describing a remote file |
 | `CONNECTOR_REGISTRY` | `app/services/rag/connectors/__init__.py` | Dict mapping connector type strings to classes |
 | `SyncSource` | `app/db/models/sync_source.py` | Database model storing source configurations |
@@ -21,9 +22,24 @@ Sync connectors are pluggable adapters that fetch files from external systems
 1. User creates a **SyncSource** (connector type + config + collection name)
 2. User triggers a **sync** (via API, CLI, or scheduled task)
 3. The connector's `list_files()` returns `list[RemoteFile]`
-4. For each file, `download_file()` saves it locally
+4. For each file, `BaseSyncConnector.download_file()` decides where it may land
+   and calls the connector's `_fetch()` to write it there
 5. The ingestion pipeline parses, chunks, embeds, and stores each file
 6. A **SyncLog** entry records the result
+
+### A connector does not choose the destination
+
+`download_file()` is concrete and is not overridden. It resolves
+`RemoteFile.name` against the sync directory and confirms containment before a
+byte is written, then hands `_fetch()` a `dest_path` to write to. A remote name
+is attacker-controlled from this system's point of view — anyone who can share a
+file into a synced folder chooses it, and `../../../etc/…` is a legal name on
+Google Drive — so a connector that picked its own path would be one refusal per
+connector to remember. Write to the path you are given, and nothing else.
+
+The same applies to any caller-supplied value a connector puts into a **query**:
+check it where the query is built, against what the remote system can actually
+issue. `app/services/rag/remote_names.py` holds both answers.
 
 ## Step-by-Step: Notion Connector
 
@@ -119,15 +135,14 @@ class NotionConnector(BaseSyncConnector):
 
         return await asyncio.to_thread(_list)
 
-    async def download_file(self, file: RemoteFile, dest_dir: Path) -> Path:
-        """Export a Notion page as Markdown and save locally."""
-        def _download():
+    async def _fetch(self, file: RemoteFile, dest_path: Path, config: dict) -> None:
+        """Export a Notion page as Markdown to the path the base class chose."""
+        def _download() -> None:
             from notion_client import Client
 
-            # Note: in a real implementation you would retrieve the token
-            # from the config passed during sync, not hardcode it.
-            # This is simplified for illustration.
-            dest_path = dest_dir / file.name
+            # `dest_path` is already confirmed to be inside the sync directory.
+            # Do not build a path from `file.name` — see "A connector does not
+            # choose the destination" above.
 
             # Fetch page blocks and convert to markdown
             # (simplified — use a library like notion2md in practice)
@@ -135,9 +150,8 @@ class NotionConnector(BaseSyncConnector):
             dest_path.write_text(content)
 
             logger.info(f"Exported Notion page {file.id} -> {dest_path}")
-            return dest_path
 
-        return await asyncio.to_thread(_download)
+        await asyncio.to_thread(_download)
 
     async def validate_config(self, config: dict) -> tuple[bool, str | None]:
         """Test Notion API access with the provided token."""
@@ -269,4 +283,4 @@ CONFIG_SCHEMA: ClassVar[dict[str, dict[str, Any]]] = {
 - Implement `validate_config()` to test connectivity when users create sync sources — it prevents misconfigured sources
 - Server-level credentials (shared across all sources) go in `app/core/config.py` and `.env`
 - Per-source credentials go in `CONFIG_SCHEMA` and are stored in the database per sync source
-- The `download_file()` method should save the file to `dest_dir` and return the local `Path` — the ingestion pipeline handles everything from there
+- `_fetch()` writes to the `dest_path` it is handed and returns nothing — the base class answers where that is, and the ingestion pipeline handles everything from there

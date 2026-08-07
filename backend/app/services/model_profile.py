@@ -70,6 +70,14 @@ async def validate_endpoint_url(url: str) -> str:
     remains of the SSRF posture here is the permission gate: only members who
     may manage connections can store an endpoint at all.
 
+    Every refusal here names the *field*, never the URL it was given. The last
+    of the three exists because an endpoint sometimes arrives with a password in
+    it, and `details` is both serialized into the response and logged by the
+    exception handler - so echoing the value back would write the credential
+    this check exists to refuse into the deployment's logs (agenticos#342). The
+    scheme check reaches the same URLs (`ftp://user:pass@host`), so all three
+    answer the same way.
+
     Raises:
         BadRequestError: If the URL is malformed, uses another scheme, or
             carries credentials.
@@ -78,11 +86,11 @@ async def validate_endpoint_url(url: str) -> str:
     if parsed.scheme not in _ALLOWED_ENDPOINT_SCHEMES:
         raise BadRequestError(
             message="A model endpoint must be an http or https URL",
-            details={"base_url": url},
+            details={"field": "base_url"},
         )
     if not parsed.hostname:
         raise BadRequestError(
-            message="A model endpoint must include a host", details={"base_url": url}
+            message="A model endpoint must include a host", details={"field": "base_url"}
         )
     if parsed.username is not None or parsed.password is not None:
         raise BadRequestError(
@@ -90,7 +98,7 @@ async def validate_endpoint_url(url: str) -> str:
                 "A model endpoint must not carry credentials in the URL - store the key "
                 "on the credential instead"
             ),
-            details={"base_url": url},
+            details={"field": "base_url"},
         )
     return url
 
@@ -163,7 +171,7 @@ class ModelProfileService:
                         f"{spec.name} has no endpoint setting - its SDK always talks to the "
                         "provider's own API, so a custom URL here would be ignored"
                     ),
-                    details={"provider": provider, "base_url": base_url},
+                    details={"provider": provider, "field": "base_url"},
                 )
             base_url = await validate_endpoint_url(base_url)
         elif spec.keyless and secret_id is None:

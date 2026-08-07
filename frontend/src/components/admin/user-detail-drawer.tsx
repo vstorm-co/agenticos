@@ -23,7 +23,7 @@ import {
   Sheet,
   SheetContent,
 } from "@/components/ui";
-import type { AdminUserRead } from "@/hooks/use-admin-users";
+import type { AdminUser } from "@/types";
 import { apiClient } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
 import { formatDateTime, getErrorMessage } from "@/lib/utils";
@@ -31,10 +31,10 @@ import { qk } from "@/lib/query-keys";
 import { useTranslations } from "next-intl";
 
 interface UserDetailDrawerProps {
-  user: AdminUserRead | null;
+  user: AdminUser | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onUpdate: (userId: string, patch: Partial<AdminUserRead>) => void;
+  onUpdate: (userId: string, patch: Partial<AdminUser>) => void;
   onDelete: (userId: string) => void;
   onImpersonate: (userId: string) => Promise<string | null | undefined>;
 }
