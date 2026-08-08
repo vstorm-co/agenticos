@@ -1251,8 +1251,13 @@ class TestWhatReadingAHostCosts:
                     raise RuntimeError("This service keeps no workspaces on disk.")
                 return [{"path": "/run.py", "size": 8, "is_dir": False}]
 
+            # Both, because the two reads are for two readers: `read_bytes` serves
+            # the viewer its own text, `read` numbers the lines for a model.
+            def read_bytes(self, session_id, path):
+                return b"print(1)"
+
             def read(self, session_id, path):
-                return "print(1)"
+                return "     1\tprint(1)"
 
         monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
         return made
@@ -1918,6 +1923,48 @@ class TestShowingTheFilesToAPerson:
     last week list its files at all after its session was reaped.
     """
 
+    async def test_a_file_is_read_as_its_own_text_and_not_the_models(
+        self, monkeypatch, mock_db_session
+    ):
+        """The viewer gets the file. The backend's `read` gets a model.
+
+        `StateBackend.read` numbers every line - "read a slice of a file with line
+        numbers", six columns and a tab - and caps at two thousand with
+        "... (N more lines)" after them. That is for an agent citing a line it wants
+        to edit. Served to a person it was three bugs at once: Source could not be
+        copied, an HTML preview rendered the numbers as page content because the
+        iframe is handed this text verbatim, and a long file was silently cut with
+        nothing on the response saying so.
+        """
+        lines = ["<!DOCTYPE html>", '<html lang="pl">', "<body>Hola</body>", "</html>"]
+        page = "\n".join(lines)
+        row = _row(backend="state", files={"/uploads/mockup.html": {"content": lines}})
+        monkeypatch.setattr(workspace_repo, "get", AsyncMock(return_value=row))
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
+
+        text = await SandboxWorkspaceService(mock_db_session).read_file_of(
+            _ctx(), row.id, path="/uploads/mockup.html"
+        )
+
+        assert text == page
+        assert "\t" not in (text or "")
+
+    async def test_a_file_whose_bytes_are_not_text_says_so(self, monkeypatch, mock_db_session):
+        """Rather than replacement characters, which read as a corrupted file. The
+        text route is reached by a caller that decided the suffix looks textual, and
+        a suffix is a guess."""
+        row = _row(backend="state", files={"/uploads/x.txt": {"content": ["ok"]}})
+        monkeypatch.setattr(workspace_repo, "get", AsyncMock(return_value=row))
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(
+            SandboxWorkspaceService, "_state_bytes", staticmethod(lambda row, path: b"\xff\xfe\x00")
+        )
+
+        with pytest.raises(BadRequestError, match="not text"):
+            await SandboxWorkspaceService(mock_db_session).read_file_of(
+                _ctx(), row.id, path="/uploads/x.txt"
+            )
+
     async def test_a_conversation_with_no_workspace_lists_nothing(
         self, monkeypatch, mock_db_session
     ):
@@ -2028,8 +2075,10 @@ class TestShowingTheFilesToAPerson:
             def ls(self, session_id):
                 return [{"path": "/workspace/run.py", "size": 12, "is_dir": False}]
 
-            def read(self, session_id, path):
-                return "print(1)"
+            # `read_bytes`, not `read`: the viewer is served the file's own text,
+            # decoded from bytes. `read` numbers the lines for a model.
+            def read_bytes(self, session_id, path):
+                return b"print(1)"
 
         monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
         _serve(monkeypatch, _resolved())

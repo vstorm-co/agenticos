@@ -178,17 +178,6 @@ describe("the things somebody does with a file besides looking at it", () => {
     expect(download).toHaveBeenCalled();
   });
 
-  it("opens it in a tab of its own", async () => {
-    const windowOpen = vi.fn();
-    vi.stubGlobal("open", windowOpen);
-    open({ name: "handbook.pdf" });
-
-    await userEvent.click(screen.getByRole("button", { name: "Open in a new tab" }));
-
-    await waitFor(() => expect(windowOpen).toHaveBeenCalled());
-    vi.unstubAllGlobals();
-  });
-
   it("says why one of them was refused, rather than doing nothing", async () => {
     // A binary in a container-backed workspace is read through an archive that can
     // only read text, so the API answers 400.
@@ -222,27 +211,35 @@ describe("the things somebody does with a file besides looking at it", () => {
  * is a PDF nobody can read.
  */
 describe("how big the dialog is", () => {
-  const width = () => screen.getByRole("dialog").className;
+  const dialog = () => screen.getByRole("dialog").className;
 
-  it("is wide for what a browser renders as a document", () => {
-    for (const name of ["handbook.pdf", "chart.png", "demo.mp4", "rows.csv"]) {
+  it("is nearly the window, whatever the file is", () => {
+    // It used to pick between two widths by kind, and both were too narrow: a page
+    // an agent laid out for a browser, a PDF, a spreadsheet and a 200-character line
+    // of source all want the room, and prose does not suffer from having it.
+    for (const name of ["handbook.pdf", "chart.png", "demo.mp4", "rows.csv", "report.md"]) {
       const { unmount } = open({ name });
-      expect(width()).toContain("sm:max-w-5xl");
+      expect(dialog()).toContain("w-[calc(100vw-4rem)]");
+      expect(dialog()).toContain("h-[calc(100vh-4rem)]");
       unmount();
     }
   });
 
-  it("is narrow for what reads better narrow", () => {
+  it("keeps a gutter rather than going edge to edge", () => {
     open({ name: "report.md" });
 
-    expect(width()).toContain("sm:max-w-3xl");
+    // The ceilings a dialog carries by default would win over the sizes above.
+    expect(dialog()).toContain("max-w-none");
+    expect(dialog()).toContain("max-h-none");
   });
 
-  it("gives the body a floor as well as a ceiling", () => {
-    // A three-byte file gets a small box; a report grows to 70% of the viewport
-    // rather than pushing the dialog off the screen.
+  it("scrolls the body rather than growing past the window", () => {
+    // `min-h-0` is the whole of it: a flex child's default minimum is its content, so
+    // without it a long file makes the dialog taller than the viewport instead of
+    // scrolling inside it.
     const { container } = open({ name: "report.md" });
+    const body = container.ownerDocument.querySelector(".flex-1.overflow-auto");
 
-    expect(container.ownerDocument.querySelector(".min-h-16")).toHaveClass("max-h-[70vh]");
+    expect(body).toHaveClass("min-h-0");
   });
 });

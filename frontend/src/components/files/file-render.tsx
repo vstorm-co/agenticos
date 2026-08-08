@@ -53,7 +53,10 @@ export function FileTextView({ kind, name, text, asSource = false }: FileTextVie
           title={t("renderedPage", { name })}
           srcDoc={text}
           sandbox=""
-          className="bg-background h-[60vh] w-full rounded-md border"
+          // Viewport-relative rather than `h-full`: the dialog is a flex column but
+          // the wrappers between here and it are not, so a percentage height would
+          // collapse to the content's.
+          className="bg-background h-[calc(100vh-15rem)] min-h-64 w-full rounded-md border"
         />
       );
     case "csv":
@@ -149,9 +152,17 @@ export function FileUnavailable({
   );
 }
 
+/**
+ * The characters, as they are.
+ *
+ * `whitespace-pre` and a scroll rather than `pre-wrap`: source read as source is
+ * read by its indentation, and wrapping a 200-character line into four rows at the
+ * left margin destroys exactly the thing somebody switched to this view for. Prose
+ * in a `.txt` loses nothing by scrolling, and gains not being reflowed.
+ */
 function PlainText({ text }: { text: string }) {
   return (
-    <pre className="bg-muted text-foreground/90 rounded-md p-3 font-mono text-xs whitespace-pre-wrap">
+    <pre className="bg-muted text-foreground/90 overflow-x-auto rounded-md p-3 font-mono text-xs whitespace-pre">
       {text}
     </pre>
   );

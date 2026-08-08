@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Download, ExternalLink } from "lucide-react";
+import { Download } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { FileContent } from "./file-content";
@@ -20,7 +20,7 @@ import {
 import { useFileActions } from "@/hooks";
 import type { FileAccess } from "@/lib/file-access";
 import { hasSourceView, resolveFileKind, suffixOf, type FileKind } from "@/lib/file-kinds";
-import { cn, formatBytes, timeAgo } from "@/lib/utils";
+import { formatBytes, timeAgo } from "@/lib/utils";
 
 /** What is known about a file before anything is fetched. */
 export interface ViewerFile {
@@ -82,7 +82,7 @@ interface FileViewerProps {
 export function FileViewer({ file, access, extraTabs = [], onClose }: FileViewerProps) {
   const t = useTranslations("files");
   const kind = resolveFileKind(file.name, file.mimeType);
-  const { download, openInNewTab, error } = useFileActions(access);
+  const { download, error } = useFileActions(access);
   const [view, setView] = useState("preview");
 
   const tabs: ViewerTab[] = [
@@ -94,61 +94,69 @@ export function FileViewer({ file, access, extraTabs = [], onClose }: FileViewer
 
   return (
     <Dialog open onOpenChange={(next) => !next && onClose()}>
-      <DialogContent
-        className={cn(
-          "max-h-[90vh] gap-3 overflow-hidden p-4 sm:p-6",
-          isWide(kind) ? "sm:max-w-5xl" : "sm:max-w-3xl",
-        )}
-      >
-        <DialogHeader className="gap-1 pr-8">
-          <DialogTitle className="flex min-w-0 items-center gap-2 text-base">
+      {/* Nearly the whole window, with a gutter. One size for every kind, because
+          the kind was deciding between two widths that were both too narrow: a page
+          an agent laid out for a browser, a PDF, a spreadsheet and a 200-character
+          line of source all want the room, and prose does not suffer from having it.
+          A flex column so the body takes whatever the two rows of chrome leave. */}
+      <DialogContent className="flex h-[calc(100vh-4rem)] max-h-none w-[calc(100vw-4rem)] max-w-none flex-col gap-3 overflow-hidden p-4 sm:max-w-none sm:p-6">
+        {/* Two rows, not four. The header used to stack a title, a metadata line and
+            the path, with the tabs and the actions on a fourth - four bands of chrome
+            above the file somebody opened the dialog to look at. The path belongs
+            *in* the title, where it says which of two files called `mockup.html` this
+            is, and the metadata sits beside the tabs. */}
+        <DialogHeader className="gap-0 pr-8">
+          <DialogTitle className="flex min-w-0 items-baseline gap-2 text-base">
             <FileIcon
               name={file.name}
               mimeType={file.mimeType}
-              className="text-muted-foreground h-4 w-4 shrink-0"
+              className="text-muted-foreground h-4 w-4 shrink-0 self-center"
             />
-            <span className="truncate">{file.name}</span>
+            <span className="shrink-0 truncate">{file.name}</span>
+            {showsPath(file.path) && (
+              <span className="text-muted-foreground truncate font-mono text-xs font-normal">
+                {file.path}
+              </span>
+            )}
           </DialogTitle>
-          {/* What it is, how big, and when it changed - which is what the second line
-              of a file header is for. It used to be the path, and for a file at a
-              workspace root the path is the name. */}
-          <DialogDescription className="text-xs">{describe(file, kind, t)}</DialogDescription>
-          {showsPath(file.path) && (
-            <p className="text-muted-foreground truncate font-mono text-xs">{file.path}</p>
-          )}
         </DialogHeader>
 
-        <div
-          className={cn(
-            "flex flex-wrap items-center gap-2",
-            tabs.length > 1 ? "justify-between" : "justify-end",
-          )}
-        >
-          {tabs.length > 1 && (
-            <Tabs value={view} onValueChange={setView}>
-              <TabsList>
-                {tabs.map((tab) => (
-                  <TabsTrigger key={tab.value} value={tab.value}>
-                    {tab.label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
-          )}
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="sm" onClick={openInNewTab} title={t("openInNewTab")}>
-              <ExternalLink className="h-3.5 w-3.5" />
-            </Button>
-            <Button variant="outline" size="sm" onClick={download}>
-              <Download className="h-3.5 w-3.5" />
-              {t("download")}
-            </Button>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-3">
+            {tabs.length > 1 && (
+              <Tabs value={view} onValueChange={setView}>
+                <TabsList>
+                  {tabs.map((tab) => (
+                    <TabsTrigger key={tab.value} value={tab.value}>
+                      {tab.label}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+            )}
+            {/* The dialog's own description, placed here rather than under the
+                title: Radix wires it to `aria-describedby` wherever it sits, and a
+                copy in the header plus a copy beside the tabs is one sentence a
+                screen reader reads twice. */}
+            <DialogDescription className="truncate text-xs">
+              {describe(file, kind, t)}
+            </DialogDescription>
           </div>
+          {/* Download alone. "Open in new tab" sat beside it doing very nearly the
+              same thing - the API answers most types as `application/octet-stream`
+              precisely so a browser cannot render them, so for anything but an image
+              or a PDF the new tab *was* a download, with a blank tab left over. */}
+          <Button variant="outline" size="sm" onClick={download} className="shrink-0">
+            <Download className="h-3.5 w-3.5" />
+            {t("download")}
+          </Button>
         </div>
 
         {error !== null && <p className="text-destructive text-xs">{error}</p>}
 
-        <div className="max-h-[70vh] min-h-16 min-w-0 overflow-auto">
+        {/* `min-h-0` is what makes the scroll happen here rather than the dialog
+            growing past the viewport: a flex child's default minimum is its content. */}
+        <div className="min-h-0 min-w-0 flex-1 overflow-auto">
           {extra !== undefined ? (
             extra.content
           ) : (
@@ -197,15 +205,4 @@ function describe(
     if (when !== "") parts.push(t("modified", { when }));
   }
   return parts.join(" · ");
-}
-
-/**
- * Whether this needs the wide dialog.
- *
- * The kinds a browser renders as a *document* rather than as text: a PDF in a
- * three-column-wide box is two words a line, and an image or a video scaled into one
- * is a thumbnail. Everything else reads better narrow.
- */
-function isWide(kind: FileKind): boolean {
-  return kind === "pdf" || kind === "image" || kind === "video" || kind === "csv";
 }

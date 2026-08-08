@@ -739,12 +739,10 @@ class SandboxWorkspaceService:
         if _absent(row, contents, path):
             raise NotFoundError(message="No such file", details=details)
         if row.backend == "state":
-            from pydantic_ai_backends import StateBackend
-
-            backend = StateBackend(files=dict(row.files or {}))
-            if not backend.exists(path):
+            state = self._state_bytes(row, path)
+            if state is None:
                 raise NotFoundError(message="No such file", details=details)
-            return backend.read_bytes(path)
+            return state
 
         raw = await self._read_bytes_from(ctx, row, path)
         if raw is None:
@@ -756,9 +754,12 @@ class SandboxWorkspaceService:
     ) -> bytes | None:
         """One file's bytes off a container-backed host's volume.
 
-        The byte-wise sibling of `_read_from`, and not a wrapper around it: a PNG
-        decoded to text and re-encoded is a corrupt PNG, which is the whole reason
-        the archive grew a `read_bytes`.
+        What `_read_from` is built on rather than its sibling, which is the way round
+        it ended up: bytes are what the host holds, and text is a decode of them. It
+        was the other way once - `_read_from` called the archive's `read` and this
+        arrived later, because a PNG decoded to text and re-encoded is a corrupt PNG.
+        Then `read` turned out to be the *model's* read, numbering every line, so the
+        text path moved onto this too.
         """
         async with self._archive(ctx, row) as archive:
             if archive is None:
@@ -851,33 +852,52 @@ class SandboxWorkspaceService:
         return await self._read_from(ctx, row, path)
 
     async def _read_from(self, ctx: AuthContext, row: AgentWorkspace, path: str) -> str | None:
-        """One file out of one workspace, whichever backend holds it.
+        """One file out of one workspace, as its own text.
 
         Shared by the two ways a workspace is addressed - through its conversation
         and by its own id - so a path that is refused one way cannot be readable
         the other.
+
+        **`read_bytes` and a decode, never the backend's `read`.** That read is the
+        model's: its docstring says "read a slice of a file with line numbers", and
+        it returns every line behind a six-column gutter and a tab, capped at two
+        thousand with `... (N more lines)` after them. It exists so an agent can
+        cite a line it wants to edit, and it is not the file.
+
+        Handed to a person it was three bugs at once: Source could not be copied
+        because every line carried a number, an HTML preview rendered those numbers
+        as page content - the iframe is given this text verbatim - and a file past
+        two thousand lines was silently truncated with no `truncated` flag on the
+        response to say so.
         """
-        if row.backend == "state":
-            from pydantic_ai_backends import StateBackend
+        raw = (
+            self._state_bytes(row, path)
+            if row.backend == "state"
+            else await self._read_bytes_from(ctx, row, path)
+        )
+        if raw is None:
+            return None
+        try:
+            return raw.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            # The route serving this is the text one, so a caller has already
+            # decided the file reads as characters - by suffix, which is a guess.
+            # Saying so beats returning replacement characters that look like a
+            # corrupted file.
+            raise BadRequestError(
+                message="This file is not text",
+                details={"workspace_id": str(row.id), "path": path},
+            ) from exc
 
-            backend = StateBackend(files=dict(row.files or {}))
-            if not backend.exists(path):
-                return None
-            return backend.read(path)
+    @staticmethod
+    def _state_bytes(row: AgentWorkspace, path: str) -> bytes | None:
+        """One file's bytes out of a state-backed workspace, or None when absent."""
+        from pydantic_ai_backends import StateBackend
 
-        async with self._archive(ctx, row) as archive:
-            if archive is None:
-                return None
-            try:
-                return await asyncio.to_thread(archive.read, row.session_id or row.scope_key, path)
-            except Exception as exc:
-                # A 400 naming the reason, rather than the 500 this used to be or
-                # the 404 that "no such file" would have been. Both of those tell
-                # somebody the file is missing when the truth is that this host
-                # cannot serve it.
-                raise BadRequestError(
-                    message=_reason(exc), details={"workspace_id": str(row.id), "path": path}
-                ) from exc
+        backend = StateBackend(files=dict(row.files or {}))
+        if not backend.exists(path):
+            return None
+        return backend.read_bytes(path)
 
     @asynccontextmanager
     async def _archive(self, ctx: AuthContext, row: AgentWorkspace) -> AsyncIterator[Any | None]:

@@ -67,7 +67,9 @@ describe("showing a file's characters", () => {
   it("shows plain text as it is, preserving its whitespace", () => {
     render(<FileTextView kind="text" name="a.log" text={"line one\n  line two"} />);
 
-    expect(screen.getByText(/line one/)).toHaveClass("whitespace-pre-wrap");
+    // `pre`, not `pre-wrap`: source is read by its indentation, and wrapping a long
+    // line back to the left margin destroys the thing a Source view is for.
+    expect(screen.getByText(/line one/)).toHaveClass("whitespace-pre");
   });
 
   it("shows the characters when that is what was asked for", () => {
