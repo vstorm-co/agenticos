@@ -2,6 +2,7 @@
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { cn } from "@/lib/utils";
+import { toolEntry } from "@/lib/tool-catalog";
 import type { ChatMessage, ChatMessageFile, MessagePart } from "@/types";
 import type { Agent } from "@/types/agents";
 import { ToolCallCard } from "./tool-call-card";
@@ -41,9 +42,15 @@ function ThinkingBlock({
           <span className="bg-foreground/40 inline-block h-1 w-1 animate-pulse rounded-full" />
         )}
       </summary>
-      <pre className="text-muted-foreground border-foreground/10 mt-2 max-h-72 overflow-y-auto border-l pl-3.5 text-[12px] leading-relaxed whitespace-pre-wrap">
-        {text}
-      </pre>
+      {/* Markdown, not a `<pre>`. Reasoning is written the way the answer is - the
+          models that expose it head each block with `**Analyzing attached files**`
+          and use lists inside them - so a monospaced block rendered the asterisks
+          and the underscores literally, in a face that says "this is output"
+          about the one part of a turn that is prose. Still the muted, smaller,
+          scrollable aside it was; only the text is read properly now. */}
+      <div className="text-muted-foreground border-foreground/10 mt-2 max-h-72 overflow-y-auto border-l pl-3.5 text-[13px] leading-relaxed">
+        <MarkdownContent content={text} />
+      </div>
     </details>
   );
 }
@@ -168,6 +175,29 @@ export function runsOf(parts: MessagePart[]): PartRun[] {
   const last = runs.at(-1);
   if (last !== undefined) last.isLast = true;
   return runs;
+}
+
+/**
+ * Whether this run must show every step rather than fold all but the last.
+ *
+ * Three reasons, and they are all "the reader would otherwise miss something":
+ * a call that failed, one parked waiting for their approval, and a step whose
+ * result *is* the answer - a chart. The rail's default is right for work nobody
+ * asked to watch, and wrong for a turn that drew three charts: two of them
+ * became the line "2 earlier steps", so the same turn showed three pictures live
+ * and one after a reload.
+ *
+ * Which steps are payloads comes from `opensOnSight` in `lib/tool-catalog.ts`,
+ * the same row the card reads to decide whether to open itself - so a tool is
+ * described in one place and the rail and the card cannot disagree about it.
+ */
+export function mustShowEveryStep(parts: MessagePart[]): boolean {
+  return parts.some((part) => {
+    const call = part.toolCall;
+    if (!call) return false;
+    if (call.status === "error" || call.status === "awaiting_approval") return true;
+    return toolEntry(call.name)?.opensOnSight === true;
+  });
 }
 
 interface MessageItemProps {
@@ -355,13 +385,10 @@ export function MessageItem({
                     <div key={run.parts[0].id} className="w-full">
                       {/* The rail folds its own earlier steps away, but it cannot see
                           what is in them - so whether this run holds something a person
-                          has to answer is decided here, where the statuses are. */}
+                          has to answer is decided here, where the statuses and the
+                          names are. */}
                       <AgentSteps
-                        showAll={run.parts.some(
-                          (part) =>
-                            part.toolCall?.status === "error" ||
-                            part.toolCall?.status === "awaiting_approval",
-                        )}
+                        showAll={mustShowEveryStep(run.parts)}
                         done={run.parts.length > 1 && !message.isStreaming}
                       >
                         {run.parts.map((part, step) => (

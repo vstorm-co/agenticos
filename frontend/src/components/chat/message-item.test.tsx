@@ -2,11 +2,11 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MessageItem, runsOf } from "./message-item";
+import { MessageItem, mustShowEveryStep, runsOf } from "./message-item";
 import { useAuthStore, useChatStore, useFilePreviewStore } from "@/stores";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import type { Agent } from "@/types/agents";
-import type { ChatMessage, ChatMessageFile, ToolCall } from "@/types";
+import type { ChatMessage, ChatMessageFile, MessagePart, ToolCall } from "@/types";
 
 vi.mock("./markdown-content", () => ({
   MarkdownContent: ({
@@ -167,6 +167,42 @@ describe("a turn in the transcript", () => {
   });
 });
 
+describe("which runs refuse to fold", () => {
+  /** A tool part, which is what a run is made of. */
+  const step = (overrides: Partial<ToolCall> = {}): MessagePart => ({
+    id: `p-${overrides.id ?? "1"}`,
+    type: "tool",
+    toolCall: { id: "tc-1", name: "search_documents", args: {}, status: "completed", ...overrides },
+  });
+
+  it("folds ordinary work away", () => {
+    // The default, and the right one: three reads and a grep are work nobody asked
+    // to watch, and the rail shows the last of them.
+    expect(mustShowEveryStep([step(), step({ id: "2" })])).toBe(false);
+  });
+
+  it("shows every step when one of them failed", () => {
+    expect(mustShowEveryStep([step(), step({ id: "2", status: "error" })])).toBe(true);
+  });
+
+  it("shows every step when one is waiting to be approved", () => {
+    expect(mustShowEveryStep([step({ status: "awaiting_approval" })])).toBe(true);
+  });
+
+  it("shows every step when one of them is a chart", () => {
+    // A turn that drew three charts folded two of them into "2 earlier steps", so
+    // the same turn showed three pictures live and one after a reload. Three
+    // charts are three answers.
+    expect(mustShowEveryStep([step({ name: "create_chart" }), step({ id: "2" })])).toBe(true);
+  });
+
+  it("ignores a part carrying no call at all", () => {
+    // `runsOf` only puts a tool part in a run when it has a call, so this is the
+    // contract holding rather than a case the transcript produces.
+    expect(mustShowEveryStep([{ id: "p-1", type: "tool" }])).toBe(false);
+  });
+});
+
 describe("the ordered timeline", () => {
   it("renders each part in the order it arrived", () => {
     // Reasoning, then the tool it led to, then the answer. Rendering them by kind
@@ -183,9 +219,12 @@ describe("the ordered timeline", () => {
       ],
     });
 
-    const rendered = Array.from(container.querySelectorAll("details, [data-testid]")).map((node) =>
-      node.tagName === "DETAILS" ? "thinking" : node.getAttribute("data-testid"),
-    );
+    // Only the top level: the reasoning renders its own Markdown now, so its mock
+    // sits *inside* the `details`. This is about the order of the parts, not of
+    // everything they contain.
+    const rendered = Array.from(container.querySelectorAll("details, [data-testid]"))
+      .filter((node) => node.tagName === "DETAILS" || node.closest("details") === null)
+      .map((node) => (node.tagName === "DETAILS" ? "thinking" : node.getAttribute("data-testid")));
     expect(rendered).toEqual(["thinking", "tool-tc-1", "markdown"]);
   });
 
@@ -249,7 +288,12 @@ describe("the ordered timeline", () => {
     });
 
     expect(container.querySelector("details")).toBeInTheDocument();
-    expect(screen.getByTestId("markdown")).toHaveTextContent("Thirty days.");
+    // Two of them: the reasoning is Markdown as well as the answer. The answer is
+    // the one outside the `details`.
+    const answer = Array.from(container.querySelectorAll('[data-testid="markdown"]')).find(
+      (node) => node.closest("details") === null,
+    );
+    expect(answer).toHaveTextContent("Thirty days.");
     expect(screen.getByTestId("tool-tc-1")).toBeInTheDocument();
   });
 

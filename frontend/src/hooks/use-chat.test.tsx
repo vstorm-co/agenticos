@@ -233,18 +233,62 @@ describe("useChat - the streamed answer", () => {
     expect(streaming()?.thinking).toBe("Checking.");
   });
 
-  it("closes the previous message when a second one opens", () => {
-    // One turn can produce several messages; the first must stop rendering as
-    // still streaming.
+  it("keeps one turn in one message however many requests it takes", () => {
+    // A multi-step turn makes a request per tool round. Opening a message on each
+    // one split a single answer into a bubble per round, with the tool steps
+    // scattered one per message - so nothing grouped them onto a rail, and the
+    // stored turn (one row) could only ever match one of them, which is why a
+    // reload showed something different from what was watched.
+    renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "Below are the charts." });
+    receive("tool_call", { tool_call_id: "tc-1", tool_name: "create_chart", args: {} });
+    receive("tool_result", { tool_call_id: "tc-1", content: "{}" });
+
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "Done." });
+
+    const messages = useChatStore.getState().messages;
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.parts?.map((part) => part.type)).toEqual(["text", "tool", "text"]);
+  });
+
+  it("opens a second message for the next turn, and closes the first", () => {
+    // Across turns the split is right. `final_result` ends the answer and
+    // `complete` ends the turn, which is what lets the next request open its own
+    // message rather than appending to this one.
     renderHook(() => useChat(), { wrapper });
     receive("model_request_start", {});
     receive("text_delta", { index: 0, content: "first" });
+    receive("final_result", { output: "first" });
+    receive("complete", {});
 
     receive("model_request_start", {});
 
     const messages = useChatStore.getState().messages;
     expect(messages).toHaveLength(2);
     expect(messages[0]?.isStreaming).toBe(false);
+  });
+
+  it("does not append a new question's answer to a turn the socket abandoned", () => {
+    // A dropped connection sends no `complete`, so nothing clears the open turn.
+    // With one message per turn that left the ref pointing at the abandoned
+    // answer, and the next one was appended to it - two turns in one bubble, with
+    // the first still rendering a cursor. Asking again is the boundary that holds
+    // whatever the socket did.
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "half an answ" });
+
+    act(() => result.current.sendMessage("are you still there?"));
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "Yes." });
+
+    const messages = useChatStore.getState().messages;
+    expect(messages.map((message) => message.role)).toEqual(["assistant", "user", "assistant"]);
+    expect(messages[0]?.isStreaming).toBe(false);
+    expect(messages[0]?.content).toBe("half an answ");
+    expect(messages[2]?.content).toBe("Yes.");
   });
 
   it("shows a tool call and then its result, in the timeline", () => {

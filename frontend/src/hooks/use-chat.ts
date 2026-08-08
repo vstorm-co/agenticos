@@ -132,14 +132,12 @@ export function useChat(options: UseChatOptions = {}) {
     (event: MessageEvent) => {
       const wsEvent: WSEvent = JSON.parse(event.data);
 
+      // Opens the turn's message. It used to close a previous one first, which is
+      // no longer reachable and would be the wrong place for it if it were: every
+      // caller now opens a message only when the turn has none, and what ends the
+      // previous turn is `complete`, `final_result`, `error`, a stop, or the next
+      // question - see `doSend`.
       const createNewMessage = (content: string): string => {
-        if (currentMessageIdRef.current) {
-          updateMessage(currentMessageIdRef.current, (msg) => ({
-            ...msg,
-            isStreaming: false,
-          }));
-        }
-
         const newMsgId = nanoid();
         const effectiveConversationId = activeConversationId ?? undefined;
         addMessage({
@@ -211,8 +209,27 @@ export function useChat(options: UseChatOptions = {}) {
         }
 
         case "model_request_start": {
-          // PydanticAI/LangChain - create message immediately
-          createNewMessage("");
+          // One bubble per turn, not per model request.
+          //
+          // A multi-step turn makes a request per tool round, and opening a message
+          // on each one split a single answer across several: a turn that drew three
+          // charts arrived as four bubbles, each with its own avatar and its own
+          // timestamp. The tool steps were scattered one per message, so `runsOf`
+          // had nothing consecutive to gather onto a rail and the run never reached
+          // the two steps `AgentSteps` needs to say "Done".
+          //
+          // It also produced a turn the backend could not match. One turn is one
+          // `messages` row, so `message_saved` renamed one bubble to the real id and
+          // the rest kept a temporary one forever - no cost, no rating, and they
+          // disappeared on reload when the single stored row replaced all four.
+          // That is the difference between the live transcript and the reloaded one.
+          //
+          // A turn ends at `complete`, which clears the ref. So this opens a message
+          // when a turn has none and appends to it for every round after the first,
+          // exactly as `thinking_delta` below already did.
+          if (!currentMessageIdRef.current) {
+            createNewMessage("");
+          }
           break;
         }
 
@@ -507,6 +524,17 @@ export function useChat(options: UseChatOptions = {}) {
       // late frame from a background delegation of the turn before is dropped by
       // `applyDelegationFrame` rather than opening a nameless panel.
       setDelegations([]);
+      // A new question ends whatever the agent was saying, and it is the only
+      // boundary that always holds. `complete` clears this on every ordinary
+      // ending, but a socket that dropped mid-answer sends no `complete` at all -
+      // and now that a turn is one message rather than one per model request, a
+      // ref still pointing at the abandoned turn would have the next answer
+      // appended to it. The half-written one also stops rendering its cursor,
+      // which nothing else was going to do for it.
+      if (currentMessageIdRef.current) {
+        updateMessage(currentMessageIdRef.current, (msg) => ({ ...msg, isStreaming: false }));
+        setCurrentMessageId(null);
+      }
       const userMessageId = nanoid();
       addMessage({
         id: userMessageId,
@@ -539,7 +567,7 @@ export function useChat(options: UseChatOptions = {}) {
       turnAgentIdRef.current = agentId;
       sendMessage(payload);
     },
-    [addMessage, sendMessage, conversationId],
+    [addMessage, updateMessage, setCurrentMessageId, sendMessage, conversationId],
   );
 
   const sendChatMessage = useCallback(

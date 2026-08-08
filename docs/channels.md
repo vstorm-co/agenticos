@@ -244,7 +244,7 @@ is stored is what its reader actually saw.
 
 | Surface | What reaches `messages` and `tool_calls` |
 |---|---|
-| Web chat, run finished | Everything — prompt, reasoning, tool arguments and results, model and version |
+| Web chat, run finished | Everything — prompt, reasoning, tool arguments and results, model and version, and the order it all happened in |
 | Web chat, run interrupted | The same, as far as it got. A run that failed, hit its budget, was stopped or lost its socket keeps the words already streamed, attributed to the version that produced them, with no cost figure invented for it — the run row is where the accounting lives |
 | A channel bot's default agent | Everything except the reasoning, which only a streamed run exposes |
 | `@mention` on a channel | The same, with the handle stripped from the recorded prompt |
@@ -269,19 +269,56 @@ raw arguments and output stay one click further in for whoever is debugging one.
 
 Consecutive calls hang from one rail, and **only the last row stays visible**: earlier
 ones fold into "4 earlier steps", which says work happened without pushing the answer off
-the screen. A run holding a failure or a call parked for approval is never folded — that
-is the one line in the turn that is asking for something. Nothing marks a step that
-simply worked, so a marker means what it says.
+the screen. Three kinds of run are never folded — one holding a failure, one holding a
+call parked for approval, and one holding a step whose result *is* the answer, which today
+means a chart. The first two are the line in the turn that is asking for something; the
+third is there because a turn that drew three charts folded two of them away, and three
+charts are three answers rather than one with two footnotes. Which tools count as that
+kind is `opensOnSight` in `lib/tool-catalog.ts`, the same row the step reads to decide
+whether to open itself, so the rail and the step cannot disagree. Nothing marks a step
+that simply worked, so a marker means what it says.
 
-**What opens itself follows what somebody is watching.** A call that finishes while the
-turn is streaming opens on the spot — a chart, code that ran, a file that was written is
-the answer, not a footnote to it. A conversation *reopened* shows one line per past call
-and keeps open exactly one: the last call of the most recent turn that **used a tool**,
-which is the result the reader came back for. The most recent *turn* is the wrong anchor
-and was the first way this was written - an agent that writes a file and then answers
-about it in prose ends the transcript with text, and the file it had just written was
-folded away. Opening every finished call on mount turned a reopened chat into a wall; opening
-none of them hid the thing that was asked for.
+**What opens itself follows what somebody is watching, except when the result is the
+point.** A call that finishes while the turn is streaming opens on the spot — code that
+ran, a file that was written is the answer, not a footnote to it. A conversation *reopened*
+shows one line per past call and keeps open exactly one: the last call of the most recent
+turn that **used a tool**, which is the result the reader came back for. The most recent
+*turn* is the wrong anchor and was the first way this was written - an agent that writes a
+file and then answers about it in prose ends the transcript with text, and the file it had
+just written was folded away. Opening every finished call on mount turned a reopened chat
+into a wall; opening none of them hid the thing that was asked for. A chart is the
+exception at both ends: it opens wherever it sits and however the turn is being read,
+because a picture nobody can see is not an answer.
+
+### The same turn, watched and reopened
+
+**A turn is one message, and its order is recorded rather than guessed.** Both halves of
+that were once false, and together they made the live transcript and the reloaded one two
+different documents.
+
+A multi-step turn makes one model request per tool round, and the client used to open a
+message on each — so a turn that drew three charts arrived as four bubbles, each with its
+own avatar. One turn is one `messages` row, so only one of those bubbles could ever be
+matched to what was stored; the rest kept a temporary id, carried no cost and no rating,
+and vanished on reload.
+
+And the row said what a turn contained without saying when. `content`, `thinking` and
+`tool_calls` are three buckets, so a client had to reconstruct an order and the only one it
+could reconstruct was reasoning, then every tool, then the answer. A turn that introduced
+the charts, drew them, and then summarised them has two blocks of text and one column to
+put them in: the introduction was dropped on save and the summary reappeared above the work
+it described.
+
+So `messages.parts` holds the sequence as it was streamed — `{"type": "text"|"thinking",
+"text": …}` and `{"type": "tool", "tool_call_id": …}`, in order — and both surfaces render
+the same array instead of agreeing by coincidence. A tool's arguments and result stay in
+`tool_calls`; the timeline names the call rather than copying it.
+
+It is null on a turn of a single part, where there is no sequence to preserve, and on every
+assistant turn written before this existed. Those rows are still readable — the text is in
+the columns it always was — but their order was never recorded and cannot be recovered, so
+a client that finds null falls back to reconstructing one. That fallback is a guess, and it
+is kept only for them.
 
 **A write ends in the file, not in a sentence about it.** `write_file` answers "Wrote 1
 lines to /workspace/test1.md"; what the transcript shows is a card naming the file, with
