@@ -19,7 +19,7 @@ from __future__ import annotations
 import json
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, ValidationError, field_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
 ChartType = Literal["line", "bar", "pie", "area", "scatter"]
 
@@ -75,6 +75,39 @@ class ChartSpec(BaseModel):
         if len(v) > MAX_SERIES:
             raise ValueError(f"too many series (max {MAX_SERIES})")
         return v
+
+    @model_validator(mode="after")
+    def _rows_must_hold_something_to_plot(self) -> ChartSpec:
+        """Refuse a chart whose rows carry no x-axis value, or no number.
+
+        `data` being a non-empty *list* is not the same as it holding data, and
+        the difference reached a user: a model answered "here is the trend" with
+        `data=[{}]` and a full set of series, and every check passed - the list
+        had a row, the series were not empty, so a frame was drawn with axes,
+        labels and a legend around nothing at all. An empty chart is worse than
+        a refusal, because it reads as "there is no trend" rather than as a
+        mistake, and it is persisted verbatim and re-rendered on every replay.
+
+        Both questions are asked of the whole set rather than of every row, and
+        neither names a series key. A partial row is a gap in a chart, which is
+        legitimate; and for a scatter chart the series keys are allowed to be
+        *values* in a grouping column rather than fields (see the tool's
+        docstring), so "every series key is a field" would refuse a shape the
+        renderer supports. What is true of every chart type is that something
+        has to sit on the x axis and something has to be a number.
+        """
+        if not any(self.x_key in row for row in self.data):
+            raise ValueError(f"no row carries the x-axis field {self.x_key!r}")
+        if not any(
+            isinstance(value, int | float) and not isinstance(value, bool)
+            for row in self.data
+            for value in row.values()
+        ):
+            raise ValueError(
+                "no row carries a number to plot - name the fields to plot in "
+                "`series`, or send rows whose values are numbers rather than text"
+            )
+        return self
 
 
 def parse_chart_spec(result: str) -> ChartSpec | None:

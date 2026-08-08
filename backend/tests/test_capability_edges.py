@@ -22,7 +22,6 @@ from app.agents.capabilities.charts._spec import (
     MAX_SERIES,
     ChartSpec,
 )
-from app.agents.capabilities.charts._toolset import _infer_series
 from app.agents.capabilities.code_execution._sandbox import _clip, _format_result
 from app.agents.capabilities.knowledge._search import search_knowledge_base
 from app.agents.capabilities.skills import Skills
@@ -289,17 +288,31 @@ class TestChartValidation:
                 series=[{"key": f"s{i}"} for i in range(MAX_SERIES + 1)],
             )
 
-    def test_no_rows_infers_no_series(self):
-        assert _infer_series([], "x") == []
+    def test_rows_that_do_not_carry_the_x_axis_field_are_refused(self):
+        """The shape that drew an empty frame, guarded at the format itself.
 
-    def test_booleans_are_not_plotted_as_numbers(self):
-        """`True` is an int in Python; plotting it as a value is never intended."""
-        series = _infer_series([{"x": "Jan", "active": True, "revenue": 1}], "x")
-        assert {s.key for s in series} == {"revenue"}
+        The tool can no longer send it - the axis is its own argument - but
+        `parse_chart_spec` builds a spec straight from a persisted result, and
+        the ones written before the tool changed are still in the table.
+        """
+        with pytest.raises(ValueError, match="x-axis field 'miesiac'"):
+            ChartSpec(
+                chart_type="line",
+                title="t",
+                data=[{}],
+                series=[{"key": "sprzedaz"}],
+                x_key="miesiac",
+            )
 
-    def test_non_numeric_fields_are_skipped(self):
-        series = _infer_series([{"x": "Jan", "label": "text", "revenue": 1}], "x")
-        assert {s.key for s in series} == {"revenue"}
+    def test_booleans_do_not_count_as_something_to_plot(self):
+        """`True` is an int in Python, and a flag is not a value on an axis.
+
+        Asserted on the format rather than through the tool: `values` is typed
+        `list[float]`, so this can only reach a spec that was assembled from a
+        persisted result rather than from a tool call.
+        """
+        with pytest.raises(ValueError, match="number to plot"):
+            ChartSpec(chart_type="bar", title="t", data=[{"x": "Jan", "active": True}])
 
 
 class TestSandboxFormatting:
@@ -397,22 +410,32 @@ class TestChartFailureModes:
     def test_invalid_arguments_come_back_as_a_retry(self):
         from app.agents.capabilities.charts import ChartsToolset
 
-        with pytest.raises(ModelRetry, match="at least one row"):
-            ChartsToolset().create_chart(chart_type="bar", title="t", data=[])
+        with pytest.raises(ModelRetry, match="`x_values` was empty"):
+            ChartsToolset().create_chart(chart_type="bar", title="t", x_values=[], series=[])
 
     def test_unplottable_data_says_how_to_fix_it(self):
         """The model can only recover if it is told what was missing."""
         from app.agents.capabilities.charts import ChartsToolset
+        from app.agents.capabilities.charts._toolset import ChartSeriesInput
 
-        with pytest.raises(ModelRetry, match="series"):
-            ChartsToolset().create_chart(chart_type="bar", title="t", data=[{"x": "only-a-label"}])
+        with pytest.raises(ModelRetry, match=r"'revenue' has 0 value\(s\) for 1 x value\(s\)"):
+            ChartsToolset().create_chart(
+                chart_type="bar",
+                title="t",
+                x_values=["only-a-label"],
+                series=[ChartSeriesInput(key="revenue", values=[])],
+            )
 
     def test_the_capability_exposes_the_toolset_tool(self):
         from app.agents.capabilities.charts import Charts
+        from app.agents.capabilities.charts._toolset import ChartSeriesInput
 
         toolset = Charts().get_toolset()
         result = toolset.tools["create_chart"].function(
-            chart_type="bar", title="Revenue", data=[{"x": "Jan", "y": 1}]
+            chart_type="bar",
+            title="Revenue",
+            x_values=["Jan"],
+            series=[ChartSeriesInput(key="y", values=[1])],
         )
         assert "Revenue" in result
 
@@ -490,13 +513,17 @@ class TestCapabilityToolsetCaching:
 class TestLastMileBranches:
     """The branches a demo never reaches, pinned so a refactor cannot drop them."""
 
-    def test_inferred_series_are_used_when_none_are_given(self):
+    def test_the_series_the_model_named_are_the_series_emitted(self):
         from app.agents.capabilities.charts import ChartsToolset
         from app.agents.capabilities.charts._spec import parse_chart_spec
+        from app.agents.capabilities.charts._toolset import ChartSeriesInput
 
         spec = parse_chart_spec(
             ChartsToolset().create_chart(
-                chart_type="bar", title="t", data=[{"x": "Jan", "revenue": 1}]
+                chart_type="bar",
+                title="t",
+                x_values=["Jan"],
+                series=[ChartSeriesInput(key="revenue", values=[1])],
             )
         )
         assert spec is not None

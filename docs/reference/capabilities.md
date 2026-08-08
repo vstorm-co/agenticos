@@ -252,6 +252,16 @@ them.*
 Renders numbers the model already has. It does not fetch, compute or aggregate —
 pair it with `code_execution` or `knowledge` for that. No configuration.
 
+The numbers arrive as columns — one `x_values` list for the axis, one `values`
+list per series — because a free-form `data` argument is not something a JSON
+Schema can describe, and a model given an array of objects with no declared
+properties sent back a single empty one. A chart with nothing in it is now
+unexpressible rather than merely refused; an axis with no points, a chart with no
+series, or a series holding fewer numbers than the axis has points all come back
+as a retry naming what is missing. A frame drawn around no data reads as "there
+is no trend" rather than as a mistake, and it is persisted and re-rendered on
+every replay of the conversation.
+
 ## Delegation
 
 `task` — *hand a self-contained piece of work to one of this agent's specialists.*
