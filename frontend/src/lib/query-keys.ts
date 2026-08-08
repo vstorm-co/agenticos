@@ -132,7 +132,20 @@ export const qk = {
   },
   conversations: {
     all: () => ["conversations"] as const,
-    list: () => ["conversations", "list"] as const,
+    /**
+     * One page of the sidebar, under the filters it was fetched with.
+     *
+     * The filters are part of the key because the server applies them: a
+     * search is a request, not a slice of what the client already holds, so
+     * two searches are two lists and neither may answer for the other.
+     *
+     * Called with nothing it is the prefix over every one of them, which is
+     * what a mutation invalidates - archiving a thread changes which lists it
+     * belongs to, and the ones not on screen are the ones that would otherwise
+     * still be holding it when somebody switches tab.
+     */
+    list: (params?: string) =>
+      params ? (["conversations", "list", params] as const) : (["conversations", "list"] as const),
     count: () => ["conversations", "count"] as const,
     /**
      * The newest few, for the dashboard. Its own key because `list()` is owned
@@ -153,6 +166,19 @@ export const qk = {
     list: () => ["kb", "list"] as const,
     detail: (id: string) => ["kb", id] as const,
     documents: (id: string) => ["kb", id, "documents"] as const,
+    // One document's stored file, as the viewer reads it. Text and bytes keyed
+    // apart because they are two different bodies for one download route, and a
+    // viewer showing a PDF must not be handed a cached string for it.
+    documentText: (id: string, documentId: string) =>
+      ["kb", id, "documents", documentId, "text"] as const,
+    documentBytes: (id: string, documentId: string) =>
+      ["kb", id, "documents", documentId, "bytes"] as const,
+  },
+  attachments: {
+    // A chat attachment, which is scoped to the user rather than to a collection
+    // or a workspace - so it is keyed on nothing but the file's own id.
+    text: (fileId: string) => ["attachment", fileId, "text"] as const,
+    bytes: (fileId: string) => ["attachment", fileId, "bytes"] as const,
   },
   rag: {
     // Keyed on the organization: a sync source names a collection and a remote

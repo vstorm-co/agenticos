@@ -4,17 +4,17 @@ import { useState } from "react";
 import { Download } from "lucide-react";
 
 import { CopyButton } from "../copy-button";
-import { FileIcon, kindOf } from "@/components/sandboxes/file-tile";
-import type { FileKind } from "@/components/sandboxes/file-tile";
-import { WorkspaceFileViewer } from "@/components/sandboxes/file-viewer";
+import { FileIcon, FileViewer } from "@/components/files";
 import { Button } from "@/components/ui";
-import { useConversationWorkspace, useFileDownload } from "@/hooks";
+import { useConversationWorkspace, useFileActions } from "@/hooks";
+import type { FileAccess } from "@/lib/file-access";
+import { resolveFileKind, suffixOf } from "@/lib/file-kinds";
 import { basename, contentArg, pathArg } from "@/lib/tool-steps";
-import { suffixOf, type FileSource } from "@/lib/workspace-files";
+import { workspaceFileAccess, type FileSource } from "@/lib/workspace-files";
 import type { ToolCall } from "@/types";
 import { useTranslations } from "next-intl";
 
-export { isWorkspaceTool } from "@/lib/tool-steps";
+export { isWorkspaceTool } from "@/lib/tool-catalog";
 
 function asString(value: unknown): string | null {
   return typeof value === "string" && value.trim() !== "" ? value : null;
@@ -29,16 +29,6 @@ function lines(name: string, result: string): string[] | null {
     .filter(Boolean);
   return found.length === 0 ? null : found;
 }
-
-/** What each kind is called - keys, because a module table has no translator. */
-const KIND_KEYS: Record<FileKind, string> = {
-  doc: "kindDocument",
-  image: "kindImage",
-  sheet: "kindSpreadsheet",
-  code: "kindCode",
-  archive: "kindArchive",
-  text: "kindText",
-};
 
 /**
  * The file a call produced, as something to open rather than a sentence about it.
@@ -70,7 +60,7 @@ function WorkspaceFileCard({
   conversationId: string | undefined;
   path: string;
 }) {
-  const t = useTranslations("chat.tools");
+  const t = useTranslations("files");
   const { workspace } = useConversationWorkspace(conversationId ?? null);
   const [opened, setOpened] = useState(false);
   const name = basename(path);
@@ -84,40 +74,44 @@ function WorkspaceFileCard({
   // The listing's path when it has one, the tool's argument when it does not. Only
   // the conversation is required, because that is what the file routes address.
   const target = entry?.path ?? path;
-  const reachable = source !== null;
+  const access = source === null ? null : workspaceFileAccess(source, target);
 
   return (
     <div className="border-foreground/12 flex items-center gap-3 rounded-xl border p-2.5">
       <span className="bg-foreground/5 text-foreground/60 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
-        <FileIcon path={path} className="h-4 w-4" />
+        <FileIcon name={path} className="h-4 w-4" />
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium">{name}</span>
         <span className="text-muted-foreground text-[11px]">
-          {t(KIND_KEYS[kindOf(path)])}
+          {t(`kinds.${resolveFileKind(path)}`)}
           {suffix !== "" && <> · {suffix.toUpperCase()}</>}
         </span>
       </span>
-      {reachable && (
-        <FileCardActions source={source} path={target} onOpen={() => setOpened(true)} />
+      {access !== null && (
+        <FileCardActions access={access} name={name} onOpen={() => setOpened(true)} />
       )}
-      {opened && reachable && (
-        <WorkspaceFileViewer source={source} path={target} onClose={() => setOpened(false)} />
+      {opened && access !== null && (
+        <FileViewer
+          file={{ name, path: target, size: entry?.size ?? null }}
+          access={access}
+          onClose={() => setOpened(false)}
+        />
       )}
     </div>
   );
 }
 
 function FileCardActions({
-  source,
-  path,
+  access,
+  name,
   onOpen,
 }: {
-  source: FileSource;
-  path: string;
+  access: FileAccess;
+  name: string;
   onOpen: () => void;
 }) {
-  const { download, error } = useFileDownload(source);
+  const { download, error } = useFileActions(access);
 
   return (
     <span className="flex shrink-0 items-center gap-1">
@@ -129,8 +123,8 @@ function FileCardActions({
         variant="outline"
         size="sm"
         className="h-7 text-xs"
-        aria-label={`Download ${basename(path)}`}
-        onClick={() => download(path)}
+        aria-label={`Download ${name}`}
+        onClick={download}
       >
         <Download className="h-3.5 w-3.5" />
         Download

@@ -5,6 +5,7 @@ that contributes nothing is not attached, and a spec asking for something
 ungranted fails while a person is looking at a form rather than mid-run.
 """
 
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -570,3 +571,57 @@ class TestToolsets:
         toolset = Skills(skills=[_Skill()]).get_toolset()
         assert toolset is not None
         assert set(toolset.tools) == set(SAFE_SKILL_TOOLS)
+
+
+CATALOG_PATH = Path(__file__).resolve().parents[2] / "frontend" / "src" / "lib" / "tool-catalog.ts"
+
+
+def _frontend_tool_ids() -> frozenset[str]:
+    """The ids the web chat has a row for, read out of `TOOL_CATALOG`.
+
+    Parsed rather than generated. A generated file is a file somebody regenerates,
+    and the failure this guards against is exactly the one where nobody did - so the
+    check reads what a reviewer reads, and the only thing it depends on is that
+    prettier keeps the object's own keys at two spaces of indentation.
+    """
+    source = CATALOG_PATH.read_text(encoding="utf-8")
+    start = source.index("export const TOOL_CATALOG")
+    body = source[source.index("{", start) : source.index("\n};", start)]
+    return frozenset(re.findall(r"^  ([a-z][a-z0-9_]*): \{", body, flags=re.MULTILINE))
+
+
+class TestFrontendToolCatalog:
+    """The web chat's tool table holds exactly the tools capabilities register.
+
+    The registry is the source of truth on both sides of the wire, and until #144
+    nothing said so. `web_search` and `create_chart` were renamed in the backend
+    (b56ba1f), three frontend files went on matching the names they had before, and
+    both calls rendered as pretty-printed JSON for five weeks - beside the renderers
+    written for them, with a green frontend suite, because those tests constructed
+    tool calls under the old names too.
+
+    So this is the drift check across the boundary, and it is the *backend's* because
+    the registry is. Both directions matter and they fail for different reasons: a
+    missing row is a call whose result a person never sees, and a surplus row is a
+    renderer nothing will ever reach - which is the half that hid the bug, since a
+    frontend test can assert happily on a name no backend has emitted since July.
+
+    A name arriving from somewhere other than the registry - an MCP tool, or one a
+    binding renamed - is not in scope for either direction: it has no row, falls back
+    to the generic renderer, and that is the honest answer for it.
+    """
+
+    def test_the_frontend_catalog_matches_the_registry_exactly(self):
+        registered = frozenset(
+            tool.id for definition in all_capabilities() for tool in definition.tools
+        )
+        listed = _frontend_tool_ids()
+
+        assert sorted(registered - listed) == [], (
+            f"add a row to {CATALOG_PATH.name} for each of these - an icon, what the "
+            "step says while it runs, and which renderer opens under it"
+        )
+        assert sorted(listed - registered) == [], (
+            f"{CATALOG_PATH.name} has a row for a tool no capability registers; "
+            "nothing will ever render it"
+        )

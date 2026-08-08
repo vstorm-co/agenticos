@@ -16,7 +16,7 @@ When a user uploads a file in the chat interface, the following pipeline runs:
                |
 2. Validate    Check MIME type against allowed list + enforce size limit
                |
-3. Classify    Determine file_type: "image", "pdf", "docx", "text"
+3. Classify    Determine file_type: "image", "pdf", "docx", "spreadsheet", "text"
                |
 4. Parse       Extract text content (images skip this step)
                |
@@ -26,8 +26,31 @@ When a user uploads a file in the chat interface, the following pipeline runs:
                |
 7. Link        When message is sent, ChatFile is attached via message_id FK
                |
-8. Display     Frontend shows images as thumbnails, documents as badges
+8. Display     Composer shows a card per attachment: name, excerpt, type, size
 ```
+
+The upload response carries a `preview` — the first three lines of the extracted
+text, bounded at 240 characters — so the card can show what is *in* the file
+rather than only what it is called. The browser cannot derive it: a PDF is bytes
+until this service has parsed it, and the client holds an id and a filename once
+the upload has answered. It is `null` for an image and for a file no parser could
+read, and a card with no excerpt shows its thumbnail or its name alone.
+
+### A long paste is a file
+
+Pasting more than **2000 characters** into the composer uploads the text as
+`pasted-<date>.txt` instead of inserting it. The textarea is left untouched, so
+the question gets typed beside the thing it is about, and the transcript holds an
+attachment rather than one enormous bubble.
+
+The threshold is the whole of the design. Somebody who pastes a paragraph and
+presses enter meant that to *be* the message, so it sits above anything a person
+would paste as a question — roughly 350 words — and below any document. Under it
+nothing changed: the text lands in the textarea as it always has.
+
+After that it is an ordinary `text/plain` attachment and everything below applies
+to it unchanged, which is the point: an agent with a workspace gets the paste as
+a file it can open, and one without gets the text in its prompt.
 
 ### Supported File Types
 
@@ -36,6 +59,7 @@ When a user uploads a file in the chat interface, the following pipeline runs:
 | **Images** | image/jpeg, image/png, image/webp, image/gif | .jpg, .png, .webp, .gif | Stored as-is. Sent to LLM as `BinaryContent` for vision analysis. |
 | **PDF** | application/pdf | .pdf | Text extracted via configured PDF parser. Appended to prompt as context. |
 | **DOCX** | application/vnd.openxmlformats-officedocument.wordprocessingml.document | .docx | Paragraphs extracted via `python-docx`. Appended to prompt as context. |
+| **Spreadsheet** | …spreadsheetml.sheet, …ms-excel.sheet.macroEnabled.12 | .xlsx, .xlsm | Every sheet read via `openpyxl`, named, rows tab-separated. Appended to prompt as context. `.xls` is refused — a different format needing a different reader. |
 | **Text** | text/plain, text/markdown | .txt, .md | UTF-8 decoded directly. Appended to prompt as context. |
 
 ### Where an attachment goes depends on the agent
@@ -51,8 +75,16 @@ gets the file instead of the text:
 | Attachment | No workspace | With a workspace |
 |---|---|---|
 | text, csv, md, json | parsed text pasted inline | written to `/uploads/`, message carries a reference and a 20-line head |
-| pdf, docx | parsed text pasted inline | the original **and** a `.txt` beside it; reference |
+| pdf, docx, spreadsheet | parsed text pasted inline | the original **and** a `.txt` beside it; reference |
 | image | `BinaryContent` | `BinaryContent` **and** written; reference names the path |
+
+**A spreadsheet in a workspace is not a spreadsheet an agent can open**, which is
+why it is parsed here rather than handed over as bytes. `run_python` has no
+filesystem — it is for arithmetic — the workspace shell has no spreadsheet library,
+and `read_file` on a zip of XML returns mojibake. The `.txt` beside the original is
+the readable half, exactly as it is for a PDF. Accepting the upload without parsing
+it would reach an agent with a workspace as unreadable bytes and an agent without
+one as nothing at all, which is worse than the refusal it replaced.
 
 The reference is what the model actually reads:
 
@@ -135,7 +167,7 @@ The `ChatFile` database model tracks uploaded files:
 | `mime_type` | String | MIME type (e.g. `application/pdf`) |
 | `size` | Integer | File size in bytes |
 | `storage_path` | String | Relative path in storage |
-| `file_type` | String | Classified type: `image`, `pdf`, `docx`, `text` |
+| `file_type` | String | Classified type: `image`, `pdf`, `docx`, `spreadsheet`, `text` |
 | `parsed_content` | Text | Extracted text content (NULL for images) |
 | `message_id` | UUID/FK | Linked message (set when message is sent) |
 | `created_at` | DateTime | Upload timestamp |

@@ -133,22 +133,40 @@ class ConversationService:
         organization_id: UUID,
         skip: int = 0,
         limit: int = 50,
+        search: str | None = None,
+        agent_id: UUID | None = None,
         include_archived: bool = False,
+        archived_only: bool = False,
+        sort_by: str = "updated_at",
+        sort_dir: str = "desc",
     ) -> tuple[list[Conversation], int]:
-        """One page of the organization's conversations, each naming who answered."""
+        """One page of the organization's conversations, each naming who answered.
+
+        The total is counted with the same narrowing as the page, so a caller
+        rendering "showing 30 of N" is describing the list it was handed rather
+        than the deployment.
+        """
         items = await conversation_repo.get_conversations_by_user(
             self.db,
             user_id=user_id,
             organization_id=organization_id,
             skip=skip,
             limit=limit,
+            search=search,
+            agent_id=agent_id,
             include_archived=include_archived,
+            archived_only=archived_only,
+            sort_by=sort_by,
+            sort_dir=sort_dir,
         )
         total = await conversation_repo.count_conversations(
             self.db,
             user_id=user_id,
             organization_id=organization_id,
+            search=search,
+            agent_id=agent_id,
             include_archived=include_archived,
+            archived_only=archived_only,
         )
         await self._attach_agents(items)
         return items, total
@@ -439,6 +457,15 @@ class ConversationService:
             role=data.role,
             content=data.content,
             thinking=data.thinking,
+            # Dumped without its empty fields, so a text part is `{"type": "text",
+            # "text": ...}` rather than that plus a null `tool_call_id`. What comes
+            # back validates the same either way; this is what a person reading the
+            # column sees.
+            parts=(
+                None
+                if data.parts is None
+                else [part.model_dump(exclude_none=True) for part in data.parts]
+            ),
             model_name=data.model_name,
             tokens_used=data.tokens_used,
             # Every field the schema carries, and the two at the end were being

@@ -26,10 +26,11 @@ import {
   Upload,
 } from "lucide-react";
 
-import { MarkdownContent } from "@/components/chat/markdown-content";
+import { FileTextView } from "@/components/files";
 import { Button, Input, Label, Textarea } from "@/components/ui";
 import { useSkillResource } from "@/hooks";
-import { previewKind, type Preview, type TreeNode } from "@/lib/file-tree";
+import type { TreeNode } from "@/lib/file-tree";
+import { resolveFileKind } from "@/lib/file-kinds";
 import { cn } from "@/lib/utils";
 import type { SkillResourceSummary } from "@/types/providers";
 import { useTranslations } from "next-intl";
@@ -281,46 +282,17 @@ export function FileViewer({
             aria-label={`${name} source`}
           />
         ) : (
-          <FilePreview kind={previewKind(name)} name={name} content={content} />
+          // The shared renderer, which is what makes a skill's `references/api.md`
+          // read the same as the same file in a workspace. It is `FileTextView` and
+          // not the viewer above it because there is nothing to fetch: the content is
+          // a draft somebody may be halfway through editing.
+          <FileTextView kind={resolveFileKind(name)} name={name} text={content} />
         )}
       </div>
 
       {footer && <div className="flex items-center gap-2 border-t px-3 py-2">{footer}</div>}
     </div>
   );
-}
-
-/** What a file looks like when it is not being edited. */
-function FilePreview({ kind, name, content }: { kind: Preview; name: string; content: string }) {
-  const t = useTranslations("skills");
-  if (content.trim() === "") {
-    return <p className="text-muted-foreground text-xs">{t("fileEmpty")}</p>;
-  }
-
-  if (kind === "markdown") return <MarkdownContent content={content} />;
-
-  if (kind === "html") {
-    // Sandboxed with no allowances: this is somebody's uploaded file, rendered
-    // to be looked at. Scripts, forms and same-origin access are all things it
-    // has no reason to need and every reason not to get.
-    return (
-      <iframe
-        title={`${name} preview`}
-        srcDoc={content}
-        sandbox=""
-        className="bg-background h-96 w-full rounded border"
-      />
-    );
-  }
-
-  // The Markdown renderer highlights fenced code, so a code file is fenced with
-  // its own extension as the language rather than growing a second highlighter.
-  if (kind === "code") {
-    const language = name.split(".").pop()?.toLowerCase() ?? "";
-    return <MarkdownContent content={`\`\`\`${language}\n${content}\n\`\`\``} />;
-  }
-
-  return <pre className="text-foreground/90 font-mono text-xs whitespace-pre-wrap">{content}</pre>;
 }
 
 function ModeButton({

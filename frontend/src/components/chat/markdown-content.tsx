@@ -5,6 +5,14 @@ import dynamic from "next/dynamic";
 export interface MarkdownContentProps {
   content: string;
   onCiteClick?: (index: number) => void;
+  /**
+   * Render a fenced block as its `<pre>` alone - no box, no header, no copy button.
+   *
+   * For a caller that has already drawn chrome around the block and would otherwise
+   * get a second one inside it: `run_python`, whose code sits in a collapsible block
+   * paired with the output it produced. An answer's own code blocks never pass it.
+   */
+  bareCode?: boolean;
 }
 
 /**
@@ -27,6 +35,6 @@ const MarkdownContentImpl = dynamic(
   },
 );
 
-export function MarkdownContent({ content, onCiteClick }: MarkdownContentProps) {
-  return <MarkdownContentImpl content={content} onCiteClick={onCiteClick} />;
+export function MarkdownContent({ content, onCiteClick, bareCode }: MarkdownContentProps) {
+  return <MarkdownContentImpl content={content} onCiteClick={onCiteClick} bareCode={bareCode} />;
 }

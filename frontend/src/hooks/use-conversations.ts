@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
@@ -24,8 +24,77 @@ interface MessagesResponse {
 
 const PAGE_SIZE = 30;
 
-export function useConversations() {
+/** Which threads a listing is about. `all` is both, and the default. */
+export type ConversationView = "active" | "archived" | "all";
+
+/** The columns `GET /conversations` will sort by. Anything else is a 422. */
+export type ConversationSortKey = "title" | "created_at" | "updated_at";
+
+export type ConversationSortDir = "asc" | "desc";
+
+export interface ConversationQuery {
+  view: ConversationView;
+  /** Matched against the title, on the server. Empty means no search. */
+  search: string;
+  /** Threads this agent *answered in* - see the route's docstring for why that
+   * is not the same as threads it owns. */
+  agentId: string | null;
+  sortBy: ConversationSortKey;
+  sortDir: ConversationSortDir;
+}
+
+const DEFAULT_QUERY: ConversationQuery = {
+  view: "all",
+  search: "",
+  agentId: null,
+  sortBy: "updated_at",
+  sortDir: "desc",
+};
+
+/**
+ * The last page fetched, and which listing it was a page of.
+ *
+ * The second half is the load-bearing one: "was the last page full" is only an
+ * answer about the list it was measured on, and switching filters puts a
+ * different list on screen.
+ */
+interface LastPage {
+  params: string;
+  more: boolean;
+}
+
+/**
+ * The query string one listing is fetched with, which is also its cache key.
+ *
+ * One expression for both so they cannot disagree: a key that omits a filter
+ * the request carries is two lists sharing a cache entry, which reads as the
+ * search box answering with the previous search's rows.
+ */
+function listParams(query: ConversationQuery): string {
+  const params = new URLSearchParams({
+    limit: String(PAGE_SIZE),
+    sort_by: query.sortBy,
+    sort_dir: query.sortDir,
+  });
+  if (query.view === "all") params.set("include_archived", "true");
+  if (query.view === "archived") params.set("archived_only", "true");
+  if (query.search.trim()) params.set("search", query.search.trim());
+  if (query.agentId) params.set("agent_id", query.agentId);
+  return params.toString();
+}
+
+export function useConversations(query: Partial<ConversationQuery> = {}) {
   const queryClient = useQueryClient();
+  const { view, search, agentId, sortBy, sortDir } = { ...DEFAULT_QUERY, ...query };
+  // Memoized on the five values rather than on the object they arrive in: a
+  // caller building that object inline hands over a new reference every render,
+  // and `listKey` is a dependency of half the callbacks below - one of which
+  // the sidebar runs from an effect keyed on its identity.
+  const params = useMemo(
+    () => listParams({ view, search, agentId, sortBy, sortDir }),
+    [view, search, agentId, sortBy, sortDir],
+  );
+  const listKey = useMemo(() => qk.conversations.list(params), [params]);
   const {
     currentConversationId,
     currentMessages,
@@ -37,20 +106,24 @@ export function useConversations() {
     setError,
   } = useConversationStore();
   const { clearMessages } = useChatStore();
-  // State, not a ref, because it is returned. Reading `hasMoreRef.current` to
-  // build the return value is a ref read during render, and it hands whoever
-  // asked a value React will never re-render them for - a "load more" control
-  // driven by it would stay on screen after the last page arrived. No consumer
-  // reads it today; the hook offers it, so it has to be true when one does. The
-  // ref stays beside it for the guard in `fetchMoreConversations`, which runs
-  // outside render and must see the newest value synchronously.
-  const [hasMore, setHasMore] = useState(true);
-  const hasMoreRef = useRef(true);
+  // State, not a ref, because it is returned. Reading a ref to build the return
+  // value hands whoever asked a value React will never re-render them for - a
+  // "load more" control driven by it would stay on screen after the last page
+  // arrived. No consumer reads it today; the hook offers it, so it has to be
+  // true when one does. The ref stays beside it for the guard in
+  // `fetchMoreConversations`, which runs outside render and must see the newest
+  // value synchronously.
+  const [lastPage, setLastPage] = useState<LastPage | null>(null);
+  const lastPageRef = useRef<LastPage | null>(null);
 
-  const rememberHasMore = useCallback((more: boolean) => {
-    hasMoreRef.current = more;
-    setHasMore(more);
-  }, []);
+  const rememberHasMore = useCallback(
+    (more: boolean) => {
+      const measured: LastPage = { params, more };
+      lastPageRef.current = measured;
+      setLastPage(measured);
+    },
+    [params],
+  );
   // Tracks the in-flight message fetch so a rapid conversation switch can abort
   // the previous request - otherwise a slower earlier fetch could resolve last
   // and overwrite the messages of the conversation the user actually selected.
@@ -69,40 +142,76 @@ export function useConversations() {
 
   // React Query owns the list: cached across navigations, deduped, no refetch
   // storms (this replaces the old manual fetch + session-singleton guard).
-  // Both active and archived are fetched in one call so the sidebar tabs can
-  // partition them client-side. Mutations patch the cache directly.
-  const { data: conversations = [], isLoading: listLoading } = useQuery({
-    queryKey: qk.conversations.list(),
+  // The server does the narrowing - see `listParams` - so what comes back is
+  // one page of one list, and `total` counts that same list rather than the
+  // deployment.
+  const { data, isLoading: listLoading } = useQuery({
+    queryKey: listKey,
     queryFn: async () => {
-      const response = await apiClient.get<ConversationListResponse>(
-        `/conversations?limit=${PAGE_SIZE}&include_archived=true`,
-      );
+      const response = await apiClient.get<ConversationListResponse>(`/conversations?${params}`);
       rememberHasMore(response.items.length >= PAGE_SIZE);
-      return response.items;
+      return response;
     },
   });
+  const conversations = data?.items ?? [];
+  const total = data?.total ?? 0;
+
+  // Derived, and only from a measurement of *this* list. A bare flag reset when
+  // the filters move would need either a write during render or an effect, and
+  // the lint rules refuse both; recording which list the last page belonged to
+  // says the same thing without a side effect, and says it about the one case
+  // that actually needs saying. A cached list answers from the cache without
+  // running the query function above, so nothing would measure it - and a
+  // search typed after scrolling to the bottom of the previous list would
+  // otherwise start out believing it had already reached the end, leaving the
+  // scroll handler unable to ask for page two.
+  const hasMore = lastPage?.params === params ? lastPage.more : true;
 
   // `isLoading` historically reflected both the list fetch and the
   // select-messages fetch; preserve that union.
   const isLoading = listLoading || selectLoading;
 
   /**
-   * Patch the cached list, unless the account changed while we were away.
+   * Append to the cached page, unless there is no longer a page to append to.
    *
-   * The guard lives here rather than at the six call sites because five of them
-   * run after an await, and `setQueryData` recreates a key that is not there -
-   * so a conversation created by one account lands in the next one's sidebar,
-   * and the mutations put an empty list under the key before the new account's
-   * own fetch has answered. One place to hold it, and no seventh caller to
-   * forget.
+   * `setQueryData` *creates* a key that is not there, so returning `prev`
+   * untouched is what stops a page arriving late from resurrecting a list that
+   * has since been dropped. Signing out clears the whole cache
+   * (`use-auth.ts`) and switching organization removes every query
+   * (`use-active-organization.ts`) - and the second of those is the same
+   * account, so the caller's own account check cannot see it. Without this the
+   * previous organization's conversations reappear in the new one's sidebar,
+   * under a key nothing else will refetch.
+   *
+   * The only writer. What a mutation does to this list is no longer something
+   * the client can work out: which lists a thread belongs to is now the
+   * server's answer, and a patched row that no longer matches the filter it is
+   * sitting under would stay on screen claiming otherwise. So mutations
+   * invalidate - see `invalidateLists` - and this writes only the page the
+   * scroll asked for.
    */
-  const writeCache = useCallback(
-    (updater: (prev: Conversation[]) => Conversation[], startedAs: string | undefined) => {
-      if (!stillSameAccount(startedAs)) return;
-      queryClient.setQueryData<Conversation[]>(qk.conversations.list(), (prev = []) =>
-        updater(prev),
-      );
+  const appendPage = useCallback(
+    (page: Conversation[]) => {
+      queryClient.setQueryData<ConversationListResponse>(listKey, (prev) => {
+        if (!prev) return prev;
+        // Deduped in case a refetch raced with the append.
+        const seen = new Set(prev.items.map((c) => c.id));
+        return { ...prev, items: [...prev.items, ...page.filter((c) => !seen.has(c.id))] };
+      });
     },
+    [queryClient, listKey],
+  );
+
+  /**
+   * Every conversation listing, not only the one on screen.
+   *
+   * Archiving a thread moves it between two of them and changes the total on
+   * both; renaming one can take it out of a search it currently matches. The
+   * lists nobody is looking at are the ones that would otherwise still be
+   * holding it when somebody switches tab.
+   */
+  const invalidateLists = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: qk.conversations.list() }),
     [queryClient],
   );
 
@@ -110,7 +219,7 @@ export function useConversations() {
     // The list query auto-fetches and dedupes; force a fresh pull here to keep
     // the previous explicit-refresh semantics (e.g. after a new conversation is
     // created over WS).
-    await queryClient.invalidateQueries({ queryKey: qk.conversations.list() });
+    await invalidateLists();
     // URL ?id= param always takes priority: select that conversation and load
     // its messages if it isn't already the current one.
     const startedAs = useAuthStore.getState().user?.id;
@@ -132,55 +241,55 @@ export function useConversations() {
         setCurrentConversationId(null);
       }
     }
-  }, [queryClient, setCurrentConversationId, setCurrentMessages, clearMessages]);
+  }, [invalidateLists, setCurrentConversationId, setCurrentMessages, clearMessages]);
 
   const loadingMoreRef = useRef(false);
 
   const fetchMoreConversations = useCallback(async () => {
-    if (!hasMoreRef.current || loadingMoreRef.current) return;
+    if (loadingMoreRef.current) return;
+    // The ref rather than `hasMore`, so a scroll landing in the same tick as the
+    // page that ended the list still sees that it ended - and measured against
+    // the list being asked about, for the reason `hasMore` is derived that way.
+    const measured = lastPageRef.current;
+    if (measured?.params === params && !measured.more) return;
     loadingMoreRef.current = true;
     const startedAs = useAuthStore.getState().user?.id;
-    const current = queryClient.getQueryData<Conversation[]>(qk.conversations.list()) ?? [];
+    const current = queryClient.getQueryData<ConversationListResponse>(listKey)?.items ?? [];
     try {
       const response = await apiClient.get<ConversationListResponse>(
-        `/conversations?limit=${PAGE_SIZE}&skip=${current.length}&include_archived=true`,
+        `/conversations?${params}&skip=${current.length}`,
       );
-      // `writeCache` holds the account for its own write; this returns for the
-      // sake of `rememberHasMore`, which would otherwise answer the new
-      // account's sidebar with the previous one's pagination.
+      // Both writes below belong to the account that asked. `appendPage` is
+      // safe on its own once the cache has been cleared, but `rememberHasMore`
+      // is not - it would answer the new account's sidebar with the previous
+      // one's pagination.
       if (!stillSameAccount(startedAs)) return;
       if (response.items.length > 0) {
-        // Dedupe in case a refetch raced with the append.
-        writeCache((prev) => {
-          const seen = new Set(prev.map((c) => c.id));
-          return [...prev, ...response.items.filter((c) => !seen.has(c.id))];
-        }, startedAs);
+        appendPage(response.items);
       }
       rememberHasMore(response.items.length >= PAGE_SIZE);
     } catch {
     } finally {
       loadingMoreRef.current = false;
     }
-  }, [queryClient, writeCache, rememberHasMore]);
+  }, [queryClient, listKey, params, appendPage, rememberHasMore]);
 
   const createConversation = useCallback(
     async (title?: string): Promise<Conversation | null> => {
-      const startedAs = useAuthStore.getState().user?.id;
       setLoading(true);
       setError(null);
       try {
         const response = await apiClient.post<CreateConversationResponse>("/conversations", {
           title,
         });
-        const newConversation: Conversation = {
+        await invalidateLists();
+        return {
           id: response.id,
           title: response.title,
           created_at: response.created_at,
           updated_at: response.updated_at,
           is_archived: response.is_archived,
         };
-        writeCache((prev) => [newConversation, ...prev], startedAs);
-        return newConversation;
       } catch (err) {
         const message = getErrorMessage(err, "Failed to create conversation");
         setError(message);
@@ -189,7 +298,7 @@ export function useConversations() {
         setLoading(false);
       }
     },
-    [writeCache, setLoading, setError],
+    [invalidateLists, setLoading, setError],
   );
 
   const selectConversation = useCallback(
@@ -238,13 +347,9 @@ export function useConversations() {
 
   const archiveConversation = useCallback(
     async (id: string) => {
-      const startedAs = useAuthStore.getState().user?.id;
       try {
         await apiClient.patch(`/conversations/${id}`, { is_archived: true });
-        writeCache(
-          (prev) => prev.map((c) => (c.id === id ? { ...c, is_archived: true } : c)),
-          startedAs,
-        );
+        await invalidateLists();
         toast.success("Conversation archived");
       } catch (err) {
         const message = getErrorMessage(err, "Failed to archive conversation");
@@ -252,18 +357,14 @@ export function useConversations() {
         toast.error(message);
       }
     },
-    [writeCache, setError],
+    [invalidateLists, setError],
   );
 
   const unarchiveConversation = useCallback(
     async (id: string) => {
-      const startedAs = useAuthStore.getState().user?.id;
       try {
         await apiClient.patch(`/conversations/${id}`, { is_archived: false });
-        writeCache(
-          (prev) => prev.map((c) => (c.id === id ? { ...c, is_archived: false } : c)),
-          startedAs,
-        );
+        await invalidateLists();
         toast.success("Conversation restored");
       } catch (err) {
         const message = getErrorMessage(err, "Failed to restore conversation");
@@ -271,15 +372,14 @@ export function useConversations() {
         toast.error(message);
       }
     },
-    [writeCache, setError],
+    [invalidateLists, setError],
   );
 
   const deleteConversation = useCallback(
     async (id: string) => {
-      const startedAs = useAuthStore.getState().user?.id;
       try {
         await apiClient.delete(`/conversations/${id}`);
-        writeCache((prev) => prev.filter((c) => c.id !== id), startedAs);
+        await invalidateLists();
         // Mirror the old store behavior: clear the active selection if it was
         // the conversation we just removed.
         if (useConversationStore.getState().currentConversationId === id) {
@@ -292,15 +392,14 @@ export function useConversations() {
         toast.error(message);
       }
     },
-    [writeCache, setCurrentConversationId, setError],
+    [invalidateLists, setCurrentConversationId, setError],
   );
 
   const renameConversation = useCallback(
     async (id: string, title: string) => {
-      const startedAs = useAuthStore.getState().user?.id;
       try {
         await apiClient.patch(`/conversations/${id}`, { title });
-        writeCache((prev) => prev.map((c) => (c.id === id ? { ...c, title } : c)), startedAs);
+        await invalidateLists();
         toast.success("Conversation renamed");
       } catch (err) {
         const message = getErrorMessage(err, "Failed to rename conversation");
@@ -308,7 +407,7 @@ export function useConversations() {
         toast.error(message);
       }
     },
-    [writeCache, setError],
+    [invalidateLists, setError],
   );
   const startNewChat = useCallback(async () => {
     // A new chat starts with the user's default agent, when one is starred.
@@ -347,6 +446,8 @@ export function useConversations() {
 
   return {
     conversations,
+    /** How many threads match, not how many were fetched. */
+    total,
     currentConversationId,
     currentMessages,
     isLoading,

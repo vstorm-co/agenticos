@@ -104,7 +104,32 @@ function ChartMessageInner({ spec }: { spec: ChartSpec }) {
   const xLabel = spec.style?.x_label ?? undefined;
   const yLabel = spec.style?.y_label ?? undefined;
 
-  const margin = { top: 12, right: 18, bottom: xLabel ? 22 : 6, left: yLabel ? 12 : 0 };
+  const margin = { top: 12, right: 18, bottom: 6, left: yLabel ? 12 : 0 };
+
+  // The axis reserves the room for its own title, rather than the title being
+  // nudged into the margin below it.
+  //
+  // It used to be drawn at `insideBottom` with `offset: -10`, which puts it ten
+  // pixels *past* the bottom of the axis band - and the legend sits at
+  // `bottom: margin.bottom` (`recharts/lib/component/Legend.js`), measured from the
+  // foot of the container with its own height subtracted from the plot above it. So
+  // the title landed inside the legend's row and "Miesiąc" was drawn over
+  // "Sprzedaż". No margin can separate them, because one is positioned from the top
+  // of the legend band and the other from the bottom of the container.
+  //
+  // Giving `XAxis` a taller `height` fixes it at the source: Recharts subtracts that
+  // from the plot area, so the ticks and the title share a band the legend is laid
+  // out beneath. `offset: 0` then keeps the title inside it.
+  const xAxisHeight = xLabel ? 48 : undefined;
+  const xAxisLabel = xLabel
+    ? {
+        value: xLabel,
+        position: "insideBottom" as const,
+        offset: 0,
+        fill: "var(--color-muted-foreground)",
+        fontSize: 11,
+      }
+    : undefined;
 
   const xAxis = (
     <XAxis
@@ -113,17 +138,8 @@ function ChartMessageInner({ spec }: { spec: ChartSpec }) {
       tickLine={false}
       axisLine={AXIS_LINE}
       tickMargin={8}
-      label={
-        xLabel
-          ? {
-              value: xLabel,
-              position: "insideBottom",
-              offset: -10,
-              fill: "var(--color-muted-foreground)",
-              fontSize: 11,
-            }
-          : undefined
-      }
+      height={xAxisHeight}
+      label={xAxisLabel}
     />
   );
 
@@ -261,17 +277,8 @@ function ChartMessageInner({ spec }: { spec: ChartSpec }) {
             axisLine={AXIS_LINE}
             tickMargin={8}
             domain={["dataMin - 0.5", "dataMax + 0.5"]}
-            label={
-              xLabel
-                ? {
-                    value: xLabel,
-                    position: "insideBottom",
-                    offset: -10,
-                    fill: "var(--color-muted-foreground)",
-                    fontSize: 11,
-                  }
-                : undefined
-            }
+            height={xAxisHeight}
+            label={xAxisLabel}
           />
         );
 

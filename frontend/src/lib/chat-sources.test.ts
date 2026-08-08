@@ -73,15 +73,6 @@ describe("extractSources", () => {
     expect(sources[1]?.subtitle).toBeUndefined();
   });
 
-  it("reads both knowledge tool names, because both exist", () => {
-    for (const name of ["search_knowledge_base", "search_documents"]) {
-      const sources = extractSources(
-        message({ toolCalls: [toolCall({ name, result: RAG_RESULT })] }),
-      );
-      expect(sources, name).toHaveLength(2);
-    }
-  });
-
   it("reads web hits, naming each by its domain", () => {
     const sources = extractSources(
       message({ toolCalls: [toolCall({ name: "web_search", result: WEB_RESULT })] }),
@@ -98,7 +89,7 @@ describe("extractSources", () => {
 
   it("falls back to the domain for a hit with no title", () => {
     const sources = extractSources(
-      message({ toolCalls: [toolCall({ name: "search_web", result: WEB_RESULT })] }),
+      message({ toolCalls: [toolCall({ name: "web_search", result: WEB_RESULT })] }),
     );
 
     expect(sources[1]?.title).toBe("acme.example");

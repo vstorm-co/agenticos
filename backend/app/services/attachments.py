@@ -280,8 +280,15 @@ class AttachmentRouter:
         platform already extracted is the useful half. Both are kept, because
         the original is what a person asked to be given and what an image
         conversion or a page count needs.
+
+        A spreadsheet is the same case and it is worth saying why, because the
+        obvious assumption is that an agent given the file can open it: it cannot.
+        `run_python` has no filesystem at all - it is for arithmetic - and the
+        workspace shell has no spreadsheet library, so `.xlsx` in a workspace is a
+        zip of XML that `read_file` returns as mojibake. The `.txt` beside it is
+        the only readable half.
         """
-        if chat_file.file_type in {"pdf", "docx"} and chat_file.parsed_content:
+        if chat_file.file_type in {"pdf", "docx", "spreadsheet"} and chat_file.parsed_content:
             await backend.write(f"{path}.txt", chat_file.parsed_content)
 
     async def _inline_image(self, chat_file: ChatFile, data: bytes | None) -> BinaryContent | None:

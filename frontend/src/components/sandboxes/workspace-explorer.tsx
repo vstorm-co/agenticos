@@ -3,25 +3,16 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle, ChevronRight, Download, Folder, Info, Search } from "lucide-react";
 
-import { FileIcon } from "./file-tile";
-import { WorkspaceFileViewer } from "./file-viewer";
+import { FileIcon, FileViewer } from "@/components/files";
 import { Input, Skeleton } from "@/components/ui";
-import { downloadWorkspaceFile, useWorkspaceFiles } from "@/hooks";
-import { cn } from "@/lib/utils";
-import type { FileSource } from "@/lib/workspace-files";
+import { useWorkspaceFiles } from "@/hooks";
+import { cn, formatBytes } from "@/lib/utils";
+import { workspaceFileAccess, type FileSource } from "@/lib/workspace-files";
 import type { WorkspaceFile } from "@/lib/sandbox-workspaces-api";
 import { useTranslations } from "next-intl";
 
 interface WorkspaceExplorerProps {
   workspaceId: string;
-}
-
-/** Bytes as a person reads them. */
-function size(bytes: number | null): string {
-  if (bytes === null) return "—";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KiB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
 }
 
 /** The path's segments, without the empties a leading slash produces. */
@@ -78,7 +69,7 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
   const { files, isLoading, error } = useWorkspaceFiles(workspaceId);
   const [prefix, setPrefix] = useState<string[]>([]);
   const [query, setQuery] = useState("");
-  const [opened, setOpened] = useState<string | null>(null);
+  const [opened, setOpened] = useState<WorkspaceFile | null>(null);
   const source = useMemo<FileSource>(() => ({ kind: "workspace", id: workspaceId }), [workspaceId]);
 
   // Memoised, because it is the dependency of the two memos below: `?? []` builds a
@@ -161,7 +152,7 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
         <p className="text-muted-foreground text-xs">
           {files.owner_label}
           {files.backend === "state" && files.bytes_total > 0 && (
-            <> {t("bytesStored", { size: size(files.bytes_total) })}</>
+            <> {t("bytesStored", { size: formatBytes(files.bytes_total) })}</>
           )}
         </p>
       )}
@@ -213,7 +204,15 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
       )}
 
       {opened !== null && (
-        <WorkspaceFileViewer source={source} path={opened} onClose={() => setOpened(null)} />
+        <FileViewer
+          file={{
+            name: opened.path.split("/").filter(Boolean).pop() ?? opened.path,
+            path: opened.path,
+            size: opened.size,
+          }}
+          access={workspaceFileAccess(source, opened.path)}
+          onClose={() => setOpened(null)}
+        />
       )}
     </div>
   );
@@ -222,7 +221,7 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
 interface FileListProps {
   source: FileSource;
   files: WorkspaceFile[];
-  onOpen: (path: string) => void;
+  onOpen: (file: WorkspaceFile) => void;
   showFullPath?: boolean;
 }
 
@@ -233,20 +232,22 @@ function FileList({ source, files, onOpen, showFullPath }: FileListProps) {
       {files.map((file) => (
         <li key={file.path} className="border-border rounded-lg border">
           <div className="flex items-center gap-2 p-3">
-            <FileIcon path={file.path} className="text-muted-foreground h-4 w-4 shrink-0" />
+            <FileIcon name={file.path} className="text-muted-foreground h-4 w-4 shrink-0" />
             <button
               type="button"
-              onClick={() => onOpen(file.path)}
+              onClick={() => onOpen(file)}
               className="min-w-0 flex-1 truncate text-left font-mono text-xs hover:underline"
               title={file.path}
             >
               {showFullPath ? file.path : (file.path.split("/").pop() ?? file.path)}
             </button>
-            <span className="text-muted-foreground shrink-0 text-[11px]">{size(file.size)}</span>
+            <span className="text-muted-foreground shrink-0 text-[11px]">
+              {file.size == null ? "—" : formatBytes(file.size)}
+            </span>
             <button
               type="button"
               aria-label={`Download ${file.path}`}
-              onClick={() => void downloadWorkspaceFile(source, file.path)}
+              onClick={() => void workspaceFileAccess(source, file.path).download()}
               className="text-muted-foreground hover:text-foreground shrink-0 rounded-md p-1"
             >
               <Download className="h-3.5 w-3.5" />
