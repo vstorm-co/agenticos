@@ -389,7 +389,7 @@
     "specialistPromoted": "Promoted {name} to a draft agent",
     "specialistSameAsParent": "Same as the parent",
     "specialistSkills": "Skills it may read",
-    "specialistUnnamed": "Unnamed",
+    "specialistUnnamed": "New specialist",
     "specialistsHeading": "Inline specialists",
     "specialistsNotVersioned": "Defined here, not published: a specialist has no version, cannot be pinned, and changes the moment this agent is edited.",
     "spent": "Spent",

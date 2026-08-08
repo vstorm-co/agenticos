@@ -118,12 +118,23 @@ export function SpecialistList({
                   at === index ? "border-foreground/25 bg-accent" : "hover:bg-accent/50",
                 )}
               >
-                {entry.name === "" ? t("specialistUnnamed") : entry.name}
+                {entry.name === "" ? (
+                  // A placeholder, and it has to read as one. "Unnamed" set solid
+                  // in the same face as its siblings reads like a specialist
+                  // somebody called Unnamed, next to a name field demanding a name.
+                  <span className="text-muted-foreground italic">{t("specialistUnnamed")}</span>
+                ) : (
+                  entry.name
+                )}
               </button>
             ))}
           </div>
 
           <SpecialistEditor
+            // Remounted when the selection moves, which is what resets `touched`
+            // below: the blank-name message is about the field this person has
+            // been editing, not about the one they just clicked onto.
+            key={index}
             specialist={specialist}
             catalog={catalog}
             clashes={clashes}
@@ -171,7 +182,14 @@ function SpecialistEditor({
   const t = useTranslations("agents");
   const { promote } = useAgents();
   const { can } = usePermissions();
+  // Whether this person has had a go at the name yet. A specialist is added by
+  // one click and starts with an empty name, so the error was on screen before
+  // they had typed anything - a form scolding somebody for a field they have not
+  // reached. Publishing still refuses it, and the Issues count still counts it;
+  // this only decides when the sentence under the field appears.
+  const [touched, setTouched] = useState(false);
   const nameKey = specialistNameError(specialist.name);
+  const showNameError = nameKey !== null && (touched || specialist.name !== "");
   const clash = clashes.has(specialist.name);
   // A control the caller may not use is not rendered - promoting creates an
   // agent, which takes `agents:edit`, the same permission `create` is gated on.
@@ -188,6 +206,28 @@ function SpecialistEditor({
 
   return (
     <div className="border-border space-y-4 rounded-lg border p-4">
+      {/* Discarding one is a header control, not a footer one. It used to sit at
+          the bottom, past the instructions, the model, the capabilities, the
+          collections and the skills - so on any real screen "Add a specialist"
+          was a one-way door: the entry appears already invalid, and the way out
+          of it was below the fold. Somebody who realises they did not want this
+          realises it at the top. */}
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-muted-foreground min-w-0 truncate text-xs font-medium tracking-wide uppercase">
+          {specialist.name === "" ? t("specialistUnnamed") : specialist.name}
+        </p>
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={disabled}
+          onClick={onRemove}
+          className="text-muted-foreground hover:text-destructive shrink-0"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          {t("removeSpecialist")}
+        </Button>
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="specialist-name">{t("specialistName")}</Label>
@@ -196,11 +236,15 @@ function SpecialistEditor({
             value={specialist.name}
             disabled={disabled}
             spellCheck={false}
-            aria-invalid={nameKey !== null || clash}
+            aria-invalid={showNameError || clash}
             className="font-mono text-sm"
-            onChange={(event) => onChange({ name: event.target.value })}
+            onBlur={() => setTouched(true)}
+            onChange={(event) => {
+              setTouched(true);
+              onChange({ name: event.target.value });
+            }}
           />
-          {nameKey !== null && <p className="text-destructive text-xs">{t(nameKey)}</p>}
+          {showNameError && <p className="text-destructive text-xs">{t(nameKey)}</p>}
           {nameKey === null && clash && (
             <p className="text-destructive text-xs">
               {t("specialistNameClash", { name: specialist.name })}
@@ -255,30 +299,22 @@ function SpecialistEditor({
         onChange={onChange}
       />
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        {canPromote ? (
-          <div className="min-w-0">
-            <Button
-              variant="outline"
-              size="sm"
-              // The name is the new agent's handle too, so a name that is not yet
-              // a valid handle cannot be promoted - the server would refuse it.
-              disabled={disabled || nameKey !== null || promote.isPending}
-              onClick={onPromote}
-            >
-              <CopyPlus className="h-3.5 w-3.5" />
-              {t("promoteSpecialist")}
-            </Button>
-            <p className="text-muted-foreground mt-1 text-xs">{t("promoteSpecialistDetail")}</p>
-          </div>
-        ) : (
-          <span />
-        )}
-        <Button variant="ghost" size="sm" disabled={disabled} onClick={onRemove}>
-          <Trash2 className="h-3.5 w-3.5" />
-          {t("removeSpecialist")}
-        </Button>
-      </div>
+      {canPromote && (
+        <div className="min-w-0">
+          <Button
+            variant="outline"
+            size="sm"
+            // The name is the new agent's handle too, so a name that is not yet
+            // a valid handle cannot be promoted - the server would refuse it.
+            disabled={disabled || nameKey !== null || promote.isPending}
+            onClick={onPromote}
+          >
+            <CopyPlus className="h-3.5 w-3.5" />
+            {t("promoteSpecialist")}
+          </Button>
+          <p className="text-muted-foreground mt-1 text-xs">{t("promoteSpecialistDetail")}</p>
+        </div>
+      )}
     </div>
   );
 }
