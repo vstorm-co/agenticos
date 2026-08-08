@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
-import { useConversations } from "./use-conversations";
+import { useConversations, type ConversationQuery } from "./use-conversations";
 import { apiClient } from "@/lib/api-client";
 import { useAgentSelectionStore, useAuthStore, useChatStore, useConversationStore } from "@/stores";
 
@@ -40,10 +40,16 @@ function serve({
   });
 }
 
-async function hook() {
-  const rendered = renderHook(() => useConversations(), { wrapper });
+async function hook(query: Partial<ConversationQuery> = {}) {
+  const rendered = renderHook(() => useConversations(query), { wrapper });
   await waitFor(() => expect(rendered.result.current.isLoading).toBe(false));
   return rendered.result;
+}
+
+/** The path the list was last fetched from. */
+function lastListRequest(): string {
+  const calls = vi.mocked(apiClient.get).mock.calls.map(([path]) => path as string);
+  return calls.filter((path) => !path.includes("/messages")).at(-1) ?? "";
 }
 
 beforeEach(() => {
@@ -75,11 +81,86 @@ beforeEach(() => {
  * every stray click on "New chat" leaves an untitled empty row in the sidebar.
  */
 describe("the conversation list", () => {
-  it("reads active and archived in one call, so the tabs can split them", async () => {
+  it("asks for both tabs' threads when no view is named", async () => {
     const result = await hook();
 
     expect(result.current.conversations).toHaveLength(1);
-    expect(apiClient.get).toHaveBeenCalledWith("/conversations?limit=30&include_archived=true");
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/conversations?limit=30&sort_by=updated_at&sort_dir=desc&include_archived=true",
+    );
+  });
+
+  it("counts what matches rather than what was fetched", async () => {
+    // A page is thirty rows and the deployment holds more: `total` is the
+    // server's count of the list, which is what the sidebar puts on screen.
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [conversation("c-1")], total: 214 });
+    const result = await hook();
+
+    expect(result.current.total).toBe(214);
+  });
+
+  it("narrows on the server, not over the page it happens to hold", async () => {
+    // The whole reason these are query parameters: the hook holds the pages
+    // fetched so far, so a filter applied to `conversations` would search
+    // thirty threads and answer "nothing" for one from March.
+    await hook({ view: "archived", search: "  refunds  ", agentId: "a-1" });
+
+    expect(lastListRequest()).toBe(
+      "/conversations?limit=30&sort_by=updated_at&sort_dir=desc&archived_only=true&search=refunds&agent_id=a-1",
+    );
+  });
+
+  it("asks for the active threads alone when the active tab is showing", async () => {
+    await hook({ view: "active" });
+
+    const request = lastListRequest();
+    expect(request).not.toContain("include_archived");
+    expect(request).not.toContain("archived_only");
+  });
+
+  it("sends no search at all when the box holds only spaces", async () => {
+    await hook({ search: "   " });
+
+    expect(lastListRequest()).not.toContain("search=");
+  });
+
+  it("carries the sort the caller chose", async () => {
+    await hook({ sortBy: "title", sortDir: "asc" });
+
+    expect(lastListRequest()).toContain("sort_by=title&sort_dir=asc");
+  });
+
+  it("keeps two filters in two cache entries", async () => {
+    // One key for two lists is the search box answering with the previous
+    // search's rows, which is what putting the parameters in the key prevents.
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const shared = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+
+    serve({ items: [conversation("refund")] });
+    const first = renderHook(() => useConversations({ search: "refunds" }), { wrapper: shared });
+    await waitFor(() => expect(first.result.current.conversations).toHaveLength(1));
+
+    serve({ items: [conversation("holiday-a"), conversation("holiday-b")] });
+    const second = renderHook(() => useConversations({ search: "holiday" }), { wrapper: shared });
+    await waitFor(() => expect(second.result.current.conversations).toHaveLength(2));
+
+    expect(first.result.current.conversations.map((c) => c.id)).toEqual(["refund"]);
+  });
+
+  it("looks for another page again once the filters move", async () => {
+    // A short page means "no more"; the next list is a different list and has
+    // its own last page, so the scroll handler has to be allowed to ask again.
+    const rendered = renderHook((query: Partial<ConversationQuery>) => useConversations(query), {
+      wrapper,
+      initialProps: {},
+    });
+    await waitFor(() => expect(rendered.result.current.hasMore).toBe(false));
+
+    rendered.rerender({ search: "refunds" });
+
+    expect(rendered.result.current.hasMore).toBe(true);
   });
 
   it("says there is more to load only when the page came back full", async () => {
@@ -105,7 +186,7 @@ describe("the conversation list", () => {
     });
 
     expect(apiClient.get).toHaveBeenCalledWith(
-      "/conversations?limit=30&skip=30&include_archived=true",
+      "/conversations?limit=30&sort_by=updated_at&sort_dir=desc&include_archived=true&skip=30",
     );
     await waitFor(() => expect(result.current.conversations).toHaveLength(31));
   });
@@ -130,6 +211,28 @@ describe("the conversation list", () => {
     });
 
     expect(vi.mocked(apiClient.get).mock.calls.length).toBe(before);
+  });
+
+  it("does not build a list out of a page that arrives before the first one", async () => {
+    // Nothing has measured the list yet, so a scroll is allowed to ask for
+    // another page while the first is still in flight. `setQueryData` creates a
+    // key that is not there, so the arriving page would *become* the list -
+    // starting at the thirty-first conversation, with the real first page
+    // overwriting it a moment later. The same guard is what stops a page landing
+    // after an organization switch has removed every query from resurrecting
+    // the previous organization's sidebar.
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path.includes("skip=")) return { items: [conversation("c-later")], total: 1 };
+      return new Promise(() => {}); // the first page never lands
+    });
+
+    const rendered = renderHook(() => useConversations(), { wrapper });
+    await act(async () => {
+      await rendered.result.current.fetchMoreConversations();
+    });
+
+    expect(rendered.result.current.conversations).toEqual([]);
+    expect(rendered.result.current.total).toBe(0);
   });
 
   it("does not fire two page loads at once", async () => {
@@ -457,9 +560,10 @@ describe("opening a conversation", () => {
 });
 
 describe("creating, renaming and removing a conversation", () => {
-  it("puts a new conversation at the top of the list", async () => {
+  it("hands back the new conversation and refetches the list it belongs in", async () => {
     const result = await hook();
     vi.mocked(apiClient.post).mockResolvedValue(conversation("c-new", { title: "Refunds" }));
+    serve({ items: [conversation("c-new", { title: "Refunds" }), conversation("c-1")] });
 
     let created: unknown;
     await act(async () => {
@@ -496,24 +600,26 @@ describe("creating, renaming and removing a conversation", () => {
     expect(useConversationStore.getState().error).toBe("Failed to create conversation");
   });
 
-  it("archives and restores in place, so the row moves tab without a refetch", async () => {
-    // Two rows, so the `map`'s other branch is taken: a patch that returned a
-    // whole new list, or one that touched every row, would pass against one.
+  it("archives and restores by asking the server again, not by patching the row", async () => {
+    // Which list a thread belongs to is the server's answer now: archiving it
+    // takes it out of the active view, and a patched row would sit there with
+    // `is_archived` set, under a tab it no longer belongs to.
     serve({ items: [conversation("c-1"), conversation("c-2")] });
     const result = await hook();
 
+    serve({ items: [conversation("c-2")] });
     await act(async () => {
       await result.current.archiveConversation("c-1");
     });
     expect(apiClient.patch).toHaveBeenCalledWith("/conversations/c-1", { is_archived: true });
-    await waitFor(() => expect(result.current.conversations[0]?.is_archived).toBe(true));
-    expect(result.current.conversations[1]?.is_archived).toBe(false);
+    await waitFor(() => expect(result.current.conversations.map((c) => c.id)).toEqual(["c-2"]));
 
+    serve({ items: [conversation("c-1"), conversation("c-2")] });
     await act(async () => {
       await result.current.unarchiveConversation("c-1");
     });
     expect(apiClient.patch).toHaveBeenCalledWith("/conversations/c-1", { is_archived: false });
-    await waitFor(() => expect(result.current.conversations[0]?.is_archived).toBe(false));
+    await waitFor(() => expect(result.current.conversations).toHaveLength(2));
   });
 
   it("reports a refused archive and a refused restore", async () => {
@@ -531,10 +637,13 @@ describe("creating, renaming and removing a conversation", () => {
     expect(toast.error).toHaveBeenCalledWith("Failed to restore conversation");
   });
 
-  it("renames in place, and leaves the others alone", async () => {
+  it("renames, then reads back the list - a new title can leave a search", async () => {
     serve({ items: [conversation("c-1"), conversation("c-2")] });
     const result = await hook();
 
+    serve({
+      items: [conversation("c-1", { title: "Refund policy" }), conversation("c-2")],
+    });
     await act(async () => {
       await result.current.renameConversation("c-1", "Refund policy");
     });
@@ -559,6 +668,7 @@ describe("creating, renaming and removing a conversation", () => {
     const result = await hook();
     useConversationStore.getState().setCurrentConversationId("c-1");
 
+    serve({ items: [] });
     await act(async () => {
       await result.current.deleteConversation("c-1");
     });

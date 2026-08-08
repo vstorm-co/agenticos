@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useConversations } from "@/hooks";
 import { Button, Skeleton } from "@/components/ui";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui";
+import { useDebounced } from "@/components/ui/list-controls";
 import { ConversationAgents } from "@/components/agents/conversation-agents";
-import { cn } from "@/lib/utils";
+import { cn, setUrlParam } from "@/lib/utils";
 import { useChatSidebarStore } from "@/stores";
 import {
   Archive,
@@ -16,11 +18,19 @@ import {
   MessageSquare,
   MoreVertical,
   Pencil,
+  SearchX,
   Share2,
   SquarePen,
   Trash2,
 } from "lucide-react";
 import type { Conversation } from "@/types";
+import {
+  ConversationFilters,
+  DEFAULT_SORT,
+  isConversationSort,
+  splitSort,
+  type ConversationSort,
+} from "./conversation-filters";
 import { ShareDialog } from "./share-dialog";
 
 interface ConversationItemProps {
@@ -198,6 +208,13 @@ type ConversationView = "active" | "archived";
 
 interface ConversationListProps {
   conversations: Conversation[];
+  total: number;
+  view: ConversationView;
+  onViewChange: (view: ConversationView) => void;
+  /** Whether a search or an agent is narrowing the list right now. */
+  isFiltered: boolean;
+  onClearFilters: () => void;
+  filters: ReactNode;
   currentConversationId: string | null;
   isLoading: boolean;
   onSelect: (id: string) => void;
@@ -212,6 +229,12 @@ interface ConversationListProps {
 
 function ConversationList({
   conversations = [],
+  total,
+  view,
+  onViewChange,
+  isFiltered,
+  onClearFilters,
+  filters,
   currentConversationId,
   isLoading,
   onSelect,
@@ -225,13 +248,7 @@ function ConversationList({
 }: ConversationListProps) {
   const t = useTranslations("chat");
   const ts = useTranslations("chat.sidebar");
-  const [view, setView] = useState<ConversationView>("active");
   const [shareConversationId, setShareConversationId] = useState<string | null>(null);
-
-  const all = conversations ?? [];
-  const activeCount = all.filter((c) => !c.is_archived).length;
-  const archivedCount = all.filter((c) => c.is_archived).length;
-  const visible = all.filter((c) => (view === "active" ? !c.is_archived : c.is_archived));
 
   const handleSelect = (id: string) => {
     onSelect(id);
@@ -258,19 +275,24 @@ function ConversationList({
         </button>
       </div>
 
+      {filters}
+
       <div className="px-3 pb-2">
         <div className="bg-secondary/50 flex rounded-lg p-0.5">
+          {/* No count on the tab. The one that used to sit here counted the
+              pages the sidebar had fetched, so it read "Active 8 · Archived 2"
+              in a deployment holding hundreds. The honest number is the
+              server's, it describes one list rather than two, and it goes
+              below - where it can also say that a filter is what narrowed it. */}
           <ViewTab
             label={ts("active")}
-            count={activeCount}
             active={view === "active"}
-            onClick={() => setView("active")}
+            onClick={() => onViewChange("active")}
           />
           <ViewTab
             label={ts("archived")}
-            count={archivedCount}
             active={view === "archived"}
-            onClick={() => setView("archived")}
+            onClick={() => onViewChange("archived")}
           />
         </div>
       </div>
@@ -290,28 +312,50 @@ function ConversationList({
               <Skeleton key={i} className="h-9 w-full rounded-md" />
             ))}
           </div>
-        ) : visible.length === 0 ? (
+        ) : conversations.length === 0 ? (
+          /* Three sentences, not one. "You have no conversations", "you have
+             none archived" and "none of them match this filter" are three
+             different situations, and the last one is the only one with an
+             action attached to it. */
           <div className="flex flex-col items-center justify-center py-10 text-center">
             <span
               aria-hidden
               className="bg-muted text-muted-foreground mb-4 flex h-12 w-12 items-center justify-center rounded-full"
             >
-              {isArchivedView ? (
+              {isFiltered ? (
+                <SearchX className="h-5 w-5" />
+              ) : isArchivedView ? (
                 <Archive className="h-5 w-5" />
               ) : (
                 <MessageSquare className="h-5 w-5" />
               )}
             </span>
             <p className="text-foreground text-sm font-medium">
-              {isArchivedView ? ts("noArchived") : t("noConversations")}
+              {isFiltered
+                ? ts("noMatches")
+                : isArchivedView
+                  ? ts("noArchived")
+                  : t("noConversations")}
             </p>
             <p className="text-muted-foreground mt-1 text-xs">
-              {isArchivedView ? ts("archivedHint") : t("startNewChat")}
+              {isFiltered
+                ? ts("noMatchesHint")
+                : isArchivedView
+                  ? ts("archivedHint")
+                  : t("startNewChat")}
             </p>
+            {isFiltered && (
+              <Button variant="outline" size="sm" className="mt-3" onClick={onClearFilters}>
+                {ts("clearFilters")}
+              </Button>
+            )}
           </div>
         ) : (
           <div className="space-y-1">
-            {visible.map((conversation) => (
+            <p className="text-muted-foreground px-1 pb-1 text-[10px]">
+              {ts("counted", { count: total })}
+            </p>
+            {conversations.map((conversation) => (
               <ConversationItem
                 key={conversation.id}
                 conversation={conversation}
@@ -349,8 +393,28 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
   const ts = useTranslations("chat.sidebar");
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { isOpen, close } = useChatSidebarStore();
+  // Seeded from the URL and written back to it, so a reload lands on the list
+  // somebody was reading rather than on the default one. Written with
+  // `setUrlParam` - a `replaceState`, like `?id=` beside it - because a router
+  // navigation per keystroke would re-render the whole chat.
+  const searchParams = useSearchParams();
+  const [view, setView] = useState<ConversationView>(
+    searchParams.get("view") === "archived" ? "archived" : "active",
+  );
+  const [search, setSearch] = useState(searchParams.get("q") ?? "");
+  const [agentId, setAgentId] = useState<string | null>(searchParams.get("agent"));
+  const [sort, setSort] = useState<ConversationSort>(() => {
+    const fromUrl = searchParams.get("sort");
+    return isConversationSort(fromUrl) ? fromUrl : DEFAULT_SORT;
+  });
+  // The request is what the search box is *for*, so it waits until the typing
+  // stops. Without this the sidebar issues a round trip per keystroke and the
+  // answers can land out of order.
+  const debouncedSearch = useDebounced(search);
+
   const {
     conversations,
+    total,
     currentConversationId,
     isLoading,
     fetchConversations,
@@ -361,14 +425,58 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
     unarchiveConversation,
     renameConversation,
     startNewChat,
-  } = useConversations();
+  } = useConversations({
+    view,
+    search: debouncedSearch,
+    agentId,
+    ...splitSort(sort),
+  });
 
   useEffect(() => {
     fetchConversations();
   }, [fetchConversations]);
 
+  const changeView = (next: ConversationView) => {
+    setView(next);
+    setUrlParam("view", next === "active" ? null : next);
+  };
+  const changeSearch = (next: string) => {
+    setSearch(next);
+    setUrlParam("q", next.trim() || null);
+  };
+  const changeAgent = (next: string | null) => {
+    setAgentId(next);
+    setUrlParam("agent", next);
+  };
+  const changeSort = (next: ConversationSort) => {
+    setSort(next);
+    setUrlParam("sort", next === DEFAULT_SORT ? null : next);
+  };
+  const clearFilters = () => {
+    changeSearch("");
+    changeAgent(null);
+  };
+
   const listProps = {
     conversations,
+    total,
+    view,
+    onViewChange: changeView,
+    // The sort is not a filter: it reorders the same threads, so an empty list
+    // under it is empty for some other reason and "clear the filters" would do
+    // nothing a reader could see.
+    isFiltered: debouncedSearch.trim() !== "" || agentId !== null,
+    onClearFilters: clearFilters,
+    filters: (
+      <ConversationFilters
+        search={search}
+        onSearchChange={changeSearch}
+        agentId={agentId}
+        onAgentChange={changeAgent}
+        sort={sort}
+        onSortChange={changeSort}
+      />
+    ),
     currentConversationId,
     isLoading,
     onSelect: selectConversation,
@@ -448,12 +556,10 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
 
 function ViewTab({
   label,
-  count,
   active,
   onClick,
 }: {
   label: string;
-  count: number;
   active: boolean;
   onClick: () => void;
 }) {
@@ -469,14 +575,6 @@ function ViewTab({
       )}
     >
       {label}
-      <span
-        className={cn(
-          "text-[10px] tabular-nums",
-          active ? "text-foreground" : "text-muted-foreground/60",
-        )}
-      >
-        {count}
-      </span>
     </button>
   );
 }
