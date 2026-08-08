@@ -42,6 +42,8 @@ interface ConversationFiltersProps {
   onAgentChange: (agentId: string | null) => void;
   sort: ConversationSort;
   onSortChange: (sort: ConversationSort) => void;
+  /** Put the cursor in the search box on mount - see the collapsed rail. */
+  autoFocusSearch?: boolean;
 }
 
 /**
@@ -64,6 +66,7 @@ export function ConversationFilters({
   onAgentChange,
   sort,
   onSortChange,
+  autoFocusSearch = false,
 }: ConversationFiltersProps) {
   const t = useTranslations("chat.sidebar");
   const { agents } = useAgents({ includeArchived: true });
@@ -78,6 +81,7 @@ export function ConversationFilters({
         value={search}
         onChange={onSearchChange}
         placeholder={t("searchPlaceholder")}
+        autoFocus={autoFocusSearch}
         className="w-full sm:w-full"
       />
       <div className="flex gap-2">

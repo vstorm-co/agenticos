@@ -213,3 +213,97 @@ describe("what the sidebar says about the list", () => {
     await waitFor(() => expect(listRequests().at(-1)).toContain("archived_only=true"));
   });
 });
+
+/**
+ * The sidebar as a 48px rail.
+ *
+ * It used to hold expand and new-chat and nothing else, so collapsing it gave up
+ * everything except the width - reaching yesterday's thread meant expanding,
+ * clicking and collapsing again, which is why nobody collapsed it. What it holds
+ * now has to actually work from the rail, and that is what these pin.
+ */
+describe("the collapsed rail", () => {
+  /** Mount, collapse the desktop sidebar, and hand back the rail. */
+  async function collapse(): Promise<HTMLElement> {
+    mount();
+    await screen.findAllByRole("button", { name: "Collapse conversations sidebar" });
+    await userEvent.click(
+      within(list()).getByRole("button", { name: "Collapse conversations sidebar" }),
+    );
+    return screen.getByRole("button", { name: "Expand conversations sidebar" })
+      .parentElement as HTMLElement;
+  }
+
+  it("offers the recent threads, named, without expanding", async () => {
+    serve([conversation("c-1", "Quarterly numbers"), conversation("c-2", "Refund policy")]);
+
+    const rail = await collapse();
+
+    expect(within(rail).getByRole("button", { name: "Quarterly numbers" })).toBeVisible();
+    expect(within(rail).getByRole("button", { name: "Refund policy" })).toBeVisible();
+  });
+
+  it("opens a thread from the rail", async () => {
+    serve([conversation("c-1", "Quarterly numbers"), conversation("c-2", "Refund policy")]);
+    const rail = await collapse();
+
+    await userEvent.click(within(rail).getByRole("button", { name: "Refund policy" }));
+
+    await waitFor(() => expect(useConversationStore.getState().currentConversationId).toBe("c-2"));
+  });
+
+  it("marks the thread that is open", async () => {
+    serve([conversation("c-1", "Quarterly numbers")]);
+    const rail = await collapse();
+
+    await userEvent.click(within(rail).getByRole("button", { name: "Quarterly numbers" }));
+
+    await waitFor(() =>
+      expect(within(rail).getByRole("button", { name: "Quarterly numbers" })).toHaveAttribute(
+        "aria-current",
+        "true",
+      ),
+    );
+  });
+
+  it("names an untitled thread rather than showing a blank button", async () => {
+    serve([{ ...conversation("c-1", ""), title: undefined } as never]);
+
+    const rail = await collapse();
+
+    expect(await within(rail).findByRole("button", { name: "New conversation" })).toBeVisible();
+  });
+
+  it("expands with the cursor already in the search box", async () => {
+    // Otherwise the button is a second Expand, and costs a click to reach the
+    // thing it is named after.
+    const rail = await collapse();
+
+    await userEvent.click(within(rail).getByRole("button", { name: "Search conversations" }));
+
+    const box = within(list()).getByRole("textbox", { name: "Search conversations" });
+    await waitFor(() => expect(box).toHaveFocus());
+  });
+
+  it("expands onto the archived tab", async () => {
+    const rail = await collapse();
+
+    await userEvent.click(within(rail).getByRole("button", { name: "Archived" }));
+
+    await waitFor(() => expect(listRequests().at(-1)).toContain("archived_only=true"));
+  });
+
+  it("does not steal the cursor when it is expanded with the chevron", async () => {
+    // The search button's focus is a one-shot. Left set, every later expand would
+    // take the cursor out of whatever somebody was typing in the composer.
+    const rail = await collapse();
+    await userEvent.click(within(rail).getByRole("button", { name: "Search conversations" }));
+    await userEvent.click(
+      within(list()).getByRole("button", { name: "Collapse conversations sidebar" }),
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Expand conversations sidebar" }));
+
+    expect(within(list()).getByRole("textbox", { name: "Search conversations" })).not.toHaveFocus();
+  });
+});
