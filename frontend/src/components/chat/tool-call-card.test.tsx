@@ -254,14 +254,10 @@ describe("a tool call in the transcript", () => {
 
   it("leaves an older call read back from history folded", () => {
     // Opening every finished call on mount turned a conversation somebody reopened
-    // into a wall of results they came back for none of.
-    const chart = card({
-      name: "create_chart",
-      result: JSON.stringify({ kind: "chart", title: "Spend", series: [] }),
-    });
-    expect(screen.queryByTestId("chart")).toBeNull();
-    chart.unmount();
-
+    // into a wall of results they came back for none of. `create_chart` is the one
+    // exception and is asserted the other way round below - these three confirm that
+    // something happened, where a chart *is* the answer.
+    //
     // On the code, not on the block it opens: a finished `run_python` closes its code
     // in favour of its output, so an absent code block says nothing about the step.
     const python = card({ name: "run_python", args: { code: "print(1)" }, result: "stdout:\n1" });
@@ -274,6 +270,37 @@ describe("a tool call in the transcript", () => {
       result: "Wrote 1 lines",
     });
     expect(screen.queryByText("hej")).toBeNull();
+  });
+
+  it("opens a chart wherever it sits in the turn, not only as the last step", () => {
+    // A turn that drew three charts showed two collapsed headers and one picture.
+    // Only the last step of a turn is handed `startOpen`, and a step whose result
+    // arrives with it never has the status transition `opensWhenDone` waits for - so
+    // the two charts that were not last had nothing to open them. Three charts are
+    // three answers, and this is the card mounted the way those two were.
+    const first = card({
+      id: "tc-1",
+      name: "create_chart",
+      result: JSON.stringify({ kind: "chart", title: "Trend", series: [] }),
+    });
+    expect(screen.getByTestId("chart")).toHaveTextContent("Trend");
+    first.unmount();
+
+    card({
+      id: "tc-2",
+      name: "create_chart",
+      result: JSON.stringify({ kind: "chart", title: "Udzial", series: [] }),
+    });
+    expect(screen.getByTestId("chart")).toHaveTextContent("Udzial");
+  });
+
+  it("does not open a chart whose result never became one", () => {
+    // The payoff is the only reason to open it on sight. A `create_chart` that came
+    // back as an error string would otherwise put a stack of JSON where the picture
+    // was meant to be.
+    card({ name: "create_chart", result: "That chart could not be built (chart: ...)" });
+
+    expect(screen.queryByTestId("chart")).toBeNull();
   });
 
   it("opens what a call produced while somebody was watching it happen", () => {

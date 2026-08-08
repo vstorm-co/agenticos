@@ -60,12 +60,40 @@ export function ToolCallCard({ toolCall, conversationId, startOpen = false }: To
   // has ever seen.
   const entry = toolEntry(toolCall.name);
   const renderer = entry?.render ?? "generic";
-  // Open on arrival, not on sight. A call that finishes while somebody is watching
-  // shows what it produced - a chart, code that ran, a file that was written - and the
-  // same call re-read from history is one line in a transcript they came back to for
-  // something else. Opening those on mount made every past turn a wall, which is what
-  // a replayed conversation looked like.
-  const [expanded, setExpanded] = useState(startOpen && toolCall.status === "completed");
+  // Memoized above the state below, which reads it: a chart that came back as an
+  // error string has nothing to show, and must not be opened on sight.
+  //
+  // `parseChartResult` does `JSON.parse` for string results, returning a NEW object
+  // each call. Without this memo, every streaming delta (text/thinking) re-renders
+  // this step → new spec ref → ChartMessage re-renders → Recharts re-layouts →
+  // ResponsiveContainer briefly reports -1 dimensions → `RenderedTicksReporter`
+  // setState → React detects too-many updates and bails with "Maximum update depth
+  // exceeded".
+  const chartSpec = useMemo(
+    () =>
+      renderer === "chart" && toolCall.status === "completed"
+        ? parseChartResult(toolCall.result)
+        : null,
+    [renderer, toolCall.status, toolCall.result],
+  );
+  // A chart is the one entry whose payoff can fail to arrive: `create_chart` that
+  // came back as an error string has nothing to show, so opening it would put a
+  // stack of JSON where the picture was meant to be.
+  const produced = renderer !== "chart" || chartSpec !== null;
+  // Worth opening without being asked, wherever it sits in the turn - see
+  // `opensOnSight` in `lib/tool-catalog.ts`.
+  const opensOnSight = entry?.opensOnSight === true && produced;
+
+  // Open on arrival, not on sight - with `opensOnSight` as the exception. A call that
+  // finishes while somebody is watching shows what it produced - code that ran, a file
+  // that was written - and the same call re-read from history is one line in a
+  // transcript they came back to for something else. Opening those on mount made every
+  // past turn a wall, which is what a replayed conversation looked like. A chart is the
+  // other way round: only the last step of a turn is handed `startOpen`, so three
+  // charts arrived as two headers and one picture.
+  const [expanded, setExpanded] = useState(
+    toolCall.status === "completed" && (startOpen || opensOnSight),
+  );
   const [showRaw, setShowRaw] = useState(false);
 
   const resultText =
@@ -83,19 +111,6 @@ export function ToolCallCard({ toolCall, conversationId, startOpen = false }: To
     typeof toolCall.result === "string"
       ? parseWebSearch(toolCall.result)
       : null;
-  // Memoize the parsed chart spec - `parseChartResult` does `JSON.parse` for
-  // string results, returning a NEW object each call. Without this memo, every
-  // streaming delta (text/thinking) re-renders this step → new spec ref →
-  // ChartMessage re-renders → Recharts re-layouts → ResponsiveContainer briefly
-  // reports -1 dimensions → `RenderedTicksReporter` setState → React detects
-  // too-many updates and bails with "Maximum update depth exceeded".
-  const chartSpec = useMemo(
-    () =>
-      renderer === "chart" && toolCall.status === "completed"
-        ? parseChartResult(toolCall.result)
-        : null,
-    [renderer, toolCall.status, toolCall.result],
-  );
 
   const mcpServers = useMcpToolServers();
   const isRunning = toolCall.status === "running" || toolCall.status === "pending";
@@ -116,10 +131,6 @@ export function ToolCallCard({ toolCall, conversationId, startOpen = false }: To
   const [seenStatus, setSeenStatus] = useState(toolCall.status);
   if (seenStatus !== toolCall.status) {
     setSeenStatus(toolCall.status);
-    // A chart is the one entry whose payoff can fail to arrive: `create_chart` that
-    // came back as an error string has nothing to show, so opening it would put a
-    // stack of JSON where the picture was meant to be.
-    const produced = renderer !== "chart" || chartSpec !== null;
     if (toolCall.status === "completed" && entry?.opensWhenDone === true && produced) {
       setExpanded(true);
     }

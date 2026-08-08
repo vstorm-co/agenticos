@@ -77,6 +77,21 @@ export interface ToolEntry {
    * a file that was written. Everything else stays a line somebody can open.
    */
   opensWhenDone?: boolean;
+  /**
+   * Open this step whenever it is on screen, not only as it finishes.
+   *
+   * `opensWhenDone` needs a status *transition* to fire, and a step whose result
+   * arrived with it never has one - it mounts already completed. Only the last
+   * step of a turn is opened on mount (`startOpen` in `message-item.tsx`), so a
+   * turn that drew three charts showed two collapsed headers and one picture.
+   *
+   * For a chart that is wrong: the picture *is* the answer, and three of them are
+   * three answers rather than one with two footnotes. This is deliberately not
+   * set on `write_file`, `edit_file` or `run_python` - those confirm that
+   * something happened, and opening every one of them on sight is what made a
+   * replayed conversation a wall of diffs.
+   */
+  opensOnSight?: boolean;
 }
 
 /**
@@ -93,6 +108,7 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     caption: "Creating a chart",
     displayName: "Chart",
     opensWhenDone: true,
+    opensOnSight: true,
   },
 
   // sandbox - the workspace toolset, whose steps name the file they are about
