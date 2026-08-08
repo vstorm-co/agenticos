@@ -17,6 +17,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.83] - 2026-08-08
+
+### Fixed
+
+- **The Activity page's run list and the RUNS figure only moved on a full page
+  reload.** `useRuns` — read by both the RUNS figure and the Run history tab —
+  carried the app-wide query defaults (`staleTime` five minutes,
+  `refetchOnWindowFocus` off), so after an agent ran, the Runs tab sat at "No
+  runs yet" and the RUNS count at zero beside a Spend tab that already counted
+  the run, until the page was reloaded. It now spreads `DASHBOARD_FRESHNESS`
+  like `useSpend`, `useUsageStats` and `useApprovals`, so returning to the tab
+  refetches. The runs were written and `GET /runs` returned them throughout —
+  this was only a stale client cache. (#499)
+
 ## [0.0.82] - 2026-08-07
 
 ### Added
