@@ -457,6 +457,15 @@ class ConversationService:
             role=data.role,
             content=data.content,
             thinking=data.thinking,
+            # Dumped without its empty fields, so a text part is `{"type": "text",
+            # "text": ...}` rather than that plus a null `tool_call_id`. What comes
+            # back validates the same either way; this is what a person reading the
+            # column sees.
+            parts=(
+                None
+                if data.parts is None
+                else [part.model_dump(exclude_none=True) for part in data.parts]
+            ),
             model_name=data.model_name,
             tokens_used=data.tokens_used,
             # Every field the schema carries, and the two at the end were being

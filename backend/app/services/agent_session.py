@@ -29,6 +29,7 @@ from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.db.session import get_db_context
+from app.schemas.conversation import MessagePart
 from app.services.agent import (
     build_message_history,
     persist_assistant_turn,
@@ -44,6 +45,7 @@ from app.services.agent_chat import (
     requested_model_profile_id,
 )
 from app.services.attachments import load_attached_files
+from app.services.chat_timeline import TurnTimeline
 from app.services.usage_report import usage_frame
 
 logger = logging.getLogger(__name__)
@@ -193,13 +195,17 @@ class AgentSession:
         await send_event(self.websocket, "user_prompt", {"content": user_message})
 
         collected_tool_calls: list[dict[str, Any]] = []
-        collected_thinking: list[str] = []
-        # What the model has said so far, kept for the turn that does not finish.
-        # On the success path `turn.output` is the answer and this is never read;
-        # nothing can tell in advance which path a turn is on, and the
+        # Everything the model produces, in the order it produces it - the text,
+        # the reasoning and where the tool calls sat between them. It is what gets
+        # stored, so a reloaded conversation is the one somebody watched rather
+        # than a reconstruction of it; see `chat_timeline.TurnTimeline`.
+        #
+        # It also holds what the model has said so far, for the turn that does not
+        # finish. On the success path `turn.output` is the answer and `.text` is
+        # never read; nothing can tell in advance which path a turn is on, and the
         # alternative is throwing away a half-written answer on exactly the runs
         # somebody opens afterwards.
-        collected_output: list[str] = []
+        timeline = TurnTimeline()
         # The run row, as soon as `prepare` opens one. A list because the
         # callback is `list.append` and a turn opens at most one run - it is
         # empty when the run was refused before it existed.
@@ -224,8 +230,7 @@ class AgentSession:
                     agent_run,
                     user_message,
                     collected_tool_calls,
-                    collected_thinking,
-                    collected_output,
+                    timeline,
                 )
 
             # One session for the whole turn: the run row, the approvals it
@@ -268,7 +273,8 @@ class AgentSession:
                     model_label,
                     collected_tool_calls,
                     organization_id=self.organization_id,
-                    thinking="".join(collected_thinking) or None,
+                    thinking=timeline.thinking,
+                    parts=timeline.stored(),
                     agent_id=agent_id,
                     agent_version_id=agent_version_id,
                     usage=turn.usage,
@@ -346,9 +352,10 @@ class AgentSession:
                 await self._persist_partial_turn(
                     opened,
                     agent_id=agent_id,
-                    output="".join(collected_output),
+                    output=timeline.text,
                     tool_calls=collected_tool_calls,
-                    thinking="".join(collected_thinking) or None,
+                    thinking=timeline.thinking,
+                    parts=timeline.stored(),
                 )
 
     async def _persist_partial_turn(
@@ -359,6 +366,7 @@ class AgentSession:
         output: str,
         tool_calls: list[dict[str, Any]],
         thinking: str | None,
+        parts: list[MessagePart] | None,
     ) -> None:
         """Keep what the agent produced on a turn that did not finish.
 
@@ -390,6 +398,7 @@ class AgentSession:
             tool_calls,
             organization_id=self.organization_id,
             thinking=thinking,
+            parts=parts,
             agent_id=agent_id,
             agent_version_id=run.agent_version_id,
             run_id=run.run_id,
@@ -470,8 +479,7 @@ class AgentSession:
         agent_run: Any,
         user_message: str,
         collected_tool_calls: list[dict[str, Any]],
-        collected_thinking: list[str],
-        collected_output: list[str],
+        timeline: TurnTimeline,
     ) -> None:
         """Drive the agent_run iterator, dispatching each node to its streaming helper."""
         async for node in agent_run:
@@ -483,13 +491,11 @@ class AgentSession:
             elif Agent.is_model_request_node(node):
                 await send_event(self.websocket, "model_request_start", {})
                 async with node.stream(agent_run.ctx) as request_stream:
-                    await self._stream_request_events(
-                        request_stream, collected_thinking, collected_output
-                    )
+                    await self._stream_request_events(request_stream, timeline)
             elif Agent.is_call_tools_node(node):
                 await send_event(self.websocket, "call_tools_start", {})
                 async with node.stream(agent_run.ctx) as handle_stream:
-                    await self._stream_tool_events(handle_stream, collected_tool_calls)
+                    await self._stream_tool_events(handle_stream, collected_tool_calls, timeline)
             else:
                 # The end node, and the only kind left. Iterating an `AgentRun`
                 # yields a user-prompt, a model-request or a call-tools node, or
@@ -508,14 +514,13 @@ class AgentSession:
                     {"output": display_output(agent_run.result.output)},
                 )
 
-    async def _stream_request_events(
-        self, request_stream: Any, collected_thinking: list[str], collected_output: list[str]
-    ) -> None:
+    async def _stream_request_events(self, request_stream: Any, timeline: TurnTimeline) -> None:
         """Forward model-request events (text/thinking/tool deltas + final-result start).
 
-        `collected_output` accumulates exactly what was sent as `text_delta`, so a
-        turn that never finishes can still be written down as what the person
-        watching it actually saw.
+        `timeline` records exactly what was sent as `text_delta` and
+        `thinking_delta`, and where each block sat, so a turn that never finishes
+        can still be written down as what the person watching it actually saw -
+        and a turn that does finish reloads in the order it was watched in.
         """
         async for event in request_stream:
             if isinstance(event, PartStartEvent):
@@ -525,16 +530,14 @@ class AgentSession:
                     {"index": event.index, "part_type": type(event.part).__name__},
                 )
                 if isinstance(event.part, TextPart) and event.part.content:
-                    collected_output.append(event.part.content)
+                    timeline.add_text(event.part.content)
                     await send_event(
                         self.websocket,
                         "text_delta",
                         {"index": event.index, "content": event.part.content},
                     )
                 elif isinstance(event.part, ThinkingPart) and event.part.content:
-                    if collected_thinking:
-                        collected_thinking.append(" ")
-                    collected_thinking.append(event.part.content)
+                    timeline.add_thinking(event.part.content)
                     await send_event(
                         self.websocket,
                         "thinking_delta",
@@ -543,7 +546,7 @@ class AgentSession:
             elif isinstance(event, PartDeltaEvent):
                 delta = event.delta
                 if isinstance(delta, TextPartDelta):
-                    collected_output.append(delta.content_delta)
+                    timeline.add_text(delta.content_delta)
                     await send_event(
                         self.websocket,
                         "text_delta",
@@ -555,7 +558,7 @@ class AgentSession:
                     # produced the reasoning - and forwarding that would put
                     # base64 in the reasoning pane and in the stored trace.
                     if delta.content_delta:
-                        collected_thinking.append(delta.content_delta)
+                        timeline.add_thinking(delta.content_delta)
                         await send_event(
                             self.websocket,
                             "thinking_delta",
@@ -582,8 +585,14 @@ class AgentSession:
         self,
         handle_stream: Any,
         collected_tool_calls: list[dict[str, Any]],
+        timeline: TurnTimeline,
     ) -> None:
-        """Forward tool-call/result events; collect tool calls (with results) for persistence."""
+        """Forward tool-call/result events; collect tool calls (with results) for persistence.
+
+        The call is recorded on `timeline` when it is *requested*, which is where it
+        sat in the turn. Recording it on its result instead would reorder any two
+        calls that did not come back in the order they were made.
+        """
         pending: dict[str, dict[str, Any]] = {}
         async for tool_event in handle_stream:
             if isinstance(tool_event, FunctionToolCallEvent):
@@ -593,6 +602,7 @@ class AgentSession:
                     "args": tool_event.part.args_as_dict(raise_if_invalid=False),
                 }
                 collected_tool_calls.append(tc)
+                timeline.add_tool(tool_event.part.tool_call_id)
                 pending[tool_event.part.tool_call_id] = tc
                 await send_event(self.websocket, "tool_call", tc)
             elif isinstance(tool_event, FunctionToolResultEvent):

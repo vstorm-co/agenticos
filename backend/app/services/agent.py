@@ -34,6 +34,7 @@ from app.schemas.conversation import (
     ConversationCreate,
     ConversationUpdate,
     MessageCreate,
+    MessagePart,
     ToolCallComplete,
     ToolCallCreate,
 )
@@ -280,6 +281,7 @@ async def persist_assistant_turn(
     collected_tool_calls: list[dict[str, Any]],
     organization_id: UUID,
     thinking: str | None = None,
+    parts: list[MessagePart] | None = None,
     agent_id: UUID | None = None,
     agent_version_id: UUID | None = None,
     usage: UsageReport | None = None,
@@ -302,6 +304,14 @@ async def persist_assistant_turn(
     asked about after the fact. A turn nobody could measure passes `None`, which
     reads back as "not recorded" rather than as free.
 
+    `parts` is the order the turn happened in, which `content` and `thinking`
+    cannot carry between them: a turn that writes, calls three tools and then
+    summarises has two blocks of text and one column to put them in. Storing the
+    sequence that was streamed is what makes a reloaded conversation the one
+    somebody watched rather than a client's reconstruction of it. None means "no
+    order recorded" - a single-part turn, or a caller that predates this - and is
+    the signal to fall back to reconstructing one.
+
     `run_id` is what makes this turn readable from run history rather than only
     from the conversation. It is written here rather than linked afterwards
     because by this point the run row exists - unlike the prompt, which is
@@ -320,6 +330,7 @@ async def persist_assistant_turn(
                     role="assistant",
                     content=output,
                     thinking=thinking,
+                    parts=parts,
                     model_name=model_name,
                     agent_id=agent_id,
                     agent_version_id=agent_version_id,
