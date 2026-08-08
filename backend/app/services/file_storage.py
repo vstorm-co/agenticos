@@ -31,7 +31,18 @@ ALLOWED_MIME_TYPES = {
     "application/json",
     "application/pdf",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    # Spreadsheets, and only the two OOXML ones. `.xls` is a different format
+    # needing a different reader, and a type accepted here that nothing can parse
+    # is worse than this refusal: an attachment with no text reaches an agent
+    # without a workspace as nothing at all.
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-excel.sheet.macroEnabled.12",
     "application/x-yaml",
+}
+
+SPREADSHEET_MIME_TYPES = {
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-excel.sheet.macroEnabled.12",
 }
 
 IMAGE_MIME_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
@@ -51,6 +62,11 @@ def classify_file(mime_type: str, filename: str) -> str:
     ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
     if ext == "docx" or "wordprocessingml" in mime_type:
         return "docx"
+    # Its own kind, not "text": the bytes are a zip of XML, so anything that
+    # decodes them as UTF-8 gets mojibake, and the workspace needs to know to
+    # write the extraction beside the original the way it does for a PDF.
+    if ext in {"xlsx", "xlsm"} or mime_type in SPREADSHEET_MIME_TYPES:
+        return "spreadsheet"
     return "text"
 
 
