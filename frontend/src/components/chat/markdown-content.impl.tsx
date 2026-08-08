@@ -5,7 +5,7 @@ import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import { ExternalLink } from "lucide-react";
 
-import { CopyButton } from "./copy-button";
+import { CollapsibleBlock } from "./collapsible-block";
 import type { MarkdownContentProps } from "./markdown-content";
 
 /** Parse `language-xyz` from a `<code>` className that rehype-highlight emits. */
@@ -63,7 +63,7 @@ function textOf(node: React.ReactNode): string {
   return "";
 }
 
-export function MarkdownContent({ content, onCiteClick }: MarkdownContentProps) {
+export function MarkdownContent({ content, onCiteClick, bareCode }: MarkdownContentProps) {
   const processed = onCiteClick ? preprocessCitations(content) : content;
   return (
     <ReactMarkdown
@@ -71,6 +71,13 @@ export function MarkdownContent({ content, onCiteClick }: MarkdownContentProps) 
       rehypePlugins={[rehypeHighlight]}
       components={{
         pre({ children, ...props }) {
+          const block = (
+            <pre className="overflow-x-auto p-3.5 text-[12.5px] leading-relaxed" {...props}>
+              {children}
+            </pre>
+          );
+          if (bareCode) return block;
+
           const codeElement = children as React.ReactElement<{
             children?: React.ReactNode;
             className?: string;
@@ -79,19 +86,16 @@ export function MarkdownContent({ content, onCiteClick }: MarkdownContentProps) 
           const lang = languageLabel(codeElement?.props?.className);
 
           return (
-            <div className="group border-border bg-muted my-3 overflow-hidden rounded-xl border">
-              {(lang || codeContent) && (
-                <div className="border-foreground/8 text-foreground/55 flex items-center justify-between border-b px-3 py-1.5 font-mono text-[10px] tracking-wider uppercase">
-                  <span>{lang ?? "text"}</span>
-                  {codeContent && (
-                    <CopyButton text={codeContent} className="opacity-100 transition-opacity" />
-                  )}
-                </div>
-              )}
-              <pre className="overflow-x-auto p-3.5 text-[12.5px] leading-relaxed" {...props}>
-                {children}
-              </pre>
-            </div>
+            <CollapsibleBlock
+              className="my-3"
+              // An unlabelled block is still called something, unless it is also
+              // empty - which is what a half-streamed answer looks like for a moment,
+              // and a bar reading "text" over nothing is chrome around nothing.
+              label={lang ?? (codeContent === "" ? null : "text")}
+              copyText={codeContent}
+            >
+              {block}
+            </CollapsibleBlock>
           );
         },
         code({ className, children, ...props }) {

@@ -271,7 +271,9 @@ describe("the web search", () => {
 });
 
 describe("running Python", () => {
-  it("shows the code it ran, and its output", () => {
+  it("closes the code once its output is the thing being read", () => {
+    // Both halves are there; only the one somebody came for is open. The code keeps
+    // its header, which is the click that brings it back.
     render(
       <RunPythonResult
         toolCall={toolCall({ args: { code: "print(6*7)" } })}
@@ -279,8 +281,78 @@ describe("running Python", () => {
       />,
     );
 
-    expect(screen.getByTestId("markdown")).toHaveTextContent("```python");
+    expect(screen.queryByTestId("markdown")).toBeNull();
+    expect(screen.getByRole("button", { name: "python" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
     expect(screen.getByText("42")).toBeInTheDocument();
+  });
+
+  it("shows the code while it is still running it", () => {
+    // What it is executing, while it executes - which it has in hand the whole time.
+    const { rerender } = render(
+      <RunPythonResult
+        toolCall={toolCall({ args: { code: "print(6*7)" }, status: "running" })}
+        resultText=""
+      />,
+    );
+
+    expect(screen.getByTestId("markdown")).toHaveTextContent("```python");
+    expect(screen.queryByText("Running…")).toBeNull();
+
+    // And closes itself the moment the output arrives to replace it.
+    rerender(
+      <RunPythonResult
+        toolCall={toolCall({ args: { code: "print(6*7)" } })}
+        resultText={"stdout:\n42"}
+      />,
+    );
+
+    expect(screen.queryByTestId("markdown")).toBeNull();
+  });
+
+  it("keeps the code open when the run failed, because that is what is being debugged", () => {
+    render(
+      <RunPythonResult
+        toolCall={toolCall({ args: { code: "print(x)" } })}
+        resultText="Execution failed: NameError: name 'x' is not defined"
+      />,
+    );
+
+    expect(screen.getByTestId("markdown")).toHaveTextContent("print(x)");
+  });
+
+  it("keeps the code open for a call that failed with nothing to say", () => {
+    // A tool that errored without an "Execution failed:" line still failed.
+    render(
+      <RunPythonResult
+        toolCall={toolCall({ args: { code: "print(x)" }, status: "error" })}
+        resultText="the sandbox went away"
+      />,
+    );
+
+    expect(screen.getByTestId("markdown")).toHaveTextContent("print(x)");
+  });
+
+  it("keeps a re-opened code block open through the next streaming delta", async () => {
+    // Every delta re-renders this subtree. A collapse derived from `status` at render
+    // time would close the block again under whoever just opened it.
+    const call = toolCall({ args: { code: "print(6*7)" } });
+    const { rerender } = render(<RunPythonResult toolCall={call} resultText={"stdout:\n42"} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "python" }));
+    rerender(<RunPythonResult toolCall={call} resultText={"stdout:\n42"} />);
+
+    expect(screen.getByTestId("markdown")).toHaveTextContent("```python");
+  });
+
+  it("closes the output too, so an 800-line stdout is not the whole screen", async () => {
+    render(<RunPythonResult toolCall={toolCall()} resultText={"stdout:\n42"} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Output" }));
+
+    expect(screen.queryByText("42")).toBeNull();
   });
 
   it("shows the returned value beside what was printed", () => {
@@ -313,7 +385,9 @@ describe("running Python", () => {
     expect(screen.getByText(/NameError/)).toBeInTheDocument();
   });
 
-  it("says code is still running rather than showing an empty output box", () => {
+  it("says code is still running when it does not have the code to show instead", () => {
+    // A replayed conversation whose arguments were not stored; anything with a `code`
+    // argument shows the code, which says the same thing and more.
     render(<RunPythonResult toolCall={toolCall({ status: "running" })} resultText="" />);
 
     expect(screen.getByText("Running…")).toBeInTheDocument();

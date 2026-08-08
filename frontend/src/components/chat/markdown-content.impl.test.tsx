@@ -90,6 +90,16 @@ describe("rendering an answer", () => {
     expect(screen.queryByRole("button", { name: /copy/i })).toBeNull();
   });
 
+  it("gives a caller with its own chrome the code and nothing else", () => {
+    // `run_python` pairs the code with the output it produced, in a block it heads
+    // itself; a second header inside the first is chrome around chrome.
+    const { container } = render(<MarkdownContent content={"```python\nprint(1)\n```"} bareCode />);
+
+    expect(screen.queryByText("python")).toBeNull();
+    expect(screen.queryByRole("button", { name: /copy/i })).toBeNull();
+    expect(container.querySelector("pre")).toHaveTextContent("print(1)");
+  });
+
   it("calls an unlabelled block text rather than leaving the header blank", () => {
     markdown("```\nsome output\n```");
 
