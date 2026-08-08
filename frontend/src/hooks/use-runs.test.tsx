@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, focusManager } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -170,5 +170,34 @@ describe("useSpend", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(apiClient.get).toHaveBeenCalledWith("/spend", { params: { days: "7" } });
     expect(result.current.spend?.month_to_date_usd).toBe("1.23");
+  });
+});
+
+describe("dashboard freshness", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  /** The app's real defaults - without them this test proves nothing. */
+  function appWrapper({ children }: { children: ReactNode }) {
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false },
+      },
+    });
+    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  }
+
+  it("asks again when the tab regains focus", async () => {
+    // The RUNS figure and Run history read this while an agent runs elsewhere,
+    // so on the app-wide five-minute cache they would sit at "0 runs" beside a
+    // Spend tab that already counted them until a full page reload.
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    const { result } = renderHook(() => useRuns(), { wrapper: appWrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledTimes(1);
+
+    focusManager.setFocused(false);
+    focusManager.setFocused(true);
+
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(2));
   });
 });
