@@ -18,6 +18,7 @@ import { useTranslations } from "next-intl";
 import Image from "next/image";
 import { useAuthStore } from "@/stores";
 import { getFileUrl } from "@/lib/file-api";
+import { FileCard } from "@/components/files";
 import { extractSources } from "@/lib/chat-sources";
 import type { SourceItem } from "@/lib/chat-sources";
 
@@ -337,13 +338,18 @@ export function MessageItem({
                       />
                     </button>
                   ) : "file" in att ? (
-                    <FileChip
+                    // The same card the composer showed before it was sent, and the
+                    // Files panel shows beside it. It used to be a pill with a generic
+                    // document glyph, so one file looked like three things.
+                    <FileCard
                       key={att.file.id}
-                      filename={att.file.filename}
-                      hint={att.file.mime_type}
-                      onClick={() => openPreview(att.file)}
+                      name={att.file.filename}
+                      mimeType={att.file.mime_type}
+                      onOpen={() => openPreview(att.file)}
                     />
                   ) : (
+                    /* A legacy attachment, stored without the metadata the panel needs
+                       to render it, so the only thing to offer is the file itself. */
                     <FileChip key={att.id} filename={t("attachedFile")} href={getFileUrl(att.id)} />
                   ),
                 )}
@@ -527,52 +533,31 @@ function kindFor(file: ChatMessageFile): "image" | "file" {
   return "file";
 }
 
-function FileChip({
-  filename,
-  hint,
-  onClick,
-  href,
-}: { filename: string } & (
-  | {
-      /** Clicking opens the file in the preview panel. */
-      onClick: () => void;
-      /** The MIME type, which the preview panel does not show. */
-      hint: string;
-      href?: never;
-    }
-  /* A legacy attachment, stored without the metadata the panel needs to render it,
-     so the only thing to offer is the file itself. */
-  | { href: string; onClick?: never; hint?: never }
-)) {
-  const ext = filename.includes(".") ? filename.split(".").pop()!.toLowerCase() : null;
-  const className =
-    "border-foreground/15 bg-card hover:border-foreground/40 inline-flex max-w-xs items-center gap-2 rounded-xl border px-3 py-2 transition-colors text-left";
-  const inner = (
-    <>
+/**
+ * A legacy attachment: a link, because that is all there is to offer.
+ *
+ * These rows were stored without the metadata a card or a viewer needs - no name, no
+ * type, no size - so the file itself is the only thing that can be shown. Everything
+ * written since renders as `FileCard`, which is why the clickable half of this is
+ * gone: it opened the preview panel, and the panel needs exactly the metadata these
+ * do not have.
+ */
+function FileChip({ filename, href }: { filename: string; href: string }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={filename}
+      className="border-foreground/15 bg-card hover:border-foreground/40 inline-flex max-w-xs items-center gap-2 rounded-xl border px-3 py-2 text-left transition-colors"
+    >
       <span className="bg-foreground/8 text-foreground/65 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
         <FileText className="h-4 w-4" />
       </span>
-      <span className="min-w-0 flex-1">
-        <span className="text-foreground block truncate text-sm font-medium">{filename}</span>
-        {ext && (
-          <span className="text-foreground/55 font-mono text-[10px] tracking-wider uppercase">
-            {ext}
-          </span>
-        )}
+      <span className="text-foreground min-w-0 flex-1 truncate text-sm font-medium">
+        {filename}
       </span>
       <Paperclip className="text-foreground/40 h-3.5 w-3.5 shrink-0" />
-    </>
-  );
-  if (onClick !== undefined) {
-    return (
-      <button type="button" onClick={onClick} className={className} title={hint}>
-        {inner}
-      </button>
-    );
-  }
-  return (
-    <a href={href} target="_blank" rel="noopener noreferrer" className={className} title={filename}>
-      {inner}
     </a>
   );
 }

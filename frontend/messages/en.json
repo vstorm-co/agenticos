@@ -1313,7 +1313,10 @@
       "document": "Document",
       "archive": "Archive",
       "unknown": "File"
-    }
+    },
+    "openFile": "Open {name}",
+    "removeFile": "Remove {name}",
+    "uploading": "Uploading · {size}"
   },
   "invitations": {
     "acceptSuccess": "Joined organization!",

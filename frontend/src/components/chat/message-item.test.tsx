@@ -454,10 +454,12 @@ describe("what a person attached", () => {
     expect(useFilePreviewStore.getState().file?.id).toBe("f-1");
   });
 
-  it("names the extension on the chip", () => {
+  it("names the type on the card", () => {
     item({ role: "user", content: "x", files: [file({ filename: "invoice.pdf" })] });
 
-    expect(screen.getByText("pdf")).toBeInTheDocument();
+    // Upper case, as the shared card sets it - the transcript used to draw its own
+    // pill, so one file read three ways on one screen.
+    expect(screen.getByText("PDF")).toBeInTheDocument();
   });
 
   it("shows a chip with no extension for a file that has none", () => {

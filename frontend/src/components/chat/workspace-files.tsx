@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { AlertTriangle, FolderOpen, Info, X } from "lucide-react";
 
-import { FileIcon, FileViewer } from "@/components/files";
+import { FileCard, FileViewer } from "@/components/files";
 import { useConversationWorkspace } from "@/hooks";
 import { useFilePreviewStore } from "@/stores";
 import { formatBytes } from "@/lib/utils";
@@ -186,20 +186,12 @@ export function WorkspaceFiles({ conversationId, revision, attachments }: Worksp
         <ul className="grid grid-cols-2 gap-2">
           {files.map((file) => (
             <li key={file.path}>
-              <button
-                type="button"
-                onClick={() => setReading(file)}
-                title={file.path}
-                className="border-border hover:bg-accent/60 flex h-full w-full flex-col items-start gap-1.5 rounded-lg border p-2.5 text-left"
-              >
-                <FileIcon name={file.path} className="text-muted-foreground h-4 w-4" />
-                <span className="w-full truncate font-mono text-[11px]">
-                  {file.path.split("/").filter(Boolean).pop() ?? file.path}
-                </span>
-                <span className="text-muted-foreground text-[10px]">
-                  {file.size == null ? "" : formatBytes(file.size)}
-                </span>
-              </button>
+              <FileCard
+                name={file.path.split("/").filter(Boolean).pop() ?? file.path}
+                size={file.size}
+                onOpen={() => setReading(file)}
+                className="w-full"
+              />
             </li>
           ))}
         </ul>
@@ -218,19 +210,12 @@ export function WorkspaceFiles({ conversationId, revision, attachments }: Worksp
           <ul className="grid grid-cols-2 gap-2">
             {unstored.map((file) => (
               <li key={file.id}>
-                <button
-                  type="button"
-                  onClick={() => openAttachment(file)}
-                  title={file.filename}
-                  className="border-border hover:bg-accent/60 flex h-full w-full flex-col items-start gap-1.5 rounded-lg border p-2.5 text-left"
-                >
-                  <FileIcon
-                    name={file.filename}
-                    mimeType={file.mime_type}
-                    className="text-muted-foreground h-4 w-4"
-                  />
-                  <span className="w-full truncate font-mono text-[11px]">{file.filename}</span>
-                </button>
+                <FileCard
+                  name={file.filename}
+                  mimeType={file.mime_type}
+                  onOpen={() => openAttachment(file)}
+                  className="w-full"
+                />
               </li>
             ))}
           </ul>

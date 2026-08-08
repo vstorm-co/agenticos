@@ -71,7 +71,9 @@ describe("the workspace panel", () => {
     // The name, not the path: a 288-pixel column of monospace paths is unreadable,
     // and the whole path is on the tile's title and in the viewer it opens.
     await waitFor(() => expect(screen.getByText("report.csv")).toBeVisible());
-    expect(screen.getByText("2.0 KB")).toBeVisible();
+    // Type and size on one line, which is what the shared card shows wherever a file
+    // is shown without being opened.
+    expect(screen.getByText("CSV · 2.0 KB")).toBeVisible();
   });
 
   it("says whose files these are", async () => {
@@ -317,8 +319,8 @@ describe("the workspace panel", () => {
     draw(<WorkspaceFiles conversationId="c1" attachments={[]} revision={0} />);
     await openPanel();
 
-    await waitFor(() => expect(screen.getByText("12 B")).toBeVisible());
-    expect(screen.getByText("2.0 MB")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("TXT · 12 B")).toBeVisible());
+    expect(screen.getByText("CSV · 2.0 MB")).toBeVisible();
     expect(screen.getByRole("button", { name: /unmeasured\.bin/ })).toBeVisible();
   });
 

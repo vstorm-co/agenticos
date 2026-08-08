@@ -9,6 +9,7 @@
  * fetching, for content already in hand.
  */
 
+export { FileCard, PendingFileCard } from "./file-card";
 export { FileContent } from "./file-content";
 export { FileIcon } from "./file-icon";
 export { FileBytesView, FileTextView, FileUnavailable } from "./file-render";
