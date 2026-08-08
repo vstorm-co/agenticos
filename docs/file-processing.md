@@ -26,8 +26,31 @@ When a user uploads a file in the chat interface, the following pipeline runs:
                |
 7. Link        When message is sent, ChatFile is attached via message_id FK
                |
-8. Display     Frontend shows images as thumbnails, documents as badges
+8. Display     Composer shows a card per attachment: name, excerpt, type, size
 ```
+
+The upload response carries a `preview` — the first three lines of the extracted
+text, bounded at 240 characters — so the card can show what is *in* the file
+rather than only what it is called. The browser cannot derive it: a PDF is bytes
+until this service has parsed it, and the client holds an id and a filename once
+the upload has answered. It is `null` for an image and for a file no parser could
+read, and a card with no excerpt shows its thumbnail or its name alone.
+
+### A long paste is a file
+
+Pasting more than **2000 characters** into the composer uploads the text as
+`pasted-<date>.txt` instead of inserting it. The textarea is left untouched, so
+the question gets typed beside the thing it is about, and the transcript holds an
+attachment rather than one enormous bubble.
+
+The threshold is the whole of the design. Somebody who pastes a paragraph and
+presses enter meant that to *be* the message, so it sits above anything a person
+would paste as a question — roughly 350 words — and below any document. Under it
+nothing changed: the text lands in the textarea as it always has.
+
+After that it is an ordinary `text/plain` attachment and everything below applies
+to it unchanged, which is the point: an agent with a workspace gets the paste as
+a file it can open, and one without gets the text in its prompt.
 
 ### Supported File Types
 

@@ -18,6 +18,35 @@ from app.services.file_storage import (
 
 logger = logging.getLogger(__name__)
 
+PREVIEW_LINES = 3
+"""How many lines of a file the upload response carries back.
+
+Enough for a composer card to show what was attached — the first rows of a CSV,
+the opening of a pasted stack trace — and no more. This is a label, not a
+reader: the file itself is one click away in the preview panel.
+"""
+
+PREVIEW_CHARS = 240
+"""A second bound, for a file whose three lines are one long line each."""
+
+
+def make_preview(parsed_content: str | None) -> str | None:
+    """The head of a file's extracted text, for a client to render beside its name.
+
+    Derived here rather than in the browser because the browser cannot derive it:
+    a PDF or a DOCX is bytes until this service has parsed it, and the client only
+    ever holds an id and a filename once the upload has answered. Returning it
+    with the upload is also the only version that survives a redraw, where a
+    client-side excerpt would be a second source of truth about the same file.
+
+    `None` for anything with no text — an image, or a parse that failed — so a
+    card renders its thumbnail or its name alone rather than an empty quote.
+    """
+    if not parsed_content:
+        return None
+    head = "\n".join(parsed_content.splitlines()[:PREVIEW_LINES])[:PREVIEW_CHARS].strip()
+    return head or None
+
 
 class FileUploadService:
     """Service for file upload validation, parsing, and persistence."""

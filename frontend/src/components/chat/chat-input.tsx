@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { Button, Badge, Spinner } from "@/components/ui";
-import { Send, Mic, MicOff, Paperclip, X, FileText, Upload } from "lucide-react";
-import Image from "next/image";
+import { Button, Spinner } from "@/components/ui";
+import { Send, Mic, MicOff, Paperclip, Upload } from "lucide-react";
 import { toast } from "sonner";
-import { uploadFile, getFileUrl, type FileUploadResponse } from "@/lib/file-api";
+import { uploadFile, type FileUploadResponse } from "@/lib/file-api";
 import { getErrorMessage, MAX_UPLOAD_SIZE_MB } from "@/lib/utils";
+import { AttachmentCard, PendingAttachmentCard } from "./attachment-card";
 import {
   BUILTIN_COMMANDS,
   searchCommands,
@@ -16,6 +16,37 @@ import {
 import { SlashCommandPalette } from "./slash-command-palette";
 import { useChanged } from "@/hooks/use-changed";
 import { useTranslations } from "next-intl";
+
+/**
+ * Past this many characters, a paste is a file rather than a message.
+ *
+ * The whole design decision is this number. Somebody who pastes a paragraph and
+ * presses enter meant that to *be* the message, so the threshold has to sit
+ * above anything a person would type-or-paste as a question — 2000 characters is
+ * roughly 350 words, longer than any question and shorter than any document.
+ * Below it nothing changes: the text lands in the textarea as it always has.
+ */
+const PASTE_AS_FILE_CHARS = 2000;
+
+/** A file queued for upload, shown as a card before the server has answered. */
+interface PendingUpload {
+  key: number;
+  name: string;
+  size: number;
+}
+
+/**
+ * An attached file and whether it arrived as a paste.
+ *
+ * The flag travels with the file rather than in a second set keyed by id. It is
+ * knowledge only this component has — the server is handed a `text/plain` file
+ * and cannot tell one from any other — so a parallel structure would be a
+ * parallel structure that can drift, for no gain.
+ */
+interface Attachment {
+  file: FileUploadResponse;
+  pasted: boolean;
+}
 
 interface ChatInputProps {
   onSend: (message: string, fileIds?: string[], files?: FileUploadResponse[]) => void;
@@ -39,9 +70,11 @@ export function ChatInput({
 }: ChatInputProps) {
   const t = useTranslations("chat.input");
   const [message, setMessage] = useState("");
-  const [attachedFiles, setAttachedFiles] = useState<FileUploadResponse[]>([]);
-  const [isUploading, setIsUploading] = useState(false);
+  const [attachedFiles, setAttachedFiles] = useState<Attachment[]>([]);
+  const [pending, setPending] = useState<PendingUpload[]>([]);
   const [isListening, setIsListening] = useState(false);
+  const pendingKey = useRef(0);
+  const isUploading = pending.length > 0;
   // Slash-command palette state. Open while message starts with "/" and the
   // caller wired a context - without one, commands have nothing to do.
   const [paletteIndex, setPaletteIndex] = useState(0);
@@ -82,9 +115,12 @@ export function ChatInput({
       }
       // send-as-message - replace the slash with the canned prompt and send
       // through the normal flow so it lands as a regular user turn.
-      const fileIds = attachedFiles.length > 0 ? attachedFiles.map((f) => f.id) : undefined;
-      const files = attachedFiles.length > 0 ? attachedFiles : undefined;
-      onSend(cmd.action.replaceWith, fileIds, files);
+      const files = attachedFiles.length > 0 ? attachedFiles.map((a) => a.file) : undefined;
+      onSend(
+        cmd.action.replaceWith,
+        files?.map((f) => f.id),
+        files,
+      );
       setMessage("");
       setAttachedFiles([]);
     },
@@ -101,9 +137,12 @@ export function ChatInput({
     if (!trimmed && attachedFiles.length === 0) return;
     if (disabled || isUploading) return;
 
-    const fileIds = attachedFiles.length > 0 ? attachedFiles.map((f) => f.id) : undefined;
-    const files = attachedFiles.length > 0 ? attachedFiles : undefined;
-    onSend(trimmed || t("analyzeFiles"), fileIds, files);
+    const files = attachedFiles.length > 0 ? attachedFiles.map((a) => a.file) : undefined;
+    onSend(
+      trimmed || t("analyzeFiles"),
+      files?.map((f) => f.id),
+      files,
+    );
     setMessage("");
     setAttachedFiles([]);
   };
@@ -191,26 +230,60 @@ export function ChatInput({
     finalTranscript = message;
   }, [isListening, message]);
 
-  // File upload to backend - shared by the file picker and drag-and-drop.
-  const uploadFiles = useCallback(async (files: File[]) => {
-    if (files.length === 0) return;
-    for (const file of files) {
-      if (file.size > MAX_UPLOAD_SIZE_MB * 1024 * 1024) {
+  // File upload to backend - shared by the file picker, drag-and-drop and paste.
+  const uploadFiles = useCallback(
+    async (files: File[], { pasted = false }: { pasted?: boolean } = {}) => {
+      const accepted = files.filter((file) => {
+        if (file.size <= MAX_UPLOAD_SIZE_MB * 1024 * 1024) return true;
         toast.error(t("fileTooLarge", { file: file.name, max: MAX_UPLOAD_SIZE_MB }));
-        continue;
-      }
+        return false;
+      });
+      if (accepted.length === 0) return;
 
-      setIsUploading(true);
-      try {
-        const result = await uploadFile(file);
-        setAttachedFiles((prev) => [...prev, result]);
-      } catch (err) {
-        toast.error(`${file.name}: ${getErrorMessage(err, t("uploadFailed"))}`);
-      } finally {
-        setIsUploading(false);
+      // Every accepted file gets its card before the first request goes out, so
+      // dropping four files shows four cards rather than one that moves along
+      // the row. The key is a counter: two files can share a name and a size.
+      const queued = accepted.map((file) => ({
+        key: pendingKey.current++,
+        name: file.name,
+        size: file.size,
+      }));
+      setPending((prev) => [...prev, ...queued]);
+
+      for (const [i, file] of accepted.entries()) {
+        try {
+          const result = await uploadFile(file);
+          setAttachedFiles((prev) => [...prev, { file: result, pasted }]);
+        } catch (err) {
+          toast.error(`${file.name}: ${getErrorMessage(err, t("uploadFailed"))}`);
+        } finally {
+          setPending((prev) => prev.filter((p) => p.key !== queued[i]!.key));
+        }
       }
-    }
-  }, []);
+    },
+    [t],
+  );
+
+  /**
+   * A paste long enough to be a document becomes one.
+   *
+   * Pasting a wiki page into the textarea pushed the question somebody was
+   * writing off the screen and left the transcript one enormous bubble. Past
+   * `PASTE_AS_FILE_CHARS` it is uploaded as a `text/plain` file instead and the
+   * textarea is left alone, so the question gets typed beside it.
+   */
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      const text = e.clipboardData.getData("text/plain");
+      if (text.length <= PASTE_AS_FILE_CHARS) return;
+      e.preventDefault();
+      const day = new Date().toISOString().slice(0, 10);
+      void uploadFiles([new File([text], `pasted-${day}.txt`, { type: "text/plain" })], {
+        pasted: true,
+      });
+    },
+    [uploadFiles],
+  );
 
   const handleFileSelect = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -254,7 +327,7 @@ export function ChatInput({
   };
 
   const removeFile = (fileId: string) => {
-    setAttachedFiles((prev) => prev.filter((f) => f.id !== fileId));
+    setAttachedFiles((prev) => prev.filter((a) => a.file.id !== fileId));
   };
 
   return (
@@ -282,47 +355,19 @@ export function ChatInput({
           onPick={runSlashCommand}
         />
       )}
-      {attachedFiles.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 pb-2">
-          {attachedFiles.map((file) => (
-            <div key={file.id} className="relative">
-              {file.file_type === "image" ? (
-                <div className="group relative h-16 w-16 overflow-hidden rounded-lg border">
-                  <Image
-                    src={getFileUrl(file.id)}
-                    alt={file.filename}
-                    fill
-                    className="object-cover"
-                    unoptimized
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeFile(file.id)}
-                    className="bg-destructive text-destructive-foreground absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full opacity-0 transition-opacity group-hover:opacity-100"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
-              ) : (
-                <Badge variant="secondary" className="gap-1.5 pr-1">
-                  <FileText className="h-3 w-3" />
-                  <span className="max-w-[150px] truncate text-xs">{file.filename}</span>
-                  <button
-                    type="button"
-                    onClick={() => removeFile(file.id)}
-                    className="hover:bg-muted ml-0.5 rounded p-0.5"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </Badge>
-              )}
-            </div>
+      {(attachedFiles.length > 0 || isUploading) && (
+        <div className="flex flex-wrap items-start gap-2 pb-2">
+          {attachedFiles.map(({ file, pasted }) => (
+            <AttachmentCard
+              key={file.id}
+              file={file}
+              pasted={pasted}
+              onRemove={() => removeFile(file.id)}
+            />
           ))}
-          {isUploading && (
-            <div className="flex h-16 w-16 items-center justify-center rounded-lg border border-dashed">
-              <Spinner className="text-muted-foreground h-5 w-5" />
-            </div>
-          )}
+          {pending.map((p) => (
+            <PendingAttachmentCard key={p.key} name={p.name} size={p.size} />
+          ))}
         </div>
       )}
 
@@ -332,6 +377,7 @@ export function ChatInput({
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
           placeholder={t("placeholder")}
           disabled={disabled}
           rows={1}

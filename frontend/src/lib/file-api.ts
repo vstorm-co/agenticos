@@ -12,6 +12,13 @@ export interface FileUploadResponse {
   mime_type: string;
   size: number;
   file_type: string;
+  /**
+   * The first few lines of the file's extracted text, or null for an image and
+   * for anything no parser could read. The composer shows it on the attachment
+   * card; the browser cannot derive it, since a PDF is bytes until the backend
+   * has parsed it and the client holds only an id once the upload has answered.
+   */
+  preview: string | null;
 }
 
 /**
