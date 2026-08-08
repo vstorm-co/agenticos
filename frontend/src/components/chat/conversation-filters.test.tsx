@@ -149,4 +149,16 @@ describe("the filter bar", () => {
     expect(onSortChange).toHaveBeenCalledWith("title:asc");
     expect(isConversationSort(onSortChange.mock.calls[0]?.[0])).toBe(true);
   });
+
+  it("leaves the search box no fixed width to overflow the sidebar with", () => {
+    // `SearchInput` defaults to `sm:w-64` for the wide pages every other caller
+    // sits on. The sidebar is `w-64` itself, so from the `sm` breakpoint up that
+    // default made the box 24px wider than the column holding it and it hung
+    // over the right edge. jsdom lays nothing out, so the class is the only
+    // observable the bug leaves behind.
+    mount();
+
+    const box = screen.getByRole("textbox", { name: "Search conversations" });
+    expect(box.parentElement?.className).not.toMatch(/(^|:)w-64\b/);
+  });
 });

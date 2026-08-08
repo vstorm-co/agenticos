@@ -70,11 +70,15 @@ export function ConversationFilters({
 
   return (
     <div className="space-y-2 px-3 pb-2">
+      {/* `sm:w-full` overrides `SearchInput`'s own `sm:w-64`, which is a sensible
+          default on the wide pages every other caller sits on and 24px wider
+          than this one's content box: the sidebar is `w-64` too, so the input
+          hung over its right edge from the `sm` breakpoint up. */}
       <SearchInput
         value={search}
         onChange={onSearchChange}
         placeholder={t("searchPlaceholder")}
-        className="w-full"
+        className="w-full sm:w-full"
       />
       <div className="flex gap-2">
         {/* "Answered in", not "belongs to". The picker can be changed
