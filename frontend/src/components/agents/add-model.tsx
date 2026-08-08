@@ -76,7 +76,7 @@ interface AddModelProps {
  * and asking the catalog for it produced a missing-message error per keystroke.
  */
 export function modelPlaceholder(providerId: string | undefined): { key: string } | string {
-  if (providerId === undefined) return { key: "pickProviderFirst" };
+  if (providerId === undefined) return { key: "agents.pickProviderFirst" };
   if (providerId === "openrouter") return "openai/gpt-5";
   return "gpt-5, claude-opus-5, gemini-3-pro…"; // i18n-exempt: example model ids
 }
@@ -84,12 +84,22 @@ export function modelPlaceholder(providerId: string | undefined): { key: string 
 /** Catalog key for the hint under the field. */
 export function modelHint(providerId: string | undefined): string {
   if (providerId === "openrouter") {
-    return "modelIdOpenRouterHint";
+    return "agents.modelIdOpenRouterHint";
   }
-  return "modelIdProviderHint";
+  return "agents.modelIdProviderHint";
 }
 
-/** A placeholder is either a key to translate or a literal example. */
+/**
+ * A placeholder is either a key to translate or a literal example.
+ *
+ * **The keys above are absolute, and `t` has to be a root translator.** Two
+ * components share these helpers and they read different namespaces - the Builder's
+ * form is `agents`, the chat's picker is `chat.modelPicker` - so a namespace-relative
+ * key resolved correctly for one caller and threw `MISSING_MESSAGE` for the other,
+ * which Next.js renders as a console error over the picker. A helper whose
+ * correctness depends on who called it is the defect; naming the namespace is the
+ * fix, and it keeps the copy in one place rather than duplicated into both.
+ */
 export function placeholderWords(
   placeholder: { key: string } | string,
   t: (key: string) => string,
@@ -104,6 +114,10 @@ export function modelIdIsWellFormed(providerId: string, model: string): boolean 
 
 export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
   const t = useTranslations("agents");
+  // Root, for the absolute keys `modelPlaceholder` answers with - see the note on
+  // `placeholderWords`. The chat's picker resolves the same keys from its own
+  // namespace, so they cannot be relative to either caller's.
+  const tRoot = useTranslations();
   const { createProfile, catalog } = useModelProviders();
   const { purposes } = useSecretPurposes();
   const { secrets } = useSecrets();
@@ -249,7 +263,7 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
             source={source}
             loading={loadingModels}
             disabled={provider === undefined}
-            placeholder={placeholderWords(modelPlaceholder(provider?.id), t)}
+            placeholder={placeholderWords(modelPlaceholder(provider?.id), tRoot)}
           />
           {failure !== null && <p className="text-destructive text-xs">{failure}</p>}
         </div>

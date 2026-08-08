@@ -69,6 +69,10 @@ interface ChatModelPickerProps {
  */
 export function ChatModelPicker({ value, onChange }: ChatModelPickerProps) {
   const t = useTranslations("chat.modelPicker");
+  // Root, for the absolute keys `modelPlaceholder` answers with. Resolving them
+  // through `t` above asked for `chat.modelPicker.pickProviderFirst`, which does
+  // not exist - the copy lives under `agents`, where the Builder's form reads it.
+  const tRoot = useTranslations();
   const { can } = usePermissions();
   const { profiles, createProfile } = useModelProviders();
   const { purposes } = useSecretPurposes();
@@ -203,7 +207,7 @@ export function ChatModelPicker({ value, onChange }: ChatModelPickerProps) {
             setFailure(null);
           }}
           disabled={provider === undefined}
-          placeholder={placeholderWords(modelPlaceholder(provider?.id), t)}
+          placeholder={placeholderWords(modelPlaceholder(provider?.id), tRoot)}
           className="font-mono"
         />
         {suggestions.length > 0 && (
