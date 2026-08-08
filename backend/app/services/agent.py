@@ -24,9 +24,11 @@ from pydantic_ai.messages import (
     TextPart,
     UserPromptPart,
 )
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.api.deps import get_conversation_service
-from app.core.exceptions import AuthorizationError
+from app.core.exceptions import AppException, AuthorizationError, BadRequestError, NotFoundError
+from app.db.models.conversation import Conversation
 from app.db.session import get_db_context
 from app.schemas.conversation import (
     ConversationCreate,
@@ -35,6 +37,7 @@ from app.schemas.conversation import (
     ToolCallComplete,
     ToolCallCreate,
 )
+from app.services.conversation import ConversationService
 from app.services.usage_report import UsageReport
 
 logger = logging.getLogger(__name__)
@@ -110,13 +113,59 @@ class PersistedPrompt:
         newly_created: Whether the conversation was created by this call. The
             caller emits a `conversation_created` event when it was.
         message_id: The row the prompt was written to, so the caller can link it
-            to the run once one is open. `None` when the write failed - which is
-            logged and swallowed, because a lost message must not abort a turn.
+            to the run once one is open. `None` when the database was briefly
+            unavailable - the one failure that is logged and carried on from,
+            because a lost message must not abort a turn. A refusal is raised
+            instead, and there is no third case: this is never `None` because
+            something was rejected.
     """
 
     conversation_id: str | None
     newly_created: bool
     message_id: UUID | None = None
+
+
+def _conversation_uuid(conversation_id: str) -> UUID:
+    """Parse a client-supplied conversation id, refusing rather than crashing.
+
+    The value arrives over the socket, so a malformed one is input and not a
+    defect. It used to raise `ValueError` into a bare `except Exception` and
+    disappear with the message it carried.
+    """
+    try:
+        return UUID(conversation_id)
+    except ValueError as exc:
+        raise BadRequestError(
+            message="Not a conversation id",
+            details={"conversation_id": conversation_id},
+        ) from exc
+
+
+async def _resolve_in_org(
+    conv_service: ConversationService,
+    conversation_id: UUID,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+) -> Conversation:
+    """The conversation, if it is this organization's and this reader's.
+
+    The service reports another tenant's row as missing so ids stay unprobeable,
+    which is right for an HTTP route and wrong to swallow here: from a socket,
+    "gone" and "not yours" are the same refusal and both must stop the turn
+    before anything is written. So one refusal, naming neither.
+    """
+    try:
+        return await conv_service.get_conversation(
+            conversation_id,
+            organization_id=organization_id,
+            user_id=user_id,
+        )
+    except NotFoundError as exc:
+        raise AuthorizationError(
+            message="Conversation not found in this organization",
+            details={"conversation_id": str(conversation_id)},
+        ) from exc
 
 
 async def persist_user_turn(
@@ -140,9 +189,11 @@ async def persist_user_turn(
     caller closes that gap once the run row is open.
 
     Raises:
-        AuthorizationError: If the requested conversation belongs to another
-            organization. Persistence failures are logged and swallowed - a lost
-            message must not abort a turn - but a scope violation must.
+        BadRequestError: If `requested_conversation_id` is not a UUID.
+        AuthorizationError: If the requested conversation is not this
+            organization's. A database failure is logged and swallowed - a lost
+            message must not abort a turn - but a refusal must abort, and a
+            defect in this module must surface rather than read as one.
     """
     newly_created = False
     message_id: UUID | None = None
@@ -152,18 +203,21 @@ async def persist_user_turn(
 
             if requested_conversation_id:
                 current_conversation_id = requested_conversation_id
-                conv = await conv_service.get_conversation(
-                    UUID(requested_conversation_id), user_id=user.id
+                requested = _conversation_uuid(requested_conversation_id)
+                # The tenant is what makes the rest of this function safe, and
+                # it used to be omitted: `get_conversation` takes it keyword-only
+                # and required, so every resumed turn raised `TypeError` into the
+                # `except` below and was logged as a persistence failure. The
+                # guard that followed never ran, and neither did the write - so
+                # every message after the first was silently dropped (#5).
+                conv = await _resolve_in_org(
+                    conv_service, requested, organization_id=organization_id, user_id=user.id
                 )
-                if conv.organization_id != organization_id:
-                    raise AuthorizationError(
-                        message="Conversation belongs to a different organization",
-                        details={"conversation_id": requested_conversation_id},
-                    )
                 if not conv.title and user_message:
                     await conv_service.update_conversation(
-                        UUID(requested_conversation_id),
+                        requested,
                         ConversationUpdate(title=truncate_title(user_message)),
+                        organization_id=organization_id,
                         user_id=user.id,
                     )
             elif not current_conversation_id:
@@ -189,10 +243,19 @@ async def persist_user_turn(
                     await conv_service.link_files_to_message(user_msg.id, file_ids)
                 except Exception as e:
                     logger.warning("Failed to link files: %s", e)
-    except AuthorizationError:
+    except AppException:
+        # A refusal - another organization's conversation, an archived one, an
+        # id that is not a UUID. The caller turns it into an error frame; it is
+        # not something to log and carry on from.
         raise
-    except Exception as e:
-        logger.warning("Failed to persist conversation: %s", e)
+    except SQLAlchemyError as e:
+        # The only thing swallowed here, and the only thing the promise above
+        # was ever about: the database was briefly unavailable. Everything else
+        # - a signature that no longer binds, an attribute that moved - is a
+        # defect in this module, and #5 is what swallowing one costs: it read
+        # as a transient persistence failure for as long as it took to lose
+        # every resumed turn in the deployment.
+        logger.warning("Failed to persist the user's turn: %s", e)
 
     return PersistedPrompt(
         conversation_id=current_conversation_id,
@@ -292,6 +355,12 @@ async def persist_assistant_turn(
                 except Exception as e:
                     logger.warning("Failed to persist tool call: %s", e)
             return str(assistant_msg.id)
-    except Exception as e:
-        logger.warning("Failed to persist assistant response: %s", e)
+    except Exception:
+        # Broad on purpose, unlike its sibling above: by this point the answer
+        # has been streamed and raising cannot un-stream it, so the caller is
+        # told with `None` and the turn completes. `exception` rather than
+        # `warning` because that is the whole of the record - #5 sat behind a
+        # one-line warning here and in `persist_user_turn` for as long as it
+        # took somebody to bind the signature by hand.
+        logger.exception("Failed to persist the assistant's turn")
         return None

@@ -24,7 +24,7 @@ from pydantic_ai.messages import (
 from app.agents.ask_user import QuestionItem, render_answer
 from app.agents.capabilities.budget import BudgetExceeded
 from app.agents.subagent_events import SubagentEvent
-from app.core.exceptions import AppException, AuthorizationError
+from app.core.exceptions import AppException
 from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
 from app.db.models.user import User
@@ -175,7 +175,11 @@ class AgentSession:
                 current_conversation_id=self.current_conversation_id,
                 organization_id=self.organization_id,
             )
-        except AuthorizationError as e:
+        except AppException as e:
+            # Every refusal the write can raise, not only the cross-org one:
+            # an archived conversation and an id that is not a UUID reach here
+            # too, and both used to be logged inside `persist_user_turn` and
+            # answered as though the turn had been recorded.
             await send_event(self.websocket, "error", {"message": e.message})
             return
         self.current_conversation_id = prompt.conversation_id
