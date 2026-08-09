@@ -35,18 +35,17 @@ _DEFAULT_RPM = 10  # requests per minute
 _chat_locks: dict[str, asyncio.Lock] = {}
 
 
-_SLASHLESS = re.compile(r"^(link)\s+([A-Za-z0-9]{4,16})$", re.IGNORECASE)
+_SLASHLESS = re.compile(r"^link$", re.IGNORECASE)
 """A command a platform would have eaten before we saw it.
 
-Mattermost parses a leading `/` itself: typing `/link ABCD1234` in a Mattermost
-chat answers *"command with a trigger of '/link' not found"* and never delivers
-anything, so on Mattermost the slash form cannot work at all - and it is the one
-command somebody has to run before any channel answers them.
+Mattermost parses a leading `/` itself: typing `/link` in a Mattermost chat
+answers *"command with a trigger of '/link' not found"* and never delivers
+anything. Since connecting an account is the thing somebody does before any
+channel will answer them, that was the one command that had to survive it.
 
-Only `link`, and only when the whole message is the word plus something shaped
-like a code. "link" is an ordinary English and Polish word, and a message that
-merely starts with it - "link do dokumentu?" - is a question for the agent, not a
-command.
+Only `link`, and only when it is the whole message. "link" is an ordinary word in
+English and in Polish, so anything around it - "link do dokumentu?" - is a
+question for the agent rather than a command.
 """
 
 
@@ -128,6 +127,10 @@ class ChannelMessageRouter:
             identity = await self._resolve_identity(incoming, bot, db)
         except AuthorizationError as exc:
             await self._send_reply(bot, incoming, exc.message)
+            return
+
+        if identity.user_id is None:
+            await self._send_reply(bot, incoming, await self._invite_to_link(incoming, db))
             return
 
         session = await self._resolve_session(incoming, bot, identity, db)
@@ -304,6 +307,28 @@ class ChannelMessageRouter:
                 )
         # "open" and "jwt_linked" pass through here; jwt_linked is enforced at identity resolution
 
+    async def _invite_to_link(self, incoming: IncomingMessage, db: Any) -> str:
+        """What to answer somebody whose chat account is nobody's yet.
+
+        A run belongs to a person - their budget, their permissions, their name
+        on the audit entry - so an unlinked sender is refused whatever the bot's
+        access policy says. The refusal carries the way out rather than
+        describing it: a URL they open while already signed in.
+
+        **Only in a direct message.** The URL is a bearer credential: whoever
+        opens it claims this chat account. In a channel everybody can read it,
+        so a channel gets the instruction and the direct message gets the link.
+        """
+        if incoming.chat_type != "private":
+            return (
+                "Send me a direct message to connect your account - the link is "
+                "personal, so it does not belong in a channel."
+            )
+        url = await ChannelLinkService(db).request(incoming)
+        return (
+            f"Connect your account to start: {url}\n\nThe link is yours alone and expires shortly."
+        )
+
     async def _handle_command(
         self, text: str, incoming: IncomingMessage, bot: Any, db: Any
     ) -> str | None:
@@ -312,9 +337,10 @@ class ChannelMessageRouter:
         if not text.startswith("/"):
             return None
 
-        parts = text.split(maxsplit=1)
-        cmd = parts[0].lower().split("@")[0]  # strip @botname suffix
-        arg = parts[1].strip() if len(parts) > 1 else ""
+        # Only the first word: no command takes an argument any more. `/link`
+        # was the one that did, and it took a code somebody copied out of the
+        # dashboard - which is the flow this replaced.
+        cmd = text.split(maxsplit=1)[0].lower().split("@")[0]  # strip @botname suffix
 
         if cmd == "/start":
             return (
@@ -332,7 +358,7 @@ class ChannelMessageRouter:
                 "/start - Show welcome message\n"
                 "/new - Start a new conversation\n"
                 "/help - Show this help\n"
-                "/link <code> - Link your account\n"
+                "/link - Connect your chat account to your account here\n"
                 "/unlink - Unlink your account"
             )
 
@@ -354,22 +380,15 @@ class ChannelMessageRouter:
             return "New conversation started! How can I help you?"
 
         if cmd == "/link":
-            if not arg:
-                return "Usage: /link <code> - generate one under Settings in the web app."
+            # Takes no argument any more: it asks for a fresh link rather than
+            # carrying a code somebody copied. Kept because "how do I connect
+            # this?" is a question people ask in words, and because a URL that
+            # expired needs a way to ask for another.
             try:
-                spent = await ChannelLinkService(db).redeem(
-                    arg,
-                    platform=incoming.platform,
-                    platform_user_id=incoming.platform_user_id,
-                    platform_username=incoming.platform_username,
-                    platform_display_name=incoming.platform_display_name,
-                )
+                return await self._invite_to_link(incoming, db)
             except Exception:
                 logger.exception("Unexpected error processing /link command")
                 return "A system error occurred. Please try again later."
-            if not spent:
-                return "That code is not valid, or it has expired. Generate a new one."
-            return "Successfully linked your account."
 
         if cmd == "/unlink":
             identity = await channel_identity_repo.get_by_platform_user(

@@ -182,16 +182,17 @@ class ChannelBotList(BaseSchema):
     total: int
 
 
-class ChannelLinkCodeRead(BaseSchema):
-    """A freshly minted code, and how long it is good for.
+class ChannelLinkRequestRead(BaseSchema):
+    """Which chat account a link URL is about.
 
-    The code is returned because returning it is the point: it is read off this
-    screen and typed into a chat. It is a bearer credential for its lifetime, so
-    it is minted on request rather than stored anywhere it could be read again -
-    a person who loses it asks for another, which invalidates the first.
+    Shown on the confirmation page before anything is joined: a page that says
+    only "connect your account" asks somebody to trust a URL, and this is a URL
+    that arrived in a chat.
     """
 
-    code: str
+    platform: str
+    platform_username: str | None = None
+    platform_display_name: str | None = None
     expires_at: datetime
 
 

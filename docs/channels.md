@@ -260,14 +260,18 @@ it is about to wait.
 - **Linking, and it comes first** — a channel run belongs to a *person*: the
   budget it spends, what it may read and the audit entry it writes are all
   theirs. So an unlinked chat account is refused, whatever the bot's access
-  policy says, with *"Link your account before talking to an agent"*.
+  policy says.
 
-    Generate a code in the dashboard, then send it to the bot: `/link ABCD2345`,
-    or **`link ABCD2345` with no slash on Mattermost**, which parses a leading
-    `/` itself and would answer *"command with a trigger of '/link' not found"*
-    without ever delivering it. The code lasts ten minutes, is good once, and
-    asking for another invalidates the one before it — whoever types it becomes
-    that account as far as every channel is concerned.
+    The refusal carries the way out. Message the bot and it answers with a URL;
+    open it, and the dashboard — where you are already signed in — names the chat
+    account and asks you to confirm. Nothing is typed and no code is copied. Ask
+    again any time by sending the bot `link` (or `/link` where the platform
+    delivers a slash; Mattermost does not).
+
+    **Only in a direct message.** The URL is a bearer credential: whoever opens
+    it claims that chat account. In a channel the bot says to message it
+    directly instead, and mints nothing. A link lasts fifteen minutes, is good
+    once, and asking again retires the one before it.
 - **Rate limits** per chat.
 - **Spending limits** per binding, on top of the agent's own and the
   organization's.

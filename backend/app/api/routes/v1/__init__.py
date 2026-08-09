@@ -96,7 +96,7 @@ v1_router.include_router(
 )
 
 v1_router.include_router(
-    me_channel_link.router, prefix="/me/channel-link-code", tags=["me:channel-link"]
+    me_channel_link.router, prefix="/me/channel-link", tags=["me:channel-link"]
 )
 
 v1_router.include_router(agent.router, tags=["agent"])

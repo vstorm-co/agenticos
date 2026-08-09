@@ -20,7 +20,7 @@ from app.repositories import knowledge_base as knowledge_base_repo
 
 from app.repositories import channel_bot as channel_bot_repo
 from app.repositories import channel_identity as channel_identity_repo
-from app.repositories import channel_link_code as channel_link_code_repo
+from app.repositories import channel_link_request as channel_link_request_repo
 from app.repositories import channel_session as channel_session_repo
 
 from app.repositories import agent as agent_repo
@@ -59,7 +59,7 @@ __all__ = [
     "knowledge_base_repo",
     "channel_bot_repo",
     "channel_identity_repo",
-    "channel_link_code_repo",
+    "channel_link_request_repo",
     "channel_session_repo",
     "organization_repo",
     "member_repo",

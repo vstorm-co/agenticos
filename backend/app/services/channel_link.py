@@ -1,15 +1,20 @@
 """Connecting a chat account to the person behind it.
 
-A run started from a channel belongs to somebody: the budget it spends, the
-resources it may read and the audit entry it writes are all theirs. A message
-arrives carrying a platform user id and nothing else, so the connection has to be
-made from the side that is already authenticated - somebody signed into the
-dashboard mints a code, then types it at the bot.
+A run started from a channel belongs to somebody: the budget it spends, what it
+may read and the audit entry it writes are all theirs. A message arrives carrying
+a platform user id and nothing else, and only a browser session can say who that
+is - so the bot mints a request, answers with a URL, and the person who opens it
+confirms while already signed in.
 
-Until this existed, `/link` could not succeed on any platform. Nothing in the
-repository ever wrote `channel_identities.link_code`, so every code was "invalid
-or expired", every identity kept `user_id = NULL`, and `ChannelAgentRouter`
-refused every message on every channel with "Link your account first" (#10).
+The direction matters, and it is the second one tried. A code minted in the
+dashboard and typed at the bot asks somebody to copy a string between two
+applications, and on Mattermost the command carrying it never arrived at all -
+Mattermost parses a leading `/` itself and answers "command with a trigger of
+'/link' not found". Clicking a link needs neither.
+
+Before either existed, `/link` could not succeed on any platform: nothing ever
+wrote `channel_identities.link_code`, so every identity kept `user_id = NULL` and
+every channel refused every message with "Link your account first" (#10).
 """
 
 from __future__ import annotations
@@ -20,91 +25,88 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models.channel_link_code import ChannelLinkCode
-from app.repositories import channel_identity_repo, channel_link_code_repo
+from app.core.config import settings
+from app.db.models.channel_link_request import ChannelLinkRequest
+from app.repositories import channel_identity_repo, channel_link_request_repo
+from app.services.channels.base import IncomingMessage
 
-# No `0`/`O`, `1`/`I`/`l`: the code is read off one screen and typed into
-# another, sometimes from a phone, and a character somebody has to disambiguate
-# is a support conversation.
-_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
-_CODE_LENGTH = 8
+REQUEST_TTL = timedelta(minutes=15)
+"""How long a link URL lives.
 
-CODE_TTL = timedelta(minutes=10)
-"""How long a code lives.
-
-It is a bearer credential: whoever types it becomes the account, as far as every
-channel is concerned. Ten minutes is long enough to switch windows and short
-enough that a code left in a chat log is not a way in.
+It is a bearer credential: whoever opens it claims that chat account. Fifteen
+minutes is long enough to switch to a browser and sign in if you were signed out,
+and short enough that a URL left in a chat history is not a way in.
 """
 
 
-def new_code() -> str:
-    """One code, from an alphabet a person can read aloud."""
-    return "".join(secrets.choice(_ALPHABET) for _ in range(_CODE_LENGTH))
-
-
 class ChannelLinkService:
-    """Mint a code for a signed-in user, and spend one on behalf of a chat."""
+    """Mint a claim on a chat account, and let a signed-in person confirm it."""
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def mint(self, user_id: UUID) -> ChannelLinkCode:
-        """Issue a code, replacing any the user already has outstanding.
+    async def request(self, incoming: IncomingMessage) -> str:
+        """Mint a request for this sender and return the URL to send them.
 
-        One at a time, deliberately: somebody who asks again because the first
-        code scrolled off the screen must not leave a live credential behind
-        them.
+        Any request this chat account already has is dropped first, so a URL that
+        scrolled out of view stops working rather than lingering.
         """
-        await channel_link_code_repo.delete_for_user(self.db, user_id=user_id)
-        return await channel_link_code_repo.create(
+        await channel_link_request_repo.delete_for_identity(
             self.db,
-            user_id=user_id,
-            code=new_code(),
-            expires_at=datetime.now(UTC) + CODE_TTL,
+            platform=incoming.platform,
+            platform_user_id=incoming.platform_user_id,
         )
+        request = await channel_link_request_repo.create(
+            self.db,
+            token=secrets.token_urlsafe(32),
+            platform=incoming.platform,
+            platform_user_id=incoming.platform_user_id,
+            platform_username=incoming.platform_username,
+            platform_display_name=incoming.platform_display_name,
+            expires_at=datetime.now(UTC) + REQUEST_TTL,
+        )
+        return f"{settings.FRONTEND_URL.rstrip('/')}/link/{request.token}"
 
-    async def redeem(
-        self,
-        code: str,
-        *,
-        platform: str,
-        platform_user_id: str,
-        platform_username: str | None = None,
-        platform_display_name: str | None = None,
-    ) -> bool:
-        """Spend a code, attaching this chat account to the user who minted it.
+    async def pending(self, token: str) -> ChannelLinkRequest | None:
+        """The request behind a URL, for the page to say which account it is.
 
-        Returns whether it was spent. A wrong code and an expired one answer the
-        same way, because the difference is not something the person typing can
-        act on differently - and both are told to generate a new one.
-
-        Every code the user holds is dropped afterwards, not just this one: the
-        code is spent, and a second outstanding code for an account that is now
-        linked is a credential with nothing left to do.
+        A confirmation page that shows only "connect your account" asks somebody
+        to trust a URL. Naming the chat account is what makes the answer theirs
+        to give.
         """
-        found = await channel_link_code_repo.get_valid(
-            self.db, code=code.strip().upper(), now=datetime.now(UTC)
+        return await channel_link_request_repo.get_valid(
+            self.db, token=token, now=datetime.now(UTC)
         )
-        if found is None:
-            return False
+
+    async def confirm(self, token: str, user_id: UUID) -> ChannelLinkRequest | None:
+        """Attach the chat account behind `token` to `user_id`.
+
+        Returns the request that was spent, or None if the token is unknown or
+        expired - the two answer the same way, because the difference is not
+        something the person clicking can act on differently.
+        """
+        request = await self.pending(token)
+        if request is None:
+            return None
 
         identity = await channel_identity_repo.get_by_platform_user(
-            self.db, platform=platform, platform_user_id=platform_user_id
+            self.db,
+            platform=request.platform,
+            platform_user_id=request.platform_user_id,
         )
         if identity is None:
             await channel_identity_repo.create(
                 self.db,
-                platform=platform,
-                platform_user_id=platform_user_id,
-                platform_username=platform_username,
-                platform_display_name=platform_display_name,
-                user_id=found.user_id,
+                platform=request.platform,
+                platform_user_id=request.platform_user_id,
+                platform_username=request.platform_username,
+                platform_display_name=request.platform_display_name,
+                user_id=user_id,
             )
         else:
             await channel_identity_repo.update(
-                self.db, db_identity=identity, update_data={"user_id": found.user_id}
+                self.db, db_identity=identity, update_data={"user_id": user_id}
             )
 
-        await channel_link_code_repo.delete_for_user(self.db, user_id=found.user_id)
-        return True
+        await channel_link_request_repo.delete_by_id(self.db, request.id)
+        return request
