@@ -862,6 +862,63 @@ describe("useChat - approvals and questions", () => {
     expect(result.current.pendingApproval).toBeNull();
   });
 
+  it("settles the parked step, which the end of the turn used to strand", async () => {
+    // The park is followed immediately by `complete`, which ends the turn and clears
+    // the "current message" ref - so every `updateToolCallPart` in the decision loop
+    // was skipped, and the step sat at "waiting for approval" for the rest of the
+    // session while the run had in fact resumed and answered. The turn the calls are
+    // drawn in is captured when the approval arrives, not read off the ref later.
+    post.mockImplementation((url: string) =>
+      url.endsWith("/resume")
+        ? Promise.resolve({ run_id: "r-9", output: "Done.", status: "completed" })
+        : Promise.resolve({}),
+    );
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("tool_call", { tool_call_id: "tc-1", tool_name: "execute", args: {} });
+    receive("tool_approval_required", {
+      run_id: "r-9",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} }],
+      review_configs: [],
+    });
+    receive("complete", {});
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+
+    // Completed, not `running`: the resumed call's result went to the HTTP response
+    // rather than to this socket, so a step left running waits for a frame that
+    // cannot arrive.
+    const parked = useChatStore
+      .getState()
+      .messages.flatMap((message) => message.parts ?? [])
+      .find((part) => part.toolCall?.id === "tc-1");
+    expect(parked?.toolCall?.status).toBe("completed");
+  });
+
+  it("marks a refused call refused, on the turn it was drawn in", async () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("tool_call", { tool_call_id: "tc-1", tool_name: "execute", args: {} });
+    receive("tool_approval_required", {
+      run_id: "r-9",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} }],
+      review_configs: [],
+    });
+    receive("complete", {});
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "reject" }]);
+    });
+
+    const parked = useChatStore
+      .getState()
+      .messages.flatMap((message) => message.parts ?? [])
+      .find((part) => part.toolCall?.id === "tc-1");
+    expect(parked?.toolCall?.status).toBe("error");
+  });
+
   it("shows what the resumed run answered, rather than discarding it", async () => {
     // `resume_run` executes the agent and returns its output - over HTTP, to whoever
     // asked, never over this conversation's socket. Throwing that away is what made an

@@ -360,6 +360,8 @@ export function useChat(options: UseChatOptions = {}) {
             actionRequests: action_requests,
             reviewConfigs: review_configs,
             runId: run_id,
+            // Captured now, because `complete` follows this frame and clears it.
+            messageId: currentMessageIdRef.current,
           });
           // Resolve the cards rather than leaving them spinning. A parked call
           // produces no `tool_result` until somebody decides, so "running" is a
@@ -686,8 +688,12 @@ export function useChat(options: UseChatOptions = {}) {
           const decision = decisions[index];
           if (decision === undefined) continue;
           await decideApproval(request.id, decision.type === "approve");
-          if (currentMessageIdRef.current) {
-            updateToolCallPart(currentMessageIdRef.current, request.tool_call_id, {
+          // `parked.messageId`, never the live ref: the turn ended at `complete`
+          // the moment the run parked, so the ref is null by now and every one of
+          // these updates was being skipped - which is why the step stayed at
+          // "waiting for approval" after an approval that had actually worked.
+          if (parked.messageId !== null) {
+            updateToolCallPart(parked.messageId, request.tool_call_id, {
               status: decision.type === "approve" ? "running" : "error",
               result: decision.type === "approve" ? undefined : "Refused",
             });
@@ -697,6 +703,18 @@ export function useChat(options: UseChatOptions = {}) {
         // parked, and resuming per decision would start it while calls it has
         // not been told about are still waiting.
         const resumed = await resumeRun(parked.runId);
+        // Approved calls are marked finished here rather than left `running`. The
+        // resume ran over HTTP, so their `tool_result` frames went to that response
+        // and not to this socket - a step set running when the decision was recorded
+        // would spin for the rest of the session waiting for one that cannot arrive.
+        if (parked.messageId !== null) {
+          const id = parked.messageId;
+          for (const [index, request] of parked.actionRequests.entries()) {
+            if (decisions[index]?.type === "approve") {
+              updateToolCallPart(id, request.tool_call_id, { status: "completed" });
+            }
+          }
+        }
         // Close whatever delegate parked here. The resume ran over HTTP and its
         // frames went nowhere this socket can see, so a delegation panel left
         // `awaiting_approval` never got its `subagent_complete` and would read
