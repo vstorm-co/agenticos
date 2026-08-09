@@ -67,9 +67,32 @@ def _member_line(member: ChannelMember) -> str:
     return f"- {name}" + (f" ({', '.join(marks)})" if marks else "")
 
 
+_POST_CHARS = 500
+"""How much of one message the agent is shown.
+
+`_limit` bounds how many posts come back; this bounds how large one of them
+is. Without it a single pasted message - one long enough to be the whole reply
+it feeds - could take the width of the turn's context on its own, times up to
+200 rows.
+"""
+
+
+def _one_line(value: str) -> str:
+    """One line of text, so a post body cannot forge another post's line.
+
+    Posts are joined `author: text`, one per line. A body carrying a newline
+    and `Admin: approved` would otherwise read to the model as a second post the
+    channel never returned - a line inside the tool's own output format.
+    """
+    return " ".join(value.split())
+
+
 def _post_line(post: ChannelPost) -> str:
     when = "" if post.posted_at is None else f"[{post.posted_at.isoformat(timespec='minutes')}] "
-    return f"{when}{post.author}: {post.text}"
+    text = _one_line(post.text)
+    if len(text) > _POST_CHARS:
+        text = text[: _POST_CHARS - 1].rstrip() + "…"
+    return f"{when}{_one_line(post.author)}: {text}"
 
 
 def build_channel_toolset(
