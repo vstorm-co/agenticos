@@ -422,7 +422,7 @@ class MattermostAdapter(ChannelAdapter):
     async def channel_history(
         self, bot_token: str, channel_id: str, *, api_base_url: str | None, limit: int
     ) -> list[ChannelPost]:
-        """`GET /channels/{id}/posts`, oldest last and without the system noise.
+        """`GET /channels/{id}/posts`, newest last and without the system noise.
 
         Mattermost returns `order` newest first and a `posts` map beside it, so
         the order is reversed here - a model reading a conversation top to bottom

@@ -251,7 +251,7 @@ class ChannelAdapter(ABC):
     async def channel_history(
         self, bot_token: str, channel_id: str, *, api_base_url: str | None, limit: int
     ) -> list[ChannelPost]:
-        """The last `limit` messages in one channel, oldest last.
+        """The last `limit` messages in one channel, newest last.
 
         Raises:
             ChannelDirectoryUnsupported: If this platform does not let a bot read

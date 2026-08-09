@@ -133,5 +133,5 @@ class ChannelDirectory(Protocol):
         ...
 
     async def history(self, *, limit: int) -> list[ChannelPost]:
-        """The last `limit` messages, oldest last."""
+        """The last `limit` messages, newest last."""
         ...
