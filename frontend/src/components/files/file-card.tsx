@@ -80,7 +80,12 @@ export function FileCard({
           mimeType={mimeType}
           className="text-muted-foreground mt-px h-3.5 w-3.5 shrink-0"
         />
-        <span className="text-xs leading-snug font-medium break-words">{name}</span>
+        {/* `min-w-0` is what makes the wrap happen: a flex child's default minimum is
+            its content, so without it a long unbroken name refuses to shrink and
+            runs out past the card's border rather than wrapping inside it.
+            `break-all` because a filename has no spaces to break at -
+            `Hiszpanski_od_zera_do_B1.xlsx` is one word to the browser. */}
+        <span className="min-w-0 flex-1 text-xs leading-snug font-medium break-all">{name}</span>
       </div>
 
       {/* The middle band is the point of the card, and it is *reserved* whether or
@@ -152,7 +157,7 @@ export function PendingFileCard({ name, size }: { name: string; size: number }) 
     <div className={CARD}>
       <div className="flex items-start gap-1.5">
         <Spinner className="text-muted-foreground mt-px h-3.5 w-3.5 shrink-0" />
-        <span className="text-xs leading-snug font-medium break-words">{name}</span>
+        <span className="min-w-0 flex-1 text-xs leading-snug font-medium break-all">{name}</span>
       </div>
       <div className="h-16 w-full" />
       <p className="text-muted-foreground font-mono text-[10px] tracking-wider uppercase">
