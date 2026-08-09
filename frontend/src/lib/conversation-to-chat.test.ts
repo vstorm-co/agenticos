@@ -233,3 +233,36 @@ describe("which run a replayed turn belongs to", () => {
     expect(conversationMessageToChatMessage(raw({ run_id: null })).runId).toBeUndefined();
   });
 });
+
+describe("a stored tool call that never finished", () => {
+  it("stops looking like it is running", () => {
+    // Nothing on this screen can finish it: the frames that would have are long
+    // gone, and some rows never get an outcome at all - an expired approval, a run
+    // that broke mid-call. Left as `running` the step pulsed forever, in the
+    // present tense, under a conversation that ended days ago.
+    const message = conversationMessageToChatMessage(
+      raw({
+        tool_calls: [
+          { tool_call_id: "tc-1", tool_name: "execute", args: {}, status: "running" },
+          { tool_call_id: "tc-2", tool_name: "execute", args: {}, status: "pending" },
+        ],
+      }),
+    );
+
+    expect(message.toolCalls?.map((call) => call.status)).toEqual(["unfinished", "unfinished"]);
+  });
+
+  it("keeps every status that did record an outcome", () => {
+    // `failed` is this repository's word for what the chat calls `error`.
+    const message = conversationMessageToChatMessage(
+      raw({
+        tool_calls: [
+          { tool_call_id: "tc-1", tool_name: "execute", args: {}, status: "completed" },
+          { tool_call_id: "tc-2", tool_name: "execute", args: {}, status: "failed" },
+        ],
+      }),
+    );
+
+    expect(message.toolCalls?.map((call) => call.status)).toEqual(["completed", "error"]);
+  });
+});

@@ -372,6 +372,13 @@ because absent means "not recorded" rather than "the same run". Live, the run id
 arrives on the `tool_approval_required` frame, which is the only frame that names
 it and the only turn that needs it; on a reload it comes off the stored message.
 
+**The time and the cost go under the end of the turn**, once, however many messages
+it took. A run reports what it has spent when it *parks*, so the figure is recorded
+on the first segment — drawn there it sat halfway up the answer, with nothing under
+the end of it. The last segment shows the run's total: each figure is cumulative as
+at that point, so the later one supersedes the earlier rather than being added to
+it, and the continuation takes its numbers from the resume's own answer.
+
 **What the approved call returned is recorded on the step that was approved.** The
 row is written open when the run parks — it has not run yet — and the resume that
 finally runs it produces the *return* without the call it belongs to, because that
@@ -379,6 +386,16 @@ call was made by the previous execution. So it settles the existing row rather t
 writing a new step: the alternative is the same command twice in one turn, and the
 alternative to *that* was the one call somebody deliberately reviewed being the one
 call that opened onto nothing.
+
+**A replayed step never animates.** A tool call is stored as running until
+something records its outcome, and not every ending records one: an approval that
+expires runs nothing, so the step it parked on was written open and stayed that
+way. Read back, it pulsed in the present tense under a conversation that had ended
+days earlier, promising a result nothing was going to deliver. So the sweep that
+expires an approval now closes the step too — the one ending that never ran the
+call — and a replayed call still marked in flight renders as **unfinished**: past
+tense, no spinner, no result. Not an error and not a success; the outcome nobody
+wrote down.
 
 **And the panel belongs to its conversation, not to the tab.** Opening another
 thread takes the approval panel and any pending question off screen, the way it

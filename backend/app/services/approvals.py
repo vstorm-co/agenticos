@@ -24,11 +24,25 @@ from app.core.audit import record_audit
 from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
-from app.db.models.agent_run import ApprovalStatus, RunStatus, ToolApproval
+from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, ToolApproval
 from app.repositories import agent_run_repo
 from app.repositories.agent_run import ApprovalFilters, ApprovalRow
+from app.services.transcript import TranscriptService
 
 logger = logging.getLogger(__name__)
+
+
+def _parked_tool_call_ids(run: AgentRun) -> list[str]:
+    """The steps this run stopped on, off the state it parked with.
+
+    `paused_state["tool_call_ids"]` maps approval id to the call it parked, which
+    is the only link between an approval row and the step in the transcript -
+    the approval itself does not carry one. Empty for a run parked before that map
+    was stored, which is a step that cannot be closed rather than one to guess at.
+    """
+    state = run.paused_state or {}
+    parked: dict[str, str] = state.get("tool_call_ids", {})
+    return list(parked.values())
 
 
 class ApprovalService:
@@ -231,6 +245,13 @@ class ApprovalService:
         ordinary answer for a run with a second call still inside its window. A
         run parks on *all* of its outstanding calls at once, so ending it while
         one is still pending would take away a decision somebody can still make.
+
+        The transcript is closed here too, and this is the only place that can do
+        it. Every other ending runs the call and records what it returned; an
+        expiry runs nothing, so the step written when the run parked would stay
+        *open* for ever - and a reader coming back to the conversation sees a
+        command apparently still executing, days after the run it belonged to was
+        cancelled.
         """
         run = await agent_run_repo.get_run(self.db, run_id, organization_id=organization_id)
         if run is None or run.status != RunStatus.AWAITING_APPROVAL.value:
@@ -241,6 +262,16 @@ class ApprovalService:
         if any(approval.status == ApprovalStatus.PENDING.value for approval in approvals):
             return 0
 
+        # Before `finish_run`, which clears the state these ids come from.
+        await TranscriptService(self.db).record(
+            run,
+            prompt=None,
+            answer="",
+            settled=dict.fromkeys(
+                _parked_tool_call_ids(run),
+                f"Not performed: no decision within {settings.APPROVAL_EXPIRY_HOURS}h.",
+            ),
+        )
         await agent_run_repo.finish_run(
             self.db,
             run=run,

@@ -810,6 +810,20 @@ export function useChat(options: UseChatOptions = {}) {
             // The same run as the turn that parked, which is what draws the two as
             // one turn instead of as two agents answering the same question.
             runId: parked.runId,
+            // What the run has cost *in total*, which is what the row carries -
+            // the continuation's own share would read as the price of the whole
+            // answer. Drawn once, under the end of the turn; the figure the
+            // parked segment recorded is superseded rather than added to.
+            usage: {
+              input_tokens: resumed.input_tokens,
+              output_tokens: resumed.output_tokens,
+              cost_usd: Number(resumed.cost_usd),
+              // A resume is not told where the run stands against its budget, and
+              // an invented percentage is worse than a bar that is not drawn.
+              budget_percent: null,
+              agent_budget_percent: null,
+              sandbox: null,
+            },
             // The agent that was answering when the run parked. Without it the
             // continuation rendered under the generic robot with no name beside it,
             // so the second half of one turn looked like a different agent had

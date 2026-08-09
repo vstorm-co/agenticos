@@ -112,13 +112,32 @@ export function buildAssistantParts(
   return parts;
 }
 
+/**
+ * What a stored tool call's status means once the conversation is being read back.
+ *
+ * `failed` is this repository's word for the state the chat calls `error`.
+ *
+ * A call still marked *running* is the interesting one. Nothing on this screen can
+ * finish it: the frames that would have are long gone, and some rows never get an
+ * outcome at all - an approval that expired, a run that broke while a tool was in
+ * flight. Left as `running` the step pulsed forever under a conversation that ended
+ * days ago, in the present tense, promising a result that was never coming. So a
+ * replayed call in flight is `unfinished`: not an error, not a success, just the
+ * outcome nobody wrote down.
+ */
+function replayedStatus(stored: string): ToolCall["status"] {
+  if (stored === "failed") return "error";
+  if (stored === "running" || stored === "pending") return "unfinished";
+  return stored as ToolCall["status"];
+}
+
 export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
   const toolCalls: ToolCall[] | undefined = msg.tool_calls?.map((tc) => ({
     id: tc.tool_call_id,
     name: tc.tool_name,
     args: tc.args,
     result: tc.result,
-    status: (tc.status === "failed" ? "error" : tc.status) as ToolCall["status"],
+    status: replayedStatus(tc.status),
   }));
 
   const parts: MessagePart[] | undefined =

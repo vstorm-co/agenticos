@@ -79,11 +79,18 @@ export interface ToolCall {
   name: string;
   args: Record<string, unknown>;
   result?: unknown;
-  status: "pending" | "running" | "completed" | "error" | "awaiting_approval";
+  status: "pending" | "running" | "completed" | "error" | "awaiting_approval" | "unfinished";
   /**
    * `awaiting_approval` is its own state, not a kind of running. A parked call
    * produces no result *ever* until somebody decides, so a spinner is a lie that
    * never resolves — which is what the card did before.
+   *
+   * `unfinished` is what a *replayed* call in flight becomes. The transcript
+   * stores a call as running until something records its outcome, and some never
+   * get one — an approval that expired, a run that broke mid-call. Read back, that
+   * row animated forever under a conversation that ended days ago, promising a
+   * result nothing was ever going to deliver. It is not an error and not a
+   * success: it is the outcome nobody wrote down.
    */
 }
 

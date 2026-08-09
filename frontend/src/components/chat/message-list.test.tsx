@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MessageList, continuesTurn, lastToolTurnIndex } from "./message-list";
+import { MessageList, continuesTurn, endsTurn, lastToolTurnIndex, turnUsage } from "./message-list";
 import type { ChatMessage } from "@/types";
 
 const state = vi.hoisted(() => ({
@@ -352,5 +352,61 @@ describe("one run drawn as one turn", () => {
 
     expect(rendered("m-1")?.continuesTurn).toBe(false);
     expect(rendered("m-2")?.continuesTurn).toBe(true);
+  });
+});
+
+describe("where a turn's time and cost belong", () => {
+  const USAGE = {
+    input_tokens: 6603,
+    output_tokens: 189,
+    cost_usd: 0.0133,
+    budget_percent: null,
+    agent_budget_percent: null,
+    sandbox: null,
+  };
+
+  it("ends the turn on its last segment, not on every one", () => {
+    const messages = [
+      message({ id: "a", runId: "r-9" }),
+      message({ id: "b", runId: "r-9" }),
+      message({ id: "c", runId: "r-9" }),
+    ];
+
+    expect([0, 1, 2].map((i) => endsTurn(messages, i))).toEqual([false, false, true]);
+  });
+
+  it("ends a turn of one message on that message", () => {
+    expect(endsTurn([message({ id: "a" })], 0)).toBe(true);
+  });
+
+  it("carries the figure forward from the segment that recorded it", () => {
+    // A run reports what it has spent when it *parks*, so the cost sat on the
+    // first segment - halfway up the answer, with nothing under the end of it.
+    const messages = [
+      message({ id: "a", runId: "r-9", usage: USAGE }),
+      message({ id: "b", runId: "r-9" }),
+    ];
+
+    expect(turnUsage(messages, 1)).toBe(USAGE);
+  });
+
+  it("prefers the last figure in the turn, which is the run's total by then", () => {
+    const later = { ...USAGE, cost_usd: 0.0201 };
+    const messages = [
+      message({ id: "a", runId: "r-9", usage: USAGE }),
+      message({ id: "b", runId: "r-9", usage: later }),
+    ];
+
+    expect(turnUsage(messages, 1)).toBe(later);
+  });
+
+  it("never reaches back past the turn it belongs to", () => {
+    // The previous answer's cost is not this answer's cost.
+    const messages = [
+      message({ id: "a", runId: "r-8", usage: USAGE }),
+      message({ id: "b", runId: "r-9" }),
+    ];
+
+    expect(turnUsage(messages, 1)).toBeUndefined();
   });
 });

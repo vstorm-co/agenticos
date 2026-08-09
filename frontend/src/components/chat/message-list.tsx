@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 
 import { useAgents } from "@/hooks";
-import type { ChatMessage } from "@/types";
+import type { ChatMessage, TurnUsage } from "@/types";
 import { MessageItem } from "./message-item";
 
 interface MessageListProps {
@@ -58,6 +58,32 @@ export function continuesTurn(messages: ChatMessage[], index: number): boolean {
   return message.runId !== undefined && message.runId === previous.runId;
 }
 
+/** Whether the turn ends here, so the time and the cost belong under this message. */
+export function endsTurn(messages: ChatMessage[], index: number): boolean {
+  return !continuesTurn(messages, index + 1);
+}
+
+/**
+ * What the turn cost, wherever in it that was recorded.
+ *
+ * The figure belongs to the turn and not to the segment that happened to carry
+ * it: a run reports what it has spent when it parks, which is the *first*
+ * segment, so a footer drawn from the message it sits on put the tokens and the
+ * cost in the middle of the answer with nothing under the end of it.
+ *
+ * The last segment that recorded anything wins, because each figure is the run's
+ * total as at that point rather than that segment's own share - summing them
+ * would count the first segment twice.
+ */
+export function turnUsage(messages: ChatMessage[], index: number): TurnUsage | undefined {
+  // The walk cannot run off the start: `continuesTurn` is false at index 0, which
+  // is what stops it, so no bound is needed and none is written - a guard that
+  // cannot fail is a line no test can reach.
+  let at = index;
+  while (messages[at]?.usage === undefined && continuesTurn(messages, at)) at--;
+  return messages[at]?.usage;
+}
+
 export function MessageList({ messages, onRegenerate }: MessageListProps) {
   // Agents are resolved here rather than stamped onto the message, so a renamed
   // agent is labelled by its current name and a new picture appears on old
@@ -100,6 +126,8 @@ export function MessageList({ messages, onRegenerate }: MessageListProps) {
           agent={message.agentId ? byId.get(message.agentId) : undefined}
           groupPosition={getGroupPosition(message)}
           continuesTurn={continuesTurn(messages, index)}
+          endsTurn={endsTurn(messages, index)}
+          turnUsage={turnUsage(messages, index)}
           openLastStep={index === openStepsAt}
           onRegenerate={
             onRegenerate && index === lastAssistantIndex && !message.isStreaming
