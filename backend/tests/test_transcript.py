@@ -33,7 +33,12 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 
-from app.services.transcript import RecordedToolCall, TranscriptService, tool_calls_in
+from app.services.transcript import (
+    RecordedToolCall,
+    TranscriptService,
+    settled_calls_in,
+    tool_calls_in,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -146,6 +151,47 @@ class TestReadingToolCallsOffARun:
         )
 
         assert calls == []
+
+
+class TestReadingWhatAnInheritedCallReturned:
+    """The half `tool_calls_in` drops, which is the whole of a resume's work.
+
+    An approved call was made by the execution that parked, so a resume produces
+    its return and not the call - and a return with nothing to hang it on is
+    dropped. That is why the one call somebody deliberately reviewed was the one
+    call whose output the transcript did not hold.
+    """
+
+    def test_a_return_with_no_call_beside_it_is_what_the_approved_call_produced(self):
+        settled = settled_calls_in([_returned("execute", "c1", "6 sheets")])
+
+        assert settled == {"c1": "6 sheets"}
+
+    def test_a_call_made_and_returned_here_is_not_an_inherited_one(self):
+        """It is a step of its own, and `tool_calls_in` already has it. Counting
+        it twice would settle a row that is not open and draw the call twice."""
+        settled = settled_calls_in(
+            [_called("execute", "c1", command="ls"), _returned("execute", "c1", "a b c")]
+        )
+
+        assert settled == {}
+
+    def test_a_refusal_settles_the_call_too(self):
+        """A call the model was told to retry did happen and did fail. Leaving the
+        row open would read as "still running" for ever."""
+        settled = settled_calls_in(
+            [
+                ModelRequest(
+                    parts=[
+                        RetryPromptPart(
+                            content="no such file", tool_name="execute", tool_call_id="c1"
+                        )
+                    ]
+                )
+            ]
+        )
+
+        assert settled == {"c1": "no such file"}
 
 
 class TestWritingTheTranscript:
@@ -278,6 +324,35 @@ class TestWritingTheTranscript:
         # The one the run is now parked on is left open; the one that ran is not.
         conversations.complete_tool_call.assert_awaited_once()
         assert conversations.complete_tool_call.await_args.kwargs["result"] == "6 sheets"
+
+    async def test_the_approved_call_gets_the_result_it_was_waiting_for(self, conversations):
+        """The row the run left open when it parked, closed by the resume that ran
+        it. Without this the one call a person reviewed is the one call that opens
+        onto nothing, live and after a reload (agenticos#506)."""
+        row = MagicMock(id=uuid.uuid4())
+        conversations.get_open_tool_call_in_run = AsyncMock(return_value=row)
+        run = _run()
+
+        await TranscriptService(_session()).record(
+            run, prompt=None, answer="Six sheets.", settled={"c1": "6 sheets"}
+        )
+
+        looked_up = conversations.get_open_tool_call_in_run.await_args.kwargs
+        assert (looked_up["run_id"], looked_up["tool_call_id"]) == (run.id, "c1")
+        completed = conversations.complete_tool_call.await_args.kwargs
+        assert (completed["db_tool_call"], completed["result"]) == (row, "6 sheets")
+
+    async def test_a_result_for_a_call_nothing_recorded_writes_no_row(self, conversations):
+        """A return with no step in the transcript belongs to a call that was
+        never written. Inventing a row would put a step in a turn that has no
+        other trace of it."""
+        conversations.get_open_tool_call_in_run = AsyncMock(return_value=None)
+
+        await TranscriptService(_session()).record(
+            _run(), prompt=None, answer="done", settled={"c1": "6 sheets"}
+        )
+
+        conversations.complete_tool_call.assert_not_awaited()
 
     async def test_a_run_with_no_conversation_writes_nothing(self, conversations):
         """The API may run an agent without one. There is nowhere to write a

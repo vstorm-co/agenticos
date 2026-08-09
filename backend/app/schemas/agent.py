@@ -307,6 +307,15 @@ class RunStep(BaseSchema):
     )
 
 
+class SettledCall(BaseSchema):
+    """What a call the run had already made finally returned."""
+
+    tool_call_id: str = Field(
+        description="The step a surface already drew, which is the one to update rather than add."
+    )
+    result: str
+
+
 class AgentRunResult(BaseSchema):
     """What the agent answered, and what the run cost."""
 
@@ -324,6 +333,15 @@ class AgentRunResult(BaseSchema):
             "and none of the work behind it: approving a call appeared to do nothing, and "
             "a second approval request arrived for a step that had never been drawn. Empty "
             "on a run that called nothing."
+        ),
+    )
+    settled: list[SettledCall] = Field(
+        default_factory=list,
+        description=(
+            "What the calls this execution *inherited* returned - on a resume, the very "
+            "call somebody approved. It was made by the previous execution, so it is not "
+            "in `steps`; it belongs to a step the caller already drew. Empty on a run "
+            "that inherited nothing."
         ),
     )
     parked: list[ParkedCall] = Field(

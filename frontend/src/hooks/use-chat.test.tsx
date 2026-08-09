@@ -1147,6 +1147,69 @@ describe("useChat - approvals and questions", () => {
     expect(continuation?.content).toBe("Six sheets.");
   });
 
+  it("puts the continuation in the same turn as the message that parked", async () => {
+    // One run, one turn. The segments are separate messages - each is written as
+    // it happens rather than folded back into the one before it - so the run id is
+    // what tells the list they are one answer and not three agents.
+    post.mockImplementation((url: string) =>
+      url.endsWith("/resume")
+        ? Promise.resolve({ run_id: "r-9", output: "Six sheets.", status: "completed" })
+        : Promise.resolve({}),
+    );
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("tool_approval_required", {
+      run_id: "r-9",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} }],
+      review_configs: [],
+    });
+    receive("complete", {});
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+
+    const assistants = useChatStore
+      .getState()
+      .messages.filter((message) => message.role === "assistant");
+    expect(assistants.map((message) => message.runId)).toEqual(["r-9", "r-9"]);
+  });
+
+  it("shows what the approved call returned, on the step that was approved", async () => {
+    // The one call somebody deliberately reviewed used to be the one that opened
+    // onto nothing: it was made by the execution that parked, so the resume
+    // produces only its return and there is no step to hang it on but this one.
+    post.mockImplementation((url: string) =>
+      url.endsWith("/resume")
+        ? Promise.resolve({
+            run_id: "r-9",
+            output: "Six sheets.",
+            status: "completed",
+            settled: [{ tool_call_id: "tc-1", result: "6 sheets" }],
+          })
+        : Promise.resolve({}),
+    );
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("tool_call", { tool_call_id: "tc-1", tool_name: "execute", args: {} });
+    receive("tool_approval_required", {
+      run_id: "r-9",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} }],
+      review_configs: [],
+    });
+    receive("complete", {});
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+
+    const approved = useChatStore
+      .getState()
+      .messages.flatMap((message) => message.parts ?? [])
+      .find((part) => part.toolCall?.id === "tc-1");
+    expect(approved?.toolCall).toMatchObject({ status: "completed", result: "6 sheets" });
+  });
+
   it("draws the step the continuation parked on, and decides against that step", async () => {
     // The sequence in the report: approve, see nothing happen, get asked to approve
     // again. The second gated call had no step anywhere, and the panel still pointed

@@ -40,6 +40,17 @@ export interface ChatMessage {
    *  said by one version of it, and a transcript that named only the agent
    *  attributed old words to today's instructions. */
   agentVersion?: number;
+  /** The run that produced this turn.
+   *
+   *  One run can leave several messages: it parks on an approval, somebody
+   *  decides, it runs again, and each of those segments is written as it happens
+   *  rather than folded back into the message before it. They are one turn and
+   *  are drawn as one - see `MessageList`, which reads exactly this field.
+   *
+   *  Absent means "not recorded", never "its own turn": a turn written outside a
+   *  run has none, and a live turn only learns its run id if something on the
+   *  wire says so. Absent never groups. */
+  runId?: string;
   /** True if message ID is a temporary nanoid, not yet replaced by server ID */
   isTemporaryId?: boolean;
   /** Current user's rating */

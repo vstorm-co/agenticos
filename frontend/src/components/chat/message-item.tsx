@@ -216,6 +216,16 @@ interface MessageItemProps {
   /** The agent that produced this turn, when one did. */
   agent?: Agent;
   groupPosition?: "first" | "middle" | "last" | "single";
+  /**
+   * This message continues the turn above it rather than starting one.
+   *
+   * True for the later segments of a run that parked on an approval and was
+   * resumed - see `continuesTurn` in `MessageList`. The avatar and the agent's
+   * name are drawn once at the top of the turn; a segment that repeated them made
+   * one run read as three agents answering the same question. The gutter is kept
+   * empty rather than removed, so the whole turn stays in one column.
+   */
+  continuesTurn?: boolean;
   onRegenerate?: () => void;
 }
 
@@ -223,6 +233,7 @@ export function MessageItem({
   message,
   agent,
   groupPosition,
+  continuesTurn = false,
   openLastStep = false,
   onRegenerate,
 }: MessageItemProps) {
@@ -243,6 +254,9 @@ export function MessageItem({
       className={cn(
         "group relative flex gap-2 overflow-visible sm:gap-4",
         isGrouped ? "py-2 sm:py-3" : "py-3 sm:py-4",
+        // Tight against the segment above, because it is the same turn: the
+        // ordinary gap between messages would read as a pause the run never took.
+        continuesTurn && "pt-0",
         isUser && "flex-row-reverse",
       )}
     >
@@ -260,13 +274,20 @@ export function MessageItem({
         />
       )}
       <div
+        aria-hidden={continuesTurn}
         className={cn(
           "z-10 flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full sm:h-9 sm:w-9",
-          isUser ? "bg-foreground text-background" : "bg-muted text-foreground",
-          isGrouped && !isUser && "ring-background ring-2",
+          // Empty, not absent: the gutter is what keeps every segment of the turn
+          // in one column under the avatar that opened it.
+          continuesTurn
+            ? "bg-transparent"
+            : isUser
+              ? "bg-foreground text-background"
+              : "bg-muted text-foreground",
+          isGrouped && !isUser && !continuesTurn && "ring-background ring-2",
         )}
       >
-        {isUser && authUser?.avatar_url ? (
+        {continuesTurn ? null : isUser && authUser?.avatar_url ? (
           <Image
             src={`/api/users/avatar/${authUser.id}?v=${avatarVersion}`}
             alt=""
@@ -298,7 +319,7 @@ export function MessageItem({
         {/* Which agent answered, on the turn it answered. A conversation that
             switched agents mid-way says so, instead of relabelling the whole
             thread with whatever is selected now. */}
-        {!isUser && agent && (
+        {!isUser && agent && !continuesTurn && (
           <p className="text-foreground/55 font-mono text-[10px] tracking-wider uppercase">
             {agent.name}
             {/* The version, where the transcript recorded one. An agent gets

@@ -25,7 +25,7 @@ must not make the run inside it unaccountable.
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -105,6 +105,33 @@ def tool_calls_in(messages: Sequence[ModelMessage]) -> list[RecordedToolCall]:
     ]
 
 
+def settled_calls_in(messages: Sequence[ModelMessage]) -> dict[str, str]:
+    """Returns that arrived without the call they belong to, by tool call id.
+
+    The other half of :func:`tool_calls_in`, and the shape a resume produces. A
+    parked call is replayed against a history that already holds its
+    `ToolCallPart`, so what is *new* is only its `ToolReturnPart` - which
+    `tool_calls_in` drops, having nothing to hang it on. That is why the one call
+    a person deliberately reviewed was the one whose output the transcript did not
+    hold: the row was written open when the run parked and nothing ever closed it.
+
+    An orphan return outside a resume would mean a provider answered a call nobody
+    made, so this is empty for an ordinary run.
+    """
+    called = {
+        part.tool_call_id
+        for message in messages
+        for part in message.parts
+        if isinstance(part, ToolCallPart)
+    }
+    return {
+        part.tool_call_id: str(part.content)
+        for message in messages
+        for part in message.parts
+        if isinstance(part, ToolReturnPart | RetryPromptPart) and part.tool_call_id not in called
+    }
+
+
 class TranscriptService:
     """Writes a run's turns into the conversation the run belongs to."""
 
@@ -118,6 +145,7 @@ class TranscriptService:
         prompt: str | None,
         answer: str,
         tool_calls: Sequence[RecordedToolCall] = (),
+        settled: Mapping[str, str] | None = None,
         model_label: str | None = None,
     ) -> None:
         """Write whatever this run produced, and never fail the run for it.
@@ -135,6 +163,13 @@ class TranscriptService:
         money, it changed a workspace, and history showed the run going straight
         from one approval to the next. The tool calls are the record of what
         happened; the answer is only how it ended.
+
+        `settled` closes rows this run wrote *earlier*, which is the only way an
+        approved call's output is ever recorded: the row was created open when the
+        run parked, and the resume that finally ran it produces the return without
+        the call it belongs to (:func:`settled_calls_in`). So the one call somebody
+        deliberately reviewed used to be the one call the transcript showed
+        finishing with nothing under it.
 
         Never raises, and never poisons the session it shares with the caller.
         The answer has already been produced and the money already spent; losing
@@ -162,6 +197,8 @@ class TranscriptService:
                         content=prompt,
                         run_id=run.id,
                     )
+                for tool_call_id, result in (settled or {}).items():
+                    await self._settle(run, tool_call_id=tool_call_id, result=result)
                 if answer or tool_calls:
                     await self._answer(
                         run.conversation_id,
@@ -180,6 +217,23 @@ class TranscriptService:
                 "transcript_write_failed",
                 extra={"run_id": str(run.id), "conversation_id": str(run.conversation_id)},
             )
+
+    async def _settle(self, run: AgentRun, *, tool_call_id: str, result: str) -> None:
+        """Close a call this run left open, if the row is still open.
+
+        Silent when there is no such row. A return with no call in the transcript
+        is a call that was never written - a surface that recorded nothing, or a
+        run whose park predates the write - and inventing a row here would put a
+        step in a turn that has no other trace of it.
+        """
+        row = await conversation_repo.get_open_tool_call_in_run(
+            self.db, run_id=run.id, tool_call_id=tool_call_id
+        )
+        if row is None:
+            return
+        await conversation_repo.complete_tool_call(
+            self.db, db_tool_call=row, result=result, completed_at=datetime.now(UTC)
+        )
 
     async def _answer(
         self,

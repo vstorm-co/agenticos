@@ -202,6 +202,12 @@ export interface RunStep {
   result: string | null;
 }
 
+/** What a call the run had already made finally returned. */
+export interface SettledCall {
+  tool_call_id: string;
+  result: string;
+}
+
 export interface ResumedRun {
   run_id: string;
   output: string;
@@ -226,6 +232,15 @@ export interface ResumedRun {
    * calls can come from, and without it the panel closed on a run that was still
    * blocked and could no longer be decided from here.
    */
+  /**
+   * What the calls this execution inherited returned - on a resume, the very call
+   * somebody approved.
+   *
+   * Not in `steps`: it was made by the execution that parked, so the caller has
+   * already drawn its step and this updates it. Drawing it again would put the
+   * same command in the turn twice.
+   */
+  settled?: SettledCall[];
   parked?: ParkedCall[];
   /** Serialised Decimal - never parse into a float for arithmetic. */
   cost_usd: string;

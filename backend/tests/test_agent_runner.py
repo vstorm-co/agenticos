@@ -586,7 +586,7 @@ class TestFilesAcrossOneTurn:
         prepared.workspace = MagicMock()
         service.prepare = AsyncMock(return_value=prepared)
         service._run = AsyncMock(
-            return_value=RunSegment(output="answered", run=prepared.run, tool_calls=[])
+            return_value=RunSegment(output="answered", run=prepared.run, tool_calls=[], settled={})
         )
         built = AsyncMock(return_value="a prompt with a reference")
 
@@ -609,7 +609,7 @@ class TestFilesAcrossOneTurn:
         prepared.outbound_refused = []
         service.prepare = AsyncMock(return_value=prepared)
         service._run = AsyncMock(
-            return_value=RunSegment(output="answered", run=prepared.run, tool_calls=[])
+            return_value=RunSegment(output="answered", run=prepared.run, tool_calls=[], settled={})
         )
 
         with patch("app.services.agent_runner.AttachmentRouter") as router:
@@ -628,7 +628,7 @@ class TestFilesAcrossOneTurn:
         prepared.outbound_refused = ["/huge.csv"]
         service.prepare = AsyncMock(return_value=prepared)
         service._run = AsyncMock(
-            return_value=RunSegment(output="answered", run=prepared.run, tool_calls=[])
+            return_value=RunSegment(output="answered", run=prepared.run, tool_calls=[], settled={})
         )
 
         outbound: list[Any] = []
@@ -652,7 +652,7 @@ class TestFilesAcrossOneTurn:
         prepared.outbound_refused = []
         service.prepare = AsyncMock(return_value=prepared)
         service._run = AsyncMock(
-            return_value=RunSegment(output="answered", run=prepared.run, tool_calls=[])
+            return_value=RunSegment(output="answered", run=prepared.run, tool_calls=[], settled={})
         )
 
         answer, _run = await service.execute(MagicMock(), uuid.uuid4(), "hello")

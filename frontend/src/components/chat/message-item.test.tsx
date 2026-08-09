@@ -79,6 +79,7 @@ function item(
     agent?: Agent;
     onRegenerate?: () => void;
     groupPosition?: "first" | "middle" | "last" | "single";
+    continuesTurn?: boolean;
   } = {},
 ) {
   return render(<MessageItem message={message(overrides)} {...props} />);
@@ -717,5 +718,27 @@ describe("the step a reopened turn leaves open", () => {
 
     expect(screen.getByTestId("tool-old-1")).toHaveAttribute("data-open", "false");
     expect(screen.getByTestId("tool-old-2")).toHaveAttribute("data-open", "true");
+  });
+});
+
+describe("a segment that continues the turn above it", () => {
+  it("names the agent once, at the top of the turn", () => {
+    // A run that parked on an approval leaves several messages. Repeating the
+    // avatar and the name on each one read as three agents answering one
+    // question - see `continuesTurn` in `MessageList`.
+    item({}, { agent: { id: "a-1", name: "Support" } as Agent, continuesTurn: true });
+
+    expect(screen.queryByText("Support")).toBeNull();
+  });
+
+  it("keeps the gutter, so the whole turn stays in one column", () => {
+    const { container } = item(
+      {},
+      { agent: { id: "a-1", name: "Support" } as Agent, continuesTurn: true },
+    );
+
+    // The avatar slot is still rendered and still the same size - empty rather
+    // than absent, and hidden from a screen reader because it says nothing.
+    expect(container.querySelector('[aria-hidden="true"].rounded-full')).toBeInTheDocument();
   });
 });

@@ -28,6 +28,8 @@ export interface RawMessage {
   created_at: string;
   /** The configured agent that answered. Null for the general assistant. */
   agent_id?: string | null;
+  /** The run that produced this turn. Null for a turn written outside one. */
+  run_id?: string | null;
   /** The version number of the frozen spec that produced it. */
   agent_version?: number | null;
   tool_calls?: RawToolCall[] | null;
@@ -137,6 +139,7 @@ export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
     conversationId: msg.conversation_id,
     agentId: msg.agent_id ?? undefined,
     agentVersion: msg.agent_version ?? undefined,
+    runId: msg.run_id ?? undefined,
     usage: storedUsage(msg) ?? undefined,
     toolCalls,
     parts,

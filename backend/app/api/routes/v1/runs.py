@@ -21,7 +21,7 @@ from app.db.models.agent_run import (
     RunSurface,
 )
 from app.repositories.agent_run import ApprovalFilters, RunFilters
-from app.schemas.agent import AgentRunResult, RunStep
+from app.schemas.agent import AgentRunResult, RunStep, SettledCall
 from app.schemas.agent_run import (
     AgentRunList,
     AgentRunRead,
@@ -190,6 +190,13 @@ async def resume_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
                 result=call.result,
             )
             for call in segment.tool_calls
+        ],
+        # And what the approved call returned. It belongs to a step the caller
+        # drew before the run parked, so it updates that step rather than adding
+        # one - the alternative is the same command twice in one turn.
+        settled=[
+            SettledCall(tool_call_id=tool_call_id, result=result)
+            for tool_call_id, result in segment.settled.items()
         ],
         # Empty unless the continuation stopped again, which it does whenever the
         # agent reaches a second gated call. Without it a caller was told the run is

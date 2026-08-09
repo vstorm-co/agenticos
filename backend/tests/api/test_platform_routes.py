@@ -926,6 +926,7 @@ class TestResumeAnswersWithWhatTheContinuationDid:
                 return RunSegment(
                     output="",
                     run=run,
+                    settled={"call-0": "read 6 sheets"},
                     tool_calls=[
                         RecordedToolCall(
                             tool_call_id="call-1",
@@ -956,6 +957,10 @@ class TestResumeAnswersWithWhatTheContinuationDid:
             # run - it is the one being decided.
             ("execute", {"command": "python parse.py"}, None),
         ]
+        # And what the call the approver decided returned. It is not a step - the
+        # caller drew that one before the run parked - so it arrives separately and
+        # updates it, rather than putting the same command in the turn twice.
+        assert response.json()["settled"] == [{"tool_call_id": "call-0", "result": "read 6 sheets"}]
 
 
 # -- the stats routes, whose gate is the scope parameter ----------------------

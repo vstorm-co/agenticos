@@ -219,3 +219,17 @@ describe("what a stored message says it cost", () => {
     expect(message).toMatchObject({ agentId: "a-1", agentVersion: 3 });
   });
 });
+
+describe("which run a replayed turn belongs to", () => {
+  it("carries the run through, so a reloaded turn groups as the live one did", () => {
+    // A run that parked on an approval leaves several messages. The list draws
+    // them as one turn by matching this id, and a reload that dropped it would
+    // show three agents where the live chat showed one.
+    expect(conversationMessageToChatMessage(raw({ run_id: "r-9" })).runId).toBe("r-9");
+  });
+
+  it("leaves a turn written outside a run ungrouped", () => {
+    // Null is "not recorded", not "the same run as the one above".
+    expect(conversationMessageToChatMessage(raw({ run_id: null })).runId).toBeUndefined();
+  });
+});

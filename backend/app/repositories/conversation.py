@@ -573,6 +573,35 @@ async def get_tool_calls_by_message(
     return list(result.scalars().all())
 
 
+async def get_open_tool_call_in_run(
+    db: AsyncSession, *, run_id: UUID, tool_call_id: str
+) -> ToolCall | None:
+    """A call this run made that has not returned yet, by the provider's own id.
+
+    The row a gated call leaves behind. It is written when the run parks - with no
+    result, because it has not run - and the thing that finally runs it is a
+    *resume*, whose messages carry the return without the call it belongs to. So
+    the only way back to the row is this lookup.
+
+    Scoped by run rather than by conversation: a provider's `tool_call_id` is
+    unique within a run and a conversation holds many runs, so the run is the
+    boundary that is true rather than the one that happens to work.
+    """
+    query = (
+        select(ToolCall)
+        .join(Message, Message.id == ToolCall.message_id)
+        .where(
+            Message.run_id == run_id,
+            ToolCall.tool_call_id == tool_call_id,
+            ToolCall.completed_at.is_(None),
+        )
+        .order_by(ToolCall.started_at.asc())
+        .limit(1)
+    )
+    result = await db.execute(query)
+    return result.scalar_one_or_none()
+
+
 async def create_tool_call(
     db: AsyncSession,
     *,

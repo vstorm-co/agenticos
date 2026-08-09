@@ -155,7 +155,12 @@ from app.services.skill_workspace import MaterialisedSkills, collect_changes
 from app.services.skill_workspace import materialise as materialise_skills
 from app.services.skills import SkillService
 from app.services.spend import month_start, organization_monthly_spend
-from app.services.transcript import RecordedToolCall, TranscriptService, tool_calls_in
+from app.services.transcript import (
+    RecordedToolCall,
+    TranscriptService,
+    settled_calls_in,
+    tool_calls_in,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1226,11 +1231,16 @@ class RunSegment:
         run: The run row, as `finish` left it.
         tool_calls: What this execution called, in order, each with what came
             back - `None` on the call the run is now parked on.
+        settled: What the calls it *inherited* returned, by tool call id. A resume
+            runs the call somebody approved, and that call was made by the previous
+            execution - so its return arrives here without it, and it belongs to a
+            step already on screen rather than to a new one.
     """
 
     output: str
     run: AgentRun
     tool_calls: list[RecordedToolCall]
+    settled: dict[str, str]
 
 
 def _prompt_text(user_prompt: str | list[Any] | None) -> str | None:
@@ -2953,6 +2963,7 @@ class AgentRunnerService:
         paused: PausedRunState | None = None
         budget_scope: BudgetScope | None = None
         called: list[RecordedToolCall] = []
+        settled: dict[str, str] = {}
         try:
             result = await prepared.execute(
                 user_prompt,
@@ -2962,7 +2973,14 @@ class AgentRunnerService:
             # `new_messages`, not `all_messages`: a resumed run is handed
             # everything up to the park as history, and the wider list would
             # write the first attempt's calls again under the same run.
-            called = tool_calls_in(result.new_messages())
+            new_messages = result.new_messages()
+            called = tool_calls_in(new_messages)
+            # And what the *inherited* calls returned. On a resume the approved
+            # call was made by the previous execution, so only its return is new -
+            # `tool_calls_in` has nothing to hang it on and drops it, which left
+            # the one call a person reviewed as the one call with no recorded
+            # output anywhere (agenticos#506).
+            settled = settled_calls_in(new_messages)
             if isinstance(result.output, DeferredToolRequests):
                 paused = PausedRunState(
                     messages=ModelMessagesTypeAdapter.dump_python(
@@ -3011,6 +3029,7 @@ class AgentRunnerService:
                 prompt=_prompt_text(user_prompt),
                 answer=output,
                 tool_calls=called,
+                settled=settled,
                 model_label=prepared.built.model_label,
             )
             # Committed here rather than left to the session context: that exit
@@ -3020,7 +3039,7 @@ class AgentRunnerService:
             # run missing from history is a run nobody is accountable for.
             await self.db.commit()
 
-        return RunSegment(output=output, run=prepared.run, tool_calls=called)
+        return RunSegment(output=output, run=prepared.run, tool_calls=called, settled=settled)
 
     async def list_runs(
         self,

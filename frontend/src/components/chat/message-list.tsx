@@ -32,6 +32,32 @@ export function lastToolTurnIndex(messages: ChatMessage[]): number {
   return -1;
 }
 
+/**
+ * Whether this message continues the turn above it rather than starting one.
+ *
+ * One run can leave several assistant messages. It parks on an approval, somebody
+ * decides, it runs again - and each segment is written as it happens, because
+ * folding it back into the message before it would rewrite a turn somebody has
+ * already read. That is right for the transcript and wrong on screen: one run
+ * drew three avatars and three agent names down the page, which reads as three
+ * agents answering one question.
+ *
+ * So consecutive assistant messages of the same run are drawn as one turn - the
+ * avatar and the name once, at the top. Consecutive is part of the rule, not an
+ * optimisation: a user message between two segments means the person said
+ * something in between, and the turn genuinely restarts there.
+ *
+ * No run id never groups. It is "not recorded", not "its own run", and guessing
+ * from adjacency would fold two unrelated answers into one turn.
+ */
+export function continuesTurn(messages: ChatMessage[], index: number): boolean {
+  const message = messages[index];
+  const previous = messages[index - 1];
+  if (message === undefined || previous === undefined) return false;
+  if (message.role !== "assistant" || previous.role !== "assistant") return false;
+  return message.runId !== undefined && message.runId === previous.runId;
+}
+
 export function MessageList({ messages, onRegenerate }: MessageListProps) {
   // Agents are resolved here rather than stamped onto the message, so a renamed
   // agent is labelled by its current name and a new picture appears on old
@@ -73,6 +99,7 @@ export function MessageList({ messages, onRegenerate }: MessageListProps) {
           message={message}
           agent={message.agentId ? byId.get(message.agentId) : undefined}
           groupPosition={getGroupPosition(message)}
+          continuesTurn={continuesTurn(messages, index)}
           openLastStep={index === openStepsAt}
           onRegenerate={
             onRegenerate && index === lastAssistantIndex && !message.isStreaming

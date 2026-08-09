@@ -372,6 +372,12 @@ export function useChat(options: UseChatOptions = {}) {
             for (const request of action_requests) {
               updateToolCallPart(id, request.tool_call_id, { status: "awaiting_approval" });
             }
+            // The only frame that names the run this turn is, and the turn that
+            // parks is the only one that needs it: what somebody approves is
+            // written as further segments of this run, and `MessageList` draws
+            // them as one turn by matching exactly this id. A reloaded
+            // conversation gets it from the stored message instead.
+            updateMessage(id, (msg) => ({ ...msg, runId: run_id }));
           }
           break;
         }
@@ -721,11 +727,21 @@ export function useChat(options: UseChatOptions = {}) {
         // resume ran over HTTP, so their `tool_result` frames went to that response
         // and not to this socket - a step set running when the decision was recorded
         // would spin for the rest of the session waiting for one that cannot arrive.
+        //
+        // With what they returned, which arrives in that same response. The call a
+        // person reviewed was made by the execution that parked, so the resume
+        // produces only its return - it belongs to this step rather than to a new
+        // one, and without it the one call somebody deliberately looked at was the
+        // one that opened onto nothing.
+        const settled = new Map((resumed.settled ?? []).map((call) => [call.tool_call_id, call]));
         if (parked.messageId !== null) {
           const id = parked.messageId;
           for (const [index, request] of parked.actionRequests.entries()) {
             if (decisions[index]?.type === "approve") {
-              updateToolCallPart(id, request.tool_call_id, { status: "completed" });
+              updateToolCallPart(id, request.tool_call_id, {
+                status: "completed",
+                result: settled.get(request.tool_call_id)?.result,
+              });
             }
           }
         }
@@ -791,6 +807,9 @@ export function useChat(options: UseChatOptions = {}) {
             parts: buildAssistantParts(steps, resumed.output, continuation),
             timestamp: new Date(),
             conversationId: conversationId || undefined,
+            // The same run as the turn that parked, which is what draws the two as
+            // one turn instead of as two agents answering the same question.
+            runId: parked.runId,
             // The agent that was answering when the run parked. Without it the
             // continuation rendered under the generic robot with no name beside it,
             // so the second half of one turn looked like a different agent had

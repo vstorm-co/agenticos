@@ -359,6 +359,27 @@ approve a second command with no step on screen accounting for the first. The
 newly parked call is drawn in that turn as *waiting for a person*, which is also
 the step the next decision is written back onto.
 
+**One run is one turn on screen, however many messages it took.** A run that parks
+writes what it had done so far, and each continuation is written as it happens
+rather than folded back into the message before it — rewriting a turn somebody has
+already read is worse than appending to it. So one run can leave three assistant
+rows, and drawing three avatars and three agent names down the page reads as three
+agents answering one question. `MessageList` groups *consecutive* assistant
+messages carrying the same `run_id` into one turn: the avatar and the name once, at
+the top. Consecutive is part of the rule — a person speaking between two segments
+means the turn genuinely restarts — and a message with no run recorded never groups,
+because absent means "not recorded" rather than "the same run". Live, the run id
+arrives on the `tool_approval_required` frame, which is the only frame that names
+it and the only turn that needs it; on a reload it comes off the stored message.
+
+**What the approved call returned is recorded on the step that was approved.** The
+row is written open when the run parks — it has not run yet — and the resume that
+finally runs it produces the *return* without the call it belongs to, because that
+call was made by the previous execution. So it settles the existing row rather than
+writing a new step: the alternative is the same command twice in one turn, and the
+alternative to *that* was the one call somebody deliberately reviewed being the one
+call that opened onto nothing.
+
 **And the panel belongs to its conversation, not to the tab.** Opening another
 thread takes the approval panel and any pending question off screen, the way it
 already takes the delegation panels. Left there the approval was not merely
