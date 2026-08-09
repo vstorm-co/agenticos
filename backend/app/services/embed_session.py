@@ -115,6 +115,9 @@ class EmbedSession:
         # What the page said about this visitor, as it last said it. Empty until
         # a frame carries it, which is every widget that declares nothing.
         self._supplied: dict[str, Any] = {}
+        # The supplied block as it was last sent to the agent, so a change in it
+        # is re-sent even after the placement context has gone once.
+        self._supplied_sent: str = ""
 
     async def greet(self) -> None:
         """Tell the widget it is connected. The greeting itself is client-side."""
@@ -187,23 +190,22 @@ class EmbedSession:
             )
             self.conversation_id = conversation.id
 
-        prompt = text
-        if not self._context_sent:
-            # Once per conversation, ahead of the first question. Repeating it
-            # every turn would spend the same tokens to say the same thing.
-            preamble = "\n\n".join(
-                part
-                for part in (
-                    f"[Context for this placement: {self.embed.context}]"
-                    if self.embed.context
-                    else "",
-                    self._supplied_block(),
-                )
-                if part
-            )
-            if preamble:
-                prompt = f"{preamble}\n\n{text}"
-                self._context_sent = True
+        # The placement context is the operator's and never changes, so it goes
+        # once. The supplied block is the page's and does change - a single-page
+        # app signs the visitor in on turn 2 - so it is re-sent whenever it
+        # differs from what was last sent, which is why `self._supplied` is
+        # refreshed every frame. Latching both on the first turn froze the
+        # supplied block, and its `required`-variable warning, at whatever turn 1
+        # happened to hold.
+        parts: list[str] = []
+        if self.embed.context and not self._context_sent:
+            parts.append(f"[Context for this placement: {self.embed.context}]")
+            self._context_sent = True
+        supplied_block = self._supplied_block()
+        if supplied_block and supplied_block != self._supplied_sent:
+            parts.append(supplied_block)
+            self._supplied_sent = supplied_block
+        prompt = "\n\n".join([*parts, text]) if parts else text
 
         answer, _run = await self.runner.execute(
             ctx,
