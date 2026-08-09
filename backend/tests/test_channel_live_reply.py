@@ -59,10 +59,21 @@ class TestWhatTheMessageSays:
 
         push.assert_awaited_once_with("Searching the web…")
 
+    async def test_the_message_opens_as_an_ellipsis_and_nothing_more(self):
+        """A sentence claims more than "your question arrived": it reads as the
+        answer starting, and has to be deleted a second later when the real one
+        does. Every chat client already reads three dots this way."""
+        reply, push, _clock = _reply()
+
+        await reply.add("")
+
+        assert push.await_args is None or push.await_args.args[0] == WORKING
+
     async def test_a_tool_nobody_wrote_a_sentence_for_falls_back(self):
         """A person watching a chat should not have to learn that
-        `mcp_github_list_pull_requests` is a thing this product has."""
-        assert doing("mcp_github_list_pull_requests") == WORKING
+        `mcp_github_list_pull_requests` is a thing this product has - but by then
+        something is happening, so it says so rather than showing the ellipsis."""
+        assert doing("mcp_github_list_pull_requests") == "Working on it…"
 
     async def test_text_replaces_the_status_once_there_is_any(self):
         """A status line under an answer that has started arriving is noise."""

@@ -8,6 +8,7 @@ import re
 import time
 from typing import Any
 
+from app.core.config import settings
 from app.core.exceptions import AppException, AuthorizationError, BadRequestError
 from app.repositories import (
     channel_bot_repo,
@@ -64,6 +65,21 @@ def _get_chat_lock(bot_id: str, chat_id: str) -> asyncio.Lock:
     if key not in _chat_locks:
         _chat_locks[key] = asyncio.Lock()
     return _chat_locks[key]
+
+
+def _needs_approval(run_id: Any) -> str:
+    """What to say when the turn parked on a decision instead of answering.
+
+    With the run's own address in it. "Check the approvals queue" asks somebody
+    sitting in a chat window to go and find a page they may never have opened, in
+    a product they reach through a bot - which is most of the way to not telling
+    them at all. `?run=` is the same link a delegation panel hands over with, so
+    it lands on the decision rather than on a list to search.
+    """
+    where = f"{settings.FRONTEND_URL.rstrip('/')}/runs"
+    if run_id is not None:
+        return f"That needs approval before it can run: {where}?run={run_id}"
+    return f"That needs approval before it can run - decide it here: {where}"
 
 
 def _kept_back(paths: list[str]) -> list[str]:
@@ -143,7 +159,14 @@ class ChannelMessageRouter:
             await self._send_reply(bot, incoming, exc.message)
             return
 
-        if await self._answer_mention(incoming, bot, identity, session, db):
+        # Opened once, here, and handed to whichever path answers. Opening it
+        # inside `_answer_mention` left one behind on every ordinary message:
+        # that path posts, discovers the message names no agent, returns False -
+        # and the placeholder stays on screen for ever while the default path
+        # posts a second one beside it.
+        live, handle = await self._open_reply(bot, incoming)
+
+        if await self._answer_mention(incoming, bot, identity, session, db, live, handle):
             return
 
         files, file_refusals = await self._receive_files(db, bot, incoming, identity)
@@ -153,7 +176,6 @@ class ChannelMessageRouter:
         # runner, which is also what records the tool calls, the model and the
         # version this bot's own write dropped.
         history = await self._load_history(db, session.conversation_id)
-        live, handle = await self._open_reply(bot, incoming)
         try:
             answered = await ChannelAgentRouter(db).answer_default(
                 incoming.text,
@@ -206,7 +228,7 @@ class ChannelMessageRouter:
         second post: no platform lets a message gain an attachment by being
         edited.
         """
-        text = answer or "That needs approval before it can run - check the approvals queue."
+        text = answer or _needs_approval(answered.awaiting_approval_run_id)
         if handle is not None:
             adapter = get_adapter(incoming.platform)
             with contextlib.suppress(Exception):
@@ -232,7 +254,14 @@ class ChannelMessageRouter:
         )
 
     async def _answer_mention(
-        self, incoming: IncomingMessage, bot: Any, identity: Any, session: Any, db: Any
+        self,
+        incoming: IncomingMessage,
+        bot: Any,
+        identity: Any,
+        session: Any,
+        db: Any,
+        live: LiveReply | None,
+        handle: str | None,
     ) -> bool:
         """Answer `@handle …` with that agent, and report whether we did.
 
@@ -247,7 +276,6 @@ class ChannelMessageRouter:
         a question that was not asked.
         """
         files, file_refusals = await self._receive_files(db, bot, incoming, identity)
-        live, handle = await self._open_reply(bot, incoming)
         try:
             answered = await ChannelAgentRouter(db).answer(
                 incoming.text,

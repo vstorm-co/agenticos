@@ -50,8 +50,23 @@ _DOING: dict[str, str] = {
     "run_shell": "Running a command…",
 }
 
-WORKING = "Working on it…"
-"""Said before anything is known: the message exists, the question arrived."""
+WORKING = "…"
+"""What the message says before anything is known.
+
+Three dots rather than a sentence. The message exists to say "your question
+arrived and something is happening"; a sentence claims more than that, is read
+as the answer starting, and has to be deleted a second later when the real one
+begins. Every chat client already reads an ellipsis this way.
+"""
+
+
+_USING_A_TOOL = "Working on it…"
+"""What a tool nobody wrote a sentence for looks like while it runs.
+
+Not the bare ellipsis the message opens with: by this point something *is*
+happening and the silence has a cause, which is worth saying even when we cannot
+say what it is.
+"""
 
 
 def doing(tool_name: str) -> str:
@@ -61,7 +76,7 @@ def doing(tool_name: str) -> str:
     to its own id: a person watching a chat should not have to learn that
     `mcp_github_list_pull_requests` is a thing this product has.
     """
-    return _DOING.get(tool_name, WORKING)
+    return _DOING.get(tool_name, _USING_A_TOOL)
 
 
 class LiveReply:

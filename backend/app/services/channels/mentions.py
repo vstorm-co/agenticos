@@ -44,7 +44,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.capabilities.charts._spec import parse_chart_spec
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
-from app.db.models.agent_run import RunSurface
+from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
 from app.repositories import agent_exposure_repo, agent_repo, member_repo
@@ -183,6 +183,15 @@ class AnsweredTurn:
     refused: list[str] = field(default_factory=list)
     """Produced files the reply names instead of carrying."""
 
+    awaiting_approval_run_id: UUID | None = None
+    """The run parked on a decision, when that is how the turn ended.
+
+    Carried so the reply can link to it. "Check the approvals queue" told
+    somebody in a chat window to go and find a page they may never have opened,
+    on a product they reach through a bot - which is most of the way to not
+    telling them at all.
+    """
+
     image_png: bytes | None = None
     """A chart the turn drew, rendered for a surface that cannot run Recharts.
 
@@ -312,6 +321,9 @@ class ChannelAgentRouter:
             attachments=produced,
             refused=refused,
             image_png=drawn_chart(called),
+            awaiting_approval_run_id=(
+                run.id if run.status == RunStatus.AWAITING_APPROVAL else None
+            ),
         )
 
     async def answer_default(
@@ -389,6 +401,9 @@ class ChannelAgentRouter:
             attachments=produced,
             refused=refused,
             image_png=drawn_chart(called),
+            awaiting_approval_run_id=(
+                run.id if run.status == RunStatus.AWAITING_APPROVAL else None
+            ),
         )
 
     async def _with_usage(
