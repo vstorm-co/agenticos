@@ -309,6 +309,14 @@ it is about to wait.
   destination. It is the binding's text from then on: change it, add to it, or
   clear it. It shapes how an answer is delivered and can never replace what the
   agent is for — that belongs to the published version.
+- **A bot answers as soon as it is registered.** A polling bot - Telegram
+  long-polling, Slack Socket Mode, a Mattermost event stream - is reached over a
+  connection the API process holds, and that connection is opened when the row
+  is written rather than at the next restart. Pausing, deleting, changing the
+  token or the server address, and switching between polling and webhooks all
+  take effect immediately, for the same reason: the stream is reopened to match
+  whatever the row now says. It is opened *after* the transaction commits, so a
+  registration that fails leaves no connection behind.
 - **Rate limits** per chat, on the bot - who may talk to it and how often is the
   operator's, unlike everything above, which is the agent author's.
 - **Spending limits** per binding, on top of the agent's own and the

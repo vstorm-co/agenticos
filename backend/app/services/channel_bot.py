@@ -16,6 +16,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.background import spawn_after_commit
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.vault import SealedSecret, VaultScope, seal, unseal
 from app.db.models.channel_bot import ChannelBot
@@ -27,6 +28,7 @@ from app.schemas.channel_bot import (
     ChannelBotUpdate,
 )
 from app.services.channels import SECRET_MINTED_BY_US, get_adapter, inbound_webhook_url
+from app.services.channels.supervisor import close_inbound_stream, open_inbound_stream
 
 logger = logging.getLogger(__name__)
 
@@ -120,8 +122,51 @@ class ChannelBotService:
             )
         return self.organization_id
 
+    def _reopen_stream(self, bot: ChannelBot) -> None:
+        """Make this bot's inbound connection match the row it now has.
+
+        One method for every write, because "does this change the stream" is a
+        question with a long and growing answer - the token, the server address,
+        the delivery mode and whether the bot is switched on at all - and a rule
+        listing them is a rule the next column forgets. Reopening a stream
+        nobody changed costs one reconnect.
+
+        Deferred with `spawn_after_commit`, never spawned: a connection opened
+        against a row the transaction then rolls back is one talking to
+        somebody's Mattermost about a bot that does not exist. Every value the
+        deferred coroutine needs is read out here, while the row is still
+        attached to this session - it must hold primitives and nothing else.
+
+        A bot in webhook mode has no stream to open, and neither has a paused
+        one; both are *closed*, which is what makes switching a bot to webhooks
+        or pausing it take effect now rather than at the next restart.
+        """
+        bot_id, platform = str(bot.id), bot.platform
+        if bot.webhook_mode or not bot.is_active:
+            spawn_after_commit(
+                self.db,
+                close_inbound_stream(bot_id=bot_id, platform=platform),
+                name=f"close_channel_stream:{bot_id}",
+            )
+            return
+        spawn_after_commit(
+            self.db,
+            open_inbound_stream(
+                bot_id=bot_id,
+                platform=platform,
+                token=unseal_bot_token(bot),
+                api_base_url=bot.api_base_url,
+                app_token=unseal_slack_app_token(bot),
+            ),
+            name=f"open_channel_stream:{bot_id}",
+        )
+
     async def create(self, data: ChannelBotCreate) -> ChannelBot:
-        """Create a new channel bot with its credentials sealed.
+        """Create a new channel bot with its credentials sealed, and open its stream.
+
+        A polling bot is reached over a connection this process holds, and only
+        the lifespan ever opened one - so registering a bot wrote a row and
+        produced silence until somebody restarted the API.
 
         Raises:
             BadRequestError: If Slack-app credentials arrive on a bot that is
@@ -131,7 +176,7 @@ class ChannelBotService:
         self._check_slack_fields(data.platform, data.slack_signing_secret, data.slack_app_token)
         sealed = seal_bot_token(data.token, organization_id=self._org_id)
         webhook_secret = self._initial_webhook_secret(data)
-        return await channel_bot_repo.create(
+        bot = await channel_bot_repo.create(
             self.db,
             organization_id=self._org_id,
             platform=data.platform,
@@ -150,6 +195,8 @@ class ChannelBotService:
                 data.slack_app_token, key_version=sealed.key_version
             ),
         )
+        self._reopen_stream(bot)
+        return bot
 
     @staticmethod
     def _initial_webhook_secret(data: ChannelBotCreate) -> str | None:
@@ -342,22 +389,49 @@ class ChannelBotService:
             value = update_data.get(field)
             if value is not None and hasattr(value, "model_dump"):
                 update_data[field] = value.model_dump()
-        return await channel_bot_repo.update(self.db, db_bot=bot, update_data=update_data)
+        updated = await channel_bot_repo.update(self.db, db_bot=bot, update_data=update_data)
+        # Unconditionally, rather than on the fields a stream reads. A token, a
+        # server address and the delivery mode all change what the connection
+        # is, and a rule listing them is a rule the next column forgets - while
+        # reopening a stream nobody changed costs one reconnect.
+        self._reopen_stream(updated)
+        return updated
 
     async def delete(self, bot_id: UUID) -> None:
-        """Delete a channel bot."""
-        await self.get(bot_id)
+        """Delete a channel bot, and close the connection it was reached over."""
+        bot = await self.get(bot_id)
+        platform = bot.platform
         await channel_bot_repo.delete(self.db, bot_id, organization_id=self._org_id)
+        # After the commit, and read out first: the row is gone by then, so the
+        # platform has to be a string this coroutine already holds.
+        spawn_after_commit(
+            self.db,
+            close_inbound_stream(bot_id=str(bot_id), platform=platform),
+            name=f"close_channel_stream:{bot_id}",
+        )
 
     async def activate(self, bot_id: UUID) -> ChannelBot:
-        """Set is_active = True."""
+        """Set is_active = True, and open the stream it is reached over."""
         bot = await self.get(bot_id)
-        return await channel_bot_repo.update(self.db, db_bot=bot, update_data={"is_active": True})
+        activated = await channel_bot_repo.update(
+            self.db, db_bot=bot, update_data={"is_active": True}
+        )
+        self._reopen_stream(activated)
+        return activated
 
     async def deactivate(self, bot_id: UUID) -> ChannelBot:
-        """Set is_active = False."""
+        """Set is_active = False, and close the stream, so it stops now.
+
+        The mirror of `activate`, and the worse of the two to get wrong: a bot
+        switched off went on answering until somebody restarted the API, so
+        "stop it" needed a deploy.
+        """
         bot = await self.get(bot_id)
-        return await channel_bot_repo.update(self.db, db_bot=bot, update_data={"is_active": False})
+        deactivated = await channel_bot_repo.update(
+            self.db, db_bot=bot, update_data={"is_active": False}
+        )
+        self._reopen_stream(deactivated)
+        return deactivated
 
     def get_decrypted_token(self, bot: ChannelBot) -> str:
         """Return the bot's token in the clear, for an immediate platform call."""
