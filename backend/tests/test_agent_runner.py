@@ -38,6 +38,7 @@ from app.services.agent_runner import (
     month_start,
 )
 from app.services.approvals import ApprovalService
+from app.services.transcript import RecordedToolCall
 
 
 def _ctx() -> AuthContext:
@@ -644,6 +645,28 @@ class TestFilesAcrossOneTurn:
 
         assert outbound == [produced]
         assert refused == ["/huge.csv"]
+
+    @pytest.mark.anyio
+    async def test_the_tool_calls_a_turn_made_reach_the_caller(self):
+        """A channel run reads a chart off what the turn called, not off the row
+        - it writes no messages (#205) - so `execute` hands the calls back
+        through the list it was given, the same way it hands back the files."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.outbound = []
+        prepared.outbound_refused = []
+        service.prepare = AsyncMock(return_value=prepared)
+        drew = RecordedToolCall(tool_call_id="c-1", tool_name="create_chart", args={}, result="{}")
+        service._run = AsyncMock(
+            return_value=RunSegment(
+                output="answered", run=prepared.run, tool_calls=[drew], settled={}
+            )
+        )
+
+        called: list[RecordedToolCall] = []
+        await service.execute(MagicMock(), uuid.uuid4(), "chart it", tool_calls=called)
+
+        assert called == [drew]
 
     @pytest.mark.anyio
     async def test_a_caller_that_cannot_deliver_files_asks_for_none(self):
