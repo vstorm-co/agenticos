@@ -57,6 +57,13 @@ class TestDrawing:
 
         assert with_gap != render_chart_png(_spec(data=[*ROWS, {"x": "Apr", "revenue": 0}]))
 
+    def test_a_non_finite_value_is_a_gap_not_a_crash(self):
+        """`json.loads` accepts bare `NaN`/`Infinity`, and one reaching `_bounds`
+        poisons the axis until PIL cannot convert it and no chart is sent."""
+        spec = _spec(data=[{"x": "Jan", "revenue": 120}, {"x": "Feb", "revenue": float("nan")}])
+
+        assert render_chart_png(spec).startswith(b"\x89PNG")
+
     def test_a_single_row_still_draws(self):
         """The x axis divides by `count - 1` for a line, which is zero here."""
         assert render_chart_png(_spec("line", data=[{"x": "Jan", "revenue": 5}])).startswith(

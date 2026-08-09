@@ -72,12 +72,17 @@ def _numeric(value: Any) -> float | None:
 
     A gap in a series is legitimate - a month with no figure yet - so a
     non-number is skipped rather than treated as zero, which would draw a line
-    dropping to the axis and read as "sales were nil".
+    dropping to the axis and read as "sales were nil". A non-finite value is a
+    gap too: `json.loads` accepts the bare `NaN`/`Infinity` tokens, `dict[str,
+    Any]` passes them through, and one reaching `_bounds` poisons min/max and
+    `y_for` until PIL raises "cannot convert float NaN to integer" and no chart
+    is sent.
     """
     if isinstance(value, bool):
         return None
     if isinstance(value, int | float):
-        return float(value)
+        number = float(value)
+        return number if math.isfinite(number) else None
     return None
 
 
