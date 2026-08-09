@@ -862,6 +862,94 @@ describe("useChat - approvals and questions", () => {
     expect(result.current.pendingApproval).toBeNull();
   });
 
+  it("re-opens the panel when the continuation parks again", async () => {
+    // A resume runs the agent, and the agent can reach a second gated call. Nothing
+    // announces that here - the continuation runs over HTTP, so no
+    // `tool_approval_required` frame arrives - so the panel closed on a run that was
+    // still blocked, and the only way to finish it was the approvals queue on
+    // another page. Three approvals in one conversation is what that looked like.
+    post.mockImplementation((url: string) =>
+      url.endsWith("/resume")
+        ? Promise.resolve({
+            run_id: "r-9",
+            output: "",
+            status: "awaiting_approval",
+            parked: [
+              { id: "ar-2", tool_call_id: "tc-2", tool_name: "execute", tool_args: { cmd: "ls" } },
+            ],
+          })
+        : Promise.resolve({}),
+    );
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("tool_approval_required", {
+      run_id: "r-9",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} }],
+      review_configs: [],
+    });
+    receive("complete", {});
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+
+    expect(result.current.pendingApproval?.actionRequests).toEqual([
+      { id: "ar-2", tool_call_id: "tc-2", tool_name: "execute", args: { cmd: "ls" } },
+    ]);
+    expect(result.current.pendingApproval?.runId).toBe("r-9");
+  });
+
+  it("closes the panel when the continuation finished", async () => {
+    post.mockImplementation((url: string) =>
+      url.endsWith("/resume")
+        ? Promise.resolve({ run_id: "r-9", output: "Done.", status: "completed", parked: [] })
+        : Promise.resolve({}),
+    );
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("tool_approval_required", {
+      run_id: "r-9",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} }],
+      review_configs: [],
+    });
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+
+    expect(result.current.pendingApproval).toBeNull();
+  });
+
+  it("credits the resumed answer to the agent that was answering", async () => {
+    // The continuation is the second half of one turn. Added with no agent it
+    // rendered under the generic robot with no name, so the same turn showed two
+    // faces and the answer read as though a different agent had written it.
+    post.mockImplementation((url: string) =>
+      url.endsWith("/resume")
+        ? Promise.resolve({ run_id: "r-9", output: "Six sheets.", status: "completed" })
+        : Promise.resolve({}),
+    );
+    useAgentSelectionStore.setState({ selectedAgentId: "agent-jarvis" });
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("analyse this"));
+    receive("model_request_start", {});
+    receive("tool_approval_required", {
+      run_id: "r-9",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} }],
+      review_configs: [],
+    });
+    receive("complete", {});
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+
+    const answers = useChatStore
+      .getState()
+      .messages.filter((message) => message.role === "assistant");
+    expect(answers.at(-1)?.agentId).toBe("agent-jarvis");
+  });
+
   it("settles the parked step, which the end of the turn used to strand", async () => {
     // The park is followed immediately by `complete`, which ends the turn and clears
     // the "current message" ref - so every `updateToolCallPart` in the decision loop

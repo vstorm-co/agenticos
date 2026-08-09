@@ -177,6 +177,10 @@ async def resume_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
         cost_usd=run.cost_usd,
         input_tokens=run.input_tokens,
         output_tokens=run.output_tokens,
+        # Empty unless the continuation stopped again, which it does whenever the
+        # agent reaches a second gated call. Without it a caller was told the run is
+        # still awaiting approval and given nothing to approve.
+        parked=await service.parked_calls(ctx, run),
     )
 
 

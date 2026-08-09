@@ -274,6 +274,21 @@ class AgentRunRequest(BaseSchema):
     )
 
 
+class ParkedCall(BaseSchema):
+    """A tool call a run is waiting on a decision for."""
+
+    id: UUID = Field(description="The approval to decide, which is what a client posts to.")
+    tool_call_id: str | None = Field(
+        default=None,
+        description=(
+            "The step in the transcript this parked, so a surface can mark it. Null "
+            "for a run parked before the mapping was stored on the row."
+        ),
+    )
+    tool_name: str
+    tool_args: dict[str, Any] = Field(default_factory=dict)
+
+
 class AgentRunResult(BaseSchema):
     """What the agent answered, and what the run cost."""
 
@@ -283,3 +298,15 @@ class AgentRunResult(BaseSchema):
     cost_usd: Decimal
     input_tokens: int
     output_tokens: int
+    parked: list[ParkedCall] = Field(
+        default_factory=list,
+        description=(
+            "What the run is *now* waiting on, which is empty unless it stopped again. "
+            "A resume runs the agent, and the agent can reach a second gated call - so "
+            "a client that only read `status` was told 'still awaiting approval' and "
+            "handed nothing to approve, leaving the run unfinishable from the surface "
+            "that started it. The continuation runs over HTTP rather than the socket a "
+            "conversation streams, so this response is the only place the new calls can "
+            "arrive."
+        ),
+    )

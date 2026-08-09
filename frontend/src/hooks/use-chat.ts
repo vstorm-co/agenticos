@@ -722,6 +722,29 @@ export function useChat(options: UseChatOptions = {}) {
         // frozen. The resumed run's own status is the outcome those panels take;
         // a resume that parks again leaves them waiting. See `resolveAwaitingOnResume`.
         setDelegations((current) => resolveAwaitingOnResume(current, resumed.status));
+        // A continuation can stop again: the agent reaches a second gated call and
+        // parks on it. Nothing announces that here - the resume ran over HTTP, so
+        // no `tool_approval_required` frame arrives - so the panel used to close on
+        // a run that was still blocked, and the only way to finish it was the
+        // approvals queue on another page. Re-open it on the same turn, which is
+        // where the new step was drawn.
+        const parkedAgain = resumed.parked ?? [];
+        if (parkedAgain.length > 0) {
+          setPendingApproval({
+            actionRequests: parkedAgain.map((call) => ({
+              id: call.id,
+              tool_call_id: call.tool_call_id ?? "",
+              tool_name: call.tool_name,
+              args: call.tool_args,
+            })),
+            reviewConfigs: parkedAgain.map((call) => ({
+              tool_name: call.tool_name,
+              allow_edit: false,
+            })),
+            runId: parked.runId,
+            messageId: parked.messageId,
+          });
+        }
         // **The answer is shown, not discarded.** `resume_run` runs the agent and
         // returns what it said, but it returns it *here* - over HTTP, to the caller
         // - and not over the socket this conversation is streaming. So the reply
@@ -742,6 +765,11 @@ export function useChat(options: UseChatOptions = {}) {
             content: resumed.output,
             timestamp: new Date(),
             conversationId: conversationId || undefined,
+            // The agent that was answering when the run parked. Without it the
+            // continuation rendered under the generic robot with no name beside it,
+            // so the second half of one turn looked like a different agent had
+            // written it - the same turn, two faces.
+            agentId: turnAgentIdRef.current ?? undefined,
           });
         }
       } catch (error) {

@@ -1454,6 +1454,63 @@ class TestResume:
             await service.resume(_ctx(), uuid.uuid4())
 
     @pytest.mark.anyio
+    async def test_a_run_still_parked_reports_what_it_is_waiting_on(self):
+        """The half a resume needs to hand back, and the reason it exists.
+
+        A continuation runs the agent, and the agent can reach a second gated call
+        and park again. The response used to carry `status` alone, so a client was
+        told "still awaiting approval" and given nothing to approve - and the
+        continuation runs over HTTP rather than the socket a conversation streams,
+        so no frame carried the new calls either. The run could only be finished
+        from the approvals queue on another page.
+        """
+        service = AgentRunnerService(_db())
+        approval_id = uuid.uuid4()
+        run = _parked_run(
+            paused_state={"messages": [], "tool_call_ids": {str(approval_id): "tc-2"}}
+        )
+        decided = MagicMock(id=uuid.uuid4(), status="approved", tool_id="execute", tool_args={})
+        pending = MagicMock(
+            id=approval_id, status="pending", tool_id="execute", tool_args={"command": "ls"}
+        )
+        with patch(
+            "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
+            new=AsyncMock(return_value=[decided, pending]),
+        ):
+            parked = await service.parked_calls(_ctx(), run)
+
+        # The decided one is not still waiting, and the pending one carries the step
+        # it parked - which the approval row does not hold, so it comes off the run's
+        # own paused state.
+        assert [(call.id, call.tool_call_id, call.tool_name) for call in parked] == [
+            (approval_id, "tc-2", "execute")
+        ]
+        assert parked[0].tool_args == {"command": "ls"}
+
+    @pytest.mark.anyio
+    async def test_a_run_that_finished_is_waiting_on_nothing(self):
+        """Asked of every resume, so the common answer has to be cheap and empty."""
+        service = AgentRunnerService(_db())
+
+        assert (
+            await service.parked_calls(_ctx(), _parked_run(status=RunStatus.COMPLETED.value)) == []
+        )
+
+    @pytest.mark.anyio
+    async def test_a_run_parked_before_the_map_existed_still_names_its_calls(self):
+        """`tool_call_id` is a step a surface cannot mark, not a call it cannot decide."""
+        service = AgentRunnerService(_db())
+        run = _parked_run(paused_state={"messages": []})
+        pending = MagicMock(id=uuid.uuid4(), status="pending", tool_id="execute", tool_args={})
+        with patch(
+            "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
+            new=AsyncMock(return_value=[pending]),
+        ):
+            parked = await service.parked_calls(_ctx(), run)
+
+        assert parked[0].tool_call_id is None
+
+    @pytest.mark.anyio
     async def test_a_run_that_is_not_parked_cannot_be_resumed(self):
         """Resuming a completed run would replay tool calls it already made."""
         service = AgentRunnerService(_db())

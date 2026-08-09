@@ -1,13 +1,12 @@
 "use client";
 
-import { useState } from "react";
 import { Button } from "@/components/ui";
 import { usePermissions } from "@/hooks";
+import { toolEntry } from "@/lib/tool-catalog";
 import type { ActionRequest, ReviewConfig, Decision } from "@/types";
 import { Perm } from "@/types/permissions";
-import { Wrench, AlertTriangle } from "lucide-react";
+import { ShieldAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { cn } from "@/lib/utils";
 
 interface ToolApprovalDialogProps {
   actionRequests: ActionRequest[];
@@ -24,14 +23,22 @@ interface ToolApprovalDialogProps {
  * `onDecisions` sends `POST /approvals/{id}` followed by `POST /runs/{id}/resume`,
  * both gated on `Perm.APPROVALS_DECIDE`. Running an agent is not - `member` and
  * `builder` hold `agents:run` and not the decision - so the everyday chat user was
- * offered editable arguments and a Submit, and refused by the API on the first
- * call. `/runs` had this right from the start (`canDecide`); its copy of the
- * control in chat never asked.
+ * offered a Submit and refused by the API on the first call. What stays for them is
+ * the call itself and the sentence saying who can decide: a panel that goes quiet
+ * leaves a stopped conversation unexplained.
  *
- * What stays is what is not a write: the banner and each parked call's arguments,
- * which arrived over this caller's own socket and are how they know what the run
- * is waiting for. Only the controls go, replaced by the sentence that says who can
- * decide - a panel that goes quiet leaves a stopped conversation unexplained.
+ * **The arguments are read, not edited.** They used to sit in a `<textarea>` whose
+ * contents were diffed into an `edit` decision - and the backend never offered it:
+ * every `review_config` it sends carries `allow_edit: false`, because the arguments
+ * were already recorded on the row the approver is deciding about and letting the
+ * chat rewrite them would mean approving something other than what was asked. So
+ * the edit path was dead, and the raw JSON box it needed was the loudest thing in
+ * the transcript.
+ *
+ * What replaces it is the shape the rest of the chat uses: a card, the step's own
+ * name from `lib/tool-catalog.ts`, its arguments as read-only code, and
+ * two plain answers. Approve and Reject rather than "Submit 1 call" - the question
+ * is not how many calls there are.
  */
 export function ToolApprovalDialog({
   actionRequests,
@@ -41,116 +48,63 @@ export function ToolApprovalDialog({
   const t = useTranslations("chat");
   const { can } = usePermissions();
   const mayDecide = can(Perm.approvalsDecide);
-  const [editedArgs, setEditedArgs] = useState<Record<string, string>>(() =>
-    Object.fromEntries(actionRequests.map((a) => [a.id, JSON.stringify(a.args, null, 2)])),
-  );
-  const [hasChanges, setHasChanges] = useState(false);
 
-  const handleArgsChange = (id: string, text: string) => {
-    setEditedArgs((prev) => ({ ...prev, [id]: text }));
-    setHasChanges(true);
-  };
-
-  const handleCancel = () => {
-    setEditedArgs(
-      Object.fromEntries(actionRequests.map((a) => [a.id, JSON.stringify(a.args, null, 2)])),
-    );
-    setHasChanges(false);
-  };
-
-  const handleSave = () => {
-    for (const id of Object.keys(editedArgs)) {
-      try {
-        JSON.parse(editedArgs[id] ?? "");
-      } catch {
-        return; // Invalid JSON, don't save
-      }
-    }
-    setHasChanges(false);
-  };
-
-  const handleSubmit = () => {
-    const decisions: Decision[] = actionRequests.map((a) => {
-      try {
-        const parsed = JSON.parse(editedArgs[a.id] ?? "");
-        const original = JSON.stringify(a.args);
-        const edited = JSON.stringify(parsed);
-
-        if (original !== edited) {
-          return {
-            type: "edit" as const,
-            editedAction: { id: a.id, tool_name: a.tool_name, args: parsed },
-          };
-        }
-        return { type: "approve" as const };
-      } catch {
-        return { type: "reject" as const };
-      }
-    });
-    onDecisions(decisions);
-  };
+  const decideAll = (type: "approve" | "reject") =>
+    onDecisions(actionRequests.map(() => ({ type })));
 
   return (
-    <div className="border-warning/50 bg-warning/[0.06] space-y-3 rounded-lg border p-3">
-      <div className="text-warning flex items-center gap-2 text-sm">
-        <AlertTriangle className="h-4 w-4" />
-        <span className="font-medium">{t("toolApprovalRequired")}</span>
+    <div className="border-border bg-card space-y-3 rounded-xl border p-3 shadow-sm">
+      <div className="flex items-center gap-2">
+        <ShieldAlert className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden />
+        <span className="text-sm font-medium">{t("toolApprovalRequired")}</span>
       </div>
 
-      {actionRequests.map((action) => (
-        <div key={action.id} className="space-y-1.5">
-          <div className="flex items-center gap-2">
-            <Wrench className="text-muted-foreground h-3.5 w-3.5" />
-            <code className="text-xs font-semibold">{action.tool_name}</code>
-          </div>
-          <textarea
-            className={cn(
-              "bg-background w-full resize-none rounded border p-2 font-mono text-xs",
-              "max-h-[200px] min-h-[80px]",
-            )}
-            value={editedArgs[action.id]}
-            onChange={(e) => handleArgsChange(action.id, e.target.value)}
-            // Editing the arguments is part of the decision, so it goes with the
-            // buttons; reading them is not, which is why the field stays.
-            disabled={disabled || !mayDecide}
-            rows={Math.min(10, (editedArgs[action.id]?.split("\n").length || 3) + 1)}
-          />
-        </div>
-      ))}
+      <ul className="space-y-2">
+        {actionRequests.map((action) => {
+          const entry = toolEntry(action.tool_name);
+          return (
+            <li key={action.id} className="border-border space-y-1.5 rounded-lg border p-2.5">
+              {/* The catalog's name where it has one - "Run Python" rather than
+                  `run_python`, the same words the step above it uses. */}
+              <span className="text-xs font-medium">{entry?.displayName ?? action.tool_name}</span>
+              {/* Read-only, and scrolling rather than wrapping: a shell command is
+                  read by its structure, and a 300-character one reflowed to the left
+                  margin is unreadable in exactly the moment somebody has to judge it. */}
+              <pre className="bg-muted text-foreground/90 max-h-48 overflow-auto rounded-md p-2 font-mono text-[11px] leading-relaxed whitespace-pre">
+                {argumentLines(action)}
+              </pre>
+            </li>
+          );
+        })}
+      </ul>
 
       {mayDecide ? (
-        <div className="flex justify-end gap-2 border-t pt-1">
-          {hasChanges && (
-            <>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 text-xs"
-                onClick={handleCancel}
-                disabled={disabled}
-              >
-                {t("cancel")}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 text-xs"
-                onClick={handleSave}
-                disabled={disabled}
-              >
-                {t("save")}
-              </Button>
-            </>
-          )}
-          <Button size="sm" className="h-7 text-xs" onClick={handleSubmit} disabled={disabled}>
-            {t("submitDecisions", { count: actionRequests.length })}
+        <div className="flex justify-end gap-2">
+          <Button size="sm" variant="ghost" onClick={() => decideAll("reject")} disabled={disabled}>
+            {t("reject")}
+          </Button>
+          <Button size="sm" onClick={() => decideAll("approve")} disabled={disabled}>
+            {t("approve")}
           </Button>
         </div>
       ) : (
-        <p className="text-muted-foreground border-t pt-2 text-xs">
-          {t("decidingNeedsPermission")}
-        </p>
+        <p className="text-muted-foreground text-xs">{t("decidingNeedsPermission")}</p>
       )}
     </div>
   );
+}
+
+/**
+ * The arguments as something a person judges, not as a JSON object.
+ *
+ * A gated call is nearly always one string that matters - the command, the path,
+ * the address - and `{"command": "python - <<'PY'\nimport …"}` hides it behind
+ * escaping: the newlines that make a script readable arrive as `\n`. So a single
+ * string argument is shown as itself, and anything else is indented JSON.
+ */
+function argumentLines(action: ActionRequest): string {
+  const values = Object.values(action.args ?? {});
+  const only = values.length === 1 ? values[0] : undefined;
+  if (typeof only === "string") return only;
+  return JSON.stringify(action.args ?? {}, null, 2);
 }

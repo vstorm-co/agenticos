@@ -779,7 +779,6 @@
       "failed": "Failed",
       "running": "Running"
     },
-    "submitDecisions": "Submit {count, plural, =1 {1 call} other {# calls}}",
     "thankYouFeedback": "Thanks for your feedback!",
     "thinking": "Thinking...",
     "title": "Chat",
@@ -817,7 +816,9 @@
     },
     "view": "View",
     "web": "Web",
-    "whatWentWrong": "What went wrong?"
+    "whatWentWrong": "What went wrong?",
+    "approve": "Approve",
+    "reject": "Reject"
   },
   "common": {
     "back": "Back",
