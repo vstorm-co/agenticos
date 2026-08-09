@@ -8,10 +8,11 @@ channel bot's own write recorded two lines of text and dropped the tool calls,
 the model and the version.
 
 These tests are about the rows, not about the calls: what a reader of run history
-can see afterwards, and - just as much - what is deliberately not written. A
-blank assistant message for a run that parked would read as the agent answering
-with silence, and an invented user turn on a resume would put words in somebody's
-mouth.
+can see afterwards, and - just as much - what is deliberately not written. An
+assistant message with neither an answer nor a call under it would read as the
+agent replying with silence, and an invented user turn on a resume would put
+words in somebody's mouth. A run that answered nothing but *did* something is the
+opposite case, and it is written: the calls are what happened.
 """
 
 from __future__ import annotations
@@ -232,15 +233,51 @@ class TestWritingTheTranscript:
             "assistant"
         ]
 
-    async def test_a_run_that_produced_no_answer_still_records_the_question(self, conversations):
-        """A run that parked, was stopped or broke. A blank assistant message
-        would read as the agent replying with silence - and the question is what
-        makes the run interpretable at all."""
+    async def test_a_run_that_produced_no_answer_and_called_nothing_records_the_question(
+        self, conversations
+    ):
+        """A run refused or stopped before it did anything. An assistant message
+        with nothing under it would read as the agent replying with silence - and
+        the question is what makes the run interpretable at all."""
         await TranscriptService(_session()).record(_run(), prompt="charge it", answer="")
 
         assert [call.kwargs["role"] for call in conversations.create_message.await_args_list] == [
             "user"
         ]
+
+    async def test_a_continuation_that_parked_again_still_records_what_it_ran(self, conversations):
+        """The shape a resumed run stops in, and the one that used to vanish.
+
+        A continuation runs the approved call, then reaches a second gated one and
+        parks: no answer, so nothing was written at all - not the command that ran,
+        not what it returned. It ran, it cost money and it changed a workspace, and
+        history showed the run going from one approval straight to the next.
+        """
+        await TranscriptService(_session()).record(
+            _run(),
+            prompt=None,
+            answer="",
+            tool_calls=[
+                RecordedToolCall(
+                    tool_call_id="c1",
+                    tool_name="execute",
+                    args={"command": "python read.py"},
+                    result="6 sheets",
+                ),
+                RecordedToolCall(
+                    tool_call_id="c2", tool_name="execute", args={"command": "python parse.py"}
+                ),
+            ],
+        )
+
+        answer = conversations.create_message.await_args.kwargs
+        assert (answer["role"], answer["content"]) == ("assistant", "")
+        assert [
+            call.kwargs["tool_call_id"] for call in conversations.create_tool_call.await_args_list
+        ] == ["c1", "c2"]
+        # The one the run is now parked on is left open; the one that ran is not.
+        conversations.complete_tool_call.assert_awaited_once()
+        assert conversations.complete_tool_call.await_args.kwargs["result"] == "6 sheets"
 
     async def test_a_run_with_no_conversation_writes_nothing(self, conversations):
         """The API may run an agent without one. There is nowhere to write a

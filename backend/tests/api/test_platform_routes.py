@@ -38,8 +38,10 @@ from app.core.exceptions import NotFoundError, RunExecutionError
 from app.core.permissions import ROLE_PERMS, AuthContext, OrgRoleName, Perm, Scope
 from app.db.models.resource_grant import Visibility
 from app.main import app
+from app.services.agent_runner import RunSegment
 from app.services.sharing import SharingService
 from app.services.stats import StatsService
+from app.services.transcript import RecordedToolCall
 
 pytestmark = pytest.mark.anyio
 
@@ -896,6 +898,64 @@ class TestResumeConveysAFailedContinuation:
         body = response.json()
         assert body["error"]["code"] == "RUN_EXECUTION_FAILED"
         assert body["error"]["details"] == {"run_id": str(run_id), "status": "failed"}
+
+
+class TestResumeAnswersWithWhatTheContinuationDid:
+    """The steps of the second half of a turn, which nothing else carries.
+
+    A continuation executes inside this request rather than on the socket the
+    conversation streams, so its tool calls reach no client unless this response
+    holds them. Without them a surface could draw the approved call finishing and
+    nothing after it - which is how approving a command showed no command running,
+    and a second approval request arrived for a step that had never appeared.
+    """
+
+    async def test_the_continuations_tool_calls_are_in_the_response(
+        self, as_role: ClientFactory, synthetic_roles: None
+    ) -> None:
+        run = MagicMock(
+            id=uuid4(),
+            status="awaiting_approval",
+            cost_usd=Decimal("0.02"),
+            input_tokens=13,
+            output_tokens=7,
+        )
+
+        class _Resuming:
+            async def resume(self, *args: Any, **kwargs: Any) -> Any:
+                return RunSegment(
+                    output="",
+                    run=run,
+                    tool_calls=[
+                        RecordedToolCall(
+                            tool_call_id="call-1",
+                            tool_name="execute",
+                            args={"command": "python read.py"},
+                            result="6 sheets",
+                        ),
+                        RecordedToolCall(
+                            tool_call_id="call-2",
+                            tool_name="execute",
+                            args={"command": "python parse.py"},
+                        ),
+                    ],
+                )
+
+            async def parked_calls(self, *args: Any, **kwargs: Any) -> list[Any]:
+                return []
+
+        overrides = {deps.get_agent_runner_service: lambda: _Resuming()}
+        async with as_role(only(Perm.APPROVALS_DECIDE), overrides) as client:
+            response = await client.post(_url(f"/runs/{run.id}/resume"))
+
+        assert response.status_code == 200
+        steps = response.json()["steps"]
+        assert [(step["tool_name"], step["args"], step["result"]) for step in steps] == [
+            ("execute", {"command": "python read.py"}, "6 sheets"),
+            # The call the run has parked on again: no result, because it has not
+            # run - it is the one being decided.
+            ("execute", {"command": "python parse.py"}, None),
+        ]
 
 
 # -- the stats routes, whose gate is the scope parameter ----------------------

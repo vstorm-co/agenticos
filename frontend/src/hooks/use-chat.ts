@@ -28,6 +28,7 @@ import {
   resolveAwaitingOnResume,
   resumeFailureStatus,
 } from "@/lib/delegations";
+import { buildAssistantParts } from "@/lib/conversation-to-chat";
 import { WS_URL } from "@/lib/constants";
 import { toast } from "sonner";
 
@@ -622,13 +623,23 @@ export function useChat(options: UseChatOptions = {}) {
     setDelegations([]);
   }, [tenantId, clearQueued]);
 
-  // The other half: a delegation belongs to a run in *this* conversation, and the
-  // panels are drawn under whatever transcript is on screen. Switching to another
-  // conversation clears the messages and the queue and used to leave the panels, so
-  // the previous thread's specialist names, prompts, streamed answers and costs were
-  // drawn under the new one - until the next message, which is the only other thing
-  // that clears them. Cleared here rather than on `complete`, which the panels
-  // deliberately outlive: a background delegation reports after the parent answered.
+  // The other half: a delegation, an approval and a question all belong to a run in
+  // *this* conversation, and all three are drawn over whatever transcript is on
+  // screen. Switching to another conversation clears the messages and the queue and
+  // used to leave them, so the previous thread's specialist names, prompts, streamed
+  // answers and costs were drawn under the new one - until the next message, which is
+  // the only other thing that clears them. Cleared here rather than on `complete`,
+  // which the panels deliberately outlive: a background delegation reports after the
+  // parent answered.
+  //
+  // The approval panel is the worst of the three, because it is not only stale but
+  // actionable: an *approve* under another agent's transcript decides a call the
+  // person is no longer looking at, and its `messageId` points into a conversation
+  // whose messages are gone, so the step it settles is settled nowhere. It is not
+  // lost by clearing it - the approvals queue holds the same rows, and reopening the
+  // conversation is not what the decision needs. A question is cleared for the same
+  // reason in reverse: answering it here would put words typed under one transcript
+  // into a turn belonging to another.
   //
   // Not keyed by conversation, deliberately. A turn that creates its conversation
   // learns the id from `conversation_created` mid-stream, so the key would move under
@@ -640,15 +651,18 @@ export function useChat(options: UseChatOptions = {}) {
   //
   // A layout effect for the reason the one above is one: before the paint, so no
   // frame of the previous conversation's panels is shown under this one's transcript.
-  const delegationsBelongTo = useRef(activeConversationId);
+  const panelsBelongTo = useRef(activeConversationId);
   useLayoutEffect(() => {
-    const previous = delegationsBelongTo.current;
-    delegationsBelongTo.current = activeConversationId;
+    const previous = panelsBelongTo.current;
+    panelsBelongTo.current = activeConversationId;
     // `previous === null` is the turn that just created its conversation being told
     // its id, not a different conversation being opened - clearing there would throw
-    // away the panels of the turn still streaming.
+    // away the panels of the turn still streaming, and a first turn that parks on an
+    // approval is exactly that turn.
     if (previous === activeConversationId || previous === null) return;
     setDelegations([]);
+    setPendingApproval(null);
+    setPendingQuestions(null);
   }, [activeConversationId]);
 
   /** Record one decision on the `approvals` row it belongs to. */
@@ -726,9 +740,64 @@ export function useChat(options: UseChatOptions = {}) {
         // parks on it. Nothing announces that here - the resume ran over HTTP, so
         // no `tool_approval_required` frame arrives - so the panel used to close on
         // a run that was still blocked, and the only way to finish it was the
-        // approvals queue on another page. Re-open it on the same turn, which is
-        // where the new step was drawn.
+        // approvals queue on another page.
         const parkedAgain = resumed.parked ?? [];
+        const parkedAgainIds = new Set(parkedAgain.map((call) => call.tool_call_id));
+        // What the continuation did, as steps. Nothing else carries them: the
+        // agent ran inside the resume request, so its `tool_call` frames went to
+        // that response and not to this socket. Drawing only the answer left the
+        // second half of the turn missing - approve a command and nothing appears
+        // to run, then a second approval arrives for a step nobody has seen, and
+        // the transcript ends with a reply that accounts for neither.
+        //
+        // The calls just decided are dropped: their steps are already on screen in
+        // the message that parked, and were marked finished above.
+        const decided = new Set(parked.actionRequests.map((request) => request.tool_call_id));
+        const steps: ToolCall[] = (resumed.steps ?? [])
+          .filter((step) => !decided.has(step.tool_call_id))
+          .map((step) => ({
+            id: step.tool_call_id,
+            name: step.tool_name,
+            args: step.args,
+            result: step.result ?? undefined,
+            // A call with a pending approval against it has not run and never
+            // will until somebody decides - the state the panel below is asking
+            // about, not a spinner that resolves.
+            status: parkedAgainIds.has(step.tool_call_id) ? "awaiting_approval" : "completed",
+          }));
+        // **The answer is shown, not discarded.** `resume_run` runs the agent and
+        // returns what it said, but it returns it *here* - over HTTP, to the caller
+        // - and not over the socket this conversation is streaming. So the reply
+        // used to exist and be thrown away: the panel vanished, a toast said the
+        // run was continuing, and the chat then sat unchanged forever. Reloading
+        // the page showed the finished turn, which is how this looked like an
+        // approval that did nothing.
+        //
+        // One message for the whole continuation, steps then answer, which is the
+        // order they happened in and the order a reloaded conversation replays
+        // them in. Nothing is added for a continuation that neither called
+        // anything nor said anything - a resume into a refusal has both empty.
+        const continuation = nanoid();
+        if (steps.length > 0 || resumed.output) {
+          // A finished assistant message, which is also what makes the file panel
+          // re-read: `turns` counts those, and a resumed call is usually the one
+          // that was gated - an `execute`, a write - so the workspace beside the
+          // transcript is exactly what changed.
+          addMessage({
+            id: continuation,
+            role: "assistant",
+            content: resumed.output,
+            toolCalls: steps,
+            parts: buildAssistantParts(steps, resumed.output, continuation),
+            timestamp: new Date(),
+            conversationId: conversationId || undefined,
+            // The agent that was answering when the run parked. Without it the
+            // continuation rendered under the generic robot with no name beside it,
+            // so the second half of one turn looked like a different agent had
+            // written it - the same turn, two faces.
+            agentId: turnAgentIdRef.current ?? undefined,
+          });
+        }
         if (parkedAgain.length > 0) {
           setPendingApproval({
             actionRequests: parkedAgain.map((call) => ({
@@ -742,34 +811,11 @@ export function useChat(options: UseChatOptions = {}) {
               allow_edit: false,
             })),
             runId: parked.runId,
-            messageId: parked.messageId,
-          });
-        }
-        // **The answer is shown, not discarded.** `resume_run` runs the agent and
-        // returns what it said, but it returns it *here* - over HTTP, to the caller
-        // - and not over the socket this conversation is streaming. So the reply
-        // used to exist and be thrown away: the panel vanished, a toast said the
-        // run was continuing, and the chat then sat unchanged forever. Reloading
-        // the page showed the finished turn, which is how this looked like an
-        // approval that did nothing.
-        // Truthiness, and it is the right test for this one: an empty answer is
-        // nothing to show, and a run that resumed into a refusal has none.
-        if (resumed.output) {
-          // A finished assistant message, which is also what makes the file panel
-          // re-read: `turns` counts those, and a resumed call is usually the one
-          // that was gated - an `execute`, a write - so the workspace beside the
-          // transcript is exactly what changed.
-          addMessage({
-            id: nanoid(),
-            role: "assistant",
-            content: resumed.output,
-            timestamp: new Date(),
-            conversationId: conversationId || undefined,
-            // The agent that was answering when the run parked. Without it the
-            // continuation rendered under the generic robot with no name beside it,
-            // so the second half of one turn looked like a different agent had
-            // written it - the same turn, two faces.
-            agentId: turnAgentIdRef.current ?? undefined,
+            // The message the new step was just drawn in, not the one that parked
+            // first. Deciding writes the outcome back onto the step it belongs to,
+            // and pointing at the older message meant every decision after the
+            // first landed on a tool call that message does not contain.
+            messageId: continuation,
           });
         }
       } catch (error) {

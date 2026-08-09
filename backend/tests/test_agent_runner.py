@@ -33,6 +33,7 @@ from app.services.agent_runner import (
     PausedRunState,
     PreparedRun,
     RecordedDelegation,
+    RunSegment,
     month_start,
 )
 from app.services.approvals import ApprovalService
@@ -584,7 +585,9 @@ class TestFilesAcrossOneTurn:
         prepared = _prepared()
         prepared.workspace = MagicMock()
         service.prepare = AsyncMock(return_value=prepared)
-        service._run = AsyncMock(return_value=("answered", prepared.run))
+        service._run = AsyncMock(
+            return_value=RunSegment(output="answered", run=prepared.run, tool_calls=[])
+        )
         built = AsyncMock(return_value="a prompt with a reference")
 
         with patch("app.services.agent_runner.AttachmentRouter") as router:
@@ -605,7 +608,9 @@ class TestFilesAcrossOneTurn:
         prepared.outbound = []
         prepared.outbound_refused = []
         service.prepare = AsyncMock(return_value=prepared)
-        service._run = AsyncMock(return_value=("answered", prepared.run))
+        service._run = AsyncMock(
+            return_value=RunSegment(output="answered", run=prepared.run, tool_calls=[])
+        )
 
         with patch("app.services.agent_runner.AttachmentRouter") as router:
             await service.execute(MagicMock(), uuid.uuid4(), "hello")
@@ -622,7 +627,9 @@ class TestFilesAcrossOneTurn:
         prepared.outbound = [produced]
         prepared.outbound_refused = ["/huge.csv"]
         service.prepare = AsyncMock(return_value=prepared)
-        service._run = AsyncMock(return_value=("answered", prepared.run))
+        service._run = AsyncMock(
+            return_value=RunSegment(output="answered", run=prepared.run, tool_calls=[])
+        )
 
         outbound: list[Any] = []
         refused: list[str] = []
@@ -644,7 +651,9 @@ class TestFilesAcrossOneTurn:
         prepared.outbound = [MagicMock()]
         prepared.outbound_refused = []
         service.prepare = AsyncMock(return_value=prepared)
-        service._run = AsyncMock(return_value=("answered", prepared.run))
+        service._run = AsyncMock(
+            return_value=RunSegment(output="answered", run=prepared.run, tool_calls=[])
+        )
 
         answer, _run = await service.execute(MagicMock(), uuid.uuid4(), "hello")
 
@@ -1308,9 +1317,9 @@ class TestResume:
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
         ):
-            output, _ = await service.resume(_ctx(), run.id)
+            segment = await service.resume(_ctx(), run.id)
 
-        assert output == "sent"
+        assert segment.output == "sent"
         assert finish.call_args.kwargs["status"] == RunStatus.COMPLETED.value
 
         deferred = built.agent.run.call_args.kwargs["deferred_tool_results"]
@@ -1364,6 +1373,73 @@ class TestResume:
 
         written = record.await_args.kwargs
         assert (written["prompt"], written["answer"]) == (None, "sent")
+
+    @pytest.mark.anyio
+    async def test_a_continuation_hands_back_what_it_called(self):
+        """The only account of the second half of a turn.
+
+        A continuation runs inside the resume request, not on the socket the
+        conversation streams, so no `tool_call` frame announces what it did. A
+        caller handed only the answer drew the approved call finishing and nothing
+        after it - so approving looked like it had done nothing, and the next
+        approval request arrived for a step that had never appeared.
+        """
+        service = AgentRunnerService(_db())
+        approval = self._approval(status=ApprovalStatus.APPROVED.value, tool_args={})
+        run = _parked_run(
+            paused_state={"messages": [], "tool_call_ids": {str(approval.id): "call-1"}}
+        )
+        built = self._built()
+        built.agent.run = AsyncMock(
+            return_value=MagicMock(
+                output="six sheets",
+                new_messages=lambda: [
+                    ModelResponse(
+                        parts=[
+                            ToolCallPart(
+                                tool_name="execute",
+                                args={"command": "python read.py"},
+                                tool_call_id="call-2",
+                            )
+                        ]
+                    ),
+                    ModelRequest(
+                        parts=[
+                            ToolReturnPart(
+                                tool_name="execute", content="6 sheets", tool_call_id="call-2"
+                            )
+                        ]
+                    ),
+                ],
+            )
+        )
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                new=AsyncMock(return_value=run),
+            ),
+            patch(
+                "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
+                new=AsyncMock(return_value=[approval]),
+            ),
+            patch(
+                "app.services.agent_runner.agent_repo.get_version",
+                new=AsyncMock(return_value=self._version()),
+            ),
+            patch("app.services.agent_runner.build_agent", return_value=built),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service.registry, "get", new=AsyncMock(return_value=MagicMock())),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+        ):
+            segment = await service.resume(_ctx(), run.id)
+
+        assert [(call.tool_name, call.args, call.result) for call in segment.tool_calls] == [
+            ("execute", {"command": "python read.py"}, "6 sheets")
+        ]
 
     @pytest.mark.anyio
     async def test_a_resumed_run_keeps_the_spend_it_had_already_booked(self):

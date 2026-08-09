@@ -124,9 +124,17 @@ class TranscriptService:
 
         `prompt` is `None` where there is nothing new to record: a resumed run
         picks up at the tool call it stopped on, and inventing a user turn there
-        would put words in somebody's mouth. An empty `answer` is not written
-        either - a run that parked on an approval or broke has no answer, and a
-        blank assistant message reads as the agent replying with silence.
+        would put words in somebody's mouth.
+
+        An empty `answer` is written when the run called something, and skipped
+        when it did not. A blank assistant message with nothing under it reads as
+        the agent replying with silence, but a run that parked, broke or was
+        stopped mid-work *did* things - and gating the write on the answer meant
+        none of them were recorded. A continuation that ran a command and then
+        parked on a second one wrote nothing at all: the command ran, it cost
+        money, it changed a workspace, and history showed the run going straight
+        from one approval to the next. The tool calls are the record of what
+        happened; the answer is only how it ended.
 
         Never raises, and never poisons the session it shares with the caller.
         The answer has already been produced and the money already spent; losing
@@ -154,7 +162,7 @@ class TranscriptService:
                         content=prompt,
                         run_id=run.id,
                     )
-                if answer:
+                if answer or tool_calls:
                     await self._answer(
                         run.conversation_id,
                         run,

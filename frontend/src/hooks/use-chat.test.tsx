@@ -1035,6 +1035,195 @@ describe("useChat - approvals and questions", () => {
     expect(answers.at(-1)?.content).toBe("Done - 3 rows deleted.");
   });
 
+  it("takes the approval panel off screen when another conversation is opened", () => {
+    // It followed the reader from thread to thread. Worse than stale: *Approve*
+    // still worked, so a call could be decided from under another agent's
+    // transcript - and the step it settles lives in messages that are no longer
+    // loaded, so nothing on screen changed to say it had been. The row is not lost
+    // by clearing the panel; the approvals queue holds it.
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("tool_approval_required", {
+      run_id: "r-9",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} }],
+      review_configs: [],
+    });
+    expect(result.current.pendingApproval).not.toBeNull();
+
+    act(() => {
+      useConversationStore.getState().setCurrentConversationId("c-2");
+    });
+
+    expect(result.current.pendingApproval).toBeNull();
+  });
+
+  it("takes a pending question off screen when another conversation is opened", () => {
+    // The same, one turn earlier: answering here would put words typed under one
+    // transcript into a turn belonging to another.
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("ask_user", {
+      questions: [{ question: "Which sheet?", options: ["Plan"], allow_custom: true }],
+    });
+    expect(result.current.pendingQuestions).not.toBeNull();
+
+    act(() => {
+      useConversationStore.getState().setCurrentConversationId("c-2");
+    });
+
+    expect(result.current.pendingQuestions).toBeNull();
+  });
+
+  it("keeps the panel through the turn that creates its own conversation", () => {
+    // A first message parks on an approval: `conversation_created` arrives mid-turn
+    // and moves the id from null to a real one. That is not a switch, and clearing
+    // there would take the panel off the turn that is still on screen.
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("tool_approval_required", {
+      run_id: "r-9",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} }],
+      review_configs: [],
+    });
+
+    act(() => {
+      receive("conversation_created", { conversation_id: "c-new" });
+    });
+
+    expect(result.current.pendingApproval).not.toBeNull();
+  });
+
+  it("draws what the continuation did, not just what it answered", async () => {
+    // The whole second half of a turn used to be invisible. A continuation runs
+    // inside the resume request, so its `tool_call` frames go to that response and
+    // never to this socket: approving a command showed the approved step finishing
+    // and nothing else, then an answer that accounted for work nobody had seen.
+    post.mockImplementation((url: string) =>
+      url.endsWith("/resume")
+        ? Promise.resolve({
+            run_id: "r-9",
+            output: "Six sheets.",
+            status: "completed",
+            steps: [
+              // The decided call comes back with the segment on some providers.
+              // Its step is already on screen in the turn that parked, so drawing
+              // it again would show one command twice.
+              { tool_call_id: "tc-1", tool_name: "execute", args: {}, result: "ok" },
+              {
+                tool_call_id: "tc-2",
+                tool_name: "execute",
+                args: { command: "python parse.py" },
+                result: "6 sheets",
+              },
+            ],
+            parked: [],
+          })
+        : Promise.resolve({}),
+    );
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("tool_call", { tool_call_id: "tc-1", tool_name: "execute", args: {} });
+    receive("tool_approval_required", {
+      run_id: "r-9",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} }],
+      review_configs: [],
+    });
+    receive("complete", {});
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+
+    const continuation = useChatStore.getState().messages.at(-1);
+    expect(continuation?.parts?.map((part) => part.toolCall?.id ?? part.type)).toEqual([
+      "tc-2",
+      "text",
+    ]);
+    expect(continuation?.parts?.[0]?.toolCall).toMatchObject({
+      name: "execute",
+      args: { command: "python parse.py" },
+      result: "6 sheets",
+      status: "completed",
+    });
+    expect(continuation?.content).toBe("Six sheets.");
+  });
+
+  it("draws the step the continuation parked on, and decides against that step", async () => {
+    // The sequence in the report: approve, see nothing happen, get asked to approve
+    // again. The second gated call had no step anywhere, and the panel still pointed
+    // at the first turn - so the decision after it was written back onto a tool call
+    // that message does not contain.
+    post.mockImplementation((url: string) =>
+      url.endsWith("/resume")
+        ? Promise.resolve({
+            run_id: "r-9",
+            output: "",
+            status: "awaiting_approval",
+            steps: [
+              {
+                tool_call_id: "tc-2",
+                tool_name: "execute",
+                args: { command: "python parse.py" },
+                result: null,
+              },
+            ],
+            parked: [
+              {
+                id: "ar-2",
+                tool_call_id: "tc-2",
+                tool_name: "execute",
+                tool_args: { command: "python parse.py" },
+              },
+            ],
+          })
+        : Promise.resolve({}),
+    );
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("tool_call", { tool_call_id: "tc-1", tool_name: "execute", args: {} });
+    receive("tool_approval_required", {
+      run_id: "r-9",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} }],
+      review_configs: [],
+    });
+    receive("complete", {});
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+
+    const continuation = useChatStore.getState().messages.at(-1);
+    const step = continuation?.parts?.find((part) => part.toolCall?.id === "tc-2");
+    // `awaiting_approval`, not a spinner: it produces no result until somebody
+    // decides, which is what the panel below is asking.
+    expect(step?.toolCall?.status).toBe("awaiting_approval");
+    expect(result.current.pendingApproval?.messageId).toBe(continuation?.id);
+  });
+
+  it("adds no continuation message when the resume produced nothing", async () => {
+    // A resume into a refusal: nothing called, nothing said. A blank assistant
+    // message there reads as the agent answering with silence.
+    post.mockImplementation((url: string) =>
+      url.endsWith("/resume")
+        ? Promise.resolve({ run_id: "r-9", output: "", status: "completed", steps: [], parked: [] })
+        : Promise.resolve({}),
+    );
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("tool_approval_required", {
+      run_id: "r-9",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} }],
+      review_configs: [],
+    });
+    receive("complete", {});
+    const before = useChatStore.getState().messages.length;
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "reject" }]);
+    });
+
+    expect(useChatStore.getState().messages).toHaveLength(before);
+  });
+
   it("closes a parked delegate's panel once the run is approved and resumes", async () => {
     // The crux of agenticos#173. A sync delegate parks on an approval and its panel
     // reads "waiting for approval". The resume runs over HTTP - no delegation frames

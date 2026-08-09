@@ -250,7 +250,7 @@ is stored is what its reader actually saw.
 | `@mention` on a channel | The same, with the handle stripped from the recorded prompt |
 | Embedded widget | The same. The visitor is anonymous; the run and the turns belong to the widget's owner |
 | HTTP API | The same when the call carries a `conversation_id`. Nothing without one — there is no thread to write a turn into, and the run row is still the record that it happened |
-| A run resumed after an approval | Its continuation — the answer and the calls it made. No user turn: it picks up at the call it stopped on, and inventing a question would put words in somebody's mouth |
+| A run resumed after an approval | Its continuation — the answer and the calls it made, and the calls even when there is no answer, which is what a continuation that parks again on a second gated call has. No user turn: it picks up at the call it stopped on, and inventing a question would put words in somebody's mouth |
 
 Two things are deliberately not recorded. A channel reply's **delivery notes** — *this
 file was too large to send* — stay out of the transcript: they are about what the
@@ -348,6 +348,26 @@ nests under the right panel rather than under whichever one started most recentl
 A child's text is never folded into the
 parent's answer: that would put words in the parent's mouth its own model never
 generated, and the conversation is persisted with them.
+
+**An approved call is not the end of the turn, and the rest of it is drawn too.**
+Approving continues the run over HTTP, so nothing about the continuation arrives on
+this conversation's socket: its steps come back in the resume's own answer and are
+appended as one more assistant turn — the calls it made, then what it said. Without
+them the second half of a turn was invisible, and a run that parked twice was the
+worst version of it: approve a command, watch nothing happen, and be asked to
+approve a second command with no step on screen accounting for the first. The
+newly parked call is drawn in that turn as *waiting for a person*, which is also
+the step the next decision is written back onto.
+
+**And the panel belongs to its conversation, not to the tab.** Opening another
+thread takes the approval panel and any pending question off screen, the way it
+already takes the delegation panels. Left there the approval was not merely
+stale but actionable: *Approve* still decided the call, from under a different
+agent's transcript, and the step it settles is in messages that are no longer
+loaded — so nothing on screen changed to say it had happened. Clearing it loses
+nothing, because the approvals queue holds the same row. The one transition that
+is not a switch is a first turn learning its own conversation id mid-stream, and
+the panel survives that.
 
 A delegate can stop for a person too — a gated tool inside a specialist parks the
 whole turn in the approval queue. The panel then closes into a *waiting for a

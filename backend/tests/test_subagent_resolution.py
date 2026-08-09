@@ -1609,9 +1609,9 @@ class TestResumingIntoADelegation:
             patch(f"{RUNNER}.build_agent") as build,
         ):
             build.return_value.agent.run = AsyncMock(return_value=MagicMock(output="continued"))
-            output, _ = await service.resume(_ctx(), run.id)
+            segment = await service.resume(_ctx(), run.id)
 
-        assert output == "continued"
+        assert segment.output == "continued"
         runtime = build.call_args_list[0].kwargs["resources"][SUBAGENT_RUNTIME_RESOURCE]
         assert list(runtime.stash.resuming) == [parked_at]
         # And the replay is told to run that `task` call again, which is what puts
