@@ -47,6 +47,25 @@ def unseal_bot_token(bot: ChannelBot) -> str:
     )
 
 
+def unseal_webhook_secret(bot: ChannelBot) -> str | None:
+    """The secret an inbound webhook is authenticated against, or None if unset.
+
+    A module-level function for the same reason :func:`unseal_bot_token` is: the
+    two webhook routes hold the row and no service, and the row carries the
+    organization the envelope is bound to.
+
+    None is the caller's problem to name, and both callers name it the same way -
+    a webhook that cannot be authenticated is refused rather than trusted.
+    """
+    if bot.webhook_secret_encrypted is None:
+        return None
+    return unseal(
+        bot.webhook_secret_encrypted,
+        scope=VaultScope.organization(bot.organization_id),
+        key_version=bot.secret_key_version,
+    )
+
+
 def unseal_slack_signing_secret(bot: ChannelBot) -> str | None:
     """The secret inbound Slack events are verified with, or None if unset.
 
@@ -117,7 +136,7 @@ class ChannelBotService:
             secret_key_version=sealed.key_version,
             webhook_mode=data.webhook_mode,
             webhook_url=data.webhook_url,
-            webhook_secret=webhook_secret,
+            webhook_secret_encrypted=self._seal_at(webhook_secret, key_version=sealed.key_version),
             access_policy=data.access_policy.model_dump(),
             usage_reporting=data.usage_reporting.model_dump(),
             slack_signing_secret_encrypted=self._seal_at(
@@ -272,7 +291,9 @@ class ChannelBotService:
         # the two drift apart.
         base = settings.PUBLIC_BASE_URL.rstrip("/")
         webhook_url = f"{base}/api/v1/channels/{bot.platform}/{bot_id}/webhook"
-        success = await adapter.register_webhook(token, url=webhook_url, secret=bot.webhook_secret)
+        success = await adapter.register_webhook(
+            token, url=webhook_url, secret=unseal_webhook_secret(bot)
+        )
         return {"success": success, "webhook_url": webhook_url}
 
     async def delete_webhook(self, bot_id: UUID) -> dict[str, Any]:

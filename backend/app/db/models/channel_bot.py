@@ -41,7 +41,12 @@ class ChannelBot(Base, TimestampMixin):
     # Telegram have one address for everybody; a Mattermost bot belongs to a
     # particular server and cannot post anywhere without knowing which.
     api_base_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    webhook_secret: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # The shared secret an inbound webhook is authenticated against - Telegram's
+    # `X-Telegram-Bot-Api-Secret-Token`, Mattermost's outgoing-webhook token.
+    # Sealed like the bot token and at the same `secret_key_version`: it is the
+    # only thing standing between the internet and a run on this organization's
+    # budget, and it sat in the clear beside three sealed columns until #22.
+    webhook_secret_encrypted: Mapped[str | None] = mapped_column(String(1000), nullable=True)
 
     # A Slack bot's own app credentials, sealed like the token and at the same
     # `secret_key_version`. Per bot rather than per deployment: one row is one
@@ -73,6 +78,11 @@ class ChannelBot(Base, TimestampMixin):
     together: a mode, the threshold `near_limit` compares against, and the `n` in
     "every n". Columns for each would be three migrations to add a fourth mode.
     """
+
+    @property
+    def has_webhook_secret(self) -> bool:
+        """Whether an inbound webhook can be authenticated - never the secret."""
+        return self.webhook_secret_encrypted is not None
 
     @property
     def has_slack_signing_secret(self) -> bool:

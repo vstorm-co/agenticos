@@ -19,7 +19,7 @@ from app.commands import command, error, info, success
 from app.core.config import settings
 from app.db.session import get_db_context
 from app.schemas.channel_bot import AccessPolicy, ChannelBotCreate
-from app.services.channel_bot import ChannelBotService
+from app.services.channel_bot import ChannelBotService, unseal_webhook_secret
 from app.services.channels import get_adapter
 from app.services.channels.base import OutgoingMessage
 
@@ -112,7 +112,9 @@ def channel_webhook_register(bot_id: str) -> None:
         webhook_url = f"{base}/api/v1/channels/telegram/{bot_id}/webhook"
 
         info(f"Registering webhook: {webhook_url}")
-        ok = await adapter.register_webhook(token, url=webhook_url, secret=bot.webhook_secret)
+        ok = await adapter.register_webhook(
+            token, url=webhook_url, secret=unseal_webhook_secret(bot)
+        )
         if ok:
             success("Webhook registered successfully.")
         else:

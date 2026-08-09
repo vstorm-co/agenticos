@@ -8,6 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Request, Response
 
 from app.api.deps import ChannelBotSvc
+from app.services.channel_bot import unseal_webhook_secret
 from app.services.channels import get_adapter
 from app.worker.background.channel import process_channel_event
 
@@ -37,7 +38,8 @@ async def telegram_webhook(
     if bot is None:
         return Response(status_code=200)
 
-    if bot.webhook_secret and not adapter.verify_webhook_signature(headers, bot.webhook_secret):
+    secret = unseal_webhook_secret(bot)
+    if secret and not adapter.verify_webhook_signature(headers, secret):
         raise HTTPException(status_code=403, detail="Invalid webhook signature")
 
     incoming = adapter.parse_incoming(payload, str(bot_id))

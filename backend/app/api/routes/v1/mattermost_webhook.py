@@ -16,6 +16,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Request, Response
 
 from app.api.deps import ChannelBotSvc
+from app.services.channel_bot import unseal_webhook_secret
 from app.services.channels import get_adapter
 from app.services.channels.mattermost import decode_webhook_body
 from app.worker.background.channel import process_channel_event
@@ -47,9 +48,8 @@ async def mattermost_webhook(
     # A webhook with no secret is one anybody can post to, so it is refused
     # rather than trusted. The secret is the token Mattermost shows when the
     # integration is created.
-    if not bot.webhook_secret or not adapter.verify_webhook_signature(
-        dict(request.headers), bot.webhook_secret, raw
-    ):
+    secret = unseal_webhook_secret(bot)
+    if not secret or not adapter.verify_webhook_signature(dict(request.headers), secret, raw):
         raise HTTPException(status_code=403, detail="Invalid webhook token")
 
     incoming = adapter.parse_incoming(decode_webhook_body(raw), str(bot_id))
