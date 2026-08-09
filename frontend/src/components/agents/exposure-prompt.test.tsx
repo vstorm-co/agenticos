@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { ExposurePrompt } from "./exposure-prompt";
+import type { ExposureVariable } from "@/types/exposures";
 
 /**
  * What a binding adds to the agent's instructions.
@@ -11,10 +12,16 @@ import { ExposurePrompt } from "./exposure-prompt";
  * Mattermost channel, and those want different things of it. Editing the spec to
  * suit one of them changes it on all the others.
  */
-function mount(value: string | null = null, disabled = false) {
+function mount(value: string | null = null, disabled = false, variables: ExposureVariable[] = []) {
   const onSave = vi.fn();
   render(
-    <ExposurePrompt botName="Acme Support" value={value} disabled={disabled} onSave={onSave} />,
+    <ExposurePrompt
+      botName="Acme Support"
+      value={value}
+      variables={variables}
+      disabled={disabled}
+      onSave={onSave}
+    />,
   );
   return onSave;
 }
@@ -72,5 +79,39 @@ describe("a binding's extra instructions", () => {
     mount();
 
     expect(screen.getByLabelText("Extra instructions on Acme Support")).toBeVisible();
+  });
+});
+
+describe("the placeholders a prompt may carry", () => {
+  const variables: ExposureVariable[] = [
+    { name: "channel_name", description: "The channel's name, as people see it" },
+    { name: "member_list", description: "Who is in it, by name" },
+  ];
+
+  it("offers only what this platform can fill in", () => {
+    mount(null, false, variables);
+
+    expect(screen.getByRole("button", { name: "{channel_name}" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "{member_list}" })).toBeVisible();
+  });
+
+  it("says nothing at all where the platform fills in nothing", () => {
+    mount(null, false, []);
+
+    expect(screen.queryByText("Insert:")).toBeNull();
+  });
+
+  it("writes the placeholder where the caret is, not at the end", async () => {
+    // The alternative is remembering an exact spelling that fails silently: an
+    // unknown brace is left as written, on purpose, so a prompt quoting JSON
+    // still works.
+    const onSave = mount("Answer here.", false, variables);
+    const box = screen.getByRole("textbox") as HTMLTextAreaElement;
+    box.setSelectionRange(7, 7);
+
+    await userEvent.click(screen.getByRole("button", { name: "{channel_name}" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(onSave).toHaveBeenCalledWith("Answer {channel_name}here.");
   });
 });

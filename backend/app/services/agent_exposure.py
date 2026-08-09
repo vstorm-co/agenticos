@@ -42,11 +42,13 @@ from app.schemas.agent_exposure import (
     ExposureTarget,
     ExposureTool,
     ExposureUpdate,
+    ExposureVariable,
 )
 from app.schemas.channel_bot import UsageReporting
 from app.services.agent_registry import AgentRegistryService
 from app.services.channels.directory import PLATFORM_TOOLS
 from app.services.channels.formatting import house_style
+from app.services.channels.prompt_variables import VARIABLES as PROMPT_VARIABLES
 
 # How many bots one organization can have bound before the picker stops being a
 # picker. Far above any real deployment; it exists so the query is bounded.
@@ -86,6 +88,28 @@ def _lookups_for(surface: ExposureSurface) -> list[ExposureTool]:
         ExposureTool(id=tool.id, name=tool.name, description=tool.description)
         for tool in get_capability(CHANNEL_TOOLS_CAPABILITY_ID).tools
         if tool.id in available
+    ]
+
+
+def _variables_for(surface: ExposureSurface) -> list[ExposureVariable]:
+    """The placeholders this platform can fill in.
+
+    Keyed on the same `PLATFORM_TOOLS` the lookups are, because they are
+    answered by the same calls: `{channel_name}` is `channel_details` and
+    `{member_list}` is `channel_members`. Telegram implements both, so it
+    offers every placeholder even though it offers only two of the four tools -
+    which is the point of deriving this rather than writing a second list.
+    """
+    available = PLATFORM_TOOLS.get(surface.value, ())
+    answered = {
+        "get_channel_info": {"channel_name", "channel_purpose", "channel_topic", "member_count"},
+        "list_channel_members": {"member_list"},
+    }
+    fillable = {name for tool, names in answered.items() if tool in available for name in names}
+    return [
+        ExposureVariable(name=variable.name, description=variable.description)
+        for variable in PROMPT_VARIABLES
+        if variable.name in fillable
     ]
 
 
@@ -164,6 +188,7 @@ class AgentExposureService:
             prompt=exposure.prompt,
             tools=list(exposure.tools or []),
             available_tools=_lookups_for(surface),
+            available_variables=_variables_for(surface),
             usage_reporting=UsageReporting.model_validate(exposure.usage_reporting or {}),
             is_active=exposure.is_active,
             created_at=exposure.created_at,

@@ -69,9 +69,24 @@ export interface Exposure {
    * surface, and on the bot it was an operator's setting in a table of tokens
    * and addresses.
    */
+  /**
+   * Placeholders the prompt may carry, filled in from the platform per run.
+   *
+   * Resolved server-side and served with the binding rather than written out
+   * here: what a platform can fill in is decided by what its adapter
+   * implements, and a list in the browser goes on offering one the day an
+   * adapter stops answering it.
+   */
+  available_variables: ExposureVariable[];
   usage_reporting: UsageReporting;
   is_active: boolean;
   created_at: string | null;
+}
+
+/** One placeholder a binding's instructions may carry. */
+export interface ExposureVariable {
+  name: string;
+  description: string;
 }
 
 /** One channel lookup, as the binding's form offers it. */

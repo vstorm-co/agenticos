@@ -26,6 +26,19 @@ class ExposureTool(BaseSchema):
     description: str
 
 
+class ExposureVariable(BaseSchema):
+    """One placeholder a binding's instructions may carry.
+
+    Served with the binding rather than written out in the client, for the same
+    reason `available_tools` is: what a platform can fill in is decided by what
+    its adapter implements, and a list in the browser is a list that goes on
+    offering a placeholder the day an adapter stops answering it.
+    """
+
+    name: str
+    description: str
+
+
 class ExposureRead(BaseSchema):
     """One place an agent is available, as the Builder shows it.
 
@@ -57,6 +70,14 @@ class ExposureRead(BaseSchema):
             "gives a bot no channel search and no way to read history, and a "
             "control whose only effect is a tool that says so is a worse answer "
             "than no control."
+        ),
+    )
+    available_variables: list[ExposureVariable] = Field(
+        default_factory=list,
+        description=(
+            "Placeholders the prompt may carry - `{channel_name}`, "
+            "`{member_list}` - filled in from the platform when a run starts. "
+            "Only what this binding's platform can actually answer."
         ),
     )
     usage_reporting: UsageReporting = Field(default_factory=UsageReporting)

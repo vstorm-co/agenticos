@@ -31,6 +31,7 @@ function exposure(overrides: Partial<Exposure> = {}): Exposure {
     prompt: null,
     tools: [],
     available_tools: [],
+    available_variables: [],
     usage_reporting: { mode: "near_limit", near_limit_percent: 80, every_n: 10 },
     is_active: true,
     created_at: null,

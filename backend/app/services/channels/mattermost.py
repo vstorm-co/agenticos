@@ -301,16 +301,37 @@ class MattermostAdapter(ChannelAdapter):
         member_count = stats.json().get("member_count")
         return ChannelDetails(
             channel_id=str(found.get("id") or channel_id),
-            # `display_name` is what people see in the sidebar; `name` is the URL
-            # slug. A model quoting the slug into a reply reads as a typo.
-            name=str(found.get("display_name") or found.get("name") or channel_id),
+            name=self._channel_name(found, channel_id),
             purpose=str(found.get("purpose") or "") or None,
-            header=str(found.get("header") or "") or None,
+            # Mattermost calls it `header`; the contract calls it `topic`,
+            # because Slack does and one of the two names had to win.
+            topic=str(found.get("header") or "") or None,
             # "O" is an open channel; everything else - private, direct, group -
             # is somewhere not everyone can walk into.
             is_private=found.get("type") != "O",
             member_count=None if member_count is None else int(member_count),
         )
+
+    @staticmethod
+    def _channel_name(found: dict[str, Any], channel_id: str) -> str:
+        """What to call this channel to somebody reading a reply.
+
+        `display_name` is what people see in the sidebar and `name` is the URL
+        slug, so the slug is the fallback - a model quoting it reads as a typo.
+
+        Except in a direct or group message, where Mattermost leaves
+        `display_name` empty and names the channel after the user ids joined by
+        two underscores. Handing an agent
+        `cm36shpzrpnt9jmc5hzcerkjie__wz75u9w6zjba7dn7jwf4aush5y` as "the channel
+        you are in" is worse than telling it nothing, and it is what
+        `{channel_name}` filled in until this existed.
+        """
+        kind = str(found.get("type") or "")
+        if kind == "D":
+            return "a direct message"
+        if kind == "G":
+            return "a group message"
+        return str(found.get("display_name") or found.get("name") or channel_id)
 
     async def channel_members(
         self, bot_token: str, channel_id: str, *, api_base_url: str | None, limit: int

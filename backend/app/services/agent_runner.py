@@ -145,6 +145,7 @@ from app.services.approvals import ApprovalService
 from app.services.attachments import AttachmentRouter
 from app.services.channels.attachments import files_written, workspace_snapshot
 from app.services.channels.base import OutgoingAttachment
+from app.services.channels.prompt_variables import resolve as resolve_prompt_variables
 from app.services.mcp_connection import build_toolsets_for_agent
 from app.services.model_profile import ModelProfileService
 from app.services.notifications import NotificationService
@@ -990,7 +991,9 @@ run is metered exactly like one that was waited for.
 """
 
 
-def _with_exposure_prompt(spec: AgentSpec, exposure: AgentExposure | None) -> AgentSpec:
+async def _with_exposure_prompt(
+    spec: AgentSpec, exposure: AgentExposure | None, directory: ChannelDirectory | None = None
+) -> AgentSpec:
     """The spec as this binding wants it, if the binding says anything.
 
     A binding is created holding the platform's own style - what that client
@@ -1007,6 +1010,11 @@ def _with_exposure_prompt(spec: AgentSpec, exposure: AgentExposure | None) -> Ag
     added = "" if exposure is None else (exposure.prompt or "").strip()
     if not added:
         return spec
+    # `{channel_name}`, `{member_list}` - filled in from the platform, per run,
+    # and only when the prose actually names one. Async for that reason: a
+    # placeholder is an HTTP call to somebody's chat server, and a binding that
+    # names none costs nothing at all.
+    added = await resolve_prompt_variables(added, directory)
     return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{added}"})
 
 
@@ -1426,7 +1434,7 @@ class AgentRunnerService:
         spec = await self._with_environment_observability(
             ctx, spec, environment_id=effective_environment_id
         )
-        spec = _with_exposure_prompt(spec, exposure)
+        spec = await _with_exposure_prompt(spec, exposure, channel_directory)
         spec = _with_channel_tools(spec, exposure)
         return await self._assemble(
             ctx,

@@ -58,7 +58,39 @@ That is the whole integration. The script has no dependencies, no build step and
 no framework — it runs on a page that already loads React, jQuery or nothing at
 all.
 
-### 3. (Optional) tell it who the visitor is
+### 3. (Optional) tell it about the visitor
+
+A widget can **declare variables** - a name, whether it is required, and a line
+saying what it is for - and the page supplies them:
+
+```html
+<script>window.AgenticOSContext = { plan: "pro", locale: "pl" };</script>
+<script src="https://your-api.example.com/api/v1/embed/PUBLIC_KEY/widget.js" async></script>
+```
+
+The snippet the Builder hands you already carries that line, with your own keys
+in it, once you have declared any.
+
+They are appended to the agent's instructions as a marked block of data, under a
+line saying they are information about the visitor rather than instructions, and
+that they cannot be verified. That last part is true of every one of them,
+including on a `jwt` widget: the widget reads `window.AgenticOSContext`, and a
+token authenticates *who the visitor is* rather than *what the page said about
+them*. So nothing here may decide what the agent is allowed to do.
+
+Three rules follow from that:
+
+- **A key nobody declared is dropped.** The page is something a visitor can
+  edit; without a declaration, any key they invented would become a line inside
+  an agent's instructions.
+- **A missing required value omits its line and is logged.** `required` is a
+  promise between an integrator and themselves - enforcing it would cost a
+  visitor their answer over somebody else's deployment mistake.
+- **Sent once per conversation**, ahead of the first question, and read from
+  every frame rather than at connect time: a single-page application learns who
+  somebody is without reconnecting.
+
+### 4. (Optional) tell it who the visitor is
 
 For a widget inside your own logged-in product, set a token **before** the
 script loads. Your backend signs it; we verify it and never see your user
@@ -317,6 +349,23 @@ it is about to wait.
   take effect immediately, for the same reason: the stream is reopened to match
   whatever the row now says. It is opened *after* the transaction commits, so a
   registration that fails leaves no connection behind.
+- **A binding's instructions may name what only the platform knows.**
+  `{channel_name}`, `{channel_purpose}`, `{channel_topic}`, `{member_count}`,
+  `{member_list}` - filled in when a run starts, from the same calls the channel
+  lookups use, so Telegram offers all five even though it offers two of the four
+  tools. The Builder lists the ones this platform can answer under the box and
+  inserts one at the cursor.
+
+    Resolved per run and never cached: a channel's membership changes, and a
+    stale list in a prompt is worse than none because the agent states it as
+    fact. Only what the prose asks for is fetched, so a binding that names no
+    placeholder costs nothing. A placeholder the platform could not answer
+    becomes `(unavailable)` rather than costing somebody their reply.
+
+    A prompt that filled any of them gains a sentence saying the substituted
+    values are information rather than orders, and every value has its line
+    breaks and braces flattened. A channel's `purpose` is editable by whoever
+    can edit the channel, and it is being pasted into an agent's instructions.
 - **Rate limits** per chat, on the bot - who may talk to it and how often is the
   operator's, unlike everything above, which is the agent author's.
 - **Spending limits** per binding, on top of the agent's own and the

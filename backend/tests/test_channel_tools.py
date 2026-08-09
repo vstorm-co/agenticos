@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic_ai.models.test import TestModel
@@ -440,3 +440,98 @@ class TestTheBoundDirectory:
         ):
             with pytest.raises(ChannelDirectoryUnsupported, match="carrier-pigeon"):
                 await awaitable
+
+
+class TestWhatAnAdapterActuallyBuilds:
+    """The adapters construct the contract's dataclasses, and nothing else did.
+
+    Every other test here hands the toolset a stub directory, so a keyword an
+    adapter got wrong never showed up: `MattermostAdapter.channel_details`
+    passed `header=` where the field is `topic`, raised `TypeError` on the first
+    real call, and was reported to the model as "(unavailable)" - the designed
+    degradation, hiding a typo. These build the answer from a stubbed response
+    instead.
+    """
+
+    @staticmethod
+    def _responses(*payloads: Any) -> Any:
+        """An httpx client whose calls answer with these payloads, in order."""
+        answers = [MagicMock(json=MagicMock(return_value=payload)) for payload in payloads]
+        client = MagicMock()
+        client.get = AsyncMock(side_effect=answers)
+        client.post = AsyncMock(side_effect=answers)
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        return client
+
+    async def test_mattermost_describes_a_channel_with_the_fields_the_contract_has(self):
+        client = self._responses(
+            {
+                "id": "c1",
+                "display_name": "Support",
+                "name": "support",
+                "purpose": "Customer questions",
+                "header": "On call: Ada",
+                "type": "O",
+            },
+            {"member_count": 3},
+        )
+
+        with patch("app.services.channels.mattermost.httpx.AsyncClient", return_value=client):
+            found = await MattermostAdapter().channel_details(
+                "tok", "c1", api_base_url="https://mattermost.acme.com"
+            )
+
+        assert found.name == "Support"
+        assert found.purpose == "Customer questions"
+        # Mattermost calls it `header`; the contract calls it `topic`.
+        assert found.topic == "On call: Ada"
+        assert found.is_private is False
+        assert found.member_count == 3
+
+    @pytest.mark.parametrize(
+        ("kind", "expected"),
+        [("D", "a direct message"), ("G", "a group message"), ("O", "Support")],
+    )
+    async def test_a_direct_message_is_named_rather_than_given_as_an_id_pair(
+        self, kind: str, expected: str
+    ):
+        """Mattermost leaves `display_name` empty on a DM and names it after the
+        two user ids joined by underscores. Handing an agent
+        `cm36shp...__wz75u9w...` as "the channel you are in" is worse than
+        telling it nothing, and it is what `{channel_name}` filled in."""
+        client = self._responses(
+            {"id": "c1", "display_name": "" if kind != "O" else "Support", "type": kind},
+            {"member_count": 2},
+        )
+
+        with patch("app.services.channels.mattermost.httpx.AsyncClient", return_value=client):
+            found = await MattermostAdapter().channel_details(
+                "tok", "c1", api_base_url="https://mattermost.acme.com"
+            )
+
+        assert found.name == expected
+
+    async def test_slack_describes_a_channel_the_same_way(self):
+        client = MagicMock()
+        client.conversations_info = AsyncMock(
+            return_value={
+                "channel": {
+                    "id": "C1",
+                    "name": "support",
+                    "purpose": {"value": "Customer questions"},
+                    "topic": {"value": "On call: Ada"},
+                    "is_private": False,
+                    "num_members": 3,
+                }
+            }
+        )
+
+        with patch("slack_sdk.web.async_client.AsyncWebClient", return_value=client, create=True):
+            found = await SlackAdapter().channel_details("tok", "C1", api_base_url=None)
+
+        assert (found.name, found.purpose, found.topic) == (
+            "support",
+            "Customer questions",
+            "On call: Ada",
+        )

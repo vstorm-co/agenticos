@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
-import { Button, Textarea } from "@/components/ui";
+import { Button, MarkdownEditor } from "@/components/ui";
+import type { ExposureVariable } from "@/types/exposures";
 import { useTranslations } from "next-intl";
 
 /**
@@ -17,32 +18,73 @@ import { useTranslations } from "next-intl";
  * Saved on a button rather than on every keystroke: this is prose somebody is
  * composing, and a mutation per character would republish the agent's behaviour
  * mid-sentence.
+ *
+ * The prose may name placeholders the platform fills in when a run starts -
+ * `{channel_name}`, `{member_list}`. They are listed under the box and inserted
+ * at the cursor by clicking one, because the alternative is remembering an exact
+ * spelling that fails silently: an unknown brace is left as written, on purpose,
+ * so a prompt quoting JSON still works.
  */
 export function ExposurePrompt({
   botName,
   value,
+  variables,
   disabled,
   onSave,
 }: {
   botName: string;
   value: string | null;
+  /** Placeholders this platform can fill in, resolved server-side. */
+  variables: ExposureVariable[];
   disabled: boolean;
   onSave: (prompt: string | null) => void;
 }) {
   const t = useTranslations("agents");
   const [draft, setDraft] = useState(value ?? "");
+  const box = useRef<HTMLTextAreaElement>(null);
   const changed = draft.trim() !== (value ?? "").trim();
+
+  /** Put a placeholder where the caret is, rather than at the end. */
+  function insert(name: string) {
+    const field = box.current;
+    const at = field ? field.selectionStart : draft.length;
+    setDraft(`${draft.slice(0, at)}{${name}}${draft.slice(at)}`);
+    field?.focus();
+  }
 
   return (
     <div className="space-y-2">
-      <Textarea
+      {/* The same editor the agent's own Instructions use, for the same
+          reason: this is Markdown the model reads as structure, and three rows
+          of it is a keyhole onto a prompt somebody is composing. */}
+      <MarkdownEditor
+        textareaRef={box}
         value={draft}
-        onChange={(event) => setDraft(event.target.value)}
+        onChange={setDraft}
+        label={t("channelPromptOn", { bot: botName })}
         placeholder={t("channelPromptPlaceholder")}
-        aria-label={t("channelPromptOn", { bot: botName })}
-        rows={3}
-        maxLength={4000}
+        rows={10}
+        disabled={disabled}
       />
+      {variables.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-muted-foreground text-xs">{t("channelPromptVariables")}</span>
+          {variables.map((variable) => (
+            <Button
+              key={variable.name}
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-6 px-2 font-mono text-xs"
+              disabled={disabled}
+              title={variable.description}
+              onClick={() => insert(variable.name)}
+            >
+              {`{${variable.name}}`}
+            </Button>
+          ))}
+        </div>
+      )}
       <div className="flex items-center justify-between gap-3">
         <p className="text-muted-foreground text-xs">{t("channelPromptHint")}</p>
         <Button
