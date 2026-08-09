@@ -17,6 +17,50 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.85] - 2026-08-09
+
+Approving a tool call, and everything that was missing on the other side of it.
+A run that stopped for a person, was let through, and carried on had almost none
+of that written down — so the second half of a turn was a blank, and the record
+of it was worse than the screen.
+
+### Fixed
+
+- **A continuation now says what it did.** `POST /runs/{id}/resume` executes the
+  agent inside the request rather than on the socket a conversation streams, so
+  its tool calls reached nobody: the response carried the answer, the status and
+  the cost, and never the work. Approving a command showed nothing running, then
+  asked for a second approval for a step that had never been drawn, and finished
+  with a reply that accounted for neither. The response now carries the calls, in
+  order, each with what came back ([#505](https://github.com/vstorm-co/agenticos/issues/505)).
+- **A continuation with no answer recorded nothing at all.** The transcript wrote
+  the assistant turn only when there was an answer, and a segment that runs a
+  command and then parks on a second one has none — so the command it ran, its
+  arguments and its result were never written. Three commands ran in a sandbox
+  and history accounted for one.
+- **What an approved call returned is recorded.** Its row is written open when
+  the run parks; the resume that finally runs it produces the return *without*
+  the call it belongs to, so nothing ever closed the row. The one call somebody
+  deliberately reviewed was the one call that opened onto nothing
+  ([#506](https://github.com/vstorm-co/agenticos/issues/506)).
+- **One run is drawn as one turn.** A run that parks leaves several assistant
+  messages — each segment written as it happens, rather than folded back into a
+  turn somebody has already read — and each drew its own avatar and agent name.
+  One question read as three agents answering it. Consecutive messages of the
+  same run are now one turn: the avatar and the name once, at the top, and the
+  time and the cost once, under the end.
+- **The approval panel belongs to its conversation.** It followed the reader into
+  another thread and its buttons still worked, so a call could be decided from
+  under a different agent's transcript — settling a step in messages that were no
+  longer loaded, with nothing on screen changing to say it had happened
+  ([#507](https://github.com/vstorm-co/agenticos/issues/507)).
+- **A replayed step no longer animates.** A tool call is stored as running until
+  something records its outcome, and an expiry runs nothing — so the step it
+  parked on stayed open and pulsed in the present tense under a conversation that
+  had ended days earlier. The expiry sweep closes those steps now, and a replayed
+  call still marked in flight renders as unfinished: not an error, not a success,
+  the outcome nobody wrote down.
+
 ## [0.0.84] - 2026-08-09
 
 The chat surface, seven issues deep — plus the two things a conversation could
