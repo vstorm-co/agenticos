@@ -9,6 +9,7 @@ from typing import Any
 
 from app.core.config import settings
 from app.core.exceptions import AppException, AuthorizationError, BadRequestError
+from app.db.models.agent_run import RunStatus
 from app.repositories import (
     channel_bot_repo,
     channel_identity_repo,
@@ -80,6 +81,23 @@ def _needs_approval(run_id: Any) -> str:
     if run_id is not None:
         return f"That needs approval before it can run: {where}?run={run_id}"
     return f"That needs approval before it can run - decide it here: {where}"
+
+
+def _empty_answer(answered: Any) -> str:
+    """What to say when a turn ended with no words, told apart by why.
+
+    An empty answer used to always read as "that needs approval", but the three
+    reasons a turn ends empty are not the same message. A run parked on an
+    approval links to the decision; one stopped at its budget says the assistant
+    is at its ceiling; anything else - a crash caught upstream, a model that
+    produced no text - gets a plain apology rather than being sent to a runs
+    page over a decision that was never raised.
+    """
+    if answered.awaiting_approval_run_id is not None:
+        return _needs_approval(answered.awaiting_approval_run_id)
+    if answered.status == RunStatus.BUDGET_EXCEEDED:
+        return "This assistant has reached its usage limit."
+    return "Sorry, I could not produce an answer to that. Please try again."
 
 
 def _kept_back(paths: list[str]) -> list[str]:
@@ -238,7 +256,7 @@ class ChannelMessageRouter:
         second post: no platform lets a message gain an attachment by being
         edited.
         """
-        text = answer or _needs_approval(answered.awaiting_approval_run_id)
+        text = answer or _empty_answer(answered)
         if handle is not None:
             adapter = get_adapter(incoming.platform)
             try:

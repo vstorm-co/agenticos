@@ -214,6 +214,20 @@ class AnsweredTurn:
     with the text rather than as something to download.
     """
 
+    status: str = RunStatus.COMPLETED
+    """How the run ended, so the reply can tell an empty answer's reasons apart.
+
+    Typed `str` to match `AgentRun.status` (`Mapped[str]`) - the whole codebase
+    holds a run status as a string and compares it against the `RunStatus`
+    members, which are strings.
+
+    An empty `text` is not one thing: a run parked on an approval, one stopped
+    at its budget, and one that simply produced no words all arrive empty, and
+    only `awaiting_approval_run_id` distinguished the first - so the other two
+    were told "that needs approval", which sends somebody to a runs page over a
+    decision that was never raised.
+    """
+
 
 class ChannelAgentRouter:
     """Answers channel messages that name a published agent."""
@@ -338,6 +352,7 @@ class ChannelAgentRouter:
             awaiting_approval_run_id=(
                 run.id if run.status == RunStatus.AWAITING_APPROVAL else None
             ),
+            status=run.status,
         )
 
     async def answer_default(
@@ -416,6 +431,7 @@ class ChannelAgentRouter:
             awaiting_approval_run_id=(
                 run.id if run.status == RunStatus.AWAITING_APPROVAL else None
             ),
+            status=run.status,
         )
 
     async def _with_usage(

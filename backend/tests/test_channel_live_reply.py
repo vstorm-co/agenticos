@@ -255,3 +255,43 @@ class TestTheFinalEditNeverLosesTheAnswer:
             )
 
         send_reply.assert_not_awaited()
+
+
+class TestAnEmptyAnswerTellsItsReasonsApart:
+    """An empty turn is not always a parked approval. Budget and a bare empty
+    answer must not be told "that needs approval", which points at a decision
+    that was never raised."""
+
+    @staticmethod
+    def _answered(*, run_id: object = None, status: object) -> MagicMock:
+        answered = MagicMock()
+        answered.awaiting_approval_run_id = run_id
+        answered.status = status
+        return answered
+
+    def test_a_parked_run_links_to_the_decision(self):
+        from app.db.models.agent_run import RunStatus
+        from app.services.channels.router import _empty_answer
+
+        message = _empty_answer(self._answered(run_id="run-9", status=RunStatus.AWAITING_APPROVAL))
+
+        assert "needs approval" in message
+        assert "run-9" in message
+
+    def test_a_budget_stop_says_the_ceiling_was_hit_not_approval(self):
+        from app.db.models.agent_run import RunStatus
+        from app.services.channels.router import _empty_answer
+
+        message = _empty_answer(self._answered(status=RunStatus.BUDGET_EXCEEDED))
+
+        assert "usage limit" in message
+        assert "approval" not in message
+
+    def test_an_answer_empty_for_any_other_reason_does_not_claim_approval(self):
+        from app.db.models.agent_run import RunStatus
+        from app.services.channels.router import _empty_answer
+
+        for status in (RunStatus.FAILED, RunStatus.COMPLETED):
+            message = _empty_answer(self._answered(status=status))
+            assert "approval" not in message
+            assert "usage limit" not in message
