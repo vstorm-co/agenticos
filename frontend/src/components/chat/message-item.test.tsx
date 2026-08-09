@@ -6,7 +6,7 @@ import { MessageItem, mustShowEveryStep, runsOf } from "./message-item";
 import { useAuthStore, useChatStore, useFilePreviewStore } from "@/stores";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import type { Agent } from "@/types/agents";
-import type { ChatMessage, ChatMessageFile, MessagePart, ToolCall } from "@/types";
+import type { ChatMessage, ChatMessageFile, MessagePart, ToolCall, TurnUsage } from "@/types";
 
 vi.mock("./markdown-content", () => ({
   MarkdownContent: ({
@@ -79,6 +79,9 @@ function item(
     agent?: Agent;
     onRegenerate?: () => void;
     groupPosition?: "first" | "middle" | "last" | "single";
+    continuesTurn?: boolean;
+    endsTurn?: boolean;
+    turnUsage?: TurnUsage;
   } = {},
 ) {
   return render(<MessageItem message={message(overrides)} {...props} />);
@@ -717,5 +720,65 @@ describe("the step a reopened turn leaves open", () => {
 
     expect(screen.getByTestId("tool-old-1")).toHaveAttribute("data-open", "false");
     expect(screen.getByTestId("tool-old-2")).toHaveAttribute("data-open", "true");
+  });
+});
+
+describe("a segment that continues the turn above it", () => {
+  it("names the agent once, at the top of the turn", () => {
+    // A run that parked on an approval leaves several messages. Repeating the
+    // avatar and the name on each one read as three agents answering one
+    // question - see `continuesTurn` in `MessageList`.
+    item({}, { agent: { id: "a-1", name: "Support" } as Agent, continuesTurn: true });
+
+    expect(screen.queryByText("Support")).toBeNull();
+  });
+
+  it("keeps the gutter, so the whole turn stays in one column", () => {
+    const { container } = item(
+      {},
+      { agent: { id: "a-1", name: "Support" } as Agent, continuesTurn: true },
+    );
+
+    // The avatar slot is still rendered and still the same size - empty rather
+    // than absent, and hidden from a screen reader because it says nothing.
+    expect(container.querySelector('[aria-hidden="true"].rounded-full')).toBeInTheDocument();
+  });
+});
+
+describe("the footer of a turn drawn in several messages", () => {
+  const USAGE: TurnUsage = {
+    input_tokens: 6603,
+    output_tokens: 189,
+    cost_usd: 0.0133,
+    budget_percent: null,
+    agent_budget_percent: null,
+    sandbox: null,
+  };
+
+  it("says nothing under a segment the turn continues past", () => {
+    // The run reports what it has spent when it parks, so this used to put the
+    // time, the tokens and the cost halfway up the answer.
+    const { unmount } = item({ content: "Waiting.", usage: USAGE }, { endsTurn: false });
+    expect(screen.queryByText(/6,603/)).toBeNull();
+    unmount();
+
+    // The same message where the turn does end, so the absence above is the
+    // grouping and not a query that matches nothing.
+    item({ content: "Waiting.", usage: USAGE });
+    expect(screen.getByText(/6,603/)).toBeInTheDocument();
+  });
+
+  it("draws the turn's figure under the message that ends it", () => {
+    // Recorded on an earlier segment, shown under the last one - one figure for
+    // one turn, where the answer actually ends.
+    item({ content: "Six sheets." }, { turnUsage: USAGE });
+
+    expect(screen.getByText(/6,603/)).toBeInTheDocument();
+  });
+
+  it("falls back to its own figure when it is the whole turn", () => {
+    item({ content: "Six sheets.", usage: USAGE });
+
+    expect(screen.getByText(/6,603/)).toBeInTheDocument();
   });
 });

@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 
 import { useAgents } from "@/hooks";
-import type { ChatMessage } from "@/types";
+import type { ChatMessage, TurnUsage } from "@/types";
 import { MessageItem } from "./message-item";
 
 interface MessageListProps {
@@ -30,6 +30,58 @@ export function lastToolTurnIndex(messages: ChatMessage[]): number {
     if (usedATool) return index;
   }
   return -1;
+}
+
+/**
+ * Whether this message continues the turn above it rather than starting one.
+ *
+ * One run can leave several assistant messages. It parks on an approval, somebody
+ * decides, it runs again - and each segment is written as it happens, because
+ * folding it back into the message before it would rewrite a turn somebody has
+ * already read. That is right for the transcript and wrong on screen: one run
+ * drew three avatars and three agent names down the page, which reads as three
+ * agents answering one question.
+ *
+ * So consecutive assistant messages of the same run are drawn as one turn - the
+ * avatar and the name once, at the top. Consecutive is part of the rule, not an
+ * optimisation: a user message between two segments means the person said
+ * something in between, and the turn genuinely restarts there.
+ *
+ * No run id never groups. It is "not recorded", not "its own run", and guessing
+ * from adjacency would fold two unrelated answers into one turn.
+ */
+export function continuesTurn(messages: ChatMessage[], index: number): boolean {
+  const message = messages[index];
+  const previous = messages[index - 1];
+  if (message === undefined || previous === undefined) return false;
+  if (message.role !== "assistant" || previous.role !== "assistant") return false;
+  return message.runId !== undefined && message.runId === previous.runId;
+}
+
+/** Whether the turn ends here, so the time and the cost belong under this message. */
+export function endsTurn(messages: ChatMessage[], index: number): boolean {
+  return !continuesTurn(messages, index + 1);
+}
+
+/**
+ * What the turn cost, wherever in it that was recorded.
+ *
+ * The figure belongs to the turn and not to the segment that happened to carry
+ * it: a run reports what it has spent when it parks, which is the *first*
+ * segment, so a footer drawn from the message it sits on put the tokens and the
+ * cost in the middle of the answer with nothing under the end of it.
+ *
+ * The last segment that recorded anything wins, because each figure is the run's
+ * total as at that point rather than that segment's own share - summing them
+ * would count the first segment twice.
+ */
+export function turnUsage(messages: ChatMessage[], index: number): TurnUsage | undefined {
+  // The walk cannot run off the start: `continuesTurn` is false at index 0, which
+  // is what stops it, so no bound is needed and none is written - a guard that
+  // cannot fail is a line no test can reach.
+  let at = index;
+  while (messages[at]?.usage === undefined && continuesTurn(messages, at)) at--;
+  return messages[at]?.usage;
 }
 
 export function MessageList({ messages, onRegenerate }: MessageListProps) {
@@ -73,6 +125,9 @@ export function MessageList({ messages, onRegenerate }: MessageListProps) {
           message={message}
           agent={message.agentId ? byId.get(message.agentId) : undefined}
           groupPosition={getGroupPosition(message)}
+          continuesTurn={continuesTurn(messages, index)}
+          endsTurn={endsTurn(messages, index)}
+          turnUsage={turnUsage(messages, index)}
           openLastStep={index === openStepsAt}
           onRegenerate={
             onRegenerate && index === lastAssistantIndex && !message.isStreaming

@@ -289,6 +289,33 @@ class ParkedCall(BaseSchema):
     tool_args: dict[str, Any] = Field(default_factory=dict)
 
 
+class RunStep(BaseSchema):
+    """One tool call an execution of a run made, and what came back from it."""
+
+    tool_call_id: str = Field(
+        description="The provider's id for the call, so a surface can match it to a step it drew."
+    )
+    tool_name: str
+    args: dict[str, Any] = Field(default_factory=dict)
+    result: str | None = Field(
+        default=None,
+        description=(
+            "What the tool returned, or the retry message when it failed. Null on the "
+            "call the run is parked on - it has not run yet, and it is the one being "
+            "decided."
+        ),
+    )
+
+
+class SettledCall(BaseSchema):
+    """What a call the run had already made finally returned."""
+
+    tool_call_id: str = Field(
+        description="The step a surface already drew, which is the one to update rather than add."
+    )
+    result: str
+
+
 class AgentRunResult(BaseSchema):
     """What the agent answered, and what the run cost."""
 
@@ -298,6 +325,25 @@ class AgentRunResult(BaseSchema):
     cost_usd: Decimal
     input_tokens: int
     output_tokens: int
+    steps: list[RunStep] = Field(
+        default_factory=list,
+        description=(
+            "What *this* execution called, in order. A resumed run streams nothing - the "
+            "continuation runs over HTTP - so without this a surface could show the answer "
+            "and none of the work behind it: approving a call appeared to do nothing, and "
+            "a second approval request arrived for a step that had never been drawn. Empty "
+            "on a run that called nothing."
+        ),
+    )
+    settled: list[SettledCall] = Field(
+        default_factory=list,
+        description=(
+            "What the calls this execution *inherited* returned - on a resume, the very "
+            "call somebody approved. It was made by the previous execution, so it is not "
+            "in `steps`; it belongs to a step the caller already drew. Empty on a run "
+            "that inherited nothing."
+        ),
+    )
     parked: list[ParkedCall] = Field(
         default_factory=list,
         description=(

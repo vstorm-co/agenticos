@@ -155,7 +155,12 @@ from app.services.skill_workspace import MaterialisedSkills, collect_changes
 from app.services.skill_workspace import materialise as materialise_skills
 from app.services.skills import SkillService
 from app.services.spend import month_start, organization_monthly_spend
-from app.services.transcript import RecordedToolCall, TranscriptService, tool_calls_in
+from app.services.transcript import (
+    RecordedToolCall,
+    TranscriptService,
+    settled_calls_in,
+    tool_calls_in,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1204,6 +1209,38 @@ def _observability_of(stored: dict[str, Any]) -> ObservabilitySpec | None:
     except ValidationError:
         logger.warning("run_trace_observability_unreadable")
         return None
+
+
+@dataclass(frozen=True)
+class RunSegment:
+    """One execution of a run, and what it did while it lasted.
+
+    A run is executed once when it is started and once more every time somebody
+    approves what it parked on, so "the run" and "this execution of it" are
+    different things and only the second one knows what the model just called.
+
+    `tool_calls` is that difference made available to a caller. The resume
+    endpoint is why it exists: a continuation runs over HTTP rather than the
+    socket a conversation streams, so its `tool_call` frames reach nobody, and a
+    client that was handed only the answer had no way to draw the steps that
+    produced it. Approving a call showed nothing happening and then asked for a
+    second approval nothing on screen accounted for.
+
+    Attributes:
+        output: What the agent answered, empty when it parked again or stopped.
+        run: The run row, as `finish` left it.
+        tool_calls: What this execution called, in order, each with what came
+            back - `None` on the call the run is now parked on.
+        settled: What the calls it *inherited* returned, by tool call id. A resume
+            runs the call somebody approved, and that call was made by the previous
+            execution - so its return arrives here without it, and it belongs to a
+            step already on screen rather than to a new one.
+    """
+
+    output: str
+    run: AgentRun
+    tool_calls: list[RecordedToolCall]
+    settled: dict[str, str]
 
 
 def _prompt_text(user_prompt: str | list[Any] | None) -> str | None:
@@ -2588,7 +2625,7 @@ class AgentRunnerService:
             assembled = await AttachmentRouter(
                 prepared.workspace.backend if prepared.workspace is not None else None
             ).build_prompt(prompt, attachments)
-        answered = await self._run(
+        segment = await self._run(
             prepared,
             user_prompt=assembled,
             message_history=message_history,
@@ -2598,7 +2635,7 @@ class AgentRunnerService:
             outbound.extend(prepared.outbound)
         if outbound_refused is not None:
             outbound_refused.extend(prepared.outbound_refused)
-        return answered
+        return segment.output, segment.run
 
     async def parked_calls(self, ctx: AuthContext, run: AgentRun) -> list[ParkedCall]:
         """What this run is waiting on a decision for, right now.
@@ -2634,7 +2671,7 @@ class AgentRunnerService:
             if approval.status == "pending"
         ]
 
-    async def resume(self, ctx: AuthContext, run_id: UUID) -> tuple[str, AgentRun]:
+    async def resume(self, ctx: AuthContext, run_id: UUID) -> RunSegment:
         """Continue a parked run now that its tool calls have been decided.
 
         Runs the *version the run was parked on*, not whatever is published now:
@@ -2655,6 +2692,14 @@ class AgentRunnerService:
         secret deleted since the park, a removed model profile or a capability
         dropped in a deploy refuses this attempt rather than the run: the
         decision stands, and resuming works again once the spec does.
+
+        Returns:
+            The continuation as a :class:`RunSegment` - what it answered, the row,
+            and **what it called on the way there**. The last of those is the only
+            record a caller gets: the continuation runs over HTTP rather than the
+            socket a conversation streams, so nothing announces its tool calls, and
+            a surface handed just the answer drew a turn in which approving a call
+            was followed by a second approval request for work it could not show.
 
         Raises:
             NotFoundError: If the run is not in this organization.
@@ -2883,7 +2928,7 @@ class AgentRunnerService:
         user_prompt: str | list[Any] | None,
         message_history: list[Any] | None,
         deferred_tool_results: DeferredToolResults | None,
-    ) -> tuple[str, AgentRun]:
+    ) -> RunSegment:
         """Execute the agent and account for it, however it ends.
 
         The one place a run is executed, so a parked call, a budget stop, a
@@ -2918,6 +2963,7 @@ class AgentRunnerService:
         paused: PausedRunState | None = None
         budget_scope: BudgetScope | None = None
         called: list[RecordedToolCall] = []
+        settled: dict[str, str] = {}
         try:
             result = await prepared.execute(
                 user_prompt,
@@ -2927,7 +2973,14 @@ class AgentRunnerService:
             # `new_messages`, not `all_messages`: a resumed run is handed
             # everything up to the park as history, and the wider list would
             # write the first attempt's calls again under the same run.
-            called = tool_calls_in(result.new_messages())
+            new_messages = result.new_messages()
+            called = tool_calls_in(new_messages)
+            # And what the *inherited* calls returned. On a resume the approved
+            # call was made by the previous execution, so only its return is new -
+            # `tool_calls_in` has nothing to hang it on and drops it, which left
+            # the one call a person reviewed as the one call with no recorded
+            # output anywhere (agenticos#506).
+            settled = settled_calls_in(new_messages)
             if isinstance(result.output, DeferredToolRequests):
                 paused = PausedRunState(
                     messages=ModelMessagesTypeAdapter.dump_python(
@@ -2976,6 +3029,7 @@ class AgentRunnerService:
                 prompt=_prompt_text(user_prompt),
                 answer=output,
                 tool_calls=called,
+                settled=settled,
                 model_label=prepared.built.model_label,
             )
             # Committed here rather than left to the session context: that exit
@@ -2985,7 +3039,7 @@ class AgentRunnerService:
             # run missing from history is a run nobody is accountable for.
             await self.db.commit()
 
-        return output, prepared.run
+        return RunSegment(output=output, run=prepared.run, tool_calls=called, settled=settled)
 
     async def list_runs(
         self,

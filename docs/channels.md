@@ -250,7 +250,7 @@ is stored is what its reader actually saw.
 | `@mention` on a channel | The same, with the handle stripped from the recorded prompt |
 | Embedded widget | The same. The visitor is anonymous; the run and the turns belong to the widget's owner |
 | HTTP API | The same when the call carries a `conversation_id`. Nothing without one — there is no thread to write a turn into, and the run row is still the record that it happened |
-| A run resumed after an approval | Its continuation — the answer and the calls it made. No user turn: it picks up at the call it stopped on, and inventing a question would put words in somebody's mouth |
+| A run resumed after an approval | Its continuation — the answer and the calls it made, and the calls even when there is no answer, which is what a continuation that parks again on a second gated call has. No user turn: it picks up at the call it stopped on, and inventing a question would put words in somebody's mouth |
 
 Two things are deliberately not recorded. A channel reply's **delivery notes** — *this
 file was too large to send* — stay out of the transcript: they are about what the
@@ -348,6 +348,64 @@ nests under the right panel rather than under whichever one started most recentl
 A child's text is never folded into the
 parent's answer: that would put words in the parent's mouth its own model never
 generated, and the conversation is persisted with them.
+
+**An approved call is not the end of the turn, and the rest of it is drawn too.**
+Approving continues the run over HTTP, so nothing about the continuation arrives on
+this conversation's socket: its steps come back in the resume's own answer and are
+appended as one more assistant turn — the calls it made, then what it said. Without
+them the second half of a turn was invisible, and a run that parked twice was the
+worst version of it: approve a command, watch nothing happen, and be asked to
+approve a second command with no step on screen accounting for the first. The
+newly parked call is drawn in that turn as *waiting for a person*, which is also
+the step the next decision is written back onto.
+
+**One run is one turn on screen, however many messages it took.** A run that parks
+writes what it had done so far, and each continuation is written as it happens
+rather than folded back into the message before it — rewriting a turn somebody has
+already read is worse than appending to it. So one run can leave three assistant
+rows, and drawing three avatars and three agent names down the page reads as three
+agents answering one question. `MessageList` groups *consecutive* assistant
+messages carrying the same `run_id` into one turn: the avatar and the name once, at
+the top. Consecutive is part of the rule — a person speaking between two segments
+means the turn genuinely restarts — and a message with no run recorded never groups,
+because absent means "not recorded" rather than "the same run". Live, the run id
+arrives on the `tool_approval_required` frame, which is the only frame that names
+it and the only turn that needs it; on a reload it comes off the stored message.
+
+**The time and the cost go under the end of the turn**, once, however many messages
+it took. A run reports what it has spent when it *parks*, so the figure is recorded
+on the first segment — drawn there it sat halfway up the answer, with nothing under
+the end of it. The last segment shows the run's total: each figure is cumulative as
+at that point, so the later one supersedes the earlier rather than being added to
+it, and the continuation takes its numbers from the resume's own answer.
+
+**What the approved call returned is recorded on the step that was approved.** The
+row is written open when the run parks — it has not run yet — and the resume that
+finally runs it produces the *return* without the call it belongs to, because that
+call was made by the previous execution. So it settles the existing row rather than
+writing a new step: the alternative is the same command twice in one turn, and the
+alternative to *that* was the one call somebody deliberately reviewed being the one
+call that opened onto nothing.
+
+**A replayed step never animates.** A tool call is stored as running until
+something records its outcome, and not every ending records one: an approval that
+expires runs nothing, so the step it parked on was written open and stayed that
+way. Read back, it pulsed in the present tense under a conversation that had ended
+days earlier, promising a result nothing was going to deliver. So the sweep that
+expires an approval now closes the step too — the one ending that never ran the
+call — and a replayed call still marked in flight renders as **unfinished**: past
+tense, no spinner, no result. Not an error and not a success; the outcome nobody
+wrote down.
+
+**And the panel belongs to its conversation, not to the tab.** Opening another
+thread takes the approval panel and any pending question off screen, the way it
+already takes the delegation panels. Left there the approval was not merely
+stale but actionable: *Approve* still decided the call, from under a different
+agent's transcript, and the step it settles is in messages that are no longer
+loaded — so nothing on screen changed to say it had happened. Clearing it loses
+nothing, because the approvals queue holds the same row. The one transition that
+is not a switch is a first turn learning its own conversation id mid-stream, and
+the panel survives that.
 
 A delegate can stop for a person too — a gated tool inside a specialist parks the
 whole turn in the approval queue. The panel then closes into a *waiting for a
