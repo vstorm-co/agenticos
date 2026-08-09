@@ -3,14 +3,13 @@ import { describe, expect, it } from "vitest";
 import {
   basename,
   contentArg,
-  isWorkspaceTool,
   mcpCall,
   mcpToolPrefix,
   pathArg,
-  stepKind,
   titleWords,
   toolStep,
 } from "./tool-steps";
+import { isWorkspaceTool } from "./tool-catalog";
 
 /**
  * The words a step is made of.
@@ -63,7 +62,6 @@ describe("the line for one tool call", () => {
   });
 
   it("says what happened rather than naming the tool, where the two differ", () => {
-    expect(toolStep("fetch_url", { url: "https://a.example/" }, true).label).toBe("Fetched page");
     // Which skill it was is the whole content of the step.
     expect(toolStep("load_skill", { skill_name: "refund_policy" }, true).label).toBe(
       "Refund Policy",
@@ -72,15 +70,16 @@ describe("the line for one tool call", () => {
   });
 
   it("carries the query or the URL as the detail beside a finished call", () => {
-    expect(toolStep("search_web", { query: "refund law" }, true).detail).toBe("refund law");
+    expect(toolStep("web_search", { query: "refund law" }, true).detail).toBe("refund law");
     expect(toolStep("post_invoice", { invoice_id: 7 }, true).detail).toBeNull();
   });
 
   it("picks the icon from what the call is about", () => {
-    expect(stepKind("write_file")).toBe("write");
-    expect(stepKind("grep")).toBe("search");
-    expect(stepKind("execute")).toBe("shell");
-    expect(stepKind("post_invoice")).toBe("tool");
+    expect(toolStep("write_file", {}, true).kind).toBe("write");
+    expect(toolStep("grep", {}, true).kind).toBe("search");
+    expect(toolStep("web_search", {}, true).kind).toBe("web");
+    expect(toolStep("create_chart", {}, true).kind).toBe("chart");
+    expect(toolStep("post_invoice", {}, true).kind).toBe("tool");
   });
 });
 
@@ -166,7 +165,7 @@ describe("reading a call's arguments", () => {
 
   it("claims only the tools that come from the backends library", () => {
     expect(isWorkspaceTool("edit_file")).toBe(true);
-    expect(isWorkspaceTool("create_chart_tool")).toBe(false);
+    expect(isWorkspaceTool("create_chart")).toBe(false);
   });
 
   it("has no subject for a search with no pattern, and reads a command under either name", () => {

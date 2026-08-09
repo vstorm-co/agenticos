@@ -256,6 +256,46 @@ class TestConversationServiceListConversations:
             call_kwargs = mock_repo.get_conversations_by_user.call_args
             assert call_kwargs[1]["include_archived"] is True
 
+    @pytest.mark.anyio
+    async def test_the_count_is_narrowed_the_way_the_page_was(self, service: ConversationService):
+        """Both repository calls take the same filters, or the total describes
+        a different list from the one the caller was handed."""
+        agent_id = uuid4()
+
+        with patch("app.services.conversation.conversation_repo") as mock_repo:
+            mock_repo.get_conversations_by_user = AsyncMock(return_value=[])
+            mock_repo.count_conversations = AsyncMock(return_value=0)
+            mock_repo.agents_in_conversations = AsyncMock(return_value={})
+
+            await service.list_conversations(
+                organization_id=TEST_ORG_ID,
+                search="quarterly",
+                agent_id=agent_id,
+                archived_only=True,
+            )
+
+            narrowing = ("search", "agent_id", "include_archived", "archived_only")
+            page = mock_repo.get_conversations_by_user.call_args[1]
+            count = mock_repo.count_conversations.call_args[1]
+            assert {key: page[key] for key in narrowing} == {key: count[key] for key in narrowing}
+            assert page["search"] == "quarterly"
+            assert page["agent_id"] == agent_id
+            assert page["archived_only"] is True
+
+    @pytest.mark.anyio
+    async def test_the_sort_reaches_the_repository(self, service: ConversationService):
+        with patch("app.services.conversation.conversation_repo") as mock_repo:
+            mock_repo.get_conversations_by_user = AsyncMock(return_value=[])
+            mock_repo.count_conversations = AsyncMock(return_value=0)
+            mock_repo.agents_in_conversations = AsyncMock(return_value={})
+
+            await service.list_conversations(
+                organization_id=TEST_ORG_ID, sort_by="title", sort_dir="asc"
+            )
+
+            call_kwargs = mock_repo.get_conversations_by_user.call_args[1]
+            assert (call_kwargs["sort_by"], call_kwargs["sort_dir"]) == ("title", "asc")
+
 
 class TestConversationServiceCreate:
     """Tests for create_conversation."""

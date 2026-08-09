@@ -30,6 +30,19 @@ const state = vi.hoisted(() => ({
   downloadError: null as string | null,
 }));
 
+vi.mock("@/lib/workspace-files", () => ({
+  workspaceFileAccess: (source: { id: string }, path: string) => ({
+    id: source.id,
+    path,
+    textKey: ["text", path],
+    bytesKey: ["bytes", path],
+    download: () => {
+      state.downloaded.push([source.id, path]);
+      return Promise.resolve();
+    },
+  }),
+}));
+
 vi.mock("@/hooks", () => ({
   useSandboxWorkspaces: () => ({
     workspaces: state.workspaces,
@@ -44,19 +57,16 @@ vi.mock("@/hooks", () => ({
     state.opened.push(id);
     return { files: state.files, isLoading: state.filesLoading, error: state.filesError };
   },
-  downloadWorkspaceFile: (source: { kind: string; id: string }, path: string) => {
-    state.downloaded.push([source.id, path]);
-    return Promise.resolve();
-  },
-  useFileDownload: (source: { kind: string; id: string }) => ({
-    download: (path: string) => state.downloaded.push([source.id, path]),
+  useFileActions: (access: { id: string; path: string }) => ({
+    download: () => state.downloaded.push([access.id, access.path]),
+    openInNewTab: () => {},
     error: state.downloadError,
   }),
-  useWorkspaceFileText: (_source: unknown, path: string) => {
-    state.read.push(path);
+  useFileText: (access: { path: string }) => {
+    state.read.push(access.path);
     return { file: state.file, isLoading: state.fileLoading, error: state.fileError };
   },
-  useWorkspaceFileBytes: () => ({
+  useFileBytes: () => ({
     url: null,
     mediaType: null,
     isLoading: false,
@@ -165,7 +175,7 @@ describe("WorkspaceBrowser", () => {
     ];
     render(<WorkspaceBrowser />);
 
-    expect(screen.getByText("1.0 MiB")).toBeVisible();
+    expect(screen.getByText("1.0 MB")).toBeVisible();
     expect(screen.getByText("on the host")).toBeVisible();
   });
 

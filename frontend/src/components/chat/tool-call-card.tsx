@@ -3,18 +3,16 @@ import { useMemo, useState, type MouseEvent } from "react";
 import { Code2 } from "lucide-react";
 import type { ToolCall } from "@/types";
 import { cn } from "@/lib/utils";
-import { isWorkspaceTool, toolStep } from "@/lib/tool-steps";
+import { toolStep } from "@/lib/tool-steps";
+import { toolEntry } from "@/lib/tool-catalog";
 import { AgentStep } from "./agent-step";
 import { ChartMessage, parseChartResult } from "./chart-message";
-import { DateTimeResult } from "./tool-results/datetime";
 import { RAGSearchResults } from "./tool-results/rag";
 import { WebSearchResults, parseWebSearch } from "./tool-results/web-search";
 import { LoadSkillResult } from "./tool-results/skills";
-import { AskUserResult } from "./tool-results/ask-user";
 import { GenericToolResult, RawToolView } from "./tool-results/generic";
 import { RunPythonResult } from "./tool-results/run-python";
 import { WorkspaceToolResult } from "./tool-results/workspace";
-import { FetchUrlResult } from "./tool-results/fetch-url";
 import { useMcpToolServers } from "@/hooks";
 import { useTranslations } from "next-intl";
 
@@ -55,19 +53,46 @@ interface ToolCallCardProps {
  */
 export function ToolCallCard({ toolCall, conversationId, startOpen = false }: ToolCallCardProps) {
   const t = useTranslations("chat.tools");
-  const isRunPython = toolCall.name === "run_python";
-  const isWorkspaceCall = isWorkspaceTool(toolCall.name);
-  const isWrite = toolCall.name === "write_file" || toolCall.name === "edit_file";
-  // Open on arrival, not on sight. A call that finishes while somebody is watching
-  // shows what it produced - a chart, code that ran, a file that was written - and the
-  // same call re-read from history is one line in a transcript they came back to for
-  // something else. Opening those on mount made every past turn a wall, which is what
-  // a replayed conversation looked like.
+  // What this side knows about the tool: its icon, its wording, and which renderer
+  // opens underneath it. One table, keyed on the id the backend registers - see
+  // `lib/tool-catalog.ts`. A tool with no entry - an MCP tool, or one a binding
+  // renamed - reads as generic, which is the honest answer for a name nothing here
+  // has ever seen.
+  const entry = toolEntry(toolCall.name);
+  const renderer = entry?.render ?? "generic";
+  // Memoized above the state below, which reads it: a chart that came back as an
+  // error string has nothing to show, and must not be opened on sight.
   //
-  // A question is the exception in the other direction: it is a control, and it stays
-  // open whether it is waiting for an answer or showing the one that was given.
+  // `parseChartResult` does `JSON.parse` for string results, returning a NEW object
+  // each call. Without this memo, every streaming delta (text/thinking) re-renders
+  // this step → new spec ref → ChartMessage re-renders → Recharts re-layouts →
+  // ResponsiveContainer briefly reports -1 dimensions → `RenderedTicksReporter`
+  // setState → React detects too-many updates and bails with "Maximum update depth
+  // exceeded".
+  const chartSpec = useMemo(
+    () =>
+      renderer === "chart" && toolCall.status === "completed"
+        ? parseChartResult(toolCall.result)
+        : null,
+    [renderer, toolCall.status, toolCall.result],
+  );
+  // A chart is the one entry whose payoff can fail to arrive: `create_chart` that
+  // came back as an error string has nothing to show, so opening it would put a
+  // stack of JSON where the picture was meant to be.
+  const produced = renderer !== "chart" || chartSpec !== null;
+  // Worth opening without being asked, wherever it sits in the turn - see
+  // `opensOnSight` in `lib/tool-catalog.ts`.
+  const opensOnSight = entry?.opensOnSight === true && produced;
+
+  // Open on arrival, not on sight - with `opensOnSight` as the exception. A call that
+  // finishes while somebody is watching shows what it produced - code that ran, a file
+  // that was written - and the same call re-read from history is one line in a
+  // transcript they came back to for something else. Opening those on mount made every
+  // past turn a wall, which is what a replayed conversation looked like. A chart is the
+  // other way round: only the last step of a turn is handed `startOpen`, so three
+  // charts arrived as two headers and one picture.
   const [expanded, setExpanded] = useState(
-    toolCall.name === "ask_user" || (startOpen && toolCall.status === "completed"),
+    toolCall.status === "completed" && (startOpen || opensOnSight),
   );
   const [showRaw, setShowRaw] = useState(false);
 
@@ -78,38 +103,14 @@ export function ToolCallCard({ toolCall, conversationId, startOpen = false }: To
         : JSON.stringify(toolCall.result, null, 2)
       : "";
 
-  const isDateTime = toolCall.name === "get_current_datetime" && toolCall.status === "completed";
   const isRAGSearch =
-    (toolCall.name === "search_knowledge_base" || toolCall.name === "search_documents") &&
-    toolCall.status === "completed" &&
-    typeof toolCall.result === "string";
+    renderer === "rag" && toolCall.status === "completed" && typeof toolCall.result === "string";
   const webResults =
-    (toolCall.name === "web_search_tool" || toolCall.name === "search_web") &&
+    renderer === "web-search" &&
     toolCall.status === "completed" &&
     typeof toolCall.result === "string"
       ? parseWebSearch(toolCall.result)
       : null;
-  const isWebSearch = webResults !== null;
-  const isAskUser = toolCall.name === "ask_user";
-  const isFetch =
-    (toolCall.name === "fetch_url" || toolCall.name === "fetch") &&
-    typeof toolCall.args?.url === "string";
-  const isLoadSkill = toolCall.name === "load_skill";
-  const isListSkills = toolCall.name === "list_skills";
-  // Memoize the parsed chart spec - `parseChartResult` does `JSON.parse` for
-  // string results, returning a NEW object each call. Without this memo, every
-  // streaming delta (text/thinking) re-renders this step → new spec ref →
-  // ChartMessage re-renders → Recharts re-layouts → ResponsiveContainer briefly
-  // reports -1 dimensions → `RenderedTicksReporter` setState → React detects
-  // too-many updates and bails with "Maximum update depth exceeded".
-  const chartSpec = useMemo(
-    () =>
-      toolCall.name === "create_chart_tool" && toolCall.status === "completed"
-        ? parseChartResult(toolCall.result)
-        : null,
-    [toolCall.name, toolCall.status, toolCall.result],
-  );
-  const isChart = chartSpec !== null;
 
   const mcpServers = useMcpToolServers();
   const isRunning = toolCall.status === "running" || toolCall.status === "pending";
@@ -130,12 +131,15 @@ export function ToolCallCard({ toolCall, conversationId, startOpen = false }: To
   const [seenStatus, setSeenStatus] = useState(toolCall.status);
   if (seenStatus !== toolCall.status) {
     setSeenStatus(toolCall.status);
-    if (toolCall.status === "completed" && (isWrite || isRunPython || isChart)) setExpanded(true);
+    if (toolCall.status === "completed" && entry?.opensWhenDone === true && produced) {
+      setExpanded(true);
+    }
   }
 
-  // `list_skills` has nothing worth opening: the step says the agent looked, and the
-  // list it got back is a prompt fragment rather than something a person reads.
-  const openable = !isListSkills;
+  // `render: "none"` is a call with nothing worth opening - `list_skills` says the
+  // agent looked, and the list it got back is a prompt fragment rather than something
+  // a person reads.
+  const openable = renderer !== "none";
 
   return (
     <AgentStep
@@ -177,29 +181,25 @@ export function ToolCallCard({ toolCall, conversationId, startOpen = false }: To
     >
       {showRaw ? (
         <RawToolView toolCall={toolCall} resultText={resultText} />
-      ) : toolCall.status === "completed" && isDateTime ? (
-        <DateTimeResult result={resultText} />
-      ) : toolCall.status === "completed" && isRAGSearch ? (
+      ) : isRAGSearch ? (
         <RAGSearchResults result={resultText} />
-      ) : toolCall.status === "completed" && isWebSearch && webResults ? (
+      ) : webResults !== null ? (
         <WebSearchResults data={webResults} />
-      ) : isFetch ? (
-        <FetchUrlResult url={String(toolCall.args?.url ?? "")} content={resultText} />
-      ) : toolCall.status === "completed" && isChart && chartSpec ? (
+      ) : chartSpec !== null ? (
         <ChartMessage spec={chartSpec} />
-      ) : isAskUser ? (
-        <AskUserResult args={toolCall.args} resultText={resultText} />
-      ) : isRunPython ? (
+      ) : renderer === "run-python" ? (
         <RunPythonResult toolCall={toolCall} resultText={resultText} />
-      ) : isLoadSkill ? (
+      ) : renderer === "load-skill" ? (
         <LoadSkillResult resultText={resultText} status={toolCall.status} />
-      ) : isWorkspaceCall ? (
+      ) : renderer === "workspace" ? (
         <WorkspaceToolResult
           toolCall={toolCall}
           resultText={resultText}
           conversationId={conversationId}
         />
       ) : (
+        // Everything else, and every renderer whose payload turned out not to be one:
+        // a `web_search` that errored, a `create_chart` that came back as a sentence.
         <GenericToolResult toolCall={toolCall} resultText={resultText} />
       )}
     </AgentStep>

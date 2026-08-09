@@ -10,10 +10,12 @@
  * download.
  *
  * This is where the two addresses meet: a `FileSource` names one, and the viewer
- * above never learns which it was handed.
+ * never learns which it was handed. What kind of file it is and how it renders are
+ * not here - they are `file-kinds.ts`, which answers that for every surface.
  */
 
 import { readConversationFile, readConversationFileBytes } from "./conversation-workspace-api";
+import { saveBlob, type FileAccess, type FileText } from "./file-access";
 import { qk } from "./query-keys";
 import { readWorkspaceBytes, readWorkspaceFile } from "./sandbox-workspaces-api";
 
@@ -21,14 +23,6 @@ import { readWorkspaceBytes, readWorkspaceFile } from "./sandbox-workspaces-api"
 export type FileSource =
   | { readonly kind: "conversation"; readonly id: string }
   | { readonly kind: "workspace"; readonly id: string };
-
-/** One file's text. The two routes answer the same shape, deliberately. */
-export interface FileText {
-  path: string;
-  content: string;
-  /** Whether the answer was shortened. The agent still reads the whole file. */
-  truncated: boolean;
-}
 
 export function readFileText(source: FileSource, path: string): Promise<FileText> {
   return source.kind === "conversation"
@@ -58,75 +52,22 @@ export function bytesKey(source: FileSource, path: string) {
     : qk.sandboxWorkspaces.bytes(source.id, path);
 }
 
-const TEXT_SUFFIXES = new Set([
-  "txt",
-  "md",
-  "markdown",
-  "csv",
-  "tsv",
-  "json",
-  "jsonl",
-  "yaml",
-  "yml",
-  "toml",
-  "ini",
-  "cfg",
-  "conf",
-  "env",
-  "log",
-  "sql",
-  "py",
-  "js",
-  "ts",
-  "tsx",
-  "jsx",
-  "html",
-  "htm",
-  "css",
-  "scss",
-  "xml",
-  "svg",
-  "sh",
-  "bash",
-  "zsh",
-  "rs",
-  "go",
-  "java",
-  "kt",
-  "rb",
-  "php",
-  "c",
-  "h",
-  "cpp",
-  "hpp",
-  "patch",
-  "diff",
-]);
-
-/** The suffix, lowercased, without the dot. Empty for a file that has none. */
-export function suffixOf(path: string): string {
-  const name = path.split("/").pop() ?? "";
-  const dot = name.lastIndexOf(".");
-  return dot <= 0 ? "" : name.slice(dot + 1).toLowerCase();
-}
-
 /**
- * Whether to ask for this file's text rather than its bytes.
+ * One workspace file, as the shared viewer takes it.
  *
- * It decides which *request* to make and nothing else. Whether what came back can be
- * displayed is the server's answer, read off the response's type: the API decides
- * what may be shown inline - raster images and PDFs, never SVG or HTML - and a second
- * list of suffixes making that call in the client is a second answer that drifts the
- * first time either moves.
- *
- * An unknown suffix asks for bytes, which is the safe way round: a text file arrives
- * as an offered download, where guessing the other way renders a binary as mojibake.
+ * The download asks the route for `download=true` rather than saving the bytes a
+ * preview already has: that is what makes the server answer `attachment`, and for
+ * everything off its short inline list it is the only way the bytes come back at all.
  */
-export function isTextual(path: string): boolean {
-  return TEXT_SUFFIXES.has(suffixOf(path));
-}
-
-/** Whether a file's text is worth rendering as well as showing as source. */
-export function isMarkdown(path: string): boolean {
-  return ["md", "markdown"].includes(suffixOf(path));
+export function workspaceFileAccess(source: FileSource, path: string): FileAccess {
+  return {
+    textKey: textKey(source, path),
+    bytesKey: bytesKey(source, path),
+    readText: () => readFileText(source, path),
+    readBytes: () => readFileBytes(source, path),
+    download: async () => {
+      const blob = await readFileBytes(source, path, { download: true });
+      saveBlob(blob, path.split("/").filter(Boolean).pop() ?? "file");
+    },
+  };
 }

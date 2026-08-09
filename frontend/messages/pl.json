@@ -218,8 +218,7 @@
     "creating": "Tworzę...",
     "created": "Organizacja utworzona",
     "updated": "Organizacja zaktualizowana",
-    "deleted": "Organizacja usunięta",
-    "failedLoad": "Nie udało się załadować organizacji"
+    "deleted": "Organizacja usunięta"
   },
   "members": {
     "title": "Członkowie",
@@ -249,8 +248,7 @@
     "inactive": "Nieaktywna",
     "created": "Baza wiedzy utworzona",
     "updated": "Baza wiedzy zaktualizowana",
-    "deleted": "Baza wiedzy usunięta",
-    "failedLoad": "Nie udało się załadować baz wiedzy"
+    "deleted": "Baza wiedzy usunięta"
   },
   "billing": {
     "title": "Rozliczenia",

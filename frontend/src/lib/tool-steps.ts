@@ -12,29 +12,16 @@
  * about - a path, a pattern, a command - and the generic caption is the fallback for
  * a tool nothing here knows.
  *
+ * The per-tool half of that - the icon, the wording, the tense pair - is one table in
+ * `tool-catalog.ts`, keyed on the id the backend registers. What is left here is the
+ * logic: which of a call's arguments is its subject, and how an MCP tool is named.
+ *
  * Dependency-free on purpose: this is the vocabulary, not the presentation, and the
  * live step animation, the step row and any test can all read it.
  */
 
 import { toolCaption, toolDisplayName } from "./agent-step-captions";
-
-/** What kind of thing a step is about, which is what picks its icon. */
-export type StepKind =
-  | "write"
-  | "edit"
-  | "read"
-  | "list"
-  | "search"
-  | "shell"
-  | "question"
-  | "chart"
-  | "knowledge"
-  | "web"
-  | "clock"
-  | "skill"
-  | "code"
-  | "mcp"
-  | "tool";
+import { toolEntry, type StepKind } from "./tool-catalog";
 
 export interface ToolStep {
   /** One line: what this call is doing, or did. */
@@ -44,48 +31,6 @@ export interface ToolStep {
   kind: StepKind;
   /** The MCP server's domain, when the step is one of its tools. */
   logoDomain?: string | null;
-}
-
-const KINDS: Record<string, StepKind> = {
-  write_file: "write",
-  edit_file: "edit",
-  read_file: "read",
-  ls: "list",
-  glob: "search",
-  grep: "search",
-  execute: "shell",
-  ask_user: "question",
-  create_chart_tool: "chart",
-  create_map_tool: "chart",
-  search_knowledge_base: "knowledge",
-  search_documents: "knowledge",
-  web_search_tool: "web",
-  search_web: "web",
-  fetch_url: "web",
-  fetch: "web",
-  get_current_datetime: "clock",
-  load_skill: "skill",
-  list_skills: "skill",
-  run_python: "code",
-};
-
-/** The tools that come from `pydantic-ai-backends`, which have labels of their own. */
-export const WORKSPACE_TOOLS = [
-  "ls",
-  "glob",
-  "grep",
-  "read_file",
-  "write_file",
-  "edit_file",
-  "execute",
-] as const;
-
-export function isWorkspaceTool(name: string): boolean {
-  return (WORKSPACE_TOOLS as readonly string[]).includes(name);
-}
-
-export function stepKind(name: string): StepKind {
-  return KINDS[name] ?? "tool";
 }
 
 function text(value: unknown): string | null {
@@ -192,30 +137,6 @@ export function titleWords(value: string): string {
     .join(" ");
 }
 
-const FINISHED_LABELS: Record<string, string> = {
-  // "Fetch URL" is the tool; "Fetched page" is what happened, and the step is a
-  // narration of what happened.
-  fetch_url: "Fetched page",
-  fetch: "Fetched page",
-};
-
-interface Verbs {
-  /** While it runs. */
-  now: string;
-  /** Once it has finished. */
-  done: string;
-}
-
-const VERBS: Record<string, Verbs> = {
-  write_file: { now: "Writing", done: "Wrote" },
-  edit_file: { now: "Editing", done: "Edited" },
-  read_file: { now: "Reading", done: "Read" },
-  ls: { now: "Listing", done: "Listed" },
-  glob: { now: "Looking for", done: "Looked for" },
-  grep: { now: "Searching for", done: "Searched for" },
-  execute: { now: "Running", done: "Ran" },
-};
-
 /**
  * The line for one tool call.
  *
@@ -242,8 +163,9 @@ export function toolStep(
       logoDomain: fromMcp.domain,
     };
   }
-  const kind = stepKind(name);
-  const verbs = VERBS[name];
+  const entry = toolEntry(name);
+  const kind = entry?.kind ?? "tool";
+  const verbs = entry?.verbs;
   if (verbs === undefined) {
     // Everything not from the workspace toolset keeps the captions it had: present
     // tense while running, and what happened once it has.
@@ -267,8 +189,6 @@ export function toolStep(
  * *Load Skill* - which skill it was is the whole content of the step.
  */
 function finishedLabel(name: string, args: Record<string, unknown> | undefined): string {
-  const fixed = FINISHED_LABELS[name];
-  if (fixed !== undefined) return fixed;
   if (name === "load_skill") {
     const skill = text((args ?? {}).skill_name);
     if (skill !== null) return titleWords(skill);

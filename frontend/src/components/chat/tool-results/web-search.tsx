@@ -50,7 +50,7 @@ export function WebSearchResults({
     return (
       <div className="text-muted-foreground flex items-center gap-2 py-2 text-sm">
         <Globe className="h-4 w-4" />
-        No web results found
+        {t("noWebResults")}
       </div>
     );
   }

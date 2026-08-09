@@ -30,8 +30,19 @@ Two instructions in it are load-bearing and should survive editing:
 
 - **Do not repeat the JSON back to the user.** Without it, models narrate the
   payload - unreadable, and the user is already looking at the chart.
-- **The scatter shape.** Numeric `x` and `y` per row, and one series per group
-  value when colouring by category; that is the layout both renderers expect.
+- **The scatter shape.** Numeric x values, and a series carrying its own
+  `x_values` when two groups of points sit at different positions on the axis.
+
+**Why the numbers arrive as columns.** `create_chart` takes `x_values` and one
+`values` list per series rather than a `data` list of rows. That is not a
+stylistic preference: `data: list[dict[str, Any]]` reaches the model as an array
+of objects with **no declared properties**, so the only row the schema promises
+is valid is `{}`. Which is what arrived - twice, from a model that had filled in
+the series labels, the hex colours, the axis titles and the x-axis key, and then
+sent one empty row. A list of numbers is expressible in a JSON Schema, so the
+same mistake has nowhere to live. The row format is unchanged on the wire:
+`_rows` zips the columns back into one row per x value, because that is what
+Recharts and the PNG renderer read.
 
 ## Configuration
 
@@ -41,6 +52,11 @@ it. A per-agent setting would be a third opinion with no tiebreaker.
 
 ## Failures
 
-Bad arguments raise `ModelRetry` naming what was wrong - empty data, nothing
-numeric to plot - so the model corrects itself instead of the run ending with an
+Bad arguments raise `ModelRetry` naming what was wrong - an empty axis, no
+series, or a series holding a different number of values from the axis it is
+plotted against - so the model corrects itself instead of the run ending with an
 error string persisted as a chart result.
+
+`ChartSpec` refuses a chart with nothing in it too, which is belt and braces now
+that the tool cannot express one: it also guards a spec reassembled from a
+persisted result, which is how the channel renderer meets the format.

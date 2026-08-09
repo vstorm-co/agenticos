@@ -12,6 +12,7 @@ from app.agents.capabilities.charts._spec import (
     ChartStyle,
     parse_chart_spec,
 )
+from app.agents.capabilities.charts._toolset import ChartSeriesInput
 
 # The toolset is stateless; one instance serves every case below.
 _charts = ChartsToolset()
@@ -25,29 +26,54 @@ class TestCreateChart:
         result = _charts.create_chart(
             chart_type=chart_type,
             title="Demo",
-            data=[{"x": "A", "y": 1}, {"x": "B", "y": 2}],
+            x_values=["A", "B"],
+            series=[ChartSeriesInput(key="y", values=[1, 2])],
         )
         payload = json.loads(result)
         assert payload["kind"] == "chart"
         assert payload["chart_type"] == chart_type
         assert payload["title"] == "Demo"
 
-    def test_series_inferred_from_numeric_fields(self):
+    def test_columns_become_one_row_per_x_value(self):
+        """The wire format is rows, and every surface renders rows.
+
+        Two series over a shared axis merge into one row each, which is what
+        lets a line chart draw connected lines over a single dataset.
+        """
         result = _charts.create_chart(
             chart_type="line",
-            title="Auto series",
-            data=[{"x": "Jan", "revenue": 10, "cost": 5}],
+            title="Merged",
+            x_values=["Jan", "Feb"],
+            series=[
+                ChartSeriesInput(key="revenue", values=[10, 20]),
+                ChartSeriesInput(key="cost", values=[5, 8]),
+            ],
         )
         payload = json.loads(result)
-        keys = {s["key"] for s in payload["series"]}
-        assert keys == {"revenue", "cost"}
+        assert payload["data"] == [
+            {"x": "Jan", "revenue": 10.0, "cost": 5.0},
+            {"x": "Feb", "revenue": 20.0, "cost": 8.0},
+        ]
+        assert {s["key"] for s in payload["series"]} == {"revenue", "cost"}
 
-    def test_explicit_series_and_style_preserved(self):
+    def test_the_x_key_names_the_field_the_axis_is_stored_under(self):
+        result = _charts.create_chart(
+            chart_type="bar",
+            title="Named axis",
+            x_values=["Sty"],
+            series=[ChartSeriesInput(key="sprzedaz", values=[120])],
+            x_key="miesiac",
+        )
+        payload = json.loads(result)
+        assert payload["x_key"] == "miesiac"
+        assert payload["data"] == [{"miesiac": "Sty", "sprzedaz": 120.0}]
+
+    def test_explicit_label_colour_and_style_are_preserved(self):
         result = _charts.create_chart(
             chart_type="bar",
             title="Styled",
-            data=[{"x": "A", "v": 3}],
-            series=[ChartSeries(key="v", label="Value", color="#123456")],
+            x_values=["A"],
+            series=[ChartSeriesInput(key="v", values=[3], label="Value", color="#123456")],
             style=ChartStyle(grid=False, legend=False, stacked=True, palette=["#abcdef"]),
         )
         payload = json.loads(result)
@@ -57,17 +83,97 @@ class TestCreateChart:
         assert payload["style"]["stacked"] is True
         assert payload["style"]["palette"] == ["#abcdef"]
 
-    def test_empty_data_is_a_retry_naming_the_problem(self):
-        with pytest.raises(ModelRetry, match="at least one row"):
-            _charts.create_chart(chart_type="line", title="Empty", data=[])
+    def test_a_scatter_series_may_carry_its_own_x_values(self):
+        """Two groups of points at different x positions cannot share an axis.
 
-    def test_data_with_nothing_numeric_is_a_retry_naming_the_fix(self):
-        """The model recovers by naming the series or sending numbers - say so."""
-        with pytest.raises(ModelRetry, match="series"):
+        They emit a row per point rather than a merged row, which is the shape
+        the renderer already detects for a scatter chart.
+        """
+        result = _charts.create_chart(
+            chart_type="scatter",
+            title="Grouped",
+            x_values=[0.0],
+            series=[
+                ChartSeriesInput(key="A", values=[4.1, 2.8], x_values=[2.0, 3.5], label="Group A"),
+                ChartSeriesInput(key="B", values=[1.2], x_values=[1.1], label="Group B"),
+            ],
+        )
+        payload = json.loads(result)
+        assert payload["data"] == [
+            {"x": 2.0, "A": 4.1},
+            {"x": 3.5, "A": 2.8},
+            {"x": 1.1, "B": 1.2},
+        ]
+
+    def test_an_empty_axis_is_a_retry_naming_the_problem(self):
+        with pytest.raises(ModelRetry, match="`x_values` was empty"):
             _charts.create_chart(
                 chart_type="line",
-                title="No numbers",
-                data=[{"x": "A", "label": "only text"}],
+                title="Empty",
+                x_values=[],
+                series=[ChartSeriesInput(key="y", values=[])],
+            )
+
+    def test_no_series_is_a_retry_naming_the_problem(self):
+        with pytest.raises(ModelRetry, match="`series` was empty"):
+            _charts.create_chart(chart_type="line", title="No series", x_values=["A"], series=[])
+
+    def test_a_series_short_of_values_is_a_retry_naming_both_counts(self):
+        """The failure the old free-form `data` argument could not even express.
+
+        A model that sends four months and three numbers has made a mistake it
+        can fix, and the refusal has to say which series and how far out it is.
+        """
+        with pytest.raises(ModelRetry, match=r"'cost' has 3 value\(s\) for 4 x value\(s\)"):
+            _charts.create_chart(
+                chart_type="line",
+                title="Ragged",
+                x_values=["Jan", "Feb", "Mar", "Apr"],
+                series=[ChartSeriesInput(key="cost", values=[1, 2, 3])],
+            )
+
+    def test_a_scatter_series_is_measured_against_its_own_axis(self):
+        with pytest.raises(ModelRetry, match=r"'A' has 1 value\(s\) for 2 x value\(s\)"):
+            _charts.create_chart(
+                chart_type="scatter",
+                title="Ragged scatter",
+                x_values=[0.0, 1.0, 2.0],
+                series=[ChartSeriesInput(key="A", values=[4.1], x_values=[2.0, 3.5])],
+            )
+
+    def test_a_spec_the_format_refuses_comes_back_naming_the_field(self):
+        """The columns are checked here; the caps on the format still are not.
+
+        `title` is bounded at 200 characters, and rows and series have ceilings,
+        so `ChartSpec` can still refuse a call this method was happy to assemble.
+        The retry has to carry which field was wrong rather than just that one
+        was, which is what `_explain` is for.
+        """
+        with pytest.raises(ModelRetry, match="title"):
+            _charts.create_chart(
+                chart_type="line",
+                title="t" * 201,
+                x_values=["Jan"],
+                series=[ChartSeriesInput(key="revenue", values=[1])],
+            )
+
+    def test_the_shape_that_used_to_draw_an_empty_frame_is_now_unexpressible(self):
+        """The payload a user actually received, twice.
+
+        A model answered "here is the trend over six months" with `data=[{}]` and
+        a full set of series, labels, colours and axis titles. Every check passed
+        - the list did have a row - so a frame was drawn with axes and a legend
+        around nothing, which reads as "there is no trend" rather than as a
+        mistake. There is no longer an argument in which that can be said: the
+        numbers arrive as `values`, and a missing one is a refusal naming it.
+        """
+        with pytest.raises(TypeError, match="data"):
+            _charts.create_chart(  # ty: ignore[unknown-argument]
+                chart_type="line",
+                title="Trend sprzedazy i kosztow",
+                data=[{}],
+                series=[ChartSeries(key="sprzedaz"), ChartSeries(key="koszt")],
+                x_key="miesiac",
             )
 
 
@@ -78,8 +184,8 @@ class TestParseChartSpec:
         result = _charts.create_chart(
             chart_type="pie",
             title="Round trip",
-            data=[{"x": "Chrome", "value": 64}, {"x": "Safari", "value": 36}],
-            series=[ChartSeries(key="value")],
+            x_values=["Chrome", "Safari"],
+            series=[ChartSeriesInput(key="value", values=[64, 36])],
         )
         spec = parse_chart_spec(result)
         assert isinstance(spec, ChartSpec)

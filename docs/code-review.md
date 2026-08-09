@@ -388,7 +388,7 @@ Python quality queries the suite runs, which is the wrong trade for a repository
 whose argument is that its value is in what it refuses. #220 holds the exclusion
 to apply on the day there is somewhere to apply it.
 
-### Three findings already adjudicated
+### Five findings already adjudicated
 
 These have been read. The query is wrong about this codebase, and the reason does
 not change per occurrence — so **resolve the thread and point at this section.**
@@ -400,6 +400,8 @@ justification each time.
 | `py/ineffectual-statement` | a bare `await <task>` statement | `Await` is not modelled as side-effecting. Awaiting a task suspends until it finishes and re-raises whatever it raised, which is the entire point of the line |
 | `py/ineffectual-statement` | `...` as the body of a `Protocol` method | PEP 544's canonical body. `pass` has no more effect and reads worse |
 | `py/mixed-returns` | a loop whose fall-through is `pytest.fail(...)` | `pytest.fail` is `NoReturn`, so the implicit return the query is describing cannot happen |
+| `py/unused-global-variable` | `revision`, `down_revision`, `branch_labels`, `depends_on` in a migration | Alembic reads them off the module by name. Nothing in the file uses them, which is what the query sees and what makes them look dead; deleting one breaks the chain. Every revision in `backend/alembic/versions/` has all four, so this recurs once per migration |
+| `py/unnecessary-lambda` | `lambda: service` in a `dependency_overrides` entry | The override has to be a *callable returning the value*. Passing the object directly is the bug the query is recommending: a `MagicMock` is itself callable, so FastAPI would call it and inject its return value instead of the mock |
 
 The first is not a test-file quirk. Fifteen statements under `backend/` are that
 shape, and the five in production code — `agent_session.py` and the Slack, Telegram

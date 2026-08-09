@@ -40,6 +40,11 @@ export function ChatContainer() {
     isLoading: isConversationLoading,
   } = useConversationStore();
   const { addMessage: addChatMessage } = useChatStore();
+  // Deliberately unfiltered, which is what calling this with no arguments
+  // means. The sidebar's copy of this list is narrowed by whatever is in its
+  // search box, and reading the two facts below off *that* would flip the
+  // composer to writable the moment somebody typed a search that excluded the
+  // thread they have open.
   const { conversations, fetchConversations } = useConversations();
   const prevConversationIdRef = useRef<string | null | undefined>(undefined);
 

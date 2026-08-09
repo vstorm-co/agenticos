@@ -132,14 +132,12 @@ export function useChat(options: UseChatOptions = {}) {
     (event: MessageEvent) => {
       const wsEvent: WSEvent = JSON.parse(event.data);
 
+      // Opens the turn's message. It used to close a previous one first, which is
+      // no longer reachable and would be the wrong place for it if it were: every
+      // caller now opens a message only when the turn has none, and what ends the
+      // previous turn is `complete`, `final_result`, `error`, a stop, or the next
+      // question - see `doSend`.
       const createNewMessage = (content: string): string => {
-        if (currentMessageIdRef.current) {
-          updateMessage(currentMessageIdRef.current, (msg) => ({
-            ...msg,
-            isStreaming: false,
-          }));
-        }
-
         const newMsgId = nanoid();
         const effectiveConversationId = activeConversationId ?? undefined;
         addMessage({
@@ -211,8 +209,27 @@ export function useChat(options: UseChatOptions = {}) {
         }
 
         case "model_request_start": {
-          // PydanticAI/LangChain - create message immediately
-          createNewMessage("");
+          // One bubble per turn, not per model request.
+          //
+          // A multi-step turn makes a request per tool round, and opening a message
+          // on each one split a single answer across several: a turn that drew three
+          // charts arrived as four bubbles, each with its own avatar and its own
+          // timestamp. The tool steps were scattered one per message, so `runsOf`
+          // had nothing consecutive to gather onto a rail and the run never reached
+          // the two steps `AgentSteps` needs to say "Done".
+          //
+          // It also produced a turn the backend could not match. One turn is one
+          // `messages` row, so `message_saved` renamed one bubble to the real id and
+          // the rest kept a temporary one forever - no cost, no rating, and they
+          // disappeared on reload when the single stored row replaced all four.
+          // That is the difference between the live transcript and the reloaded one.
+          //
+          // A turn ends at `complete`, which clears the ref. So this opens a message
+          // when a turn has none and appends to it for every round after the first,
+          // exactly as `thinking_delta` below already did.
+          if (!currentMessageIdRef.current) {
+            createNewMessage("");
+          }
           break;
         }
 
@@ -343,6 +360,8 @@ export function useChat(options: UseChatOptions = {}) {
             actionRequests: action_requests,
             reviewConfigs: review_configs,
             runId: run_id,
+            // Captured now, because `complete` follows this frame and clears it.
+            messageId: currentMessageIdRef.current,
           });
           // Resolve the cards rather than leaving them spinning. A parked call
           // produces no `tool_result` until somebody decides, so "running" is a
@@ -507,6 +526,17 @@ export function useChat(options: UseChatOptions = {}) {
       // late frame from a background delegation of the turn before is dropped by
       // `applyDelegationFrame` rather than opening a nameless panel.
       setDelegations([]);
+      // A new question ends whatever the agent was saying, and it is the only
+      // boundary that always holds. `complete` clears this on every ordinary
+      // ending, but a socket that dropped mid-answer sends no `complete` at all -
+      // and now that a turn is one message rather than one per model request, a
+      // ref still pointing at the abandoned turn would have the next answer
+      // appended to it. The half-written one also stops rendering its cursor,
+      // which nothing else was going to do for it.
+      if (currentMessageIdRef.current) {
+        updateMessage(currentMessageIdRef.current, (msg) => ({ ...msg, isStreaming: false }));
+        setCurrentMessageId(null);
+      }
       const userMessageId = nanoid();
       addMessage({
         id: userMessageId,
@@ -539,7 +569,7 @@ export function useChat(options: UseChatOptions = {}) {
       turnAgentIdRef.current = agentId;
       sendMessage(payload);
     },
-    [addMessage, sendMessage, conversationId],
+    [addMessage, updateMessage, setCurrentMessageId, sendMessage, conversationId],
   );
 
   const sendChatMessage = useCallback(
@@ -658,8 +688,12 @@ export function useChat(options: UseChatOptions = {}) {
           const decision = decisions[index];
           if (decision === undefined) continue;
           await decideApproval(request.id, decision.type === "approve");
-          if (currentMessageIdRef.current) {
-            updateToolCallPart(currentMessageIdRef.current, request.tool_call_id, {
+          // `parked.messageId`, never the live ref: the turn ended at `complete`
+          // the moment the run parked, so the ref is null by now and every one of
+          // these updates was being skipped - which is why the step stayed at
+          // "waiting for approval" after an approval that had actually worked.
+          if (parked.messageId !== null) {
+            updateToolCallPart(parked.messageId, request.tool_call_id, {
               status: decision.type === "approve" ? "running" : "error",
               result: decision.type === "approve" ? undefined : "Refused",
             });
@@ -669,6 +703,18 @@ export function useChat(options: UseChatOptions = {}) {
         // parked, and resuming per decision would start it while calls it has
         // not been told about are still waiting.
         const resumed = await resumeRun(parked.runId);
+        // Approved calls are marked finished here rather than left `running`. The
+        // resume ran over HTTP, so their `tool_result` frames went to that response
+        // and not to this socket - a step set running when the decision was recorded
+        // would spin for the rest of the session waiting for one that cannot arrive.
+        if (parked.messageId !== null) {
+          const id = parked.messageId;
+          for (const [index, request] of parked.actionRequests.entries()) {
+            if (decisions[index]?.type === "approve") {
+              updateToolCallPart(id, request.tool_call_id, { status: "completed" });
+            }
+          }
+        }
         // Close whatever delegate parked here. The resume ran over HTTP and its
         // frames went nowhere this socket can see, so a delegation panel left
         // `awaiting_approval` never got its `subagent_complete` and would read
@@ -676,6 +722,29 @@ export function useChat(options: UseChatOptions = {}) {
         // frozen. The resumed run's own status is the outcome those panels take;
         // a resume that parks again leaves them waiting. See `resolveAwaitingOnResume`.
         setDelegations((current) => resolveAwaitingOnResume(current, resumed.status));
+        // A continuation can stop again: the agent reaches a second gated call and
+        // parks on it. Nothing announces that here - the resume ran over HTTP, so
+        // no `tool_approval_required` frame arrives - so the panel used to close on
+        // a run that was still blocked, and the only way to finish it was the
+        // approvals queue on another page. Re-open it on the same turn, which is
+        // where the new step was drawn.
+        const parkedAgain = resumed.parked ?? [];
+        if (parkedAgain.length > 0) {
+          setPendingApproval({
+            actionRequests: parkedAgain.map((call) => ({
+              id: call.id,
+              tool_call_id: call.tool_call_id ?? "",
+              tool_name: call.tool_name,
+              args: call.tool_args,
+            })),
+            reviewConfigs: parkedAgain.map((call) => ({
+              tool_name: call.tool_name,
+              allow_edit: false,
+            })),
+            runId: parked.runId,
+            messageId: parked.messageId,
+          });
+        }
         // **The answer is shown, not discarded.** `resume_run` runs the agent and
         // returns what it said, but it returns it *here* - over HTTP, to the caller
         // - and not over the socket this conversation is streaming. So the reply
@@ -696,6 +765,11 @@ export function useChat(options: UseChatOptions = {}) {
             content: resumed.output,
             timestamp: new Date(),
             conversationId: conversationId || undefined,
+            // The agent that was answering when the run parked. Without it the
+            // continuation rendered under the generic robot with no name beside it,
+            // so the second half of one turn looked like a different agent had
+            // written it - the same turn, two faces.
+            agentId: turnAgentIdRef.current ?? undefined,
           });
         }
       } catch (error) {

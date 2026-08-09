@@ -129,6 +129,7 @@ from app.repositories import (
     knowledge_base_repo,
 )
 from app.repositories.agent_run import AgentSpendRow, RunFilters
+from app.schemas.agent import ParkedCall
 from app.services.agent_registry import (
     DEFAULT_GRANTED_SCOPES,
     DELEGATION_CAPABILITY_ID,
@@ -2598,6 +2599,40 @@ class AgentRunnerService:
         if outbound_refused is not None:
             outbound_refused.extend(prepared.outbound_refused)
         return answered
+
+    async def parked_calls(self, ctx: AuthContext, run: AgentRun) -> list[ParkedCall]:
+        """What this run is waiting on a decision for, right now.
+
+        Read back off the row rather than returned from the run that parked it,
+        because the caller that needs it is the *resume*: a continuation runs the
+        agent, and the agent can reach a second gated call and park again. A client
+        told only `status` was handed "still awaiting approval" and nothing to
+        approve, so the run could not be finished from the surface that started it -
+        the continuation runs over HTTP rather than the socket a conversation
+        streams, so there is no frame carrying the new calls either.
+
+        `tool_call_id` comes from the run's own paused state, which maps approval id
+        to the call it parked; the approval row does not carry one. Null where a run
+        was parked before that map was stored, which is a step a surface cannot mark
+        rather than a call it cannot decide.
+        """
+        if run.status != "awaiting_approval":
+            return []
+        approvals = await agent_run_repo.list_approvals_for_run(
+            self.db, run_id=run.id, organization_id=ctx.organization_id
+        )
+        state = run.paused_state or {}
+        by_approval = state.get("tool_call_ids", {}) if isinstance(state, dict) else {}
+        return [
+            ParkedCall(
+                id=approval.id,
+                tool_call_id=by_approval.get(str(approval.id)),
+                tool_name=approval.tool_id,
+                tool_args=approval.tool_args or {},
+            )
+            for approval in approvals
+            if approval.status == "pending"
+        ]
 
     async def resume(self, ctx: AuthContext, run_id: UUID) -> tuple[str, AgentRun]:
         """Continue a parked run now that its tool calls have been decided.

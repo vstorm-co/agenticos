@@ -26,15 +26,27 @@ vi.mock("@/hooks", () => ({
     error: null,
     refresh: async () => {},
   }),
-  useFileDownload: () => ({
-    download: (path: string) => state.downloaded.push(path),
+  useFileActions: (access: { path: string }) => ({
+    download: () => state.downloaded.push(access.path),
+    openInNewTab: () => {},
     error: state.downloadError,
   }),
 }));
-vi.mock("@/components/sandboxes/file-viewer", () => ({
-  WorkspaceFileViewer: ({ path, onClose }: { path: string; onClose: () => void }) => (
+vi.mock("@/lib/workspace-files", () => ({
+  workspaceFileAccess: (_source: unknown, path: string) => ({
+    path,
+    textKey: ["text", path],
+    bytesKey: ["bytes", path],
+  }),
+}));
+// The card's job is to open the shared viewer on the right file. What that viewer
+// then shows is asserted where it lives, once, rather than through every surface
+// that opens it.
+vi.mock("@/components/files", () => ({
+  FileIcon: () => <span data-testid="icon" />,
+  FileViewer: ({ file, onClose }: { file: { path?: string | null }; onClose: () => void }) => (
     <div data-testid="viewer">
-      {path}
+      {file.path}
       <button type="button" onClick={onClose}>
         close the viewer
       </button>
@@ -78,7 +90,7 @@ describe("a workspace tool call", () => {
     );
 
     expect(screen.getByText("test.md")).toBeVisible();
-    expect(screen.getByText(/Document · MD/)).toBeVisible();
+    expect(screen.getByText(/Markdown · MD/)).toBeVisible();
     expect(screen.getByRole("button", { name: "Open" })).toBeVisible();
     expect(screen.queryByText(/"content"/)).toBeNull();
   });
@@ -294,8 +306,11 @@ describe("a workspace tool call", () => {
     expect(screen.queryByTestId("viewer")).toBeNull();
   });
 
-  it("names a file with no suffix by what it is", () => {
-    // `Makefile` has no extension, so the kind line has nothing to append.
+  it("says only that a file with no suffix is a file", () => {
+    // `Makefile` has no extension, so the kind line has nothing to append - and
+    // nothing to resolve from either. "File" rather than a guess at "Text": an
+    // unrecognised name asks for bytes, which is the safe way round, and the label
+    // says the same thing the request does.
     render(
       <WorkspaceToolResult
         toolCall={call({ args: { path: "/Makefile", content: "all:" } })}
@@ -305,6 +320,6 @@ describe("a workspace tool call", () => {
     );
 
     expect(screen.getByText("Makefile")).toBeVisible();
-    expect(screen.getByText("Text")).toBeVisible();
+    expect(screen.getByText("File")).toBeVisible();
   });
 });

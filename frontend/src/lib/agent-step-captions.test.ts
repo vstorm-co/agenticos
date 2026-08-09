@@ -8,14 +8,15 @@ import { toolCaption, toolDisplayName } from "./agent-step-captions";
  * Three layers, and the order between them is the whole design: a named tool
  * gets the sentence somebody wrote for it, an unnamed one falls back to its
  * prefix, and anything else is humanised rather than printed as
- * `create_invoice_tool`. A registry-driven capability can add a tool the day
- * after this file was last touched, so the fallback is the common path rather
- * than the exceptional one.
+ * `create_invoice`. The wording for a named tool lives in `tool-catalog.ts` with the
+ * rest of what this side knows about it; what is tested here is the order the three
+ * layers are consulted in. A binding can rename a tool and an MCP server can expose
+ * anything at all, so the fallback is the common path rather than the exceptional one.
  */
 describe("toolCaption", () => {
   it("uses the sentence written for a tool it knows", () => {
-    expect(toolCaption("search_knowledge_base")).toBe("Searching the knowledge base");
-    expect(toolCaption("ask_user")).toBe("Asking you a question");
+    expect(toolCaption("web_search")).toBe("Searching the web");
+    expect(toolCaption("create_chart")).toBe("Creating a chart");
   });
 
   it("falls back to the prefix for a tool nobody named", () => {
@@ -37,9 +38,6 @@ describe("toolCaption", () => {
 
   it("humanises a tool it has never heard of rather than printing its id", () => {
     expect(toolCaption("post_invoice")).toBe("Running Post Invoice");
-    // The `_tool` suffix is an implementation detail of how capabilities name
-    // their tools, not something to read out.
-    expect(toolCaption("send_slack_message_tool")).toBe("Running Send Slack Message");
   });
 
   it("prints a nameless tool as it arrived rather than as an empty caption", () => {
@@ -56,6 +54,6 @@ describe("toolDisplayName", () => {
 
   it("humanises anything else", () => {
     expect(toolDisplayName("post_invoice")).toBe("Post Invoice");
-    expect(toolDisplayName("create_invoice_tool")).toBe("Create Invoice");
+    expect(toolDisplayName("linear_create_issue")).toBe("Linear Create Issue");
   });
 });

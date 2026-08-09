@@ -71,8 +71,8 @@ describe("who may decide a parked tool call from the conversation", () => {
   it("offers the decision to a caller holding approvals:decide", async () => {
     await mount([Perm.agentsRun, Perm.approvalsDecide]);
 
-    expect(screen.getByRole("button", { name: "Submit 1 call" })).toBeInTheDocument();
-    expect(screen.getByRole("textbox")).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument();
     expect(screen.queryByText(/permission you do not hold/)).toBeNull();
   });
 
@@ -81,12 +81,15 @@ describe("who may decide a parked tool call from the conversation", () => {
     // not decide the approval it parked on.
     await mount([Perm.agentsRun]);
 
-    expect(screen.queryByRole("button", { name: /^Submit/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reject" })).toBeNull();
     // What is not a write stays: the banner and the arguments are how the reader
     // knows why the answer stopped, and they arrived over their own socket.
     expect(screen.getByText("Tool approval required")).toBeInTheDocument();
     expect(screen.getByText("send_email")).toBeInTheDocument();
-    expect(screen.getByRole("textbox")).toBeDisabled();
+    // Read, not edited: the arguments were a textarea whose contents were diffed
+    // into an `edit` decision the backend never offered.
+    expect(screen.queryByRole("textbox")).toBeNull();
     // Paired with the absence deliberately: a footer rendering nothing would
     // satisfy the first assertion and leave a stopped conversation unexplained.
     expect(screen.getByText(/permission you do not hold/)).toBeInTheDocument();

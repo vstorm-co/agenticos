@@ -18,6 +18,35 @@ from app.services.file_storage import (
 
 logger = logging.getLogger(__name__)
 
+PREVIEW_LINES = 3
+"""How many lines of a file the upload response carries back.
+
+Enough for a composer card to show what was attached — the first rows of a CSV,
+the opening of a pasted stack trace — and no more. This is a label, not a
+reader: the file itself is one click away in the preview panel.
+"""
+
+PREVIEW_CHARS = 240
+"""A second bound, for a file whose three lines are one long line each."""
+
+
+def make_preview(parsed_content: str | None) -> str | None:
+    """The head of a file's extracted text, for a client to render beside its name.
+
+    Derived here rather than in the browser because the browser cannot derive it:
+    a PDF or a DOCX is bytes until this service has parsed it, and the client only
+    ever holds an id and a filename once the upload has answered. Returning it
+    with the upload is also the only version that survives a redraw, where a
+    client-side excerpt would be a second source of truth about the same file.
+
+    `None` for anything with no text — an image, or a parse that failed — so a
+    card renders its thumbnail or its name alone rather than an empty quote.
+    """
+    if not parsed_content:
+        return None
+    head = "\n".join(parsed_content.splitlines()[:PREVIEW_LINES])[:PREVIEW_CHARS].strip()
+    return head or None
+
 
 class FileUploadService:
     """Service for file upload validation, parsing, and persistence."""
@@ -62,6 +91,8 @@ class FileUploadService:
             return self._parse_pdf_content(data)
         if file_type == "docx":
             return self._parse_docx_content(data)
+        if file_type == "spreadsheet":
+            return self._parse_spreadsheet_content(data)
         return None
 
     @staticmethod
@@ -114,6 +145,50 @@ class FileUploadService:
             return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
         except Exception as e:
             logger.warning("DOCX parsing failed: %s", e)
+            return None
+
+    @staticmethod
+    def _parse_spreadsheet_content(data: bytes) -> str | None:
+        """Extract a workbook as tab-separated rows, one block per sheet.
+
+        Every sheet, named. A workbook's second sheet is where the data usually
+        is - the first is a cover or an index - and a reader that took only the
+        active one would answer questions about a file it had half read.
+
+        Tabs rather than commas: a cell holding "1,5" is a number in half of
+        Europe, and comma-separating those rows produces a table with a column
+        that appears and disappears down the page. `read_only` because a workbook
+        is opened here to be read once and thrown away, and it is what keeps a
+        large one from being materialised in full.
+
+        Trailing empty cells and empty rows are dropped. A sheet whose used range
+        is wider than its data - which is most of them, after a column has been
+        cleared - otherwise contributes rows of tabs, and those cost tokens to say
+        nothing.
+        """
+        try:
+            from openpyxl import load_workbook
+
+            workbook: Any = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+            try:
+                blocks: list[str] = []
+                for sheet in workbook.worksheets:
+                    rows: list[str] = []
+                    for row in sheet.iter_rows(values_only=True):
+                        cells = ["" if value is None else str(value) for value in row]
+                        while cells and cells[-1] == "":
+                            cells.pop()
+                        if cells:
+                            rows.append("\t".join(cells))
+                    if rows:
+                        blocks.append(f"Sheet: {sheet.title}\n" + "\n".join(rows))
+                return "\n\n".join(blocks) or None
+            finally:
+                # `read_only` keeps file handles open until it is closed, and this
+                # runs inside a request.
+                workbook.close()
+        except Exception as e:
+            logger.warning("Spreadsheet parsing failed: %s", e)
             return None
 
     async def upload(

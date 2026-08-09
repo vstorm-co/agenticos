@@ -8,6 +8,8 @@
  */
 
 import { apiClient } from "./api-client";
+import { saveBlob, type FileAccess } from "./file-access";
+import { qk } from "./query-keys";
 import type { KBParsedContent } from "@/types";
 
 export interface RAGSearchRequest {
@@ -34,28 +36,27 @@ export async function searchDocuments(request: RAGSearchRequest): Promise<RAGSea
   return apiClient.post<RAGSearchResponse>("/rag/search", request);
 }
 
-export async function downloadKBDocument(
-  kbId: string,
-  doc: { id: string; filename: string },
-  mode: "download" | "view" = "download",
-): Promise<void> {
-  // `raw` rather than `fetch`: this is an org-scoped endpoint, and without the
-  // organization header the backend answers from the caller's personal one.
-  const res = await apiClient.raw(`/kb/${kbId}/documents/${doc.id}/download`);
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  if (mode === "view") {
-    window.open(url, "_blank", "noopener,noreferrer");
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
-  } else {
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = doc.filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }
+/**
+ * One stored document, as the shared viewer reads it.
+ *
+ * `raw` rather than `fetch`: this is an org-scoped endpoint, and without the
+ * organization header the backend answers from the caller's personal one.
+ *
+ * One route answers both bodies here, unlike a workspace file - so which of the two
+ * a document gets is decided from its name and its stored `filetype` before the
+ * request, and the response's own content type is what a byte-rendered document is
+ * then displayed as.
+ */
+export function kbDocumentAccess(kbId: string, doc: { id: string; filename: string }): FileAccess {
+  const read = () => apiClient.raw(`/kb/${kbId}/documents/${doc.id}/download`);
+
+  return {
+    textKey: qk.kb.documentText(kbId, doc.id),
+    bytesKey: qk.kb.documentBytes(kbId, doc.id),
+    readText: async () => ({ content: await (await read()).text(), truncated: false }),
+    readBytes: async () => (await read()).blob(),
+    download: async () => saveBlob(await (await read()).blob(), doc.filename),
+  };
 }
 
 /**

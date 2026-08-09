@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import distinct, func, select
+from sqlalchemy import ColumnElement, distinct, func, select
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -187,6 +187,84 @@ async def get_conversation_by_id(
     return await db.get(Conversation, conversation_id)
 
 
+def _list_filters(
+    *,
+    search: str | None = None,
+    agent_id: UUID | None = None,
+    include_archived: bool = False,
+    archived_only: bool = False,
+) -> list[ColumnElement[bool]]:
+    """The predicates both conversation listings narrow by.
+
+    Written once because the two listings have to agree: the member sidebar and
+    `/admin/conversations` ask the same three questions of a thread, and a
+    difference between them would read as data missing from one screen rather
+    than as two queries.
+
+    `agent_id` narrows to threads *an agent answered in*, which is an EXISTS on
+    messages rather than a column on the conversation: an agent is not a
+    property of a thread - the picker can be changed mid-conversation, so one
+    thread can have several. A join would multiply the rows and quietly inflate
+    every message count on the admin page.
+
+    Tenancy is **not** here. Each caller owns its own scope - the member listing
+    filters on `organization_id` before any of this, the admin listing
+    deliberately does not - and a predicate that sometimes carries a tenant
+    filter is one nobody can read a guarantee out of. An `agent_id` belonging to
+    another organization needs no special case: the EXISTS runs against messages
+    of conversations the caller's own scope already narrowed, so it matches
+    nothing rather than confirming the agent exists.
+    """
+    filters: list[ColumnElement[bool]] = []
+    if search:
+        filters.append(contains_ci(Conversation.title, search))
+    if agent_id is not None:
+        # `select_from` and `correlate` are both load-bearing. Left to itself
+        # SQLAlchemy correlates *every* table it recognises from the enclosing
+        # query - including `messages` - and the subquery ends up with no FROM
+        # clause at all, which raises rather than returning wrong rows. Only
+        # `conversations` may be correlated; `messages` is what this selects.
+        filters.append(
+            select(Message.id)
+            .select_from(Message)
+            .where(Message.conversation_id == Conversation.id, Message.agent_id == agent_id)
+            .correlate(Conversation)
+            .exists()
+        )
+    if archived_only:
+        filters.append(Conversation.is_archived.is_(True))
+    elif not include_archived:
+        filters.append(Conversation.is_archived.is_(False))
+    return filters
+
+
+def _sort_columns() -> dict[str, Any]:
+    """The columns a conversation listing can be ordered by, before the extras.
+
+    Three of the sortable columns are nullable, and Postgres sorts NULL *first*
+    on a descending order - so the default page opened on every thread that had
+    never been written to, above the one updated a second ago, and they held the
+    top of page one permanently. `updated_at` is null until the first edit,
+    which is why it is coalesced here; `title` is null until one is generated.
+    """
+    return {
+        "title": Conversation.title,
+        "created_at": Conversation.created_at,
+        "updated_at": func.coalesce(Conversation.updated_at, Conversation.created_at),
+    }
+
+
+def _ordering(columns: dict[str, Any], sort_by: str, sort_dir: str) -> Any:
+    """One `ORDER BY`, defaulting to recency when the key is not one we sort on.
+
+    A row with nothing in the sorted column sorts last whichever way the column
+    is pointing: "no title" is not the largest title.
+    """
+    column = columns.get(sort_by, columns["updated_at"])
+    column = column.desc() if sort_dir == "desc" else column.asc()
+    return column.nulls_last()
+
+
 async def get_conversations_by_user(
     db: AsyncSession,
     user_id: UUID | None = None,
@@ -194,24 +272,31 @@ async def get_conversations_by_user(
     organization_id: UUID,
     skip: int = 0,
     limit: int = 50,
+    search: str | None = None,
+    agent_id: UUID | None = None,
     include_archived: bool = False,
+    archived_only: bool = False,
+    sort_by: str = "updated_at",
+    sort_dir: str = "desc",
 ) -> list[Conversation]:
     """Get one organization's conversations, optionally narrowed to one user.
 
     `organization_id` is a required keyword with no default: a call that omits
     the tenant would return every tenant's rows, and that mistake must not look
-    like an ordinary call.
+    like an ordinary call. The narrowing arguments after it are shared with the
+    admin listing - see :func:`_list_filters` for what each one means.
     """
     query = select(Conversation).where(Conversation.organization_id == organization_id)
     if user_id:
         query = query.where(Conversation.user_id == user_id)
-    if not include_archived:
-        query = query.where(Conversation.is_archived == False)  # noqa: E712
-    query = (
-        query.order_by(func.coalesce(Conversation.updated_at, Conversation.created_at).desc())
-        .offset(skip)
-        .limit(limit)
-    )
+    for condition in _list_filters(
+        search=search,
+        agent_id=agent_id,
+        include_archived=include_archived,
+        archived_only=archived_only,
+    ):
+        query = query.where(condition)
+    query = query.order_by(_ordering(_sort_columns(), sort_by, sort_dir)).offset(skip).limit(limit)
     result = await db.execute(query)
     return list(result.scalars().all())
 
@@ -233,11 +318,9 @@ async def admin_list_with_users(
 
     Returns list of (conversation, message_count, user_email) tuples and total count.
 
-    `agent_id` narrows to threads *an agent answered in*, which is an EXISTS on
-    messages rather than a column on the conversation: an agent is not a
-    property of a thread - the picker can be changed mid-conversation, so one
-    thread can have several. A join would multiply the rows and quietly inflate
-    every message count on the page.
+    Narrows by the same predicates as the member listing - :func:`_list_filters`
+    says what each one means, and `agent_id` in particular - and sorts by the
+    same columns plus the two only this listing has.
     """
     msg_count_col = func.count(Message.id).label("message_count")
     query = (
@@ -248,54 +331,26 @@ async def admin_list_with_users(
     )
     count_query = select(func.count()).select_from(Conversation)
 
-    if search:
-        title_matches = contains_ci(Conversation.title, search)
-        query = query.where(title_matches)
-        count_query = count_query.where(title_matches)
     if user_id is not None:
         query = query.where(Conversation.user_id == user_id)
         count_query = count_query.where(Conversation.user_id == user_id)
-    if agent_id is not None:
-        # `select_from` and `correlate` are both load-bearing. Left to itself
-        # SQLAlchemy correlates *every* table it recognises from the enclosing
-        # query - including `messages` - and the subquery ends up with no FROM
-        # clause at all, which raises rather than returning wrong rows. Only
-        # `conversations` may be correlated; `messages` is what this selects.
-        answered_here = (
-            select(Message.id)
-            .select_from(Message)
-            .where(Message.conversation_id == Conversation.id, Message.agent_id == agent_id)
-            .correlate(Conversation)
-            .exists()
-        )
-        query = query.where(answered_here)
-        count_query = count_query.where(answered_here)
-    if archived_only:
-        query = query.where(Conversation.is_archived.is_(True))
-        count_query = count_query.where(Conversation.is_archived.is_(True))
-    elif not include_archived:
-        query = query.where(Conversation.is_archived.is_(False))
-        count_query = count_query.where(Conversation.is_archived.is_(False))
+    for condition in _list_filters(
+        search=search,
+        agent_id=agent_id,
+        include_archived=include_archived,
+        archived_only=archived_only,
+    ):
+        query = query.where(condition)
+        count_query = count_query.where(condition)
 
-    # Three of these columns are nullable, and Postgres sorts NULL *first* on a
-    # descending order - so the default page opened on every thread that had
-    # never been written to, above the one updated a second ago, and they held
-    # the top of page one permanently. `updated_at` is null until the first
-    # edit, which is what the member-facing listing above coalesces away for the
-    # same reason; `title` is null until one is generated, and `owner` is null
-    # for every conversation that arrived through a channel rather than a user.
+    # `owner` is null for every conversation that arrived through a channel
+    # rather than a user, which is why this listing sorts nulls last too.
     sort_columns: dict[str, Any] = {
-        "title": Conversation.title,
-        "created_at": Conversation.created_at,
-        "updated_at": func.coalesce(Conversation.updated_at, Conversation.created_at),
+        **_sort_columns(),
         "owner": User.email,
         "messages": msg_count_col,
     }
-    sort_col = sort_columns.get(sort_by, sort_columns["updated_at"])
-    sort_col = sort_col.desc() if sort_dir == "desc" else sort_col.asc()
-    # A row with nothing in the sorted column sorts last whichever way the
-    # column is pointing: "no title" is not the largest title.
-    query = query.order_by(sort_col.nulls_last()).offset(skip).limit(limit)
+    query = query.order_by(_ordering(sort_columns, sort_by, sort_dir)).offset(skip).limit(limit)
 
     total = await db.scalar(count_query) or 0
     rows = (await db.execute(query)).all()
@@ -307,16 +362,29 @@ async def count_conversations(
     user_id: UUID | None = None,
     *,
     organization_id: UUID,
+    search: str | None = None,
+    agent_id: UUID | None = None,
     include_archived: bool = False,
+    archived_only: bool = False,
 ) -> int:
-    """Count one organization's conversations, optionally narrowed to one user."""
+    """Count one organization's conversations, optionally narrowed to one user.
+
+    Takes the same narrowing as :func:`get_conversations_by_user` because it
+    answers a question about that page: a total counted without the filters the
+    page was fetched with is a number that contradicts the rows under it.
+    """
     query = select(func.count(Conversation.id)).where(
         Conversation.organization_id == organization_id
     )
     if user_id:
         query = query.where(Conversation.user_id == user_id)
-    if not include_archived:
-        query = query.where(Conversation.is_archived == False)  # noqa: E712
+    for condition in _list_filters(
+        search=search,
+        agent_id=agent_id,
+        include_archived=include_archived,
+        archived_only=archived_only,
+    ):
+        query = query.where(condition)
     result = await db.execute(query)
     return result.scalar() or 0
 
@@ -417,6 +485,7 @@ async def create_message(
     role: str,
     content: str,
     thinking: str | None = None,
+    parts: list[dict[str, object]] | None = None,
     model_name: str | None = None,
     tokens_used: int | None = None,
     input_tokens: int | None = None,
@@ -432,6 +501,7 @@ async def create_message(
         role=role,
         content=content,
         thinking=thinking,
+        parts=parts,
         model_name=model_name,
         tokens_used=tokens_used,
         input_tokens=input_tokens,

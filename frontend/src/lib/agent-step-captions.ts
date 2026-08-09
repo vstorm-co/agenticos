@@ -1,22 +1,15 @@
 /**
  * Human-readable captions narrating what the agent is doing "under the hood"
  * while a tool runs. Used by the live agent-step animation to label each step
- * in plain language. Dependency-free - safe to use anywhere in the UI.
+ * in plain language.
+ *
+ * The per-tool wording lives in `tool-catalog.ts` with the rest of what this side
+ * knows about a tool - see the note there on why it is one table. What is left here
+ * is the fallback for a name the catalog has never heard of: an MCP tool, or one a
+ * binding renamed.
  */
 
-const EXACT_CAPTIONS: Record<string, string> = {
-  search_knowledge_base: "Searching the knowledge base",
-  search_documents: "Searching the documents",
-  web_search_tool: "Searching the web",
-  search_web: "Searching the web",
-  fetch_url: "Reading a web page",
-  get_current_datetime: "Checking the date and time",
-  run_python: "Running calculations",
-  create_chart_tool: "Creating a chart",
-  create_map_tool: "Drawing a map",
-  ask_user: "Asking you a question",
-  load_skill: "Loading a skill",
-};
+import { toolEntry } from "./tool-catalog";
 
 /** Prefix-based fallbacks for tools like `generate_*`. */
 const PREFIX_CAPTIONS: ReadonlyArray<readonly [string, string]> = [
@@ -29,33 +22,13 @@ const PREFIX_CAPTIONS: ReadonlyArray<readonly [string, string]> = [
 ];
 
 function humanizeToolName(name: string): string {
-  const words = name
-    .replace(/_tool$/, "")
-    .split("_")
-    .filter(Boolean);
+  const words = name.split("_").filter(Boolean);
   if (words.length === 0) return name;
   return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
 }
 
-const DISPLAY_NAMES: Record<string, string> = {
-  run_python: "Run Python",
-  create_chart_tool: "Chart",
-  create_map_tool: "Map",
-  web_search_tool: "Web Search",
-  search_web: "Web Search",
-  web_search: "Web Search",
-  web_fetch: "Web Fetch",
-  fetch_url: "Fetch URL",
-  get_current_datetime: "Current Date & Time",
-  search_knowledge_base: "Knowledge Base Search",
-  search_documents: "Knowledge Base Search",
-  ask_user: "Question",
-  load_skill: "Load Skill",
-  list_skills: "Available Skills",
-};
-
 export function toolDisplayName(toolName: string): string {
-  return DISPLAY_NAMES[toolName] ?? humanizeToolName(toolName);
+  return toolEntry(toolName)?.displayName ?? humanizeToolName(toolName);
 }
 
 /**
@@ -63,8 +36,8 @@ export function toolDisplayName(toolName: string): string {
  * Falls back to "Running <Tool Name>" for unknown tools.
  */
 export function toolCaption(toolName: string): string {
-  const exact = EXACT_CAPTIONS[toolName];
-  if (exact) return exact;
+  const known = toolEntry(toolName)?.caption;
+  if (known !== undefined) return known;
   for (const [prefix, caption] of PREFIX_CAPTIONS) {
     if (toolName.startsWith(prefix)) return caption;
   }
