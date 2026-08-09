@@ -36,6 +36,29 @@ until this service has parsed it, and the client holds an id and a filename once
 the upload has answered. It is `null` for an image and for a file no parser could
 read, and a card with no excerpt shows its thumbnail or its name alone.
 
+### The whole page is the drop target
+
+A file dragged over the chat is accepted **anywhere on it**, not onto the
+composer. The composer was the only target, which made attaching something a game
+of hitting a strip a few centimetres tall — and missing it was not a no-op: the
+browser's default for a dropped file is to *open* it, so the tab navigated away
+from the conversation and whatever was half-typed in it. The same
+`preventDefault` that lets the page take the file is what stops the browser taking
+it, so listening on the window fixes both halves at once.
+
+While a file is over the page, an overlay covers it: the ground blurred, a dashed
+card in the middle, and the per-file size limit written on it — a 60MB video
+refused *after* the drag is a round trip nobody needed to make. It is portalled to
+the body rather than positioned from the composer, because `fixed` is measured
+against the nearest transformed ancestor and one `backdrop-blur` on a wrapper
+above would quietly shrink the overlay to a corner.
+
+Two things it deliberately does not do. A drag carrying anything **other** than
+files — selected text, a link, one of the app's own draggable rows — is left
+entirely alone, not even prevented. And nothing is accepted while the composer is
+disabled: an archived conversation, a run waiting on an approval. The overlay not
+appearing is what says so.
+
 ### A long paste is a file
 
 Pasting more than **2000 characters** into the composer uploads the text as

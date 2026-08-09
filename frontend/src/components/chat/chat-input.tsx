@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Button, Spinner } from "@/components/ui";
-import { Send, Mic, MicOff, Paperclip, Upload } from "lucide-react";
+import { Send, Mic, MicOff, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { uploadFile, type FileUploadResponse } from "@/lib/file-api";
 import { getErrorMessage, MAX_UPLOAD_SIZE_MB } from "@/lib/utils";
@@ -14,7 +14,9 @@ import {
   type SlashCommandContext,
 } from "./slash-commands";
 import { SlashCommandPalette } from "./slash-command-palette";
+import { FileDropOverlay } from "./file-drop-overlay";
 import { useChanged } from "@/hooks/use-changed";
+import { useFileDrop } from "@/hooks/use-file-drop";
 import { useTranslations } from "next-intl";
 
 /**
@@ -295,58 +297,23 @@ export function ChatInput({
     [uploadFiles],
   );
 
-  // Drag-and-drop files anywhere onto the composer. A counter handles nested
-  // dragenter/dragleave so the overlay doesn't flicker over child elements.
-  const [isDragging, setIsDragging] = useState(false);
-  const dragDepth = useRef(0);
-  const isFileDrag = (e: React.DragEvent) => Array.from(e.dataTransfer.types).includes(t("files"));
-  const handleDragEnter = (e: React.DragEvent) => {
-    if (!isFileDrag(e)) return;
-    e.preventDefault();
-    dragDepth.current += 1;
-    setIsDragging(true);
-  };
-  const handleDragOver = (e: React.DragEvent) => {
-    if (isFileDrag(e)) e.preventDefault();
-  };
-  const handleDragLeave = (e: React.DragEvent) => {
-    if (!isFileDrag(e)) return;
-    dragDepth.current -= 1;
-    if (dragDepth.current <= 0) {
-      dragDepth.current = 0;
-      setIsDragging(false);
-    }
-  };
-  const handleDrop = (e: React.DragEvent) => {
-    if (!isFileDrag(e)) return;
-    e.preventDefault();
-    dragDepth.current = 0;
-    setIsDragging(false);
-    const files = Array.from(e.dataTransfer.files);
-    if (files.length) void uploadFiles(files);
-  };
+  // Anywhere on the page, not onto the composer. The strip somebody had to hit
+  // was a few centimetres tall, and missing it was not a no-op - the browser's
+  // default for a dropped file is to open it, so the tab left the conversation.
+  // Nothing is accepted while the composer is disabled, and the overlay not
+  // appearing is what says so.
+  const { isDragging } = useFileDrop({
+    onFiles: (files) => void uploadFiles(files),
+    disabled,
+  });
 
   const removeFile = (fileId: string) => {
     setAttachedFiles((prev) => prev.filter((a) => a.file.id !== fileId));
   };
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="relative"
-      onDragEnter={handleDragEnter}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-    >
-      {isDragging && (
-        <div className="border-foreground/40 bg-card/95 text-foreground absolute inset-0 z-30 flex items-center justify-center rounded-2xl border-2 border-dashed text-sm font-medium backdrop-blur-sm">
-          <span className="flex items-center gap-2">
-            <Upload className="h-4 w-4" />
-            {t("dropFilesAttach")}
-          </span>
-        </div>
-      )}
+    <form onSubmit={handleSubmit} className="relative">
+      <FileDropOverlay active={isDragging} maxSizeMb={MAX_UPLOAD_SIZE_MB} />
       {showPalette && (
         <SlashCommandPalette
           commands={filteredCommands}
