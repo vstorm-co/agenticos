@@ -2133,11 +2133,15 @@
     },
     "channelLink": {
       "connectYourChatAccount": "Connect your chat account",
-      "theAgentWillRunAsYou": "Once connected, the agent answers as you - your permissions, your budget, your name on the audit trail.",
+      "theAgentWillRunAsYou": "The bot needs to know who you are before it will answer you.",
       "connectThisAccount": "Connect this account",
       "connected": "Connected",
-      "goBackToTheChat": "Go back to the chat and ask the agent something.",
-      "thatAccount": "That chat account"
+      "goBackToTheChat": "This chat account is now yours.",
+      "nowSaySomething": "Go back to the chat and ask the agent something.",
+      "thatAccount": "That chat account",
+      "runsWithYourPermissions": "The agent answers as you - your permissions, your budget, your name on the audit trail.",
+      "disconnectAnyTime": "You can disconnect it at any time from your profile.",
+      "seeConnectedAccounts": "See your connected accounts"
     },
     "channels": {
       "channels": "Channels",
@@ -2477,6 +2481,8 @@
       "cancel2": "Cancel",
       "changePassword": "Change password",
       "changingEmailMayRequire": "Changing email may require re-verification depending on your auth setup.",
+      "chatAccounts": "Chat accounts",
+      "chatAccountsDescription": "Slack, Telegram and Mattermost accounts connected to you. An agent reached from one of these answers as you, with your permissions and your budget.",
       "confirmNewPassword": "Confirm new password",
       "currentPassword": "Current password",
       "customizeCommandPaletteChat": "Customize the /command palette in chat - disable built-ins, or define your own quick prompts.",
@@ -2484,6 +2490,7 @@
       "deleteMyAccount": "Delete my account",
       "deleteYourAccount": "Delete your account?",
       "deleting": "Deleting…",
+      "disconnectAccount": "Disconnect {account}",
       "displayName": "Display name",
       "email": "Email",
       "emailsAboutRunsNobody": "Emails about runs nobody is watching. Each switch is checked before the email is sent. These are your own opt-outs and only ever subtract: an agent decides who should hear about it, and switching one off here removes you from that list whatever the agent says. Who an agent tells is set on the agent, under Limits.",
@@ -2501,6 +2508,7 @@
       "newPasswordMustBe": "New password must be at least 8 characters",
       "noAppNotifications": "No in-app notifications.",
       "noBillingEmail": "No billing email.",
+      "noChatAccountsYet": "None connected. Message one of your organization's bots and it will send you a link.",
       "noMarketingEmail": "No marketing email.",
       "notOptional": "Not optional -",
       "nothingChanged": "Nothing changed",

@@ -209,6 +209,13 @@ class ChannelIdentityRead(BaseSchema):
     created_at: datetime
 
 
+class ChannelIdentityList(BaseSchema):
+    """The chat accounts one person has connected."""
+
+    items: list[ChannelIdentityRead]
+    total: int
+
+
 class ChannelSessionRead(BaseSchema):
     """Schema for reading a channel session."""
 

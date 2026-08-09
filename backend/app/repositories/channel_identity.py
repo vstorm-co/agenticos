@@ -28,6 +28,21 @@ async def get_by_platform_user(
     return result.scalar_one_or_none()
 
 
+async def list_for_user(db: AsyncSession, *, user_id: UUID) -> list[ChannelIdentity]:
+    """Every chat account this person has connected, oldest first.
+
+    Ordered so the list does not reshuffle between visits: these rows are
+    identical at a glance apart from the platform, and a list that reorders
+    itself is one somebody unlinks the wrong row from.
+    """
+    result = await db.execute(
+        select(ChannelIdentity)
+        .where(ChannelIdentity.user_id == user_id)
+        .order_by(ChannelIdentity.created_at)
+    )
+    return list(result.scalars().all())
+
+
 async def create(
     db: AsyncSession,
     *,

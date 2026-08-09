@@ -7,12 +7,17 @@ and not in the chat.
 """
 
 from typing import Any
+from uuid import UUID
 
-from fastapi import APIRouter
+from fastapi import APIRouter, status
 
 from app.api.deps import ChannelLinkSvc, CurrentUser
 from app.core.exceptions import NotFoundError
-from app.schemas.channel_bot import ChannelLinkRequestRead
+from app.schemas.channel_bot import (
+    ChannelIdentityList,
+    ChannelIdentityRead,
+    ChannelLinkRequestRead,
+)
 
 router = APIRouter()
 
@@ -39,3 +44,25 @@ async def confirm_link_request(token: str, service: ChannelLinkSvc, user: Curren
     if request is None:
         raise NotFoundError(message=_GONE)
     return request
+
+
+@router.get("", response_model=ChannelIdentityList)
+async def list_linked_accounts(service: ChannelLinkSvc, user: CurrentUser) -> Any:
+    """The chat accounts this person has connected.
+
+    Worth a page of its own rather than only a confirmation screen: a link is
+    granted from a chat and spent in a browser, so without a list the only
+    record of what somebody connected is a message that has scrolled away.
+    """
+    items = await service.linked(user.id)
+    return ChannelIdentityList(
+        items=[ChannelIdentityRead.model_validate(identity) for identity in items],
+        total=len(items),
+    )
+
+
+@router.delete("/{identity_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
+async def unlink_account(identity_id: UUID, service: ChannelLinkSvc, user: CurrentUser) -> None:
+    """Disconnect one chat account from this person."""
+    if not await service.unlink(user.id, identity_id):
+        raise NotFoundError(message="That chat account is not connected to your account.")

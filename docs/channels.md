@@ -144,12 +144,12 @@ socket.send(JSON.stringify({ type: "message", text: "hello" }));
 ## Slack
 
 1. Create a Slack app, add a bot user, install it to the workspace.
-2. Register the bot: **Settings → Channels → Add bot**, platform `slack`, paste
+2. Register the bot: **Channels → Add bot**, platform `slack`, paste
    the bot token.
 3. Either point Slack's Events API at
    `https://your-api.example.com/api/v1/slack/BOT_ID/events`, or run Socket Mode
    (add the bot's `xapp-` token in its settings) and expose nothing.
-4. Bind the agent: Builder → the agent → **Available in** → the bot.
+4. Bind the agent: Builder → the agent → **Availability** → the bot.
 
 Works in channels and in DMs. A thread gets its own conversation, so two people
 asking different things in the same channel do not end up in one thread of
@@ -160,7 +160,7 @@ is refused rather than run with no role.
 ## Telegram
 
 1. Create a bot with @BotFather, copy the token.
-2. **Settings → Channels → Add bot**, platform `telegram`.
+2. **Channels → Add bot**, platform `telegram`.
 3. Register the webhook from the UI, or run polling in development — no public
    URL needed.
 
@@ -184,7 +184,7 @@ Two ways in; pick by whether your Mattermost can reach this deployment.
 
 1. In Mattermost, *Integrations → Bot Accounts → Add Bot Account*. Copy the
    token it shows once — that is the **bot token**.
-2. Register it: **Settings → Channels → Add bot**, platform `mattermost`, paste
+2. Register it: **Channels → Add bot**, platform `mattermost`, paste
    the token, and set **Server URL** to your Mattermost, e.g.
    `https://mattermost.acme.internal` or `http://mattermost:8065` inside compose.
    Leave the webhook token empty.
@@ -267,6 +267,11 @@ it is about to wait.
     account and asks you to confirm. Nothing is typed and no code is copied. Ask
     again any time by sending the bot `link` (or `/link` where the platform
     delivers a slash; Mattermost does not).
+
+    What is connected, and disconnecting it, is under **Settings → Profile →
+    Chat accounts**. Disconnecting clears the owner and keeps the row, so the
+    conversations that hang off it survive - the person is still messaging the
+    bot from the same account afterwards.
 
     **Only in a direct message.** The URL is a bearer credential: whoever opens
     it claims that chat account. In a channel the bot says to message it

@@ -26,6 +26,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.channel_link_request import ChannelLinkRequest
 from app.repositories import channel_identity_repo, channel_link_request_repo
 from app.services.channels.base import IncomingMessage
@@ -110,3 +111,28 @@ class ChannelLinkService:
 
         await channel_link_request_repo.delete_by_id(self.db, request.id)
         return request
+
+    async def linked(self, user_id: UUID) -> list[ChannelIdentity]:
+        """The chat accounts this person has connected."""
+        return await channel_identity_repo.list_for_user(self.db, user_id=user_id)
+
+    async def unlink(self, user_id: UUID, identity_id: UUID) -> bool:
+        """Disconnect one chat account, if it is this person's.
+
+        Returns whether anything was disconnected. The row survives with
+        `user_id` cleared rather than being deleted: it carries the chat
+        account's own id, and deleting it would lose the sessions and
+        conversations that hang off it while the person keeps talking to the bot
+        from the same account.
+
+        Scoped by owner rather than by id alone - an identity belongs to whoever
+        claimed it, and an endpoint that unlinks by id is one that unlinks
+        somebody else's.
+        """
+        for identity in await self.linked(user_id):
+            if identity.id == identity_id:
+                await channel_identity_repo.update(
+                    self.db, db_identity=identity, update_data={"user_id": None}
+                )
+                return True
+        return False

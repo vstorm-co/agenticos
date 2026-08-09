@@ -247,3 +247,44 @@ class TestASlashAPlatformAte:
         and a bare `new` or `help` would swallow real messages."""
         assert _as_command("new") == "new"
         assert _as_command("help") == "help"
+
+
+class TestWhatSomebodyHasConnected:
+    """A link is granted in a chat and spent in a browser, so without a list the
+    only record of what was connected is a message that has scrolled away."""
+
+    async def _unlink(self, owned: list, identity_id: uuid.UUID) -> tuple[bool, object]:
+        with (
+            patch(
+                "app.services.channel_link.channel_identity_repo.list_for_user",
+                new=AsyncMock(return_value=owned),
+            ),
+            patch(
+                "app.services.channel_link.channel_identity_repo.update", new=AsyncMock()
+            ) as updated,
+        ):
+            done = await ChannelLinkService(MagicMock()).unlink(uuid.uuid4(), identity_id)
+        return done, updated
+
+    async def test_unlinking_clears_the_owner_rather_than_deleting_the_row(self):
+        """The row carries the chat account's own id, and the sessions and
+        conversations hang off it - the person keeps messaging the bot from the
+        same account after they disconnect it."""
+        identity = MagicMock()
+        identity.id = uuid.uuid4()
+
+        done, updated = await self._unlink([identity], identity.id)
+
+        assert done is True
+        assert updated.call_args.kwargs["update_data"] == {"user_id": None}
+
+    async def test_an_identity_that_is_not_theirs_is_not_unlinked(self):
+        """Scoped by owner rather than by id alone - an endpoint that unlinks by
+        id is one that unlinks somebody else's."""
+        identity = MagicMock()
+        identity.id = uuid.uuid4()
+
+        done, updated = await self._unlink([identity], uuid.uuid4())
+
+        assert done is False
+        assert updated.call_count == 0

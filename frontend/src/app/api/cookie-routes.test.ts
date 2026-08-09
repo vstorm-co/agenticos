@@ -14,7 +14,9 @@ import { POST as acceptInvitation, DELETE as declineInvitation } from "./invitat
 import {
   GET as readChannelLink,
   POST as confirmChannelLink,
+  DELETE as unlinkChannelAccount,
 } from "./me/channel-link/[token]/route";
+import { GET as listChannelAccounts } from "./me/channel-link/route";
 import { GET as listConnections, POST as createConnection } from "./me/mcp-connections/route";
 import {
   PATCH as patchConnection,
@@ -77,6 +79,19 @@ const COOKIE_GATED: [string, (signedIn: boolean) => Promise<Response>][] = [
       readChannelLink(request("http://localhost:3000/api/me/channel-link/tok", { signedIn: s }), {
         params: Promise.resolve({ token: "tok" }),
       }),
+  ],
+  [
+    "the chat accounts somebody has connected",
+    (s) =>
+      listChannelAccounts(request("http://localhost:3000/api/me/channel-link", { signedIn: s })),
+  ],
+  [
+    "disconnecting a chat account",
+    (s) =>
+      unlinkChannelAccount(
+        request("http://localhost:3000/api/me/channel-link/i-1", { signedIn: s }),
+        { params: Promise.resolve({ token: "i-1" }) },
+      ),
   ],
   [
     "confirming a chat account is yours",

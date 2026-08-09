@@ -49,3 +49,33 @@ export async function POST(request: NextRequest, context: { params: Promise<{ to
     return NextResponse.json({ detail: "Internal server error" }, { status: 500 });
   }
 }
+
+/**
+ * Disconnecting one chat account.
+ *
+ * The path segment is an identity id here rather than a link token - the two
+ * never collide, because a token is only ever read by GET and POST, and a
+ * DELETE addresses a row this person owns.
+ */
+export async function DELETE(
+  request: NextRequest,
+  context: { params: Promise<{ token: string }> },
+) {
+  const accessToken = request.cookies.get("access_token")?.value;
+  if (!accessToken) {
+    return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
+  }
+  const { token } = await context.params;
+  try {
+    await backendFetch<null>(`/api/v1/me/channel-link/${encodeURIComponent(token)}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    return new NextResponse(null, { status: 204 });
+  } catch (error) {
+    if (error instanceof BackendApiError) {
+      return NextResponse.json({ detail: error.message }, { status: error.status });
+    }
+    return NextResponse.json({ detail: "Internal server error" }, { status: 500 });
+  }
+}

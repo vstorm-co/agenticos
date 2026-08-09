@@ -1,10 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { confirmChannelLink, readChannelLink } from "./channel-link-api";
+import {
+  confirmChannelLink,
+  listLinkedAccounts,
+  readChannelLink,
+  unlinkAccount,
+} from "./channel-link-api";
 import { apiClient } from "./api-client";
 
 vi.mock("./api-client", () => ({
-  apiClient: { get: vi.fn(), post: vi.fn() },
+  apiClient: { get: vi.fn(), post: vi.fn(), delete: vi.fn() },
 }));
 
 /**
@@ -18,6 +23,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(apiClient.get).mockResolvedValue({ platform: "mattermost" });
   vi.mocked(apiClient.post).mockResolvedValue({ platform: "mattermost" });
+  vi.mocked(apiClient.delete).mockResolvedValue(undefined);
 });
 
 describe("the channel link API", () => {
@@ -39,5 +45,18 @@ describe("the channel link API", () => {
     await readChannelLink("a/b?c");
 
     expect(apiClient.get).toHaveBeenCalledWith("/me/channel-link/a%2Fb%3Fc");
+  });
+
+  it("unwraps the list of connected accounts", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [{ id: "i-1" }], total: 1 });
+
+    await expect(listLinkedAccounts()).resolves.toEqual([{ id: "i-1" }]);
+    expect(apiClient.get).toHaveBeenCalledWith("/me/channel-link");
+  });
+
+  it("disconnects one account by its own id", async () => {
+    await unlinkAccount("i-1");
+
+    expect(apiClient.delete).toHaveBeenCalledWith("/me/channel-link/i-1");
   });
 });
