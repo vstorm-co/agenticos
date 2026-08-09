@@ -41,6 +41,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.charts._spec import parse_chart_spec
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import RunSurface
@@ -49,6 +50,8 @@ from app.db.models.organization import Organization
 from app.repositories import agent_exposure_repo, agent_repo, member_repo
 from app.services.agent_runner import AgentRunnerService
 from app.services.channels.base import OutgoingAttachment
+from app.services.channels.chart_png import render_chart_png
+from app.services.transcript import RecordedToolCall
 from app.services.usage_report import (
     UsageReportService,
     format_footer,
@@ -73,10 +76,36 @@ _SURFACES: dict[str, RunSurface] = {
     "mattermost": RunSurface.MATTERMOST,
 }
 
+
 # Said to anyone whose channel identity has no account behind it. Deliberately
 # identical whether they never linked or were removed from the organization -
 # both are "we do not know who you are here", and telling them apart would leak
 # whether an account exists.
+def drawn_chart(called: list[RecordedToolCall]) -> bytes | None:
+    """The last chart this turn drew, as a PNG, or None if it drew none.
+
+    The *last*, because a turn that draws twice has refined the first attempt and
+    a reply carries one image. A result that no longer parses is skipped rather
+    than raised on: the payload is whatever the tool returned, and a chart that
+    cannot be drawn must not cost somebody the answer it came with.
+    """
+    for call in reversed(called):
+        if call.tool_name != _CHART_TOOL or call.result is None:
+            continue
+        spec = parse_chart_spec(call.result)
+        if spec is None:
+            continue
+        try:
+            return render_chart_png(spec)
+        except Exception:
+            logger.exception("Could not render a chart for a channel reply")
+            return None
+    return None
+
+
+_CHART_TOOL = "create_chart"
+"""What the charts capability registers. One name, read in one place."""
+
 _LINK_FIRST = "Link your account before talking to an agent - send /link to this bot."
 
 # Said when the handle names a real agent that nobody has made available here.
@@ -153,6 +182,14 @@ class AnsweredTurn:
     attachments: list[OutgoingAttachment] = field(default_factory=list)
     refused: list[str] = field(default_factory=list)
     """Produced files the reply names instead of carrying."""
+
+    image_png: bytes | None = None
+    """A chart the turn drew, rendered for a surface that cannot run Recharts.
+
+    Beside the attachments rather than among them because a chart is not a file
+    somebody asked for: it is the answer, and every adapter posts it as an image
+    with the text rather than as something to download.
+    """
 
 
 class ChannelAgentRouter:
@@ -248,6 +285,7 @@ class ChannelAgentRouter:
 
         produced: list[OutgoingAttachment] = []
         refused: list[str] = []
+        called: list[RecordedToolCall] = []
         answer, run = await self.runner.execute(
             ctx,
             agent.id,
@@ -255,6 +293,7 @@ class ChannelAgentRouter:
             attachments=attachments,
             outbound=produced,
             outbound_refused=refused,
+            tool_calls=called,
             surface=_SURFACES.get(platform, RunSurface.API),
             conversation_id=conversation_id,
             channel_key=(None if platform_chat_id is None else self._channel_key(platform_chat_id)),
@@ -270,6 +309,7 @@ class ChannelAgentRouter:
             ),
             attachments=produced,
             refused=refused,
+            image_png=drawn_chart(called),
         )
 
     async def answer_default(
@@ -323,6 +363,7 @@ class ChannelAgentRouter:
         ctx = await self._context(organization_id, user_id, slug=agent.slug)
         produced: list[OutgoingAttachment] = []
         refused: list[str] = []
+        called: list[RecordedToolCall] = []
         answer, run = await self.runner.execute(
             ctx,
             agent.id,
@@ -330,6 +371,7 @@ class ChannelAgentRouter:
             attachments=attachments,
             outbound=produced,
             outbound_refused=refused,
+            tool_calls=called,
             surface=_SURFACES.get(platform, RunSurface.API),
             conversation_id=conversation_id,
             channel_key=(None if platform_chat_id is None else self._channel_key(platform_chat_id)),
@@ -342,6 +384,7 @@ class ChannelAgentRouter:
             ),
             attachments=produced,
             refused=refused,
+            image_png=drawn_chart(called),
         )
 
     async def _with_usage(

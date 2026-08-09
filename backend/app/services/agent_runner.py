@@ -2583,6 +2583,7 @@ class AgentRunnerService:
         attachments: list[ChatFile] | None = None,
         outbound: list[OutgoingAttachment] | None = None,
         outbound_refused: list[str] | None = None,
+        tool_calls: list[RecordedToolCall] | None = None,
     ) -> tuple[str, AgentRun]:
         """Run an agent to completion and return its answer.
 
@@ -2635,6 +2636,11 @@ class AgentRunnerService:
             outbound.extend(prepared.outbound)
         if outbound_refused is not None:
             outbound_refused.extend(prepared.outbound_refused)
+        # Handed back the same way as the files: a surface that can draw a chart
+        # needs what the turn called, and reading it off the row afterwards is
+        # not open to a channel run, which writes no messages (#205).
+        if tool_calls is not None:
+            tool_calls.extend(segment.tool_calls)
         return segment.output, segment.run
 
     async def parked_calls(self, ctx: AuthContext, run: AgentRun) -> list[ParkedCall]:

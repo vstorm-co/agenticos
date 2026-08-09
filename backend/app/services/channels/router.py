@@ -189,6 +189,7 @@ class ChannelMessageRouter:
             incoming,
             answer or "That needs approval before it can run - check the approvals queue.",
             answered.attachments,
+            image_png=answered.image_png,
         )
 
     async def _answer_mention(
@@ -232,6 +233,7 @@ class ChannelMessageRouter:
             incoming,
             answer or "That needs approval before it can run - check the approvals queue.",
             answered.attachments,
+            image_png=answered.image_png,
         )
         return True
 
@@ -497,8 +499,15 @@ class ChannelMessageRouter:
         incoming: IncomingMessage,
         text: str,
         attachments: list[OutgoingAttachment] | None = None,
+        *,
+        image_png: bytes | None = None,
     ) -> None:
-        """Decrypt the bot token and send a reply via the appropriate adapter."""
+        """Decrypt the bot token and send a reply via the appropriate adapter.
+
+        A chart travels as `image_png` rather than as an attachment: every
+        adapter posts it as a picture beside the text, where an attachment is
+        something to download.
+        """
         try:
             adapter = get_adapter(incoming.platform)
             decrypted_token = unseal_bot_token(bot)
@@ -509,6 +518,7 @@ class ChannelMessageRouter:
                 reply_to_message_id=incoming.message_id,
                 api_base_url=getattr(bot, "api_base_url", None),
                 attachments=attachments or [],
+                image_png=image_png,
             )
             await adapter.send_message(decrypted_token, out)
         except Exception:
