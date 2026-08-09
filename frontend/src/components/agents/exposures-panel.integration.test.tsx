@@ -39,6 +39,7 @@ function exposure(overrides: Partial<Exposure> = {}): Exposure {
     prompt: null,
     tools: [],
     available_tools: [],
+    usage_reporting: { mode: "near_limit", near_limit_percent: 80, every_n: 10 },
     is_active: true,
     created_at: null,
     ...overrides,
@@ -120,32 +121,24 @@ describe("ExposuresPanel", () => {
     ).toBeInTheDocument();
   });
 
-  it("points at the register panel instead of a picker nothing can be picked from", async () => {
-    // A disabled select saying "no unbound bots" was a dead end: somebody who
-    // has never registered a bot learns here that one is needed, and that the
-    // panel below this one is where it happens.
+  it("names the fix instead of a picker nothing can be picked from", async () => {
+    // A disabled select saying "no unbound bots" was a dead end. It said which
+    // of two absences this was, which stopped being knowable here: a bot serves
+    // one agent, so "every bot registered and every one serving somebody else"
+    // looks from the client exactly like "no bots at all". What all of them
+    // share is the fix, so that is what it says.
     serve([], []);
     await mount();
 
     expect(screen.queryByRole("combobox", { name: "Add a channel" })).not.toBeInTheDocument();
-    expect(
-      await screen.findByText(
-        "This organization has no channel bots yet. Register one in the panel below, then bind it here.",
-      ),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/No bot is free to bind/)).toBeInTheDocument();
   });
 
-  it("says when the agent is already on every registered bot", async () => {
-    // Same empty picker, opposite meaning: nothing is missing, everything is
-    // already bound - sending somebody off to register a bot would be wrong.
+  it("says the same thing when this agent is on the only bot there is", async () => {
     serve([exposure({ channel_bot_id: "b1" })], [target({ id: "b1" })]);
     await mount();
 
-    expect(
-      await screen.findByText(
-        "This agent is already on every bot this organization has registered.",
-      ),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/No bot is free to bind/)).toBeInTheDocument();
   });
 
   it("does not offer a bot the agent already answers on", async () => {
@@ -417,6 +410,24 @@ describe("ExposuresPanel", () => {
     expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures/e1`, {
       tools: ["get_channel_info"],
     });
+  });
+
+  it("is where cost reporting is chosen, per binding", async () => {
+    // It moved off the Channels page: whether a reply says what the turn cost
+    // is part of what this agent says on this surface, and on the bot it was an
+    // operator's setting in a table of servers and tokens.
+    serve([exposure()], []);
+    vi.mocked(apiClient.patch).mockResolvedValue(exposure());
+    await mount();
+
+    await userEvent.click(await screen.findByRole("combobox", { name: "Cost reporting" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Cost: on every reply" }));
+
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures/e1`, {
+        usage_reporting: { mode: "always", near_limit_percent: 80, every_n: 10 },
+      }),
+    );
   });
 
   it("offers nothing where the platform answers nothing", async () => {

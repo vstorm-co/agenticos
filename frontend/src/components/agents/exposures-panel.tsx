@@ -20,6 +20,7 @@ import {
 } from "@/components/ui";
 import { useAgentEnvironments, useExposures } from "@/hooks";
 import { ExposurePrompt } from "@/components/agents/exposure-prompt";
+import { ExposureCostReporting } from "@/components/agents/exposure-cost-reporting";
 import { ExposureTools } from "@/components/agents/exposure-tools";
 import type { ExposureSurface } from "@/types/exposures";
 import { useTranslations } from "next-intl";
@@ -76,6 +77,7 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
     setEnvironment,
     setPrompt,
     setTools,
+    setUsageReporting,
     revoke,
   } = useExposures(agentId);
   const { environments } = useAgentEnvironments(agentId);
@@ -187,6 +189,14 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
                     to: the same agent on an internal Mattermost and a customer
                     Slack gets a different answer here, and a switch in the
                     Toolbox would have one for both. */}
+                <ExposureCostReporting
+                  exposureId={exposure.id}
+                  value={exposure.usage_reporting}
+                  disabled={setUsageReporting.isPending}
+                  onChange={(usageReporting) =>
+                    setUsageReporting.mutate({ exposureId: exposure.id, usageReporting })
+                  }
+                />
                 <ExposureTools
                   exposureId={exposure.id}
                   platform={SURFACE_LABEL[exposure.surface]}
@@ -245,11 +255,14 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
               </Button>
             </div>
           ) : (
-            // A disabled picker here was a dead end: it said no bot could be
-            // chosen without saying which of the two absences this is - no
-            // bots at all, or all of them already bound.
+            // One sentence, not two. It used to split on whether this agent had
+            // any bindings - "already on every bot" against "no bots yet" - and
+            // since a bot serves one agent there is a third case the client
+            // cannot tell from either: every bot registered, and every one of
+            // them serving somebody else. What all three have in common is the
+            // fix, so that is what it says.
             <p className="text-muted-foreground border-t pt-3 text-sm">
-              {exposures.length > 0 ? t("agentAlreadyEveryBot") : t("organizationHasNoChannel")}
+              {t("organizationHasNoChannel")}
             </p>
           ))}
       </CardContent>

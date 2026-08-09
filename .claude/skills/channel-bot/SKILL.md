@@ -33,6 +33,11 @@ and a staged master-key rotation has to know which key sealed it. See the
 
 These are the ones worth testing and the ones easiest to break:
 
+- **A bot serves exactly one agent** - `uq_exposure_bot`, migration `0018`. So
+  `answer_default` takes the single active binding without asking what a second row
+  would have meant, and `@slug` is an alias for that agent rather than a router
+  between several. Binding a second agent is refused by the service *and* by the
+  database.
 - **`@slug` resolves only inside the bot's organization.** A slug from another org is
   not found, not borrowed.
 - **A mention runs as the *sender*, never as the bot.** The bot's own identity would

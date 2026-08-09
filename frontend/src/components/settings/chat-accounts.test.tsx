@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatAccounts } from "./chat-accounts";
-import { listLinkedAccounts, unlinkAccount } from "@/lib/channel-link-api";
+import { listLinkedAccounts, unlinkAccount, type LinkedPlace } from "@/lib/channel-link-api";
 import { toast } from "sonner";
 
 vi.mock("@/lib/channel-link-api", () => ({
@@ -27,6 +27,17 @@ function account(overrides: Record<string, unknown> = {}) {
     platform_display_name: "Kacper",
     is_active: true,
     created_at: "2026-08-09T18:00:00Z",
+    places: [] as LinkedPlace[],
+    ...overrides,
+  };
+}
+
+function place(overrides: Partial<LinkedPlace> = {}): LinkedPlace {
+  return {
+    bot_id: "b-1",
+    bot_name: "Acme Support",
+    host: "mattermost.acme.com",
+    agents: [{ id: "a-1", name: "Support", slug: "support", has_avatar: false }],
     ...overrides,
   };
 }
@@ -92,6 +103,47 @@ describe("connected chat accounts", () => {
 
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
     expect(screen.getByText("Kacper")).toBeVisible();
+  });
+
+  it("names the server the account is on, not only the platform", async () => {
+    // "Mattermost" does not say which company's chat this is on a deployment
+    // with two Mattermost servers, and the account is keyed on neither.
+    vi.mocked(listLinkedAccounts).mockResolvedValue([account({ places: [place()] })]);
+    render(<ChatAccounts />);
+
+    expect(await screen.findByText("Acme Support · mattermost.acme.com")).toBeVisible();
+  });
+
+  it("names the bot alone where the platform has no server of its own", async () => {
+    vi.mocked(listLinkedAccounts).mockResolvedValue([
+      account({ platform: "slack", places: [place({ host: null, bot_name: "Acme Slack" })] }),
+    ]);
+    render(<ChatAccounts />);
+
+    expect(await screen.findByText("Acme Slack")).toBeVisible();
+  });
+
+  it("shows which agents answer there", async () => {
+    // The reason somebody connected the account at all, and the same handles
+    // they would type into the chat.
+    vi.mocked(listLinkedAccounts).mockResolvedValue([account({ places: [place()] })]);
+    render(<ChatAccounts />);
+
+    expect(await screen.findByText("@support")).toBeVisible();
+  });
+
+  it("says so when a bot has nothing this reader can see answering on it", async () => {
+    // Not the same as "not used yet", and an empty row would read as one.
+    vi.mocked(listLinkedAccounts).mockResolvedValue([account({ places: [place({ agents: [] })] })]);
+    render(<ChatAccounts />);
+
+    expect(await screen.findByText(/No agent you can see/)).toBeVisible();
+  });
+
+  it("says an account has been connected but never used", async () => {
+    render(<ChatAccounts />);
+
+    expect(await screen.findByText(/Not used anywhere yet/)).toBeVisible();
   });
 
   it("says so when the list itself could not be fetched", async () => {

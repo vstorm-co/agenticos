@@ -26,7 +26,8 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
-from sqlalchemy import select, text
+from sqlalchemy import delete, select, text
+from sqlalchemy.exc import IntegrityError
 
 from app.agents.capabilities.approval import approval_required_tools
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
@@ -46,6 +47,8 @@ from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.agent_exposure import AgentExposure
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, RunSurface, ToolApproval
 from app.db.models.channel_bot import ChannelBot
+from app.db.models.channel_identity import ChannelIdentity
+from app.db.models.channel_session import ChannelSession
 from app.db.models.conversation import Conversation, Message
 from app.db.models.credential import ModelProfile
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
@@ -60,7 +63,9 @@ from app.db.models.sync_source import SyncSource
 from app.db.models.user import User
 from app.main import app
 from app.repositories import (
+    agent_exposure_repo,
     agent_run_repo,
+    channel_session_repo,
     conversation_repo,
     credential_repo,
     ingestion_spend_repo,
@@ -77,6 +82,7 @@ from app.services.agent_chat import ChatAgentRunner
 from app.services.agent_registry import AgentRegistryService
 from app.services.agent_runner import AgentRunnerService, month_start
 from app.services.approvals import ApprovalService
+from app.services.channel_link import ChannelLinkService
 from app.services.channels.mentions import ChannelAgentRouter, UnaddressedMessage
 from app.services.ingestion_config import (
     ImageDescription,
@@ -4102,3 +4108,169 @@ class TestTheListingCarriesThePublishedCap:
 
         by_id = {row.id: row for row in rows}
         assert by_id[estate.home_agent.id].budget_monthly_usd is None
+
+
+class TestWhereAChatAccountHasBeenUsed:
+    """The profile panel's second half, against a real database.
+
+    Written after the first version 500'd on one. `SELECT DISTINCT` over the
+    joined bot row asks Postgres to compare every column of it, and
+    `channel_bots.access_policy` and `usage_reporting` are `json` - a type with
+    no equality operator. Every unit test passed, because they mock the
+    repository; the page answered `could not identify an equality operator for
+    type json`. So this one runs the query.
+    """
+
+    @staticmethod
+    async def _identity(db, *, user: User) -> ChannelIdentity:
+        identity = ChannelIdentity(
+            id=uuid.uuid4(),
+            platform="mattermost",
+            platform_user_id=uuid.uuid4().hex,
+            platform_username="kacper.wlodarczyk",
+            user_id=user.id,
+        )
+        db.add(identity)
+        await db.flush()
+        return identity
+
+    @staticmethod
+    async def _session(db, *, bot: ChannelBot, identity: ChannelIdentity, chat: str) -> None:
+        db.add(
+            ChannelSession(
+                id=uuid.uuid4(),
+                bot_id=bot.id,
+                identity_id=identity.id,
+                platform_chat_id=chat,
+            )
+        )
+        await db.flush()
+
+    async def test_the_query_runs_at_all(self, db, estate: TwoTenants) -> None:
+        """The whole reason this test exists: json columns and DISTINCT."""
+        identity = await self._identity(db, user=estate.home.user)
+        bot = await _bot_row(db, organization_id=estate.home.organization.id, platform="mattermost")
+        await self._session(db, bot=bot, identity=identity, chat="c-1")
+
+        found = await channel_session_repo.bots_by_identity(db, identity_ids=[identity.id])
+
+        assert [row.id for row in found[identity.id]] == [bot.id]
+
+    async def test_one_bot_in_eight_channels_is_one_place(self, db, estate: TwoTenants) -> None:
+        """A chat account has a session per chat, and the panel lists places."""
+        identity = await self._identity(db, user=estate.home.user)
+        bot = await _bot_row(db, organization_id=estate.home.organization.id, platform="mattermost")
+        for chat in range(8):
+            await self._session(db, bot=bot, identity=identity, chat=f"c-{chat}")
+
+        found = await channel_session_repo.bots_by_identity(db, identity_ids=[identity.id])
+
+        assert len(found[identity.id]) == 1
+
+    async def test_an_account_used_nowhere_is_absent_rather_than_empty(
+        self, db, estate: TwoTenants
+    ) -> None:
+        identity = await self._identity(db, user=estate.home.user)
+
+        found = await channel_session_repo.bots_by_identity(db, identity_ids=[identity.id])
+
+        assert found == {}
+
+    async def test_a_bot_from_another_tenant_is_never_reported_to_this_person(
+        self, db, estate: TwoTenants
+    ) -> None:
+        """A chat account is not scoped to a tenant, so the narrowing happens in
+        the service - and this is the case it has to get right: the same person
+        owns rows in both organizations."""
+        identity = await self._identity(db, user=estate.home.user)
+        home_bot = await _bot_row(
+            db, organization_id=estate.home.organization.id, platform="mattermost"
+        )
+        other_bot = await _bot_row(
+            db, organization_id=estate.other.organization.id, platform="mattermost"
+        )
+        await self._session(db, bot=home_bot, identity=identity, chat="c-1")
+        await self._session(db, bot=other_bot, identity=identity, chat="c-2")
+        # A member of Home only. `estate` puts the same user in both, so the
+        # membership that would show the other tenant's bot is removed.
+        await db.execute(
+            delete(OrganizationMember).where(
+                OrganizationMember.organization_id == estate.other.organization.id,
+                OrganizationMember.user_id == estate.home.user.id,
+            )
+        )
+        await db.flush()
+
+        places = await ChannelLinkService(db).places(estate.home.user.id, [identity])
+
+        assert [place.bot_id for place in places[identity.id]] == [home_bot.id]
+
+    async def test_a_place_names_the_server_and_what_answers_there(
+        self, db, estate: TwoTenants
+    ) -> None:
+        identity = await self._identity(db, user=estate.home.user)
+        bot = await _bot_row(db, organization_id=estate.home.organization.id, platform="mattermost")
+        bot.api_base_url = "https://mattermost.acme.com/"
+        await _exposure_row(db, agent=estate.home_agent, bot=bot)
+        await self._session(db, bot=bot, identity=identity, chat="c-1")
+
+        places = await ChannelLinkService(db).places(estate.home.user.id, [identity])
+
+        (place,) = places[identity.id]
+        assert place.host == "mattermost.acme.com"
+        assert [agent.slug for agent in place.agents] == [estate.home_agent.slug]
+
+
+class TestOneAgentPerBot:
+    """A bot answers as one agent, and the database is what makes that true.
+
+    A bot user is one identity in the chat - the same avatar and the same name
+    whichever agent replied - so serving several behind one bot meant somebody
+    in a channel typing a slug to pick between agents they could not see. The
+    constraint is `uq_exposure_bot`; the service refuses first so the caller
+    gets a sentence rather than an IntegrityError, and this is the half that
+    holds when something bypasses the service.
+    """
+
+    async def test_a_second_agent_on_one_bot_is_refused_by_the_database(
+        self, db, estate: TwoTenants
+    ) -> None:
+        bot = await _bot_row(db, organization_id=estate.home.organization.id)
+        await _exposure_row(db, agent=estate.home_agent, bot=bot)
+        second = await _agent_row(
+            db,
+            organization_id=estate.home.organization.id,
+            owner_user_id=estate.home.user.id,
+            slug="billing",
+        )
+
+        with pytest.raises(IntegrityError):
+            await _exposure_row(db, agent=second, bot=bot)
+        await db.rollback()
+
+    async def test_one_agent_may_answer_on_as_many_bots_as_it_likes(
+        self, db, estate: TwoTenants
+    ) -> None:
+        """The constraint is on the bot, not on the pair: an agent in Slack,
+        Telegram and two Mattermost servers is four rows and no conflict."""
+        for platform in ("slack", "telegram", "mattermost", "mattermost"):
+            bot = await _bot_row(db, organization_id=estate.home.organization.id, platform=platform)
+            await _exposure_row(db, agent=estate.home_agent, bot=bot)
+
+        bound = await agent_exposure_repo.list_for_agent(
+            db,
+            agent_id=estate.home_agent.id,
+            organization_id=estate.home.organization.id,
+        )
+
+        assert len(bound) == 4
+
+    async def test_a_paused_binding_still_holds_the_bot(self, db, estate: TwoTenants) -> None:
+        """Which is why the picker filters on any binding rather than on who is
+        answering: a paused row occupies the constraint just the same."""
+        bot = await _bot_row(db, organization_id=estate.home.organization.id)
+        await _exposure_row(db, agent=estate.home_agent, bot=bot, is_active=False)
+
+        taken = await agent_exposure_repo.bound_agent_by_bot(db, channel_bot_ids=[bot.id])
+
+        assert taken == {bot.id: estate.home_agent.id}

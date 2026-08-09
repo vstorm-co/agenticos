@@ -90,7 +90,7 @@ class TestCreate:
             patch("app.services.agent_exposure.record_audit", new=AsyncMock()),
         ):
             bots.get_for_org = AsyncMock(return_value=bot)
-            exposures.get_for_bot = AsyncMock(return_value=None)
+            exposures.bound_to_bot = AsyncMock(return_value=None)
             exposures.create = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
 
             await service.create(_ctx(), uuid.uuid4(), ExposureCreate(channel_bot_id=bot.id))
@@ -120,7 +120,7 @@ class TestCreate:
             patch("app.services.agent_exposure.record_audit", new=AsyncMock()),
         ):
             bots.get_for_org = AsyncMock(return_value=bot)
-            exposures.get_for_bot = AsyncMock(return_value=None)
+            exposures.bound_to_bot = AsyncMock(return_value=None)
             exposures.create = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
 
             await service.create(_ctx(), uuid.uuid4(), ExposureCreate(channel_bot_id=bot.id))
@@ -142,7 +142,7 @@ class TestCreate:
             patch("app.services.agent_exposure.record_audit", new=AsyncMock()),
         ):
             bots.get_for_org = AsyncMock(return_value=bot)
-            exposures.get_for_bot = AsyncMock(return_value=None)
+            exposures.bound_to_bot = AsyncMock(return_value=None)
             exposures.create = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
             environments.get = AsyncMock(return_value=environment)
 
@@ -167,7 +167,7 @@ class TestCreate:
             patch("app.services.agent_exposure.agent_environment_repo") as environments,
         ):
             bots.get_for_org = AsyncMock(return_value=bot)
-            exposures.get_for_bot = AsyncMock(return_value=None)
+            exposures.bound_to_bot = AsyncMock(return_value=None)
             environments.get = AsyncMock(return_value=MagicMock(agent_id=uuid.uuid4()))
 
             with pytest.raises(NotFoundError, match="Environment"):
@@ -178,20 +178,46 @@ class TestCreate:
                 )
 
     @pytest.mark.parametrize("is_active", [True, False])
-    async def test_a_second_binding_to_the_same_bot_is_refused(self, is_active):
+    async def test_rebinding_the_same_agent_to_the_same_bot_is_refused(self, is_active):
         """Including a paused one - it still occupies the unique constraint.
 
         Letting the insert reach the database would turn a question the service
-        can answer into an IntegrityError with nothing useful in it.
+        can answer into an IntegrityError with nothing useful in it. The row's
+        id comes back because un-pausing it is what the caller wanted.
         """
-        service = _service()
-        existing = MagicMock(id=uuid.uuid4(), is_active=is_active)
+        agent = _agent()
+        service = _service(agent)
+        existing = MagicMock(id=uuid.uuid4(), agent_id=agent.id, is_active=is_active)
         with (
             patch("app.services.agent_exposure.channel_bot_repo") as bots,
             patch("app.services.agent_exposure.agent_exposure_repo") as exposures,
         ):
             bots.get_for_org = AsyncMock(return_value=_bot())
-            exposures.get_for_bot = AsyncMock(return_value=existing)
+            exposures.bound_to_bot = AsyncMock(return_value=existing)
+            exposures.create = AsyncMock()
+
+            with pytest.raises(AlreadyExistsError) as refused:
+                await service.create(_ctx(), agent.id, ExposureCreate(channel_bot_id=uuid.uuid4()))
+
+        assert refused.value.details["exposure_id"] == str(existing.id)
+        exposures.create.assert_not_called()
+
+    async def test_a_bot_another_agent_already_serves_is_refused(self):
+        """A bot answers as one agent.
+
+        It is one identity in the chat - the same avatar and the same name
+        whichever agent replied - so two agents is two bots, and the refusal
+        says so rather than leaving somebody to find out from a 409 that reads
+        like a bug.
+        """
+        service = _service()
+        taken = MagicMock(id=uuid.uuid4(), agent_id=uuid.uuid4(), is_active=True)
+        with (
+            patch("app.services.agent_exposure.channel_bot_repo") as bots,
+            patch("app.services.agent_exposure.agent_exposure_repo") as exposures,
+        ):
+            bots.get_for_org = AsyncMock(return_value=_bot())
+            exposures.bound_to_bot = AsyncMock(return_value=taken)
             exposures.create = AsyncMock()
 
             with pytest.raises(AlreadyExistsError) as refused:
@@ -199,7 +225,9 @@ class TestCreate:
                     _ctx(), uuid.uuid4(), ExposureCreate(channel_bot_id=uuid.uuid4())
                 )
 
-        assert refused.value.details["exposure_id"] == str(existing.id)
+        assert "register a second bot" in refused.value.message
+        # Somebody else's row, and nothing the caller can do with its id.
+        assert "exposure_id" not in refused.value.details
         exposures.create.assert_not_called()
 
     async def test_binding_demands_permission_to_publish_the_agent(self):
@@ -211,7 +239,7 @@ class TestCreate:
             patch("app.services.agent_exposure.record_audit", new=AsyncMock()),
         ):
             bots.get_for_org = AsyncMock(return_value=_bot())
-            exposures.get_for_bot = AsyncMock(return_value=None)
+            exposures.bound_to_bot = AsyncMock(return_value=None)
             exposures.create = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
 
             await service.create(_ctx(), uuid.uuid4(), ExposureCreate(channel_bot_id=uuid.uuid4()))
@@ -230,7 +258,7 @@ class TestCreate:
             patch("app.services.agent_exposure.record_audit", new=audit),
         ):
             bots.get_for_org = AsyncMock(return_value=bot)
-            exposures.get_for_bot = AsyncMock(return_value=None)
+            exposures.bound_to_bot = AsyncMock(return_value=None)
             exposures.create = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
 
             await service.create(_ctx(), agent.id, ExposureCreate(channel_bot_id=bot.id))
@@ -252,6 +280,7 @@ class TestReading:
             environment_id=None,
             session_scope=None,
             prompt=None,
+            usage_reporting={},
             is_active=True,
             created_at=None,
         )
@@ -280,6 +309,7 @@ class TestReading:
             environment_id=None,
             session_scope=None,
             prompt=None,
+            usage_reporting={},
             is_active=True,
             created_at=None,
         )
@@ -311,14 +341,67 @@ class TestReading:
     async def test_the_picker_leaves_out_bots_no_exposure_could_serve(self):
         """Offering a choice that would be refused is a form of lying."""
         service = _service()
-        with patch("app.services.agent_exposure.channel_bot_repo") as bots:
+        with (
+            patch("app.services.agent_exposure.channel_bot_repo") as bots,
+            patch("app.services.agent_exposure.agent_exposure_repo") as exposures,
+        ):
             bots.list_for_org = AsyncMock(
                 return_value=[_bot(platform="slack"), _bot(platform="discord")]
             )
+            exposures.bound_agent_by_bot = AsyncMock(return_value={})
 
             targets = await service.targets(_ctx(), uuid.uuid4())
 
         assert [target.platform for target in targets] == [ExposureSurface.SLACK]
+
+    async def test_the_picker_leaves_out_a_bot_another_agent_already_serves(self):
+        """Same rule, other reason: a bot answers as one agent, so a taken one
+        is a choice that ends in a 409 the person choosing could not predict."""
+        agent = _agent()
+        service = _service(agent)
+        free, taken = _bot(), _bot()
+        with (
+            patch("app.services.agent_exposure.channel_bot_repo") as bots,
+            patch("app.services.agent_exposure.agent_exposure_repo") as exposures,
+        ):
+            bots.list_for_org = AsyncMock(return_value=[free, taken])
+            exposures.bound_agent_by_bot = AsyncMock(return_value={taken.id: uuid.uuid4()})
+
+            targets = await service.targets(_ctx(), agent.id)
+
+        assert [target.id for target in targets] == [free.id]
+
+    async def test_the_picker_keeps_a_bot_this_agent_itself_is_on(self):
+        """The caller filters its own bindings out to say which bots are
+        already served - dropping them here would make "bound" and "taken by
+        somebody else" the same absence."""
+        agent = _agent()
+        service = _service(agent)
+        bot = _bot()
+        with (
+            patch("app.services.agent_exposure.channel_bot_repo") as bots,
+            patch("app.services.agent_exposure.agent_exposure_repo") as exposures,
+        ):
+            bots.list_for_org = AsyncMock(return_value=[bot])
+            exposures.bound_agent_by_bot = AsyncMock(return_value={bot.id: agent.id})
+
+            targets = await service.targets(_ctx(), agent.id)
+
+        assert [target.id for target in targets] == [bot.id]
+
+    async def test_a_paused_binding_still_makes_a_bot_taken(self):
+        """It occupies the unique constraint, so a picker that filtered on who
+        is *answering* would offer a bot the database refuses."""
+        service = _service()
+        bot = _bot()
+        with (
+            patch("app.services.agent_exposure.channel_bot_repo") as bots,
+            patch("app.services.agent_exposure.agent_exposure_repo") as exposures,
+        ):
+            bots.list_for_org = AsyncMock(return_value=[bot])
+            exposures.bound_agent_by_bot = AsyncMock(return_value={bot.id: uuid.uuid4()})
+
+            assert await service.targets(_ctx(), uuid.uuid4()) == []
 
     async def test_the_picker_needs_only_permission_to_see_the_agent(self):
         """Choosing where an agent goes must not require running the bots.
@@ -328,8 +411,12 @@ class TestReading:
         put one in Slack, and the section read-only for the people it is for.
         """
         service = _service()
-        with patch("app.services.agent_exposure.channel_bot_repo") as bots:
+        with (
+            patch("app.services.agent_exposure.channel_bot_repo") as bots,
+            patch("app.services.agent_exposure.agent_exposure_repo") as exposures,
+        ):
             bots.list_for_org = AsyncMock(return_value=[])
+            exposures.bound_agent_by_bot = AsyncMock(return_value={})
 
             await service.targets(_ctx(OrgRoleName.VIEWER), uuid.uuid4())
 
@@ -534,7 +621,7 @@ class TestWhatANewBindingStartsWith:
             patch("app.services.agent_exposure.record_audit", new=AsyncMock()),
         ):
             bots.get_for_org = AsyncMock(return_value=bot)
-            exposures.get_for_bot = AsyncMock(return_value=None)
+            exposures.bound_to_bot = AsyncMock(return_value=None)
             exposures.create = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
 
             await service.create(_ctx(), uuid.uuid4(), ExposureCreate(channel_bot_id=bot.id))
@@ -582,6 +669,7 @@ class TestWhatTheAgentMayLookUpHere:
             environment_id=None,
             session_scope=None,
             prompt=None,
+            usage_reporting={},
             is_active=True,
             created_at=None,
         )

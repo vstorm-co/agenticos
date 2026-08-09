@@ -48,15 +48,26 @@ async def confirm_link_request(token: str, service: ChannelLinkSvc, user: Curren
 
 @router.get("", response_model=ChannelIdentityList)
 async def list_linked_accounts(service: ChannelLinkSvc, user: CurrentUser) -> Any:
-    """The chat accounts this person has connected.
+    """The chat accounts this person has connected, and where each is used.
 
     Worth a page of its own rather than only a confirmation screen: a link is
     granted from a chat and spent in a browser, so without a list the only
     record of what somebody connected is a message that has scrolled away.
+
+    "Mattermost" was the whole of what a row said about itself, which on a
+    deployment with two Mattermost servers does not say which company's chat was
+    connected. So each row now also carries the bots it has been used with -
+    named, with their host - and which agents answer there.
     """
     items = await service.linked(user.id)
+    places = await service.places(user.id, items)
     return ChannelIdentityList(
-        items=[ChannelIdentityRead.model_validate(identity) for identity in items],
+        items=[
+            ChannelIdentityRead.model_validate(identity).model_copy(
+                update={"places": places.get(identity.id, [])}
+            )
+            for identity in items
+        ],
         total=len(items),
     )
 

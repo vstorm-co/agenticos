@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { getErrorMessage } from "@/lib/utils";
+import type { UsageReporting } from "@/types/channels";
 import type { Exposure, ExposureList, ExposureTarget, ExposureTargetList } from "@/types/exposures";
 
 /**
@@ -102,6 +103,22 @@ export function useExposures(agentId: string | null) {
     onError: (error) => toast.error(getErrorMessage(error)),
   });
 
+  const setUsageReporting = useMutation({
+    mutationFn: ({
+      exposureId,
+      usageReporting,
+    }: {
+      exposureId: string;
+      usageReporting: UsageReporting;
+    }) =>
+      // Only this field, for the reason `setActive` says: the server applies
+      // what it was sent, so reading a value back and returning it alongside
+      // would overwrite whatever somebody changed in between.
+      apiClient.patch<Exposure>(`${base}/${exposureId}`, { usage_reporting: usageReporting }),
+    onSuccess: invalidate,
+    onError: (error) => toast.error(getErrorMessage(error)),
+  });
+
   const revoke = useMutation({
     mutationFn: (exposureId: string) => apiClient.delete<void>(`${base}/${exposureId}`),
     onSuccess: async () => {
@@ -130,6 +147,7 @@ export function useExposures(agentId: string | null) {
     setEnvironment,
     setPrompt,
     setTools,
+    setUsageReporting,
     revoke,
   };
 }

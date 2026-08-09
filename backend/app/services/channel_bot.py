@@ -19,8 +19,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.vault import SealedSecret, VaultScope, seal, unseal
 from app.db.models.channel_bot import ChannelBot
-from app.repositories import channel_bot_repo, channel_session_repo
-from app.schemas.channel_bot import ChannelBotCreate, ChannelBotUpdate
+from app.repositories import agent_exposure_repo, channel_bot_repo, channel_session_repo
+from app.schemas.channel_bot import (
+    BotAgent,
+    ChannelBotCreate,
+    ChannelBotRead,
+    ChannelBotUpdate,
+)
 from app.services.channels import SECRET_MINTED_BY_US, get_adapter, inbound_webhook_url
 
 logger = logging.getLogger(__name__)
@@ -138,7 +143,6 @@ class ChannelBotService:
             api_base_url=data.api_base_url,
             webhook_secret_encrypted=self._seal_at(webhook_secret, key_version=sealed.key_version),
             access_policy=data.access_policy.model_dump(),
-            usage_reporting=data.usage_reporting.model_dump(),
             slack_signing_secret_encrypted=self._seal_at(
                 data.slack_signing_secret, key_version=sealed.key_version
             ),
@@ -245,13 +249,37 @@ class ChannelBotService:
             return None
         return bot
 
-    async def list_all(self, *, skip: int = 0, limit: int = 50) -> tuple[list[ChannelBot], int]:
-        """List this organization's bots with total count."""
+    async def list_all(self, *, skip: int = 0, limit: int = 50) -> tuple[list[ChannelBotRead], int]:
+        """This organization's bots, with who answers on each, and the total.
+
+        The agents come back with the rows rather than being fetched per bot by
+        the client: "registered and silent" is the state somebody opens this
+        page to explain, and a listing that named only the bot could not tell it
+        from "working". One grouped query for the page, not one per row.
+        """
         bots = await channel_bot_repo.list_for_org(
             self.db, organization_id=self._org_id, skip=skip, limit=limit
         )
+        answering = await agent_exposure_repo.active_agents_for_bots(
+            self.db, channel_bot_ids=[bot.id for bot in bots]
+        )
         total = await channel_bot_repo.count(self.db, organization_id=self._org_id)
-        return bots, total
+        return [
+            ChannelBotRead.model_validate(bot).model_copy(
+                update={
+                    "agents": [
+                        BotAgent(
+                            id=agent.id,
+                            name=agent.name,
+                            slug=agent.slug,
+                            has_avatar=agent.has_avatar,
+                        )
+                        for agent in answering.get(bot.id, [])
+                    ]
+                }
+            )
+            for bot in bots
+        ], total
 
     async def list_by_platform(self, platform: str | None = None) -> list[ChannelBot]:
         """Return this organization's bots, optionally filtered by platform."""
@@ -308,9 +336,9 @@ class ChannelBotService:
             )
         # Both policies are stored as JSON, so a submitted model has to become a
         # dict either way - and a `None` means "leave it alone", not "clear it":
-        # clearing `usage_reporting` would silently return a bot to the default
+        # clearing `access_policy` would silently return a bot to the default
         # rather than to nothing.
-        for field in ("access_policy", "usage_reporting"):
+        for field in ("access_policy",):
             value = update_data.get(field)
             if value is not None and hasattr(value, "model_dump"):
                 update_data[field] = value.model_dump()

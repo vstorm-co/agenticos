@@ -1,15 +1,18 @@
-"""Routing a channel message to the agent it names.
+"""Routing a channel message to the agent behind the bot.
 
-A Slack or Telegram bot is one endpoint standing in front of every agent an
-organization has published. Without a way to say *which* one, the bot can only
-ever be a single assistant, and every new agent needs its own bot token, its own
-webhook and its own place in the workspace's app directory.
+**A bot serves exactly one agent** - `uq_exposure_bot` - so most of what this
+module does is find that agent and hand it the message. A bot user is one
+identity in the chat: on Mattermost every reply arrives from the same avatar
+and the same name whichever agent produced it, so several behind one bot meant
+somebody in a channel typing a slug to pick between things they could not see,
+and a message naming none was answered with a list of handles rather than an
+answer. Two agents is two bots, which costs an operator two minutes and makes
+the chat say which agent it is talking to.
 
-`@support what is the refund window` is that way. The handle is the agent's
-slug - the same one the Builder shows and the same one the API takes - so a
-person who can see an agent in the UI already knows how to reach it from Slack.
-A message that names no handle goes to the bot's only exposed agent, when there
-is exactly one; a bot is never anything more than the agents put behind it.
+`@support what is the refund window` still works, and is now an *alias* rather
+than a router: the handle is the agent's slug - the same one the Builder shows
+and the same one the API takes - and naming an agent that is not the one behind
+this bot is refused rather than reaching it.
 
 Three rules make this safe to expose in a shared channel:
 
@@ -18,7 +21,7 @@ refused rather than run as the bot or as the organization. Budgets, resource
 grants and the audit trail all take a subject, and a run with no subject is one
 nobody is accountable for.
 
-*The agent has to have been put here.* A handle resolves only among the agents
+*The agent has to have been put here.* A handle resolves only against the agent
 *exposed* to this bot - see :mod:`app.services.agent_exposure`. It used to
 resolve against every published agent in the organization, which made one Slack
 app a door onto all of them; nobody decided that, it fell out of resolving the
@@ -131,13 +134,6 @@ _NOTHING_EXPOSED_HERE = (
     "under 'Where this agent is available' in the Builder."
 )
 
-# Said when a message names no agent and the bot serves several, so answering
-# would mean guessing which one was meant. The handles are listed because the
-# sender's next message should be able to just start with one.
-_SAY_WHICH = (
-    "Several agents answer on this bot - start your message with the one you want: {handles}"
-)
-
 
 @dataclass(frozen=True)
 class Mention:
@@ -238,7 +234,6 @@ class ChannelAgentRouter:
         conversation_id: UUID | None = None,
         platform_chat_id: str | None = None,
         channel_directory: ChannelDirectory | None = None,
-        usage_reporting: dict[str, Any] | None = None,
         turn: int = 0,
         attachments: list[ChatFile] | None = None,
         stream: RunStream | None = None,
@@ -261,6 +256,12 @@ class ChannelAgentRouter:
                 agent whose spec binds `channel_tools`. Bound by the caller
                 because it holds the bot's token, and passed through unread:
                 a run with none simply gets no channel tools.
+
+        How talkative the reply is about what a turn cost is not a parameter:
+        it is the binding's, read off the exposure this method has just
+        resolved. It used to arrive from the router as the *bot's* setting,
+        which made it the operator's rather than the agent author's - and once
+        a bot served one agent there was nothing left for two copies to say.
 
         Returns:
             The agent's answer, or an empty string when a tool call was parked
@@ -329,7 +330,7 @@ class ChannelAgentRouter:
         )
         return AnsweredTurn(
             text=await self._with_usage(
-                ctx, answer, run, usage_reporting=usage_reporting, turn=turn
+                ctx, answer, run, usage_reporting=exposure.usage_reporting, turn=turn
             ),
             attachments=produced,
             refused=refused,
@@ -350,7 +351,6 @@ class ChannelAgentRouter:
         conversation_id: UUID | None = None,
         platform_chat_id: str | None = None,
         channel_directory: ChannelDirectory | None = None,
-        usage_reporting: dict[str, Any] | None = None,
         turn: int = 0,
         attachments: list[ChatFile] | None = None,
         message_history: list[Any] | None = None,
@@ -358,11 +358,10 @@ class ChannelAgentRouter:
     ) -> AnsweredTurn:
         """Run the only agent this bot serves and return what it said.
 
-        The unaddressed half of :meth:`answer`: a message naming no handle goes
-        to the bot's single active exposure, because someone messaging a bot
-        that serves exactly one agent has already said which agent they want.
-        With several exposed there is no honest guess - the sender is asked to
-        name one - and with none there is nothing to run at all.
+        The unaddressed half of :meth:`answer`, and the ordinary one: a bot
+        serves exactly one agent - `uq_exposure_bot` - so a message that names
+        no handle has already said which agent it is for. The only other state
+        is a bot nobody has bound anything to, and there is nothing to run.
 
         Args:
             text: The whole incoming message; there is no handle to strip.
@@ -372,22 +371,20 @@ class ChannelAgentRouter:
                 shared channels, not about this one.
 
         Raises:
-            BadRequestError: If the bot exposes no agent, or more than one.
-                Both messages say what to do next, because the person reading
-                them is standing in a chat that just refused to answer.
+            BadRequestError: If the bot exposes no agent. The message says what
+                to do next, because the person reading it is standing in a chat
+                that just refused to answer.
             AuthorizationError: If the sender never linked an account.
             NotFoundError: If the sender may not see the one exposed agent.
         """
         exposed = await agent_exposure_repo.list_active_for_bot(self.db, channel_bot_id=bot_id)
         if not exposed:
             raise BadRequestError(message=_NOTHING_EXPOSED_HERE, details={"bot_id": str(bot_id)})
-        if len(exposed) > 1:
-            handles = ", ".join(f"@{agent.slug}" for _, agent in exposed)
-            raise BadRequestError(
-                message=_SAY_WHICH.format(handles=handles),
-                details={"bot_id": str(bot_id), "handles": handles},
-            )
 
+        # At most one, guaranteed by the unique constraint on the bot. This used
+        # to be a list to choose from, and choosing was the sender's problem:
+        # a message naming no handle was answered with a list of slugs instead
+        # of an answer, for agents they could not see.
         exposure, agent = exposed[0]
         ctx = await self._context(organization_id, user_id, slug=agent.slug)
         produced: list[OutgoingAttachment] = []
@@ -411,7 +408,7 @@ class ChannelAgentRouter:
         )
         return AnsweredTurn(
             text=await self._with_usage(
-                ctx, answer, run, usage_reporting=usage_reporting, turn=turn
+                ctx, answer, run, usage_reporting=exposure.usage_reporting, turn=turn
             ),
             attachments=produced,
             refused=refused,

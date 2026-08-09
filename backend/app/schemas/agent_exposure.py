@@ -8,6 +8,7 @@ from pydantic import Field
 
 from app.db.models.agent_exposure import ExposureSurface
 from app.schemas.base import BaseSchema
+from app.schemas.channel_bot import UsageReporting
 
 
 class ExposureTool(BaseSchema):
@@ -58,6 +59,14 @@ class ExposureRead(BaseSchema):
             "than no control."
         ),
     )
+    usage_reporting: UsageReporting = Field(default_factory=UsageReporting)
+    """How talkative the agent is about what a turn cost, here.
+
+    On the binding rather than on the bot: it is one of the things the agent's
+    author decides about this surface, beside the extra instructions and the
+    channel lookups, and a bot serves one agent so there was nothing left for
+    the bot's copy to mean."""
+
     is_active: bool
     created_at: datetime | None = None
 
@@ -107,6 +116,15 @@ class ExposureCreate(BaseSchema):
 
 
 class ExposureUpdate(BaseSchema):
+    usage_reporting: UsageReporting | None = Field(
+        default=None,
+        description=(
+            "When the agent says what a turn cost here, and when it only records "
+            "it. Recorded either way - 'the bot went quiet' is a question "
+            "somebody asks days later, and a report never written is no help "
+            "then."
+        ),
+    )
     tools: list[str] | None = Field(
         default=None,
         description=(

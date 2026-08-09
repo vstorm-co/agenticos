@@ -7,6 +7,8 @@
  * added, because a surface is a row here and not a field on the spec.
  */
 
+import type { UsageReporting } from "@/types/channels";
+
 /** Who shares a workspace. Mirrors the backend's `SessionScope`. */
 export type SessionScope = "run" | "conversation" | "channel" | "user" | "agent";
 
@@ -59,6 +61,15 @@ export interface Exposure {
    * before deciding to call it.
    */
   available_tools: ExposureTool[];
+  /**
+   * How talkative the agent is here about what a turn cost.
+   *
+   * On the binding rather than on the bot, where it used to sit: whether an
+   * answer carries a cost footer is part of what this agent says on this
+   * surface, and on the bot it was an operator's setting in a table of tokens
+   * and addresses.
+   */
+  usage_reporting: UsageReporting;
   is_active: boolean;
   created_at: string | null;
 }

@@ -31,6 +31,7 @@ function exposure(overrides: Partial<Exposure> = {}): Exposure {
     prompt: null,
     tools: [],
     available_tools: [],
+    usage_reporting: { mode: "near_limit", near_limit_percent: 80, every_n: 10 },
     is_active: true,
     created_at: null,
     ...overrides,
@@ -171,11 +172,35 @@ describe("useExposures", () => {
     await expect(
       result.current.setTools.mutateAsync({ exposureId: "e1", tools: ["get_channel_info"] }),
     ).rejects.toThrow(refused);
+    await expect(
+      result.current.setUsageReporting.mutateAsync({
+        exposureId: "e1",
+        usageReporting: { mode: "off", near_limit_percent: 80, every_n: 10 },
+      }),
+    ).rejects.toThrow(refused);
     await expect(result.current.revoke.mutateAsync("e1")).rejects.toThrow(refused);
 
-    expect(toast.error).toHaveBeenCalledTimes(6);
+    expect(toast.error).toHaveBeenCalledTimes(7);
     expect(toast.error).toHaveBeenCalledWith("You cannot publish this agent");
   });
+  it("sends only the cost-reporting mode, and only that field", async () => {
+    // It moved here from the bot: whether a reply says what the turn cost is
+    // part of what this agent says on this surface, not a property of the chat
+    // server. Sending anything more would let it overwrite a prompt somebody
+    // changed in between.
+    vi.mocked(apiClient.patch).mockResolvedValue(exposure());
+    const result = await hook();
+
+    await result.current.setUsageReporting.mutateAsync({
+      exposureId: "e1",
+      usageReporting: { mode: "always", near_limit_percent: 80, every_n: 10 },
+    });
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/agents/a1/exposures/e1", {
+      usage_reporting: { mode: "always", near_limit_percent: 80, every_n: 10 },
+    });
+  });
+
   it("sends the whole grant of channel lookups, and only that field", async () => {
     // What a binding grants is what it is - a patch describing one checkbox
     // could not say "and nothing else" - and sending anything more would let a

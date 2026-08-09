@@ -6,6 +6,8 @@ NOT NULL despite channel conversations having no user.
 """
 
 import uuid
+from datetime import UTC, datetime
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -289,3 +291,98 @@ class TestChannelConversationOrg:
             await ChannelMessageRouter()._resolve_session(incoming, bot, identity, MagicMock())
 
         assert create_conv.call_args.kwargs["organization_id"] == bot.organization_id
+
+
+class TestWhoAnswersOnEachBot:
+    """The channels listing says which agents a bot serves, and when none does.
+
+    "Registered and silent" is the state somebody opens that page to explain,
+    and from a chat window it is indistinguishable from a broken bot. Resolved
+    with the listing rather than fetched per row by the client: an organization
+    with a dozen channels would otherwise be a dozen requests behind one table.
+    """
+
+    @staticmethod
+    def _row(**overrides) -> SimpleNamespace:
+        """A bot row real enough for `ChannelBotRead` to validate.
+
+        `_bot` above is a bare `MagicMock`, which is all the scoping tests need
+        - they assert on what a repository was asked. This listing builds a
+        schema out of the row, so every column has to be the type it is.
+        """
+        return SimpleNamespace(
+            id=uuid.uuid4(),
+            platform="mattermost",
+            name="Acme Support",
+            is_active=True,
+            webhook_mode=False,
+            webhook_url=None,
+            api_base_url="https://mattermost.acme.com",
+            access_policy={},
+            usage_reporting={},
+            has_webhook_secret=False,
+            has_slack_signing_secret=False,
+            has_slack_app_token=False,
+            created_at=datetime.now(UTC),
+            updated_at=None,
+            **overrides,
+        )
+
+    @staticmethod
+    def _agent(slug: str = "support") -> MagicMock:
+        agent = MagicMock(id=uuid.uuid4(), slug=slug, has_avatar=False)
+        agent.name = slug.title()
+        return agent
+
+    async def _listed(self, *, bots: list, answering: dict) -> list:
+        with (
+            patch(
+                "app.services.channel_bot.channel_bot_repo.list_for_org",
+                new=AsyncMock(return_value=bots),
+            ),
+            patch(
+                "app.services.channel_bot.channel_bot_repo.count",
+                new=AsyncMock(return_value=len(bots)),
+            ),
+            patch(
+                "app.services.channel_bot.agent_exposure_repo.active_agents_for_bots",
+                new=AsyncMock(return_value=answering),
+            ) as grouped,
+        ):
+            rows, _total = await ChannelBotService(
+                MagicMock(), organization_id=uuid.uuid4()
+            ).list_all()
+        self.asked_for = grouped.call_args.kwargs["channel_bot_ids"]
+        return rows
+
+    @pytest.mark.anyio
+    async def test_a_bot_names_the_agents_that_answer_on_it(self):
+        bot = self._row()
+        agent = self._agent()
+
+        (row,) = await self._listed(bots=[bot], answering={bot.id: [agent]})
+
+        assert [(found.slug, found.name) for found in row.agents] == [("support", "Support")]
+
+    @pytest.mark.anyio
+    async def test_a_bot_nobody_bound_says_so_with_an_empty_list(self):
+        bot = self._row()
+
+        (row,) = await self._listed(bots=[bot], answering={})
+
+        assert row.agents == []
+
+    @pytest.mark.anyio
+    async def test_every_bot_on_the_page_is_asked_about_at_once(self):
+        """One grouped query, not one per row."""
+        bots = [self._row() for _ in range(3)]
+
+        await self._listed(bots=bots, answering={})
+
+        assert self.asked_for == [bot.id for bot in bots]
+
+    @pytest.mark.anyio
+    async def test_an_empty_page_asks_about_nothing(self):
+        await self._listed(bots=[], answering={})
+
+        assert self.asked_for == []

@@ -43,6 +43,7 @@ from app.schemas.agent_exposure import (
     ExposureTool,
     ExposureUpdate,
 )
+from app.schemas.channel_bot import UsageReporting
 from app.services.agent_registry import AgentRegistryService
 from app.services.channels.directory import PLATFORM_TOOLS
 from app.services.channels.formatting import house_style
@@ -163,6 +164,7 @@ class AgentExposureService:
             prompt=exposure.prompt,
             tools=list(exposure.tools or []),
             available_tools=_lookups_for(surface),
+            usage_reporting=UsageReporting.model_validate(exposure.usage_reporting or {}),
             is_active=exposure.is_active,
             created_at=exposure.created_at,
         )
@@ -174,10 +176,20 @@ class AgentExposureService:
         answer is empty for somebody who cannot reach the agent in the first
         place. Bots on a platform no exposure covers are left out rather than
         offered and then refused.
+
+        So are bots another agent already answers on. A bot is one identity in
+        the chat and serves one agent, so offering a taken one is offering a
+        choice that ends in a 409 - and the picker is the place that knows,
+        because the person choosing does not.
         """
-        await self.agents.get(ctx, agent_id)
+        agent = await self.agents.get(ctx, agent_id)
         bots = await channel_bot_repo.list_for_org(
             self.db, organization_id=ctx.organization_id, limit=_MAX_TARGETS
+        )
+        # Paused bindings included: one still occupies `uq_exposure_bot`, so a
+        # bot filtered on "who is answering" would be offered and then refused.
+        taken = await agent_exposure_repo.bound_agent_by_bot(
+            self.db, channel_bot_ids=[bot.id for bot in bots]
         )
         return [
             ExposureTarget(
@@ -188,6 +200,10 @@ class AgentExposureService:
             )
             for bot in bots
             if bot.platform in _EXPOSABLE_PLATFORMS
+            # This agent's own binding stays in the list: the caller filters it
+            # out to know which bots are *already* served, and dropping it here
+            # would make "bound" and "taken by somebody else" the same absence.
+            and taken.get(bot.id, agent.id) == agent.id
         ]
 
     async def create(self, ctx: AuthContext, agent_id: UUID, data: ExposureCreate) -> AgentExposure:
@@ -215,16 +231,28 @@ class AgentExposureService:
             )
         surface = _surface_for(bot)
 
-        # Any row, not just an active one: a paused binding still occupies the
-        # unique constraint, and letting the insert reach it would turn a
-        # question the service can answer into an IntegrityError nobody can read.
-        existing = await agent_exposure_repo.get_for_bot(
-            self.db, agent_id=agent.id, channel_bot_id=bot.id
-        )
-        if existing is not None:
+        # Any row on this bot, by anybody, and not just an active one: a paused
+        # binding still occupies the unique constraint, and letting the insert
+        # reach it would turn a question the service can answer into an
+        # IntegrityError nobody can read.
+        taken = await agent_exposure_repo.bound_to_bot(self.db, channel_bot_id=bot.id)
+        if taken is not None and taken.agent_id == agent.id:
             raise AlreadyExistsError(
                 message=f"'{agent.name}' is already bound to {bot.name}",
-                details={"exposure_id": str(existing.id), "is_active": existing.is_active},
+                details={"exposure_id": str(taken.id), "is_active": taken.is_active},
+            )
+        if taken is not None:
+            # A bot user is one identity in the chat - the same avatar and the
+            # same name whichever agent replied - so it answers as one agent.
+            # The way to have two is two bots, and saying so is the whole value
+            # of this refusal. The other binding's id is not carried: it is
+            # somebody else's row and there is nothing the caller can do with it.
+            raise AlreadyExistsError(
+                message=(
+                    f"{bot.name} already serves another agent. A bot answers as one "
+                    "agent - register a second bot for this one."
+                ),
+                details={"channel_bot_id": str(bot.id)},
             )
 
         if data.environment_id is not None:

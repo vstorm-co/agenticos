@@ -7,7 +7,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin
-from app.services.channels.base import DEFAULT_ACCESS_POLICY, DEFAULT_USAGE_REPORTING
+from app.services.channels.base import DEFAULT_ACCESS_POLICY
 
 
 class ChannelBot(Base, TimestampMixin):
@@ -61,23 +61,6 @@ class ChannelBot(Base, TimestampMixin):
         nullable=False,
         default=lambda: dict(DEFAULT_ACCESS_POLICY),
     )
-
-    usage_reporting: Mapped[dict] = mapped_column(
-        JSON,
-        nullable=False,
-        default=lambda: dict(DEFAULT_USAGE_REPORTING),
-    )
-    """When this bot says what a turn cost, and when it only records it.
-
-    Its own column rather than a key in `access_policy`, which decides who may
-    talk to the bot - a reader who found "how loud is it about spending" in there
-    would reasonably conclude the two are one policy, and the next person to
-    narrow access would be editing the same JSON blob as the person tuning noise.
-
-    JSON because the shape is a small set of related knobs that only ever move
-    together: a mode, the threshold `near_limit` compares against, and the `n` in
-    "every n". Columns for each would be three migrations to add a fourth mode.
-    """
 
     @property
     def has_webhook_secret(self) -> bool:

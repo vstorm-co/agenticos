@@ -15,10 +15,12 @@ itself and never delivered the command carrying it.
 
 import uuid
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.schemas.channel_bot import LinkedPlace
 from app.services.channel_link import REQUEST_TTL, ChannelLinkService
 from app.services.channels.base import IncomingMessage
 from app.services.channels.router import ChannelMessageRouter, _as_command
@@ -288,3 +290,184 @@ class TestWhatSomebodyHasConnected:
 
         assert done is False
         assert updated.call_count == 0
+
+
+class TestWhereAConnectedAccountHasBeenUsed:
+    """ "Mattermost" is the whole of what a chat account can say about itself.
+
+    It is keyed on the platform and the account, never on a bot - so on a
+    deployment with two Mattermost servers the row does not say which company's
+    chat somebody just connected, and the agents it can reach are the reason
+    they connected it at all. Both come from the sessions hanging off the
+    identity, which are the only record of where the account has been used.
+    """
+
+    @staticmethod
+    def _bot(*, organization_id=None, name="Acme Support", api_base_url=None) -> MagicMock:
+        bot = MagicMock(
+            id=uuid.uuid4(),
+            organization_id=organization_id or uuid.uuid4(),
+            api_base_url=api_base_url,
+        )
+        bot.name = name
+        return bot
+
+    @staticmethod
+    def _agent(name: str = "Support", slug: str = "support") -> MagicMock:
+        agent = MagicMock(id=uuid.uuid4(), slug=slug, has_avatar=False)
+        agent.name = name
+        return agent
+
+    async def _places(
+        self,
+        *,
+        bots: list,
+        exposed: list | None = None,
+        member: bool = True,
+        may_see: bool = True,
+    ) -> dict:
+        identity = MagicMock(id=uuid.uuid4())
+        with (
+            patch(
+                "app.services.channel_link.channel_session_repo.bots_by_identity",
+                new=AsyncMock(return_value={identity.id: bots}),
+            ),
+            patch(
+                "app.services.channel_link.member_repo.get",
+                new=AsyncMock(return_value=MagicMock(role="owner") if member else None),
+            ),
+            patch(
+                "app.services.channel_link.agent_exposure_repo.list_active_for_bot",
+                new=AsyncMock(return_value=exposed or []),
+            ),
+            patch(
+                "app.services.channel_link.resolve_access",
+                new=AsyncMock(return_value=may_see),
+            ),
+        ):
+            found = await ChannelLinkService(MagicMock()).places(uuid.uuid4(), [identity])
+        return {"identity_id": identity.id, "places": found.get(identity.id, [])}
+
+    async def test_a_self_hosted_bot_names_the_server_it_lives_on(self):
+        answer = await self._places(bots=[self._bot(api_base_url="https://mattermost.acme.com/")])
+
+        (place,) = answer["places"]
+        assert (place.bot_name, place.host) == ("Acme Support", "mattermost.acme.com")
+
+    async def test_only_the_hostname_reaches_the_page(self):
+        """The configured URL is an operator's: it may carry a port, a path, or
+        credentials behind a proxy, and none of that belongs under a name."""
+        answer = await self._places(
+            bots=[self._bot(api_base_url="https://bot:hunter2@mm.acme.com:8443/chat")]
+        )
+
+        assert answer["places"][0].host == "mm.acme.com"
+
+    async def test_a_platform_with_no_server_of_its_own_says_nothing(self):
+        """Every Slack bot is on the same SaaS; there the bot's name is the place."""
+        answer = await self._places(bots=[self._bot(api_base_url=None)])
+
+        assert answer["places"][0].host is None
+
+    async def test_a_half_typed_address_is_not_rendered_as_one(self):
+        answer = await self._places(bots=[self._bot(api_base_url="mattermost.acme.com")])
+
+        assert answer["places"][0].host is None
+
+    async def test_the_agents_that_answer_there_are_named(self):
+        agent = self._agent()
+        answer = await self._places(bots=[self._bot()], exposed=[(MagicMock(), agent)])
+
+        (found,) = answer["places"][0].agents
+        assert (found.id, found.name, found.slug) == (agent.id, "Support", "support")
+
+    async def test_an_agent_the_reader_may_not_see_is_not_named(self):
+        """Their own profile page must not be an enumeration endpoint for the
+        agents somebody was deliberately not given."""
+        answer = await self._places(
+            bots=[self._bot()], exposed=[(MagicMock(), self._agent())], may_see=False
+        )
+
+        assert answer["places"][0].agents == []
+
+    async def test_a_bot_in_an_organization_they_left_is_not_shown_at_all(self):
+        """A chat account is not scoped to a tenant. One used at two companies
+        must not tell either about the other."""
+        answer = await self._places(bots=[self._bot()], member=False)
+
+        assert answer["places"] == []
+
+    async def test_an_account_used_nowhere_has_no_places(self):
+        identity = MagicMock(id=uuid.uuid4())
+        with patch(
+            "app.services.channel_link.channel_session_repo.bots_by_identity",
+            new=AsyncMock(return_value={}),
+        ):
+            found = await ChannelLinkService(MagicMock()).places(uuid.uuid4(), [identity])
+
+        assert found == {}
+
+    async def test_one_membership_lookup_per_organization_not_per_bot(self):
+        """A person with six bots in one organization is one query, not six."""
+        organization = uuid.uuid4()
+        identity = MagicMock(id=uuid.uuid4())
+        bots = [self._bot(organization_id=organization, name=f"Bot {n}") for n in range(3)]
+        with (
+            patch(
+                "app.services.channel_link.channel_session_repo.bots_by_identity",
+                new=AsyncMock(return_value={identity.id: bots}),
+            ),
+            patch(
+                "app.services.channel_link.member_repo.get",
+                new=AsyncMock(return_value=MagicMock(role="owner")),
+            ) as membership,
+            patch(
+                "app.services.channel_link.agent_exposure_repo.list_active_for_bot",
+                new=AsyncMock(return_value=[]),
+            ),
+        ):
+            found = await ChannelLinkService(MagicMock()).places(uuid.uuid4(), [identity])
+
+        assert len(found[identity.id]) == 3
+        assert membership.await_count == 1
+
+
+class TestTheListingRoute:
+    """The two halves of a row arrive together or the page shows one of them."""
+
+    async def test_each_row_carries_the_places_resolved_for_it(self):
+        from app.api.routes.v1.me_channel_link import list_linked_accounts
+
+        identity = SimpleNamespace(
+            id=uuid.uuid4(),
+            user_id=uuid.uuid4(),
+            platform="mattermost",
+            platform_user_id="u-1",
+            platform_username="kacper.wlodarczyk",
+            platform_display_name="Kacper",
+            is_active=True,
+            created_at=datetime.now(UTC),
+        )
+        place = LinkedPlace(bot_id=uuid.uuid4(), bot_name="Acme Support", host="mm.acme.com")
+        service = MagicMock()
+        service.linked = AsyncMock(return_value=[identity])
+        service.places = AsyncMock(return_value={identity.id: [place]})
+
+        listed = await list_linked_accounts(service, MagicMock(id=uuid.uuid4()))
+
+        assert listed.total == 1
+        assert listed.items[0].places == [place]
+
+    async def test_the_identities_are_read_once_and_handed_on(self):
+        """Two queries for one answer is how a page comes to show a row the
+        panel beside it does not have."""
+        from app.api.routes.v1.me_channel_link import list_linked_accounts
+
+        service = MagicMock()
+        service.linked = AsyncMock(return_value=[])
+        service.places = AsyncMock(return_value={})
+
+        await list_linked_accounts(service, MagicMock(id=uuid.uuid4()))
+
+        assert service.linked.await_count == 1
+        assert service.places.await_args.args[1] == []

@@ -5,6 +5,7 @@ import { MessageSquare, Unlink } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui";
+import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { SectionCard } from "@/components/settings/settings-section";
 import { listLinkedAccounts, unlinkAccount, type ChannelIdentity } from "@/lib/channel-link-api";
 import { getErrorMessage } from "@/lib/utils";
@@ -66,29 +67,65 @@ export function ChatAccounts() {
       )}
       <div className="space-y-2">
         {(accounts ?? []).map((account) => (
-          <div key={account.id} className="flex items-center gap-3 rounded-lg border p-3">
-            <div className="bg-muted flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
-              <MessageSquare className="text-muted-foreground h-4 w-4" />
+          <div key={account.id} className="space-y-3 rounded-lg border p-3">
+            <div className="flex items-center gap-3">
+              <div className="bg-muted flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
+                <MessageSquare className="text-muted-foreground h-4 w-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm">
+                  {account.platform_display_name ?? account.platform_username ?? account.id}
+                </p>
+                <p className="text-muted-foreground text-xs">
+                  {PLATFORM_LABEL[account.platform] ?? account.platform}
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={busy === account.id}
+                aria-label={t("disconnectAccount", {
+                  account: account.platform_username ?? account.platform,
+                })}
+                onClick={() => void disconnect(account)}
+              >
+                <Unlink className="h-4 w-4" />
+              </Button>
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm">
-                {account.platform_display_name ?? account.platform_username ?? account.id}
-              </p>
-              <p className="text-muted-foreground text-xs">
-                {PLATFORM_LABEL[account.platform] ?? account.platform}
-              </p>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={busy === account.id}
-              aria-label={t("disconnectAccount", {
-                account: account.platform_username ?? account.platform,
-              })}
-              onClick={() => void disconnect(account)}
-            >
-              <Unlink className="h-4 w-4" />
-            </Button>
+
+            {/* Which server, and what answers there. "Mattermost" alone does
+                not say which company's chat this is on a deployment with two
+                of them, and the agents are the reason somebody connected the
+                account in the first place. */}
+            {account.places.length === 0 ? (
+              <p className="text-muted-foreground text-xs">{t("chatAccountNotUsedYet")}</p>
+            ) : (
+              account.places.map((place) => (
+                <div key={place.bot_id} className="border-l pl-3 text-xs">
+                  <p className="truncate">
+                    {place.host ? `${place.bot_name} · ${place.host}` : place.bot_name}
+                  </p>
+                  {place.agents.length === 0 ? (
+                    <p className="text-muted-foreground">{t("chatAccountNoAgentsHere")}</p>
+                  ) : (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                      <span className="text-muted-foreground">{t("chatAccountAnswersAs")}</span>
+                      {place.agents.map((agent) => (
+                        <span key={agent.id} className="flex items-center gap-1.5">
+                          <AgentAvatar
+                            agentId={agent.id}
+                            name={agent.name}
+                            hasAvatar={agent.has_avatar}
+                            size="sm"
+                          />
+                          <span className="truncate">@{agent.slug}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
           </div>
         ))}
       </div>

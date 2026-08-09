@@ -30,6 +30,7 @@ from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin
+from app.services.channels.base import DEFAULT_USAGE_REPORTING
 
 
 class ExposureSurface(enum.StrEnum):
@@ -132,6 +133,33 @@ class AgentExposure(Base, TimestampMixin):
     time to what this binding's platform can actually answer.
     """
 
+    usage_reporting: Mapped[dict] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=lambda: dict(DEFAULT_USAGE_REPORTING),
+        # A SQL literal, quotes and cast included - `text()` is raw SQL, so a
+        # bare brace is a syntax error the integration suite finds and nothing
+        # else does.
+        server_default=text(
+            '\'{"mode": "near_limit", "near_limit_percent": 80, "every_n": 10}\'::jsonb'
+        ),
+    )
+    """When the agent says what a turn cost here, and when it only records it.
+
+    On the binding rather than on the bot, where it started. What a turn cost is
+    something the agent's author decides alongside the rest of what the agent
+    says on this surface - beside `prompt`, `session_scope` and `tools` - and on
+    the bot it was a property of the chat server, set by whoever holds
+    `channels:manage` in a table of tokens and addresses. Nothing was ambiguous
+    about the move once a bot served one agent (`0018`); before that the two
+    were genuinely different questions.
+
+    JSONB because the shape is a small set of knobs that only ever move
+    together: a mode, the threshold `near_limit` compares against, and the `n`
+    in "every n". Columns for each would be three migrations to add a fourth
+    mode.
+    """
+
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -144,10 +172,21 @@ class AgentExposure(Base, TimestampMixin):
     # schema from the models, so a constraint stated only in the migration would
     # be absent from exactly the tests written to prove it rejects a row.
     __table_args__ = (
-        # One binding per agent per bot. A second row would make "is this agent
-        # available here" a question with two answers, and revoking would only
-        # remove one of them.
-        UniqueConstraint("agent_id", "channel_bot_id", name="uq_exposure_agent_bot"),
+        # **One agent per bot**, which is stricter than one binding per pair and
+        # replaces it - the pair is unique as a consequence.
+        #
+        # A bot user is one identity in the chat: on Mattermost every reply comes
+        # from the same avatar and the same handle whichever agent produced it.
+        # Serving several behind one bot meant somebody in a channel had to type
+        # a slug to pick between things they could not see, and a message that
+        # named none was answered with a list of handles instead of an answer.
+        # A second bot costs an operator two minutes and makes the chat say which
+        # agent it is talking to, which no amount of routing can.
+        #
+        # In the database rather than only in the service: this is the invariant
+        # `answer_default` now relies on to take `exposed[0]` without asking what
+        # the other rows meant.
+        UniqueConstraint("channel_bot_id", name="uq_exposure_bot"),
         CheckConstraint(
             "surface IN ('slack', 'telegram', 'mattermost')", name="ck_exposure_surface"
         ),

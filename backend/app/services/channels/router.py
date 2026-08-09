@@ -196,11 +196,11 @@ class ChannelMessageRouter:
                 conversation_id=session.conversation_id,
                 platform_chat_id=incoming.platform_chat_id,
                 channel_directory=directory,
-                # What this bot says about what a turn cost, and how many turns
-                # this chat has had - `every_n` counts per chat, because "every
-                # tenth message" is a question about this conversation and not
-                # about whichever channel happened to be tenth across the bot.
-                usage_reporting=bot.usage_reporting,
+                # How many turns this chat has had. `every_n` counts per chat,
+                # because "every tenth message" is a question about this
+                # conversation and not about whichever channel happened to be
+                # tenth across the bot. *Whether* to say anything is the
+                # binding's, and the binding is resolved a layer down.
                 turn=session.turn_count,
                 attachments=files,
                 message_history=build_message_history(history),
@@ -298,7 +298,6 @@ class ChannelMessageRouter:
                 conversation_id=session.conversation_id,
                 platform_chat_id=incoming.platform_chat_id,
                 channel_directory=directory,
-                usage_reporting=bot.usage_reporting,
                 turn=session.turn_count,
                 attachments=files,
                 stream=None if live is None else channel_stream(live),

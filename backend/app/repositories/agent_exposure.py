@@ -91,6 +91,76 @@ async def list_active_for_bot(
     return [(exposure, agent) for exposure, agent in result.all()]
 
 
+async def active_agents_for_bots(
+    db: AsyncSession, *, channel_bot_ids: list[UUID]
+) -> dict[UUID, list[Agent]]:
+    """Which agents answer on each of these bots, in one query.
+
+    The channels listing asks it of every row at once, the same way the agent
+    gallery asks `active_surfaces_for_agents` for its badges - a query per bot
+    is a page that gets slower the more channels an organization has.
+
+    Paused bindings are excluded: a bot whose only agent is switched off answers
+    nothing, and a listing that named it would be describing a channel that is
+    silent. Bots with no active binding are simply absent from the result.
+    """
+    if not channel_bot_ids:
+        return {}
+    result = await db.execute(
+        select(AgentExposure.channel_bot_id, Agent)
+        .join(Agent, Agent.id == AgentExposure.agent_id)
+        .where(
+            AgentExposure.channel_bot_id.in_(channel_bot_ids),
+            AgentExposure.is_active.is_(True),
+        )
+        .order_by(AgentExposure.channel_bot_id, Agent.slug)
+    )
+    found: dict[UUID, list[Agent]] = {}
+    for channel_bot_id, agent in result.all():
+        found.setdefault(channel_bot_id, []).append(agent)
+    return found
+
+
+async def bound_agent_by_bot(db: AsyncSession, *, channel_bot_ids: list[UUID]) -> dict[UUID, UUID]:
+    """Which agent each of these bots is bound to, paused bindings included.
+
+    Distinct from `active_agents_for_bots`, and the difference is the whole
+    point: that one answers "who is answering here" and skips a paused binding,
+    while this answers "is this bot taken" - and a paused binding still occupies
+    `uq_exposure_bot`. The picker needs this one, or it offers a bot that
+    refuses with a 409 the moment somebody chooses it.
+    """
+    if not channel_bot_ids:
+        return {}
+    result = await db.execute(
+        select(AgentExposure.channel_bot_id, AgentExposure.agent_id).where(
+            AgentExposure.channel_bot_id.in_(channel_bot_ids)
+        )
+    )
+    taken: dict[UUID, UUID] = {}
+    for channel_bot_id, agent_id in result.all():
+        taken[channel_bot_id] = agent_id
+    return taken
+
+
+async def bound_to_bot(db: AsyncSession, *, channel_bot_id: UUID) -> AgentExposure | None:
+    """The binding this bot already has, whoever it belongs to, or `None`.
+
+    A bot serves one agent, so this is the whole answer rather than a first row
+    of several - `uq_exposure_bot` is what makes that true. Paused bindings
+    count: one still occupies the constraint, and a caller told "that bot is
+    free" and then refused by the database has been told the wrong thing.
+
+    Not organization-scoped, like its neighbours here: the bot id comes from a
+    row already loaded inside one organization, and every binding cascades from
+    that bot.
+    """
+    result = await db.execute(
+        select(AgentExposure).where(AgentExposure.channel_bot_id == channel_bot_id)
+    )
+    return result.scalars().first()
+
+
 async def get_for_bot(
     db: AsyncSession, *, agent_id: UUID, channel_bot_id: UUID
 ) -> AgentExposure | None:
@@ -102,8 +172,8 @@ async def get_for_bot(
     which would otherwise let a second row race the unique constraint.
 
     Not organization-scoped, and it does not need to be: both ids come from rows
-    already loaded inside one organization, and the unique constraint on the pair
-    means at most one row can match.
+    already loaded inside one organization, and `uq_exposure_bot` means at most
+    one row can match the bot at all.
     """
     result = await db.execute(
         select(AgentExposure).where(

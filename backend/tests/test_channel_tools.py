@@ -316,17 +316,22 @@ class TestWhereTheCapabilityAppears:
         assert built[0].default_limit == 5
         assert built[0].tools == frozenset({"get_channel_info"})
 
-    async def test_a_tool_this_binding_did_not_grant_is_not_offered_at_all(self):
+    @pytest.mark.parametrize("granted", sorted(ALL_TOOLS))
+    async def test_a_tool_this_binding_did_not_grant_is_not_offered_at_all(self, granted: str):
         """Not offered rather than offered-and-refusing.
 
         The model reads a tool's description before it reads its answer, so a
         tool it must not call is a step spent discovering it must not call it -
         and on a customer Slack, `read_channel_history` is exactly the one an
         operator switched off.
-        """
-        built = toolset(FakeDirectory(), tools={"get_channel_info"})
 
-        assert sorted(await built.get_tools(_run_context())) == ["get_channel_info"]
+        One case per tool rather than one subset: every tool has to be
+        omittable, and a single example only proves it of whichever one happened
+        to be left out.
+        """
+        built = toolset(FakeDirectory(), tools={granted})
+
+        assert sorted(await built.get_tools(_run_context())) == [granted]
 
     def test_the_toolset_is_built_once_per_agent(self):
         """A second toolset would be a second set of tool objects for one agent."""

@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.channel_bot import ChannelBot
-from app.services.channels.base import DEFAULT_ACCESS_POLICY, DEFAULT_USAGE_REPORTING
+from app.services.channels.base import DEFAULT_ACCESS_POLICY
 
 
 async def get_for_inbound(db: AsyncSession, bot_id: UUID) -> ChannelBot | None:
@@ -87,7 +87,6 @@ async def create(
     api_base_url: str | None = None,
     webhook_secret_encrypted: str | None = None,
     access_policy: dict | None = None,
-    usage_reporting: dict | None = None,
     slack_signing_secret_encrypted: str | None = None,
     slack_app_token_encrypted: str | None = None,
 ) -> ChannelBot:
@@ -103,7 +102,6 @@ async def create(
         api_base_url=api_base_url,
         webhook_secret_encrypted=webhook_secret_encrypted,
         access_policy=access_policy or dict(DEFAULT_ACCESS_POLICY),
-        usage_reporting=usage_reporting or dict(DEFAULT_USAGE_REPORTING),
         slack_signing_secret_encrypted=slack_signing_secret_encrypted,
         slack_app_token_encrypted=slack_app_token_encrypted,
     )

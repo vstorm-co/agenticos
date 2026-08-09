@@ -153,9 +153,8 @@ socket.send(JSON.stringify({ type: "message", text: "hello" }));
 
 Works in channels and in DMs. A thread gets its own conversation, so two people
 asking different things in the same channel do not end up in one thread of
-context. `@agent-slug` inside a message routes to *that* agent and runs as the
-person who typed it — never as the bot — which is why an unlinked Slack account
-is refused rather than run with no role.
+context. A message runs as the person who typed it — never as the bot — which is
+why an unlinked Slack account is refused rather than run with no role.
 
 ## Telegram
 
@@ -256,6 +255,24 @@ it is about to wait.
 
 ## What every channel shares
 
+- **One bot answers as one agent.** A bot user is a single identity in the chat:
+  the same avatar, the same name, whichever agent produced the reply. So a bot
+  serves exactly one agent, and binding a second is refused — in the Builder's
+  picker, which does not offer a bot somebody else's agent is already on, and in
+  the database, which is what makes it true.
+
+    An agent goes the other way freely: one agent can answer on a Slack bot, a
+    Telegram bot and two Mattermost servers at once, and each of those bindings
+    carries its own instructions, its own channel lookups and its own workspace
+    scope.
+
+    This replaced routing several agents behind one bot with `@slug`. It worked
+    and it read badly: somebody in a channel had to type a handle to pick
+    between agents they could not see, and a message that named none was
+    answered with a list of handles instead of an answer. A second bot costs an
+    operator two minutes and makes the chat say which agent it is talking to,
+    which no amount of routing can. `@slug` still parses — as an alias for the
+    agent behind this bot, refused when it names any other.
 - **Access policy per bot** — open, whitelist, or "must be linked to a member".
 - **Linking, and it comes first** — a channel run belongs to a *person*: the
   budget it spends, what it may read and the audit entry it writes are all
@@ -292,7 +309,8 @@ it is about to wait.
   destination. It is the binding's text from then on: change it, add to it, or
   clear it. It shapes how an answer is delivered and can never replace what the
   agent is for — that belongs to the published version.
-- **Rate limits** per chat.
+- **Rate limits** per chat, on the bot - who may talk to it and how often is the
+  operator's, unlike everything above, which is the agent author's.
 - **Spending limits** per binding, on top of the agent's own and the
   organization's.
 - **Charts render as images** where the platform supports them, and fall back to
@@ -610,7 +628,11 @@ conversation reads it from the workspace listing, which carries the ceiling a st
 workspace fills up against. Without that, "workspace 0% full" appeared only after
 somebody sent a message — the one moment nobody needs it.
 
-Per bot, in the channel bots panel:
+Chosen **per binding**, in the Builder under *Where this agent is available* -
+beside the extra instructions and the channel lookups, because whether a reply
+carries a cost footer is part of what this agent says on this surface. It sat on
+the bot until a bot served one agent, where it was an operator's setting in a
+table of servers and tokens with nothing else about the agent near it.
 
 | Mode | |
 |---|---|

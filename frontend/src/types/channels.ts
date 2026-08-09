@@ -3,10 +3,14 @@
 export type ChannelPlatform = "telegram" | "slack" | "mattermost";
 
 /**
- * When a bot says what a turn cost, and when it only records it.
+ * When an agent says what a turn cost, and when it only records it.
  *
  * `off` is unspoken, not unmeasured - the report is logged either way, because
  * "the bot went quiet" is a question somebody asks days later.
+ *
+ * Carried on the *binding* rather than on the bot: it is one of the things an
+ * agent's author decides about a surface, beside the extra instructions and the
+ * channel lookups. See `src/types/exposures.ts`.
  */
 export interface UsageReporting {
   mode: "off" | "always" | "near_limit" | "every_n";
@@ -35,9 +39,24 @@ export interface ChannelBot {
   has_slack_signing_secret: boolean;
   /** Whether Socket Mode (dev polling) can run - never the token itself. */
   has_slack_app_token: boolean;
-  usage_reporting: UsageReporting;
+  /**
+   * Who answers here, from the active bindings.
+   *
+   * A bot with none is registered and silent, which is the state somebody opens
+   * the channels page to explain - and a listing that named only the bot could
+   * not tell it from one that is working.
+   */
+  agents: BotAgent[];
   created_at: string;
   updated_at?: string | null;
+}
+
+/** An agent that answers on one bot. */
+export interface BotAgent {
+  id: string;
+  name: string;
+  slug: string;
+  has_avatar: boolean;
 }
 
 export interface ChannelBotList {
