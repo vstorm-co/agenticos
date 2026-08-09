@@ -317,48 +317,16 @@ describe("ExposuresPanel", () => {
     expect(screen.queryByText(/the thread sits there meanwhile/)).toBeNull();
   });
 
-  it("overrides who shares a workspace on this surface alone", async () => {
-    // The mistake this exists to fix without republishing: on Slack a thread is
-    // a chat, so the spec's "this conversation" means one workspace per thread -
-    // and a busy channel is fifty containers.
+  it("offers no workspace-sharing control at all", async () => {
+    // Six options, on every binding of every agent, for a question most people
+    // never ask: who shares the sandbox. The spec already answers it the way
+    // Slack does - a thread is a chat - and somebody who genuinely needs
+    // otherwise changes the agent rather than each of its bindings.
     serve([exposure()], []);
-    vi.mocked(apiClient.patch).mockResolvedValue(exposure({ session_scope: "channel" }));
     await mount();
-
-    await userEvent.click(
-      await screen.findByRole("combobox", { name: "Workspace sharing on Acme Support" }),
-    );
-    await userEvent.click(await screen.findByRole("option", { name: "per channel" }));
-
-    expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures/e1`, {
-      session_scope: "channel",
-    });
-  });
-
-  it("hands the decision back to the spec as an explicit null", async () => {
-    serve([exposure({ session_scope: "channel" })], []);
-    vi.mocked(apiClient.patch).mockResolvedValue(exposure());
-    await mount();
-
-    await userEvent.click(
-      await screen.findByRole("combobox", { name: "Workspace sharing on Acme Support" }),
-    );
-    await userEvent.click(await screen.findByRole("option", { name: "as the agent says" }));
-
-    expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures/e1`, {
-      session_scope: null,
-    });
-  });
-
-  it("offers no sharing override for an agent that keeps no files", async () => {
-    // A control that changes nothing is how the ones that matter get ignored.
-    serve([exposure()], []);
-    await mount({ hasWorkspace: false });
 
     await screen.findByText(/Acme Support/);
-    expect(
-      screen.queryByRole("combobox", { name: "Workspace sharing on Acme Support" }),
-    ).toBeNull();
+    expect(screen.queryByRole("combobox", { name: /Workspace sharing/ })).toBeNull();
   });
 
   it("shows a placeholder while the bindings are being fetched", () => {

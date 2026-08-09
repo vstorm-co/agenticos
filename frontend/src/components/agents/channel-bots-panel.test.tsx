@@ -74,11 +74,12 @@ describe("the channel bots panel", () => {
   });
 
   it("explains that registering is per workspace and binding is per agent", () => {
-    // The confusion this panel exists inside: it renders in the Builder but a
-    // bot is not the agent's.
+    // The panel moved out of the Builder for exactly this reason - a bot is not
+    // the agent's - so the sentence now has to say where binding happens.
     render(<ChannelBotsPanel canManage />);
 
-    expect(screen.getByText(/registering is once per workspace/)).toBeInTheDocument();
+    expect(screen.getByText(/Registering is once per workspace/)).toBeInTheDocument();
+    expect(screen.getByText(/Availability tab/)).toBeInTheDocument();
   });
 
   it("says what to do next when no bot is registered", () => {
@@ -367,10 +368,10 @@ describe("what a bot says about what a turn cost", () => {
 
     await userEvent.click(screen.getByRole("combobox", { name: "Usage reporting on Support bot" }));
 
-    expect(screen.getByRole("option", { name: "usage: log only" })).toBeVisible();
-    expect(screen.getByRole("option", { name: /near a limit/ })).toBeVisible();
+    expect(screen.getByRole("option", { name: "Cost: never mentioned" })).toBeVisible();
+    expect(screen.getByRole("option", { name: /only near the limit/ })).toBeVisible();
     expect(screen.getByRole("option", { name: /every 10 messages/ })).toBeVisible();
-    expect(screen.getByRole("option", { name: /every reply/ })).toBeVisible();
+    expect(screen.getByRole("option", { name: /on every reply/ })).toBeVisible();
   });
 
   it("changes the mode and keeps the thresholds it was not asked about", async () => {

@@ -6,13 +6,7 @@ import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { getErrorMessage } from "@/lib/utils";
-import type {
-  Exposure,
-  ExposureList,
-  ExposureTarget,
-  ExposureTargetList,
-  SessionScope,
-} from "@/types/exposures";
+import type { Exposure, ExposureList, ExposureTarget, ExposureTargetList } from "@/types/exposures";
 
 /**
  * Where one agent is available, and where it could be.
@@ -88,23 +82,6 @@ export function useExposures(agentId: string | null) {
     onError: (error) => toast.error(getErrorMessage(error)),
   });
 
-  const setSessionScope = useMutation({
-    mutationFn: ({
-      exposureId,
-      sessionScope,
-    }: {
-      exposureId: string;
-      sessionScope: SessionScope | null;
-    }) =>
-      // Explicit null hands the decision back to the spec. Only this field goes,
-      // for the reason `setActive` says: the server applies what it was sent, so
-      // reading a value back and returning it would overwrite whatever somebody
-      // changed in between.
-      apiClient.patch<Exposure>(`${base}/${exposureId}`, { session_scope: sessionScope }),
-    onSuccess: invalidate,
-    onError: (error) => toast.error(getErrorMessage(error)),
-  });
-
   const revoke = useMutation({
     mutationFn: (exposureId: string) => apiClient.delete<void>(`${base}/${exposureId}`),
     onSuccess: async () => {
@@ -131,7 +108,6 @@ export function useExposures(agentId: string | null) {
     expose,
     setActive,
     setEnvironment,
-    setSessionScope,
     revoke,
   };
 }

@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { useAgentEnvironments, useExposures } from "@/hooks";
-import type { ExposureSurface, SessionScope } from "@/types/exposures";
+import type { ExposureSurface } from "@/types/exposures";
 import { useTranslations } from "next-intl";
 
 interface ExposuresPanelProps {
@@ -63,38 +63,10 @@ const SURFACE_LABEL: Record<ExposureSurface, string> = {
 /** Sentinel for "the default environment" - a Select item may not be empty. */
 const DEFAULT_ENV = "__default__";
 
-/** The same trick for "whatever the spec says". */
-const SPEC_SCOPE = "__spec__";
-
-/**
- * Who shares a workspace *here*, when this surface disagrees with the spec.
- *
- * The labels are the surface's own vocabulary rather than the Builder's, because
- * this is where the question stops being abstract: on Slack a thread is a chat,
- * so "this conversation" means per-thread and a busy channel is fifty
- * workspaces. That is exactly the mistake this control exists to let somebody
- * fix without republishing the agent.
- */
-const SCOPE_LABEL: Record<SessionScope, string> = {
-  run: "fresh each turn",
-  conversation: "per chat or thread",
-  channel: "per channel",
-  user: "per person",
-  agent: "one for everyone",
-};
-
 export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPanelProps) {
   const t = useTranslations("agents");
-  const {
-    exposures,
-    isLoading,
-    available,
-    expose,
-    setActive,
-    setEnvironment,
-    setSessionScope,
-    revoke,
-  } = useExposures(agentId);
+  const { exposures, isLoading, available, expose, setActive, setEnvironment, revoke } =
+    useExposures(agentId);
   const { environments } = useAgentEnvironments(agentId);
   const [selectedBotId, setSelectedBotId] = useState("");
   // Only worth a control when there is a choice: with the default alone, every
@@ -163,36 +135,6 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
                     {namedEnvironments.map((environment) => (
                       <SelectItem key={environment.id} value={environment.id}>
                         {environment.name} (v{environment.version})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-              {/* Only where the agent has a workspace at all: an override on an
-                  agent that keeps no files is a control that changes nothing,
-                  and a section full of those is how the real ones get ignored. */}
-              {hasWorkspace && (
-                <Select
-                  value={exposure.session_scope ?? SPEC_SCOPE}
-                  disabled={!canManage || setSessionScope.isPending}
-                  onValueChange={(next) =>
-                    setSessionScope.mutate({
-                      exposureId: exposure.id,
-                      sessionScope: next === SPEC_SCOPE ? null : (next as SessionScope),
-                    })
-                  }
-                >
-                  <SelectTrigger
-                    className="w-44"
-                    aria-label={t("workspaceSharingOn", { bot: exposure.channel_bot_name })}
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={SPEC_SCOPE}>{t("asAgentSays")}</SelectItem>
-                    {(Object.keys(SCOPE_LABEL) as SessionScope[]).map((scope) => (
-                      <SelectItem key={scope} value={scope}>
-                        {SCOPE_LABEL[scope]}
                       </SelectItem>
                     ))}
                   </SelectContent>

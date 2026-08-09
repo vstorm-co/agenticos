@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { ChevronsUpDown, LogOut, Settings, UserCircle } from "lucide-react";
+import { ChevronsUpDown, LogOut, UserCircle } from "lucide-react";
 
 import {
   Avatar,
@@ -68,16 +68,14 @@ export function SidebarUser() {
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent side="top" align="start" className="w-56">
+        {/* One entry, not two. `/profile` redirects to `/settings/profile` and
+            `/settings` opens on the same tab, so the menu offered a choice
+            between two labels for one destination - which reads as two places
+            until you click both. */}
         <DropdownMenuItem asChild>
-          <Link href={ROUTES.PROFILE}>
+          <Link href={ROUTES.SETTINGS_PROFILE}>
             <UserCircle className="mr-2 h-4 w-4" />
-            {t("profile")}
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href={ROUTES.SETTINGS}>
-            <Settings className="mr-2 h-4 w-4" />
-            {t("settings")}
+            {t("profileAndSettings")}
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
