@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import re
 import time
 from typing import Any
 
@@ -15,6 +16,7 @@ from app.repositories import (
 )
 from app.services.agent import build_message_history
 from app.services.channel_bot import unseal_bot_token
+from app.services.channel_link import ChannelLinkService
 from app.services.channels import get_adapter
 from app.services.channels.attachments import ChannelAttachmentService
 from app.services.channels.base import IncomingMessage, OutgoingAttachment, OutgoingMessage
@@ -31,6 +33,28 @@ _DEFAULT_RPM = 10  # requests per minute
 # would race: duplicate ChannelSession creation, interleaved agent calls, rate-limit races.
 # Key = (bot_id, platform_chat_id); 1-on-1 chats also acquire it but contention is negligible.
 _chat_locks: dict[str, asyncio.Lock] = {}
+
+
+_SLASHLESS = re.compile(r"^(link)\s+([A-Za-z0-9]{4,16})$", re.IGNORECASE)
+"""A command a platform would have eaten before we saw it.
+
+Mattermost parses a leading `/` itself: typing `/link ABCD1234` in a Mattermost
+chat answers *"command with a trigger of '/link' not found"* and never delivers
+anything, so on Mattermost the slash form cannot work at all - and it is the one
+command somebody has to run before any channel answers them.
+
+Only `link`, and only when the whole message is the word plus something shaped
+like a code. "link" is an ordinary English and Polish word, and a message that
+merely starts with it - "link do dokumentu?" - is a question for the agent, not a
+command.
+"""
+
+
+def _as_command(text: str) -> str:
+    """The message as a command, restoring a slash the platform swallowed."""
+    stripped = text.strip()
+    match = _SLASHLESS.match(stripped)
+    return f"/{stripped}" if match else stripped
 
 
 def _get_chat_lock(bot_id: str, chat_id: str) -> asyncio.Lock:
@@ -284,6 +308,7 @@ class ChannelMessageRouter:
         self, text: str, incoming: IncomingMessage, bot: Any, db: Any
     ) -> str | None:
         """Handle bot commands. Returns reply text or None if not a command."""
+        text = _as_command(text)
         if not text.startswith("/"):
             return None
 
@@ -330,41 +355,21 @@ class ChannelMessageRouter:
 
         if cmd == "/link":
             if not arg:
-                return "Usage: /link <code>"
+                return "Usage: /link <code> - generate one under Settings in the web app."
             try:
-                linked = await channel_identity_repo.get_by_link_code(db, arg)
-                if not linked or not linked.user_id:
-                    return (
-                        "Invalid or expired link code. Please generate a new one from the web app."
-                    )
-                identity = await channel_identity_repo.get_by_platform_user(
-                    db,
+                spent = await ChannelLinkService(db).redeem(
+                    arg,
                     platform=incoming.platform,
                     platform_user_id=incoming.platform_user_id,
-                )
-                if identity:
-                    await channel_identity_repo.update(
-                        db, db_identity=identity, update_data={"user_id": linked.user_id}
-                    )
-                else:
-                    await channel_identity_repo.create(
-                        db,
-                        platform=incoming.platform,
-                        platform_user_id=incoming.platform_user_id,
-                        platform_username=incoming.platform_username,
-                        platform_display_name=incoming.platform_display_name,
-                        user_id=linked.user_id,
-                    )
-                await channel_identity_repo.update(
-                    db,
-                    db_identity=linked,
-                    update_data={"link_code": None, "link_code_expires_at": None},
+                    platform_username=incoming.platform_username,
+                    platform_display_name=incoming.platform_display_name,
                 )
             except Exception:
                 logger.exception("Unexpected error processing /link command")
                 return "A system error occurred. Please try again later."
-            else:
-                return "Successfully linked your account."
+            if not spent:
+                return "That code is not valid, or it has expired. Generate a new one."
+            return "Successfully linked your account."
 
         if cmd == "/unlink":
             identity = await channel_identity_repo.get_by_platform_user(

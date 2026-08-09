@@ -182,6 +182,19 @@ class ChannelBotList(BaseSchema):
     total: int
 
 
+class ChannelLinkCodeRead(BaseSchema):
+    """A freshly minted code, and how long it is good for.
+
+    The code is returned because returning it is the point: it is read off this
+    screen and typed into a chat. It is a bearer credential for its lifetime, so
+    it is minted on request rather than stored anywhere it could be read again -
+    a person who loses it asks for another, which invalidates the first.
+    """
+
+    code: str
+    expires_at: datetime
+
+
 class ChannelIdentityRead(BaseSchema):
     """Schema for reading a channel identity."""
 
