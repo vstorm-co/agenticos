@@ -19,6 +19,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 from app.schemas.channel_bot import LinkedPlace
 from app.services.channel_link import REQUEST_TTL, ChannelLinkService
@@ -40,6 +41,16 @@ def _incoming(chat_type: str = "private") -> IncomingMessage:
         platform_username="kacper.wlodarczyk",
         platform_display_name="Kacper",
     )
+
+
+def _db() -> MagicMock:
+    """A session stand-in whose savepoint is a no-op async context manager."""
+    db = MagicMock()
+    savepoint = MagicMock()
+    savepoint.__aenter__ = AsyncMock(return_value=savepoint)
+    savepoint.__aexit__ = AsyncMock(return_value=False)
+    db.begin_nested = MagicMock(return_value=savepoint)
+    return db
 
 
 def _request(**overrides) -> MagicMock:
@@ -67,7 +78,7 @@ class TestRequesting:
                 new=AsyncMock(return_value=_request(token="abc123")),
             ),
         ):
-            url = await ChannelLinkService(MagicMock()).request(_incoming())
+            url = await ChannelLinkService(_db()).request(_incoming())
 
         assert url.endswith("/link/abc123")
         assert url.startswith("http")
@@ -85,7 +96,7 @@ class TestRequesting:
                 new=AsyncMock(return_value=_request()),
             ) as create,
         ):
-            await ChannelLinkService(MagicMock()).request(_incoming())
+            await ChannelLinkService(_db()).request(_incoming())
 
         assert create.call_args.kwargs["platform_user_id"] == "u-1"
         assert create.call_args.kwargs["platform_username"] == "kacper.wlodarczyk"
@@ -101,7 +112,7 @@ class TestRequesting:
                 new=AsyncMock(return_value=_request()),
             ),
         ):
-            await ChannelLinkService(MagicMock()).request(_incoming())
+            await ChannelLinkService(_db()).request(_incoming())
 
         assert clear.call_args.kwargs["platform_user_id"] == "u-1"
 
@@ -118,7 +129,7 @@ class TestRequesting:
                 new=AsyncMock(return_value=_request()),
             ) as create,
         ):
-            await ChannelLinkService(MagicMock()).request(_incoming())
+            await ChannelLinkService(_db()).request(_incoming())
 
         assert len(create.call_args.kwargs["token"]) >= 32
 
@@ -133,11 +144,53 @@ class TestRequesting:
                 new=AsyncMock(return_value=_request()),
             ) as create,
         ):
-            await ChannelLinkService(MagicMock()).request(_incoming())
+            await ChannelLinkService(_db()).request(_incoming())
 
         expires_at = create.call_args.kwargs["expires_at"]
         assert timedelta(0) < expires_at - datetime.now(UTC) <= REQUEST_TTL
         assert timedelta(hours=1) >= REQUEST_TTL
+
+    async def test_a_racing_first_message_answers_with_the_request_that_won(self):
+        """Two first messages from one account both delete and both insert; the
+        loser hits the unique constraint. It must re-read the survivor and
+        answer with a URL, not bubble a 500 that leaves the bot silent."""
+        with (
+            patch(
+                "app.services.channel_link.channel_link_request_repo.delete_for_identity",
+                new=AsyncMock(),
+            ),
+            patch(
+                "app.services.channel_link.channel_link_request_repo.create",
+                new=AsyncMock(side_effect=IntegrityError("insert", {}, Exception("conflict"))),
+            ),
+            patch(
+                "app.services.channel_link.channel_link_request_repo.get_for_identity",
+                new=AsyncMock(return_value=_request(token="winner")),
+            ),
+        ):
+            url = await ChannelLinkService(_db()).request(_incoming())
+
+        assert url.endswith("/link/winner")
+
+    async def test_a_conflict_with_no_survivor_propagates(self):
+        """If the constraint fired but nothing is there to re-read, the error is
+        real and must not be swallowed into a bogus URL."""
+        with (
+            patch(
+                "app.services.channel_link.channel_link_request_repo.delete_for_identity",
+                new=AsyncMock(),
+            ),
+            patch(
+                "app.services.channel_link.channel_link_request_repo.create",
+                new=AsyncMock(side_effect=IntegrityError("insert", {}, Exception("conflict"))),
+            ),
+            patch(
+                "app.services.channel_link.channel_link_request_repo.get_for_identity",
+                new=AsyncMock(return_value=None),
+            ),
+            pytest.raises(IntegrityError),
+        ):
+            await ChannelLinkService(_db()).request(_incoming())
 
 
 class TestConfirming:

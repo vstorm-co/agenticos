@@ -50,6 +50,24 @@ async def get_valid(db: AsyncSession, *, token: str, now: datetime) -> ChannelLi
     return result.scalar_one_or_none()
 
 
+async def get_for_identity(
+    db: AsyncSession, *, platform: str, platform_user_id: str
+) -> ChannelLinkRequest | None:
+    """The outstanding request for one chat account, if there is one.
+
+    Read after a losing insert races `channel_link_requests_identity_key`, to
+    answer with the request the winner committed rather than propagating the
+    conflict. At most one row can match - the constraint is on exactly this pair.
+    """
+    result = await db.execute(
+        select(ChannelLinkRequest).where(
+            ChannelLinkRequest.platform == platform,
+            ChannelLinkRequest.platform_user_id == platform_user_id,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
 async def delete_for_identity(db: AsyncSession, *, platform: str, platform_user_id: str) -> None:
     """Drop every outstanding request for one chat account.
 

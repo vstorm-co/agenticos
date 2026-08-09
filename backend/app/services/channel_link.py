@@ -24,6 +24,7 @@ from datetime import UTC, datetime, timedelta
 from urllib.parse import urlparse
 from uuid import UUID
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -75,21 +76,41 @@ class ChannelLinkService:
 
         Any request this chat account already has is dropped first, so a URL that
         scrolled out of view stops working rather than lingering.
+
+        `delete_for_identity` then `create` is check-then-act across sessions:
+        two near-simultaneous first messages from the same account both delete
+        (neither sees the other's uncommitted row) and both insert the same
+        `(platform, platform_user_id)`, and the loser hits
+        `channel_link_requests_identity_key`. The insert runs inside a savepoint
+        so the conflict rolls back that one statement rather than poisoning the
+        session, and the request the winner committed is re-read and returned -
+        the unlinked-first-message path does not catch this, so left to
+        propagate it would answer a bot with a 500 and the sender with silence.
         """
         await channel_link_request_repo.delete_for_identity(
             self.db,
             platform=incoming.platform,
             platform_user_id=incoming.platform_user_id,
         )
-        request = await channel_link_request_repo.create(
-            self.db,
-            token=secrets.token_urlsafe(32),
-            platform=incoming.platform,
-            platform_user_id=incoming.platform_user_id,
-            platform_username=incoming.platform_username,
-            platform_display_name=incoming.platform_display_name,
-            expires_at=datetime.now(UTC) + REQUEST_TTL,
-        )
+        try:
+            async with self.db.begin_nested():
+                request = await channel_link_request_repo.create(
+                    self.db,
+                    token=secrets.token_urlsafe(32),
+                    platform=incoming.platform,
+                    platform_user_id=incoming.platform_user_id,
+                    platform_username=incoming.platform_username,
+                    platform_display_name=incoming.platform_display_name,
+                    expires_at=datetime.now(UTC) + REQUEST_TTL,
+                )
+        except IntegrityError:
+            request = await channel_link_request_repo.get_for_identity(
+                self.db,
+                platform=incoming.platform,
+                platform_user_id=incoming.platform_user_id,
+            )
+            if request is None:
+                raise
         return f"{settings.FRONTEND_URL.rstrip('/')}/link/{request.token}"
 
     async def pending(self, token: str) -> ChannelLinkRequest | None:
