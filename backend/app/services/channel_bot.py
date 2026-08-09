@@ -16,13 +16,12 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.vault import SealedSecret, VaultScope, seal, unseal
 from app.db.models.channel_bot import ChannelBot
 from app.repositories import channel_bot_repo, channel_session_repo
 from app.schemas.channel_bot import ChannelBotCreate, ChannelBotUpdate
-from app.services.channels import get_adapter
+from app.services.channels import get_adapter, inbound_webhook_url
 
 logger = logging.getLogger(__name__)
 
@@ -297,11 +296,7 @@ class ChannelBotService:
         bot = await self.get(bot_id)
         adapter = get_adapter(bot.platform)
         token = self.get_decrypted_token(bot)
-        # The deployment's one public address - the same one embeds and OAuth
-        # callbacks are built from. A second variable for the same URL is how
-        # the two drift apart.
-        base = settings.PUBLIC_BASE_URL.rstrip("/")
-        webhook_url = f"{base}/api/v1/channels/{bot.platform}/{bot_id}/webhook"
+        webhook_url = inbound_webhook_url(bot.platform, bot_id)
         success = await adapter.register_webhook(
             token, url=webhook_url, secret=unseal_webhook_secret(bot)
         )

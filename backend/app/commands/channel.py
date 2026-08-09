@@ -16,11 +16,10 @@ from uuid import UUID
 import click
 
 from app.commands import command, error, info, success
-from app.core.config import settings
 from app.db.session import get_db_context
 from app.schemas.channel_bot import AccessPolicy, ChannelBotCreate
 from app.services.channel_bot import ChannelBotService, unseal_webhook_secret
-from app.services.channels import get_adapter
+from app.services.channels import get_adapter, inbound_webhook_url
 from app.services.channels.base import OutgoingMessage
 
 
@@ -108,8 +107,7 @@ def channel_webhook_register(bot_id: str) -> None:
             token = svc.get_decrypted_token(bot)
 
         adapter = get_adapter("telegram")
-        base = settings.PUBLIC_BASE_URL.rstrip("/")
-        webhook_url = f"{base}/api/v1/channels/telegram/{bot_id}/webhook"
+        webhook_url = inbound_webhook_url("telegram", bot.id)
 
         info(f"Registering webhook: {webhook_url}")
         ok = await adapter.register_webhook(
