@@ -35,6 +35,8 @@ function bot(overrides: Partial<ChannelBot> = {}): ChannelBot {
     is_active: true,
     webhook_mode: true,
     webhook_url: "https://app.test/hook",
+    api_base_url: null,
+    has_webhook_secret: false,
     has_slack_signing_secret: false,
     has_slack_app_token: false,
     usage_reporting: { mode: "near_limit", near_limit_percent: 80, every_n: 10 },
@@ -391,5 +393,98 @@ describe("what a bot says about what a turn cost", () => {
 
     expect(screen.getByRole("combobox", { name: "Usage reporting on Support bot" })).toBeDisabled();
     state.setUsageReporting.isPending = false;
+  });
+
+  it("sends a Mattermost bot its server and the token Mattermost generated", async () => {
+    render(<ChannelBotsPanel canManage />);
+    await pickPlatform("Mattermost");
+
+    await userEvent.type(screen.getByLabelText("Name"), "Ops bot");
+    await userEvent.type(screen.getByLabelText("Bot token"), "mm-1234567890");
+    await userEvent.type(screen.getByLabelText("Server URL"), "https://mattermost.acme.internal");
+    await userEvent.type(screen.getByLabelText("Webhook token (optional)"), "from-mattermost");
+    await userEvent.click(screen.getByRole("button", { name: "Register" }));
+
+    expect(state.create.mutateAsync).toHaveBeenCalledWith({
+      platform: "mattermost",
+      name: "Ops bot",
+      token: "mm-1234567890",
+      api_base_url: "https://mattermost.acme.internal",
+      webhook_secret: "from-mattermost",
+    });
+  });
+
+  it("omits the webhook token rather than sending it empty", async () => {
+    // A bot on the event stream needs no token at all, and an empty one would
+    // be stored and then fail every verification.
+    render(<ChannelBotsPanel canManage />);
+    await pickPlatform("Mattermost");
+
+    await userEvent.type(screen.getByLabelText("Name"), "Ops bot");
+    await userEvent.type(screen.getByLabelText("Bot token"), "mm-1234567890");
+    await userEvent.type(screen.getByLabelText("Server URL"), "https://mattermost.acme.internal");
+    await userEvent.click(screen.getByRole("button", { name: "Register" }));
+
+    expect(state.create.mutateAsync).toHaveBeenCalledWith({
+      platform: "mattermost",
+      name: "Ops bot",
+      token: "mm-1234567890",
+      api_base_url: "https://mattermost.acme.internal",
+    });
+  });
+
+  it("will not register a Mattermost bot without its server", async () => {
+    // Mattermost is self-hosted: without the address the bot cannot reply, open
+    // its stream or fetch an attachment, and the backend refuses to save one.
+    // Saying so here costs a round trip less than a 422.
+    render(<ChannelBotsPanel canManage />);
+    await pickPlatform("Mattermost");
+
+    await userEvent.type(screen.getByLabelText("Name"), "Ops bot");
+    await userEvent.type(screen.getByLabelText("Bot token"), "mm-1234567890");
+
+    expect(screen.getByRole("button", { name: "Register" })).toBeDisabled();
+  });
+
+  it("does not send a server URL typed under Mattermost for another platform", async () => {
+    render(<ChannelBotsPanel canManage />);
+    await pickPlatform("Mattermost");
+    await userEvent.type(screen.getByLabelText("Server URL"), "https://mattermost.acme.internal");
+    await pickPlatform("Telegram");
+
+    await userEvent.type(screen.getByLabelText("Name"), "Telegram bot");
+    await userEvent.type(screen.getByLabelText("Bot token"), "1234567890123");
+    await userEvent.click(screen.getByRole("button", { name: "Register" }));
+
+    expect(state.create.mutateAsync).toHaveBeenCalledWith({
+      platform: "telegram",
+      name: "Telegram bot",
+      token: "1234567890123",
+    });
+  });
+
+  it("says when a Mattermost bot on a webhook has no token to check", async () => {
+    // Mattermost does not sign bodies, so the token in the payload is the whole
+    // check and a bot without one refuses every call.
+    state.bots = [bot({ platform: "mattermost", webhook_mode: true, has_webhook_secret: false })];
+    render(<ChannelBotsPanel canManage />);
+
+    expect(screen.getByText("no webhook token")).toBeVisible();
+  });
+
+  it("says nothing when the token is there", async () => {
+    state.bots = [bot({ platform: "mattermost", webhook_mode: true, has_webhook_secret: true })];
+    render(<ChannelBotsPanel canManage />);
+
+    expect(screen.queryByText("no webhook token")).toBeNull();
+  });
+
+  it("says nothing about a token for a bot on the event stream", async () => {
+    // Nothing inbound to authenticate: the stream is an outbound socket the bot
+    // token authenticates.
+    state.bots = [bot({ platform: "mattermost", webhook_mode: false, has_webhook_secret: false })];
+    render(<ChannelBotsPanel canManage />);
+
+    expect(screen.queryByText("no webhook token")).toBeNull();
   });
 });

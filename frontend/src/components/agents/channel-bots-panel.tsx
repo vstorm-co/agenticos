@@ -58,16 +58,30 @@ export function ChannelBotsPanel({ canManage }: { canManage: boolean }) {
   const [token, setToken] = useState("");
   const [signingSecret, setSigningSecret] = useState("");
   const [appToken, setAppToken] = useState("");
+  const [serverUrl, setServerUrl] = useState("");
+  const [webhookSecret, setWebhookSecret] = useState("");
 
   if (!canManage) return null;
+
+  // Mattermost is self-hosted: without its server's address a bot cannot reply,
+  // cannot open its event stream and cannot fetch an attachment, so the backend
+  // refuses to save one. Disabling here says so before the round trip.
+  const missingServerUrl = platform === "mattermost" && !serverUrl.trim();
 
   async function register() {
     await create.mutateAsync({
       platform,
       name: name.trim(),
       token: token.trim(),
+      // Mattermost only: the server this bot belongs to, and the token
+      // Mattermost generated for its outgoing webhook. Absent rather than
+      // empty, like the token itself.
+      ...(platform === "mattermost" && serverUrl.trim() ? { api_base_url: serverUrl.trim() } : {}),
+      ...(platform === "mattermost" && webhookSecret.trim()
+        ? { webhook_secret: webhookSecret.trim() }
+        : {}),
       // Slack only: each bot is its own Slack app and carries its own
-      // credentials. Absent rather than empty, like the token itself.
+      // credentials.
       ...(platform === "slack" && signingSecret.trim()
         ? { slack_signing_secret: signingSecret.trim() }
         : {}),
@@ -77,6 +91,8 @@ export function ChannelBotsPanel({ canManage }: { canManage: boolean }) {
     setToken("");
     setSigningSecret("");
     setAppToken("");
+    setServerUrl("");
+    setWebhookSecret("");
   }
 
   return (
@@ -100,6 +116,13 @@ export function ChannelBotsPanel({ canManage }: { canManage: boolean }) {
                 {bot.webhook_mode ? t("webhook") : t("polling")}
               </p>
             </div>
+            {bot.platform === "mattermost" && bot.webhook_mode && !bot.has_webhook_secret && (
+              // Mattermost does not sign bodies, so the token in the payload is
+              // the whole check and a bot without one refuses every call. Same
+              // reasoning as the Slack badge below: worth saying before anybody
+              // debugs a silent bot.
+              <Badge variant="secondary">{t("noWebhookToken")}</Badge>
+            )}
             {bot.platform === "slack" && !bot.has_slack_signing_secret && (
               // Without it, inbound events cannot be verified and the webhook
               // refuses everything - worth a badge before anyone debugs a
@@ -201,12 +224,40 @@ export function ChannelBotsPanel({ canManage }: { canManage: boolean }) {
           </div>
           <Button
             onClick={register}
-            disabled={!name.trim() || token.trim().length < 10 || create.isPending}
+            disabled={
+              !name.trim() || token.trim().length < 10 || missingServerUrl || create.isPending
+            }
           >
             <Plus className="h-4 w-4" />
             {t("register")}
           </Button>
         </div>
+
+        {platform === "mattermost" && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label htmlFor="bot-server-url">{t("mattermostServerUrl")}</Label>
+              <Input
+                id="bot-server-url"
+                value={serverUrl}
+                onChange={(event) => setServerUrl(event.target.value)}
+                placeholder={t("mattermostServerUrlHint")}
+                maxLength={500}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="bot-webhook-secret">{t("mattermostWebhookToken")}</Label>
+              <Input
+                id="bot-webhook-secret"
+                type="password"
+                value={webhookSecret}
+                onChange={(event) => setWebhookSecret(event.target.value)}
+                placeholder={t("mattermostWebhookTokenHint")}
+                maxLength={255}
+              />
+            </div>
+          </div>
+        )}
 
         {platform === "slack" && (
           <div className="grid gap-3 sm:grid-cols-2">
