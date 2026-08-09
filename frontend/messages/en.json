@@ -2013,6 +2013,9 @@
       "workspaceAdministration": "Workspace administration",
       "workspaceWideEventsAcross": "Workspace-wide events across all users."
     },
+    "agentDetail": {
+      "perMonth": "${amount} per month"
+    },
     "agents": {
       "agentAposSBehaviour": "The agent's behaviour lives here, not in code. Be specific about what it should do, what it should refuse, and how it should cite. Markdown, and the model reads the structure - headings and lists are what make a long prompt followable, so being able to see them rendered is the point of the preview.",
       "agentAposSOwn": "This agent's own monthly spending limit. The organization's limit still applies on top - an agent can tighten it, never loosen it. The step limit catches the other kind of runaway: a tool loop that is cheap per call and never finishes.",
@@ -2127,6 +2130,14 @@
       "pitchAgents": "Agents built in a UI, versioned on publish",
       "pitchKnowledge": "Knowledge, skills and tools switched on per agent",
       "pitchGovernance": "Budgets, approvals and an audit trail on every run"
+    },
+    "channelLink": {
+      "connectYourChatAccount": "Connect your chat account",
+      "theAgentWillRunAsYou": "Once connected, the agent answers as you - your permissions, your budget, your name on the audit trail.",
+      "connectThisAccount": "Connect this account",
+      "connected": "Connected",
+      "goBackToTheChat": "Go back to the chat and ask the agent something.",
+      "thatAccount": "That chat account"
     },
     "invitations": {
       "acceptInvitation": "Accept invitation",
@@ -2586,9 +2597,6 @@
       "workspace": "Workspace",
       "workspaces": "Workspaces",
       "pageDescription": "The files agents are keeping for you. A workspace is scratch space — it is deleted with the conversation it belongs to, and is not a place to store anything durable."
-    },
-    "agentDetail": {
-      "perMonth": "${amount} per month"
     }
   },
   "profile": {
