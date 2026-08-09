@@ -178,28 +178,38 @@ channel shares and that "all the features" means.
 ### Phase 1 — Mattermost becomes usable
 
 - [x] **S0** — decide the two questions above, record the answers here
-- [ ] **S1** — seal `webhook_secret` (#22): `webhook_secret_encrypted`, unsealed
+- [x] **S1** — seal `webhook_secret` (#22): `webhook_secret_encrypted`, unsealed
       in the two webhook routes, one migration re-sealing existing rows. Never in
       a response schema.
-- [ ] **S2** — fix the webhook URL at both call sites (#24, 22a), and assert the
+- [x] **S1b** — refuse a Telegram webhook that carries no secret (#4). Not in the
+      original list: the guard was `if secret and not verify(...)`, on a line S1
+      was rewriting anyway, and leaving a known auth bypass in a line being
+      edited is worse than the scope it adds. `update` mints one when a bot
+      enters webhook mode, which is the half that made null the normal state
+- [x] **S2** — fix the webhook URL at both call sites (#24, 22a), and assert the
       built URL resolves against `app.routes` so the two cannot drift again
-- [ ] **S3** — `api_base_url` and `webhook_secret` on `ChannelBotCreate` and
+- [x] **S3** — `api_base_url` and `webhook_secret` on `ChannelBotCreate` and
       `ChannelBotUpdate`, on `channel_bot_repo.create` and on the update path,
       with validation per S0. `ChannelBotRead` gets `api_base_url` (it is an
       address, not a credential) and `has_webhook_secret` (a boolean, never the
       value)
-- [ ] **S4** — accept an operator-supplied `webhook_secret` for Mattermost
+- [x] **S4** — accept an operator-supplied `webhook_secret` for Mattermost
       instead of minting one; keep minting for Telegram, where we hand it out.
       One place decides, and says which platform is which and why
-- [ ] **S5** — the panel: a server-URL field and a webhook-secret field, shown
+- [x] **S5** — the panel: a server-URL field and a webhook-secret field, shown
       for Mattermost the way the Slack credentials are shown for Slack
       (`components/agents/channel-bots-panel.tsx:211`). Copy per `next-intl`
-- [ ] **S6** — `app/commands/channel.py`: register a Mattermost bot from the CLI,
+- [x] **S6** — `app/commands/channel.py`: register a Mattermost bot from the CLI,
       because a deployment behind a VPN has no browser pointed at it
-- [ ] **S7** — the webhook route hands its work to `spawn_after_commit` rather
-      than `asyncio.create_task` (#26), with the Telegram and Slack routes
-- [ ] **S8** — stamp a channel run with its channel surface (#208)
-- [ ] **S9** — `docs/channels.md` matches what was built: the SSRF answer S0
+- [x] **S7** — the three webhook routes hand their work to `spawn` rather than
+      `asyncio.create_task` (#26). `spawn`, not `spawn_after_commit`: they read a
+      bot and write nothing, so there is no transaction for the work to outrun
+- [x] **S8** — **already done, and the issue is stale.** `RunSurface.MATTERMOST`
+      and `RunSurface.EMBED` both exist and are assigned, `_SURFACES` in
+      `mentions.py` covers all three platforms, and
+      `tests/test_run_surface.py` asserts the recorded value per entry point.
+      Fixed by `cd965175` (#202); #207 and #208 were never closed
+- [x] **S9** — `docs/channels.md` matches what was built: the SSRF answer S0
       chose, and an exact account of which token comes from where and what is
       pasted where, because that is what manual verification runs off
 

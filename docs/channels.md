@@ -173,20 +173,62 @@ learns it when the webhook is registered.
 ## Mattermost
 
 Mattermost is self-hosted, so a bot carries **your server's URL** as well as its
-token. Two ways in; pick by whether your Mattermost can reach this deployment.
+token — there is no api.mattermost.com to fall back to. Registering one without
+it is refused rather than accepted and discovered later: a bot that does not know
+its server cannot reply, cannot open its event stream and cannot fetch a file
+somebody attached.
 
-**Event stream (nothing exposed).** Create a bot account
-(*Integrations → Bot Accounts*), copy its token, register it here with the
-server URL — for example `https://mattermost.acme.internal` — and the deployment
-opens an authenticated WebSocket to it. This is the right choice behind a VPN.
+Two ways in; pick by whether your Mattermost can reach this deployment.
 
-**Outgoing webhook.** *System Console → Integrations → Outgoing Webhooks*,
-pointing at `https://your-api.example.com/api/v1/mattermost/BOT_ID/webhook`.
-Copy the token Mattermost generates into the bot's webhook secret here.
+**Event stream (nothing exposed).** The right choice behind a VPN.
+
+1. In Mattermost, *Integrations → Bot Accounts → Add Bot Account*. Copy the
+   token it shows once — that is the **bot token**.
+2. Register it: **Settings → Channels → Add bot**, platform `mattermost`, paste
+   the token, and set **Server URL** to your Mattermost, e.g.
+   `https://mattermost.acme.internal` or `http://mattermost:8065` inside compose.
+   Leave the webhook token empty.
+3. Invite the bot to a channel. The deployment opens an authenticated WebSocket
+   to your server and every `posted` event arrives on it.
+
+**Outgoing webhook.** For a Mattermost that can reach this API.
+
+1. Create the bot account and register it exactly as above.
+2. *System Console → Integrations → Outgoing Webhooks → Add*, with the callback
+   URL `https://your-api.example.com/api/v1/mattermost/BOT_ID/webhook` — the bot
+   id is on the row once it is registered, and `channel-webhook-register` prints
+   the whole URL.
+3. Mattermost shows a **token** when the webhook is saved. Paste that into the
+   bot's **Webhook token** field here.
+
+The token is the one thing people get wrong twice, so it is worth being exact:
+**Mattermost generates it, and you paste it into AgenticOS** — the opposite
+direction from Telegram, where this deployment generates the secret and hands it
+over when the webhook is registered. Nothing is generated locally for Mattermost,
+because a locally generated value is one Mattermost will never send.
 
 Mattermost does not sign webhook bodies the way Slack does — the token in the
-payload is the whole check — so **a bot with no webhook secret refuses every
-call** rather than trusting it.
+payload is the whole check — so **a bot with no webhook token refuses every
+call** rather than trusting it. The bot's row says so with a badge.
+
+Either way can be done from the command line, which is the only way on a
+deployment with no browser pointed at it:
+
+```bash
+uv run agenticos cmd channel-add-bot \
+    --platform mattermost --name "Ops" --token <bot-token> \
+    --api-base-url https://mattermost.acme.internal \
+    --webhook-secret <token-from-mattermost>   # omit for the event stream
+
+uv run agenticos cmd channel-test-message --bot-id <uuid> --chat-id <channel-id>
+```
+
+**What a server URL may be.** Scheme and shape are checked — http or https, a
+host, no `user:pass@` — and a private or loopback address is deliberately
+allowed, because a self-hosted Mattermost behind a VPN is the deployment this
+exists for. Instance-metadata addresses are the exception and are refused. The
+boundary that actually holds is the permission to manage channel bots, not this
+check.
 
 ## A bot that cannot start stops, rather than retrying
 
