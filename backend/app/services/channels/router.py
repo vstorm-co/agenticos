@@ -1,7 +1,6 @@
 """Channel message router - processes incoming messages end-to-end."""
 
 import asyncio
-import contextlib
 import json
 import logging
 import re
@@ -242,7 +241,7 @@ class ChannelMessageRouter:
         text = answer or _needs_approval(answered.awaiting_approval_run_id)
         if handle is not None:
             adapter = get_adapter(incoming.platform)
-            with contextlib.suppress(Exception):
+            try:
                 await adapter.update_reply(
                     unseal_bot_token(bot),
                     OutgoingMessage(
@@ -252,9 +251,19 @@ class ChannelMessageRouter:
                     ),
                     handle,
                 )
+            except Exception:
+                # The edit failed - a rate-limit on the last one, or the
+                # placeholder was deleted so the PATCH 404s. Fall through to
+                # `_send_reply` with the whole answer rather than blanking `text`
+                # and posting nothing: `live_reply` promises the answer arrives
+                # whole at the end whatever happened.
+                logger.warning(
+                    "live reply final edit failed; re-posting the answer whole", exc_info=True
+                )
+            else:
                 if answered.image_png is None and not answered.attachments:
                     return
-            text = ""
+                text = ""
 
         await self._send_reply(
             bot,

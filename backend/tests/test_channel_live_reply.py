@@ -13,7 +13,7 @@ posts and edits is its adapter's business.
 
 import contextlib
 from collections.abc import AsyncIterator
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -200,3 +200,58 @@ class TestWhichHalfOfTheRunnerIsUsed:
 
         assert result == "waited for"
         prepared.iterate.assert_not_called()
+
+
+class TestTheFinalEditNeverLosesTheAnswer:
+    """`live_reply` promises the answer arrives whole at the end whatever
+    happened. `_deliver` edits the watched placeholder into the final answer; a
+    failed edit must fall through to a fresh post with the whole answer, not
+    blank it and post an empty message under a `…` that never resolves.
+    """
+
+    @staticmethod
+    def _answered(**overrides: object) -> MagicMock:
+        answered = MagicMock()
+        answered.awaiting_approval_run_id = overrides.get("awaiting_approval_run_id")
+        answered.image_png = overrides.get("image_png")
+        answered.attachments = overrides.get("attachments", [])
+        return answered
+
+    @staticmethod
+    def _router() -> tuple[object, AsyncMock]:
+        from app.services.channels.router import ChannelMessageRouter
+
+        router = ChannelMessageRouter()
+        router._send_reply = AsyncMock()  # type: ignore[method-assign]
+        return router, router._send_reply
+
+    async def test_a_failed_final_edit_reposts_the_whole_answer(self):
+        router, send_reply = self._router()
+        adapter = MagicMock(update_reply=AsyncMock(side_effect=RuntimeError("rate limited")))
+        incoming = MagicMock(platform="mattermost", platform_chat_id="c1")
+
+        with (
+            patch("app.services.channels.router.get_adapter", return_value=adapter),
+            patch("app.services.channels.router.unseal_bot_token", return_value="tok"),
+        ):
+            await router._deliver(
+                MagicMock(api_base_url=None), incoming, "the whole answer", self._answered(), "h1"
+            )
+
+        send_reply.assert_awaited_once()
+        assert send_reply.await_args.args[2] == "the whole answer"
+
+    async def test_a_successful_edit_with_no_extra_posts_nothing_further(self):
+        router, send_reply = self._router()
+        adapter = MagicMock(update_reply=AsyncMock())
+        incoming = MagicMock(platform="mattermost", platform_chat_id="c1")
+
+        with (
+            patch("app.services.channels.router.get_adapter", return_value=adapter),
+            patch("app.services.channels.router.unseal_bot_token", return_value="tok"),
+        ):
+            await router._deliver(
+                MagicMock(api_base_url=None), incoming, "answered", self._answered(), "h1"
+            )
+
+        send_reply.assert_not_awaited()
