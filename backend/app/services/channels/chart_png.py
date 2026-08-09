@@ -119,6 +119,8 @@ def _bounds(spec: ChartSpec, keys: list[str]) -> tuple[float, float]:
     difference on it, and this picture is going to be screenshotted into a
     conversation where nobody can check the axis.
     """
+    if spec.style.stacked and spec.chart_type == "bar":
+        return _stacked_bounds(spec, keys)
     values = [
         number
         for row in spec.data
@@ -128,6 +130,28 @@ def _bounds(spec: ChartSpec, keys: list[str]) -> tuple[float, float]:
     if not values:
         return 0.0, 1.0
     low, high = min(min(values), 0.0), max(max(values), 0.0)
+    if math.isclose(low, high):
+        return low, low + 1.0
+    return low, high
+
+
+def _stacked_bounds(spec: ChartSpec, keys: list[str]) -> tuple[float, float]:
+    """The value range for a stacked bar, which reaches the *stack*, not one bar.
+
+    A grouped bar's tallest bar is its largest single value, but a stacked bar's
+    is the sum of the positive values in its row - and its lowest, the sum of the
+    negatives. Taking the min/max of individual values let a two-series stack
+    climb to `a + b` while the axis still read `max(a, b)`, so the bar drew past
+    the top of the plot into the title. Positive and negative stack from zero
+    separately, the same way `_draw_bars` stacks them.
+    """
+    highs = [0.0]
+    lows = [0.0]
+    for row in spec.data:
+        numbers = [number for key in keys if (number := _numeric(row.get(key))) is not None]
+        highs.append(sum(n for n in numbers if n > 0))
+        lows.append(sum(n for n in numbers if n < 0))
+    low, high = min(lows), max(highs)
     if math.isclose(low, high):
         return low, low + 1.0
     return low, high
@@ -242,14 +266,24 @@ def _draw_bars(canvas: _Canvas, spec: ChartSpec, series, low: float, high: float
     zero = canvas.y_for(0.0, low, high)
     for row_index, row in enumerate(spec.data):
         if spec.style.stacked:
-            running = 0.0
+            # Positive and negative stack from zero on their own sides, so the
+            # top of the stack is the sum of the positives and matches the axis
+            # `_stacked_bounds` drew. A single running total mixing signs would
+            # not.
+            up = 0.0
+            down = 0.0
             for key, _label, color in series:
                 value = _numeric(row.get(key))
                 if value is None:
                     continue
-                start = canvas.y_for(running, low, high)
-                running += value
-                end = canvas.y_for(running, low, high)
+                if value >= 0:
+                    base, up = up, up + value
+                    top = up
+                else:
+                    base, down = down, down + value
+                    top = down
+                start = canvas.y_for(base, low, high)
+                end = canvas.y_for(top, low, high)
                 x0 = canvas.left + row_index * group + group * 0.2
                 x1 = canvas.left + (row_index + 1) * group - group * 0.2
                 canvas.draw.rectangle([(x0, min(start, end)), (x1, max(start, end))], fill=color)

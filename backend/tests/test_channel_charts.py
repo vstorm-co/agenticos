@@ -83,6 +83,32 @@ class TestDrawing:
         )
         assert render_chart_png(spec).startswith(b"\x89PNG")
 
+    def test_a_stacked_bars_axis_reaches_the_stack_not_the_tallest_bar(self):
+        """The bug: `_bounds` took the max of individual values, so a two-series
+        stack climbed to `a + b` while the axis read `max(a, b)` and the bar drew
+        past the top of the plot."""
+        from app.services.channels.chart_png import _bounds
+
+        rows = [{"x": "Jan", "a": 3, "b": 4}]
+        keys = ["a", "b"]
+        stacked = _spec(data=rows, series=[{"key": "a"}, {"key": "b"}], style={"stacked": True})
+        grouped = _spec(data=rows, series=[{"key": "a"}, {"key": "b"}])
+
+        assert _bounds(stacked, keys) == (0.0, 7.0)
+        assert _bounds(grouped, keys) == (0.0, 4.0)
+
+    def test_a_stacked_bar_with_negatives_reaches_below_zero(self):
+        from app.services.channels.chart_png import _bounds
+
+        spec = _spec(
+            data=[{"x": "Jan", "a": 5, "b": -3, "c": -2}],
+            series=[{"key": "a"}, {"key": "b"}, {"key": "c"}],
+            style={"stacked": True},
+        )
+
+        assert _bounds(spec, ["a", "b", "c"]) == (-5.0, 5.0)
+        assert render_chart_png(spec).startswith(b"\x89PNG")
+
     @pytest.mark.parametrize("color", ["#f00", "red", "#ff0000"])
     def test_an_area_chart_draws_in_any_colour_pillow_accepts(self, color: str):
         """`color` is a free-form string the model picks; only its description
