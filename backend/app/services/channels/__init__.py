@@ -2,13 +2,18 @@
 
 from typing import TYPE_CHECKING
 
-from app.services.channels.webhooks import INBOUND_PATHS, inbound_webhook_url
+from app.services.channels.webhooks import (
+    INBOUND_PATHS,
+    SECRET_MINTED_BY_US,
+    inbound_webhook_url,
+)
 
 if TYPE_CHECKING:
     from app.services.channels.base import ChannelAdapter
 
 __all__ = [
     "INBOUND_PATHS",
+    "SECRET_MINTED_BY_US",
     "get_adapter",
     "inbound_webhook_url",
     "list_platforms",

@@ -1,12 +1,15 @@
 """Channel bot, identity, and session schemas."""
 
+from __future__ import annotations
+
 from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from app.schemas.base import BaseSchema
+from app.schemas.urls import ServiceAddress
 
 
 class AccessPolicy(BaseSchema):
@@ -60,6 +63,26 @@ class ChannelBotCreate(BaseSchema):
     token: str = Field(..., min_length=10, max_length=500)
     webhook_mode: bool = False
     webhook_url: str | None = None
+    api_base_url: ServiceAddress | None = Field(
+        default=None,
+        max_length=500,
+        description=(
+            "The bot's own Mattermost server, e.g. https://mattermost.acme.internal. "
+            "Required for Mattermost and refused for the others, which have one "
+            "address for everybody."
+        ),
+    )
+    webhook_secret: str | None = Field(
+        default=None,
+        min_length=8,
+        max_length=255,
+        description=(
+            "The shared secret an inbound webhook is authenticated against. Paste "
+            "the token Mattermost shows when the outgoing webhook is created; for "
+            "Telegram, leave it empty and one is generated and handed over when "
+            "the webhook is registered. Sealed in the vault, never returned."
+        ),
+    )
     access_policy: AccessPolicy = Field(default_factory=AccessPolicy)
     usage_reporting: UsageReporting = Field(default_factory=UsageReporting)
     slack_signing_secret: str | None = Field(
@@ -78,6 +101,35 @@ class ChannelBotCreate(BaseSchema):
         description="This Slack app's xapp- token, for Socket Mode. Slack bots only.",
     )
 
+    @model_validator(mode="after")
+    def _a_self_hosted_bot_carries_its_server(self) -> ChannelBotCreate:
+        """A Mattermost bot is saved with its server's URL, or not saved.
+
+        Mattermost is self-hosted: there is no api.mattermost.com, so a bot that
+        does not know its own server cannot post a reply, cannot open the event
+        stream and cannot fetch a file somebody attached. Refusing here is what
+        the adapter's own docstring promises - that a missing server URL is
+        reported when the bot is saved, rather than the first time somebody
+        messages it - and for a year it promised a check that did not exist:
+        the field was on the model and on no schema, so every Mattermost bot
+        ever created was registered and deaf.
+
+        The other direction is the same rule as the Slack credentials below it.
+        Telegram and Slack have one address for everybody, so a server URL on
+        one of those is a value nothing will ever read.
+        """
+        if self.platform == "mattermost" and self.api_base_url is None:
+            raise ValueError(
+                "A Mattermost bot needs its server's URL - it is self-hosted, so "
+                "there is no default address to fall back to"
+            )
+        if self.platform != "mattermost" and self.api_base_url is not None:
+            raise ValueError(
+                f"A server URL is for a self-hosted platform - a {self.platform} bot "
+                "has one address for everybody"
+            )
+        return self
+
 
 class ChannelBotUpdate(BaseSchema):
     """Schema for updating a channel bot (all fields optional).
@@ -90,6 +142,8 @@ class ChannelBotUpdate(BaseSchema):
     token: str | None = Field(default=None, min_length=10, max_length=500)
     webhook_mode: bool | None = None
     webhook_url: str | None = None
+    api_base_url: ServiceAddress | None = Field(default=None, max_length=500)
+    webhook_secret: str | None = Field(default=None, min_length=8, max_length=255)
     access_policy: AccessPolicy | None = None
     usage_reporting: UsageReporting | None = None
     is_active: bool | None = None
@@ -106,10 +160,15 @@ class ChannelBotRead(BaseSchema):
     is_active: bool
     webhook_mode: bool
     webhook_url: str | None
+    # An address, not a credential: the panel has to show which server a bot
+    # belongs to, and there is nothing secret about a hostname the operator
+    # typed. The secret that goes with it is `has_webhook_secret` below.
+    api_base_url: str | None = None
     access_policy: AccessPolicy
     usage_reporting: UsageReporting = Field(default_factory=UsageReporting)
     # Booleans, never the values: the panel needs "is this configured", and a
     # response is the way a sealed credential usually escapes.
+    has_webhook_secret: bool = False
     has_slack_signing_secret: bool = False
     has_slack_app_token: bool = False
     created_at: datetime

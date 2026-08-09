@@ -31,6 +31,21 @@ INBOUND_PATHS: dict[str, str] = {
 }
 
 
+SECRET_MINTED_BY_US: frozenset[str] = frozenset({"telegram"})
+"""Platforms we hand a webhook secret to, rather than being handed one.
+
+`setWebhook` takes the secret as a parameter, so for Telegram the deployment
+generates it and the platform learns it at registration. Slack and Mattermost
+have no such call - a Mattermost outgoing webhook is created in its own System
+Console and *it* generates the token, which the operator then pastes here.
+
+Minting one for those was not a harmless default: it produced a bot that looked
+configured while comparing Mattermost's token against a locally generated random
+string the operator had no way to overwrite, so the webhook path could never
+authenticate and refused every call.
+"""
+
+
 def inbound_webhook_url(platform: str, bot_id: UUID) -> str:
     """The public address this deployment receives `platform` traffic on.
 

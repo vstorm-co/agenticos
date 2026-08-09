@@ -37,13 +37,18 @@ def _bot_service(bot: ChannelBot | None) -> MagicMock:
     return service
 
 
-def _sealed_bot(secret: str | None, *, organization_id: uuid.UUID | None = None) -> ChannelBot:
+def _sealed_bot(
+    secret: str | None,
+    *,
+    platform: str = "mattermost",
+    organization_id: uuid.UUID | None = None,
+) -> ChannelBot:
     """A bot row carrying `secret`, sealed for its own organization."""
     org_id = organization_id or uuid.uuid4()
     bot = ChannelBot(
         id=uuid.uuid4(),
         organization_id=org_id,
-        platform="mattermost",
+        platform=platform,
         name="bot",
         token_encrypted="",
         secret_key_version=1,
@@ -152,28 +157,49 @@ class TestEnteringWebhookMode:
             await service.update(bot.id, ChannelBotUpdate(**fields))
         return repo_update.call_args.kwargs["update_data"]
 
-    async def test_switching_a_bot_to_webhook_mode_mints_a_secret(self):
-        bot = _sealed_bot(None)
+    async def test_switching_a_telegram_bot_to_webhook_mode_mints_a_secret(self):
+        bot = _sealed_bot(None, platform="telegram")
         update_data = await self._update(bot, webhook_mode=True)
         assert unseal(
             update_data["webhook_secret_encrypted"],
             scope=VaultScope.organization(bot.organization_id),
         )
 
+    async def test_switching_a_mattermost_bot_to_webhook_mode_mints_nothing(self):
+        """Mattermost generates the token when the outgoing webhook is created,
+        so a minted one is a value it will never send. The bot refuses inbound
+        calls until an operator pastes the real one - the honest state."""
+        bot = _sealed_bot(None)
+        update_data = await self._update(bot, webhook_mode=True)
+        assert "webhook_secret_encrypted" not in update_data
+
+    async def test_a_pasted_secret_is_sealed_and_wins_over_minting(self):
+        bot = _sealed_bot(None, platform="telegram")
+        update_data = await self._update(
+            bot, webhook_mode=True, webhook_secret="pasted-from-the-platform"
+        )
+        assert (
+            unseal(
+                update_data["webhook_secret_encrypted"],
+                scope=VaultScope.organization(bot.organization_id),
+            )
+            == "pasted-from-the-platform"
+        )
+
     async def test_a_bot_already_in_webhook_mode_keeps_the_secret_it_has(self):
         """Minting a second one would silently invalidate the secret the
         platform was handed when the webhook was registered."""
-        bot = _sealed_bot("already-registered")
+        bot = _sealed_bot("already-registered", platform="telegram")
         update_data = await self._update(bot, webhook_mode=True, name="renamed")
         assert "webhook_secret_encrypted" not in update_data
 
     async def test_an_unrelated_update_mints_nothing(self):
-        bot = _sealed_bot(None)
+        bot = _sealed_bot(None, platform="telegram")
         update_data = await self._update(bot, name="renamed")
         assert "webhook_secret_encrypted" not in update_data
 
     async def test_leaving_webhook_mode_mints_nothing(self):
-        bot = _sealed_bot(None)
+        bot = _sealed_bot(None, platform="telegram")
         update_data = await self._update(bot, webhook_mode=False)
         assert "webhook_secret_encrypted" not in update_data
 

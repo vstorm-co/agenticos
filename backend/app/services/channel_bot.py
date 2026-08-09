@@ -21,7 +21,7 @@ from app.core.vault import SealedSecret, VaultScope, seal, unseal
 from app.db.models.channel_bot import ChannelBot
 from app.repositories import channel_bot_repo, channel_session_repo
 from app.schemas.channel_bot import ChannelBotCreate, ChannelBotUpdate
-from app.services.channels import get_adapter, inbound_webhook_url
+from app.services.channels import SECRET_MINTED_BY_US, get_adapter, inbound_webhook_url
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +125,7 @@ class ChannelBotService:
         """
         self._check_slack_fields(data.platform, data.slack_signing_secret, data.slack_app_token)
         sealed = seal_bot_token(data.token, organization_id=self._org_id)
-        webhook_secret = secrets.token_urlsafe(32) if data.webhook_mode else None
+        webhook_secret = self._initial_webhook_secret(data)
         return await channel_bot_repo.create(
             self.db,
             organization_id=self._org_id,
@@ -135,6 +135,7 @@ class ChannelBotService:
             secret_key_version=sealed.key_version,
             webhook_mode=data.webhook_mode,
             webhook_url=data.webhook_url,
+            api_base_url=data.api_base_url,
             webhook_secret_encrypted=self._seal_at(webhook_secret, key_version=sealed.key_version),
             access_policy=data.access_policy.model_dump(),
             usage_reporting=data.usage_reporting.model_dump(),
@@ -145,6 +146,29 @@ class ChannelBotService:
                 data.slack_app_token, key_version=sealed.key_version
             ),
         )
+
+    @staticmethod
+    def _initial_webhook_secret(data: ChannelBotCreate) -> str | None:
+        """The secret this bot's inbound webhook will be authenticated against.
+
+        Supplied wins, because the platform that generated the token is the one
+        that has to recognise it: a Mattermost outgoing webhook is created in its
+        own System Console and *it* mints the token. Minting one here regardless
+        is what made the Mattermost webhook path unusable - the bot looked
+        configured and compared Mattermost's token against a local random string
+        nobody could overwrite.
+
+        Otherwise one is minted only where the deployment is the side that hands
+        it over, which is Telegram's `setWebhook`. A bot in webhook mode on a
+        platform we cannot tell gets none, and refuses inbound calls until an
+        operator pastes the platform's own token - which is the honest state, not
+        a broken one.
+        """
+        if data.webhook_secret is not None:
+            return data.webhook_secret
+        if data.webhook_mode and data.platform in SECRET_MINTED_BY_US:
+            return secrets.token_urlsafe(32)
+        return None
 
     def _seal_at(self, value: str | None, *, key_version: int) -> str | None:
         """Seal an optional credential at the row's key version.
@@ -159,6 +183,35 @@ class ChannelBotService:
         return seal(
             value, scope=VaultScope.organization(self._org_id), key_version=key_version
         ).ciphertext
+
+    @staticmethod
+    def _check_server_url(platform: str, api_base_url: str | None) -> None:
+        """Which platform may carry a server URL, and which may not lose one.
+
+        The create path states this as a schema rule, where it can see the
+        platform and the URL in one object. An update sees only the fields that
+        were sent, so the platform comes from the row - and clearing the URL is
+        the case the schema cannot express at all: a Mattermost bot whose server
+        is set back to null stops being able to reply, open its stream, or fetch
+        an attachment, which is the state every Mattermost bot was in before the
+        field existed.
+        """
+        if platform == "mattermost" and api_base_url is None:
+            raise BadRequestError(
+                message=(
+                    "A Mattermost bot cannot lose its server URL - it is self-hosted, "
+                    "so there is no default address to fall back to"
+                ),
+                details={"field": "api_base_url", "platform": platform},
+            )
+        if platform != "mattermost" and api_base_url is not None:
+            raise BadRequestError(
+                message=(
+                    f"A server URL is for a self-hosted platform - a {platform} bot "
+                    "has one address for everybody"
+                ),
+                details={"field": "api_base_url", "platform": platform},
+            )
 
     @staticmethod
     def _check_slack_fields(
@@ -213,6 +266,8 @@ class ChannelBotService:
         an explicit null clears a Slack credential, an omission leaves it."""
         bot = await self.get(bot_id)
         update_data = data.model_dump(exclude_unset=True)
+        if "api_base_url" in update_data:
+            self._check_server_url(bot.platform, update_data["api_base_url"])
         if "slack_signing_secret" in update_data or "slack_app_token" in update_data:
             self._check_slack_fields(
                 bot.platform,
@@ -231,14 +286,23 @@ class ChannelBotService:
             sealed = seal_bot_token(update_data.pop("token"), organization_id=self._org_id)
             update_data["token_encrypted"] = sealed.ciphertext
             update_data["secret_key_version"] = sealed.key_version
+        if "webhook_secret" in update_data:
+            update_data["webhook_secret_encrypted"] = self._seal_at(
+                update_data.pop("webhook_secret"), key_version=bot.secret_key_version
+            )
         # A bot that enters webhook mode here used to get no secret: one was
         # minted at create time and only when `webhook_mode` was already true,
         # which is not the schema's default. So every bot switched over
         # afterwards had a null secret, and the receiver treated that as "skip
         # verification" - an open endpoint reached by anyone who guessed a bot
         # id (#4). Minted at the row's existing key version, beside its other
-        # envelopes.
-        if update_data.get("webhook_mode") and bot.webhook_secret_encrypted is None:
+        # envelopes, and only where we are the side that hands the secret over.
+        if (
+            update_data.get("webhook_mode")
+            and bot.webhook_secret_encrypted is None
+            and "webhook_secret_encrypted" not in update_data
+            and bot.platform in SECRET_MINTED_BY_US
+        ):
             update_data["webhook_secret_encrypted"] = self._seal_at(
                 secrets.token_urlsafe(32), key_version=bot.secret_key_version
             )
