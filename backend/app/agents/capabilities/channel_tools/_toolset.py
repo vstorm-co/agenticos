@@ -58,8 +58,11 @@ def _limit(asked: int | None, default: int) -> int:
 
 def _member_line(member: ChannelMember) -> str:
     name = member.display_name or member.username or member.user_id
+    # Not the username again when it is already the name - a member with only a
+    # username would otherwise render "- alice (alice, member)".
+    extra_username = member.username if member.username != name else None
     marks = [
-        mark for mark in (member.username, member.role, "bot" if member.is_bot else None) if mark
+        mark for mark in (extra_username, member.role, "bot" if member.is_bot else None) if mark
     ]
     return f"- {name}" + (f" ({', '.join(marks)})" if marks else "")
 

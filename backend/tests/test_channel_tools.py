@@ -138,6 +138,7 @@ class TestWhatTheModelIsToldAboutTheChannel:
                     ChannelMember(user_id="u1", username="ada", display_name="Ada L", role="admin"),
                     ChannelMember(user_id="u2"),
                     ChannelMember(user_id="u3", username="helper", is_bot=True),
+                    ChannelMember(user_id="u4", username="alice"),
                 ]
             ),
             "list_channel_members",
@@ -146,7 +147,9 @@ class TestWhatTheModelIsToldAboutTheChannel:
         assert answer.splitlines() == [
             "- Ada L (ada, admin)",
             "- u2",
-            "- helper (helper, bot)",
+            # The username is the name here, so it is not repeated as a mark.
+            "- helper (bot)",
+            "- alice",
         ]
 
     async def test_history_comes_back_as_a_conversation(self):
