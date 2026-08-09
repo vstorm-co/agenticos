@@ -15,13 +15,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.agents.spec import AgentSpec
+from app.agents.capabilities import get as get_capability
+from app.agents.spec import AgentSpec, CapabilityBindingSpec
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_exposure import ExposureSurface
 from app.schemas.agent_exposure import ExposureCreate, ExposureUpdate
 from app.services.agent_exposure import AgentExposureService
-from app.services.agent_runner import _with_exposure_prompt
+from app.services.agent_runner import _with_channel_tools, _with_exposure_prompt
 
 pytestmark = pytest.mark.anyio
 
@@ -559,3 +560,165 @@ class TestWhatANewBindingStartsWith:
             ).instructions
             == "x"
         )
+
+
+class TestWhatTheAgentMayLookUpHere:
+    """Per bound bot, not per agent.
+
+    One agent can answer on an internal Mattermost and a customer Slack, and
+    "may it list who is in the channel" is a different answer on each. A field
+    on the spec would have one answer for both, which is why this is a column on
+    the binding beside `prompt` and `session_scope`.
+    """
+
+    @staticmethod
+    def _exposure(surface: str, tools: list[str] | None = None, agent_id=None) -> MagicMock:
+        return MagicMock(
+            id=uuid.uuid4(),
+            agent_id=agent_id or uuid.uuid4(),
+            channel_bot_id=uuid.uuid4(),
+            surface=surface,
+            tools=tools or [],
+            environment_id=None,
+            session_scope=None,
+            prompt=None,
+            is_active=True,
+            created_at=None,
+        )
+
+    async def _saved(self, surface: str, tools: list[str]) -> dict:
+        agent = _agent()
+        service = _service(agent)
+        exposure = self._exposure(surface, agent_id=agent.id)
+        with (
+            patch("app.services.agent_exposure.agent_exposure_repo") as exposures,
+            patch("app.services.agent_exposure.record_audit", new=AsyncMock()),
+        ):
+            exposures.get = AsyncMock(return_value=exposure)
+            exposures.update = AsyncMock(return_value=exposure)
+
+            await service.update(_ctx(), agent.id, exposure.id, ExposureUpdate(tools=tools))
+
+        return exposures.update.call_args.kwargs["update_data"]
+
+    async def test_a_granted_lookup_reaches_the_row(self):
+        saved = await self._saved("mattermost", ["read_channel_history"])
+
+        assert saved["tools"] == ["read_channel_history"]
+
+    async def test_the_order_is_the_registry_s_so_two_equal_saves_look_equal(self):
+        """Stored as sent, an audit entry would report a change nobody made."""
+        saved = await self._saved("slack", ["read_channel_history", "get_channel_info"])
+
+        assert saved["tools"] == ["get_channel_info", "read_channel_history"]
+
+    async def test_a_lookup_the_platform_cannot_answer_is_refused(self):
+        """Telegram gives a bot no way to read a channel's history. Refused
+        rather than dropped: a save that silently grants three of the four it
+        was asked for shows the fourth unticked next time, with nothing saying
+        why."""
+        with pytest.raises(BadRequestError) as refused:
+            await self._saved("telegram", ["get_channel_info", "read_channel_history"])
+
+        assert refused.value.details["tools"] == ["read_channel_history"]
+        assert refused.value.details["surface"] == "telegram"
+
+    async def test_a_tool_no_capability_registers_is_refused(self):
+        with pytest.raises(BadRequestError):
+            await self._saved("slack", ["delete_channel"])
+
+    async def test_granting_nothing_is_a_decision_the_row_can_hold(self):
+        assert (await self._saved("slack", []))["tools"] == []
+
+    async def test_the_form_is_offered_only_what_the_platform_answers(self):
+        """A checkbox whose only effect is a tool that says "Telegram cannot do
+        that" is a worse answer than no checkbox."""
+        service = _service()
+        with patch("app.services.agent_exposure.agent_exposure_repo") as exposures:
+            exposures.list_for_agent = AsyncMock(
+                return_value=[
+                    self._exposure("telegram"),
+                    self._exposure("mattermost", ["get_channel_info"]),
+                ]
+            )
+            service._bot_names = AsyncMock(return_value={})
+
+            telegram, mattermost = await service.list_for_agent(_ctx(), uuid.uuid4())
+
+        assert [tool.id for tool in telegram.available_tools] == [
+            "get_channel_info",
+            "list_channel_members",
+        ]
+        assert len(mattermost.available_tools) == 4
+        assert mattermost.tools == ["get_channel_info"]
+
+    async def test_the_form_reads_the_registry_s_own_words(self):
+        """The sentence somebody reads while deciding to grant a tool is the one
+        the model reads before deciding to call it - not a second paraphrase."""
+        service = _service()
+        with patch("app.services.agent_exposure.agent_exposure_repo") as exposures:
+            exposures.list_for_agent = AsyncMock(return_value=[self._exposure("slack")])
+            service._bot_names = AsyncMock(return_value={})
+
+            (slack,) = await service.list_for_agent(_ctx(), uuid.uuid4())
+
+        declared = {tool.id: tool.description for tool in get_capability("channel_tools").tools}
+        assert {tool.id: tool.description for tool in slack.available_tools} == declared
+
+
+class TestTheBindingTheRunAssembles:
+    """`channel_tools` is the one capability whose binding is not in the spec.
+
+    It is assembled per run from the row that admitted the message, the same way
+    the binding's prompt is appended to the instructions - because the answer
+    differs per bound bot and a published spec has one of everything.
+    """
+
+    @staticmethod
+    def _spec() -> AgentSpec:
+        return AgentSpec(name="Support", instructions="Help people.")
+
+    def test_no_binding_leaves_the_spec_alone(self):
+        spec = self._spec()
+
+        assert _with_channel_tools(spec, None) is spec
+
+    def test_a_binding_that_granted_nothing_leaves_the_spec_alone(self):
+        spec = self._spec()
+
+        assert _with_channel_tools(spec, SimpleNamespace(tools=[])) is spec
+        assert _with_channel_tools(spec, SimpleNamespace(tools=None)) is spec
+
+    def test_what_the_binding_granted_becomes_a_capability_for_this_run(self):
+        result = _with_channel_tools(self._spec(), SimpleNamespace(tools=["get_channel_info"]))
+
+        (binding,) = [b for b in result.capabilities if b.id == "channel_tools"]
+        assert binding.config == {"tools": ["get_channel_info"]}
+
+    def test_it_goes_through_the_registry_so_the_tools_stay_ordinary(self):
+        """Straight into `resources` would have been shorter and would have put
+        these four tools out of reach of the approval policy and of a rename,
+        both of which read the spec."""
+        result = _with_channel_tools(self._spec(), SimpleNamespace(tools=["read_channel_history"]))
+
+        assert [binding.id for binding in result.capabilities] == ["channel_tools"]
+
+    def test_the_agents_own_capabilities_are_kept(self):
+        spec = AgentSpec(
+            name="Support",
+            instructions="Help people.",
+            capabilities=[CapabilityBindingSpec(id="clock")],
+        )
+
+        result = _with_channel_tools(spec, SimpleNamespace(tools=["get_channel_info"]))
+
+        assert [binding.id for binding in result.capabilities] == ["clock", "channel_tools"]
+
+    def test_the_stored_spec_is_untouched(self):
+        """The copy is this run's. An agent bound to two bots would otherwise
+        accumulate the other one's grants."""
+        spec = self._spec()
+
+        _with_channel_tools(spec, SimpleNamespace(tools=["get_channel_info"]))
+
+        assert spec.capabilities == []

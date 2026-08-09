@@ -31,11 +31,19 @@ import contextlib
 import json
 import logging
 import secrets
+from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import parse_qs
 
 import httpx
 
+from app.agents.capabilities.channel_tools import (
+    ChannelDetails,
+    ChannelDirectoryUnsupported,
+    ChannelMember,
+    ChannelPost,
+    ChannelSummary,
+)
 from app.db.session import get_db_context
 from app.services.channels.base import (
     ChannelAdapter,
@@ -51,6 +59,18 @@ logger = logging.getLogger(__name__)
 # Mattermost closes an idle socket; the client is expected to keep it warm.
 _PING_SECONDS = 30.0
 _HTTP_TIMEOUT = 20.0
+
+
+def _posted_at(create_at: Any) -> datetime | None:
+    """A Mattermost timestamp as a datetime, or `None` if it was not one.
+
+    Mattermost counts milliseconds since the epoch. `None` rather than a raise:
+    this decorates a line of history, and a post with an unreadable timestamp is
+    still a post somebody wrote.
+    """
+    if not isinstance(create_at, int | float) or not create_at:
+        return None
+    return datetime.fromtimestamp(create_at / 1000, UTC)
 
 
 def decode_webhook_body(raw: str) -> dict[str, Any]:
@@ -229,6 +249,203 @@ class MattermostAdapter(ChannelAdapter):
         """
         self._seq[bot_id] = self._seq.get(bot_id, 1) + 1
         return self._seq[bot_id]
+
+    # --- what the agent may ask about the channel --------------------------
+    #
+    # Every call here needs `read_channel` on the channel, which a bot holds by
+    # being a member of it. That is the permission boundary, it is Mattermost's
+    # own, and it is deliberately the only one: an allow-list of our own would
+    # be a second answer to "may this bot see this channel", and the two would
+    # disagree the first time somebody removed the bot from a channel.
+
+    @staticmethod
+    def _server(api_base_url: str | None) -> str:
+        """The server to ask, or a refusal a person in the channel can read.
+
+        Raises:
+            ChannelDirectoryUnsupported: If the bot has no server URL recorded.
+                Reported rather than guessed at, for the same reason
+                `download_attachment` refuses: guessing a Mattermost address is
+                guessing which company's server to send a bot token to.
+        """
+        if not api_base_url:
+            raise ChannelDirectoryUnsupported(
+                "This Mattermost bot has no server URL recorded, so nothing about "
+                "the channel can be looked up."
+            )
+        return api_base_url.rstrip("/")
+
+    @staticmethod
+    def _display_name(user: dict[str, Any]) -> str | None:
+        """What a person is called, preferring what they chose to be called."""
+        full = " ".join(
+            part for part in (user.get("first_name"), user.get("last_name")) if part
+        ).strip()
+        return user.get("nickname") or full or None
+
+    async def channel_details(
+        self, bot_token: str, channel_id: str, *, api_base_url: str | None
+    ) -> ChannelDetails:
+        """`GET /channels/{id}`, with the member count from `/stats` beside it."""
+        base_url = self._server(api_base_url)
+        headers = {"Authorization": f"Bearer {bot_token}"}
+        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
+            channel = await client.get(f"{base_url}/api/v4/channels/{channel_id}", headers=headers)
+            channel.raise_for_status()
+            stats = await client.get(
+                f"{base_url}/api/v4/channels/{channel_id}/stats", headers=headers
+            )
+            stats.raise_for_status()
+
+        found = channel.json()
+        member_count = stats.json().get("member_count")
+        return ChannelDetails(
+            channel_id=str(found.get("id") or channel_id),
+            # `display_name` is what people see in the sidebar; `name` is the URL
+            # slug. A model quoting the slug into a reply reads as a typo.
+            name=str(found.get("display_name") or found.get("name") or channel_id),
+            purpose=str(found.get("purpose") or "") or None,
+            header=str(found.get("header") or "") or None,
+            # "O" is an open channel; everything else - private, direct, group -
+            # is somewhere not everyone can walk into.
+            is_private=found.get("type") != "O",
+            member_count=None if member_count is None else int(member_count),
+        )
+
+    async def channel_members(
+        self, bot_token: str, channel_id: str, *, api_base_url: str | None, limit: int
+    ) -> list[ChannelMember]:
+        """`GET /channels/{id}/members`, resolved to names in one `/users/ids` call.
+
+        Two requests rather than one per member: a channel of forty people would
+        otherwise be forty round trips inside a tool call, on a bot somebody is
+        waiting for.
+        """
+        base_url = self._server(api_base_url)
+        headers = {"Authorization": f"Bearer {bot_token}"}
+        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
+            members = await client.get(
+                f"{base_url}/api/v4/channels/{channel_id}/members",
+                headers=headers,
+                params={"per_page": limit},
+            )
+            members.raise_for_status()
+            memberships = {
+                str(entry.get("user_id")): str(entry.get("roles") or "") for entry in members.json()
+            }
+            if not memberships:
+                return []
+
+            users = await client.post(
+                f"{base_url}/api/v4/users/ids", headers=headers, json=sorted(memberships)
+            )
+            users.raise_for_status()
+
+        return [
+            ChannelMember(
+                user_id=str(user.get("id")),
+                username=str(user.get("username") or "") or None,
+                display_name=self._display_name(user),
+                is_bot=bool(user.get("is_bot")),
+                role=(
+                    "admin"
+                    if "channel_admin" in memberships.get(str(user.get("id")), "")
+                    else "member"
+                ),
+            )
+            for user in users.json()
+        ]
+
+    async def search_channels(
+        self, bot_token: str, channel_id: str, *, api_base_url: str | None, query: str, limit: int
+    ) -> list[ChannelSummary]:
+        """`POST /teams/{team_id}/channels/search`, in this channel's own team.
+
+        Team-scoped rather than the server-wide `POST /channels/search`, which
+        needs system-administrator rights: a bot searching every team on
+        somebody's Mattermost is a wider answer than the question deserves, and
+        one most deployments would refuse outright.
+        """
+        base_url = self._server(api_base_url)
+        headers = {"Authorization": f"Bearer {bot_token}"}
+        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
+            channel = await client.get(f"{base_url}/api/v4/channels/{channel_id}", headers=headers)
+            channel.raise_for_status()
+            team_id = str(channel.json().get("team_id") or "")
+            if not team_id:
+                # A direct or group message belongs to no team, so there is no
+                # scope to search from here. Said rather than answered with an
+                # empty list, which would read as "no such channel".
+                raise ChannelDirectoryUnsupported(
+                    "This is a direct message, which is not in a team - there is no "
+                    "channel list to search from here."
+                )
+
+            found = await client.post(
+                f"{base_url}/api/v4/teams/{team_id}/channels/search",
+                headers=headers,
+                json={"term": query},
+            )
+            found.raise_for_status()
+
+        return [
+            ChannelSummary(
+                channel_id=str(entry.get("id")),
+                name=str(entry.get("display_name") or entry.get("name") or ""),
+                purpose=str(entry.get("purpose") or "") or None,
+                is_private=entry.get("type") != "O",
+            )
+            for entry in found.json()[:limit]
+        ]
+
+    async def channel_history(
+        self, bot_token: str, channel_id: str, *, api_base_url: str | None, limit: int
+    ) -> list[ChannelPost]:
+        """`GET /channels/{id}/posts`, oldest last and without the system noise.
+
+        Mattermost returns `order` newest first and a `posts` map beside it, so
+        the order is reversed here - a model reading a conversation top to bottom
+        gets it the way a person would.
+        """
+        base_url = self._server(api_base_url)
+        headers = {"Authorization": f"Bearer {bot_token}"}
+        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
+            response = await client.get(
+                f"{base_url}/api/v4/channels/{channel_id}/posts",
+                headers=headers,
+                params={"per_page": limit},
+            )
+            response.raise_for_status()
+            payload = response.json()
+            posts = payload.get("posts") or {}
+            order = [
+                post_id
+                for post_id in reversed(payload.get("order") or [])
+                # "somebody joined the channel" is not what was said in it.
+                if not str((posts.get(post_id) or {}).get("type") or "").startswith("system_")
+            ]
+            if not order:
+                return []
+
+            authors = await client.post(
+                f"{base_url}/api/v4/users/ids",
+                headers=headers,
+                json=sorted({str(posts[post_id].get("user_id")) for post_id in order}),
+            )
+            authors.raise_for_status()
+
+        named = {
+            str(user.get("id")): str(user.get("username") or user.get("id"))
+            for user in authors.json()
+        }
+        return [
+            ChannelPost(
+                author=named.get(str(posts[post_id].get("user_id")), "unknown"),
+                text=str(posts[post_id].get("message") or ""),
+                posted_at=_posted_at(posts[post_id].get("create_at")),
+            )
+            for post_id in order
+        ]
 
     # --- receiving, over the socket ---------------------------------------
 

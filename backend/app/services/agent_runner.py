@@ -85,6 +85,11 @@ from app.agents.capabilities.budget import (
     SpendEntry,
     metered_by,
 )
+from app.agents.capabilities.channel_tools import (
+    CHANNEL_DIRECTORY_RESOURCE,
+    CHANNEL_TOOLS_CAPABILITY_ID,
+    ChannelDirectory,
+)
 from app.agents.capabilities.sandbox import WORKSPACE_BACKEND_RESOURCE, WorkspaceIdentity
 from app.agents.capabilities.sandbox._identity import SessionScope
 from app.agents.capabilities.subagents import SubagentsConfig, acting_delegate
@@ -1005,6 +1010,30 @@ def _with_exposure_prompt(spec: AgentSpec, exposure: AgentExposure | None) -> Ag
     return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{added}"})
 
 
+def _with_channel_tools(spec: AgentSpec, exposure: AgentExposure | None) -> AgentSpec:
+    """The spec with the lookups *this* binding grants, if it grants any.
+
+    The one capability whose binding is not in the published spec, and the
+    reason is the same one that put `prompt` on the exposure: an agent can
+    answer on two Mattermost servers and three Slack workspaces, and "may it
+    read what was said in this channel" has a different answer on the internal
+    one and the customer one. A field on the spec has one answer for all five.
+
+    So it is assembled here, per run, from the row that admitted the message -
+    and it goes through `AgentSpec.capabilities` rather than straight into
+    `resources` on purpose. That is what keeps these tools ordinary: gateable by
+    the approval policy, renameable by a binding, and visible to
+    `approval_required_tools`, all of which read the spec. The copy is local to
+    this run; `model_copy` leaves the stored spec alone, and publishing refuses
+    a stored spec that tries to carry this capability itself.
+    """
+    granted = [] if exposure is None else list(exposure.tools or [])
+    if not granted:
+        return spec
+    binding = CapabilityBindingSpec(id=CHANNEL_TOOLS_CAPABILITY_ID, config={"tools": granted})
+    return spec.model_copy(update={"capabilities": [*spec.capabilities, binding]})
+
+
 @dataclass
 class _RunBudget:
     """The run's budget guard, once the build has produced one.
@@ -1353,6 +1382,7 @@ class AgentRunnerService:
         surface: RunSurface = RunSurface.API,
         conversation_id: UUID | None = None,
         channel_key: str | None = None,
+        channel_directory: ChannelDirectory | None = None,
         user_name: str | None = None,
         extra_toolsets: list[Any] | None = None,
         exposure: AgentExposure | None = None,
@@ -1362,6 +1392,12 @@ class AgentRunnerService:
         """Assemble everything a run needs and open its row.
 
         Args:
+            channel_directory: The one channel this run is answering in, ready
+                to be asked about, or `None` on every surface that is not a
+                channel. Bound by the caller because binding one needs the bot
+                row and its unsealed token, and a capability may reach neither -
+                the same reason the workspace backend is opened here rather than
+                inside `sandbox`.
             exposure: The binding that admitted this run, when one did. It is
                 stamped on the run row and its caps are enforced - so a run that
                 arrived through a place the agent was published to is both
@@ -1391,6 +1427,7 @@ class AgentRunnerService:
             ctx, spec, environment_id=effective_environment_id
         )
         spec = _with_exposure_prompt(spec, exposure)
+        spec = _with_channel_tools(spec, exposure)
         return await self._assemble(
             ctx,
             agent=agent,
@@ -1399,6 +1436,7 @@ class AgentRunnerService:
             surface=surface,
             conversation_id=conversation_id,
             channel_key=channel_key,
+            channel_directory=channel_directory,
             model_profile_id=model_profile_id,
             user_name=user_name,
             extra_toolsets=extra_toolsets,
@@ -1421,6 +1459,7 @@ class AgentRunnerService:
         surface: RunSurface,
         conversation_id: UUID | None,
         channel_key: str | None = None,
+        channel_directory: ChannelDirectory | None = None,
         user_name: str | None,
         extra_toolsets: list[Any] | None,
         exposure: AgentExposure | None,
@@ -1486,6 +1525,13 @@ class AgentRunnerService:
             "kb_collection_names": await self._collection_names(spec, ctx),
             "skills": await self.skills.resolve_for_agent(ctx, spec.skill_ids),
         }
+        # Only on a channel run, and bound to the channel the message arrived in
+        # before it got here. Absent everywhere else, and `channel_tools` then
+        # builds nothing at all - an agent in the dashboard has no channel to
+        # ask about, and four tools that can only answer "there is no channel
+        # here" are worse than none, because the model keeps trying.
+        if channel_directory is not None:
+            resources[CHANNEL_DIRECTORY_RESOURCE] = channel_directory
 
         # Unsealed here and handed straight to the factory, which hands them to
         # the capability instances that declared them. They are kept out of
@@ -2625,6 +2671,7 @@ class AgentRunnerService:
         surface: RunSurface = RunSurface.API,
         conversation_id: UUID | None = None,
         channel_key: str | None = None,
+        channel_directory: ChannelDirectory | None = None,
         message_history: list[Any] | None = None,
         exposure: AgentExposure | None = None,
         environment_id: UUID | None = None,
@@ -2664,6 +2711,7 @@ class AgentRunnerService:
             surface=surface,
             conversation_id=conversation_id,
             channel_key=channel_key,
+            channel_directory=channel_directory,
             exposure=exposure,
             environment_id=environment_id,
         )

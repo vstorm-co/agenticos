@@ -29,6 +29,8 @@ function exposure(overrides: Partial<Exposure> = {}): Exposure {
     environment_id: null,
     session_scope: null,
     prompt: null,
+    tools: [],
+    available_tools: [],
     is_active: true,
     created_at: null,
     ...overrides,
@@ -166,11 +168,31 @@ describe("useExposures", () => {
     await expect(
       result.current.setPrompt.mutateAsync({ exposureId: "e1", prompt: "Be terse." }),
     ).rejects.toThrow(refused);
+    await expect(
+      result.current.setTools.mutateAsync({ exposureId: "e1", tools: ["get_channel_info"] }),
+    ).rejects.toThrow(refused);
     await expect(result.current.revoke.mutateAsync("e1")).rejects.toThrow(refused);
 
-    expect(toast.error).toHaveBeenCalledTimes(5);
+    expect(toast.error).toHaveBeenCalledTimes(6);
     expect(toast.error).toHaveBeenCalledWith("You cannot publish this agent");
   });
+  it("sends the whole grant of channel lookups, and only that field", async () => {
+    // What a binding grants is what it is - a patch describing one checkbox
+    // could not say "and nothing else" - and sending anything more would let a
+    // grant overwrite a prompt somebody changed in between.
+    vi.mocked(apiClient.patch).mockResolvedValue(exposure({ tools: ["get_channel_info"] }));
+    const result = await hook();
+
+    await result.current.setTools.mutateAsync({
+      exposureId: "e1",
+      tools: ["get_channel_info"],
+    });
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/agents/a1/exposures/e1", {
+      tools: ["get_channel_info"],
+    });
+  });
+
   it("sends only the prompt, so a concurrent edit is not overwritten", async () => {
     vi.mocked(apiClient.patch).mockResolvedValue(exposure({ prompt: "Be terse." }));
     const result = await hook();

@@ -41,6 +41,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.channel_tools import ChannelDirectory
 from app.agents.capabilities.charts._spec import parse_chart_spec
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
@@ -161,6 +162,23 @@ def parse_mention(text: str) -> Mention | None:
     return Mention(slug=slug, prompt=prompt)
 
 
+def channel_key(platform_chat_id: str) -> str:
+    """The chat a message arrived in, with any thread stripped.
+
+    Slack folds `thread_ts` into `platform_chat_id` as `channel:thread_ts` and
+    Mattermost folds `root_id` in the same way, so the raw id identifies a
+    *thread*. Anything scoped to the channel - a workspace shared across its
+    threads, an API call about the channel itself - has to key on what is stable
+    across them, which is the part before the colon. Every other platform's id
+    is already the chat.
+
+    Module-level rather than a method: the channel bindings this feeds are built
+    where the bot row is, and two implementations of "which channel is this" is
+    how one of them ends up asking Mattermost about a thread id.
+    """
+    return platform_chat_id.partition(":")[0]
+
+
 class UnaddressedMessage(Exception):
     """The message names no agent, so the caller should handle it itself."""
 
@@ -209,17 +227,6 @@ class ChannelAgentRouter:
         self.runner = AgentRunnerService(db)
         self.usage = UsageReportService(db)
 
-    @staticmethod
-    def _channel_key(platform_chat_id: str) -> str:
-        """The chat this message arrived in, with any thread stripped.
-
-        Slack folds `thread_ts` into `platform_chat_id` as `channel:thread_ts`, so
-        the raw id identifies a *thread*. A workspace scoped to the channel has to
-        key on what is stable across the threads inside it, which is the part
-        before the colon. Every other platform's id is already the chat.
-        """
-        return platform_chat_id.partition(":")[0]
-
     async def answer(
         self,
         text: str,
@@ -230,6 +237,7 @@ class ChannelAgentRouter:
         user_id: UUID | None,
         conversation_id: UUID | None = None,
         platform_chat_id: str | None = None,
+        channel_directory: ChannelDirectory | None = None,
         usage_reporting: dict[str, Any] | None = None,
         turn: int = 0,
         attachments: list[ChatFile] | None = None,
@@ -249,6 +257,10 @@ class ChannelAgentRouter:
                 never linked one.
             conversation_id: The channel session's conversation, so a thread
                 keeps its history.
+            channel_directory: This channel, ready to be asked about, for an
+                agent whose spec binds `channel_tools`. Bound by the caller
+                because it holds the bot's token, and passed through unread:
+                a run with none simply gets no channel tools.
 
         Returns:
             The agent's answer, or an empty string when a tool call was parked
@@ -307,7 +319,8 @@ class ChannelAgentRouter:
             stream=stream,
             surface=_SURFACES.get(platform, RunSurface.API),
             conversation_id=conversation_id,
-            channel_key=(None if platform_chat_id is None else self._channel_key(platform_chat_id)),
+            channel_key=(None if platform_chat_id is None else channel_key(platform_chat_id)),
+            channel_directory=channel_directory,
             # The binding is what let this message through, so it is also what
             # the run is attributed to and bounded by. Resolving it here and
             # then not passing it on would leave a cap somebody set on this bot
@@ -336,6 +349,7 @@ class ChannelAgentRouter:
         user_id: UUID | None,
         conversation_id: UUID | None = None,
         platform_chat_id: str | None = None,
+        channel_directory: ChannelDirectory | None = None,
         usage_reporting: dict[str, Any] | None = None,
         turn: int = 0,
         attachments: list[ChatFile] | None = None,
@@ -390,7 +404,8 @@ class ChannelAgentRouter:
             stream=stream,
             surface=_SURFACES.get(platform, RunSurface.API),
             conversation_id=conversation_id,
-            channel_key=(None if platform_chat_id is None else self._channel_key(platform_chat_id)),
+            channel_key=(None if platform_chat_id is None else channel_key(platform_chat_id)),
+            channel_directory=channel_directory,
             message_history=message_history,
             exposure=exposure,
         )

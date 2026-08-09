@@ -124,6 +124,8 @@
     "capabilityUsesNoSecret": "This capability uses no secret, so the one selected for it would be stored and never read. Publishing refuses it.",
     "channelBots": "Channel bots",
     "channelPromptHint": "Added to the agent's instructions here only. A new channel opens with what that client renders and how a link is written there - change it, add to it, or clear it.",
+    "channelLookupsHint": "Only what this platform can answer is listed. The agent sees exactly what the bot sees, so it has to be in the channel first.",
+    "channelLookupsOn": "What this agent may look up on {platform}",
     "channelPromptOn": "Extra instructions on {bot}",
     "channelPromptPlaceholder": "What this agent should know about answering here.",
     "chooseBot": "Choose a bot",

@@ -21,6 +21,7 @@ from pydantic_ai.usage import RequestUsage
 
 from app.agents.capabilities.approval import ApprovalGranted, ApprovalRejected
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, SpendLedger
+from app.agents.capabilities.channel_tools import CHANNEL_DIRECTORY_RESOURCE
 from app.agents.spec import AgentSpec, CapabilityBindingSpec, ObservabilitySpec
 from app.agents.subagent_runtime import DelegationSpend, DelegationStash, ParkedDelegation
 from app.core.exceptions import BadRequestError, NotFoundError, RunExecutionError
@@ -1930,12 +1931,14 @@ class TestWhoTheRunSaysItIs:
         assert create_run.call_args.kwargs["user_id"] is None
 
 
-def _exposure(*, organization_id=None, environment_id=None, surface="web", prompt=None):
+def _exposure(*, organization_id=None, environment_id=None, surface="web", prompt=None, tools=None):
     """A binding row.
 
-    `surface` and `prompt` are real values rather than mock attributes: the run
-    appends what the surface renders and what the binding was told, and a mock
-    for either is a `MagicMock` concatenated into the agent's instructions.
+    `surface`, `prompt` and `tools` are real values rather than mock attributes:
+    the run appends what the surface renders, what the binding was told, and
+    which channel lookups it granted. A mock for the first two is a `MagicMock`
+    concatenated into the agent's instructions, and one for the third is a
+    capability config the model would be offered.
     """
     return MagicMock(
         id=uuid.uuid4(),
@@ -1943,6 +1946,7 @@ def _exposure(*, organization_id=None, environment_id=None, surface="web", promp
         environment_id=environment_id,
         surface=surface,
         prompt=prompt,
+        tools=tools or [],
     )
 
 
@@ -2228,3 +2232,62 @@ class TestTheWorkspaceReachesTheAgent:
 
         assert prepared.workspace is None
         assert "workspace_backend" not in resources
+
+
+class TestWhatTheChannelLetsTheAgentLookUp:
+    """The binding decides, and only a channel run gets a directory at all.
+
+    Both halves are here rather than in the capability's own tests, because both
+    are wiring: a directory that never reached `resources` and a grant that never
+    reached the spec look identical from inside `channel_tools` - it builds
+    nothing, and the agent answers without ever mentioning it.
+    """
+
+    @staticmethod
+    async def _built(*, exposure, directory):
+        """Prepare a run and hand back what `build_agent` was given."""
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(
+                    return_value=(agent, AgentSpec(name="Support"), agent.current_version_id)
+                ),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch("app.services.agent_runner.build_agent") as build,
+        ):
+            await service.prepare(_ctx(), agent.id, exposure=exposure, channel_directory=directory)
+
+        # The spec is positional; everything else the factory takes is a keyword.
+        return build.call_args.args[0], build.call_args.kwargs
+
+    @pytest.mark.anyio
+    async def test_a_channel_run_hands_the_capability_its_channel(self):
+        directory = MagicMock()
+        spec, built = await self._built(
+            exposure=_exposure(surface="mattermost", tools=["get_channel_info"]),
+            directory=directory,
+        )
+
+        assert built["resources"][CHANNEL_DIRECTORY_RESOURCE] is directory
+        assert [binding.id for binding in spec.capabilities] == ["channel_tools"]
+
+    @pytest.mark.anyio
+    async def test_a_run_outside_a_channel_carries_no_directory(self):
+        """The dashboard, the API, a schedule. A resource nobody set is the
+        capability's own signal that there is nothing here to ask about."""
+        spec, built = await self._built(exposure=None, directory=None)
+
+        assert CHANNEL_DIRECTORY_RESOURCE not in built["resources"]
+        assert spec.capabilities == []

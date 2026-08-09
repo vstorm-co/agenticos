@@ -39,8 +39,35 @@ export interface Exposure {
    * never contradict what the agent is for.
    */
   prompt: string | null;
+  /**
+   * Which channel lookups the agent may make *here*, by tool id.
+   *
+   * Per bound bot rather than per agent: one agent can answer on an internal
+   * Mattermost and a customer Slack, and "may it read what was said in this
+   * channel" is a different answer on each. Empty is what a new binding starts
+   * as and grants none of them.
+   */
+  tools: string[];
+  /**
+   * What this binding's platform can actually answer, resolved server-side.
+   *
+   * Telegram gives a bot no channel search and no way to read history, so the
+   * form offers a control only where there is something behind it - a checkbox
+   * whose only effect is a tool that refuses is a worse answer than no
+   * checkbox. The name and description are the registry's own, so the sentence
+   * somebody reads while deciding to grant a tool is the one the model reads
+   * before deciding to call it.
+   */
+  available_tools: ExposureTool[];
   is_active: boolean;
   created_at: string | null;
+}
+
+/** One channel lookup, as the binding's form offers it. */
+export interface ExposureTool {
+  id: string;
+  name: string;
+  description: string;
 }
 
 export interface ExposureList {

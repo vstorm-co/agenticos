@@ -12,6 +12,7 @@ from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import Message as AiogramMessage
 
+from app.agents.capabilities.channel_tools import ChannelDetails, ChannelMember
 from app.db.session import get_db_context
 from app.services.channels.base import (
     ChannelAdapter,
@@ -153,6 +154,67 @@ class TelegramAdapter(ChannelAdapter):
                 caption=caption if index == 0 else None,
                 reply_to_message_id=reply_to,
             )
+
+    # --- what the agent may ask about the chat -----------------------------
+    #
+    # Two of the four, and that is the whole of what Telegram gives a bot.
+    # `search_channels` and `channel_history` are inherited from the base class,
+    # which refuses with a sentence: Telegram has no directory of chats to
+    # search, and a bot receives messages rather than reading them back - there
+    # is no `getChatHistory`, and the closest thing needs a *user* account.
+    # Answering those two with empty lists would read as "there is nothing
+    # there", which is a different and wrong statement.
+
+    async def channel_details(
+        self, bot_token: str, channel_id: str, *, api_base_url: str | None
+    ) -> ChannelDetails:
+        """`getChat` and `getChatMemberCount`.
+
+        A Telegram chat has a `description` and no separate topic, so `purpose`
+        carries it and `topic` stays empty rather than repeating it.
+        """
+        bot = Bot(token=bot_token)
+        try:
+            chat = await bot.get_chat(chat_id=channel_id)
+            count = await bot.get_chat_member_count(chat_id=channel_id)
+        finally:
+            await bot.session.close()
+
+        return ChannelDetails(
+            channel_id=str(chat.id),
+            name=chat.title or chat.username or str(chat.id),
+            purpose=chat.description or None,
+            is_private=chat.type != "channel",
+            member_count=count,
+        )
+
+    async def channel_members(
+        self, bot_token: str, channel_id: str, *, api_base_url: str | None, limit: int
+    ) -> list[ChannelMember]:
+        """`getChatAdministrators` - which is as far as a bot can see.
+
+        Telegram gives a bot no way to enumerate ordinary members of a group,
+        deliberately. So this returns the administrators, and every row says
+        `admin` in its role: a list that quietly stopped at the administrators
+        while reading as "everybody here" would have the model tell somebody
+        their colleague is not in the chat.
+        """
+        bot = Bot(token=bot_token)
+        try:
+            administrators = await bot.get_chat_administrators(chat_id=channel_id)
+        finally:
+            await bot.session.close()
+
+        return [
+            ChannelMember(
+                user_id=str(entry.user.id),
+                username=entry.user.username,
+                display_name=entry.user.full_name,
+                is_bot=entry.user.is_bot,
+                role="admin",
+            )
+            for entry in administrators[:limit]
+        ]
 
     async def start_polling(self, bot_id: str, bot_token: str) -> None:
         """Start a supervised polling loop for this bot."""

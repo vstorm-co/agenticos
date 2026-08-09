@@ -717,6 +717,15 @@ class AgentRegistryService:
             return [f"Unknown capability: {binding.id}"]
 
         problems: list[str] = []
+        if not definition.selectable:
+            # Refused rather than ignored. A spec that carries `channel_tools`
+            # is one answer to a question that has one per bound bot, and it
+            # would look like it worked: the run's own binding is assembled from
+            # the exposure and would silently replace it.
+            problems.append(
+                f"Capability '{binding.id}' is not chosen on an agent. Choose it "
+                "per bot under 'Where this agent is available'."
+            )
         missing_scopes = definition.scopes - DEFAULT_GRANTED_SCOPES
         if missing_scopes:
             problems.append(

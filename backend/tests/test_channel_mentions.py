@@ -26,6 +26,7 @@ from app.db.models.agent_run import RunSurface
 from app.services.channels.mentions import (
     ChannelAgentRouter,
     UnaddressedMessage,
+    channel_key,
     parse_mention,
 )
 from app.services.usage_report import UsageReport
@@ -65,11 +66,11 @@ class TestTheChannelAWorkspaceSharesAcross:
     def test_a_thread_resolves_to_the_channel_that_holds_it(
         self, platform_chat_id: str, expected: str
     ):
-        assert ChannelAgentRouter._channel_key(platform_chat_id) == expected
+        assert channel_key(platform_chat_id) == expected
 
     def test_two_threads_in_one_channel_agree_on_the_key(self):
-        first = ChannelAgentRouter._channel_key("C0123456:1717171717.001")
-        second = ChannelAgentRouter._channel_key("C0123456:1818181818.002")
+        first = channel_key("C0123456:1717171717.001")
+        second = channel_key("C0123456:1818181818.002")
 
         assert first == second
 

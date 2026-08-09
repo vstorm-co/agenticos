@@ -2,6 +2,14 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from app.agents.capabilities.channel_tools import (
+    ChannelDetails,
+    ChannelDirectoryUnsupported,
+    ChannelMember,
+    ChannelPost,
+    ChannelSummary,
+)
+
 # Surface a conversation is happening on. "web" is the chat UI / API; the
 # others are messaging platforms. Extend this when adding new channels.
 ChannelType = Literal["web", "slack", "telegram", "mattermost"]
@@ -191,6 +199,67 @@ class ChannelAdapter(ABC):
                 an attachment looks like a bot that read it.
         """
         raise NotImplementedError(f"{self.platform} attachments cannot be downloaded yet")
+
+    # --- what the agent may ask about the channel it is in -------------------
+    #
+    # The implementation half of `app.agents.capabilities.channel_tools`: the
+    # capability declares one shape for all three platforms so an agent does not
+    # have to know which one it is standing on, and each adapter answers it with
+    # its own API. None of them is abstract, and every one raises by default -
+    # a platform that has no equivalent says so with a sentence somebody in a
+    # chat window can read, rather than every adapter writing four stubs for
+    # questions its platform cannot answer.
+    #
+    # `api_base_url` is here for the same reason it is on `OutgoingMessage`:
+    # Mattermost is self-hosted, so there is no address to assume. Slack and
+    # Telegram ignore it.
+
+    async def channel_details(
+        self, bot_token: str, channel_id: str, *, api_base_url: str | None
+    ) -> ChannelDetails:
+        """Name, purpose, topic and size of one channel.
+
+        Raises:
+            ChannelDirectoryUnsupported: If this platform does not tell a bot.
+        """
+        raise ChannelDirectoryUnsupported(f"{self.platform} cannot describe a channel to a bot.")
+
+    async def channel_members(
+        self, bot_token: str, channel_id: str, *, api_base_url: str | None, limit: int
+    ) -> list[ChannelMember]:
+        """Who is in one channel, up to `limit`.
+
+        Raises:
+            ChannelDirectoryUnsupported: If this platform does not tell a bot.
+        """
+        raise ChannelDirectoryUnsupported(f"{self.platform} cannot list a channel's members.")
+
+    async def search_channels(
+        self, bot_token: str, channel_id: str, *, api_base_url: str | None, query: str, limit: int
+    ) -> list[ChannelSummary]:
+        """Channels matching `query` within the bot's reach.
+
+        `channel_id` is the channel the run is in, not one to search: on
+        Mattermost it is what the team to search is resolved from, because a bot
+        token has no business enumerating a whole server.
+
+        Raises:
+            ChannelDirectoryUnsupported: If this platform has no channel search.
+        """
+        raise ChannelDirectoryUnsupported(f"{self.platform} has no channel search for a bot.")
+
+    async def channel_history(
+        self, bot_token: str, channel_id: str, *, api_base_url: str | None, limit: int
+    ) -> list[ChannelPost]:
+        """The last `limit` messages in one channel, oldest last.
+
+        Raises:
+            ChannelDirectoryUnsupported: If this platform does not let a bot read
+                messages it was not sent.
+        """
+        raise ChannelDirectoryUnsupported(
+            f"{self.platform} does not let a bot read a channel's history."
+        )
 
     @abstractmethod
     async def start_polling(self, bot_id: str, bot_token: str) -> None:

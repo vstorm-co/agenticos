@@ -20,6 +20,7 @@ import {
 } from "@/components/ui";
 import { useAgentEnvironments, useExposures } from "@/hooks";
 import { ExposurePrompt } from "@/components/agents/exposure-prompt";
+import { ExposureTools } from "@/components/agents/exposure-tools";
 import type { ExposureSurface } from "@/types/exposures";
 import { useTranslations } from "next-intl";
 
@@ -66,8 +67,17 @@ const DEFAULT_ENV = "__default__";
 
 export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPanelProps) {
   const t = useTranslations("agents");
-  const { exposures, isLoading, available, expose, setActive, setEnvironment, setPrompt, revoke } =
-    useExposures(agentId);
+  const {
+    exposures,
+    isLoading,
+    available,
+    expose,
+    setActive,
+    setEnvironment,
+    setPrompt,
+    setTools,
+    revoke,
+  } = useExposures(agentId);
   const { environments } = useAgentEnvironments(agentId);
   const [selectedBotId, setSelectedBotId] = useState("");
   // Only worth a control when there is a choice: with the default alone, every
@@ -172,12 +182,26 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
                 it, and a surface's own instructions are worth reading beside
                 the surface they belong to. */}
             {canManage && (
-              <ExposurePrompt
-                botName={exposure.channel_bot_name}
-                value={exposure.prompt}
-                disabled={setPrompt.isPending}
-                onSave={(prompt) => setPrompt.mutate({ exposureId: exposure.id, prompt })}
-              />
+              <>
+                {/* Under the binding, because that is what the answer belongs
+                    to: the same agent on an internal Mattermost and a customer
+                    Slack gets a different answer here, and a switch in the
+                    Toolbox would have one for both. */}
+                <ExposureTools
+                  exposureId={exposure.id}
+                  platform={SURFACE_LABEL[exposure.surface]}
+                  available={exposure.available_tools}
+                  granted={exposure.tools}
+                  disabled={setTools.isPending}
+                  onChange={(tools) => setTools.mutate({ exposureId: exposure.id, tools })}
+                />
+                <ExposurePrompt
+                  botName={exposure.channel_bot_name}
+                  value={exposure.prompt}
+                  disabled={setPrompt.isPending}
+                  onSave={(prompt) => setPrompt.mutate({ exposureId: exposure.id, prompt })}
+                />
+              </>
             )}
           </div>
         ))}

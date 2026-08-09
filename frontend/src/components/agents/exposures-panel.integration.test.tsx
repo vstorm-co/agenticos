@@ -37,6 +37,8 @@ function exposure(overrides: Partial<Exposure> = {}): Exposure {
     environment_id: null,
     session_scope: null,
     prompt: null,
+    tools: [],
+    available_tools: [],
     is_active: true,
     created_at: null,
     ...overrides,
@@ -346,6 +348,84 @@ describe("ExposuresPanel", () => {
 
     await screen.findByText(/Acme Support/);
     expect(screen.queryByRole("combobox", { name: /Workspace sharing/ })).toBeNull();
+  });
+
+  it("offers the channel lookups this platform can actually answer", async () => {
+    // Under the binding rather than in the Toolbox, because the answer belongs
+    // to the binding: the same agent on an internal Mattermost and a customer
+    // Slack gets a different one.
+    serve(
+      [
+        exposure({
+          available_tools: [
+            { id: "get_channel_info", name: "get_channel_info", description: "Describe it." },
+            { id: "read_channel_history", name: "read_channel_history", description: "Read it." },
+          ],
+          tools: ["get_channel_info"],
+        }),
+      ],
+      [],
+    );
+    await mount();
+
+    expect(await screen.findByText("What this agent may look up on Slack")).toBeInTheDocument();
+    expect(screen.getByLabelText("Describe it.")).toBeChecked();
+    expect(screen.getByLabelText("Read it.")).not.toBeChecked();
+  });
+
+  it("sends the whole grant, not the box that moved", async () => {
+    // What a binding grants is what it is: a patch describing one checkbox
+    // could not say "and nothing else".
+    serve(
+      [
+        exposure({
+          available_tools: [
+            { id: "get_channel_info", name: "get_channel_info", description: "Describe it." },
+            { id: "read_channel_history", name: "read_channel_history", description: "Read it." },
+          ],
+          tools: ["get_channel_info"],
+        }),
+      ],
+      [],
+    );
+    await mount();
+
+    await userEvent.click(await screen.findByLabelText("Read it."));
+
+    expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures/e1`, {
+      tools: ["get_channel_info", "read_channel_history"],
+    });
+  });
+
+  it("takes a lookup away without touching the others", async () => {
+    serve(
+      [
+        exposure({
+          available_tools: [
+            { id: "get_channel_info", name: "get_channel_info", description: "Describe it." },
+            { id: "read_channel_history", name: "read_channel_history", description: "Read it." },
+          ],
+          tools: ["get_channel_info", "read_channel_history"],
+        }),
+      ],
+      [],
+    );
+    await mount();
+
+    await userEvent.click(await screen.findByLabelText("Read it."));
+
+    expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures/e1`, {
+      tools: ["get_channel_info"],
+    });
+  });
+
+  it("offers nothing where the platform answers nothing", async () => {
+    // A checkbox whose only effect is a tool that refuses is worse than none.
+    serve([exposure({ available_tools: [] })], []);
+    await mount();
+
+    await screen.findByText(/Acme Support/);
+    expect(screen.queryByText(/What this agent may look up/)).toBeNull();
   });
 
   it("shows a placeholder while the bindings are being fetched", () => {

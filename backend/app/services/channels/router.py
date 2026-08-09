@@ -22,8 +22,9 @@ from app.services.channel_link import ChannelLinkService
 from app.services.channels import get_adapter
 from app.services.channels.attachments import ChannelAttachmentService
 from app.services.channels.base import IncomingMessage, OutgoingAttachment, OutgoingMessage
+from app.services.channels.directory import BoundChannelDirectory
 from app.services.channels.live_reply import WORKING, LiveReply, channel_stream
-from app.services.channels.mentions import ChannelAgentRouter, UnaddressedMessage
+from app.services.channels.mentions import ChannelAgentRouter, UnaddressedMessage, channel_key
 
 logger = logging.getLogger(__name__)
 
@@ -166,7 +167,16 @@ class ChannelMessageRouter:
         # posts a second one beside it.
         live, handle = await self._open_reply(bot, incoming)
 
-        if await self._answer_mention(incoming, bot, identity, session, db, live, handle):
+        # Built here, once, from the row that admitted the message - so an agent
+        # that asks about the channel asks about *this* channel, with the bot's
+        # own token, and never about one named by the model. Free to build for a
+        # turn that never uses it: nothing here calls the platform until a tool
+        # does.
+        directory = self._channel_directory(bot, incoming)
+
+        if await self._answer_mention(
+            incoming, bot, identity, session, db, live, handle, directory
+        ):
             return
 
         files, file_refusals = await self._receive_files(db, bot, incoming, identity)
@@ -185,6 +195,7 @@ class ChannelMessageRouter:
                 user_id=identity.user_id,
                 conversation_id=session.conversation_id,
                 platform_chat_id=incoming.platform_chat_id,
+                channel_directory=directory,
                 # What this bot says about what a turn cost, and how many turns
                 # this chat has had - `every_n` counts per chat, because "every
                 # tenth message" is a question about this conversation and not
@@ -262,6 +273,7 @@ class ChannelMessageRouter:
         db: Any,
         live: LiveReply | None,
         handle: str | None,
+        directory: BoundChannelDirectory | None,
     ) -> bool:
         """Answer `@handle …` with that agent, and report whether we did.
 
@@ -285,6 +297,7 @@ class ChannelMessageRouter:
                 user_id=identity.user_id,
                 conversation_id=session.conversation_id,
                 platform_chat_id=incoming.platform_chat_id,
+                channel_directory=directory,
                 usage_reporting=bot.usage_reporting,
                 turn=session.turn_count,
                 attachments=files,
@@ -299,6 +312,32 @@ class ChannelMessageRouter:
         answer = self._with_notes(answered.text, file_refusals, _kept_back(answered.refused))
         await self._deliver(bot, incoming, answer, answered, handle)
         return True
+
+    @staticmethod
+    def _channel_directory(bot: Any, incoming: IncomingMessage) -> BoundChannelDirectory | None:
+        """This channel, bound so an agent can ask about it - or `None`.
+
+        Keyed on `channel_key`, not on `platform_chat_id`: in a thread the raw id
+        is `channel:root`, and asking Mattermost about a post id gets a 404 for
+        every question. The channel is the thing an agent asks about; the thread
+        is where it is answering.
+
+        `None` when the platform has no adapter registered, which is not a state
+        an inbound message can reach - the adapter is what parsed it - but is one
+        a test or a half-configured deployment can. Refusing the whole turn over
+        a capability the agent probably does not have would be the wrong trade.
+        """
+        try:
+            adapter = get_adapter(incoming.platform)
+        except KeyError:
+            logger.warning("No adapter for %s; channel lookup unavailable", incoming.platform)
+            return None
+        return BoundChannelDirectory(
+            adapter=adapter,
+            bot_token=unseal_bot_token(bot),
+            channel_id=channel_key(incoming.platform_chat_id),
+            api_base_url=getattr(bot, "api_base_url", None),
+        )
 
     async def _receive_files(
         self, db: Any, bot: Any, incoming: IncomingMessage, identity: Any

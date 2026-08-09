@@ -14,8 +14,15 @@ import hashlib
 import hmac
 import logging
 import time
+from datetime import UTC, datetime
 from typing import Any
 
+from app.agents.capabilities.channel_tools import (
+    ChannelDetails,
+    ChannelMember,
+    ChannelPost,
+    ChannelSummary,
+)
 from app.db.session import get_db_context
 from app.services.channels.base import (
     ChannelAdapter,
@@ -117,6 +124,142 @@ class SlackAdapter(ChannelAdapter):
             return
 
         await client.chat_postMessage(**kwargs)
+
+    # --- what the agent may ask about the channel --------------------------
+    #
+    # `channels:read`, `groups:read` and `channels:history` on the Slack app -
+    # scopes an admin grants when they install it. The bot sees what the app was
+    # installed with and nothing beyond it, which is the same boundary the other
+    # two adapters keep.
+
+    @staticmethod
+    def _posted_at(ts: Any) -> datetime | None:
+        """A Slack `ts` as a datetime, or `None` when it is not a timestamp.
+
+        Slack's message id *is* its timestamp, seconds since the epoch with a
+        sequence number after the point. `None` rather than a raise: this
+        decorates a line of history, and a post with an unreadable timestamp is
+        still a post somebody wrote.
+        """
+        try:
+            return datetime.fromtimestamp(float(ts), UTC)
+        except (TypeError, ValueError):
+            return None
+
+    async def channel_details(
+        self, bot_token: str, channel_id: str, *, api_base_url: str | None
+    ) -> ChannelDetails:
+        """`conversations.info`, with the member count Slack only sends on request."""
+        from slack_sdk.web.async_client import AsyncWebClient
+
+        response = await AsyncWebClient(token=bot_token).conversations_info(
+            channel=channel_id, include_num_members=True
+        )
+        found: dict[str, Any] = response.get("channel") or {}
+        return ChannelDetails(
+            channel_id=str(found.get("id") or channel_id),
+            name=str(found.get("name") or channel_id),
+            purpose=str((found.get("purpose") or {}).get("value") or "") or None,
+            topic=str((found.get("topic") or {}).get("value") or "") or None,
+            is_private=bool(found.get("is_private")),
+            member_count=(None if found.get("num_members") is None else int(found["num_members"])),
+        )
+
+    async def channel_members(
+        self, bot_token: str, channel_id: str, *, api_base_url: str | None, limit: int
+    ) -> list[ChannelMember]:
+        """`conversations.members`, then one `users.info` per id, concurrently.
+
+        Slack has no bulk lookup by id - `users.list` answers with the whole
+        workspace - so the ids are resolved one at a time. Concurrently and
+        bounded by `limit`, because this runs inside a tool call somebody is
+        waiting on, and serially it is the length of the channel in round trips.
+        """
+        from slack_sdk.web.async_client import AsyncWebClient
+
+        client = AsyncWebClient(token=bot_token)
+        response = await client.conversations_members(channel=channel_id, limit=limit)
+        user_ids = [str(user_id) for user_id in (response.get("members") or [])][:limit]
+        if not user_ids:
+            return []
+
+        found = await asyncio.gather(*(client.users_info(user=user_id) for user_id in user_ids))
+        members: list[ChannelMember] = []
+        for user_id, entry in zip(user_ids, found, strict=True):
+            user: dict[str, Any] = entry.get("user") or {}
+            profile: dict[str, Any] = user.get("profile") or {}
+            members.append(
+                ChannelMember(
+                    user_id=user_id,
+                    username=str(user.get("name") or "") or None,
+                    display_name=str(profile.get("display_name") or profile.get("real_name") or "")
+                    or None,
+                    is_bot=bool(user.get("is_bot")),
+                    role="admin" if user.get("is_admin") else "member",
+                )
+            )
+        return members
+
+    async def search_channels(
+        self, bot_token: str, channel_id: str, *, api_base_url: str | None, query: str, limit: int
+    ) -> list[ChannelSummary]:
+        """`conversations.list`, matched here rather than by Slack.
+
+        Slack's `search.messages` needs a *user* token and searches contents,
+        which is not what this asks; there is no channel-name search for a bot
+        token. So the list comes back and the match happens locally, over the
+        name and the purpose - the two fields somebody would have typed into a
+        search box.
+        """
+        from slack_sdk.web.async_client import AsyncWebClient
+
+        response = await AsyncWebClient(token=bot_token).conversations_list(
+            types="public_channel,private_channel", limit=1000, exclude_archived=True
+        )
+        needle = query.casefold()
+        found: list[ChannelSummary] = []
+        for entry in response.get("channels") or []:
+            purpose = str((entry.get("purpose") or {}).get("value") or "")
+            name = str(entry.get("name") or "")
+            if needle not in name.casefold() and needle not in purpose.casefold():
+                continue
+            found.append(
+                ChannelSummary(
+                    channel_id=str(entry.get("id")),
+                    name=name,
+                    purpose=purpose or None,
+                    is_private=bool(entry.get("is_private")),
+                )
+            )
+            if len(found) == limit:
+                break
+        return found
+
+    async def channel_history(
+        self, bot_token: str, channel_id: str, *, api_base_url: str | None, limit: int
+    ) -> list[ChannelPost]:
+        """`conversations.history`, reversed so the newest is last.
+
+        Authors stay as Slack ids. Resolving them would be one `users.info` per
+        distinct speaker on top of the history call, and a transcript reads well
+        enough with `U01ABC` where a name would go - `list_channel_members` is
+        the tool for turning ids into people, and the model can call it when the
+        answer actually depends on who spoke.
+        """
+        from slack_sdk.web.async_client import AsyncWebClient
+
+        response = await AsyncWebClient(token=bot_token).conversations_history(
+            channel=channel_id, limit=limit
+        )
+        messages = list(reversed(response.get("messages") or []))
+        return [
+            ChannelPost(
+                author=str(message.get("user") or message.get("bot_id") or "unknown"),
+                text=str(message.get("text") or ""),
+                posted_at=self._posted_at(message.get("ts")),
+            )
+            for message in messages
+        ]
 
     async def start_polling(self, bot_id: str, bot_token: str) -> None:
         """Start Slack Socket Mode (equivalent to polling for dev)."""

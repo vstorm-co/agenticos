@@ -92,6 +92,16 @@ export function useExposures(agentId: string | null) {
     onError: (error) => toast.error(getErrorMessage(error)),
   });
 
+  const setTools = useMutation({
+    mutationFn: ({ exposureId, tools }: { exposureId: string; tools: string[] }) =>
+      // Only this field, for the reason `setActive` says. The whole list rather
+      // than the box that moved: the server stores what a binding grants, and a
+      // patch describing one checkbox could not express "and nothing else".
+      apiClient.patch<Exposure>(`${base}/${exposureId}`, { tools }),
+    onSuccess: invalidate,
+    onError: (error) => toast.error(getErrorMessage(error)),
+  });
+
   const revoke = useMutation({
     mutationFn: (exposureId: string) => apiClient.delete<void>(`${base}/${exposureId}`),
     onSuccess: async () => {
@@ -119,6 +129,7 @@ export function useExposures(agentId: string | null) {
     setActive,
     setEnvironment,
     setPrompt,
+    setTools,
     revoke,
   };
 }

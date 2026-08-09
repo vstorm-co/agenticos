@@ -994,6 +994,24 @@ class TestToolOverrideValidation:
 
         await self._service().validate_spec(_ctx(), spec)
 
+    @pytest.mark.anyio
+    async def test_a_capability_chosen_somewhere_else_cannot_be_bound_here(self):
+        """`channel_tools` is granted per bound bot, not per agent.
+
+        Refused rather than ignored, and it would have looked like it worked: a
+        run's own binding is assembled from the exposure that admitted it, so a
+        spec-level one would be silently replaced on every channel run - and
+        would be the only thing in effect on none of them.
+        """
+        with pytest.raises(BadRequestError) as refused:
+            await self._service().validate_spec(
+                _ctx(), _spec(capabilities=[{"id": "channel_tools"}])
+            )
+
+        assert any(
+            "not chosen on an agent" in problem for problem in refused.value.details["problems"]
+        )
+
 
 class TestPublish:
     @pytest.mark.anyio

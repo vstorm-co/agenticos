@@ -676,6 +676,56 @@ web chat and continues in Slack is one `ChannelIdentity` linked to one account, 
 they find the same files. `conversation` and `channel` deliberately do not — those
 name a place, and a place does not follow somebody to another platform.
 
+### What the agent may look up about the channel
+
+A bot answering in `~support` knows the words somebody typed and nothing else.
+It does not know the channel is called `~support`, who is in it, what it was set
+up for, or what was said in it ten minutes ago — so *"who should I ask about
+billing?"* and *"summarise what we decided above"* are questions it can only
+answer by guessing.
+
+Four tools change that, and each is granted **per binding**, under
+*Where this agent is available*:
+
+| Tool | Answers | Slack | Telegram | Mattermost |
+|---|---|:-:|:-:|:-:|
+| `get_channel_info` | Name, purpose, topic, size | ✅ | ✅ | ✅ |
+| `list_channel_members` | Who is here | ✅ | admins only | ✅ |
+| `search_channels` | Which other channels exist | ✅ | — | ✅ |
+| `read_channel_history` | What was said recently | ✅ | — | ✅ |
+
+Per binding rather than per agent, because an organization can bind one agent to
+two Mattermost servers and three Slack workspaces — and *"may it read what was
+said in this channel"* has a different answer on the internal one and the
+customer one. A switch in the agent's Toolbox would have one answer for all
+five, which is why there is no such switch: publishing refuses a spec that
+carries `channel_tools`, and the run assembles the binding from the row that
+admitted the message, the same way it appends that binding's prompt.
+
+Nothing is granted by default. What a platform cannot answer is not offered:
+Telegram gives a bot no directory of chats to search and no way to read messages
+it was not sent, and `getChatAdministrators` is the whole of what it may list —
+so a Telegram member list is a list of administrators and says so.
+
+Three things worth knowing before granting them:
+
+- **The bot's membership is the whole permission boundary.** Every call goes
+  through the bot's own token, so the agent sees exactly what the bot sees. There
+  is no allow-list of ours to get out of step with the platform's own.
+- **The model never names a channel.** The tools are bound server-side to the
+  channel the message arrived in — in a thread, to the channel that holds it.
+  An argument for it would turn *"who is in this channel"* into *"read any
+  channel this bot is in"*, asked from a conversation somewhere else.
+- **`read_channel_history` is the one worth gating.** It is a read, so it does
+  not ask by default, but it puts other people's messages into a run transcript
+  somebody reads weeks later. A `tool_approval` override on the binding is how
+  you make it ask.
+
+This is deliberately *not* the same thing as putting the channel's member list
+and purpose into every system prompt. That is a different feature with a
+different failure mode — a `purpose` written by whoever can edit the channel,
+pasted into the instructions, is a prompt injection with a public edit button.
+
 ## Choosing
 
 - Your own site, no accounts → **widget, `public` mode**.

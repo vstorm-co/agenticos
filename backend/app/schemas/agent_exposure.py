@@ -10,6 +10,21 @@ from app.db.models.agent_exposure import ExposureSurface
 from app.schemas.base import BaseSchema
 
 
+class ExposureTool(BaseSchema):
+    """One channel lookup, as the binding's form offers it.
+
+    Name and description come from the capability registry rather than being
+    written again in the client. A tool's description is the sentence the model
+    reads before deciding to call it, and the person deciding whether to grant
+    it should be reading the same one - two paraphrases in two repositories is
+    the shape of #144.
+    """
+
+    id: str
+    name: str
+    description: str
+
+
 class ExposureRead(BaseSchema):
     """One place an agent is available, as the Builder shows it.
 
@@ -29,6 +44,20 @@ class ExposureRead(BaseSchema):
     # Read back, unlike a credential: it is instructions somebody wrote and has
     # to be able to edit, and the form that edits it needs its current value.
     prompt: str | None = None
+    tools: list[str] = Field(
+        default_factory=list,
+        description="Channel lookups granted on this binding, by tool id",
+    )
+    available_tools: list[ExposureTool] = Field(
+        default_factory=list,
+        description=(
+            "What this binding's platform can actually answer, so the form "
+            "offers a checkbox only where there is something behind it. Telegram "
+            "gives a bot no channel search and no way to read history, and a "
+            "control whose only effect is a tool that says so is a worse answer "
+            "than no control."
+        ),
+    )
     is_active: bool
     created_at: datetime | None = None
 
@@ -78,6 +107,17 @@ class ExposureCreate(BaseSchema):
 
 
 class ExposureUpdate(BaseSchema):
+    tools: list[str] | None = Field(
+        default=None,
+        description=(
+            "Which channel lookups this agent may make on this bot, by tool id - "
+            "who is in the channel, what the channel is for, what was said in "
+            "it. Per binding rather than per agent: the same agent on an "
+            "internal Mattermost and a customer Slack has two different answers. "
+            "Refused when the platform cannot answer the tool; an empty list "
+            "grants none, which is what a new binding starts as."
+        ),
+    )
     is_active: bool | None = Field(
         default=None,
         description="Stop or resume answering here without losing who bound it, and when",
