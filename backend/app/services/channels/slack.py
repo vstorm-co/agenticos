@@ -45,6 +45,31 @@ class SlackAdapter(ChannelAdapter):
         """Register the app-level token Socket Mode will connect with."""
         self._app_tokens[bot_id] = app_token
 
+    async def begin_reply(self, bot_token: str, msg: OutgoingMessage) -> str | None:
+        """Post the message that will become the answer, and return its `ts`.
+
+        A Slack message is addressed by the timestamp it was posted at, so that
+        is the handle - and in a thread it is *also* what a reply is keyed to,
+        which is why the channel and the thread are split apart here the same way
+        `send_message` splits them.
+        """
+        from slack_sdk.web.async_client import AsyncWebClient
+
+        channel, _, thread_ts = msg.platform_chat_id.partition(":")
+        kwargs: dict[str, Any] = {"channel": channel, "text": msg.text}
+        if thread_ts:
+            kwargs["thread_ts"] = thread_ts
+        response = await AsyncWebClient(token=bot_token).chat_postMessage(**kwargs)
+        posted = response.get("ts")
+        return str(posted) if posted else None
+
+    async def update_reply(self, bot_token: str, msg: OutgoingMessage, handle: str) -> None:
+        """Rewrite a message already in the channel."""
+        from slack_sdk.web.async_client import AsyncWebClient
+
+        channel, _, _thread_ts = msg.platform_chat_id.partition(":")
+        await AsyncWebClient(token=bot_token).chat_update(channel=channel, ts=handle, text=msg.text)
+
     async def send_message(self, bot_token: str, msg: OutgoingMessage) -> None:
         """Send a reply back to Slack via the Web API."""
         from slack_sdk.web.async_client import AsyncWebClient

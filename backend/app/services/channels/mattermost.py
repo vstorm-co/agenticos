@@ -86,6 +86,11 @@ class MattermostAdapter(ChannelAdapter):
         # Where each bot's server lives. Set by the service when a bot starts,
         # because the adapter is a singleton and the URL is per bot.
         self._base_urls: dict[str, str] = {}
+        # The live socket per bot, so a typing indicator can be sent on the
+        # connection the stream already holds, and the sequence number that
+        # connection is up to.
+        self._sockets: dict[str, Any] = {}
+        self._seq: dict[str, int] = {}
 
     def remember_server(self, bot_id: str, api_base_url: str) -> None:
         """Record which Mattermost server a bot belongs to."""
@@ -148,6 +153,82 @@ class MattermostAdapter(ChannelAdapter):
 
             response = await client.post(f"{base_url}/api/v4/posts", headers=headers, json=body)
             response.raise_for_status()
+
+    # --- an answer somebody can watch arrive -------------------------------
+
+    async def begin_reply(self, bot_token: str, msg: OutgoingMessage) -> str | None:
+        """Post the message that will become the answer, and return its id."""
+        if not msg.api_base_url:
+            return None
+        channel_id, _, root_id = msg.platform_chat_id.partition(":")
+        body: dict[str, Any] = {"channel_id": channel_id, "message": msg.text}
+        if root_id:
+            body["root_id"] = root_id
+        elif msg.reply_to_message_id:
+            body["root_id"] = msg.reply_to_message_id
+
+        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
+            response = await client.post(
+                f"{msg.api_base_url.rstrip('/')}/api/v4/posts",
+                headers={"Authorization": f"Bearer {bot_token}"},
+                json=body,
+            )
+        response.raise_for_status()
+        post_id = response.json().get("id")
+        return str(post_id) if post_id else None
+
+    async def update_reply(self, bot_token: str, msg: OutgoingMessage, handle: str) -> None:
+        """Rewrite a post that is already on screen.
+
+        `PATCH` rather than `PUT /posts/{id}`: the full update wants the whole
+        post back and would drop anything it was not told about. Mattermost
+        broadcasts `post_edited`, so every client watching the channel sees the
+        text change without doing anything.
+        """
+        # Never None in practice - `begin_reply` refused without one and is the
+        # only thing that hands out a handle - but the type says otherwise and a
+        # crash mid-answer is a worse way to find out.
+        base_url = (msg.api_base_url or "").rstrip("/")
+        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
+            response = await client.put(
+                f"{base_url}/api/v4/posts/{handle}/patch",
+                headers={"Authorization": f"Bearer {bot_token}"},
+                json={"message": msg.text},
+            )
+        response.raise_for_status()
+
+    async def typing(self, bot_id: str, msg: OutgoingMessage) -> None:
+        """Say the bot is composing, over the socket we already hold.
+
+        Only on the event-stream path: this is a WebSocket action, and a bot
+        reached by outgoing webhook has no socket. Nothing is raised in that
+        case - the placeholder post says the same thing more durably, and this
+        is the decoration on top of it.
+        """
+        socket = self._sockets.get(bot_id)
+        if socket is None:
+            return
+        channel_id, _, root_id = msg.platform_chat_id.partition(":")
+        with contextlib.suppress(Exception):
+            await socket.send(
+                json.dumps(
+                    {
+                        "action": "user_typing",
+                        "seq": self._next_seq(bot_id),
+                        "data": {"channel_id": channel_id, "parent_id": root_id},
+                    }
+                )
+            )
+
+    def _next_seq(self, bot_id: str) -> int:
+        """The next sequence number on this bot's socket.
+
+        Mattermost expects them to rise per connection. Kept here rather than in
+        `_run_stream` because the keepalive and this both send, and two counters
+        on one socket is a protocol error waiting for a busy day.
+        """
+        self._seq[bot_id] = self._seq.get(bot_id, 1) + 1
+        return self._seq[bot_id]
 
     # --- receiving, over the socket ---------------------------------------
 
@@ -232,11 +313,13 @@ class MattermostAdapter(ChannelAdapter):
                     }
                 )
             )
+            self._sockets[bot_id] = socket
             keepalive = asyncio.create_task(self._keepalive(socket))
             try:
                 async for frame in socket:
                     await self._on_frame(frame, bot_id)
             finally:
+                self._sockets.pop(bot_id, None)
                 keepalive.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await keepalive

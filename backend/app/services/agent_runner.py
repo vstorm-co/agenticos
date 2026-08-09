@@ -55,7 +55,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections import Counter
-from collections.abc import AsyncIterator, Callable, Mapping, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -956,6 +956,33 @@ class PreparedRun:
                 usage_limits=self.built.usage_limits,
             ) as iteration:
                 yield iteration
+
+
+def _outcome(
+    agent_run: AgentIteration[AgentDeps, str | DeferredToolRequests],
+) -> AgentRunResult[str | DeferredToolRequests]:
+    """What the iterated run ended with.
+
+    Raises:
+        RuntimeError: If it ended without a result. That is not a state the
+            agent can reach on its own - it means whoever drove the loop stopped
+            early - so it fails loudly and is recorded as a failed run, rather
+            than being persisted as an empty answer.
+    """
+    if agent_run.result is None:
+        raise RuntimeError("The agent run ended without a result")
+    return agent_run.result
+
+
+type RunStream = Callable[[AgentIteration[AgentDeps, str | DeferredToolRequests]], Awaitable[None]]
+"""How a surface that shows an answer arriving drives the run.
+
+Given to :meth:`AgentRunnerService.execute`, which iterates the graph instead of
+awaiting it and hands the run object over. The surface decides what to forward -
+the web chat forwards every event to a socket, a chat platform edits one post
+every second or so - and the settle path around it is unchanged, so a streamed
+run is metered exactly like one that was waited for.
+"""
 
 
 @dataclass
@@ -2584,6 +2611,7 @@ class AgentRunnerService:
         outbound: list[OutgoingAttachment] | None = None,
         outbound_refused: list[str] | None = None,
         tool_calls: list[RecordedToolCall] | None = None,
+        stream: RunStream | None = None,
     ) -> tuple[str, AgentRun]:
         """Run an agent to completion and return its answer.
 
@@ -2631,6 +2659,7 @@ class AgentRunnerService:
             user_prompt=assembled,
             message_history=message_history,
             deferred_tool_results=None,
+            stream=stream,
         )
         if outbound is not None:
             outbound.extend(prepared.outbound)
@@ -2927,6 +2956,38 @@ class AgentRunnerService:
             )
         return agent, AgentSpec.model_validate(version.spec)
 
+    @staticmethod
+    async def _answer(
+        prepared: PreparedRun,
+        *,
+        user_prompt: str | list[Any] | None,
+        message_history: list[Any] | None,
+        deferred_tool_results: DeferredToolResults | None,
+        stream: RunStream | None,
+    ) -> AgentRunResult[Any]:
+        """One turn, streamed if the surface can show one arriving.
+
+        Both halves settle through the same `_run` around this call - the same
+        usage, the same budget stop, the same transcript row - so a channel that
+        watches an answer being written is metered identically to an HTTP caller
+        that waits for it. The alternative was a second copy of the settle path,
+        which is how the streaming chat came to bill nothing for a year
+        (agenticos#16).
+
+        `deferred_tool_results` wins over `stream`: `iterate()` cannot carry
+        them, and a resumed run is a run somebody already waited for. It resumes
+        the way it always has, and the surface gets its answer at the end.
+        """
+        if stream is None or deferred_tool_results is not None:
+            return await prepared.execute(
+                user_prompt,
+                message_history=message_history,
+                deferred_tool_results=deferred_tool_results,
+            )
+        async with prepared.iterate(user_prompt, message_history=message_history) as agent_run:
+            await stream(agent_run)
+        return _outcome(agent_run)
+
     async def _run(
         self,
         prepared: PreparedRun,
@@ -2934,6 +2995,7 @@ class AgentRunnerService:
         user_prompt: str | list[Any] | None,
         message_history: list[Any] | None,
         deferred_tool_results: DeferredToolResults | None,
+        stream: RunStream | None = None,
     ) -> RunSegment:
         """Execute the agent and account for it, however it ends.
 
@@ -2971,10 +3033,12 @@ class AgentRunnerService:
         called: list[RecordedToolCall] = []
         settled: dict[str, str] = {}
         try:
-            result = await prepared.execute(
-                user_prompt,
+            result = await self._answer(
+                prepared,
+                user_prompt=user_prompt,
                 message_history=message_history,
                 deferred_tool_results=deferred_tool_results,
+                stream=stream,
             )
             # `new_messages`, not `all_messages`: a resumed run is handed
             # everything up to the park as history, and the wider list would

@@ -139,6 +139,45 @@ class ChannelAdapter(ABC):
     async def send_message(self, bot_token: str, msg: OutgoingMessage) -> None:
         """Send a reply back to the platform."""
 
+    async def begin_reply(self, bot_token: str, msg: OutgoingMessage) -> str | None:
+        """Post a message that will be rewritten as the answer arrives.
+
+        Returns a handle to pass back to :meth:`update_reply`, or `None` when
+        this platform cannot edit what it has sent. `None` is not a failure: the
+        caller falls back to posting one finished message, which is what every
+        adapter did before this existed.
+
+        Not abstract for that reason - an adapter that cannot stream should not
+        have to say so in a stub, and a new one is correct on the day it is
+        written.
+        """
+        return None
+
+    async def update_reply(self, bot_token: str, msg: OutgoingMessage, handle: str) -> None:
+        """Rewrite the message `handle` names.
+
+        Only ever called with a handle this adapter returned, so an adapter that
+        cannot stream never reaches it.
+        """
+        raise NotImplementedError(f"{self.platform} cannot edit a message it has sent")
+
+    async def typing(self, bot_id: str, msg: OutgoingMessage) -> None:  # noqa: B027
+        """Show that the bot is composing, if the platform has such a thing.
+
+        Keyed on the bot rather than the token because the platforms that offer
+        this offer it over a connection the adapter already holds. Silent by
+        default and never fatal: a missing typing indicator is a smaller problem
+        than the answer it precedes.
+
+        Not abstract, and deliberately a no-op rather than a raise: every caller
+        would otherwise have to ask whether the platform has one, and the answer
+        "it does not" is the same as "nothing happened".
+
+        The `noqa` is that decision: B027 wants an empty method on an abstract
+        base to be abstract, and making it so would force every adapter to write
+        the same stub for a feature only some platforms have.
+        """
+
     async def download_attachment(self, bot_token: str, attachment: IncomingAttachment) -> bytes:
         """Fetch what somebody sent, using this platform's own second request.
 

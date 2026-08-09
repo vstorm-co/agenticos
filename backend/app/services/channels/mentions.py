@@ -48,7 +48,7 @@ from app.db.models.agent_run import RunSurface
 from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
 from app.repositories import agent_exposure_repo, agent_repo, member_repo
-from app.services.agent_runner import AgentRunnerService
+from app.services.agent_runner import AgentRunnerService, RunStream
 from app.services.channels.base import OutgoingAttachment
 from app.services.channels.chart_png import render_chart_png
 from app.services.transcript import RecordedToolCall
@@ -224,6 +224,7 @@ class ChannelAgentRouter:
         usage_reporting: dict[str, Any] | None = None,
         turn: int = 0,
         attachments: list[ChatFile] | None = None,
+        stream: RunStream | None = None,
     ) -> AnsweredTurn:
         """Run the agent named in `text` and return what it said.
 
@@ -294,6 +295,7 @@ class ChannelAgentRouter:
             outbound=produced,
             outbound_refused=refused,
             tool_calls=called,
+            stream=stream,
             surface=_SURFACES.get(platform, RunSurface.API),
             conversation_id=conversation_id,
             channel_key=(None if platform_chat_id is None else self._channel_key(platform_chat_id)),
@@ -326,6 +328,7 @@ class ChannelAgentRouter:
         turn: int = 0,
         attachments: list[ChatFile] | None = None,
         message_history: list[Any] | None = None,
+        stream: RunStream | None = None,
     ) -> AnsweredTurn:
         """Run the only agent this bot serves and return what it said.
 
@@ -372,6 +375,7 @@ class ChannelAgentRouter:
             outbound=produced,
             outbound_refused=refused,
             tool_calls=called,
+            stream=stream,
             surface=_SURFACES.get(platform, RunSurface.API),
             conversation_id=conversation_id,
             channel_key=(None if platform_chat_id is None else self._channel_key(platform_chat_id)),

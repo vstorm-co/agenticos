@@ -47,6 +47,36 @@ class TelegramAdapter(ChannelAdapter):
     def __init__(self) -> None:
         self._polling_tasks: dict[str, asyncio.Task[None]] = {}
 
+    async def begin_reply(self, bot_token: str, msg: OutgoingMessage) -> str | None:
+        """Send the message that will become the answer, and return its id."""
+        bot = Bot(token=bot_token)
+        try:
+            sent = await bot.send_message(
+                chat_id=msg.platform_chat_id,
+                text=msg.text,
+                reply_to_message_id=int(msg.reply_to_message_id)
+                if msg.reply_to_message_id
+                else None,
+            )
+        finally:
+            await bot.session.close()
+        return str(sent.message_id)
+
+    async def update_reply(self, bot_token: str, msg: OutgoingMessage, handle: str) -> None:
+        """Rewrite a message already in the chat.
+
+        No parse mode: half-written Markdown is the normal state of a message
+        being streamed, and Telegram rejects an unclosed `**` with a 400. The
+        final send formats it, once the text is whole.
+        """
+        bot = Bot(token=bot_token)
+        try:
+            await bot.edit_message_text(
+                chat_id=msg.platform_chat_id, message_id=int(handle), text=msg.text
+            )
+        finally:
+            await bot.session.close()
+
     async def send_message(self, bot_token: str, msg: OutgoingMessage) -> None:
         """Send a reply back to Telegram.
 

@@ -1,6 +1,7 @@
 """Channel message router - processes incoming messages end-to-end."""
 
 import asyncio
+import contextlib
 import json
 import logging
 import re
@@ -20,6 +21,7 @@ from app.services.channel_link import ChannelLinkService
 from app.services.channels import get_adapter
 from app.services.channels.attachments import ChannelAttachmentService
 from app.services.channels.base import IncomingMessage, OutgoingAttachment, OutgoingMessage
+from app.services.channels.live_reply import WORKING, LiveReply, channel_stream
 from app.services.channels.mentions import ChannelAgentRouter, UnaddressedMessage
 
 logger = logging.getLogger(__name__)
@@ -151,6 +153,7 @@ class ChannelMessageRouter:
         # runner, which is also what records the tool calls, the model and the
         # version this bot's own write dropped.
         history = await self._load_history(db, session.conversation_id)
+        live, handle = await self._open_reply(bot, incoming)
         try:
             answered = await ChannelAgentRouter(db).answer_default(
                 incoming.text,
@@ -168,6 +171,7 @@ class ChannelMessageRouter:
                 turn=session.turn_count,
                 attachments=files,
                 message_history=build_message_history(history),
+                stream=None if live is None else channel_stream(live),
             )
         except AppException as exc:
             # A refusal - no agent exposed, several to choose from, an unlinked
@@ -184,10 +188,45 @@ class ChannelMessageRouter:
         # for Slack - so they belong to the delivery and not to the transcript,
         # which holds what the agent actually said.
         answer = self._with_notes(answered.text, file_refusals, _kept_back(answered.refused))
+        await self._deliver(bot, incoming, answer, answered, handle)
+
+    async def _deliver(
+        self,
+        bot: Any,
+        incoming: IncomingMessage,
+        answer: str,
+        answered: Any,
+        handle: str | None,
+    ) -> None:
+        """Finish the turn in the message the person has been watching.
+
+        A live reply is already on screen, so the answer replaces it rather than
+        arriving underneath it - two messages saying the same thing is worse than
+        the silence this replaced. A chart or a produced file still needs a
+        second post: no platform lets a message gain an attachment by being
+        edited.
+        """
+        text = answer or "That needs approval before it can run - check the approvals queue."
+        if handle is not None:
+            adapter = get_adapter(incoming.platform)
+            with contextlib.suppress(Exception):
+                await adapter.update_reply(
+                    unseal_bot_token(bot),
+                    OutgoingMessage(
+                        platform_chat_id=incoming.platform_chat_id,
+                        text=text,
+                        api_base_url=getattr(bot, "api_base_url", None),
+                    ),
+                    handle,
+                )
+                if answered.image_png is None and not answered.attachments:
+                    return
+            text = ""
+
         await self._send_reply(
             bot,
             incoming,
-            answer or "That needs approval before it can run - check the approvals queue.",
+            text,
             answered.attachments,
             image_png=answered.image_png,
         )
@@ -208,6 +247,7 @@ class ChannelMessageRouter:
         a question that was not asked.
         """
         files, file_refusals = await self._receive_files(db, bot, incoming, identity)
+        live, handle = await self._open_reply(bot, incoming)
         try:
             answered = await ChannelAgentRouter(db).answer(
                 incoming.text,
@@ -220,6 +260,7 @@ class ChannelMessageRouter:
                 usage_reporting=bot.usage_reporting,
                 turn=session.turn_count,
                 attachments=files,
+                stream=None if live is None else channel_stream(live),
             )
         except UnaddressedMessage:
             return False
@@ -228,13 +269,7 @@ class ChannelMessageRouter:
             return True
 
         answer = self._with_notes(answered.text, file_refusals, _kept_back(answered.refused))
-        await self._send_reply(
-            bot,
-            incoming,
-            answer or "That needs approval before it can run - check the approvals queue.",
-            answered.attachments,
-            image_png=answered.image_png,
-        )
+        await self._deliver(bot, incoming, answer, answered, handle)
         return True
 
     async def _receive_files(
@@ -492,6 +527,53 @@ class ChannelMessageRouter:
                 _rate_buckets[key] = (1, now)
         else:
             _rate_buckets[key] = (1, now)
+
+    async def _open_reply(
+        self, bot: Any, incoming: IncomingMessage
+    ) -> tuple[LiveReply | None, str | None]:
+        """Put a message on screen now, and return how to keep writing it.
+
+        This is the difference between a bot that is thinking and a bot that has
+        crashed, and from the outside those looked identical: a channel bot
+        posted one finished message and nothing before it, so a question that
+        took twelve seconds and three tool calls bought twelve seconds of
+        silence.
+
+        `(None, None)` when the platform cannot edit what it has sent, or when
+        posting the placeholder failed. Both mean the same thing to the caller -
+        answer the way we always did - which is why a failure here is logged and
+        swallowed rather than costing somebody their answer.
+        """
+        adapter = get_adapter(incoming.platform)
+        token = unseal_bot_token(bot)
+        placeholder = OutgoingMessage(
+            platform_chat_id=incoming.platform_chat_id,
+            text=WORKING,
+            reply_to_message_id=incoming.message_id,
+            api_base_url=getattr(bot, "api_base_url", None),
+        )
+        try:
+            handle = await adapter.begin_reply(token, placeholder)
+        except Exception:
+            logger.warning("Could not open a live reply on %s", incoming.platform, exc_info=True)
+            return None, None
+        if handle is None:
+            return None, None
+
+        await adapter.typing(str(bot.id), placeholder)
+
+        async def push(text: str) -> None:
+            await adapter.update_reply(
+                token,
+                OutgoingMessage(
+                    platform_chat_id=incoming.platform_chat_id,
+                    text=text,
+                    api_base_url=getattr(bot, "api_base_url", None),
+                ),
+                handle,
+            )
+
+        return LiveReply(push), handle
 
     async def _send_reply(
         self,

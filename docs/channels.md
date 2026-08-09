@@ -277,6 +277,13 @@ it is about to wait.
     it claims that chat account. In a channel the bot says to message it
     directly instead, and mints nothing. A link lasts fifteen minutes, is good
     once, and asking again retires the one before it.
+- **A reply you can watch being written.** The bot posts a message the moment
+  your question arrives and rewrites it as the answer appears — including what
+  it is doing meanwhile ("Searching the web…", "Drawing a chart…"), which is
+  when the silence used to be longest, because a tool call produces no text
+  while it runs. Edited about once a second: per token would be hundreds of
+  writes a second against a server that is often somebody's own. A platform that
+  cannot edit a sent message simply gets the finished answer, as before.
 - **Rate limits** per chat.
 - **Spending limits** per binding, on top of the agent's own and the
   organization's.
