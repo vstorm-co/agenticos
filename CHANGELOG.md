@@ -17,6 +17,35 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.86] - 2026-08-09
+
+A file dragged into the chat lands wherever it is dropped.
+
+### Changed
+
+- **The whole page is the drop target.** Attaching a file by dragging it meant
+  hitting the composer - a strip a few centimetres tall at the bottom of the
+  window - and missing it was not a no-op: the browser's default for a dropped
+  file is to *open* it, so a drop anywhere else navigated the tab away from the
+  conversation and whatever was half-typed in it. The same `preventDefault` that
+  lets the page take the file is what stops the browser taking it, so listening
+  on the window fixes both halves at once. While a file is over the page an
+  overlay covers it: the ground blurred, a dashed card in the middle, and the
+  per-file size limit written on it, because a 60MB video refused *after* the
+  drag is a round trip nobody needed to make.
+
+  A drag carrying anything other than files - selected text, a link, one of the
+  app's own draggable rows - is left entirely alone, not even prevented. Nothing
+  is accepted while the composer is disabled (an archived conversation, a run
+  waiting on an approval), and the overlay not appearing is what says so.
+
+### Fixed
+
+- **The DataTransfer type name was in the message catalog.** The check for "this
+  drag carries files" compared against a translated key, so the DOM's own
+  constant `Files` sat in `en.json` as copy - and translating it would have
+  stopped drag-and-drop working with nothing on screen to say why.
+
 ## [0.0.85] - 2026-08-09
 
 Approving a tool call, and everything that was missing on the other side of it.
