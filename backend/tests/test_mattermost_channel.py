@@ -12,6 +12,7 @@ expensively rather than visibly:
 
 import json
 
+import httpx
 import pytest
 
 from app.services.channels.base import OutgoingMessage
@@ -163,3 +164,41 @@ class TestSending:
             await MattermostAdapter().send_message(
                 "token", OutgoingMessage(platform_chat_id="c1", text="hi")
             )
+
+    @pytest.mark.anyio
+    async def test_a_server_url_with_a_trailing_slash_still_posts_to_one_slash(self, monkeypatch):
+        """Operators type `https://mattermost.acme.com/` about half the time.
+
+        `{base}/api/v4/posts` then carries two slashes, Mattermost answers 301 to
+        the single-slash form, and httpx does not follow a redirect on a POST -
+        so the reply is lost with an `HTTPStatusError` in the log rather than an
+        answer in the thread. Found against a real server on the first message it
+        ever received.
+        """
+        posted: dict[str, str] = {}
+
+        class _Response:
+            def raise_for_status(self) -> None:
+                return None
+
+        class _Client:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_exc: object) -> None:
+                return None
+
+            async def post(self, url: str, **_kwargs: object) -> _Response:
+                posted["url"] = url
+                return _Response()
+
+        monkeypatch.setattr(httpx, "AsyncClient", lambda **_kwargs: _Client())
+
+        await MattermostAdapter().send_message(
+            "token",
+            OutgoingMessage(
+                platform_chat_id="c1", text="hi", api_base_url="https://mattermost.acme.com/"
+            ),
+        )
+
+        assert posted["url"] == "https://mattermost.acme.com/api/v4/posts"

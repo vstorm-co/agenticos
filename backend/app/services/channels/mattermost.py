@@ -100,9 +100,17 @@ class MattermostAdapter(ChannelAdapter):
         form is a thread, folded the same way Slack's is so one conversation per
         thread falls out of the router without it knowing about threads.
         """
-        base_url = msg.api_base_url
-        if not base_url:
+        if not msg.api_base_url:
             raise ValueError("Mattermost bot has no server URL. Set it on the bot before sending.")
+        # Trailing slash stripped here rather than trusted from the row: an
+        # operator types `https://mattermost.acme.com/` roughly half the time,
+        # and `{base}/api/v4/posts` then has two slashes in it. Mattermost
+        # answers a 301 to the single-slash form, httpx does not follow a
+        # redirect on a POST by default, and the reply is lost with a
+        # `HTTPStatusError` in the log rather than an answer in the thread.
+        # `remember_server` has always stripped it, so the socket path was fine
+        # and only replies failed - which is the confusing half of the bug.
+        base_url = msg.api_base_url.rstrip("/")
 
         channel_id, _, root_id = msg.platform_chat_id.partition(":")
         headers = {"Authorization": f"Bearer {bot_token}"}
