@@ -140,7 +140,6 @@ from app.services.approvals import ApprovalService
 from app.services.attachments import AttachmentRouter
 from app.services.channels.attachments import files_written, workspace_snapshot
 from app.services.channels.base import OutgoingAttachment
-from app.services.channels.formatting import house_style
 from app.services.mcp_connection import build_toolsets_for_agent
 from app.services.model_profile import ModelProfileService
 from app.services.notifications import NotificationService
@@ -987,26 +986,20 @@ run is metered exactly like one that was waited for.
 
 
 def _with_exposure_prompt(spec: AgentSpec, exposure: AgentExposure | None) -> AgentSpec:
-    """The spec as the surface it is going out on needs it.
+    """The spec as this binding wants it, if the binding says anything.
 
-    Two things are appended, in this order: what the platform actually renders,
-    which the platform knows and nobody should have to type, and then whatever
-    the binding itself was given.
+    A binding is created holding the platform's own style - what that client
+    renders, how a link is written there - as its starting text, so what the
+    agent will be told is what somebody editing it can see, change and delete.
+    From here it is simply the binding's text.
 
-    The house style comes first so a binding's own prompt can qualify it - "no
-    emoji on this channel" reads as an exception to a rule stated above it, and
-    an instruction that contradicts one it never saw is just two instructions.
-
-    **Both are appended, never substituted.** A surface shapes how an answer is
+    **Appended, never substituted.** A surface shapes how an answer is
     delivered; what the agent is *for* belongs to the version somebody published,
     and a binding that could replace it would be a way to repurpose an approved
     agent without approving anything. The copy is local to this run -
     `model_copy` leaves the stored spec alone.
     """
-    if exposure is None:
-        return spec
-    additions = [house_style(exposure.surface), (exposure.prompt or "").strip()]
-    added = "\n\n".join(part for part in additions if part)
+    added = "" if exposure is None else (exposure.prompt or "").strip()
     if not added:
         return spec
     return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{added}"})

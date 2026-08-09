@@ -477,41 +477,11 @@ class TestAPromptThatBelongsToOnePlace:
 
         assert _with_exposure_prompt(spec, None) is spec
 
-    def test_a_surface_with_nothing_to_say_about_itself_adds_nothing(self):
-        """The dashboard, the API and an embedded widget render what the Builder
-        previews, which is what the agent was written against."""
+    def test_a_binding_with_nothing_in_it_leaves_the_spec_alone(self):
         spec = self._spec()
 
         assert _with_exposure_prompt(spec, SimpleNamespace(surface="web", prompt=None)) is spec
-
-    def test_a_channel_is_told_what_that_client_renders(self):
-        """An agent writes for a screen it cannot see. Left to guess, a model
-        writes GitHub Markdown everywhere - and Slack draws the asterisks."""
-        result = _with_exposure_prompt(self._spec(), SimpleNamespace(surface="slack", prompt=None))
-
-        assert "does **not** render Markdown" in result.instructions
-        assert "<https://example.com|what it is>" in result.instructions
-
-    def test_each_platform_is_told_its_own_syntax(self):
-        for surface, expected in (
-            ("mattermost", "~channel-name"),
-            ("telegram", "Telegram splits a long message"),
-        ):
-            result = _with_exposure_prompt(
-                self._spec(), SimpleNamespace(surface=surface, prompt=None)
-            )
-            assert expected in result.instructions
-
-    def test_the_binding_speaks_after_the_house_style(self):
-        """So "no emoji on this channel" reads as an exception to a rule stated
-        above it, rather than as two instructions that disagree."""
-        result = _with_exposure_prompt(
-            self._spec(), SimpleNamespace(surface="slack", prompt="No emoji here.")
-        )
-
-        assert result.instructions.index(
-            "does **not** render Markdown"
-        ) < result.instructions.index("No emoji here.")
+        assert _with_exposure_prompt(spec, SimpleNamespace(surface="web", prompt="  ")) is spec
 
     def test_the_binding_is_added_to_the_instructions(self):
         result = _with_exposure_prompt(
@@ -541,3 +511,51 @@ class TestAPromptThatBelongsToOnePlace:
         _with_exposure_prompt(spec, SimpleNamespace(surface="web", prompt="Be terse."))
 
         assert "Be terse." not in spec.instructions
+
+
+class TestWhatANewBindingStartsWith:
+    """The platform's own style, as text somebody can see and change.
+
+    An agent writes for a screen it cannot see: Slack renders no Markdown and
+    writes a link as `<url|text>`, Mattermost renders headings and tables,
+    Telegram rejects an unclosed `*`. Applying that invisibly at run time worked
+    and was untrustworthy - you cannot add to, qualify or delete something you
+    were never shown.
+    """
+
+    async def _created(self, platform: str) -> dict:
+        service = _service()
+        bot = _bot()
+        bot.platform = platform
+        with (
+            patch("app.services.agent_exposure.channel_bot_repo") as bots,
+            patch("app.services.agent_exposure.agent_exposure_repo") as exposures,
+            patch("app.services.agent_exposure.record_audit", new=AsyncMock()),
+        ):
+            bots.get_for_org = AsyncMock(return_value=bot)
+            exposures.get_for_bot = AsyncMock(return_value=None)
+            exposures.create = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
+
+            await service.create(_ctx(), uuid.uuid4(), ExposureCreate(channel_bot_id=bot.id))
+
+        return exposures.create.call_args.kwargs
+
+    async def test_a_mattermost_binding_opens_with_mattermost_s_own_style(self):
+        assert "~channel-name" in (await self._created("mattermost"))["prompt"]
+
+    async def test_a_slack_binding_is_told_slack_writes_links_differently(self):
+        assert "<https://example.com|what it is>" in (await self._created("slack"))["prompt"]
+
+    async def test_it_is_the_row_s_own_text_from_then_on(self):
+        """Editable and deletable, unlike something applied at run time - which
+        is the whole reason it is a column rather than a rule."""
+        created = await self._created("telegram")
+
+        assert created["prompt"]
+        assert (
+            _with_exposure_prompt(
+                AgentSpec(name="S", instructions="x"),
+                SimpleNamespace(surface="telegram", prompt=None),
+            ).instructions
+            == "x"
+        )

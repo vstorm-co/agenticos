@@ -124,6 +124,7 @@ async def create(
     created_by_user_id: UUID | None,
     environment_id: UUID | None = None,
     session_scope: str | None = None,
+    prompt: str | None = None,
 ) -> AgentExposure:
     exposure = AgentExposure(
         organization_id=organization_id,
@@ -133,6 +134,7 @@ async def create(
         created_by_user_id=created_by_user_id,
         environment_id=environment_id,
         session_scope=session_scope,
+        prompt=prompt,
     )
     db.add(exposure)
     await db.flush()
