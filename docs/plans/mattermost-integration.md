@@ -98,7 +98,30 @@ loses it, and its failures are unobserved.
 The surface a run is stamped with does not distinguish a channel from an API
 call, so channel traffic is invisible on the dashboard as channel traffic.
 
-## The two decisions
+## The two decisions — settled 2026-08-09
+
+**Both answered before any code was written, which is what S0 was for.** The
+reasoning is kept below rather than replaced by the answer, because the next
+person to widen `api_base_url` validation needs to know what was weighed.
+
+1. **`api_base_url` is validated on scheme and shape only** — option (1). Reject
+   userinfo, anything that is not `http`/`https`, and anything malformed; private
+   and loopback addresses pass. `validate_webhook_url` is **not** used on this
+   field, and the validator says why in its docstring so nobody "fixes" it back.
+2. **`webhook_secret` is sealed first** (S1), in its own commit, before any field
+   that writes one exists.
+
+Two more, decided at the same time and recorded here because they change the
+shape of the branch rather than of one step:
+
+3. **This is one branch and one pull request**, covering S1–S9 plus #10, #157,
+   #205, #167 and #152. Each step is a commit that stands on its own, so the
+   branch can still be cut in half if it outgrows a single review.
+4. **Testing is against a real Mattermost server the author already runs.**
+   Nothing is added to `docker-compose.dev.yml`; what `docs/channels.md` owes
+   instead is an exact account of which token comes from where and what is pasted
+   where. Automated verification is the unit and API layers — the integration and
+   Playwright layers are deliberately not extended here.
 
 ### SSRF validation refuses the documented case
 
@@ -126,11 +149,13 @@ SSRF primitive if a member with `channels` rights is not trusted. Options:
 3. `validate_webhook_url` **as written** — refuses the documented deployment. Not
    viable without changing the documentation to say so.
 
-**Leaning to (1)**, with the reason written into the validator's docstring, and
-the refusal tested. `api_base_url` is not a callback we were handed by a stranger;
-it is infrastructure an operator with `channels` rights typed about their own
+**Chosen: (1)**, with the reason written into the validator's docstring, and the
+refusal tested. `api_base_url` is not a callback we were handed by a stranger; it
+is infrastructure an operator with `channels` rights typed about their own
 company. The SSRF surface is the same one they already have by registering an MCP
-server. Decide before writing the schema — this shapes it.
+server. The cost is stated plainly: a member who may manage channel bots can
+point one at an internal address, and the bot token goes with it. That is a
+consequence of the permission, not of this field.
 
 ### Where the sealing of `webhook_secret` belongs
 
@@ -140,15 +165,19 @@ build on a sealed column, or add the field now and seal both in one migration
 afterwards. Doing it second means one migration re-sealing rows written in the
 meantime; doing it first means #24 lands on a moving column.
 
-**Leaning to sealing first**, in its own commit, because the field being added is
+**Chosen: sealing first**, in its own commit, because the field being added is
 precisely a credential and adding a plaintext write path we intend to remove is
 work done twice.
 
 ## Order
 
-Each step is its own commit, verified by its own tests.
+Each step is its own commit, verified by its own tests. Two phases: the first
+makes Mattermost configurable at all, the second closes the gaps that every
+channel shares and that "all the features" means.
 
-- [ ] **S0** — decide the two questions above, record the answers here
+### Phase 1 — Mattermost becomes usable
+
+- [x] **S0** — decide the two questions above, record the answers here
 - [ ] **S1** — seal `webhook_secret` (#22): `webhook_secret_encrypted`, unsealed
       in the two webhook routes, one migration re-sealing existing rows. Never in
       a response schema.
@@ -170,23 +199,51 @@ Each step is its own commit, verified by its own tests.
 - [ ] **S7** — the webhook route hands its work to `spawn_after_commit` rather
       than `asyncio.create_task` (#26), with the Telegram and Slack routes
 - [ ] **S8** — stamp a channel run with its channel surface (#208)
-- [ ] **S9** — `docs/channels.md` matches what was built, including whichever
-      SSRF answer S0 chose
+- [ ] **S9** — `docs/channels.md` matches what was built: the SSRF answer S0
+      chose, and an exact account of which token comes from where and what is
+      pasted where, because that is what manual verification runs off
 
-Out of scope here, filed and left alone: `/link` minting a code (#10), dedupe on
-`message_id` (#167), messages recorded for a channel run (#205), approvals
-answering in the thread (#152).
+### Phase 2 — the gaps every channel shares
+
+Each one is Mattermost-visible and none is Mattermost-only: Slack and Telegram
+get the same fix, and each needs its own tests on all three.
+
+- [ ] **S10** — `/link` mints a code (#10). Nothing writes `link_code`; it is only
+      read (`repositories/channel_identity.py:32`) and cleared (`:90`), so
+      `/link <code>` cannot succeed and `@slug` refuses every sender
+      (`services/channels/mentions.py:80`). **Taken first in this phase**, because
+      until it lands half of what manual testing tries comes back as *"Link your
+      account first"* and reads like a broken Mattermost
+- [ ] **S11** — dedupe on `message_id` (#167). A retried delivery is a second run
+      with a second bill. Mattermost retries a slow webhook and our route answers
+      200 before doing the work, so this surfaces here sooner than elsewhere
+- [ ] **S12** — a channel run records its messages (#205). Today it has a cost and
+      no content, so Activity cannot show what the bot actually said
+- [ ] **S13** — charts on a channel (#157). Three docstrings promise a PNG that
+      nothing renders. The Mattermost adapter already uploads `image_png`
+      correctly; what is missing is whatever was meant to produce it
+- [ ] **S14** — a tool approval answers in the thread (#152). Today the bot says
+      *"check the approvals queue"* and the thread never hears back. The largest
+      of the five and the last, because it builds on S12's message recording
 
 ## What "done" means
 
-A Mattermost bot registered with a server URL and a webhook secret answers a
-signed outgoing-webhook call end to end, and the same bot in event-stream mode
-answers a `posted` event, both proven by a test rather than by a screenshot.
+Phase 1: a Mattermost bot registered with a server URL and a webhook secret
+answers a signed outgoing-webhook call end to end, and the same bot in
+event-stream mode answers a `posted` event.
 
-`#10` is not a blocker for either: a bot in `open` access mode answers an
-unlinked sender. It **is** a blocker for `@slug` mentions, which refuse an
-unlinked identity (`services/channels/mentions.py:80`) — so test the plain path,
-and expect *"Link your account first"* on the mention path until #10 lands.
+Phase 2: `/link` completes from a Mattermost DM, `@slug` runs as the person who
+typed it, a retried webhook produces one run rather than two, that run has its
+messages in Activity, a chart arrives as an image, and an approval is answered in
+the thread that asked for it.
+
+Proven by tests at the unit and API layers, and by the author against a real
+Mattermost server. Neither `tests/integration/` nor the Playwright suite is
+extended for this — deliberately, and said out loud so a later reader does not
+mistake the gap for an oversight. What that leaves unproven is anything only a
+real server shows: whether Mattermost's actual `posted` frame matches the shape
+`_from_socket` expects, and whether the outgoing-webhook body arrives in the
+encoding we assume. Those are exactly what the manual pass is for.
 
 The ordering warning in #41 and #24 — *"fix #2 first, or this turns a dead
 feature into a live outage"* — is **stale**. Both supervisors now sleep
