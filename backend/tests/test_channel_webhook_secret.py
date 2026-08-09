@@ -10,6 +10,7 @@ a plaintext column beside three sealed ones.
 proved the sealing, and none proved the refusals it protects.
 """
 
+import asyncio
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -17,6 +18,7 @@ import pytest
 from httpx import AsyncClient
 
 from app.api import deps
+from app.core import background
 from app.core.exceptions import BadRequestError
 from app.core.vault import VaultScope, seal, unseal
 from app.db.models.channel_bot import ChannelBot
@@ -264,6 +266,48 @@ class TestTheReceiversRefuse:
             client, f"/api/v1/mattermost/{bot.id}/webhook", bot, json={"text": "hello"}
         )
         assert status == 403
+
+    async def test_an_authenticated_call_is_work_a_shutdown_waits_for(self, client: AsyncClient):
+        """The route answers 200 and does the work afterwards, which is only
+        safe if something is holding the work.
+
+        A bare `asyncio.create_task` held it in a module-level set that
+        `background.drain()` does not know about, so a shutdown mid-message
+        dropped an answer somebody was waiting for and logged nothing. The
+        consequence asserted here is the one that matters: `drain` waits.
+        """
+        secret = "the-real-secret"
+        bot = _sealed_bot(secret)
+        processed: list[str] = []
+        # Held open so the work is genuinely in flight when `drain` is called -
+        # otherwise it finishes on its own and the test proves nothing about
+        # whether anything was waiting for it.
+        gate = asyncio.Event()
+
+        async def _record(incoming) -> None:
+            await gate.wait()
+            processed.append(incoming.text)
+
+        with patch("app.api.routes.v1.mattermost_webhook.process_channel_event", new=_record):
+            status = await self._post(
+                client,
+                f"/api/v1/mattermost/{bot.id}/webhook",
+                bot,
+                json={
+                    "token": secret,
+                    "text": "hello",
+                    "user_id": "u-1",
+                    "user_name": "kacper",
+                    "channel_id": "c-1",
+                    "post_id": "p-1",
+                },
+            )
+            assert status == 200
+            assert processed == [], "the answer must not wait for the work"
+            gate.set()
+            await background.drain(timeout=5.0)
+
+        assert processed == ["hello"], "a shutdown dropped work that was in flight"
 
     async def test_an_unknown_bot_answers_200_without_running_anything(self, client: AsyncClient):
         """Not 404: an unknown or disabled bot is not something the sender can

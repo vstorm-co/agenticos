@@ -9,13 +9,13 @@ and a retried message is a second answer to a question that was only asked
 once.
 """
 
-import asyncio
 import logging
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request, Response
 
 from app.api.deps import ChannelBotSvc
+from app.core.background import spawn
 from app.services.channel_bot import unseal_webhook_secret
 from app.services.channels import get_adapter
 from app.services.channels.mattermost import decode_webhook_body
@@ -24,8 +24,6 @@ from app.worker.background.channel import process_channel_event
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-_background_tasks: set[asyncio.Task[None]] = set()
 
 
 @router.post("/{bot_id}/webhook", status_code=200, response_model=None)
@@ -56,7 +54,5 @@ async def mattermost_webhook(
     if incoming is None:
         return Response(status_code=200)
 
-    task = asyncio.create_task(process_channel_event(incoming))
-    _background_tasks.add(task)
-    task.add_done_callback(_background_tasks.discard)
+    spawn(process_channel_event(incoming), name=f"mattermost_event:{bot_id}")
     return Response(status_code=200)
