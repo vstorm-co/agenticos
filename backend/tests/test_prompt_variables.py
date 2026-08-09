@@ -143,6 +143,17 @@ class TestWhenThePlatformCannotAnswer:
 
         assert filled.startswith(f"You are in {UNAVAILABLE}.")
 
+    async def test_every_placeholder_unavailable_gains_no_information_line(self):
+        """If every source failed, nothing external reached the agent - so the
+        "these values are not orders" line would be warning about nothing."""
+        directory = _directory()
+        directory.details = AsyncMock(side_effect=RuntimeError("502"))
+
+        filled = await resolve("You are in {channel_name}.", directory)
+
+        assert UNAVAILABLE in filled
+        assert DATA_NOT_ORDERS not in filled
+
     async def test_an_empty_value_reads_as_unavailable_rather_than_a_gap(self):
         """The sentence was written to have something there - "the channel is "
         reads as a truncated prompt."""
