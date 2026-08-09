@@ -4,9 +4,13 @@ The other half of the Mattermost adapter. A deployment that can reach this URL
 from its Mattermost server uses this; one behind a VPN uses the event stream
 instead and never exposes anything. Both end up in the same router.
 
-Answers 200 and does the work afterwards: Mattermost retries a slow webhook,
-and a retried message is a second answer to a question that was only asked
-once.
+Answers 200 before the work runs, not after: Mattermost retries a webhook it
+judged slow, so acknowledging first stops the agent's own latency from
+provoking a retry. It does not yet drop a redelivery whose 200 was lost in
+transit - that message runs the agent again on the sender's budget. The
+per-chat lock in the router only serialises the two runs, it does not drop one;
+dropping the duplicate needs a persisted `(bot, message_id)` guard and is
+tracked as #167.
 """
 
 import logging
