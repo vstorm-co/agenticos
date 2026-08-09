@@ -17,6 +17,68 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.84] - 2026-08-09
+
+The chat surface, seven issues deep — plus the two things a conversation could
+not previously say about itself: what order a turn happened in, and what it is
+waiting for.
+
+### Added
+
+- **A turn's order is recorded rather than reconstructed.** `messages.parts`
+  (migration `0012`) stores the sequence as it was streamed — reasoning, the text
+  the model wrote, and the tools it called, interleaved as they occurred. A row
+  used to say *what* a turn contained and never *when*, so a client replaying one
+  had to invent an order, and the only one it could invent was reasoning, then
+  every tool, then the answer. A turn that introduced three charts, drew them and
+  summarised them lost its introduction on save and showed the summary above the
+  work it described. Null on a turn of one part and on anything written before
+  this, which is a client's signal to fall back rather than render nothing.
+- **Search, sort and an agent filter on the conversation sidebar**, served by the
+  route rather than applied to the thirty threads already fetched. The tab counts
+  are gone rather than moved: they counted what had been fetched, so a deployment
+  holding hundreds read "Active 8 · Archived 2". The collapsed rail carries the
+  recent threads, a search that opens with the cursor in the box, and Archived.
+- **Spreadsheets can be attached and read.** `.xlsx` and `.xlsm` join the allowed
+  types, parsed with `openpyxl` — every sheet named, rows tab-separated — and the
+  extraction is written beside the original in a workspace exactly as a PDF's is.
+  An agent cannot open a workbook: `run_python` has no filesystem and the sandbox
+  has no spreadsheet library, so accepting one without parsing it would have been
+  worse than the refusal it replaces.
+
+### Fixed
+
+- **`create_chart` drew an empty frame.** `data: list[dict[str, Any]]` reaches a
+  model as an array of objects with no declared properties, so the only row the
+  schema promised was valid was `{}` — which is what arrived, beside a full set of
+  series, colours and axis titles. The numbers are columns now: `x_values` and one
+  `values` list per series, with nothing in the signature left unsaid.
+- **Tool calls rendered as raw JSON.** `web_search` and `create_chart` were renamed
+  in the backend and three of four frontend files went on matching the old names.
+  One table now, `lib/tool-catalog.ts`, checked against the capability registry in
+  both directions by a backend test.
+- **One file viewer and one file card**, everywhere. Opening a file meant four
+  different things depending on where it was clicked, and showing one meant three.
+- **The file viewer was served the model's read of a file, not the file.**
+  `StateBackend.read` numbers every line for an agent citing one; the viewer showed
+  those numbers, so Source could not be copied and an HTML preview rendered them as
+  page content.
+- **A parked run can be decided from the conversation it stopped in.** A resume
+  that reaches a second gated call parks again, and nothing said so — the panel
+  closed on a run still waiting, leaving the approvals queue as the only way to
+  finish it. The resume response carries what is still parked, the panel reopens on
+  the same turn, and an approved step stops saying it is waiting for approval.
+- **Every message after the first was dropped on a resumed thread.**
+  `persist_user_turn` called two functions without a required keyword, and the
+  `TypeError` was logged as "failed to persist conversation".
+- Charts open wherever they sit in a turn rather than only as the last step; a
+  chart's x-axis title no longer lands on its legend; a long paste attaches as a
+  file instead of filling the composer; `run_python` folds its code once output
+  arrives; the reasoning block renders Markdown; and the Builder's inline
+  specialists can be discarded without scrolling past six sections to find the
+  control.
+
+
 ## [0.0.83] - 2026-08-08
 
 ### Fixed
