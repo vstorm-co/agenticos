@@ -25,7 +25,7 @@ from uuid import UUID
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.capabilities import TOOL_NAME_PATTERN, CapabilityDef
+from app.agents.capabilities import TOOL_NAME_PATTERN, CapabilityDef, all_capabilities
 from app.agents.capabilities import get as get_capability
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
@@ -247,6 +247,39 @@ class _DelegationStep:
     """The names from the agent being published down to this delegate's caller."""
     ancestors: frozenset[UUID]
     """Which agents are already in that chain - reaching one again is the cycle."""
+
+
+def _without_unselectable(spec: AgentSpec) -> AgentSpec:
+    """The spec with any capability a spec may not bind taken out of it.
+
+    `channel_tools` is chosen per bound bot rather than on the agent, so the
+    Toolbox does not offer it and nothing in the product can add it. What the
+    product *can* do is send it back: a browser holding a draft loaded before
+    the capability moved re-posts the whole spec on the next save, and the
+    binding returns.
+
+    Dropped on write rather than refused at publish, and the difference is a
+    dead end. A refusal names a switch the Builder does not show, so there is no
+    way to act on it - the binding cannot be removed from the only screen that
+    edits capabilities. Stripping it here means a stale tab heals itself the
+    next time anybody saves.
+
+    Not a fallback papering over a bug: the binding does nothing at run time
+    either way, because the run assembles its own from the exposure that
+    admitted it. Logged rather than silent, because a YAML import that named one
+    has lost something it asked for.
+    """
+    # Membership rather than a lookup per binding, because `get_capability`
+    # raises on an id it does not know - and a draft naming a capability that
+    # does not exist has to stay saveable. That one is publish's to refuse;
+    # this function only removes what exists and may not be bound.
+    unselectable = {definition.id for definition in all_capabilities() if not definition.selectable}
+    kept = [binding for binding in spec.capabilities if binding.id not in unselectable]
+    if len(kept) == len(spec.capabilities):
+        return spec
+    dropped = sorted({binding.id for binding in spec.capabilities} & unselectable)
+    logger.info("spec_dropped_unselectable_capabilities", extra={"capabilities": dropped})
+    return spec.model_copy(update={"capabilities": kept})
 
 
 def delegation_binding(spec: AgentSpec) -> CapabilityBindingSpec | None:
@@ -474,6 +507,7 @@ class AgentRegistryService:
         # because a spec imported with an empty prompt means an empty prompt.
         if not spec.instructions.strip():
             spec = spec.model_copy(update={"instructions": DEFAULT_INSTRUCTIONS})
+        spec = _without_unselectable(spec)
 
         slug = slugify(spec.name)
         if await agent_repo.get_by_slug(self.db, slug, organization_id=ctx.organization_id):
@@ -618,6 +652,7 @@ class AgentRegistryService:
         Validation is publish's job.
         """
         agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
+        spec = _without_unselectable(spec)
         return await agent_repo.update(
             self.db,
             agent=agent,
@@ -717,15 +752,6 @@ class AgentRegistryService:
             return [f"Unknown capability: {binding.id}"]
 
         problems: list[str] = []
-        if not definition.selectable:
-            # Refused rather than ignored. A spec that carries `channel_tools`
-            # is one answer to a question that has one per bound bot, and it
-            # would look like it worked: the run's own binding is assembled from
-            # the exposure and would silently replace it.
-            problems.append(
-                f"Capability '{binding.id}' is not chosen on an agent. Choose it "
-                "per bot under 'Where this agent is available'."
-            )
         missing_scopes = definition.scopes - DEFAULT_GRANTED_SCOPES
         if missing_scopes:
             problems.append(
