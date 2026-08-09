@@ -46,11 +46,20 @@ def _approval(
     )
 
 
-def _parked_run(status: str = RunStatus.AWAITING_APPROVAL.value) -> MagicMock:
+def _parked_run(
+    status: str = RunStatus.AWAITING_APPROVAL.value,
+    *,
+    paused_state: dict | None = None,
+) -> MagicMock:
     """A run row as it looks while it waits on a decision."""
     return MagicMock(
         id=uuid.uuid4(),
         status=status,
+        paused_state=(
+            {"messages": [], "tool_call_ids": {str(uuid.uuid4()): "call-1"}}
+            if paused_state is None
+            else paused_state
+        ),
         input_tokens=1200,
         output_tokens=340,
         cost_usd=Decimal("0.0210"),
@@ -89,10 +98,16 @@ class _Sweep:
         self._ctx.start()
         self._audit = patch("app.services.approvals.record_audit", new=AsyncMock())
         self.audit = self._audit.start()
+        # The transcript write is the service's own, so it is stubbed at the same
+        # boundary as the repository rather than left to fail into `record`'s
+        # own exception handler - which is what "passing" would have meant.
+        self._transcript = patch("app.services.approvals.TranscriptService")
+        self.record = self._transcript.start().return_value.record = AsyncMock()
         self.expired = await ApprovalService(_db()).expire_stale()
         return self
 
     async def __aexit__(self, *exc_info: object) -> bool:
+        self._transcript.stop()
         self._audit.stop()
         self._ctx.stop()
         return False
@@ -200,6 +215,31 @@ class TestTheRunBehindIt:
         ended = sweep.finish_run.await_args.kwargs
         assert (ended["input_tokens"], ended["output_tokens"]) == (1200, 340)
         assert (ended["cost_usd"], ended["cost_is_partial"]) == (Decimal("0.0210"), False)
+
+    async def test_the_step_it_parked_on_stops_looking_like_it_is_running(self):
+        """Every other ending runs the call and records what came back. An expiry
+        runs nothing, so the step written when the run parked stayed *open* - and
+        a reader coming back to the conversation saw a command apparently still
+        executing days after the run was cancelled.
+
+        Written before `finish_run`, which clears the state the ids come from."""
+        async with _Sweep([_approval()], run=_parked_run()) as sweep:
+            pass
+
+        written = sweep.record.await_args.kwargs
+        assert list(written["settled"]) == ["call-1"]
+        assert str(settings.APPROVAL_EXPIRY_HOURS) in written["settled"]["call-1"]
+        # No turn is invented for it: nothing was said and nothing was called.
+        assert (written["prompt"], written["answer"]) == (None, "")
+
+    async def test_a_run_parked_before_the_step_map_existed_settles_nothing(self):
+        """The map from approval to tool call is the only link there is. Without
+        it the step cannot be closed - which is a step left open, not one to
+        guess at."""
+        async with _Sweep([_approval()], run=_parked_run(paused_state={"messages": []})) as sweep:
+            pass
+
+        assert sweep.record.await_args.kwargs["settled"] == {}
 
     async def test_a_run_with_a_second_call_still_inside_the_window_is_left_parked(self):
         """A run parks on all of its outstanding calls at once. Ending it while

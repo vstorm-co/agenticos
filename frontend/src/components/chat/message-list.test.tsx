@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MessageList, lastToolTurnIndex } from "./message-list";
+import { MessageList, continuesTurn, endsTurn, lastToolTurnIndex, turnUsage } from "./message-list";
 import type { ChatMessage } from "@/types";
 
 const state = vi.hoisted(() => ({
@@ -10,6 +10,7 @@ const state = vi.hoisted(() => ({
     id: string;
     agent?: string;
     groupPosition?: string;
+    continuesTurn: boolean;
     canRegenerate: boolean;
     openLastStep: boolean;
   }[],
@@ -24,12 +25,14 @@ vi.mock("./message-item", () => ({
     message,
     agent,
     groupPosition,
+    continuesTurn,
     openLastStep,
     onRegenerate,
   }: {
     message: ChatMessage;
     agent?: { name: string };
     groupPosition?: string;
+    continuesTurn?: boolean;
     openLastStep?: boolean;
     onRegenerate?: () => void;
   }) => {
@@ -37,6 +40,7 @@ vi.mock("./message-item", () => ({
       id: message.id,
       agent: agent?.name,
       groupPosition,
+      continuesTurn: continuesTurn === true,
       canRegenerate: onRegenerate !== undefined,
       openLastStep: openLastStep === true,
     });
@@ -296,5 +300,113 @@ describe("the last turn that used a tool", () => {
     ];
 
     expect(lastToolTurnIndex(messages)).toBe(-1);
+  });
+});
+
+describe("one run drawn as one turn", () => {
+  it("continues the turn for the next segment of the same run", () => {
+    // A run parks on an approval, somebody decides, it runs again. Each segment
+    // is its own message - three avatars and three agent names down the page for
+    // one question, which reads as three agents having answered it.
+    const messages = [
+      message({ id: "a", runId: "r-9" }),
+      message({ id: "b", runId: "r-9" }),
+      message({ id: "c", runId: "r-9" }),
+    ];
+
+    expect([0, 1, 2].map((i) => continuesTurn(messages, i))).toEqual([false, true, true]);
+  });
+
+  it("starts a new turn for a different run", () => {
+    const messages = [message({ id: "a", runId: "r-9" }), message({ id: "b", runId: "r-10" })];
+
+    expect(continuesTurn(messages, 1)).toBe(false);
+  });
+
+  it("never groups messages with no run recorded", () => {
+    // Absent is "not recorded", not "the same run". Guessing from adjacency
+    // would fold two unrelated answers into one turn.
+    const messages = [message({ id: "a" }), message({ id: "b" })];
+
+    expect(continuesTurn(messages, 1)).toBe(false);
+  });
+
+  it("restarts the turn when the person said something in between", () => {
+    // Two segments of one run with a question between them is not one turn: the
+    // person spoke, and the answer after that is a reply to them.
+    const messages = [
+      message({ id: "a", runId: "r-9" }),
+      message({ id: "u", role: "user", content: "wait", runId: "r-9" }),
+      message({ id: "b", runId: "r-9" }),
+    ];
+
+    expect(continuesTurn(messages, 2)).toBe(false);
+  });
+
+  it("hands the flag to the item", () => {
+    render(
+      <MessageList
+        messages={[message({ id: "m-1", runId: "r-9" }), message({ id: "m-2", runId: "r-9" })]}
+      />,
+    );
+
+    expect(rendered("m-1")?.continuesTurn).toBe(false);
+    expect(rendered("m-2")?.continuesTurn).toBe(true);
+  });
+});
+
+describe("where a turn's time and cost belong", () => {
+  const USAGE = {
+    input_tokens: 6603,
+    output_tokens: 189,
+    cost_usd: 0.0133,
+    budget_percent: null,
+    agent_budget_percent: null,
+    sandbox: null,
+  };
+
+  it("ends the turn on its last segment, not on every one", () => {
+    const messages = [
+      message({ id: "a", runId: "r-9" }),
+      message({ id: "b", runId: "r-9" }),
+      message({ id: "c", runId: "r-9" }),
+    ];
+
+    expect([0, 1, 2].map((i) => endsTurn(messages, i))).toEqual([false, false, true]);
+  });
+
+  it("ends a turn of one message on that message", () => {
+    expect(endsTurn([message({ id: "a" })], 0)).toBe(true);
+  });
+
+  it("carries the figure forward from the segment that recorded it", () => {
+    // A run reports what it has spent when it *parks*, so the cost sat on the
+    // first segment - halfway up the answer, with nothing under the end of it.
+    const messages = [
+      message({ id: "a", runId: "r-9", usage: USAGE }),
+      message({ id: "b", runId: "r-9" }),
+    ];
+
+    expect(turnUsage(messages, 1)).toBe(USAGE);
+  });
+
+  it("prefers the last figure in the turn, which is the run's total by then", () => {
+    const later = { ...USAGE, cost_usd: 0.0201 };
+    const messages = [
+      message({ id: "a", runId: "r-9", usage: USAGE }),
+      message({ id: "b", runId: "r-9", usage: later }),
+    ];
+
+    expect(turnUsage(messages, 1)).toBe(later);
+  });
+
+  it("never reaches back past the turn it belongs to", () => {
+    // The previous answer's cost is not this answer's cost.
+    const messages = [
+      message({ id: "a", runId: "r-8", usage: USAGE }),
+      message({ id: "b", runId: "r-9" }),
+    ];
+
+    expect(turnUsage(messages, 1)).toBeUndefined();
   });
 });

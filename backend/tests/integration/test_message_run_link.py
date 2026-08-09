@@ -24,7 +24,7 @@ from sqlalchemy import select
 from app.agents.spec import AgentSpec
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
-from app.db.models.conversation import Conversation, Message
+from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.organization import Organization
 from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
@@ -276,3 +276,83 @@ class TestLinkingAPromptWrittenBeforeItsRun:
 
         assert elsewhere.run_id is None
         assert await _transcript_of(db, run) == []
+
+
+class TestFindingTheCallAnApprovalLeftOpen:
+    """`get_open_tool_call_in_run` against real rows.
+
+    A gated call's row is written when the run parks, with no result. The thing
+    that finally runs it is a resume, whose messages carry the return without the
+    call it belongs to - so this lookup is the only way back to the row, and what
+    it lands on decides whether an approved command's output is recorded at all.
+    """
+
+    async def _call(self, db, message: Message, *, tool_call_id: str, completed: bool) -> ToolCall:
+        call = ToolCall(
+            id=uuid.uuid4(),
+            message_id=message.id,
+            tool_call_id=tool_call_id,
+            tool_name="execute",
+            args={"command": "python read.py"},
+            started_at=_START,
+            status="completed" if completed else "running",
+            completed_at=_START + timedelta(seconds=2) if completed else None,
+        )
+        db.add(call)
+        await db.flush()
+        return call
+
+    async def test_the_open_call_this_run_made_is_the_one_found(self, db) -> None:
+        organization = await _org(db)
+        owner = await _user(db)
+        agent = await _agent(db, organization, owner)
+        conversation = await _conversation(db, organization, owner)
+        run = await _run(db, conversation, agent, started_at=_START, ended_at=None)
+        parked = await _turn(db, conversation, role="assistant", content="", at=_START, run=run)
+        call = await self._call(db, parked, tool_call_id="call-1", completed=False)
+
+        found = await conversation_repo.get_open_tool_call_in_run(
+            db, run_id=run.id, tool_call_id="call-1"
+        )
+
+        assert found is not None and found.id == call.id
+
+    async def test_a_call_that_already_returned_is_not_settled_twice(self, db) -> None:
+        """Its result is recorded. Finding it again would overwrite what one call
+        returned with what a later one did."""
+        organization = await _org(db)
+        owner = await _user(db)
+        agent = await _agent(db, organization, owner)
+        conversation = await _conversation(db, organization, owner)
+        run = await _run(db, conversation, agent, started_at=_START, ended_at=None)
+        turn = await _turn(db, conversation, role="assistant", content="", at=_START, run=run)
+        await self._call(db, turn, tool_call_id="call-1", completed=True)
+
+        found = await conversation_repo.get_open_tool_call_in_run(
+            db, run_id=run.id, tool_call_id="call-1"
+        )
+
+        assert found is None
+
+    async def test_another_runs_call_with_the_same_id_is_left_alone(self, db) -> None:
+        """The run is the boundary, not the conversation. Two runs in one thread
+        can carry the same provider id, and settling the wrong one writes an
+        answer into a turn nobody was deciding about."""
+        organization = await _org(db)
+        owner = await _user(db)
+        agent = await _agent(db, organization, owner)
+        conversation = await _conversation(db, organization, owner)
+        mine = await _run(db, conversation, agent, started_at=_START, ended_at=None)
+        theirs = await _run(
+            db, conversation, agent, started_at=_START + timedelta(minutes=1), ended_at=None
+        )
+        their_turn = await _turn(
+            db, conversation, role="assistant", content="", at=_START, run=theirs
+        )
+        await self._call(db, their_turn, tool_call_id="call-1", completed=False)
+
+        found = await conversation_repo.get_open_tool_call_in_run(
+            db, run_id=mine.id, tool_call_id="call-1"
+        )
+
+        assert found is None

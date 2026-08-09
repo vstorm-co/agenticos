@@ -437,6 +437,22 @@ Four properties worth knowing:
 
 - **A parked run is resumable.** Its message history is stored, so the decision is
   applied to the conversation it belongs to rather than starting again.
+- **A continuation says what it did.** `POST /runs/{id}/resume` answers with the
+  tool calls the continuation made, in order, each with what came back — and the
+  transcript records them whether or not it reached an answer. Both halves used to
+  be missing, and one approval could hide an unbounded amount of work: the agent
+  ran inside the resume request rather than on the socket the conversation
+  streams, so nothing announced its calls, and the transcript write was skipped
+  for a segment with no answer. A run that read a file, then asked to run a second
+  command, showed nothing between the two approvals and recorded nothing either.
+- **And what the approved call itself returned lands on the step that was
+  approved.** It arrives separately from the continuation's own calls (`settled`,
+  not `steps`), because it was made by the execution that parked: the resume
+  produces its return without the call it belongs to, so it closes a row already
+  written rather than opening a new one. Recording it as a step would put the same
+  command in the turn twice; not recording it at all — which is what happened
+  until it did — made the one call somebody deliberately reviewed the one call with
+  no output anywhere.
 - **It stays resumable if continuing it fails.** A run is continued on the version
   it parked on, and that version's spec may have stopped building since - a secret
   a binding names deleted, a model profile removed, a capability dropped in a

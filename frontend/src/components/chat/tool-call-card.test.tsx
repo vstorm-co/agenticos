@@ -104,6 +104,18 @@ describe("a tool call in the transcript", () => {
     expect(screen.queryByLabelText("Running")).toBeNull();
   });
 
+  it("says a replayed call that never finished in the past tense, without a spinner", () => {
+    // The step of an expired approval, or of a run that broke mid-call. Nothing
+    // on this screen can finish it, so an animation promises a result that is
+    // never coming - it pulsed forever under a conversation that ended days ago.
+    card({ name: "search_documents", status: "unfinished", result: undefined });
+
+    expect(screen.queryByText("Searching the documents")).toBeNull();
+    expect(screen.getByText("Knowledge Base Search")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Running")).toBeNull();
+    expect(screen.queryByLabelText("Failed")).toBeNull();
+  });
+
   it("reads a workspace call as a sentence about the file", () => {
     const { unmount } = card({
       name: "write_file",

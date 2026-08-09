@@ -21,7 +21,7 @@ from app.db.models.agent_run import (
     RunSurface,
 )
 from app.repositories.agent_run import ApprovalFilters, RunFilters
-from app.schemas.agent import AgentRunResult
+from app.schemas.agent import AgentRunResult, RunStep, SettledCall
 from app.schemas.agent_run import (
     AgentRunList,
     AgentRunRead,
@@ -169,14 +169,35 @@ async def resume_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
     last outstanding call is what makes this call possible, not what performs
     it.
     """
-    output, run = await service.resume(ctx, run_id)
+    segment = await service.resume(ctx, run_id)
+    run = segment.run
     return AgentRunResult(
         run_id=run.id,
-        output=output,
+        output=segment.output,
         status=run.status,
         cost_usd=run.cost_usd,
         input_tokens=run.input_tokens,
         output_tokens=run.output_tokens,
+        # What the continuation actually did. Nothing else carries it: the run
+        # executes inside this request rather than on the socket the conversation
+        # streams, so a caller given only the answer had to draw the second half
+        # of a turn out of nothing.
+        steps=[
+            RunStep(
+                tool_call_id=call.tool_call_id,
+                tool_name=call.tool_name,
+                args=call.args,
+                result=call.result,
+            )
+            for call in segment.tool_calls
+        ],
+        # And what the approved call returned. It belongs to a step the caller
+        # drew before the run parked, so it updates that step rather than adding
+        # one - the alternative is the same command twice in one turn.
+        settled=[
+            SettledCall(tool_call_id=tool_call_id, result=result)
+            for tool_call_id, result in segment.settled.items()
+        ],
         # Empty unless the continuation stopped again, which it does whenever the
         # agent reaches a second gated call. Without it a caller was told the run is
         # still awaiting approval and given nothing to approve.

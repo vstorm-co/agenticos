@@ -193,10 +193,36 @@ export interface ParkedCall {
   tool_args: Record<string, unknown>;
 }
 
+/** One tool call an execution of a run made, and what came back from it. */
+export interface RunStep {
+  tool_call_id: string;
+  tool_name: string;
+  args: Record<string, unknown>;
+  /** Null on the call the run has parked on - it has not run yet. */
+  result: string | null;
+}
+
+/** What a call the run had already made finally returned. */
+export interface SettledCall {
+  tool_call_id: string;
+  result: string;
+}
+
 export interface ResumedRun {
   run_id: string;
   output: string;
   status: RunStatus;
+  /**
+   * What the continuation called, in order.
+   *
+   * The only account of it there is. A resume executes the agent inside the HTTP
+   * request rather than on the socket this conversation streams, so no `tool_call`
+   * frame arrives for any of it - and a client drawing only `output` showed the
+   * approved call finishing and nothing after it. Approving a command appeared to
+   * do nothing, and the next approval request arrived for a step that had never
+   * been drawn.
+   */
+  steps?: RunStep[];
   /**
    * What the run is waiting on *now*, empty unless it parked again.
    *
@@ -206,6 +232,15 @@ export interface ResumedRun {
    * calls can come from, and without it the panel closed on a run that was still
    * blocked and could no longer be decided from here.
    */
+  /**
+   * What the calls this execution inherited returned - on a resume, the very call
+   * somebody approved.
+   *
+   * Not in `steps`: it was made by the execution that parked, so the caller has
+   * already drawn its step and this updates it. Drawing it again would put the
+   * same command in the turn twice.
+   */
+  settled?: SettledCall[];
   parked?: ParkedCall[];
   /** Serialised Decimal - never parse into a float for arithmetic. */
   cost_usd: string;
