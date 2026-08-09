@@ -38,8 +38,17 @@ async def telegram_webhook(
     if bot is None:
         return Response(status_code=200)
 
+    # A bot with no secret is not a bot that skips verification - it is an
+    # unauthenticated endpoint that runs an agent on somebody's budget, which is
+    # what `if secret and not verify(...)` meant here until #4. Mattermost, five
+    # files away, has always refused. The two now agree.
     secret = unseal_webhook_secret(bot)
-    if secret and not adapter.verify_webhook_signature(headers, secret):
+    if secret is None:
+        logger.warning(
+            "Telegram bot %s has no webhook secret; refusing. Re-register its webhook to mint one.",
+            bot_id,
+        )
+    if secret is None or not adapter.verify_webhook_signature(headers, secret):
         raise HTTPException(status_code=403, detail="Invalid webhook signature")
 
     incoming = adapter.parse_incoming(payload, str(bot_id))

@@ -164,6 +164,12 @@ is refused rather than run with no role.
 3. Register the webhook from the UI, or run polling in development — no public
    URL needed.
 
+Registering the webhook is what hands Telegram the bot's secret, and **a bot with
+no secret refuses every webhook call** rather than trusting it. So a bot switched
+from polling to webhook mode has to have its webhook registered before it will
+answer anything: the secret is minted when the mode changes, and Telegram only
+learns it when the webhook is registered.
+
 ## Mattermost
 
 Mattermost is self-hosted, so a bot carries **your server's URL** as well as its

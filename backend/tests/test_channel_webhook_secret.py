@@ -14,14 +14,27 @@ import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from httpx import AsyncClient
 
+from app.api import deps
 from app.core.exceptions import BadRequestError
 from app.core.vault import VaultScope, seal, unseal
 from app.db.models.channel_bot import ChannelBot
-from app.schemas.channel_bot import ChannelBotCreate
+from app.main import app
+from app.schemas.channel_bot import ChannelBotCreate, ChannelBotUpdate
 from app.services.channel_bot import ChannelBotService, unseal_webhook_secret
+from app.services.channels import register_adapter
+from app.services.channels.mattermost import MattermostAdapter
+from app.services.channels.telegram import TelegramAdapter
 
 pytestmark = pytest.mark.anyio
+
+
+def _bot_service(bot: ChannelBot | None) -> MagicMock:
+    """A `ChannelBotService` that answers the inbound lookup with `bot`."""
+    service = MagicMock()
+    service.find_active = AsyncMock(return_value=bot)
+    return service
 
 
 def _sealed_bot(secret: str | None, *, organization_id: uuid.UUID | None = None) -> ChannelBot:
@@ -116,9 +129,120 @@ class TestUnsealing:
             unseal_webhook_secret(bot)
 
 
+class TestEnteringWebhookMode:
+    """A bot switched to webhook mode after creation had no secret at all (#4).
+
+    One was minted at create time and only when `webhook_mode` was already true,
+    which is not the schema's default - so the common path produced a bot whose
+    receiver had nothing to verify against.
+    """
+
+    async def _update(self, bot: ChannelBot, **fields: object) -> dict:
+        with (
+            patch(
+                "app.services.channel_bot.channel_bot_repo.get_for_org",
+                new=AsyncMock(return_value=bot),
+            ),
+            patch(
+                "app.services.channel_bot.channel_bot_repo.update",
+                new=AsyncMock(return_value=bot),
+            ) as repo_update,
+        ):
+            service = ChannelBotService(MagicMock(), organization_id=bot.organization_id)
+            await service.update(bot.id, ChannelBotUpdate(**fields))
+        return repo_update.call_args.kwargs["update_data"]
+
+    async def test_switching_a_bot_to_webhook_mode_mints_a_secret(self):
+        bot = _sealed_bot(None)
+        update_data = await self._update(bot, webhook_mode=True)
+        assert unseal(
+            update_data["webhook_secret_encrypted"],
+            scope=VaultScope.organization(bot.organization_id),
+        )
+
+    async def test_a_bot_already_in_webhook_mode_keeps_the_secret_it_has(self):
+        """Minting a second one would silently invalidate the secret the
+        platform was handed when the webhook was registered."""
+        bot = _sealed_bot("already-registered")
+        update_data = await self._update(bot, webhook_mode=True, name="renamed")
+        assert "webhook_secret_encrypted" not in update_data
+
+    async def test_an_unrelated_update_mints_nothing(self):
+        bot = _sealed_bot(None)
+        update_data = await self._update(bot, name="renamed")
+        assert "webhook_secret_encrypted" not in update_data
+
+    async def test_leaving_webhook_mode_mints_nothing(self):
+        bot = _sealed_bot(None)
+        update_data = await self._update(bot, webhook_mode=False)
+        assert "webhook_secret_encrypted" not in update_data
+
+
 class TestTheRowSaysWhetherItIsConfigured:
     def test_a_sealed_secret_reads_as_configured(self):
         assert _sealed_bot("s3cret-token").has_webhook_secret is True
 
     def test_no_secret_reads_as_unconfigured(self):
         assert _sealed_bot(None).has_webhook_secret is False
+
+
+@pytest.fixture
+def registered_adapters():
+    """The two adapters the receivers look up.
+
+    Registered by the lifespan in production, and the test client does not run
+    one - without this the routes raise `KeyError` before reaching the refusal
+    under test, which reads like a passing 500.
+    """
+    register_adapter(TelegramAdapter())
+    register_adapter(MattermostAdapter())
+
+
+@pytest.mark.usefixtures("registered_adapters")
+class TestTheReceiversRefuse:
+    """Both webhook routes, asked the same question: does an unauthenticated
+    request reach `process_channel_event`?"""
+
+    async def _post(self, client: AsyncClient, path: str, bot: ChannelBot | None, **kwargs) -> int:
+        app.dependency_overrides[deps.get_channel_bot_service] = lambda: _bot_service(bot)
+        try:
+            response = await client.post(path, **kwargs)
+        finally:
+            app.dependency_overrides.pop(deps.get_channel_bot_service, None)
+        return response.status_code
+
+    async def test_a_telegram_bot_with_no_secret_is_refused(self, client: AsyncClient):
+        """`if secret and not verify(...)` let this through as a genuine update,
+        so any bot created in polling mode - the schema's default - answered an
+        unauthenticated POST from anyone who guessed its id (#4)."""
+        bot = _sealed_bot(None)
+        status = await self._post(
+            client, f"/api/v1/telegram/{bot.id}/webhook", bot, json={"update_id": 1}
+        )
+        assert status == 403
+
+    async def test_a_telegram_bot_with_a_wrong_secret_is_refused(self, client: AsyncClient):
+        bot = _sealed_bot("the-real-secret")
+        status = await self._post(
+            client,
+            f"/api/v1/telegram/{bot.id}/webhook",
+            bot,
+            json={"update_id": 1},
+            headers={"X-Telegram-Bot-Api-Secret-Token": "not-it"},
+        )
+        assert status == 403
+
+    async def test_a_mattermost_bot_with_no_secret_is_refused(self, client: AsyncClient):
+        bot = _sealed_bot(None)
+        status = await self._post(
+            client, f"/api/v1/mattermost/{bot.id}/webhook", bot, json={"text": "hello"}
+        )
+        assert status == 403
+
+    async def test_an_unknown_bot_answers_200_without_running_anything(self, client: AsyncClient):
+        """Not 404: an unknown or disabled bot is not something the sender can
+        fix, and enough 4xx makes the platform disable the integration."""
+        status = await self._post(
+            client, f"/api/v1/telegram/{uuid.uuid4()}/webhook", None, json={"update_id": 1}
+        )
+        assert status == 200

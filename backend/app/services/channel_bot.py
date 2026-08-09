@@ -232,6 +232,17 @@ class ChannelBotService:
             sealed = seal_bot_token(update_data.pop("token"), organization_id=self._org_id)
             update_data["token_encrypted"] = sealed.ciphertext
             update_data["secret_key_version"] = sealed.key_version
+        # A bot that enters webhook mode here used to get no secret: one was
+        # minted at create time and only when `webhook_mode` was already true,
+        # which is not the schema's default. So every bot switched over
+        # afterwards had a null secret, and the receiver treated that as "skip
+        # verification" - an open endpoint reached by anyone who guessed a bot
+        # id (#4). Minted at the row's existing key version, beside its other
+        # envelopes.
+        if update_data.get("webhook_mode") and bot.webhook_secret_encrypted is None:
+            update_data["webhook_secret_encrypted"] = self._seal_at(
+                secrets.token_urlsafe(32), key_version=bot.secret_key_version
+            )
         # Both policies are stored as JSON, so a submitted model has to become a
         # dict either way - and a `None` means "leave it alone", not "clear it":
         # clearing `usage_reporting` would silently return a bot to the default
