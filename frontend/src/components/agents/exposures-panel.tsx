@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { useAgentEnvironments, useExposures } from "@/hooks";
+import { ExposurePrompt } from "@/components/agents/exposure-prompt";
 import type { ExposureSurface } from "@/types/exposures";
 import { useTranslations } from "next-intl";
 
@@ -65,7 +66,7 @@ const DEFAULT_ENV = "__default__";
 
 export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPanelProps) {
   const t = useTranslations("agents");
-  const { exposures, isLoading, available, expose, setActive, setEnvironment, revoke } =
+  const { exposures, isLoading, available, expose, setActive, setEnvironment, setPrompt, revoke } =
     useExposures(agentId);
   const { environments } = useAgentEnvironments(agentId);
   const [selectedBotId, setSelectedBotId] = useState("");
@@ -165,6 +166,19 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
+
+            {/* Under the row rather than behind a dialog: it is the one thing
+                about a binding somebody actually wants to change after making
+                it, and a surface's own instructions are worth reading beside
+                the surface they belong to. */}
+            {canManage && (
+              <ExposurePrompt
+                botName={exposure.channel_bot_name}
+                value={exposure.prompt}
+                disabled={setPrompt.isPending}
+                onSave={(prompt) => setPrompt.mutate({ exposureId: exposure.id, prompt })}
+              />
+            )}
           </div>
         ))}
 

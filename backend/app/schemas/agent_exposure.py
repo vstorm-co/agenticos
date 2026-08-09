@@ -26,6 +26,9 @@ class ExposureRead(BaseSchema):
     channel_bot_name: str
     environment_id: UUID | None = None
     session_scope: str | None = None
+    # Read back, unlike a credential: it is instructions somebody wrote and has
+    # to be able to edit, and the form that edits it needs its current value.
+    prompt: str | None = None
     is_active: bool
     created_at: datetime | None = None
 
@@ -51,6 +54,17 @@ class ExposureCreate(BaseSchema):
             "A dev bot bound to a dev environment serves the version it pins."
         ),
     )
+    prompt: str | None = Field(
+        default=None,
+        max_length=4000,
+        description=(
+            "Added to the agent's instructions on this binding only - how to lay "
+            "a message out here, how to give a link, how long an answer should "
+            "be. Appended rather than substituted, so a surface can shape an "
+            "answer and never contradict what the agent is for. Explicit null "
+            "removes it."
+        ),
+    )
     session_scope: Literal["run", "conversation", "channel", "user", "agent"] | None = Field(
         default=None,
         description=(
@@ -71,6 +85,17 @@ class ExposureUpdate(BaseSchema):
     environment_id: UUID | None = Field(
         default=None,
         description="Rebind to another named environment; explicit null returns to the default",
+    )
+    prompt: str | None = Field(
+        default=None,
+        max_length=4000,
+        description=(
+            "Added to the agent's instructions on this binding only - how to lay "
+            "a message out here, how to give a link, how long an answer should "
+            "be. Appended rather than substituted, so a surface can shape an "
+            "answer and never contradict what the agent is for. Explicit null "
+            "removes it."
+        ),
     )
     session_scope: Literal["run", "conversation", "channel", "user", "agent"] | None = Field(
         default=None,

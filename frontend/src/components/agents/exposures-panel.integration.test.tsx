@@ -36,6 +36,7 @@ function exposure(overrides: Partial<Exposure> = {}): Exposure {
     channel_bot_name: "Acme Support",
     environment_id: null,
     session_scope: null,
+    prompt: null,
     is_active: true,
     created_at: null,
     ...overrides,
@@ -315,6 +316,24 @@ describe("ExposuresPanel", () => {
 
     await screen.findByText(/Acme Support/);
     expect(screen.queryByText(/the thread sits there meanwhile/)).toBeNull();
+  });
+
+  it("saves extra instructions for one binding only", async () => {
+    // The same published agent answers in a dashboard, on a widget and in a
+    // Mattermost channel. Editing the spec to suit one changes all of them.
+    serve([exposure()], []);
+    vi.mocked(apiClient.patch).mockResolvedValue(exposure({ prompt: "Be terse." }));
+    await mount();
+
+    await userEvent.type(
+      await screen.findByLabelText("Extra instructions on Acme Support"),
+      "Be terse.",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures/e1`, {
+      prompt: "Be terse.",
+    });
   });
 
   it("offers no workspace-sharing control at all", async () => {

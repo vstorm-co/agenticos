@@ -284,6 +284,18 @@ it is about to wait.
   while it runs. Edited about once a second: per token would be hundreds of
   writes a second against a server that is often somebody's own. A platform that
   cannot edit a sent message simply gets the finished answer, as before.
+- **The agent is told what the client renders.** Slack draws no Markdown and
+  writes a link as `<url|text>`; Mattermost renders headings and tables;
+  Telegram rejects a message whose `*` is unclosed. That is a property of the
+  surface, not of the agent, so it is appended to the instructions for a run
+  going out on one — including how to write a link, and leading it with an emoji
+  when it is an action or a destination. Nobody types it, and it is not in the
+  spec, so it cannot drift between agents.
+- **A binding can add to it.** Each place an agent is available carries its own
+  extra instructions, appended after the house style so "no emoji on this
+  channel" reads as an exception to a rule stated above it. It shapes how an
+  answer is delivered and can never replace what the agent is for — that belongs
+  to the published version.
 - **Rate limits** per chat.
 - **Spending limits** per binding, on top of the agent's own and the
   organization's.

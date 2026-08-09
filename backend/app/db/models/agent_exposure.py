@@ -24,7 +24,7 @@ a bot when - and only when - a row here says so.
 import enum
 import uuid
 
-from sqlalchemy import Boolean, CheckConstraint, ForeignKey, String, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -66,6 +66,19 @@ class AgentExposure(Base, TimestampMixin):
         index=True,
     )
     surface: Mapped[str] = mapped_column(String(16), nullable=False)
+
+    prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
+    """What to add to the agent's instructions *here*, and nowhere else.
+
+    The same published agent answers in a dashboard, on a website widget and in
+    a Mattermost channel, and those want different things of it: how to lay a
+    message out, whether to use headings a chat client will not render, how to
+    give a link, how long an answer should be. None of that is a different
+    agent, and editing the spec to suit one surface changes it on all of them.
+
+    Appended to the spec's instructions rather than replacing them, so a binding
+    can shape an answer and never contradict what the agent is for.
+    """
 
     # Which bot serves this surface. Cascades: a deleted bot takes its bindings
     # with it, because a binding to a bot that no longer exists is a row that

@@ -111,6 +111,7 @@ class AgentExposureService:
                 channel_bot_name=names.get(exposure.channel_bot_id, "(removed)"),
                 environment_id=exposure.environment_id,
                 session_scope=exposure.session_scope,
+                prompt=exposure.prompt,
                 is_active=exposure.is_active,
                 created_at=exposure.created_at,
             )

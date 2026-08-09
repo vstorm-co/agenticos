@@ -28,6 +28,7 @@ function exposure(overrides: Partial<Exposure> = {}): Exposure {
     channel_bot_name: "Acme Support",
     environment_id: null,
     session_scope: null,
+    prompt: null,
     is_active: true,
     created_at: null,
     ...overrides,
@@ -162,9 +163,22 @@ describe("useExposures", () => {
     await expect(
       result.current.setEnvironment.mutateAsync({ exposureId: "e1", environmentId: "env-1" }),
     ).rejects.toThrow(refused);
+    await expect(
+      result.current.setPrompt.mutateAsync({ exposureId: "e1", prompt: "Be terse." }),
+    ).rejects.toThrow(refused);
     await expect(result.current.revoke.mutateAsync("e1")).rejects.toThrow(refused);
 
-    expect(toast.error).toHaveBeenCalledTimes(4);
+    expect(toast.error).toHaveBeenCalledTimes(5);
     expect(toast.error).toHaveBeenCalledWith("You cannot publish this agent");
+  });
+  it("sends only the prompt, so a concurrent edit is not overwritten", async () => {
+    vi.mocked(apiClient.patch).mockResolvedValue(exposure({ prompt: "Be terse." }));
+    const result = await hook();
+
+    await result.current.setPrompt.mutateAsync({ exposureId: "e1", prompt: "Be terse." });
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/agents/a1/exposures/e1", {
+      prompt: "Be terse.",
+    });
   });
 });

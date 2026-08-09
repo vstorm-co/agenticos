@@ -1930,12 +1930,19 @@ class TestWhoTheRunSaysItIs:
         assert create_run.call_args.kwargs["user_id"] is None
 
 
-def _exposure(*, organization_id=None, environment_id=None):
-    """A binding row."""
+def _exposure(*, organization_id=None, environment_id=None, surface="web", prompt=None):
+    """A binding row.
+
+    `surface` and `prompt` are real values rather than mock attributes: the run
+    appends what the surface renders and what the binding was told, and a mock
+    for either is a `MagicMock` concatenated into the agent's instructions.
+    """
     return MagicMock(
         id=uuid.uuid4(),
         organization_id=organization_id or uuid.uuid4(),
         environment_id=environment_id,
+        surface=surface,
+        prompt=prompt,
     )
 
 

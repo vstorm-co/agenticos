@@ -31,6 +31,14 @@ export interface Exposure {
    * binding that admits a run may say something else.
    */
   session_scope: SessionScope | null;
+  /**
+   * Added to the agent's instructions on this binding only - how to lay a
+   * message out here, how to give a link, how long an answer should be.
+   *
+   * Appended rather than substituted, so a surface can shape an answer and
+   * never contradict what the agent is for.
+   */
+  prompt: string | null;
   is_active: boolean;
   created_at: string | null;
 }
