@@ -320,6 +320,100 @@ class TestPrepare:
         assert toolsets.await_args.kwargs["connection_ids"] == spec.mcp_server_ids
         assert build.call_args.kwargs["extra_toolsets"] == ["linear-toolset"]
 
+    @pytest.mark.anyio
+    async def test_a_resumed_channel_run_keeps_its_binding_prompt_and_tools(self):
+        """A channel run parks, a reviewer approves, and the continuation must be
+        the same agent: with the platform's formatting prompt and the
+        `channel_tools` capability the binding grants. Resuming without them
+        answered the approval formatted for the wrong platform and with the
+        channel lookups gone (#513, S14)."""
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        exposure_id = uuid.uuid4()
+        run = _parked_run(exposure_id=exposure_id, surface=RunSurface.MATTERMOST.value)
+        agent = MagicMock(id=run.agent_id, current_version_id=run.agent_version_id)
+        spec = AgentSpec(name="Support")
+        exposure = MagicMock(
+            id=exposure_id, prompt="Answer in Mattermost style.", tools=["get_channel_info"]
+        )
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                new=AsyncMock(return_value=run),
+            ),
+            patch(
+                "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch("app.services.agent_runner.agent_run_repo.mark_running", new=AsyncMock()),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch(
+                "app.services.agent_runner.agent_exposure_repo.get",
+                new=AsyncMock(return_value=exposure),
+            ) as get_exposure,
+            patch.object(service, "_parked_spec", new=AsyncMock(return_value=(agent, spec))),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch("app.services.agent_runner.build_agent") as build,
+        ):
+            build.return_value.agent.run = AsyncMock(return_value=MagicMock(output="done"))
+            build.return_value.ledger = SpendLedger()
+            await service.resume(ctx, run.id)
+
+        assert get_exposure.await_args.args[1] == exposure_id
+        assert get_exposure.await_args.kwargs["organization_id"] == ctx.organization_id
+        built_spec = build.call_args.args[0]
+        assert "Answer in Mattermost style." in built_spec.instructions
+        assert "channel_tools" in {capability.id for capability in built_spec.capabilities}
+
+    @pytest.mark.anyio
+    async def test_a_resumed_run_with_no_binding_reloads_no_exposure(self):
+        """The common resume has no binding, so it must not go looking one up."""
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        run = _parked_run()  # exposure_id is None by default
+        agent = MagicMock(id=run.agent_id, current_version_id=run.agent_version_id)
+        spec = AgentSpec(name="Support")
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                new=AsyncMock(return_value=run),
+            ),
+            patch(
+                "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch("app.services.agent_runner.agent_run_repo.mark_running", new=AsyncMock()),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch(
+                "app.services.agent_runner.agent_exposure_repo.get", new=AsyncMock()
+            ) as get_exposure,
+            patch.object(service, "_parked_spec", new=AsyncMock(return_value=(agent, spec))),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch("app.services.agent_runner.build_agent") as build,
+        ):
+            build.return_value.agent.run = AsyncMock(return_value=MagicMock(output="done"))
+            build.return_value.ledger = SpendLedger()
+            await service.resume(ctx, run.id)
+
+        get_exposure.assert_not_awaited()
+        assert build.call_args.args[0].capabilities == []
+
     @staticmethod
     async def _period_lookups(ctx) -> dict[str, object]:
         """The two spend lookups the runner hands the factory, by argument name."""

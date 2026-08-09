@@ -129,6 +129,7 @@ from app.db.models.agent_run import AgentRun, ApprovalStatus, RunOrder, RunStatu
 from app.db.models.chat_file import ChatFile
 from app.repositories import (
     agent_environment_repo,
+    agent_exposure_repo,
     agent_repo,
     agent_run_repo,
     knowledge_base_repo,
@@ -2845,6 +2846,24 @@ class AgentRunnerService:
         spec = await self._with_environment_observability(
             ctx, spec, environment_id=run.environment_id
         )
+        # The binding that admitted the run enriches its spec two ways `prepare`
+        # does: the platform's own formatting prompt and the `channel_tools`
+        # capability. A continuation that skipped them would answer a channel
+        # approval without channel tools and formatted for the wrong platform
+        # (#513 was S14 - "an approval is answered in the thread that asked for
+        # it"). The exposure id is stamped on the row, so it can be reloaded and
+        # the same two helpers run. The directory stays `None`: an
+        # approve-then-resume has no live channel handle, and
+        # `_with_channel_tools` still restores the binding for wherever one is.
+        exposure = (
+            await agent_exposure_repo.get(
+                self.db, run.exposure_id, organization_id=ctx.organization_id
+            )
+            if run.exposure_id is not None
+            else None
+        )
+        spec = await _with_exposure_prompt(spec, exposure)
+        spec = _with_channel_tools(spec, exposure)
         prepared = await self._assemble(
             ctx,
             agent=agent,
@@ -2854,9 +2873,9 @@ class AgentRunnerService:
             conversation_id=run.conversation_id,
             user_name=None,
             extra_toolsets=None,
-            # A resumed run reuses its row, and the binding that admitted it was
-            # stamped on that row when it was opened - there is nothing left for
-            # the exposure to contribute here.
+            # A resumed run reuses its row, and the binding is reloaded above to
+            # re-enrich the spec, so there is nothing left for `_assemble` to
+            # stamp from the exposure here.
             exposure=None,
             decided=decided,
             resuming=plan.delegations,
