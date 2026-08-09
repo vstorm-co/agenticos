@@ -76,6 +76,15 @@ class TestDrawing:
         )
         assert render_chart_png(spec).startswith(b"\x89PNG")
 
+    @pytest.mark.parametrize("color", ["#f00", "red", "#ff0000"])
+    def test_an_area_chart_draws_in_any_colour_pillow_accepts(self, color: str):
+        """`color` is a free-form string the model picks; only its description
+        says hex. A short hex or a named colour crashed `_translucent` and sent
+        no chart - the #157 regression this module exists to kill."""
+        spec = _spec("area", series=[{"key": "revenue", "color": color}])
+
+        assert render_chart_png(spec).startswith(b"\x89PNG")
+
     def test_a_pie_of_values_that_sum_to_nothing_draws_no_ring(self):
         """Zero and negative slices have no angle, and dividing by their total is
         a crash where an empty frame is merely useless."""

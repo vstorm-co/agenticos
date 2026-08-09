@@ -21,7 +21,7 @@ import math
 from io import BytesIO
 from typing import Any
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageColor, ImageDraw, ImageFont
 
 from app.agents.capabilities.charts._spec import ChartSpec
 
@@ -304,8 +304,15 @@ def _draw_scatter(canvas: _Canvas, spec: ChartSpec, series, low: float, high: fl
 
 
 def _translucent(color: str) -> tuple[int, int, int]:
-    """The series colour, lightened, for the band under an area chart."""
-    red, green, blue = (int(color[index : index + 2], 16) for index in (1, 3, 5))
+    """The series colour, lightened, for the band under an area chart.
+
+    Parsed with the same reader Pillow uses for every `fill` in this module, so
+    it accepts everything the rest of the renderer does. Slicing `color[1:3]` by
+    hand assumed full 6-digit hex and crashed on anything else - `#f00`, or a
+    named colour like `red`, both of which the spec allows and the model picks -
+    which sent no chart at all: the #157 regression this module exists to kill.
+    """
+    red, green, blue = ImageColor.getrgb(color)[:3]
     return (
         red + (255 - red) * 3 // 4,
         green + (255 - green) * 3 // 4,
