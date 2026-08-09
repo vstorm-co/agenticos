@@ -59,12 +59,7 @@ export {
   useSandboxWorkspaces,
   useWorkspaceFiles,
 } from "./use-sandbox-workspaces";
-export {
-  downloadWorkspaceFile,
-  useFileDownload,
-  useWorkspaceFileBytes,
-  useWorkspaceFileText,
-} from "./use-workspace-file";
+export { useFileActions, useFileBytes, useFileText } from "./use-file-content";
 export { useSkillChanges } from "./use-skill-changes";
 export { useSkill, useSkillLibrary, useSkillResource, useSkills } from "./use-skills";
 export { useSharing } from "./use-sharing";

@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Query, Response, status
@@ -71,15 +71,39 @@ async def list_conversations(
     active_org: ActiveOrg,
     skip: int = Query(0, ge=0, description="Number of conversations to skip"),
     limit: int = Query(50, ge=1, le=100, description="Maximum conversations to return"),
+    search: str | None = Query(default=None, description="Search by title"),
+    agent_id: UUID | None = Query(default=None, description="Only threads this agent answered in"),
     include_archived: bool = Query(False, description="Include archived conversations"),
+    archived_only: bool = Query(False, description="Only archived conversations"),
+    sort_by: Literal["title", "created_at", "updated_at"] = Query(
+        "updated_at", description="Sort column"
+    ),
+    sort_dir: Literal["asc", "desc"] = Query("desc", description="Sort direction"),
 ) -> Any:
-    """List conversations for the current user."""
+    """List conversations for the current user.
+
+    Narrowed the same way `/admin/conversations` is, minus what only a
+    deployment administrator may ask - there is no filter by owner here, and
+    nothing sorts by one. `agent_id` matches threads an agent *answered in*
+    rather than threads it owns, because the picker can be changed mid-thread;
+    one from another organization matches nothing, since the search runs inside
+    the caller's own tenant.
+
+    The sort keys are a `Literal` rather than a string the repository looks up:
+    an unknown key there falls back to recency, which would answer a typo with
+    a plausible page instead of a 422.
+    """
     items, total = await conversation_service.list_conversations(
         user_id=current_user.id,
         organization_id=active_org.id,
         skip=skip,
         limit=limit,
+        search=search,
+        agent_id=agent_id,
         include_archived=include_archived,
+        archived_only=archived_only,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
     )
     return ConversationList(items=items, total=total)  # ty: ignore[invalid-argument-type]
 

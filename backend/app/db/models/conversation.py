@@ -124,6 +124,18 @@ class Message(Base, TimestampMixin):
         nullable=True,
         index=True,
     )
+    # The turn's timeline, in the order it happened: reasoning, the text the model
+    # wrote, and the tools it called, interleaved as they occurred. See
+    # `app.schemas.conversation.MessagePart` for the entry shape and why this is
+    # stored rather than reconstructed.
+    #
+    # `content` and `thinking` above are unchanged and remain the turn's text -
+    # this says where it sat. So a row is readable without it, which is what makes
+    # the column nullable rather than backfilled: an assistant turn written before
+    # this existed has no recorded order and never will, and a client that finds
+    # null reconstructs one instead of rendering nothing.
+    parts: Mapped[list[dict[str, object]] | None] = mapped_column(JSONB, nullable=True)
+
     tokens_used: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)

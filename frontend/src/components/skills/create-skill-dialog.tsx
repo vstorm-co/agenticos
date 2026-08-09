@@ -23,7 +23,8 @@ import {
   NewFileForm,
   UploadButton,
 } from "@/components/skills/skill-files";
-import { buildTree, previewKind } from "@/lib/file-tree";
+import { buildTree } from "@/lib/file-tree";
+import { readsAsText, resolveFileKind } from "@/lib/file-kinds";
 import { cn } from "@/lib/utils";
 import { useSkills } from "@/hooks";
 import { apiClient } from "@/lib/api-client";
@@ -48,12 +49,17 @@ function pathOf(file: File): string {
   return file.webkitRelativePath || file.name;
 }
 
-/** Whether a pending file can honestly be shown as text. */
+/**
+ * Whether a pending file can honestly be shown as text.
+ *
+ * The same question the viewer asks before choosing a request, and now literally the
+ * same answer: this used to read `previewKind(path) !== "text"`, which said "a format
+ * we recognise" by way of a double negative and needed two more clauses to cover the
+ * cases it excluded.
+ */
 function isReadableText(file: File): boolean {
   if (file.size > MAX_PREVIEW_BYTES) return false;
-  const path = pathOf(file);
-  const extension = path.split(".").pop()?.toLowerCase() ?? "";
-  return previewKind(path) !== "text" || extension === "txt" || file.type.startsWith("text/");
+  return readsAsText(resolveFileKind(pathOf(file), file.type));
 }
 
 interface CreateSkillDialogProps {

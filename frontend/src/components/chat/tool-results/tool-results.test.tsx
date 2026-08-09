@@ -1,11 +1,8 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { AskUserResult } from "./ask-user";
-import { DateTimeResult } from "./datetime";
 import { GenericToolResult, RawToolView } from "./generic";
-import { FetchUrlResult } from "./fetch-url";
 import { RunPythonResult } from "./run-python";
 import { LoadSkillResult, formatSkillName, parseLoadSkillResult } from "./skills";
 import { RAGSearchResults, parseRAGResults } from "./rag";
@@ -274,7 +271,9 @@ describe("the web search", () => {
 });
 
 describe("running Python", () => {
-  it("shows the code it ran, and its output", () => {
+  it("closes the code once its output is the thing being read", () => {
+    // Both halves are there; only the one somebody came for is open. The code keeps
+    // its header, which is the click that brings it back.
     render(
       <RunPythonResult
         toolCall={toolCall({ args: { code: "print(6*7)" } })}
@@ -282,8 +281,78 @@ describe("running Python", () => {
       />,
     );
 
-    expect(screen.getByTestId("markdown")).toHaveTextContent("```python");
+    expect(screen.queryByTestId("markdown")).toBeNull();
+    expect(screen.getByRole("button", { name: "python" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
     expect(screen.getByText("42")).toBeInTheDocument();
+  });
+
+  it("shows the code while it is still running it", () => {
+    // What it is executing, while it executes - which it has in hand the whole time.
+    const { rerender } = render(
+      <RunPythonResult
+        toolCall={toolCall({ args: { code: "print(6*7)" }, status: "running" })}
+        resultText=""
+      />,
+    );
+
+    expect(screen.getByTestId("markdown")).toHaveTextContent("```python");
+    expect(screen.queryByText("Running…")).toBeNull();
+
+    // And closes itself the moment the output arrives to replace it.
+    rerender(
+      <RunPythonResult
+        toolCall={toolCall({ args: { code: "print(6*7)" } })}
+        resultText={"stdout:\n42"}
+      />,
+    );
+
+    expect(screen.queryByTestId("markdown")).toBeNull();
+  });
+
+  it("keeps the code open when the run failed, because that is what is being debugged", () => {
+    render(
+      <RunPythonResult
+        toolCall={toolCall({ args: { code: "print(x)" } })}
+        resultText="Execution failed: NameError: name 'x' is not defined"
+      />,
+    );
+
+    expect(screen.getByTestId("markdown")).toHaveTextContent("print(x)");
+  });
+
+  it("keeps the code open for a call that failed with nothing to say", () => {
+    // A tool that errored without an "Execution failed:" line still failed.
+    render(
+      <RunPythonResult
+        toolCall={toolCall({ args: { code: "print(x)" }, status: "error" })}
+        resultText="the sandbox went away"
+      />,
+    );
+
+    expect(screen.getByTestId("markdown")).toHaveTextContent("print(x)");
+  });
+
+  it("keeps a re-opened code block open through the next streaming delta", async () => {
+    // Every delta re-renders this subtree. A collapse derived from `status` at render
+    // time would close the block again under whoever just opened it.
+    const call = toolCall({ args: { code: "print(6*7)" } });
+    const { rerender } = render(<RunPythonResult toolCall={call} resultText={"stdout:\n42"} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "python" }));
+    rerender(<RunPythonResult toolCall={call} resultText={"stdout:\n42"} />);
+
+    expect(screen.getByTestId("markdown")).toHaveTextContent("```python");
+  });
+
+  it("closes the output too, so an 800-line stdout is not the whole screen", async () => {
+    render(<RunPythonResult toolCall={toolCall()} resultText={"stdout:\n42"} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Output" }));
+
+    expect(screen.queryByText("42")).toBeNull();
   });
 
   it("shows the returned value beside what was printed", () => {
@@ -316,7 +385,9 @@ describe("running Python", () => {
     expect(screen.getByText(/NameError/)).toBeInTheDocument();
   });
 
-  it("says code is still running rather than showing an empty output box", () => {
+  it("says code is still running when it does not have the code to show instead", () => {
+    // A replayed conversation whose arguments were not stored; anything with a `code`
+    // argument shows the code, which says the same thing and more.
     render(<RunPythonResult toolCall={toolCall({ status: "running" })} resultText="" />);
 
     expect(screen.getByText("Running…")).toBeInTheDocument();
@@ -402,124 +473,6 @@ describe("loading a skill", () => {
     expect(formatSkillName("fire")).toBe("Fire");
     expect(formatSkillName("__odd__name")).toBe("Odd Name");
     expect(formatSkillName("")).toBe("");
-  });
-});
-
-describe("the date and time", () => {
-  it("reads both out of the tool's sentence", () => {
-    render(<DateTimeResult result="Current date: 2026-07-31, Current time: 14:05:00" />);
-
-    expect(screen.getByText("2026-07-31")).toBeInTheDocument();
-    expect(screen.getByText("14:05:00")).toBeInTheDocument();
-  });
-
-  it("shows whichever half it found", () => {
-    const { rerender } = render(<DateTimeResult result="Current date: 2026-07-31" />);
-    expect(screen.getByText("Date")).toBeInTheDocument();
-    expect(screen.queryByText("Time")).toBeNull();
-
-    rerender(<DateTimeResult result="Current time: 14:05:00" />);
-    expect(screen.getByText("Time")).toBeInTheDocument();
-    expect(screen.queryByText("Date")).toBeNull();
-  });
-
-  it("shows the whole answer when it recognises neither", () => {
-    // A timezone-qualified answer, or a future change to the tool's wording.
-    render(<DateTimeResult result="It is Friday afternoon in Warsaw." />);
-
-    expect(screen.getByText("It is Friday afternoon in Warsaw.")).toBeInTheDocument();
-  });
-});
-
-describe("fetching a page", () => {
-  it("names the page by its domain and links to it", () => {
-    render(<FetchUrlResult url="https://www.gov.example/rights" content="# Rights" />);
-
-    const link = screen.getByRole("link");
-    expect(link).toHaveAttribute("href", "https://www.gov.example/rights");
-    expect(link).toHaveAttribute("rel", "noreferrer noopener");
-    expect(within(link).getByText("gov.example")).toBeInTheDocument();
-  });
-
-  it("falls back to the raw URL when it cannot be parsed", () => {
-    render(<FetchUrlResult url="not a url" content="" />);
-
-    expect(screen.getAllByText("not a url").length).toBeGreaterThan(0);
-  });
-
-  it("renders the page as Markdown, and says how much of it there was", () => {
-    const content = "# Title\n".repeat(200);
-    render(<FetchUrlResult url="https://acme.example/" content={content} />);
-
-    expect(screen.getByTestId("markdown")).toBeInTheDocument();
-    expect(
-      screen.getByText(`${content.length.toLocaleString()} chars fetched`),
-    ).toBeInTheDocument();
-  });
-
-  it("shows only the link for a page that returned nothing", () => {
-    // An empty body box under the link reads as a rendering failure.
-    render(<FetchUrlResult url="https://acme.example/" content="" />);
-
-    expect(screen.queryByTestId("markdown")).toBeNull();
-  });
-});
-
-describe("asking the user", () => {
-  it("shows the transcript once the questions were answered", () => {
-    // The result is already a Q/A transcript by then, so it renders as-is.
-    render(<AskUserResult args={{}} resultText={"Q: Which invoice?\nA: The March one."} />);
-
-    expect(screen.getByText(/Which invoice\?/)).toBeInTheDocument();
-    expect(screen.queryByText("Waiting for the user…")).toBeNull();
-  });
-
-  it("lists the questions while it waits", () => {
-    render(
-      <AskUserResult
-        args={{ questions: [{ question: "Which invoice?" }, { question: "Refund or credit?" }] }}
-        resultText=""
-      />,
-    );
-
-    expect(screen.getByText("Questions")).toBeInTheDocument();
-    expect(screen.getByText("Which invoice?")).toBeInTheDocument();
-    expect(screen.getByText("Waiting for the user…")).toBeInTheDocument();
-  });
-
-  it("uses the singular for one question", () => {
-    render(<AskUserResult args={{ questions: [{ question: "Which?" }] }} resultText="" />);
-
-    expect(screen.getByText("Question")).toBeInTheDocument();
-  });
-
-  it("reads args that arrived as a JSON string", () => {
-    // Which is how a replayed conversation stores them.
-    render(
-      <AskUserResult
-        args={JSON.stringify({ questions: [{ question: "Which?" }] })}
-        resultText=""
-      />,
-    );
-
-    expect(screen.getByText("Which?")).toBeInTheDocument();
-  });
-
-  it("says it is waiting even when it could not read the questions", () => {
-    // Three ways that happens: unparsable JSON, no questions key, no args at all.
-    for (const args of ["not json", { other: 1 }, null, { questions: "not a list" }]) {
-      const { unmount } = render(<AskUserResult args={args} resultText="" />);
-
-      expect(screen.getByText("Waiting for the user…")).toBeInTheDocument();
-      expect(screen.getByText("Question")).toBeInTheDocument();
-      unmount();
-    }
-  });
-
-  it("survives a question the tool left blank", () => {
-    render(<AskUserResult args={{ questions: [{}] }} resultText="" />);
-
-    expect(screen.getByText("Question")).toBeInTheDocument();
   });
 });
 

@@ -239,6 +239,16 @@ export interface PendingApproval {
   reviewConfigs: ReviewConfig[];
   /** The run to continue once every call has been decided. */
   runId: string;
+  /**
+   * The turn the parked calls are drawn in, captured when the approval arrived.
+   *
+   * Not read off the live "current message" when the decision is made: the park is
+   * followed immediately by `complete`, which ends the turn and clears that ref - so
+   * by the time somebody clicks Approve there is no current message, every
+   * `updateToolCallPart` is skipped, and the step sits at "waiting for approval"
+   * forever while the run has in fact resumed and answered.
+   */
+  messageId: string | null;
 }
 
 export type DecisionType = "approve" | "edit" | "reject";

@@ -185,10 +185,28 @@ export interface CostSummary {
  * this leaves the reply nowhere, which is what made an approval look like it had
  * done nothing until the page was reloaded.
  */
+/** A tool call a resumed run is now waiting on. */
+export interface ParkedCall {
+  id: string;
+  tool_call_id: string | null;
+  tool_name: string;
+  tool_args: Record<string, unknown>;
+}
+
 export interface ResumedRun {
   run_id: string;
   output: string;
   status: RunStatus;
+  /**
+   * What the run is waiting on *now*, empty unless it parked again.
+   *
+   * A resume runs the agent, and the agent can reach a second gated call. The
+   * continuation runs over HTTP rather than this conversation's socket, so no
+   * `tool_approval_required` frame arrives for it - this is the only place the new
+   * calls can come from, and without it the panel closed on a run that was still
+   * blocked and could no longer be decided from here.
+   */
+  parked?: ParkedCall[];
   /** Serialised Decimal - never parse into a float for arithmetic. */
   cost_usd: string;
   input_tokens: number;

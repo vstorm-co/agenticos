@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from app.api.deps import CurrentUser, FileUploadSvc
 from app.core.exceptions import NotFoundError
 from app.schemas.file import FileInfo, FileUploadResponse
+from app.services.file_upload import make_preview
 
 router = APIRouter(prefix="/files", tags=["files"])
 
@@ -33,6 +34,7 @@ async def upload_file(
         mime_type=chat_file.mime_type,
         size=chat_file.size,
         file_type=chat_file.file_type,
+        preview=make_preview(chat_file.parsed_content),
     )
 
 
@@ -98,6 +100,7 @@ async def get_file_info(
         mime_type=chat_file.mime_type,
         size=chat_file.size,
         file_type=chat_file.file_type,
+        preview=make_preview(chat_file.parsed_content),
         created_at=chat_file.created_at,
         user_id=chat_file.user_id,
     )

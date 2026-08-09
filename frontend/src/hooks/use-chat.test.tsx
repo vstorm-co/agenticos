@@ -233,18 +233,62 @@ describe("useChat - the streamed answer", () => {
     expect(streaming()?.thinking).toBe("Checking.");
   });
 
-  it("closes the previous message when a second one opens", () => {
-    // One turn can produce several messages; the first must stop rendering as
-    // still streaming.
+  it("keeps one turn in one message however many requests it takes", () => {
+    // A multi-step turn makes a request per tool round. Opening a message on each
+    // one split a single answer into a bubble per round, with the tool steps
+    // scattered one per message - so nothing grouped them onto a rail, and the
+    // stored turn (one row) could only ever match one of them, which is why a
+    // reload showed something different from what was watched.
+    renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "Below are the charts." });
+    receive("tool_call", { tool_call_id: "tc-1", tool_name: "create_chart", args: {} });
+    receive("tool_result", { tool_call_id: "tc-1", content: "{}" });
+
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "Done." });
+
+    const messages = useChatStore.getState().messages;
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.parts?.map((part) => part.type)).toEqual(["text", "tool", "text"]);
+  });
+
+  it("opens a second message for the next turn, and closes the first", () => {
+    // Across turns the split is right. `final_result` ends the answer and
+    // `complete` ends the turn, which is what lets the next request open its own
+    // message rather than appending to this one.
     renderHook(() => useChat(), { wrapper });
     receive("model_request_start", {});
     receive("text_delta", { index: 0, content: "first" });
+    receive("final_result", { output: "first" });
+    receive("complete", {});
 
     receive("model_request_start", {});
 
     const messages = useChatStore.getState().messages;
     expect(messages).toHaveLength(2);
     expect(messages[0]?.isStreaming).toBe(false);
+  });
+
+  it("does not append a new question's answer to a turn the socket abandoned", () => {
+    // A dropped connection sends no `complete`, so nothing clears the open turn.
+    // With one message per turn that left the ref pointing at the abandoned
+    // answer, and the next one was appended to it - two turns in one bubble, with
+    // the first still rendering a cursor. Asking again is the boundary that holds
+    // whatever the socket did.
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "half an answ" });
+
+    act(() => result.current.sendMessage("are you still there?"));
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "Yes." });
+
+    const messages = useChatStore.getState().messages;
+    expect(messages.map((message) => message.role)).toEqual(["assistant", "user", "assistant"]);
+    expect(messages[0]?.isStreaming).toBe(false);
+    expect(messages[0]?.content).toBe("half an answ");
+    expect(messages[2]?.content).toBe("Yes.");
   });
 
   it("shows a tool call and then its result, in the timeline", () => {
@@ -816,6 +860,151 @@ describe("useChat - approvals and questions", () => {
       ["/runs/r-9/resume"],
     ]);
     expect(result.current.pendingApproval).toBeNull();
+  });
+
+  it("re-opens the panel when the continuation parks again", async () => {
+    // A resume runs the agent, and the agent can reach a second gated call. Nothing
+    // announces that here - the continuation runs over HTTP, so no
+    // `tool_approval_required` frame arrives - so the panel closed on a run that was
+    // still blocked, and the only way to finish it was the approvals queue on
+    // another page. Three approvals in one conversation is what that looked like.
+    post.mockImplementation((url: string) =>
+      url.endsWith("/resume")
+        ? Promise.resolve({
+            run_id: "r-9",
+            output: "",
+            status: "awaiting_approval",
+            parked: [
+              { id: "ar-2", tool_call_id: "tc-2", tool_name: "execute", tool_args: { cmd: "ls" } },
+            ],
+          })
+        : Promise.resolve({}),
+    );
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("tool_approval_required", {
+      run_id: "r-9",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} }],
+      review_configs: [],
+    });
+    receive("complete", {});
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+
+    expect(result.current.pendingApproval?.actionRequests).toEqual([
+      { id: "ar-2", tool_call_id: "tc-2", tool_name: "execute", args: { cmd: "ls" } },
+    ]);
+    expect(result.current.pendingApproval?.runId).toBe("r-9");
+  });
+
+  it("closes the panel when the continuation finished", async () => {
+    post.mockImplementation((url: string) =>
+      url.endsWith("/resume")
+        ? Promise.resolve({ run_id: "r-9", output: "Done.", status: "completed", parked: [] })
+        : Promise.resolve({}),
+    );
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("tool_approval_required", {
+      run_id: "r-9",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} }],
+      review_configs: [],
+    });
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+
+    expect(result.current.pendingApproval).toBeNull();
+  });
+
+  it("credits the resumed answer to the agent that was answering", async () => {
+    // The continuation is the second half of one turn. Added with no agent it
+    // rendered under the generic robot with no name, so the same turn showed two
+    // faces and the answer read as though a different agent had written it.
+    post.mockImplementation((url: string) =>
+      url.endsWith("/resume")
+        ? Promise.resolve({ run_id: "r-9", output: "Six sheets.", status: "completed" })
+        : Promise.resolve({}),
+    );
+    useAgentSelectionStore.setState({ selectedAgentId: "agent-jarvis" });
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("analyse this"));
+    receive("model_request_start", {});
+    receive("tool_approval_required", {
+      run_id: "r-9",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} }],
+      review_configs: [],
+    });
+    receive("complete", {});
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+
+    const answers = useChatStore
+      .getState()
+      .messages.filter((message) => message.role === "assistant");
+    expect(answers.at(-1)?.agentId).toBe("agent-jarvis");
+  });
+
+  it("settles the parked step, which the end of the turn used to strand", async () => {
+    // The park is followed immediately by `complete`, which ends the turn and clears
+    // the "current message" ref - so every `updateToolCallPart` in the decision loop
+    // was skipped, and the step sat at "waiting for approval" for the rest of the
+    // session while the run had in fact resumed and answered. The turn the calls are
+    // drawn in is captured when the approval arrives, not read off the ref later.
+    post.mockImplementation((url: string) =>
+      url.endsWith("/resume")
+        ? Promise.resolve({ run_id: "r-9", output: "Done.", status: "completed" })
+        : Promise.resolve({}),
+    );
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("tool_call", { tool_call_id: "tc-1", tool_name: "execute", args: {} });
+    receive("tool_approval_required", {
+      run_id: "r-9",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} }],
+      review_configs: [],
+    });
+    receive("complete", {});
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+
+    // Completed, not `running`: the resumed call's result went to the HTTP response
+    // rather than to this socket, so a step left running waits for a frame that
+    // cannot arrive.
+    const parked = useChatStore
+      .getState()
+      .messages.flatMap((message) => message.parts ?? [])
+      .find((part) => part.toolCall?.id === "tc-1");
+    expect(parked?.toolCall?.status).toBe("completed");
+  });
+
+  it("marks a refused call refused, on the turn it was drawn in", async () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("tool_call", { tool_call_id: "tc-1", tool_name: "execute", args: {} });
+    receive("tool_approval_required", {
+      run_id: "r-9",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} }],
+      review_configs: [],
+    });
+    receive("complete", {});
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "reject" }]);
+    });
+
+    const parked = useChatStore
+      .getState()
+      .messages.flatMap((message) => message.parts ?? [])
+      .find((part) => part.toolCall?.id === "tc-1");
+    expect(parked?.toolCall?.status).toBe("error");
   });
 
   it("shows what the resumed run answered, rather than discarding it", async () => {

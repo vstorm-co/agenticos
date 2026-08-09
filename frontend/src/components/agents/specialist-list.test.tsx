@@ -171,7 +171,21 @@ describe("SpecialistList", () => {
   it("names a specialist nobody has named yet", () => {
     mount({ specialists: [specialist({ name: "" })] });
 
-    expect(screen.getByRole("button", { name: "Unnamed" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "New specialist" })).toBeVisible();
+  });
+
+  it("offers a way out of one that was just added, without scrolling for it", () => {
+    // Adding a specialist is one click and produces an entry that is already
+    // invalid. The discard used to be below the instructions, the model, the
+    // capabilities, the collections and the skills - so on a real screen the
+    // button was off the bottom and adding one read as a one-way door.
+    const onChange = mount({ specialists: [specialist({ name: "" })] });
+    const remove = screen.getByRole("button", { name: "Remove this specialist" });
+    const name = screen.getByLabelText("Name");
+
+    // Ordered by the DOM, which is what "reachable without scrolling" means here.
+    expect(remove.compareDocumentPosition(name) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it("removes the one on show and falls back to the first", async () => {
@@ -192,10 +206,30 @@ describe("the name, which the parent's model emits verbatim", () => {
     expect(screen.getByLabelText("Name")).toBeInvalid();
   });
 
-  it("says a blank name is a specialist the model cannot address", () => {
+  it("says nothing about the name until somebody has been at it", async () => {
+    // A specialist starts with an empty name, so the error was on screen before
+    // anybody had typed - a form scolding somebody for a field they have not
+    // reached. Publish still refuses it and the Issues count still counts it.
     mount({ specialists: [specialist({ name: "" })] });
 
+    expect(screen.queryByText(/cannot address is one it cannot use/)).toBeNull();
+  });
+
+  it("says a blank name is a specialist the model cannot address, once it is theirs", async () => {
+    mount({ specialists: [specialist({ name: "" })] });
+
+    await userEvent.click(screen.getByLabelText("Name"));
+    await userEvent.tab();
+
     expect(screen.getByText(/cannot address is one it cannot use/)).toBeVisible();
+  });
+
+  it("says so straight away for a name that was typed and is wrong", async () => {
+    // Nothing deferred here: the value came from somebody, so the objection is
+    // about what they wrote rather than about what they have not written.
+    mount({ specialists: [specialist({ name: "Not A Handle" })] });
+
+    expect(screen.getByText(/Letters, digits, underscores and dashes only/)).toBeVisible();
   });
 
   it("stores what was typed, so a name can be corrected in place", async () => {

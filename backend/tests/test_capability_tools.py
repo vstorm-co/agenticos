@@ -18,7 +18,7 @@ from pydantic_ai_backends.permissions import PermissionChecker
 
 from app.agents.capabilities.charts import ChartsToolset
 from app.agents.capabilities.charts._spec import ChartSeries, parse_chart_spec
-from app.agents.capabilities.charts._toolset import _infer_series
+from app.agents.capabilities.charts._toolset import ChartSeriesInput
 from app.agents.capabilities.code_execution import CodeExecution
 from app.agents.capabilities.code_execution._sandbox import _clip, _format_result, run_python
 from app.agents.capabilities.knowledge._search import _format_results
@@ -177,29 +177,36 @@ class TestChartTool:
         spec = ChartsToolset().create_chart(
             chart_type="bar",
             title="Revenue",
-            data=[{"x": "Jan", "y": 10}, {"x": "Feb", "y": 20}],
+            x_values=["Jan", "Feb"],
+            series=[ChartSeriesInput(key="y", values=[10, 20])],
         )
         assert json.loads(spec)["kind"] == "chart"
         assert parse_chart_spec(spec) is not None
 
-    def test_series_are_inferred_from_the_data(self):
-        series = _infer_series([{"x": "Jan", "revenue": 1, "cost": 2}], "x")
-        assert {s.key for s in series} == {"revenue", "cost"}
-
     def test_the_x_axis_field_is_not_treated_as_a_series(self):
-        series = _infer_series([{"x": "Jan", "revenue": 1}], "x")
-        assert all(s.key != "x" for s in series)
-
-    def test_explicit_series_are_respected(self):
-        spec = ChartsToolset().create_chart(
-            chart_type="line",
-            title="Revenue",
-            data=[{"x": "Jan", "revenue": 1}],
-            series=[ChartSeries(key="revenue", label="Revenue")],
+        """The axis is its own argument, so it cannot be mistaken for a series."""
+        spec = parse_chart_spec(
+            ChartsToolset().create_chart(
+                chart_type="line",
+                title="Revenue",
+                x_values=["Jan"],
+                series=[ChartSeriesInput(key="revenue", values=[1])],
+            )
         )
-        parsed = parse_chart_spec(spec)
-        assert parsed is not None
-        assert parsed.series[0].key == "revenue"
+        assert spec is not None
+        assert all(s.key != "x" for s in spec.series)
+
+    def test_a_label_survives_onto_the_emitted_series(self):
+        spec = parse_chart_spec(
+            ChartsToolset().create_chart(
+                chart_type="line",
+                title="Revenue",
+                x_values=["Jan"],
+                series=[ChartSeriesInput(key="revenue", values=[1], label="Revenue")],
+            )
+        )
+        assert spec is not None
+        assert (spec.series[0].key, spec.series[0].label) == ("revenue", "Revenue")
 
     def test_parsing_junk_returns_nothing_rather_than_raising(self):
         """The channel renderer inspects every tool result; a stray string is normal."""

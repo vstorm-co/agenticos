@@ -99,6 +99,7 @@ from app.services.agent import PersistedPrompt
 from app.services.agent_chat import ChatTurn, OpenedRun
 from app.services.agent_runner import ParkedApproval, PreparedRun
 from app.services.agent_session import AgentSession
+from app.services.chat_timeline import TurnTimeline
 from app.services.usage_report import UsageReport
 
 pytestmark = pytest.mark.anyio
@@ -861,23 +862,21 @@ class TestStreamingAModelResponse:
 
     @staticmethod
     async def _stream(
-        session: AgentSession, *events: Any, output: list[str] | None = None
-    ) -> list[str]:
-        """Drive the translation over `events`, returning the collected thinking.
+        session: AgentSession, *events: Any, timeline: TurnTimeline | None = None
+    ) -> str | None:
+        """Drive the translation over `events`, returning the collected reasoning.
 
-        `output` is passed by the tests about the half-written answer; the rest do
-        not read it, so they let it be discarded.
+        `timeline` is passed by the tests that read the text or the order back; the
+        rest only care about the frames that went out.
         """
 
         async def _events() -> AsyncIterator[Any]:
             for event in events:
                 yield event
 
-        thinking: list[str] = []
-        await session._stream_request_events(
-            _events(), thinking, output if output is not None else []
-        )
-        return thinking
+        collected = timeline if timeline is not None else TurnTimeline()
+        await session._stream_request_events(_events(), collected)
+        return collected.thinking
 
     async def test_a_part_that_starts_with_text_already_in_it_forwards_that_text(self):
         """Some providers put the first chunk inside the part rather than sending
@@ -928,7 +927,7 @@ class TestStreamingAModelResponse:
             ("part_start", {"index": 0, "part_type": "ThinkingPart"}),
             ("thinking_delta", {"index": 0, "content": "Counting the open ones"}),
         ]
-        assert thinking == ["Counting the open ones"]
+        assert thinking == "Counting the open ones"
 
     async def test_a_second_block_of_reasoning_is_separated_from_the_first(self):
         """The pieces are joined into one string for persistence, so two blocks
@@ -941,7 +940,7 @@ class TestStreamingAModelResponse:
             PartStartEvent(index=2, part=ThinkingPart(content="Now checking.")),
         )
 
-        assert "".join(thinking) == "Counting. Now checking."
+        assert thinking == "Counting. Now checking."
 
     async def test_reasoning_that_starts_empty_is_neither_shown_nor_recorded(self):
         session = _session()
@@ -951,7 +950,7 @@ class TestStreamingAModelResponse:
         )
 
         assert _frame_types(session) == ["part_start"]
-        assert thinking == []
+        assert thinking is None
 
     async def test_a_text_delta_is_forwarded_with_the_part_it_extends(self):
         session = _session()
@@ -970,7 +969,7 @@ class TestStreamingAModelResponse:
         )
 
         assert _sent_events(session) == [("thinking_delta", {"index": 0, "content": "Counting"})]
-        assert thinking == ["Counting"]
+        assert thinking == "Counting"
 
     async def test_a_reasoning_delta_carrying_only_a_signature_is_not_shown(self):
         """A signature is the provider's proof it produced the reasoning, sent as
@@ -983,7 +982,7 @@ class TestStreamingAModelResponse:
         )
 
         assert _sent_events(session) == []
-        assert thinking == []
+        assert thinking is None
 
     async def test_tool_arguments_are_forwarded_as_they_arrive(self):
         session = _session()
@@ -1168,14 +1167,20 @@ class TestDrivingTheRun:
     async def test_a_turn_that_calls_a_tool_and_then_answers(self):
         session = _session()
         tool_calls: list[dict[str, Any]] = []
-        output: list[str] = []
+        timeline = TurnTimeline()
 
         async with _answering_agent(tools=[count_open]).iter("how many are open?") as agent_run:
-            await session._stream_agent_run(agent_run, "how many are open?", tool_calls, [], output)
+            await session._stream_agent_run(agent_run, "how many are open?", tool_calls, timeline)
 
         # The same words that went out as `text_delta`, kept so a turn that never
         # finishes can still be written down as what its reader saw.
-        assert "".join(output) == "Two are open."
+        assert timeline.text == "Two are open."
+        # And where they sat: the call came before the answer, which is the order a
+        # reload has to reproduce.
+        assert [(part.type, part.text or part.tool_call_id) for part in timeline.parts] == [
+            ("tool", "call-1"),
+            ("text", "Two are open."),
+        ]
         types = _frame_types(session)
         assert types[0] == "user_prompt_processed"
         assert types.count("model_request_start") == 2
@@ -1199,7 +1204,7 @@ class TestDrivingTheRun:
         prompt = ["have a look at this", BinaryContent(data=b"\x89PNG", media_type="image/png")]
 
         async with _answering_agent().iter(prompt) as agent_run:
-            await session._stream_agent_run(agent_run, "have a look at this", [], [], [])
+            await session._stream_agent_run(agent_run, "have a look at this", [], TurnTimeline())
 
         assert _sent_events(session)[0] == (
             "user_prompt_processed",
@@ -1231,7 +1236,7 @@ class TestForwardingToolEvents:
                 )
             )
 
-        await session._stream_tool_events(_events(), collected)
+        await session._stream_tool_events(_events(), collected, TurnTimeline())
 
         assert [event for event in _sent_events(session) if event[0] == "tool_result"] == [
             ("tool_result", {"tool_call_id": "t1", "content": "wrote /a.txt"})
@@ -1251,7 +1256,7 @@ class TestForwardingToolEvents:
                 part=ToolReturnPart(tool_name="ls", content=["/a.txt"], tool_call_id="t1")
             )
 
-        await session._stream_tool_events(_events(), collected)
+        await session._stream_tool_events(_events(), collected, TurnTimeline())
 
         assert collected == [
             {"tool_call_id": "t1", "tool_name": "ls", "args": {}, "result": "['/a.txt']"}
@@ -1267,7 +1272,7 @@ class TestForwardingToolEvents:
                 part=RetryPromptPart(content="path must be absolute", tool_call_id="t9")
             )
 
-        await session._stream_tool_events(_events(), [])
+        await session._stream_tool_events(_events(), [], TurnTimeline())
 
         [(_type, data)] = [event for event in _sent_events(session) if event[0] == "tool_result"]
         assert data == {"tool_call_id": "t9", "content": "path must be absolute"}
@@ -1286,7 +1291,7 @@ class TestForwardingToolEvents:
                 )
             )
 
-        await session._stream_tool_events(_events(), collected)
+        await session._stream_tool_events(_events(), collected, TurnTimeline())
 
         assert _sent_events(session) == []
         assert collected == []

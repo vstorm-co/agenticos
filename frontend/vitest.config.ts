@@ -33,14 +33,21 @@ export default defineConfig({
         "src/components/orgs/**/*.tsx",
         "src/components/runs/**/*.tsx",
         "src/components/sandboxes/**/*.tsx",
+        // One file viewer for every surface (#136). Held to the gate because what
+        // it replaced was: three of the four implementations sat under
+        // `components/sandboxes/**` and one under `chat/`, all already at 100%, so
+        // moving them out of the list would have been a coverage regression
+        // dressed up as a refactor.
+        "src/components/files/**/*.tsx",
         "src/components/chat/usage-strip.tsx",
+        "src/components/chat/attachment-card.tsx",
         "src/components/chat/tool-results/**/*.tsx",
         "src/components/chat/chart-message.tsx",
         "src/components/chat/chat-controls.tsx",
         "src/components/chat/chat-empty-state.tsx",
+        "src/components/chat/conversation-filters.tsx",
         "src/components/chat/copy-button.tsx",
         "src/components/chat/delegation-panel.tsx",
-        "src/components/chat/file-preview-card.tsx",
         "src/components/chat/file-preview-panel.tsx",
         "src/components/chat/markdown-content.impl.tsx",
         "src/components/chat/markdown-content.tsx",

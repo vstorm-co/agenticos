@@ -8,9 +8,52 @@ from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
 from app.schemas.base import BaseSchema, TimestampSchema
+
+
+class MessagePart(BaseSchema):
+    """One entry in an assistant turn's timeline, in the order it happened.
+
+    A turn is a sequence, not three buckets. The row's `content`, `thinking` and
+    `tool_calls` say *what* a turn contained and cannot say *when* - so a client
+    replaying one had to invent an order, and the only order it could invent was
+    reasoning, then every tool, then the answer. A turn that says "here are the
+    charts", draws three, and then summarises them reassembles as three charts
+    with the summary on top and the introduction missing entirely, because a
+    second block of text has nowhere to live in a single `content` column.
+
+    So the sequence that was streamed is the sequence that is stored, and both
+    surfaces render the same array rather than agreeing by coincidence. `content`
+    and `thinking` stay exactly as they were: they are what search, the model's
+    own history and every earlier row are built on, and this is what the
+    transcript is drawn from.
+
+    `tool_call_id` refers to the `tool_calls` row carrying the arguments and the
+    result. It is not repeated here - a tool call is written once, and a copy in
+    JSONB is a copy that disagrees the first time one is re-run or redacted.
+    """
+
+    # The one schema in this module that must not strip its strings. `BaseSchema`
+    # strips every string field, which is right for a name somebody typed into a
+    # form and wrong for a fragment of a transcript: a part is *accumulated* from
+    # streamed deltas, so trimming each one deletes the space between the words
+    # they meet at - "Two " and "are open." stored as "Twoare open." - and it
+    # would take the indentation off a fenced code block the model wrote.
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+        str_strip_whitespace=False,
+    )
+
+    type: Literal["text", "thinking", "tool"] = Field(description="What this entry is.")
+    text: str | None = Field(
+        default=None, description="The words, for a `text` or `thinking` entry."
+    )
+    tool_call_id: str | None = Field(
+        default=None, description="Which tool call this entry is, for a `tool` entry."
+    )
 
 
 class ToolCallBase(BaseSchema):
@@ -68,6 +111,13 @@ class MessageCreate(MessageBase):
     """
 
     model_name: str | None = Field(default=None, max_length=100, description="AI model used")
+    parts: list[MessagePart] | None = Field(
+        default=None,
+        description=(
+            "The turn's timeline, in the order it happened. Null on a user turn and "
+            "on any assistant turn written before it was recorded."
+        ),
+    )
     tokens_used: int | None = Field(default=None, ge=0, description="Token count")
     input_tokens: int | None = Field(
         default=None, ge=0, description="Prompt tokens this turn consumed"
@@ -108,6 +158,16 @@ class MessageRead(MessageBase, TimestampSchema):
         ),
     )
     model_name: str | None = None
+    parts: list[MessagePart] | None = Field(
+        default=None,
+        description=(
+            "The turn's timeline, in the order it happened - reasoning, the text the "
+            "model wrote, and the tools it called, interleaved as they occurred. Null "
+            "on a user turn and on an assistant turn written before this was recorded, "
+            "which is a client's signal to fall back to reconstructing an order from "
+            "`content`, `thinking` and `tool_calls` rather than to render nothing."
+        ),
+    )
     tokens_used: int | None = None
     input_tokens: int | None = Field(
         default=None,

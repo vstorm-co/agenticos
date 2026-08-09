@@ -72,11 +72,16 @@ export function SearchInput({
   onChange,
   placeholder,
   className,
+  autoFocus = false,
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
   className?: string;
+  /** For a caller that opened this box *in order to* search - the chat's
+   *  collapsed rail. Off everywhere else: a box that grabs the cursor on every
+   *  page load takes it from whatever somebody was typing in. */
+  autoFocus?: boolean;
 }) {
   return (
     <div className={cn("relative w-full sm:w-64", className)}>
@@ -86,6 +91,7 @@ export function SearchInput({
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         aria-label={placeholder}
+        autoFocus={autoFocus}
         className="pl-9"
       />
     </div>

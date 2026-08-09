@@ -27,7 +27,7 @@ export function extractSources(message: ChatMessage): SourceItem[] {
     const result = typeof tc.result === "string" ? tc.result : "";
     if (!result) continue;
 
-    if (tc.name === "search_knowledge_base" || tc.name === "search_documents") {
+    if (tc.name === "search_documents") {
       for (const item of parseRAGResults(result)) {
         sources.push({
           index: item.index,
@@ -41,7 +41,7 @@ export function extractSources(message: ChatMessage): SourceItem[] {
           score: item.score ? parseFloat(item.score) : undefined,
         });
       }
-    } else if (tc.name === "web_search" || tc.name === "search_web") {
+    } else if (tc.name === "web_search") {
       const payload = parseWebSearch(result);
       if (payload?.results) {
         payload.results.forEach((hit, i) => {

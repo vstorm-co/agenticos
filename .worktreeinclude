@@ -1,0 +1,2 @@
+# Gitignored local config copied into every worktree Claude Code creates.
+backend/.env

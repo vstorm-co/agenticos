@@ -8,7 +8,7 @@ import { Button, DataTable, type Column } from "@/components/ui";
 import { EmptyState } from "@/components/states";
 import { DocumentProvenance } from "@/components/rag/document-cells";
 import { RagStatusBadge } from "@/components/rag/rag-status-badge";
-import { downloadKBDocument } from "@/lib/rag-api";
+import { kbDocumentAccess } from "@/lib/rag-api";
 import { formatBytes } from "@/lib/utils";
 import type { KBDocument } from "@/types";
 
@@ -56,7 +56,7 @@ export function DocumentsTable({
     if (downloadingId) return;
     setDownloadingId(doc.id);
     try {
-      await downloadKBDocument(kbId, doc, "download");
+      await kbDocumentAccess(kbId, doc).download();
     } catch {
       /* silently ignore */
     } finally {
