@@ -41,8 +41,10 @@ export function RunHistoryTab({
       {/* Narrowed to an agent, a per-version summary sits above the table - the
           builder's "did v4 behave better than v3" answered where the evidence
           is. Its completed share is the shared `completedShare`, so it reads as
-          the same figure the dashboard's Outcomes donut shows (§8a.4). */}
-      {agentId !== null && <VersionStrip agentId={agentId} />}
+          the same figure the dashboard's Outcomes donut shows (§8a.4). A
+          per-version summary makes no sense over a single focused run, so it is
+          not drawn when `?run=` has narrowed the card below to one. */}
+      {agentId !== null && focusedRunId === null && <VersionStrip agentId={agentId} />}
       <Card>
         <CardHeader>
           <CardTitle>{t("runHistory2")}</CardTitle>
