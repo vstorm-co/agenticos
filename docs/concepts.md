@@ -90,7 +90,15 @@ spend ledger. There is no `delegated` status, because how a run *ended* and how 
 
 A run says what it cost; `messages.run_id` says what it *did*. Every turn a run
 produced carries the run's id, so "the steps of this run" is one query rather
-than a guess - which is what a drill-down from run history reads.
+than a guess - which is what a drill-down from run history reads through
+`GET /runs/{id}/transcript`. That read is *authorized, not owned*: a colleague
+holding `runs:view` reads a run somebody else started, because a run is the
+organization's rather than its starter's. Another tenant's run reads as absent,
+the same 404 an unknown id answers with, and a run that ran with no conversation
+says so with a null `conversation_id` rather than an empty list. It is a route of
+its own and not a filter on the conversation endpoint precisely so that widening
+who reads a run does not widen who reads the private thread it sits in - see
+[Governance](governance.md#what-run-history-shows).
 
 The link is a column rather than a time window on purpose. Two runs started in
 one conversation interleave, so windowing messages between `started_at` and

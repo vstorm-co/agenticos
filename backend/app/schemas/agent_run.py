@@ -8,6 +8,7 @@ from uuid import UUID
 from pydantic import Field, model_validator
 
 from app.schemas.base import BaseSchema
+from app.schemas.conversation import MessageRead
 
 
 class AgentRunRead(BaseSchema):
@@ -98,6 +99,43 @@ class AgentRunRead(BaseSchema):
 
 class AgentRunList(BaseSchema):
     items: list[AgentRunRead]
+    total: int
+
+
+class RunTranscript(BaseSchema):
+    """One run's turns, in the order they happened, as the run detail view reads them.
+
+    The messages are the same rows `GET /conversations/{id}/messages` returns, but
+    narrowed to a single run by `messages.run_id` and reached under a different
+    authorization: reading a run is the organization's right, not its owner's, so a
+    colleague holding `runs:view` reads a run somebody else started - which the
+    conversation route deliberately refuses.
+
+    Attributes:
+        run_id: The run these turns belong to.
+        conversation_id: The thread the run ran inside, or `None` when it ran
+            with no conversation - an API call that passed no `conversation_id`.
+            A null here is the answer "this run has no transcript", which a client
+            must tell apart from an empty `items` for a run that *had* a thread and
+            simply produced nothing: the runner never writes a turn for a run with
+            no conversation, so an empty list under a null id is a certainty rather
+            than a coincidence, and reads as "there is nothing to show" rather than
+            "it did nothing".
+        items: The run's messages, oldest first.
+        total: How many turns the run produced, so a paged read still knows the
+            size of what it is paging through.
+    """
+
+    run_id: UUID
+    conversation_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The conversation this run ran inside, or null when it ran with none - "
+            "which is how a client says 'this run has no transcript' rather than "
+            "drawing an empty list that reads as 'it did nothing'."
+        ),
+    )
+    items: list[MessageRead]
     total: int
 
 
