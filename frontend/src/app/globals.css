@@ -933,3 +933,38 @@
 .driver-popover.tour-popover .driver-popover-arrow {
   display: none !important;
 }
+
+/*
+ * The "clicked" flourish on the control a transition fires from. The spotlight
+ * lands on it, it pulses — grows then presses in and settles, the way a tapped
+ * control does — and only then does the tour navigate or switch tabs, so the
+ * reader sees which control was pressed rather than the page changing under
+ * them. The peak stays inside the 8px `stagePadding` so the pulse plays within
+ * the spotlight cut-out. Honoured only when the reader has not asked for less
+ * motion; the transition itself still happens, just without the flourish.
+ */
+@keyframes tour-click-pulse {
+  0% {
+    transform: scale(1);
+  }
+  25% {
+    transform: scale(1.03);
+  }
+  55% {
+    transform: scale(0.95);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.tour-click-pulse {
+  animation: tour-click-pulse 0.45s ease-in-out both;
+  transform-origin: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-click-pulse {
+    animation: none;
+  }
+}

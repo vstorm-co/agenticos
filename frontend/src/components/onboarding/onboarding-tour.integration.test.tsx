@@ -30,7 +30,7 @@ vi.mock("@/components/onboarding/spotlight", () => ({
   createTourDriver: () => ({ highlight: spotlight.highlight, destroy: spotlight.destroy }),
   waitForElement: vi.fn(async () => ({}) as Element),
   activateTab: vi.fn(),
-  delay: vi.fn(async () => {}),
+  pulse: vi.fn(async () => {}),
 }));
 
 vi.mock("@/lib/api-client", async () => {

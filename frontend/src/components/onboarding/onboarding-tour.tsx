@@ -11,7 +11,7 @@ import { useDetailTargets } from "@/components/onboarding/detail-targets";
 import {
   activateTab,
   createTourDriver,
-  delay,
+  pulse,
   waitForElement,
 } from "@/components/onboarding/spotlight";
 import { useOnboardingTour } from "@/hooks";
@@ -23,6 +23,13 @@ const REVEAL_MS = 650;
 
 /** How long to wait for that control to be in the DOM before giving up on the flourish. */
 const CONTROL_WAIT_MS = 400;
+
+/**
+ * The buttons greyed out while a transition is in flight. Next and Back are
+ * locked so a reader cannot advance past the control being revealed and desync
+ * the walk from the page; close stays live so they can always leave.
+ */
+const LOCKED_BUTTONS: AllowedButtons[] = ["next", "previous"];
 
 /**
  * The guided tour: driver.js walks the reader across the product a page at a
@@ -37,15 +44,18 @@ const CONTROL_WAIT_MS = 400;
  * Every move to the next step is driven by Next, and every move shows what
  * causes it. A static or detail step that needs another page first spotlights
  * the control that leads there — the sidebar link, or the button that opens the
- * row (the "Roles" link, an agent's card) — holds a beat, then navigates; a step
- * with an `activate` target spotlights its Radix tab, holds, then switches to it.
- * Only then does the spotlight land on the step's target. Because the caption is
- * pinned, none of that moves the text: the hold is for the eye to follow the
- * highlight, not a timer the reader races. A detail step with nothing to open
- * (an empty list) describes the section where the reader is rather than skip it.
- * Which steps to show, in what order, permission-filtered, and whether closing
- * persists completion, all come from `useOnboardingTour`. Mounted once in the
- * dashboard layout.
+ * row (the "Roles" link, an agent's card) — pulses it like a press, then
+ * navigates; a step with an `activate` target pulses its Radix tab, then
+ * switches to it. Only then does the spotlight land on the step's target.
+ * Because the caption is pinned, none of that moves the text: the pulse is for
+ * the eye to follow the highlight, not a timer the reader races. While a
+ * transition is in flight Next and Back are greyed (`LOCKED_BUTTONS`), so a
+ * reader cannot click past the control being revealed and desync the walk from
+ * the page it is meant to be on; they re-enable once the destination is shown.
+ * A detail step with nothing to open (an empty list) describes the section where
+ * the reader is rather than skip it. Which steps to show, in what order,
+ * permission-filtered, and whether closing persists completion, all come from
+ * `useOnboardingTour`. Mounted once in the dashboard layout.
  */
 export function OnboardingTour() {
   const t = useTranslations("onboarding");
@@ -68,13 +78,14 @@ export function OnboardingTour() {
     const detail = step.page ? detailTargets[step.page] : undefined;
 
     const buttons: AllowedButtons[] = isFirst ? ["next", "close"] : ["previous", "next", "close"];
-    const show = (element: Element | undefined) => {
+    const show = (element: Element | undefined, locked = false) => {
       const driveStep: DriveStep = {
         element,
         popover: {
           title: t(`steps.${step.id}.title`),
           description: t(`steps.${step.id}.body`),
           showButtons: buttons,
+          disableButtons: locked ? LOCKED_BUTTONS : undefined,
           showProgress: true,
           progressText: t("progress", { current: index + 1, total: steps.length }),
           nextBtnText: isLast ? t("finish") : t("next"),
@@ -90,15 +101,16 @@ export function OnboardingTour() {
     const controller = new AbortController();
     const { signal } = controller;
 
-    // Spotlight the control that drives a transition and hold a beat, so the
-    // reader sees which one before it fires. A control that never shows (a
-    // permission hid it, a slow page) just means the transition happens without
-    // the flourish rather than stalling the walk.
+    // Spotlight the control that drives a transition and pulse it like a press,
+    // so the reader sees which one before it fires. Next stays greyed for the
+    // hold so the walk cannot be advanced mid-transition. A control that never
+    // shows (a permission hid it, a slow page) just means the transition happens
+    // without the flourish rather than stalling the walk.
     const reveal = async (selector: string) => {
       const control = await waitForElement(selector, signal, CONTROL_WAIT_MS);
       if (signal.aborted || !(control instanceof HTMLElement)) return;
-      show(control);
-      await delay(REVEAL_MS, signal);
+      show(control, true);
+      await pulse(control, signal, REVEAL_MS);
     };
 
     void (async () => {
@@ -132,8 +144,8 @@ export function OnboardingTour() {
         const trigger = await waitForElement(`[data-tour="${step.activate}"]`, signal);
         if (signal.aborted) return;
         if (trigger instanceof HTMLElement) {
-          show(trigger);
-          await delay(REVEAL_MS, signal);
+          show(trigger, true);
+          await pulse(trigger, signal, REVEAL_MS);
           if (signal.aborted) return;
           activateTab(trigger);
         }

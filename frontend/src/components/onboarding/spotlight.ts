@@ -66,6 +66,26 @@ export function activateTab(trigger: HTMLElement): void {
   trigger.focus({ preventScroll: true });
 }
 
+/** The class that drives the "clicked" flourish; see `globals.css`. */
+const CLICK_PULSE_CLASS = "tour-click-pulse";
+
+/**
+ * Play the "clicked" flourish on `element` and hold for `ms`.
+ *
+ * Adding the class runs a CSS scale pulse (`globals.css`) that reads as the
+ * control being pressed; the class is removed once the hold ends so a later
+ * highlight of the same element — a Radix tab that stays mounted after it is
+ * activated — replays cleanly rather than sitting on a spent animation. Purely
+ * visual: `disableActiveInteraction` keeps the control inert, so nothing is
+ * really clicked; the tour navigates or switches the tab itself once this
+ * resolves. Resolves at once if `signal` is (or becomes) aborted, and clears
+ * the class either way.
+ */
+export function pulse(element: HTMLElement, signal: AbortSignal, ms: number): Promise<void> {
+  element.classList.add(CLICK_PULSE_CLASS);
+  return delay(ms, signal).finally(() => element.classList.remove(CLICK_PULSE_CLASS));
+}
+
 /** Resolve after `ms`, or at once if `signal` is (or becomes) aborted. */
 export function delay(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
