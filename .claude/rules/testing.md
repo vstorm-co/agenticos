@@ -117,8 +117,8 @@ name meant two runs on one machine dropping each other's tables mid-test (#189).
 drops it at the end, even when the suite fails, so **two concurrent runs are safe and
 nothing has to be passed to make them so**. It still skips when no database is
 reachable (a laptop without Docker) and still refuses any database whose name contains
-neither `test` nor `ci`, or that is not a plain identifier — it calls `drop_all`
-unconditionally and drops the database itself afterwards.
+neither `test` nor `ci`, or that is not a plain identifier — it empties every table
+unconditionally between tests and drops the database itself afterwards.
 
 A run killed outright (`SIGKILL`) leaks its database; the next run with that pid drops
 it before creating its own. Anything else named `agenticos_*` on a shared Postgres was
