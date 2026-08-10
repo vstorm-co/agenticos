@@ -99,11 +99,16 @@ PLATFORM_MODULES = (
     "app/repositories/mcp_connection.py",
     "app/repositories/organization_secret.py",
     "app/repositories/resource_grant.py",
+    "app/repositories/dashboard_layout.py",
+    "app/repositories/dashboard_preset.py",
     "app/api/routes/v1/_sharing_routes.py",
     "app/api/routes/v1/secrets.py",
     "app/api/routes/v1/agent_environments.py",
     "app/api/routes/v1/agent_exposures.py",
     "app/api/routes/v1/sharing.py",
+    "app/api/routes/v1/me_dashboard_layout.py",
+    "app/services/dashboard_layout.py",
+    "app/services/dashboard_preset.py",
 )
 
 
