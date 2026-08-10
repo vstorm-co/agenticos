@@ -16,7 +16,9 @@ import {
 } from "@/components/onboarding/spotlight";
 import { useOnboardingTour } from "@/hooks";
 import { stripLocale } from "@/lib/active-route";
+import { ROUTES } from "@/lib/constants";
 import { pageKey } from "@/lib/onboarding/tour";
+import { useOnboardingStore } from "@/stores";
 
 /** How long the control that drives a transition is spotlighted before it fires. */
 const REVEAL_MS = 650;
@@ -55,13 +57,16 @@ const LOCKED_BUTTONS: AllowedButtons[] = ["next", "previous"];
  * A detail step with nothing to open (an empty list) describes the section where
  * the reader is rather than skip it. Which steps to show, in what order,
  * permission-filtered, and whether closing persists completion, all come from
- * `useOnboardingTour`. Mounted once in the dashboard layout.
+ * `useOnboardingTour`. Ending the first-run tour returns the reader to the
+ * dashboard rather than leaving them on its last page; the "?" replay leaves
+ * them where they opened it. Mounted once in the dashboard layout.
  */
 export function OnboardingTour() {
   const t = useTranslations("onboarding");
   const router = useRouter();
   const pathname = usePathname();
   const { isOpen, steps, step, index, isFirst, isLast, next, back, dismiss } = useOnboardingTour();
+  const mode = useOnboardingStore((state) => state.mode);
   const detailTargets = useDetailTargets(isOpen);
   const driverRef = useRef<Driver | null>(null);
 
@@ -77,6 +82,16 @@ export function OnboardingTour() {
     const here = stripLocale(pathname);
     const detail = step.page ? detailTargets[step.page] : undefined;
 
+    // End the walk, then land on the dashboard — but only the first-run tour,
+    // which walks the whole product and would otherwise strand a new user on its
+    // last page (mcp-servers) rather than the home they started on. A "?" replay
+    // is help on one page, so closing it leaves the reader exactly where it was
+    // opened.
+    const finish = () => {
+      dismiss();
+      if (mode === "tour") router.push(ROUTES.DASHBOARD);
+    };
+
     const buttons: AllowedButtons[] = isFirst ? ["next", "close"] : ["previous", "next", "close"];
     const show = (element: Element | undefined, locked = false) => {
       const driveStep: DriveStep = {
@@ -90,9 +105,9 @@ export function OnboardingTour() {
           progressText: t("progress", { current: index + 1, total: steps.length }),
           nextBtnText: isLast ? t("finish") : t("next"),
           prevBtnText: t("back"),
-          onNextClick: () => (isLast ? dismiss() : next()),
+          onNextClick: () => (isLast ? finish() : next()),
           onPrevClick: () => back(),
-          onCloseClick: () => dismiss(),
+          onCloseClick: () => finish(),
         },
       };
       tour.highlight(driveStep);
@@ -168,6 +183,7 @@ export function OnboardingTour() {
     next,
     back,
     dismiss,
+    mode,
     t,
     detailTargets,
   ]);

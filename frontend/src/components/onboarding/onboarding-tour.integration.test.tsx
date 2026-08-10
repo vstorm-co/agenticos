@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { OnboardingTour } from "./onboarding-tour";
 import { RestartTourButton } from "./restart-tour-button";
 import { apiClient } from "@/lib/api-client";
+import { ROUTES } from "@/lib/constants";
 import { visibleTourSteps } from "@/lib/onboarding/tour";
 import { useAuthStore, useOnboardingStore } from "@/stores";
 import { Perm, type Permission } from "@/types/permissions";
@@ -14,9 +15,17 @@ import type { DriveStep } from "driver.js";
 import type { User } from "@/types";
 
 const nav = vi.hoisted(() => ({ pathname: "/dashboard" }));
+// One stable router across renders, so a test can assert where the tour sent the
+// reader — a fresh `push` per `useRouter()` call would record nothing.
+const router = vi.hoisted(() => ({
+  push: vi.fn(),
+  replace: vi.fn(),
+  prefetch: vi.fn(),
+  back: vi.fn(),
+}));
 vi.mock("next/navigation", () => ({
   usePathname: () => nav.pathname,
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), back: vi.fn() }),
+  useRouter: () => router,
   useSearchParams: () => new URLSearchParams(),
   useParams: () => ({}),
 }));
@@ -150,6 +159,30 @@ describe("OnboardingTour", () => {
         onboarding_completed_at: expect.any(String),
       }),
     );
+  });
+
+  it("returns the reader to the dashboard when the first-run tour is closed", async () => {
+    // The tour walks across the product and would otherwise leave a new user on
+    // its last page; closing it should land them on the home they started from.
+    servePermissions(OWNER);
+    vi.mocked(apiClient.patch).mockResolvedValue(user({ onboarding_completed_at: "2026-02-02" }));
+    render(<OnboardingTour />, { wrapper });
+    await waitFor(() => expect(shownStep().popover?.title).toBe("Welcome to AgenticOS"));
+
+    act(() => shownStep().popover?.onCloseClick?.(undefined, {} as DriveStep, {} as never));
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith(ROUTES.DASHBOARD));
+  });
+
+  it("leaves a '?' replay where it was opened, not on the dashboard", async () => {
+    // Page-mode help is about one page; closing it must not yank the reader away.
+    servePermissions(OWNER);
+    nav.pathname = "/agents";
+    useOnboardingStore.setState({ isOpen: true, index: 0, mode: "page" });
+    render(<OnboardingTour />, { wrapper });
+    await waitFor(() => expect(spotlight.highlight).toHaveBeenCalled());
+
+    act(() => shownStep().popover?.onCloseClick?.(undefined, {} as DriveStep, {} as never));
+    expect(router.push).not.toHaveBeenCalledWith(ROUTES.DASHBOARD);
   });
 });
 
