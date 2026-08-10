@@ -7,7 +7,6 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.channel_bot import ChannelBot
-from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.channel_session import ChannelSession
 
 
@@ -29,25 +28,6 @@ async def get_by_bot_and_chat(
         )
     )
     return result.scalar_one_or_none()
-
-
-async def get_sessions_for_user(
-    db: AsyncSession,
-    user_id: UUID,
-    *,
-    skip: int = 0,
-    limit: int = 50,
-) -> list[ChannelSession]:
-    """Get all sessions for a user (via their linked channel identities)."""
-    result = await db.execute(
-        select(ChannelSession)
-        .join(ChannelIdentity, ChannelSession.identity_id == ChannelIdentity.id)
-        .where(ChannelIdentity.user_id == user_id)
-        .order_by(ChannelSession.last_message_at.desc())
-        .offset(skip)
-        .limit(limit)
-    )
-    return list(result.scalars().all())
 
 
 async def bots_by_identity(

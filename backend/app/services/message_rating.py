@@ -171,21 +171,6 @@ class MessageRatingService:
             )
         await rating_repo.delete_rating(self.db, rating)
 
-    async def get_message_ratings(
-        self,
-        message_id: UUID,
-    ) -> dict[str, int]:
-        """Get aggregate rating counts for a message.
-
-        Returns:
-            Dict with likes and dislikes count
-        """
-        ratings = await rating_repo.get_ratings_for_message(self.db, message_id)
-        return {
-            "likes": sum(1 for r in ratings if r.rating == 1),
-            "dislikes": sum(1 for r in ratings if r.rating == -1),
-        }
-
     async def list_ratings(
         self,
         *,

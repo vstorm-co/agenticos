@@ -7,7 +7,6 @@ which says so in its own docstring) and must not be called from anywhere a
 member's request reaches.
 """
 
-import json
 import logging
 from collections.abc import Sequence
 from datetime import UTC, datetime
@@ -53,18 +52,6 @@ passes the active organization.
 
 type OrgScope = UUID | Literal["unscoped"]
 """A tenant to check against, or an explicit refusal to check one."""
-
-
-def _safe_parse_args(args: Any) -> dict:
-    """Parse tool call args to a dict; returns {} on failure."""
-    if isinstance(args, dict):
-        return args
-    if isinstance(args, str) and args.strip():
-        try:
-            return json.loads(args)
-        except json.JSONDecodeError:
-            return {}
-    return {}
 
 
 class ConversationService:
@@ -500,10 +487,6 @@ class ConversationService:
                 details={"tool_call_id": str(tool_call_id)},
             )
         return tool_call
-
-    async def list_tool_calls(self, message_id: UUID) -> list[ToolCall]:
-        await self.get_message(message_id)
-        return await conversation_repo.get_tool_calls_by_message(self.db, message_id)
 
     async def start_tool_call(
         self,

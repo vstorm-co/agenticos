@@ -73,30 +73,3 @@ export function SettingsSection({
     </section>
   );
 }
-
-interface SettingsRowProps {
-  label: string;
-  description?: string;
-  /** Form/control on the right. */
-  control: ReactNode;
-  className?: string;
-}
-
-export function SettingsRow({ label, description, control, className }: SettingsRowProps) {
-  return (
-    <div
-      className={cn(
-        "border-foreground/8 flex flex-wrap items-start justify-between gap-3 border-t pt-4 first:border-0 first:pt-0",
-        className,
-      )}
-    >
-      <div className="min-w-0 flex-1">
-        <p className="text-foreground text-sm font-medium">{label}</p>
-        {description && (
-          <p className="text-foreground/55 mt-0.5 text-xs leading-relaxed">{description}</p>
-        )}
-      </div>
-      <div className="shrink-0">{control}</div>
-    </div>
-  );
-}

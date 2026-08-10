@@ -356,7 +356,3 @@ async def _deliver(*, key: EmailKey, to: str, context: dict[str, str]) -> None:
         await get_email_service().send(key=key, to=to, context=context)
     except Exception:
         logger.exception("notification_email_failed", extra={"key": key.value, "to": to})
-
-
-def get_notification_service(db: AsyncSession) -> NotificationService:
-    return NotificationService(db)

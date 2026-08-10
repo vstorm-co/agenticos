@@ -6,12 +6,7 @@ import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { getErrorMessage } from "@/lib/utils";
-import type {
-  ModelProfile,
-  ModelProfileList,
-  ProviderCatalog,
-  ProviderInfo,
-} from "@/types/providers";
+import type { ModelProfile, ModelProfileList, ProviderCatalog } from "@/types/providers";
 export interface NewModelProfile {
   label: string;
   provider: string;
@@ -92,14 +87,6 @@ export function useModelProviders() {
     createProfile,
     deleteProfile,
   };
-}
-
-/** One provider's entry, or null for an id the deployment does not offer. */
-export function providerInfo(
-  catalog: readonly ProviderInfo[],
-  provider: string,
-): ProviderInfo | null {
-  return catalog.find((entry) => entry.id === provider) ?? null;
 }
 
 /** One model a provider offers, as a picker needs it. */
