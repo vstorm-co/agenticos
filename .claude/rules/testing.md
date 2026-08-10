@@ -33,9 +33,10 @@ Then, once, before the push:
 ```bash
 make lint               # ruff, ruff format, ty, eslint, prettier, tsc, the two guards,
                         # and codespell over every tracked file
-make test               # backend + the 100% gate on the platform layer
+make test               # backend + the 100% gate; runs across workers (-n auto,
+                        # capped at 4), pytest-cov combines their data
 make test-frontend-cov  # frontend + its gate: 100% lines/stmts/funcs, 97.5% branches
-make test-integration   # only if the change is near the database
+make test-integration   # only if the change is near the database; also parallel
 make check              # every CI job except e2e - lint, test, db-check,
                         # test-frontend-cov, build-frontend, docs-build, audit.
                         # About five minutes.

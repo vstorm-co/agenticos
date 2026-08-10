@@ -21,7 +21,7 @@ Run these from the project root directory.
 | `make run` | Start development server with hot reload |
 | `make run-prod` | Start production server (0.0.0.0:8000) |
 | `make routes` | Show all registered API routes |
-| `make test` | Backend suite plus the 100% gate on the platform layer |
+| `make test` | Backend suite plus the 100% gate on the platform layer. Runs across worker processes (`-n auto --maxprocesses 4`); `pytest-cov` combines their data, so the gate is unchanged |
 | `make test-cov` | Run tests with coverage report (HTML + terminal) |
 | `make format` | Auto-format code — ruff on the backend, prettier on the frontend |
 | `make lint` | Every static check: ruff, ruff format, ty, eslint, prettier, tsc, the backtick and i18n guards, and codespell over the whole tree |

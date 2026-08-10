@@ -14,6 +14,15 @@ uv run pytest tests/api/test_workspace_routes.py -x -v     # stop at the first f
 uv run pytest tests/integration -v --no-cov                # the ones needing a database
 ```
 
+These stay **serial** on purpose: spawning worker processes to run one file costs
+more than the file does. The whole-suite targets — `make test`, `make test-fast`,
+`make test-integration` — run across workers (`pytest -n auto --maxprocesses 4`),
+which roughly halves the I/O-bound integration suite; `pytest-cov` combines the
+per-worker data, so the 100% gate is unchanged. The cap is four because the unit
+suite is import-bound — every worker imports the app once — and gains nothing past
+that, while an uncapped `auto` on a many-core laptop is *slower* than serial, all of
+it worker startup (#520).
+
 Once, before pushing — `make check` runs all of it, in this order:
 
 ```bash
