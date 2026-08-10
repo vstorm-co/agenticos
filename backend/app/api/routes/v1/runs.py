@@ -33,8 +33,8 @@ from app.schemas.agent_run import (
     CostByProvider,
     CostSummary,
     RunTranscript,
+    RunTranscriptMessage,
 )
-from app.schemas.conversation import MessageRead
 
 router = APIRouter()
 
@@ -196,10 +196,14 @@ async def get_run_transcript(
     that reads as "the run did nothing".
     """
     run, messages, total = await service.get_run_transcript(ctx, run_id, skip=skip, limit=limit)
+    ratings = await service.transcript_ratings(ctx, [m.id for m in messages])
     return RunTranscript(
         run_id=run.id,
         conversation_id=run.conversation_id,
-        items=[MessageRead.model_validate(m) for m in messages],
+        items=[
+            RunTranscriptMessage.model_validate(m).model_copy(update=ratings[m.id])
+            for m in messages
+        ],
         total=total,
     )
 

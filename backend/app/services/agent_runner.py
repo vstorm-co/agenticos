@@ -140,6 +140,7 @@ from app.repositories import (
     agent_run_repo,
     conversation_repo,
     knowledge_base_repo,
+    message_rating_repo,
 )
 from app.repositories.agent_run import AgentSpendRow, RunFilters
 from app.schemas.agent import ParkedCall
@@ -3340,6 +3341,57 @@ class AgentRunnerService:
         )
         total = await conversation_repo.count_messages_by_run(self.db, run.id)
         return run, messages, total
+
+    async def transcript_ratings(
+        self, ctx: AuthContext, message_ids: list[UUID]
+    ) -> dict[UUID, dict[str, Any]]:
+        """Per-turn rating detail for a run transcript, batched.
+
+        The run-detail feedback panel reads three things off each turn, and this
+        gathers all three in one query each rather than one per message: a
+        transcript is read a page at a time, and a per-row lookup would turn a
+        page into a page of round trips.
+
+        - `user_rating` is the reading caller's own thumb - `1`, `-1`, or absent.
+          Usually absent here: a transcript is read by whoever holds `runs:view`,
+          not by whoever the run ran as. A caller with no user behind it at all (a
+          service-to-service key) has no own thumb, so that lookup is skipped
+          rather than asked with a null id.
+        - `rating_count` is how the organization rated the turn, likes and
+          dislikes, which is what lets the panel mark a turn nobody-but-me
+          objected to.
+        - `rating_comment` is the most recent down rating's comment, or absent.
+          The panel shows "what people said was wrong", so an up rating's note is
+          not it, and when more than one person objected the latest word is shown.
+
+        Every id in `message_ids` gets an entry, so a caller can attach the result
+        to each turn without a membership test; a turn nobody rated maps to three
+        empty answers, which is how a plain turn stays indistinguishable from a
+        rated one until somebody actually rated it.
+        """
+        if not message_ids:
+            return {}
+        user_ratings = (
+            await message_rating_repo.get_user_ratings_for_messages(
+                self.db, message_ids=message_ids, user_id=ctx.user_id
+            )
+            if ctx.user_id is not None
+            else {}
+        )
+        counts = await message_rating_repo.get_rating_counts_for_messages(
+            self.db, message_ids=message_ids
+        )
+        comments = await message_rating_repo.get_down_rating_comments_for_messages(
+            self.db, message_ids=message_ids
+        )
+        return {
+            message_id: {
+                "user_rating": user_ratings.get(message_id),
+                "rating_count": counts.get(message_id),
+                "rating_comment": comments.get(message_id),
+            }
+            for message_id in message_ids
+        }
 
     async def trace_url(self, ctx: AuthContext, run: AgentRun) -> str | None:
         """Where this run's trace can be read, if anywhere can.

@@ -251,6 +251,17 @@ nothing". None of this widens `GET /conversations/{id}/messages`, which stays
 scoped to the owner: a run's transcript being readable by a colleague must not make
 the private thread it sits in readable too.
 
+**Each turn the transcript serves carries the ratings people left on it** — the
+reading caller's own thumb, the organization's likes and dislikes, and the most
+recent down rating's comment. A plain message row holds none of these, so they are
+read from `message_ratings` in one batch and attached to the turns; a turn nobody
+rated carries them empty and reads exactly as a plain message does. This is what
+lets the run detail view show the answers that were rated down and the words left
+with them — the conversations behind the dashboard's quality number (#209) — read
+where the run is read, rather than only in the app-admin ratings export. The comment
+shown is a down rating's, never an up rating's, and the most recent when a turn drew
+more than one objection.
+
 ### What the dashboard's aggregates show
 
 `GET /stats/usage` takes the same two sides, and the same default. The composed

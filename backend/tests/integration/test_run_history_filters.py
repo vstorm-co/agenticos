@@ -34,6 +34,7 @@ from app.db.models.message_rating import MessageRating
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.repositories.agent_run import RunFilters, down_rated_run_ids
+from app.repositories.message_rating import get_down_rating_comments_for_messages
 from app.services.agent_runner import AgentRunnerService
 
 pytestmark = pytest.mark.anyio
@@ -591,3 +592,84 @@ class TestFiltersAndTheTenantBoundary:
         )
 
         assert (len(rows), total) == (2, 3)
+
+
+class TestDownRatingComments:
+    """The comment the run-detail feedback panel shows against a down-rated turn.
+
+    `get_down_rating_comments_for_messages` is what makes #209's "the comment is
+    readable in the detail view" true. Only a down rating's words count - an up
+    rating's note is not what went wrong - and when one turn drew more than one
+    objection the most recent word is the one shown.
+    """
+
+    @staticmethod
+    async def _message(db, org: Organization, by: User) -> Message:
+        conversation = Conversation(id=uuid.uuid4(), organization_id=org.id, user_id=by.id)
+        db.add(conversation)
+        await db.flush()
+        message = Message(
+            id=uuid.uuid4(),
+            conversation_id=conversation.id,
+            role="assistant",
+            content="the refund window is 30 days",
+        )
+        db.add(message)
+        await db.flush()
+        return message
+
+    @staticmethod
+    def _rating(message: Message, by: User, *, rating: int, comment, at: datetime) -> MessageRating:
+        # created_at is set explicitly: func.now() is the transaction's clock, so
+        # two ratings written in one test would tie and "most recent" would be a
+        # coin toss - which the ordering the panel relies on must not be.
+        return MessageRating(
+            id=uuid.uuid4(),
+            message_id=message.id,
+            user_id=by.id,
+            rating=rating,
+            comment=comment,
+            created_at=at,
+        )
+
+    async def test_a_down_ratings_comment_is_returned_an_up_ratings_is_not(self, db) -> None:
+        org, user = await _org(db)
+        down = await self._message(db, org, user)
+        up = await self._message(db, org, user)
+        db.add(self._rating(down, user, rating=-1, comment="it invented a policy", at=_NOW))
+        db.add(self._rating(up, user, rating=1, comment="perfect", at=_NOW))
+        await db.flush()
+
+        comments = await get_down_rating_comments_for_messages(db, message_ids=[down.id, up.id])
+
+        assert comments == {down.id: "it invented a policy"}
+
+    async def test_a_down_rating_with_no_comment_leaves_the_message_absent(self, db) -> None:
+        org, user = await _org(db)
+        message = await self._message(db, org, user)
+        db.add(self._rating(message, user, rating=-1, comment=None, at=_NOW))
+        await db.flush()
+
+        assert await get_down_rating_comments_for_messages(db, message_ids=[message.id]) == {}
+
+    async def test_the_most_recent_objection_is_the_one_shown(self, db) -> None:
+        org, user = await _org(db)
+        message = await self._message(db, org, user)
+        db.add(self._rating(message, user, rating=-1, comment="first take", at=_NOW))
+        db.add(
+            self._rating(
+                message,
+                await _user(db),
+                rating=-1,
+                comment="later take",
+                at=_NOW + timedelta(minutes=5),
+            )
+        )
+        await db.flush()
+
+        comments = await get_down_rating_comments_for_messages(db, message_ids=[message.id])
+
+        assert comments == {message.id: "later take"}
+
+    async def test_no_message_ids_asks_the_database_nothing(self, db) -> None:
+        assert await get_down_rating_comments_for_messages(db, message_ids=[]) == {}
