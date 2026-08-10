@@ -1017,6 +1017,7 @@
         "title": "Latency",
         "p50": "Median (p50)",
         "p95": "Slowest 5% (p95)",
+        "viewSlowest": "Open these runs, slowest first",
         "subline": "Started to finished, over every run in the period.",
         "empty": {
           "title": "No completed runs",
@@ -2424,6 +2425,9 @@
       "theRunNamedIn": "The run named in this link is not in this organization, or has been deleted.",
       "theseRunsHappenedThe": "The runs happened either way. This is the list failing, not the record.",
       "thisRunWasDelegated": "This run was delegated from another one, and its cost was charged there.",
+      "allRuns": "All runs",
+      "slowRuns": "Slow runs",
+      "took": "Took",
       "tokens": "Tokens",
       "tryAgain": "Try again",
       "version": "version",
