@@ -17,6 +17,19 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.88] - 2026-08-10
+
+Two grouped dependency updates, nothing else. The lockfile resolves cleanly with
+both applied (`uv lock --check`), and CI is green on the combination.
+
+### Changed
+
+- **Agent-framework dependencies** — `pydantic-ai-slim` to 2.26.0 (including its
+  `mcp` extra), `logfire` to 4.40.0, and `genai-prices` to 0.1.1. (#523)
+- **The rest of the backend** — `uvicorn[standard]` to 0.52.1, `alembic` to
+  1.19.0, `pymupdf` to 1.28.2, `liteparse` to 2.11.1, `google-auth` to 2.56.3,
+  `boto3` to 1.43.66, and the `ty` type checker to 0.0.69. (#524)
+
 ## [0.0.87] - 2026-08-10
 
 Mattermost is a channel you can register and talk to, and the gaps that stopped
