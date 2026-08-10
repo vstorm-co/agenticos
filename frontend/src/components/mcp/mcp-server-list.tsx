@@ -125,9 +125,9 @@ interface McpServerListProps {
 export function ServersCard({ count, children }: { count: number | null; children: ReactNode }) {
   const t = useTranslations("mcp");
   return (
-    <Card data-tour="mcp-catalog">
+    <Card>
       <CardHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-4">
-        <div className="space-y-1">
+        <div className="space-y-1" data-tour="mcp-catalog">
           <CardTitle className="text-sm">{t("servers")}</CardTitle>
           <CardDescription className="text-xs">
             {/* `null` is "the request has not answered". Rendering "0 servers"
@@ -391,7 +391,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2" data-tour="mcp-filter">
         <SearchInput value={list.query} onChange={list.setQuery} placeholder={t("searchServers")} />
         <Select value={category} onValueChange={setCategory}>
           <SelectTrigger className="w-auto min-w-40" aria-label={t("category")}>
@@ -421,6 +421,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
           <Button
             size="sm"
             variant="outline"
+            data-tour="mcp-add"
             onClick={() =>
               openDraft(
                 "organization",
@@ -464,8 +465,14 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
        */}
       <ServersCard count={rows.length}>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {list.visible.map((row) => (
-            <Card key={row.key} role="group" aria-label={row.name} className="h-full">
+          {list.visible.map((row, index) => (
+            <Card
+              key={row.key}
+              role="group"
+              aria-label={row.name}
+              className="h-full"
+              data-tour={index === 0 ? "mcp-connect" : undefined}
+            >
               {/* No hover state, unlike the agents grid: there a card is a link and
                 the border lighting up says so. Here the actions are inside the
                 card, and a card that responds to a hover but does nothing when

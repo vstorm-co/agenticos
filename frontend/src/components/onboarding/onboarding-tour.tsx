@@ -7,9 +7,11 @@ import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import type { AllowedButtons, DriveStep, Driver } from "driver.js";
 
+import { useDetailTargets } from "@/components/onboarding/detail-targets";
 import { createTourDriver, waitForElement } from "@/components/onboarding/spotlight";
 import { useOnboardingTour } from "@/hooks";
 import { stripLocale } from "@/lib/active-route";
+import { pageKey } from "@/lib/onboarding/tour";
 
 /**
  * The guided tour: driver.js walks the reader across the product a page at a
@@ -21,18 +23,25 @@ import { stripLocale } from "@/lib/active-route";
  * Next works where a custom panel's did not (driver.js swallows clicks outside
  * its own popover). This component owns only what driver.js cannot: it drives the
  * steps one at a time rather than as one array, because they span pages and
- * driver runs within a page — so Next on a page's last step navigates to the next
- * page and re-anchors there, and Back does the reverse. Which steps to show, in
+ * driver runs within a page.
+ *
+ * Three moves get the reader to a step. A static step navigates to its route.
+ * A *detail* step (the agent builder, whose route is per-agent) resolves an
+ * example to open through `useDetailTargets`, navigates into it, and — once
+ * there — leaves the reader on whichever row they are already looking at; if
+ * there is nothing to open, it skips the whole detail walk rather than spotlight
+ * a route that would 404. And a step with an `activate` target clicks it first —
+ * a Radix tab whose panel holds the spotlight's target — so a stop deep inside
+ * the Builder reveals its tab before the popover lands. Which steps to show, in
  * what order, permission-filtered, and whether closing persists completion, all
- * come from `useOnboardingTour`. Mounted once in the dashboard layout: it
- * auto-opens on `/dashboard` for a user who has not finished onboarding, and the
- * header "?" replays a single page's highlights.
+ * come from `useOnboardingTour`. Mounted once in the dashboard layout.
  */
 export function OnboardingTour() {
   const t = useTranslations("onboarding");
   const router = useRouter();
   const pathname = usePathname();
   const { isOpen, steps, step, index, isFirst, isLast, next, back, dismiss } = useOnboardingTour();
+  const detailTargets = useDetailTargets(isOpen);
   const driverRef = useRef<Driver | null>(null);
 
   useEffect(() => {
@@ -43,10 +52,29 @@ export function OnboardingTour() {
       tour.destroy();
       return;
     }
-    // Off the step's page: tear the overlay down so no popover is left pointing
-    // at an element that is about to unmount, navigate, and let the resulting
-    // pathname change re-run this effect on the destination.
-    if (step.page && stripLocale(pathname) !== step.page) {
+
+    const here = stripLocale(pathname);
+    const detail = step.page ? detailTargets[step.page] : undefined;
+
+    if (detail) {
+      // A detail pseudo-page. If we are not already on one of its routes, open an
+      // example — or skip the whole walk when the list is empty and there is
+      // nothing to open. Once on such a route we stay on it (the "?" replayed from
+      // a builder means *this* agent), and fall through to activate + highlight.
+      if (pageKey(here) !== step.page) {
+        if (detail.href) {
+          tour.destroy();
+          router.push(detail.href);
+          return;
+        }
+        if (detail.pending) return; // wait for the list; this effect re-runs when it settles
+        next(); // nothing to open — skip to the next step, which cascades past the walk
+        return;
+      }
+    } else if (step.page && here !== step.page) {
+      // A static step the tour is not on yet: tear the overlay down so no popover
+      // is left pointing at an element that is about to unmount, navigate, and let
+      // the resulting pathname change re-run this effect on the destination.
       tour.destroy();
       router.push(step.page);
       return;
@@ -72,14 +100,25 @@ export function OnboardingTour() {
       tour.highlight(driveStep);
     };
 
-    if (!step.target) {
+    if (!step.target && !step.activate) {
       show(undefined);
       return;
     }
+
     const controller = new AbortController();
-    void waitForElement(`[data-tour="${step.target}"]`, controller.signal).then((element) => {
+    void (async () => {
+      // Reveal the section first — a tab whose panel holds the target only mounts
+      // once its trigger is clicked.
+      if (step.activate) {
+        const trigger = await waitForElement(`[data-tour="${step.activate}"]`, controller.signal);
+        if (controller.signal.aborted) return;
+        if (trigger instanceof HTMLElement) trigger.click();
+      }
+      const element = step.target
+        ? await waitForElement(`[data-tour="${step.target}"]`, controller.signal)
+        : undefined;
       if (!controller.signal.aborted) show(element ?? undefined);
-    });
+    })();
     return () => controller.abort();
   }, [
     isOpen,
@@ -94,6 +133,7 @@ export function OnboardingTour() {
     back,
     dismiss,
     t,
+    detailTargets,
   ]);
 
   useEffect(() => () => driverRef.current?.destroy(), []);

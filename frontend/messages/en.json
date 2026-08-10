@@ -2111,6 +2111,46 @@
         "title": "Find one fast",
         "body": "Filter by status or search by name once the roster grows past a screenful."
       },
+      "agent-instructions": {
+        "title": "Instructions are the behaviour",
+        "body": "Open an agent and you land in the Builder, where it's assembled tab by tab. Build comes first: the instructions are its behaviour, written in plain Markdown rather than code."
+      },
+      "agent-model": {
+        "title": "Choose the brain",
+        "body": "The model underneath does the reasoning. Swap it, dial how hard it thinks, or turn on step-by-step reasoning — all without touching the instructions above."
+      },
+      "agent-toolbox": {
+        "title": "Give it tools",
+        "body": "The Toolbox is what an agent can actually do. Switch on built-in capabilities like web search, code or files, and each becomes a tool the model may call mid-answer."
+      },
+      "agent-mcp": {
+        "title": "And whole tool sets",
+        "body": "Below the capabilities, attach MCP servers — ready-made tool sets like GitHub or Slack, connected once for the organization and reused across agents."
+      },
+      "agent-knowledge": {
+        "title": "Point it at your docs",
+        "body": "Knowledge lets the agent search the collections you pick, so it answers from your own material instead of guessing from training alone."
+      },
+      "agent-skills": {
+        "title": "Hand it a playbook",
+        "body": "Skills are written know-how the agent reads before it acts — a procedure, a house style, a checklist — and the same one can be shared across agents."
+      },
+      "agent-limits": {
+        "title": "Keep it in bounds",
+        "body": "Cap the monthly spend and the steps a single run may take, and choose who gets told when the agent hits a limit or fails."
+      },
+      "agent-availability": {
+        "title": "Put it to work",
+        "body": "Availability is where a published agent goes live — a web chat, an embed on your site, Slack or Telegram — and where you decide who to share it with."
+      },
+      "agent-history": {
+        "title": "Every version, kept",
+        "body": "Each publish freezes the spec as a version you can promote to an environment, roll back to, or read the run history against."
+      },
+      "agent-publish": {
+        "title": "Publish to ship it",
+        "body": "Nothing runs until you publish. Publishing freezes the current draft as a version, and that version is what answers everywhere the agent is available."
+      },
       "skills-new": {
         "title": "Reusable skills",
         "body": "A skill is a packaged set of instructions an agent can draw on for a task. Write one once here and share it across the agents that need it."
@@ -2146,6 +2186,18 @@
       "mcp-catalog": {
         "title": "Plug in tools",
         "body": "MCP servers are ready-made tool sets your agents can call. Connect one here, then add it to an agent from its Toolbox."
+      },
+      "mcp-filter": {
+        "title": "Find a server",
+        "body": "Search the catalog, or narrow it by category and by whether you've already connected it."
+      },
+      "mcp-add": {
+        "title": "Bring your own",
+        "body": "Not in the catalog? Add a custom server by pasting its URL — for the whole organization, or just for yourself."
+      },
+      "mcp-connect": {
+        "title": "Connect, then pick tools",
+        "body": "Connecting a server asks how to sign in, then lets you choose exactly which of its tools your agents are allowed to call."
       },
       "sandboxes-connections": {
         "title": "Where agents run code",

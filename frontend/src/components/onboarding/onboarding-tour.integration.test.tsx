@@ -58,11 +58,21 @@ function user(overrides: Partial<User> = {}): User {
 }
 
 function servePermissions(permissions: readonly string[]) {
-  vi.mocked(apiClient.get).mockResolvedValue({
-    organization_id: "org-1",
-    role: "member",
-    is_app_admin: false,
-    permissions: permissions.map((permission) => ({ permission, scope: "all" })),
+  // The engine resolves an agent to open for the builder walk, so `/agents` has
+  // to answer with a list shape, not the permission set every other GET returns.
+  vi.mocked(apiClient.get).mockImplementation((path: string) => {
+    if (path === "/agents") {
+      return Promise.resolve({
+        items: [{ id: "agent-1", slug: "getting-started", name: "Getting Started" }],
+        total: 1,
+      });
+    }
+    return Promise.resolve({
+      organization_id: "org-1",
+      role: "member",
+      is_app_admin: false,
+      permissions: permissions.map((permission) => ({ permission, scope: "all" })),
+    });
   });
 }
 
