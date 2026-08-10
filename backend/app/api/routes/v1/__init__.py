@@ -20,7 +20,7 @@ from app.api.routes.v1 import channels
 from app.api.routes.v1 import audit
 from app.api.routes.v1 import sharing
 from app.api.routes.v1 import agent_embeds
-from app.api.routes.v1 import agent_environments, agent_exposures
+from app.api.routes.v1 import agent_environments, agent_exposures, agent_triggers
 from app.api.routes.v1 import agents as agent_registry
 from app.api.routes.v1 import model_providers
 from app.api.routes.v1 import secrets
@@ -59,6 +59,7 @@ v1_router.include_router(secrets.router, prefix="/secrets", tags=["secrets"])
 v1_router.include_router(agent_registry.router, prefix="/agents", tags=["agents"])
 v1_router.include_router(agent_environments.router, prefix="/agents", tags=["agents:environments"])
 v1_router.include_router(agent_exposures.router, prefix="/agents", tags=["agents:exposures"])
+v1_router.include_router(agent_triggers.router, prefix="/agents", tags=["agents:triggers"])
 v1_router.include_router(agent_embeds.router, prefix="/agents", tags=["agents:embeds"])
 v1_router.include_router(embed_widget.router, prefix="/embed", tags=["embed"])
 v1_router.include_router(agent_runs.router, tags=["runs"])

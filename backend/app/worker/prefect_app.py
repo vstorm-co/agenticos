@@ -38,6 +38,10 @@ from app.worker.tasks.report_tasks import (
     monthly_usage_report_flow,
     weekly_usage_report_flow,
 )
+from app.worker.tasks.trigger_tasks import (
+    check_agent_triggers_flow,
+    run_scheduled_trigger_flow,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +57,17 @@ async def main() -> None:
     deployments.append(
         await check_scheduled_syncs_flow.ato_deployment(
             name="rag-sync-check",
+            schedules=[IntervalSchedule(interval=60)],
+        )
+    )
+    # On-demand: one fired run per due trigger, submitted by the heartbeat below.
+    deployments.append(
+        await run_scheduled_trigger_flow.ato_deployment(name="run-scheduled-trigger")
+    )
+    # Every minute: fire the agent triggers that have come due.
+    deployments.append(
+        await check_agent_triggers_flow.ato_deployment(
+            name="agent-triggers-check",
             schedules=[IntervalSchedule(interval=60)],
         )
     )

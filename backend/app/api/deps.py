@@ -367,6 +367,16 @@ def get_agent_exposure_service(db: DBSession) -> AgentExposureService:
 
 AgentExposureSvc = Annotated[AgentExposureService, Depends(get_agent_exposure_service)]
 
+from app.services.agent_trigger import AgentTriggerService
+
+
+def get_agent_trigger_service(db: DBSession) -> AgentTriggerService:
+    """Create AgentTriggerService instance with database session."""
+    return AgentTriggerService(db)
+
+
+AgentTriggerSvc = Annotated[AgentTriggerService, Depends(get_agent_trigger_service)]
+
 from app.services.agent_environment import AgentEnvironmentService
 
 
