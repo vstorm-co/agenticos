@@ -2370,6 +2370,7 @@
       "argumentsAreShownFull": "The arguments are shown in full. Approving a tool name without seeing what it will do is a rubber stamp, not approval.",
       "askedBy": "Asked by {name}",
       "byKey": "By key",
+      "byPerson": "By person",
       "byProvider": "By provider",
       "calendarMonthSoReconciles": "Calendar month, so it reconciles against an invoice.",
       "cost": "Cost",
@@ -2393,12 +2394,14 @@
       "narrowedToOneRun": "Narrowed to one run and what it delegated.",
       "noRunsYet": "No runs yet",
       "noSuchRun": "No such run",
+      "nobodyHasRunAnything": "Nobody has run anything yet.",
       "notRecorded": "Not recorded",
       "nothingHasRun": "Nothing has run.",
       "nothingSpentYet": "Nothing spent yet.",
       "nothingSpentYet2": "Nothing spent yet.",
       "nothingWaiting": "Nothing waiting",
       "openTheRunItCame": "Open the run it came from",
+      "perPersonDisclosure": "Everyone holding runs:view sees this - builders and operators as well as owners and admins.",
       "queueCouldNotBeRead": "The approvals queue could not be read",
       "reject": "Reject",
       "runCouldNotBeRead": "That run could not be read",
@@ -2431,7 +2434,9 @@
       "waitingPerson": "Waiting on a person",
       "whatEachVendorWas": "What each vendor was paid - this is the number an invoice is checked against.",
       "whatYourAgentsDid2": "What your agents did, what it cost, and what is waiting on a person.",
-      "whichStoredCredentialWas": "Which stored credential it was spent through. A key you do not recognise here is one to rotate."
+      "whichStoredCredentialWas": "Which stored credential it was spent through. A key you do not recognise here is one to rotate.",
+      "whoIsSpendingCouldNotBeRead": "Who is spending could not be read.",
+      "whoRanAgentsAndWhatItCost": "Who ran agents in this window, and what it cost - busiest first."
     },
     "sandboxes": {
       "addConnection": "Add connection",
