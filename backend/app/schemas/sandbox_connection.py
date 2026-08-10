@@ -7,101 +7,13 @@ commands on a host may take in a response.
 
 from __future__ import annotations
 
-import ipaddress
-from typing import Annotated, Literal
-from urllib.parse import urlparse
+from typing import Literal
 from uuid import UUID
 
-from pydantic import AfterValidator, Field
+from pydantic import Field
 
 from app.schemas.base import BaseSchema, TimestampSchema
-
-_METADATA_HOSTS = frozenset(
-    {
-        "metadata.google.internal",
-        "metadata.goog",
-        "metadata",
-        "instance-data",
-    }
-)
-"""Names that only ever mean a cloud instance-metadata service.
-
-Blocked by name as well as by address because a name is what somebody types and
-`169.254.169.254` is what it resolves to. Neither is ever a `sandboxd`.
-"""
-
-
-def _service_address(value: str) -> str:
-    """Refuse an address the platform must not be asked to fetch.
-
-    This is not decoration. `SandboxConnectionService._get_json` performs a
-    server-side GET against whatever is stored or probed here, with the
-    connection's token attached, and hands the JSON body back to the caller - so
-    an unvalidated string turns the API container into a fetch proxy for its own
-    network, which is precisely the boundary `sandboxd` exists to draw. A holder
-    of `connections:manage` is an organization operator, not the person who runs
-    the deployment.
-
-    What is refused, and why only this much:
-
-    * **A scheme that is not http(s).** `httpx` has no transport for `file://` or
-      `gopher://` so they fail anyway, but failing on a validator with a sentence
-      beats failing on a stack trace.
-    * **A missing host**, which is a typo rather than an attack, and would
-      otherwise be fetched as a relative path against an empty base.
-    * **Credentials in the URL.** A connection authenticates with a vault-held
-      token, so a `user:pass@` here is at best ignored and at worst the only
-      copy of a password - and the address is named back in every refusal this
-      service raises, which puts it in the response and in the log line beside
-      it (agenticos#342). `validate_endpoint_url` and `validate_webhook_url`
-      have refused it all along; this validator did not.
-    * **Link-local addresses and the metadata hostnames**, because
-      `169.254.169.254` and `metadata.google.internal` are never a sandbox
-      service and are the one target where a single unauthenticated GET is worth
-      something to an attacker.
-
-    **RFC1918 is deliberately still allowed.** The legitimate address of a
-    sandbox service *is* private - `http://sandboxd:8080` inside compose,
-    `http://localhost:8080` for a developer running the API on their host - so a
-    private-range denylist would refuse this project's own documented setup. That
-    means this validator narrows the hole rather than closing it: a name that
-    resolves to something internal still resolves, and DNS rebinding is not
-    addressed here. The boundary that actually holds is `connections:manage` plus
-    whatever egress policy the deployment puts around the API container;
-    `docs/configuration.md` says so where it belongs.
-    """
-    parsed = urlparse(value)
-    if parsed.scheme not in {"http", "https"}:
-        raise ValueError("A sandbox service address must start with http:// or https://")
-    host = parsed.hostname
-    if not host:
-        raise ValueError("A sandbox service address must name a host")
-    if parsed.username is not None or parsed.password is not None:
-        raise ValueError(
-            "A sandbox service address must not carry credentials in the URL - "
-            "the connection authenticates with the key you pick for it"
-        )
-    if host.lower() in _METADATA_HOSTS:
-        raise ValueError("That host is an instance-metadata service, not a sandbox service")
-    try:
-        address = ipaddress.ip_address(host)
-    except ValueError:
-        # A name rather than a literal, which is the common case and cannot be
-        # judged without resolving it - see the note about rebinding above.
-        return value
-    if address.is_link_local:
-        raise ValueError("A link-local address is never a sandbox service")
-    return value
-
-
-ServiceAddress = Annotated[str, AfterValidator(_service_address)]
-"""An address this platform is willing to make a server-side request to.
-
-One alias for all three schemas that carry one: a connection being created, one
-being edited, and one being probed before a row exists. Three copies of the rule
-would be three chances for the probe - the only one that takes an address
-straight from a request body - to be the one that missed it.
-"""
+from app.schemas.urls import ServiceAddress
 
 
 class SandboxConnectionCreate(BaseSchema):

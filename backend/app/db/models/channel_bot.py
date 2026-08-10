@@ -7,7 +7,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin
-from app.services.channels.base import DEFAULT_ACCESS_POLICY, DEFAULT_USAGE_REPORTING
+from app.services.channels.base import DEFAULT_ACCESS_POLICY
 
 
 class ChannelBot(Base, TimestampMixin):
@@ -41,7 +41,12 @@ class ChannelBot(Base, TimestampMixin):
     # Telegram have one address for everybody; a Mattermost bot belongs to a
     # particular server and cannot post anywhere without knowing which.
     api_base_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    webhook_secret: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # The shared secret an inbound webhook is authenticated against - Telegram's
+    # `X-Telegram-Bot-Api-Secret-Token`, Mattermost's outgoing-webhook token.
+    # Sealed like the bot token and at the same `secret_key_version`: it is the
+    # only thing standing between the internet and a run on this organization's
+    # budget, and it sat in the clear beside three sealed columns until #22.
+    webhook_secret_encrypted: Mapped[str | None] = mapped_column(String(1000), nullable=True)
 
     # A Slack bot's own app credentials, sealed like the token and at the same
     # `secret_key_version`. Per bot rather than per deployment: one row is one
@@ -57,22 +62,10 @@ class ChannelBot(Base, TimestampMixin):
         default=lambda: dict(DEFAULT_ACCESS_POLICY),
     )
 
-    usage_reporting: Mapped[dict] = mapped_column(
-        JSON,
-        nullable=False,
-        default=lambda: dict(DEFAULT_USAGE_REPORTING),
-    )
-    """When this bot says what a turn cost, and when it only records it.
-
-    Its own column rather than a key in `access_policy`, which decides who may
-    talk to the bot - a reader who found "how loud is it about spending" in there
-    would reasonably conclude the two are one policy, and the next person to
-    narrow access would be editing the same JSON blob as the person tuning noise.
-
-    JSON because the shape is a small set of related knobs that only ever move
-    together: a mode, the threshold `near_limit` compares against, and the `n` in
-    "every n". Columns for each would be three migrations to add a fourth mode.
-    """
+    @property
+    def has_webhook_secret(self) -> bool:
+        """Whether an inbound webhook can be authenticated - never the secret."""
+        return self.webhook_secret_encrypted is not None
 
     @property
     def has_slack_signing_secret(self) -> bool:

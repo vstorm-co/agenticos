@@ -17,6 +17,79 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.88] - 2026-08-10
+
+Two grouped dependency updates, nothing else. The lockfile resolves cleanly with
+both applied (`uv lock --check`), and CI is green on the combination.
+
+### Changed
+
+- **Agent-framework dependencies** — `pydantic-ai-slim` to 2.26.0 (including its
+  `mcp` extra), `logfire` to 4.40.0, and `genai-prices` to 0.1.1. (#523)
+- **The rest of the backend** — `uvicorn[standard]` to 0.52.1, `alembic` to
+  1.19.0, `pymupdf` to 1.28.2, `liteparse` to 2.11.1, `google-auth` to 2.56.3,
+  `boto3` to 1.43.66, and the `ty` type checker to 0.0.69. (#524)
+
+## [0.0.87] - 2026-08-10
+
+Mattermost is a channel you can register and talk to, and the gaps that stopped
+any channel from being a complete surface are closed with it. One agent can now
+answer on Mattermost, Slack and Telegram, be watched writing its reply, read the
+channel it is answering in, and be told how to write for that surface — without
+editing the spec every surface shares. Closes eleven issues (#41, #24, #22, #10,
+#205, #157, #152, #208, #26, #153, #514). The delivery-dedup guard a retried
+webhook needs is deliberately not here and stays tracked as #167.
+
+Nine migrations, `0013`–`0021`, add the link-request, exposure-prompt and
+per-binding tool columns and settle the "one agent per bot" rule. `SPEC_VERSION`
+stays at **8**: the channel-tools capability is assembled per run from the
+binding that admitted the message, never stored in a published spec.
+
+### Added
+
+- **A working Mattermost integration.** A bot is registered with its own server
+  URL and an operator-supplied webhook secret, and answers over either an
+  outgoing webhook or an authenticated event stream — the latter the right
+  choice behind a VPN, exposing nothing. Registerable from the exposure panel
+  and from the CLI (`agenticos cmd channel-add-bot`), for a deployment with no
+  browser pointed at it. `api_base_url` is validated on scheme and shape so an internal
+  address passes. (#41, #24)
+- **A reply a chat can watch being written.** A placeholder post appears the
+  moment the question arrives, grows in place — throttled to about one edit a
+  second — and shows what the agent is doing while a tool runs, on Mattermost,
+  Slack and Telegram through one seam. An adapter that cannot edit a message
+  still posts one finished answer. (#514)
+- **A per-channel prompt on the binding.** House style for a surface — how to
+  lay a message out, how long to answer, which language — appended to the spec's
+  instructions at run time and never substituted for them, seeded per platform
+  and editable beside the environment and session-scope controls. It lives on
+  the exposure row, so it never enters a client's exported YAML. (#153)
+- **An agent can read the channel it is answering in** — its info and members —
+  through tools granted by the binding, so "may it read what was said here" has
+  a different answer on an internal server and a customer one.
+- **Account linking and complete channel runs.** `/link` mints a code and
+  `@slug` runs as the person who typed it; a channel run records its messages
+  and the surface it arrived on, renders a chart as an image, and answers a tool
+  approval in the thread that asked for it. (#10, #205, #208, #157, #152)
+
+### Changed
+
+- **`webhook_secret` is sealed at rest** through the vault, beside the three
+  secrets that already were; the Mattermost webhook accepts the token Mattermost
+  generates rather than one minted locally, while Telegram keeps minting the one
+  we hand out. (#22)
+- **A channel webhook hands its work over with `spawn_after_commit`**, so the
+  background run sees the row the request just wrote. (#26)
+- One bot serves one agent; a second binding to the same bot is refused.
+
+### Fixed
+
+- A failed final live-reply edit re-posts the answer whole instead of blanking
+  it; "needs approval" is said only when a run actually parked; a resumed channel
+  run keeps its exposure prompt and channel tools; and the chart renderer sizes a
+  stacked bar to the stack rather than the tallest bar, treats a non-finite value
+  as a gap, and draws in any colour Pillow accepts.
+
 ## [0.0.86] - 2026-08-09
 
 A file dragged into the chat lands wherever it is dropped.

@@ -4,18 +4,23 @@ The other half of the Mattermost adapter. A deployment that can reach this URL
 from its Mattermost server uses this; one behind a VPN uses the event stream
 instead and never exposes anything. Both end up in the same router.
 
-Answers 200 and does the work afterwards: Mattermost retries a slow webhook,
-and a retried message is a second answer to a question that was only asked
-once.
+Answers 200 before the work runs, not after: Mattermost retries a webhook it
+judged slow, so acknowledging first stops the agent's own latency from
+provoking a retry. It does not yet drop a redelivery whose 200 was lost in
+transit - that message runs the agent again on the sender's budget. The
+per-chat lock in the router only serialises the two runs, it does not drop one;
+dropping the duplicate needs a persisted `(bot, message_id)` guard and is
+tracked as #167.
 """
 
-import asyncio
 import logging
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request, Response
 
 from app.api.deps import ChannelBotSvc
+from app.core.background import spawn
+from app.services.channel_bot import unseal_webhook_secret
 from app.services.channels import get_adapter
 from app.services.channels.mattermost import decode_webhook_body
 from app.worker.background.channel import process_channel_event
@@ -23,8 +28,6 @@ from app.worker.background.channel import process_channel_event
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-_background_tasks: set[asyncio.Task[None]] = set()
 
 
 @router.post("/{bot_id}/webhook", status_code=200, response_model=None)
@@ -47,16 +50,13 @@ async def mattermost_webhook(
     # A webhook with no secret is one anybody can post to, so it is refused
     # rather than trusted. The secret is the token Mattermost shows when the
     # integration is created.
-    if not bot.webhook_secret or not adapter.verify_webhook_signature(
-        dict(request.headers), bot.webhook_secret, raw
-    ):
+    secret = unseal_webhook_secret(bot)
+    if not secret or not adapter.verify_webhook_signature(dict(request.headers), secret, raw):
         raise HTTPException(status_code=403, detail="Invalid webhook token")
 
     incoming = adapter.parse_incoming(decode_webhook_body(raw), str(bot_id))
     if incoming is None:
         return Response(status_code=200)
 
-    task = asyncio.create_task(process_channel_event(incoming))
-    _background_tasks.add(task)
-    task.add_done_callback(_background_tasks.discard)
+    spawn(process_channel_event(incoming), name=f"mattermost_event:{bot_id}")
     return Response(status_code=200)
