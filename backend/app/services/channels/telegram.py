@@ -153,7 +153,6 @@ class TelegramAdapter(ChannelAdapter):
                 reply_to_message_id=reply_to,
             )
 
-    # what the agent may ask about the chat
     #
     # Two of the four, and that is the whole of what Telegram gives a bot.
     # `search_channels` and `channel_history` are inherited from the base class,

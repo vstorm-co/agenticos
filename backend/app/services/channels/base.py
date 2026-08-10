@@ -200,7 +200,6 @@ class ChannelAdapter(ABC):
         """
         raise NotImplementedError(f"{self.platform} attachments cannot be downloaded yet")
 
-    # what the agent may ask about the channel it is in
     #
     # The implementation half of `app.agents.capabilities.channel_tools`: the
     # capability declares one shape for all three platforms so an agent does not

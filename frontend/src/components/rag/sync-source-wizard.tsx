@@ -139,7 +139,6 @@ export function SyncSourceWizard({
   const enabledConnectors = connectors.filter((c) => c.enabled);
   const hasOrgIntegrations = orgIntegrations.length > 0;
 
-  // clone mode
   const selectedIntegration = orgIntegrations.find((i) => i.id === cloneSourceId);
 
   const handleCloneSubmit = async () => {
@@ -151,7 +150,6 @@ export function SyncSourceWizard({
     );
   };
 
-  // new mode canAdvance
   const canAdvance = (() => {
     if (mode === "clone") {
       return Boolean(cloneSourceId) && Boolean(defaultCollection);

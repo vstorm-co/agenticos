@@ -46,12 +46,13 @@ changes" is. Concretely, in this repo:
   or "just in case" branch. If a branch cannot be reached, delete it; if it can, test it.
   `make lint` runs `vulture` as a gate on what it is sure of; `make dead-code` is the
   deeper, human-read scan for unused functions (`docs/branching.md`, `code-style.md`).
-- **Reasoning lives in docstrings, and comments are scarce.** The reference docs are
-  generated from docstrings, so a decision explained in a commit message is a decision
-  nobody will find. A `#`/`//` comment explains *why* something non-obvious is done — it
-  never restates *what* the code says, and never draws an ASCII banner (`# ---- foo ----`),
-  which a guard rejects. When in doubt, delete the comment or move the reasoning into a
-  docstring. See `code-style.md`.
+- **Comments are scarce; the default is none.** Reasoning lives in docstrings (the
+  reference docs are generated from them). The bar for a `#`/`//` comment is one
+  question — *would a competent reader make a mistake without it?* If not, delete it. No
+  restating what the code says, no section labels (`# the owner's side`), no narrating an
+  optimisation a reader already sees (`# one query rather than an EXISTS per row`), no
+  ASCII banners (a guard rejects those). Keep only a footgun, a non-obvious constraint or
+  an invariant — one sentence, ideally with an issue number. See `code-style.md`.
 - **Scoped diffs.** Fix what was asked. Propose follow-ups instead of taking them.
 - **Tests are part of the change.** New behaviour ships with a test; a bug ships with a
   regression test that fails without the fix.
