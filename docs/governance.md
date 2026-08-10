@@ -390,6 +390,58 @@ stored `subagent_task_id` then names a transcript that went with the parent.
 `AgentRunRead` withholds it whenever `parent_run_id` is null, so no surface offers
 a delegation handle that reaches nothing.
 
+### Exporting to CSV
+
+Everything the three tabs show can be taken off the screen as CSV: the rows
+somebody reconciles against an invoice, hands to a finance team, or attaches to an
+audit. A page that can answer the question on screen and not off it sends people to
+the database.
+
+| Ask | Answer |
+|---|---|
+| `GET /runs/export` | Run history, the same filters as `GET /runs` and the same top-level-only default. `runs:view` |
+| `GET /approvals/export` | The approvals record, the same filters as `GET /approvals`. `approvals:decide` |
+| `GET /spend/export` | The per-agent spend breakdown, the same window as `GET /spend`. `runs:view` |
+
+An export is a bulk read, not a button, and it answers six questions the list
+routes do not have to:
+
+- **Tenancy.** Each export carries the gate of the tab it comes from, and every
+  read is scoped to the caller's organization - a neighbour's rows never reach it,
+  including a row the caller owns in an organization that is not the one they are
+  asking from. The two on `runs:view` also apply a **`Scope.OWN` floor in the
+  query**: a caller whose `runs:view` reaches less than the whole organization
+  exports only their own rows, `WHERE user_id = <them>`, and a `user_id` they pass
+  is overwritten with their own rather than widening it. No built-in role holds
+  `runs:view` below `all` yet; the floor is in place for when the member/viewer
+  scope decision lands.
+- **Size.** An export has no ceiling by nature, so it is given one by design. The
+  **date range is mandatory** - a request without both ends is refused - and the
+  match is **capped at 10,000 rows**, above which the request is refused with a
+  message naming the count and telling the caller to narrow the range. Never a
+  silent truncation: a trimmed CSV is worse than a refused one, because a
+  spreadsheet sums whatever arrives. The cap is what lets the body be built in one
+  pass and the audit entry committed before the response leaves, rather than
+  streamed down a held connection.
+- **Partial cost.** `cost_is_partial` is its own column on the runs export and
+  `partial_run_count` its own column on the spend export, so a floor survives a
+  spreadsheet sum. A run whose only model was unpriced exports its real `cost_usd`
+  of `0` beside `cost_is_partial=true` - never a bare `0` a reader takes for free.
+- **Delegated runs.** The runs export defaults to top-level rows only, exactly as
+  the list does, so summing `cost_usd` gives the bill and not double it. The stance
+  is in the file, not only here: every row carries a `parent_run_id` column, blank
+  for a run somebody started and set for a delegation, so a reader who opts into
+  `include_delegations` can see which rows would double-count if summed whole.
+- **PII.** Each export ships exactly the identity its tab already shows. The runs
+  table shows a `user_id` and no name, so the runs export ships the id alone - a
+  CSV of who-ran-what with names resolved is the per-person table decision 3 of the
+  activity design refused, arriving as a download. The approvals queue already
+  resolves the triggering and deciding emails on screen, so the approvals export
+  keeps them.
+- **Audit.** Every export writes one `audit_log` entry - a privileged bulk read,
+  cheap to record now and impossible to reconstruct later. It names the window, the
+  filters that were applied and the row count, never the request body.
+
 ### A pinned delegate does not move on its own
 
 A delegate is pinned to a version, so its author shipping a fix changes nothing for
@@ -625,7 +677,10 @@ ended must not fail again because SMTP was down.
 
 Actions that change access or spend money are recorded with an actor, and the
 actor column is `NOT NULL` - which is why a context with no subject raises rather
-than letting the absence travel.
+than letting the absence travel. A privileged bulk read is recorded too: each CSV
+export writes a `runs.export`, `approvals.export` or `spend.export` entry naming
+the window and the row count, because who took the whole table off the screen is a
+question that is cheap to answer now and impossible to reconstruct later.
 
 `audit:read` gates reading it. An app admin's bypass is exactly what the trail
 exists to hold to account.

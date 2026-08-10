@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ActivityFigures } from "@/components/runs/activity-figures";
 import { ApprovalsTab } from "@/components/runs/approvals-tab";
+import { ExportMenu } from "@/components/runs/export-menu";
 import { RunHistoryTab } from "@/components/runs/run-history-tab";
 import { SpendTab } from "@/components/runs/spend-tab";
 import { LoadingState } from "@/components/states";
@@ -82,15 +83,50 @@ export default function RunsPage() {
 
           {canDecide && (
             <TabsContent value="approvals">
+              {/* Export the record for whatever window, gated on the same
+                  permission the tab is - absent, not disabled, without it. */}
+              <div className="mb-3 flex justify-end">
+                <ExportMenu
+                  permission={Perm.approvalsDecide}
+                  endpoint="/approvals/export"
+                  kind="approvals"
+                  rangeParams={{ from: "created_from", to: "created_to" }}
+                />
+              </div>
               <ApprovalsTab />
             </TabsContent>
           )}
 
           <TabsContent value="runs">
+            {/* Not on a single-run view: a CSV of one run is a download nobody
+                asked for, and `?run=` is the only shape that has no history. */}
+            {focusedRunId === null && (
+              <div className="mb-3 flex justify-end">
+                <ExportMenu
+                  permission={Perm.runsView}
+                  endpoint="/runs/export"
+                  kind="runs"
+                  params={
+                    agentId === null
+                      ? undefined
+                      : { agent_id: agentId, include_delegations: "true" }
+                  }
+                  rangeParams={{ from: "started_from", to: "started_to" }}
+                />
+              </div>
+            )}
             <RunHistoryTab agentId={agentId} focusedRunId={focusedRunId} />
           </TabsContent>
 
           <TabsContent value="spend">
+            <div className="mb-3 flex justify-end">
+              <ExportMenu
+                permission={Perm.runsView}
+                endpoint="/spend/export"
+                kind="spend"
+                rangeParams={{ from: "from", to: "to" }}
+              />
+            </div>
             <SpendTab />
           </TabsContent>
         </Tabs>
