@@ -2601,6 +2601,7 @@
     "back": "Back",
     "cancel": "Cancel",
     "cloning": "Cloning…",
+    "configureNoneNeeded": "No additional configuration needed for <emphasis>{name}</emphasis>.",
     "configureRequiredFields": "Configure {name}. Required fields are marked with <required>*</required>.",
     "connector": "Connector",
     "continue": "Continue",

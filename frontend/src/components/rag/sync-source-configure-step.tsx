@@ -23,8 +23,10 @@ export function ConfigureStep({
       <div className="border-foreground/10 bg-foreground/[0.03] rounded-xl border p-5 text-center">
         <Cog className="text-foreground/45 mx-auto h-6 w-6" />
         <p className="text-foreground/70 mt-3 text-sm">
-          No additional configuration needed for{" "}
-          <span className="text-foreground font-medium">{connector.name}</span>.
+          {t.rich("configureNoneNeeded", {
+            name: connector.name,
+            emphasis: (chunks) => <span className="text-foreground font-medium">{chunks}</span>,
+          })}
         </p>
       </div>
     );
