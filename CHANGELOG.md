@@ -17,6 +17,78 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.92] - 2026-08-10
+
+The whole-suite test targets run across worker processes, roughly halving them.
+
+### Changed
+
+- **`make test` and the other whole-suite targets run across workers.** `pytest
+  -n auto --maxprocesses 4` on `test`, `test-fast`, `test-integration` and
+  `test-cov`; `pytest-cov` combines the per-worker data so the 100% platform gate
+  is unchanged, and scoped `pytest <file>` runs stay serial (spawning workers for
+  one file costs more than the file). The cap is four because the unit slice is
+  import-bound — every worker imports the app once — and an uncapped `-n auto` on
+  a many-core machine runs *slower* than serial, all of it worker startup. Adds
+  `pytest-xdist` to the dev group. Refs #520. (#570)
+
+## [0.0.91] - 2026-08-10
+
+The integration test suite builds its schema once per process instead of before
+every test, halving it.
+
+### Changed
+
+- **Integration tests build the schema once, not before every test.** The
+  per-test `drop_all` + `create_all` (~0.4s of DDL each, very nearly the whole
+  runtime of a suite whose assertions are microseconds of Postgres work) is
+  replaced by a session-scoped build plus a `TRUNCATE ... RESTART IDENTITY
+  CASCADE` reset between tests. The integration slice drops from ~125s to ~53s,
+  and the per-process `_p<pid>` database isolation is untouched, so two runs on
+  one machine stay safe. `TRUNCATE`, not a rollback: the API-flow tests commit
+  through the real session, so their rows would outlive a rollback. Closes #215.
+  Refs #520. (#535)
+
+## [0.0.90] - 2026-08-10
+
+Importing the application stops dragging in two SDKs it never uses on the
+request path, so every process start and scoped test run is a couple of seconds
+shorter.
+
+### Changed
+
+- **`import app.main` no longer pulls in `aiogram` and `prefect`.** The Telegram,
+  Slack and Mattermost adapters are imported inside `lifespan` (which the test
+  client never runs) and the sync flows inside their dispatcher, so a cold app
+  import drops from ~5.5s to ~2.3s — a cost every scoped `pytest` run and every
+  process start paid for libraries neither the API nor the tests touch. A
+  subprocess guard test keeps them out of `sys.modules`, and a dead
+  `_slack_register` alias went with it. Runtime behaviour is unchanged; startup
+  imports them as before. Refs #520. (#544)
+
+## [0.0.89] - 2026-08-10
+
+Run history gains the duration controls the dashboard's p95 needs rows behind,
+and the contributor guidance has its test-loop numbers corrected.
+
+### Added
+
+- **Sort and filter run history by duration** — a sortable `Took` column, a
+  "slow runs" canned view, and a dashboard p95 deep-link that seeds the sort and
+  the time window. The sort is server-side over the whole narrowed set, not one
+  page; the backend query landed with #202 and is reused unchanged. Closes #210.
+  (#528)
+
+### Changed
+
+- **Contributor guidance** — `CLAUDE.md` now states the scoped-vs-full test rule
+  outright and its runtime figures are corrected against measurement: CI answers
+  in about twelve minutes rather than seven, and a scoped backend file takes a
+  few seconds rather than "under one" (the wait is importing the app, not the
+  run). The same stale CI figure in `docs/testing.md` and three moved
+  `app/core/catalog/` paths in the docs trigger map went with it. Closes #522.
+  (#534)
+
 ## [0.0.88] - 2026-08-10
 
 Two grouped dependency updates, nothing else. The lockfile resolves cleanly with

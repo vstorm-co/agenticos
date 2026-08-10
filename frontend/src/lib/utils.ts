@@ -112,6 +112,22 @@ export function formatDateTime(date: Date | string): string {
   });
 }
 
+/**
+ * How long a run took, human-readable, or "-" when it has not finished.
+ *
+ * `ended_at` is nullable: a running or parked run has no duration yet, which is a
+ * different fact from a run that was fast. The Took column and the duration sort
+ * both rest on that distinction, so an unfinished run reads as unknown here and
+ * never as zero.
+ */
+export function formatRunDuration(startedAt: string | null, endedAt: string | null): string {
+  if (!startedAt || !endedAt) return "-";
+  const ms = new Date(endedAt).getTime() - new Date(startedAt).getTime();
+  if (Number.isNaN(ms) || ms < 0) return "-";
+  if (ms < 1000) return `${Math.round(ms)} ms`;
+  return `${(ms / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })} s`;
+}
+
 export function truncate(str: string, maxLength: number): string {
   if (str.length <= maxLength) return str;
   return str.slice(0, maxLength - 3) + "...";

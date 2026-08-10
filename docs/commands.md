@@ -21,8 +21,8 @@ Run these from the project root directory.
 | `make run` | Start development server with hot reload |
 | `make run-prod` | Start production server (0.0.0.0:8000) |
 | `make routes` | Show all registered API routes |
-| `make test` | Backend suite plus the 100% gate on the platform layer |
-| `make test-cov` | Run tests with coverage report (HTML + terminal) |
+| `make test` | Backend suite plus the 100% gate on the platform layer. Runs across worker processes (`-n auto --maxprocesses 4`); `pytest-cov` combines their data, so the gate is unchanged |
+| `make test-cov` | Run tests with coverage report (HTML + terminal). Runs across worker processes like `make test` |
 | `make format` | Auto-format code — ruff on the backend, prettier on the frontend |
 | `make lint` | Every static check: ruff, ruff format, ty, eslint, prettier, tsc, the backtick and i18n guards, and codespell over the whole tree |
 | `make lint-backend` / `make lint-frontend` | One half of the above. CI runs them in two different jobs, so either can be run on its own |

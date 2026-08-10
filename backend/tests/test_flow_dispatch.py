@@ -29,7 +29,6 @@ from app.core.permissions import AuthContext
 from app.repositories import rag_document_repo
 from app.repositories import sync_log as sync_log_repo
 from app.repositories import sync_source as sync_source_repo
-from app.services import rag_sync
 from app.services.ingestion_config import IngestionConfig, IngestionConfigService
 from app.services.rag_document import RAGDocumentService
 from app.services.rag_sync import RAGSyncService
@@ -80,7 +79,7 @@ async def test_a_local_sync_starts_after_its_log_row_is_committed(session, monke
     async def flow(*, sync_log_id: str, **_: Any) -> None:
         dispatched.append(sync_log_id)
 
-    monkeypatch.setattr(rag_sync, "sync_collection_flow", flow)
+    monkeypatch.setattr(rag_tasks, "sync_collection_flow", flow)
 
     await RAGSyncService(session).start_local_sync(
         collection_name="handbooks", mode="full", path="/srv/docs"
