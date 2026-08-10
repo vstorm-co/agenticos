@@ -16,7 +16,7 @@ function wasRatedDown(message: RunTranscriptMessage): boolean {
 /**
  * The answers in this run that somebody rated down, and what they said was wrong.
  *
- * This is the half of #209 that makes the dashboard's quality number actionable:
+ * This is the half that makes the dashboard's quality number actionable:
  * the card says quality fell, and this is where the conversations that did it are
  * read. It reads the run's transcript from `GET /runs/{run_id}/transcript`, keeps
  * the answers rated down, and shows the comment left with each.
