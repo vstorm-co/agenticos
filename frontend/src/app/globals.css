@@ -534,6 +534,89 @@
     -webkit-mask-image: radial-gradient(ellipse 75% 65% at 50% 50%, black 30%, transparent 100%);
   }
 
+  /* Dashboard editor: a card in edit mode highlights and lifts slightly when
+     hovered, so the whole grid reads as editable and grabbable. This replaces an
+     earlier constant wobble, which made a card genuinely hard to catch and drag.
+     The highlight (a brand-tinted ring plus a soft shadow) shows on any device
+     with a real pointer; the small scale-up is motion, so it is gated behind
+     prefers-reduced-motion and drops out with it. */
+  @media (hover: hover) {
+    .dash-editable:hover {
+      box-shadow:
+        0 0 0 2px var(--color-brand-line),
+        0 14px 34px -18px oklch(0% 0 0 / 0.28);
+    }
+  }
+  @media (hover: hover) and (prefers-reduced-motion: no-preference) {
+    .dash-editable:hover {
+      transform: scale(1.012);
+    }
+  }
+  /* The card being dragged: dimmed and held in place while the drop target is
+     ringed, so nothing shuffles under the cursor. The reorder is applied on
+     drop, where FLIP glides every moved card to its new place at once. */
+  .dash-dragging {
+    opacity: 0.4;
+    cursor: grabbing;
+  }
+  /* A card the moment it is added: it pops in at the bottom of the layout so the
+     eye catches where it landed before the person drags it into place. Motion,
+     so it drops out under prefers-reduced-motion. */
+  @media (prefers-reduced-motion: no-preference) {
+    @keyframes dash-pop {
+      from {
+        opacity: 0;
+        transform: scale(0.94);
+      }
+      to {
+        opacity: 1;
+        transform: none;
+      }
+    }
+    .dash-pop {
+      animation: dash-pop 280ms cubic-bezier(0.2, 0, 0, 1);
+    }
+  }
+
+  /* Section accents: a divider's colour, carried on one custom property and
+     read by every accented surface below. A named preset sets `--dash-solid`
+     here; a custom colour sets it inline on the element. The tint and line are
+     mixed from it with `color-mix`, so one value drives all three and a custom
+     hex needs no extra variables. Alpha-based on purpose, so one definition
+     reads on both the light and the dark card without a per-theme override. */
+  .dash-accent-violet {
+    --dash-solid: oklch(0.62 0.19 300);
+  }
+  .dash-accent-blue {
+    --dash-solid: oklch(0.62 0.16 250);
+  }
+  .dash-accent-green {
+    --dash-solid: oklch(0.66 0.16 150);
+  }
+  .dash-accent-amber {
+    --dash-solid: oklch(0.76 0.15 78);
+  }
+  .dash-accent-rose {
+    --dash-solid: oklch(0.63 0.2 18);
+  }
+  /* A solid swatch of the accent — the picker dot and the heading marker. */
+  .dash-swatch {
+    background: var(--dash-solid);
+  }
+  /* The section band: a faint tint and a coloured rail down its leading edge. */
+  .dash-section-accent {
+    background: color-mix(in oklab, var(--dash-solid) 7%, transparent);
+    border-inline-start: 3px solid var(--dash-solid);
+    border-radius: 0.5rem;
+  }
+  /* Each card in an accented section wears a thin ring in the accent colour,
+     drawn outside the card (in the grid gap) so an opaque widget cannot hide it. */
+  .dash-tile-accent {
+    outline: 1.5px solid color-mix(in oklab, var(--dash-solid) 50%, transparent);
+    outline-offset: 2px;
+    border-radius: 0.75rem;
+  }
+
   /* Hover lift card */
   .lift {
     transition:

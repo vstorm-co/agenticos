@@ -941,7 +941,8 @@
         "empty": {
           "title": "Nothing here yet",
           "description": "A fresh deployment: no organizations beyond bootstrap, no runs."
-        }
+        },
+        "description": "Deployment-wide counts: organizations, people, agents, conversations."
       },
       "health": {
         "title": "Service health",
@@ -954,7 +955,8 @@
         "empty": {
           "title": "No services report",
           "description": "The health probe has not answered yet."
-        }
+        },
+        "description": "Whether the database, queue and vector store are answering."
       },
       "top-orgs": {
         "title": "Top organizations",
@@ -964,7 +966,8 @@
         "empty": {
           "title": "No organizations yet",
           "description": "Only the bootstrap organization exists."
-        }
+        },
+        "description": "The busiest organizations on this deployment."
       },
       "platform-ratings": {
         "title": "Answer quality, deployment-wide",
@@ -972,7 +975,8 @@
         "empty": {
           "title": "No ratings yet",
           "description": "Nobody has rated an answer anywhere on the deployment."
-        }
+        },
+        "description": "How answers are rated across the whole deployment."
       },
       "runs": {
         "title": "Runs over time",
@@ -981,7 +985,8 @@
         "empty": {
           "title": "No runs in this period",
           "description": "Publish an agent and give it a surface - adoption shows up here."
-        }
+        },
+        "description": "How many runs happened over the period, day by day."
       },
       "outcomes": {
         "title": "Outcomes",
@@ -997,7 +1002,8 @@
         "empty": {
           "title": "No runs in this period",
           "description": "Outcome split appears with the first run."
-        }
+        },
+        "description": "How runs ended — completed, failed, over budget, waiting."
       },
       "surfaces": {
         "title": "Where runs come from",
@@ -1014,7 +1020,8 @@
         "empty": {
           "title": "No runs in this period",
           "description": "Playground, web chat, API, Slack, Telegram, Mattermost and the embedded widget land here."
-        }
+        },
+        "description": "Where runs come from — web chat, API, channels."
       },
       "agents": {
         "title": "Agents: adopted and forgotten",
@@ -1022,7 +1029,8 @@
         "empty": {
           "title": "No published agents",
           "description": "Nothing has been published in this organization yet."
-        }
+        },
+        "description": "Which agents are adopted, and which are forgotten."
       },
       "latency": {
         "title": "Latency",
@@ -1033,7 +1041,8 @@
         "empty": {
           "title": "No completed runs",
           "description": "Latency needs at least one finished run."
-        }
+        },
+        "description": "How long runs take, at the median and the tail."
       },
       "active-users": {
         "title": "Active people",
@@ -1042,7 +1051,8 @@
         "empty": {
           "title": "Nobody has run anything",
           "description": "Adoption starts with the first person's first run."
-        }
+        },
+        "description": "How many of the team ran an agent this period."
       },
       "top-people": {
         "title": "Who is using it",
@@ -1057,7 +1067,8 @@
         "empty": {
           "title": "Nobody has run anything",
           "description": "The first person's first run puts a name here."
-        }
+        },
+        "description": "The people using it most, by runs, with cost alongside."
       },
       "spend": {
         "title": "Spend",
@@ -1068,7 +1079,8 @@
         "empty": {
           "title": "Nothing spent yet",
           "description": "Model cost lands here run by run."
-        }
+        },
+        "description": "What the period cost, with this month to date."
       },
       "model-mix": {
         "title": "Models behind the runs",
@@ -1077,7 +1089,8 @@
         "empty": {
           "title": "No runs in this period",
           "description": "The model mix appears with the first run."
-        }
+        },
+        "description": "Which models are behind the runs."
       },
       "version-compare": {
         "title": "Version to version",
@@ -1092,7 +1105,8 @@
         "empty": {
           "title": "Only one version has run",
           "description": "Publish a new version - the comparison appears once both have runs in the period."
-        }
+        },
+        "description": "Whether a new agent version behaves better than the last."
       },
       "approvals": {
         "title": "Waiting on a decision",
@@ -1103,7 +1117,8 @@
         "empty": {
           "title": "Nothing waiting",
           "description": "Every approval has been decided. This card earns its place by being empty."
-        }
+        },
+        "description": "Runs paused on a tool call, waiting for a decision."
       },
       "recent-failures": {
         "title": "Recent failures",
@@ -1114,7 +1129,8 @@
         "empty": {
           "title": "No failures",
           "description": "Every run in this period finished cleanly."
-        }
+        },
+        "description": "Runs that failed or ran out of budget, most recent first."
       },
       "budget-headroom": {
         "title": "Budget headroom",
@@ -1123,7 +1139,8 @@
         "empty": {
           "title": "No monthly cap set",
           "description": "Set one on the organization - headroom shows here before budget_exceeded does."
-        }
+        },
+        "description": "How much of the monthly budget is left."
       },
       "mcp-health": {
         "title": "Integrations",
@@ -1135,7 +1152,8 @@
         "empty": {
           "title": "No MCP servers connected",
           "description": "Connect one from the catalog - its health lands here."
-        }
+        },
+        "description": "Whether connected MCP servers are still answering."
       },
       "knowledge-freshness": {
         "title": "Knowledge sync",
@@ -1146,7 +1164,8 @@
         "empty": {
           "title": "No sync sources",
           "description": "Collections synced from Drive or S3 report their freshness here."
-        }
+        },
+        "description": "Which knowledge collections have stopped syncing."
       },
       "members": {
         "title": "Members",
@@ -1162,7 +1181,8 @@
         "empty": {
           "title": "Just you",
           "description": "Invite somebody - adoption needs people."
-        }
+        },
+        "description": "Who is in the organization, by role."
       },
       "org-ratings": {
         "title": "Answer quality",
@@ -1170,7 +1190,8 @@
         "empty": {
           "title": "No ratings yet",
           "description": "Thumbs on answers land here."
-        }
+        },
+        "description": "How answers are rated across the organization."
       },
       "my-agents": {
         "title": "Your agents",
@@ -1182,7 +1203,8 @@
         "empty": {
           "title": "No agents yet",
           "description": "Nothing is shared with you yet - ask a builder, or create your own."
-        }
+        },
+        "description": "The agents you build and the ones shared with you."
       },
       "conversations": {
         "title": "Continue where you left off",
@@ -1191,7 +1213,8 @@
         "empty": {
           "title": "No conversations yet",
           "description": "Start one from an agent card - it will be waiting here."
-        }
+        },
+        "description": "Pick up a recent chat where you left off."
       },
       "my-activity": {
         "title": "Your activity",
@@ -1200,7 +1223,8 @@
         "empty": {
           "title": "No runs of yours yet",
           "description": "Run any agent - your own history shows here, and only to you."
-        }
+        },
+        "description": "Your own runs, and what is waiting on a decision."
       },
       "my-top-agents": {
         "title": "Agents you use most",
@@ -1208,7 +1232,8 @@
         "empty": {
           "title": "No runs of yours yet",
           "description": "Run any agent - your favourites show up here."
-        }
+        },
+        "description": "The agents you use most."
       },
       "my-quality": {
         "title": "Answer quality in your chats",
@@ -1216,7 +1241,8 @@
         "empty": {
           "title": "No rated answers yet",
           "description": "Rate answers with a thumbs up or down - your own trend lands here."
-        }
+        },
+        "description": "How the answers in your own chats are rated."
       },
       "shared-with-you": {
         "title": "Shared with you",
@@ -1227,7 +1253,8 @@
         "empty": {
           "title": "Nothing shared yet",
           "description": "When somebody shares an agent, a collection or a skill, it counts here."
-        }
+        },
+        "description": "Agents, knowledge and skills shared with you."
       },
       "sandbox-capacity": {
         "title": "Sandbox capacity",
@@ -1239,7 +1266,8 @@
         "empty": {
           "title": "No sandbox host registered",
           "description": "Register one and the room left for agents to run code lands here."
-        }
+        },
+        "description": "How much sandbox capacity is in use."
       },
       "sandbox-sessions": {
         "title": "Open sandboxes",
@@ -1274,7 +1302,8 @@
         "elsewhere": {
           "title": "Sandboxes run on Daytona",
           "description": "Sessions opened there appear in that account's own dashboard, not here."
-        }
+        },
+        "description": "The sandbox sessions running right now."
       },
       "sandbox-policy": {
         "title": "Sandbox runtimes",
@@ -1294,8 +1323,82 @@
         "elsewhere": {
           "title": "Sandboxes run on Daytona",
           "description": "Daytona publishes no allowlist of its own - what it permits is a setting on that account."
-        }
+        },
+        "description": "What the sandbox host allows agents to run."
       }
+    },
+    "edit": {
+      "customize": "Customize",
+      "subtitle": "Arrange your dashboard — drag cards to reorder across sections, resize them, colour and collapse sections, or add more.",
+      "banner": "Drag, resize and arrange your cards, then Save to keep it or Cancel to discard.",
+      "addWidget": "Add a widget",
+      "saveAsPreset": "Save as…",
+      "addTitle": "Add a widget",
+      "addDescription": "Pick a card and it drops into your dashboard, ready to drag into place. Hover a row to preview it with live data — you can add the same card more than once.",
+      "searchPlaceholder": "Search widgets…",
+      "searchLabel": "Search widgets",
+      "noResults": "No widgets match “{query}”.",
+      "groups": {
+        "platform": "Platform",
+        "attention": "Needs attention",
+        "usage": "Usage & analytics",
+        "people": "People",
+        "sandboxes": "Sandboxes",
+        "workspace": "Your workspace"
+      },
+      "sizeBadge": "{cols} × {rows}",
+      "preview": "Live preview",
+      "previewHint": "Hover a card to preview it here.",
+      "reset": "Reset to default",
+      "cancel": "Cancel",
+      "save": "Save",
+      "addSection": "Add a section",
+      "addToSection": "Add to a section",
+      "topSection": "Top",
+      "newSection": "New section",
+      "untitledSection": "Untitled section",
+      "sectionLabel": "Section name",
+      "sectionPlaceholder": "Section name",
+      "removeSection": "Remove section",
+      "collapse": "Collapse {title}",
+      "expand": "Expand {title}",
+      "accents": {
+        "neutral": "No colour",
+        "violet": "Violet",
+        "blue": "Blue",
+        "green": "Green",
+        "amber": "Amber",
+        "rose": "Rose"
+      },
+      "customColour": "Custom colour",
+      "hide": "Hide {title}",
+      "emptySection": "Drop a card here, or add one to this section.",
+      "emptyDraft": "No cards yet — add one, or cancel to keep your current dashboard.",
+      "emptyTitle": "Your dashboard is empty",
+      "emptyDescription": "You have hidden every card. Add some back, or reset to the default layout.",
+      "saveFailed": "Could not save your dashboard. Try again.",
+      "resetFailed": "Could not reset your dashboard. Try again.",
+      "tempSaveTitle": "Keep this layout for good?",
+      "tempSaveDescription": "Saving sets this as your active dashboard, but it is not a saved template. Reset to default or applying another layout will replace it, and this arrangement will be lost. Save it as a permanent template to keep it and switch back any time.",
+      "tempSaveAsTemplate": "Save as template",
+      "tempSaveKeep": "Just apply for now"
+    },
+    "presets": {
+      "menu": "Layouts",
+      "heading": "Saved dashboards",
+      "default": "Default layout",
+      "newBlank": "New blank layout",
+      "empty": "No saved dashboards yet. Arrange one, then Save as… to keep it here.",
+      "saveTitle": "Save this dashboard",
+      "saveDescription": "Keep the current arrangement under a name you can switch back to.",
+      "nameLabel": "Name",
+      "namePlaceholder": "Monday review",
+      "saved": "Saved “{name}”.",
+      "saveFailed": "Could not save this dashboard. The name may already be taken.",
+      "applyFailed": "Could not switch to that dashboard. Try again.",
+      "delete": "Delete {name}",
+      "deleted": "Deleted “{name}”.",
+      "deleteFailed": "Could not delete that dashboard. Try again."
     }
   },
   "files": {

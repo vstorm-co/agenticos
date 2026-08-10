@@ -26,7 +26,7 @@ export function WidgetFrame({ title, seeAll, className, children }: WidgetFrameP
       className={cn("border-border bg-card flex h-full flex-col rounded-xl border p-5", className)}
     >
       <div className="flex items-baseline justify-between gap-2 pb-3">
-        <h3 className="text-foreground text-sm font-semibold">{title}</h3>
+        <h3 className="text-foreground text-sm font-semibold tracking-tight">{title}</h3>
         {seeAll ? (
           <Link
             href={seeAll}

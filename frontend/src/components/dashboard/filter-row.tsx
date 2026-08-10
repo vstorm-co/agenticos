@@ -59,7 +59,7 @@ export function FilterRow({
   return (
     <div className="flex flex-wrap items-center gap-2">
       <div
-        className="flex flex-wrap items-center gap-1"
+        className="bg-muted flex flex-wrap items-center gap-1 rounded-full p-1"
         role="group"
         aria-label={t("period.label")}
       >
@@ -70,10 +70,10 @@ export function FilterRow({
             aria-pressed={period.preset === preset}
             onClick={() => onPeriodChange(resolvePreset(preset))}
             className={cn(
-              "rounded-md px-2.5 py-1 text-xs",
+              "rounded-full px-3 py-1 text-xs font-medium transition-colors",
               period.preset === preset
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                ? "bg-card text-foreground shadow-card"
+                : "text-muted-foreground hover:text-foreground",
             )}
           >
             {t(`period.${preset}`)}
@@ -85,10 +85,10 @@ export function FilterRow({
               type="button"
               aria-pressed={period.preset === "custom"}
               className={cn(
-                "flex items-center gap-1 rounded-md px-2.5 py-1 text-xs",
+                "flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition-colors",
                 period.preset === "custom"
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                  ? "bg-card text-foreground shadow-card"
+                  : "text-muted-foreground hover:text-foreground",
               )}
             >
               <CalendarRange className="size-3.5" aria-hidden />
