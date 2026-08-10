@@ -64,6 +64,14 @@ def _scalars(values: list[object]):
     return MagicMock(scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=values))))
 
 
+def _scalars_first(value: object):
+    return MagicMock(scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=value))))
+
+
+def _rows(values: list[object]):
+    return MagicMock(all=MagicMock(return_value=values))
+
+
 class TestReading:
     async def test_one_exposure_is_read_inside_its_organization(self):
         """Without the scope, an exposure id from another tenant would resolve."""
@@ -148,6 +156,68 @@ class TestReading:
         statement = str(session.statements[-1])
         assert "is_active" in statement
         assert "JOIN agents" in statement
+
+    async def test_the_agents_each_bot_serves_come_back_grouped_and_active_only(self):
+        """The channels listing's badges: one query over many bots, paused rows
+        excluded, grouped by the bot they answer on."""
+        chatty, quiet = uuid.uuid4(), uuid.uuid4()
+        one, two = MagicMock(), MagicMock()
+        session = _RecordingSession(_rows([(chatty, one), (chatty, two)]))
+
+        found = await agent_exposure_repo.active_agents_for_bots(
+            session, channel_bot_ids=[chatty, quiet]
+        )
+
+        assert found == {chatty: [one, two]}
+        assert [chatty, quiet] in _filters(session).values()
+        assert "is_active" in str(session.statements[-1])
+
+    async def test_no_bots_asks_the_database_nothing_for_active_agents(self):
+        session = _RecordingSession()
+
+        found = await agent_exposure_repo.active_agents_for_bots(session, channel_bot_ids=[])
+
+        assert found == {}
+        assert session.statements == []
+
+    async def test_which_agent_each_bot_is_bound_to_includes_paused(self):
+        """The picker's "is this bot taken": a paused binding still occupies the
+        unique constraint, so it counts here where the badges skip it."""
+        bot, agent = uuid.uuid4(), uuid.uuid4()
+        session = _RecordingSession(_rows([(bot, agent)]))
+
+        taken = await agent_exposure_repo.bound_agent_by_bot(session, channel_bot_ids=[bot])
+
+        assert taken == {bot: agent}
+        assert "is_active" not in str(session.statements[-1])
+
+    async def test_no_bots_asks_the_database_nothing_for_bound_agents(self):
+        session = _RecordingSession()
+
+        taken = await agent_exposure_repo.bound_agent_by_bot(session, channel_bot_ids=[])
+
+        assert taken == {}
+        assert session.statements == []
+
+    async def test_the_one_binding_a_bot_has_is_read_paused_or_not(self):
+        """`bound_to_bot` answers the whole question - `uq_exposure_bot` makes at
+        most one row match - and a paused one still counts, or a caller told the
+        bot is free is refused by the database."""
+        bot = uuid.uuid4()
+        binding = MagicMock()
+        session = _RecordingSession(_scalars_first(binding))
+
+        found = await agent_exposure_repo.bound_to_bot(session, channel_bot_id=bot)
+
+        assert found is binding
+        assert bot in _filters(session).values()
+
+    async def test_a_bot_with_no_binding_reads_as_none(self):
+        session = _RecordingSession(_scalars_first(None))
+
+        found = await agent_exposure_repo.bound_to_bot(session, channel_bot_id=uuid.uuid4())
+
+        assert found is None
 
     async def test_a_paused_binding_is_still_returned(self):
         """The duplicate check needs it, and it is the only caller that does.

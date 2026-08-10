@@ -73,7 +73,7 @@ async def update_exposure(
     ctx: Auth,
     service: AgentExposureSvc,
 ) -> Any:
-    """Pause, resume, or rebind this binding to another environment."""
+    """Pause, resume, rebind, or change what the agent may look up here."""
     updated = await service.update(ctx, agent_id, exposure_id, data)
     exposures = await service.list_for_agent(ctx, agent_id)
     return next(exposure for exposure in exposures if exposure.id == updated.id)

@@ -56,10 +56,12 @@ approvals, the audit trail and the permission checks are identical whether a run
 came from the chat window or a Slack mention, because there is exactly one code
 path that executes an agent.
 
-Channel mentions have one rule worth stating on its own. `@slug` resolves only
-inside the bot's own organization, and the run executes as the **sender**, never
-as the bot. An unlinked chat identity is refused rather than run with no role -
-because a run nobody can be held to is worse than a run that did not happen.
+Channels have two rules worth stating on their own. **A bot answers as one
+agent** - it is a single identity in the chat, so binding a second agent to one
+bot is refused and `@slug` is an alias for the agent behind it rather than a way
+to pick between several. And **the run executes as the sender**, never as the
+bot; an unlinked chat identity is refused rather than run with no role, because
+a run nobody can be held to is worse than a run that did not happen.
 
 ## Run
 

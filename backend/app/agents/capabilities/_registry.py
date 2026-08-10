@@ -241,6 +241,23 @@ class CapabilityDef:
     tools: tuple[CapabilityToolInfo, ...]
     config_schema: type[BaseModel] | None = None
     side_effecting: bool = False
+    selectable: bool = True
+    """Whether an agent's spec may bind this, and the Toolbox offer it.
+
+    True for everything an author switches on per agent, which is almost
+    everything. False says the decision belongs somewhere else and the spec is
+    the wrong place to record it - `channel_tools` is chosen per bound bot,
+    because one agent on two Mattermost servers and three Slack workspaces has
+    five answers to "may it read what was said here" and a spec field has one.
+
+    A capability is still registered, still declares its tools, and is still
+    built through this registry - which is what keeps its tools gateable by
+    approval and renameable by a binding. Only the *source* of the binding
+    differs: the runner assembles it for the run rather than reading it off the
+    published spec, the way it already appends a binding's prompt to the
+    instructions.
+    """
+
     scopes: frozenset[str] = frozenset()
     # The credential this capability needs, declared as a *kind* - never as an
     # instance. Code says "I need an API key"; configuration says which one.
@@ -338,6 +355,7 @@ def register(
     tools: Iterable[CapabilityToolInfo],
     config_schema: type[BaseModel] | None = None,
     side_effecting: bool = False,
+    selectable: bool = True,
     scopes: Iterable[str] = (),
     secret: SecretRequirement | None = None,
 ) -> Callable[[CapabilityBuilder], CapabilityBuilder]:
@@ -385,6 +403,7 @@ def register(
             tools=tuple(tools),
             config_schema=config_schema,
             side_effecting=side_effecting,
+            selectable=selectable,
             scopes=frozenset(scopes),
             secret=secret,
         )
@@ -420,7 +439,12 @@ def get(capability_id: str) -> CapabilityDef:
 
 
 def all_capabilities() -> list[CapabilityDef]:
-    """Every registered capability, ordered for a stable Builder picker."""
+    """Every registered capability, ordered for a stable Builder picker.
+
+    Everything, including the ones a spec may not bind: this is what the drift
+    tests walk and what the reference documentation is generated from. The
+    catalog the Toolbox reads filters on `selectable`.
+    """
     load_builtins()
     return sorted(REGISTRY.values(), key=lambda d: (d.category, d.name))
 
@@ -568,6 +592,7 @@ def load_builtins() -> None:
         return
 
     from app.agents.capabilities import (  # noqa: F401 - imported for side effects
+        channel_tools,
         charts,
         clock,
         code_execution,
