@@ -34,6 +34,7 @@ from app.schemas.agent_run import (
     CostSummary,
     RunTranscript,
 )
+from app.schemas.conversation import MessageRead
 
 router = APIRouter()
 
@@ -182,7 +183,7 @@ async def get_run_transcript(
     return RunTranscript(
         run_id=run.id,
         conversation_id=run.conversation_id,
-        items=messages,  # ty: ignore[invalid-argument-type]
+        items=[MessageRead.model_validate(m) for m in messages],
         total=total,
     )
 
