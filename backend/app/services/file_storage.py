@@ -47,10 +47,10 @@ SPREADSHEET_MIME_TYPES = {
 
 IMAGE_MIME_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 
-MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10MB
+MAX_UPLOAD_SIZE = 10 * 1024 * 1024
 # Avatars are decoration rendered at 40px; the limit is what stops someone
 # storing a 40MB photograph to be scaled down on every page load.
-MAX_AVATAR_SIZE = 2 * 1024 * 1024  # 2MB
+MAX_AVATAR_SIZE = 2 * 1024 * 1024
 
 
 def classify_file(mime_type: str, filename: str) -> str:

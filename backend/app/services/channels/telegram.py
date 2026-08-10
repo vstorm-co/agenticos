@@ -109,7 +109,6 @@ class TelegramAdapter(ChannelAdapter):
                     reply_to_message_id=reply_to,
                 )
             except TelegramBadRequest:
-                # Markdown parsing failed - send as plain text
                 await bot.send_message(
                     chat_id=msg.platform_chat_id,
                     text=msg.text,
@@ -296,7 +295,6 @@ class TelegramAdapter(ChannelAdapter):
         but accepted for interface compatibility with ChannelAdapter.
         """
         received = headers.get("x-telegram-bot-api-secret-token", "")
-        # Use hmac.compare_digest for constant-time comparison
         return hmac.compare_digest(received.encode(), secret.encode())
 
     def parse_incoming(self, raw_payload: dict[str, Any], bot_id: str) -> IncomingMessage | None:

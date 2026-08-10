@@ -135,7 +135,6 @@ class McpConnection(Base, TimestampMixin):
     allowed_tools: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
     is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
-    # "bearer" (static token in auth_token) or "oauth" (authorization-code flow).
     auth_type: Mapped[str] = mapped_column(String(16), nullable=False, default="bearer")
     # CSRF token for an in-flight OAuth authorization redirect; NULL once done.
     oauth_state: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)

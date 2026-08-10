@@ -119,8 +119,6 @@ class ModelProfileService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    # -- credentials ----------------------------------------------------
-
     async def list_profiles(self, ctx: AuthContext) -> list[ModelProfile]:
         return await credential_repo.list_profiles(self.db, organization_id=ctx.organization_id)
 
@@ -257,8 +255,6 @@ class ModelProfileService:
             target_type="model_profile",
             target_id=str(profile_id),
         )
-
-    # -- resolution -----------------------------------------------------
 
     async def _resolve_credential(
         self, organization_id: UUID, profile: ModelProfile

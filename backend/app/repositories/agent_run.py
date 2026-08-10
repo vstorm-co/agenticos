@@ -722,8 +722,6 @@ async def spend_by_key(
     return [(row[0], row[1], Decimal(row[2]), row[3]) for row in result.all()]
 
 
-# -- window aggregates, for GET /stats/usage ----------------------------------
-#
 # All of these read the same half-open window [start, end) on `started_at` -
 # the column the org+started index serves and the one the spend queries already
 # filter on. `user_id` narrows to one person's runs, which is the whole of

@@ -389,7 +389,6 @@ async def _run_sync(
 
             if mode == "new_only":
                 if existing_id:
-                    # File exists - check if content changed via hash
                     file_hash = hashlib.sha256(filepath.read_bytes()).hexdigest()
                     existing_hash = await ingestion_service.get_existing_hash(
                         collection_name, source_path
@@ -397,7 +396,6 @@ async def _run_sync(
                     if existing_hash and file_hash == existing_hash:
                         skipped += 1
                         continue
-                    # Hash changed - will re-ingest below
 
             elif mode == "update_only":
                 if not existing_id:

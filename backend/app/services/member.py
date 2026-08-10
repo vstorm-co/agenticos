@@ -12,7 +12,6 @@ from app.repositories import member_repo, user_repo
 
 logger = logging.getLogger(__name__)
 
-# Roles Admin is allowed to assign (cannot grant/revoke Owner via Admin)
 # Roles an admin may hand out. Deliberately excludes owner and admin: promoting
 # a peer to your own level is an ownership decision, not a management one.
 _ADMIN_ASSIGNABLE_ROLES = {

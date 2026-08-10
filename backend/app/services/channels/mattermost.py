@@ -139,9 +139,6 @@ class MattermostAdapter(ChannelAdapter):
         headers = {"Authorization": f"Bearer {bot_token}"}
 
         async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
-            # One upload for the chart and the attachments together: Mattermost
-            # attaches files to a post by id, so both halves are the same call and
-            # a post referencing them follows.
             uploads: list[tuple[str, tuple[str, bytes, str]]] = []
             if msg.image_png is not None:
                 uploads.append(("files", (msg.image_filename, msg.image_png, "image/png")))

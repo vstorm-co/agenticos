@@ -388,8 +388,6 @@ class AgentRegistryService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    # -- reading --------------------------------------------------------
-
     async def get(
         self, ctx: AuthContext, agent_id: UUID, *, perm: Perm = Perm.AGENTS_VIEW
     ) -> Agent:
@@ -489,8 +487,6 @@ class AgentRegistryService:
             for agent in agents
         ]
         return rows, total
-
-    # -- writing --------------------------------------------------------
 
     async def create(self, ctx: AuthContext, spec: AgentSpec) -> Agent:
         """Create an agent in draft.
@@ -905,8 +901,6 @@ class AgentRegistryService:
                 f"'{secret.name}' holds a {secret.kind}"
             ]
         return []
-
-    # -- delegation -----------------------------------------------------
 
     async def _delegation_problems(
         self, ctx: AuthContext, spec: AgentSpec, *, agent_id: UUID | None

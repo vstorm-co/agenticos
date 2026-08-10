@@ -282,7 +282,6 @@ async def get_current_user(
     if payload is None:
         raise AuthenticationError(message="Invalid or expired token")
 
-    # Ensure this is an access token, not a refresh token
     if payload.get("type") != "access":
         raise AuthenticationError(message="Invalid token type")
 

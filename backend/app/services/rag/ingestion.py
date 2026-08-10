@@ -58,8 +58,6 @@ class IngestionService:
                 meta = doc.additional_info or {}
                 if meta.get("source_path") == source_path:
                     return doc.document_id
-                # Also check top-level metadata fields
-                # (source_path is stored in metadata dict per chunk)
             for doc in docs:
                 if doc.filename and doc.filename == Path(source_path).name:
                     return doc.document_id
@@ -111,7 +109,6 @@ class IngestionService:
                     existing_id = await self._find_existing_by_source(
                         collection_name, document.metadata.source_path
                     )
-                # Check by content hash when path lookup missed (exact duplicate detection)
                 if not existing_id and document.metadata.content_hash:
                     existing_id = await self._find_existing_by_hash(
                         collection_name, document.metadata.content_hash

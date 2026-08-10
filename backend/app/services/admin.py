@@ -49,7 +49,6 @@ class AdminService:
         except Exception:
             logger.exception("admin_stats_active_users_query_failed")
 
-        # Conversations + messages totals - 0 when AI/chat is disabled
         total_conversations = (
             await self.db.execute(select(func.count(Conversation.id)))
         ).scalar_one()

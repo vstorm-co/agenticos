@@ -592,7 +592,6 @@ class DocumentProcessor:
         self.settings = settings
         self.splitter = self._create_splitter(settings)
 
-        # Always use Python native parser for plain text
         self.text_parser = TextDocumentParser()
         self.docx_parser = DocxDocumentParser()
         self.image_describer = image_describer
@@ -608,7 +607,6 @@ class DocumentProcessor:
         strategy = settings.chunking_strategy
 
         if strategy == "markdown":
-            # Split by markdown headers, then by size
             return MarkdownHeaderTextSplitter(
                 headers_to_split_on=[
                     ("#", "h1"),
@@ -619,7 +617,6 @@ class DocumentProcessor:
             )
 
         if strategy == "fixed":
-            # Simple fixed-size chunks with no smart splitting
             return RecursiveCharacterTextSplitter(
                 chunk_size=settings.chunk_size,
                 chunk_overlap=settings.chunk_overlap,
@@ -627,7 +624,6 @@ class DocumentProcessor:
                 separators=["\n"],
             )
 
-        # Default: recursive (smart splitting by paragraphs, sentences, words)
         return RecursiveCharacterTextSplitter(
             chunk_size=settings.chunk_size,
             chunk_overlap=settings.chunk_overlap,
@@ -681,7 +677,6 @@ class DocumentProcessor:
                 f"Unsupported file type: {suffix}. "
                 f"{type(self.pdf_parser).__name__} reads {', '.join(self.pdf_parser.allowed)}"
             )
-        # Describe images using LLM vision before chunking
         await self._describe_images(document)
 
         pages = document.pages
@@ -716,6 +711,5 @@ class DocumentProcessor:
                 f"with OCR {'on' if self.settings.enable_ocr else 'off'}."
             )
 
-        # Add chunked pages to original document
         document.chunked_pages = chunked_pages
         return document
