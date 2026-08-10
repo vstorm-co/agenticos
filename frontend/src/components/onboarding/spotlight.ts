@@ -16,7 +16,9 @@ import { driver, type Driver } from "driver.js";
  * accident; the popover's own close button is what dismisses it, wired
  * explicitly. `disableActiveInteraction: true` keeps the spotlighted control
  * inert while it is only being described — the interactive tutorial that lets the
- * reader actually use it is a later, separate mode.
+ * reader actually use it is a later, separate mode. `popoverClass` is what pins
+ * the popover to a fixed spot at the bottom (see `globals.css`): the text and its
+ * Next button hold still for the whole walk, and only the spotlight moves.
  *
  * Lives under `components/onboarding`, not in a hook: it is DOM and third-party
  * overlay work, and the hook layer is held to a 100% line-coverage gate this
@@ -31,6 +33,7 @@ export function createTourDriver(): Driver {
     stageRadius: 10,
     disableActiveInteraction: true,
     animate: true,
+    popoverClass: "tour-popover",
   });
 }
 
@@ -61,6 +64,23 @@ export function createTourDriver(): Driver {
 export function activateTab(trigger: HTMLElement): void {
   trigger.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0 }));
   trigger.focus({ preventScroll: true });
+}
+
+/** Resolve after `ms`, or at once if `signal` is (or becomes) aborted. */
+export function delay(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal.aborted) {
+      resolve();
+      return;
+    }
+    const finish = () => {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", finish);
+      resolve();
+    };
+    const timer = setTimeout(finish, ms);
+    signal.addEventListener("abort", finish);
+  });
 }
 
 export function waitForElement(

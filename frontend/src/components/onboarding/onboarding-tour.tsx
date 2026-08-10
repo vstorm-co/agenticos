@@ -8,35 +8,44 @@ import { useTranslations } from "next-intl";
 import type { AllowedButtons, DriveStep, Driver } from "driver.js";
 
 import { useDetailTargets } from "@/components/onboarding/detail-targets";
-import { activateTab, createTourDriver, waitForElement } from "@/components/onboarding/spotlight";
+import {
+  activateTab,
+  createTourDriver,
+  delay,
+  waitForElement,
+} from "@/components/onboarding/spotlight";
 import { useOnboardingTour } from "@/hooks";
 import { stripLocale } from "@/lib/active-route";
 import { pageKey } from "@/lib/onboarding/tour";
 
+/** How long the control that drives a transition is spotlighted before it fires. */
+const REVEAL_MS = 650;
+
+/** How long to wait for that control to be in the DOM before giving up on the flourish. */
+const CONTROL_WAIT_MS = 400;
+
 /**
  * The guided tour: driver.js walks the reader across the product a page at a
- * time, spotlighting the useful controls on each with a caption anchored to
- * them.
+ * time, spotlighting the useful controls on each with a caption.
  *
- * Not a modal, and not a hand-rolled panel either — the popover, its Next/Back,
- * its progress and the dimmed cut-out are all driver.js, which is why clicking
- * Next works where a custom panel's did not (driver.js swallows clicks outside
- * its own popover). This component owns only what driver.js cannot: it drives the
- * steps one at a time rather than as one array, because they span pages and
- * driver runs within a page.
+ * The caption and its Next/Back/close are driver.js's own popover, but pinned to
+ * a fixed spot at the bottom of the screen (`popoverClass` + `globals.css`), so
+ * the text and the Next button hold still for the whole walk and only the
+ * spotlight cut-out moves. That is what makes a transition legible rather than
+ * disorienting: the reader is never chasing the words around the screen.
  *
- * Three moves get the reader to a step. A static step navigates to its route.
- * A *detail* step (the agent builder, a collection, an organization — routes
- * that are per-row) resolves an example to open through `useDetailTargets`,
- * navigates into it, and — once there — leaves the reader on whichever row they
- * are already looking at; if there is nothing to open (an empty list), it
- * describes the section centered rather than skip it, so the "?" still explains
- * what a detail view holds before there is any data to open one on. And a step
- * with an `activate` target switches to that Radix tab, then spotlights the
- * target its panel holds — one Next, one panel, and the popover stays put on it
- * to be read rather than sliding off mid-sentence. Which steps to show, in what
- * order, permission-filtered, and whether closing persists completion, all come
- * from `useOnboardingTour`. Mounted once in the dashboard layout.
+ * Every move to the next step is driven by Next, and every move shows what
+ * causes it. A static or detail step that needs another page first spotlights
+ * the control that leads there — the sidebar link, or the button that opens the
+ * row (the "Roles" link, an agent's card) — holds a beat, then navigates; a step
+ * with an `activate` target spotlights its Radix tab, holds, then switches to it.
+ * Only then does the spotlight land on the step's target. Because the caption is
+ * pinned, none of that moves the text: the hold is for the eye to follow the
+ * highlight, not a timer the reader races. A detail step with nothing to open
+ * (an empty list) describes the section where the reader is rather than skip it.
+ * Which steps to show, in what order, permission-filtered, and whether closing
+ * persists completion, all come from `useOnboardingTour`. Mounted once in the
+ * dashboard layout.
  */
 export function OnboardingTour() {
   const t = useTranslations("onboarding");
@@ -78,50 +87,61 @@ export function OnboardingTour() {
       tour.highlight(driveStep);
     };
 
-    if (detail) {
-      // A detail pseudo-page. If we are not already on one of its routes, open an
-      // example; once on such a route we stay on it (the "?" replayed from a
-      // builder means *this* agent) and fall through to activate + highlight.
-      if (pageKey(here) !== step.page) {
-        if (detail.href) {
-          tour.destroy();
-          router.push(detail.href);
+    const controller = new AbortController();
+    const { signal } = controller;
+
+    // Spotlight the control that drives a transition and hold a beat, so the
+    // reader sees which one before it fires. A control that never shows (a
+    // permission hid it, a slow page) just means the transition happens without
+    // the flourish rather than stalling the walk.
+    const reveal = async (selector: string) => {
+      const control = await waitForElement(selector, signal, CONTROL_WAIT_MS);
+      if (signal.aborted || !(control instanceof HTMLElement)) return;
+      show(control);
+      await delay(REVEAL_MS, signal);
+    };
+
+    void (async () => {
+      // Get to the right page first, showing the control that leads there. The
+      // overlay is not torn down across the navigation, so the pinned caption
+      // stays on screen the whole way rather than blinking out mid-move.
+      if (detail) {
+        if (pageKey(here) !== step.page) {
+          if (detail.href) {
+            await reveal(`a[href$="${detail.href}"]`);
+            if (signal.aborted) return;
+            router.push(detail.href);
+            return;
+          }
+          if (detail.pending) return; // wait for the list; this effect re-runs when it settles
+          // Nothing to open — an empty list. Describe the section where we are
+          // rather than skip it, so the walk still says what a detail view holds.
+          show(undefined);
           return;
         }
-        if (detail.pending) return; // wait for the list; this effect re-runs when it settles
-        // Nothing to open — an empty list. Describe the section where we are
-        // rather than skip it, so the walk still says what a detail view holds.
-        show(undefined);
+      } else if (step.page && here !== step.page) {
+        await reveal(`a[href$="${step.page}"]`);
+        if (signal.aborted) return;
+        router.push(step.page);
         return;
       }
-    } else if (step.page && here !== step.page) {
-      // A static step the tour is not on yet: tear the overlay down so no popover
-      // is left pointing at an element that is about to unmount, navigate, and let
-      // the resulting pathname change re-run this effect on the destination.
-      tour.destroy();
-      router.push(step.page);
-      return;
-    }
 
-    if (!step.target && !step.activate) {
-      show(undefined);
-      return;
-    }
-
-    const controller = new AbortController();
-    void (async () => {
-      // A tab whose panel holds the target only mounts once its trigger is
-      // activated, so switch to it first — then the one spotlight lands on the
-      // target and stays there until Next, never sliding off it mid-read.
+      // On the right page. Reveal the tab that opens the section, switch to it,
+      // then land the spotlight on the target — the caption never having moved.
       if (step.activate) {
-        const trigger = await waitForElement(`[data-tour="${step.activate}"]`, controller.signal);
-        if (controller.signal.aborted) return;
-        if (trigger instanceof HTMLElement) activateTab(trigger);
+        const trigger = await waitForElement(`[data-tour="${step.activate}"]`, signal);
+        if (signal.aborted) return;
+        if (trigger instanceof HTMLElement) {
+          show(trigger);
+          await delay(REVEAL_MS, signal);
+          if (signal.aborted) return;
+          activateTab(trigger);
+        }
       }
       const element = step.target
-        ? await waitForElement(`[data-tour="${step.target}"]`, controller.signal)
+        ? await waitForElement(`[data-tour="${step.target}"]`, signal)
         : undefined;
-      if (!controller.signal.aborted) show(element ?? undefined);
+      if (!signal.aborted) show(element ?? undefined);
     })();
     return () => controller.abort();
   }, [

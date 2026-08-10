@@ -910,3 +910,26 @@
     background-color: #67060c;
   }
 }
+
+/*
+ * Onboarding tour — pin the driver.js popover to a fixed spot at the bottom.
+ *
+ * The text and its Next button stay in one place for the whole walk; only the
+ * spotlight cut-out moves. driver.js positions the popover inline against the
+ * highlighted element, so the pin has to win with `!important`, and the arrow
+ * (which would point at nothing from a fixed spot) is hidden.
+ */
+.driver-popover.tour-popover {
+  position: fixed !important;
+  bottom: 1.5rem !important;
+  top: auto !important;
+  left: 50% !important;
+  right: auto !important;
+  transform: translateX(-50%) !important;
+  margin: 0 !important;
+  max-width: min(28rem, calc(100vw - 2rem));
+}
+
+.driver-popover.tour-popover .driver-popover-arrow {
+  display: none !important;
+}
