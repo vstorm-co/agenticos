@@ -2401,6 +2401,7 @@
       "nothingSpentYet2": "Nothing spent yet.",
       "nothingWaiting": "Nothing waiting",
       "openTheRunItCame": "Open the run it came from",
+      "othersRanAgents": "{count, plural, =1 {1 more person ran at least one agent} other {# more people ran at least one agent}}",
       "perPersonDisclosure": "Everyone holding runs:view sees this - builders and operators as well as owners and admins.",
       "queueCouldNotBeRead": "The approvals queue could not be read",
       "reject": "Reject",

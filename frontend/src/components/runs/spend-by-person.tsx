@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 
 import { LoadingState } from "@/components/states";
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
-import { usePeopleUsage, usePermissions } from "@/hooks";
+import { usePeopleUsage, usePermissions, useUsageStats } from "@/hooks";
 import { Perm } from "@/types/permissions";
 
 /** A card, not a directory: the busiest few, with the disclosure under them. */
@@ -33,6 +33,10 @@ export function SpendByPerson({ from, to }: { from: string; to: string }) {
     { from, to },
     { scope: "org", limit: ROWS, enabled: maySee },
   );
+  // The org headcount rides the composed usage answer for the same window, so a
+  // top-N list can say how many people it leaves unnamed without a second request.
+  const { usage } = useUsageStats({ from, to }, { scope: "org", enabled: maySee });
+  const others = Math.max((usage?.active_users?.active ?? 0) - byUser.length, 0);
 
   if (!maySee) return null;
 
@@ -70,6 +74,11 @@ export function SpendByPerson({ from, to }: { from: string; to: string }) {
                 <span className="font-mono">${Number(person.cost_usd).toFixed(4)}</span>
               </div>
             ))}
+            {others > 0 ? (
+              <p className="text-muted-foreground text-xs">
+                {t("othersRanAgents", { count: others })}
+              </p>
+            ) : null}
             <p className="text-muted-foreground text-xs">{t("perPersonDisclosure")}</p>
           </>
         )}

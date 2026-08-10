@@ -69,8 +69,14 @@ const PEOPLE: PersonUsageRow[] = [
   },
 ];
 
-function serve(byUser: PersonUsageRow[] | null) {
-  vi.mocked(apiClient.get).mockResolvedValue({ by_user: byUser });
+function serve(byUser: PersonUsageRow[] | null, active: number | null = null) {
+  vi.mocked(apiClient.get).mockImplementation((_path: string, options?: unknown) => {
+    const params = (options as { params?: Record<string, string> } | undefined)?.params;
+    if (params?.group_by === "user") return Promise.resolve({ by_user: byUser });
+    return Promise.resolve({
+      active_users: active === null ? null : { active, total_members: active },
+    });
+  });
 }
 
 function usageCalls() {
@@ -96,13 +102,34 @@ describe("the per-person spend breakdown", () => {
     expect(screen.getByText("pages.runs.perPersonDisclosure")).toBeVisible();
   });
 
+  it("says how many people the top rows leave unnamed", async () => {
+    // A card is not a directory: the org has more active people than it lists, and
+    // it says so rather than reading as the whole organization.
+    serve(PEOPLE, 5);
+
+    render(<SpendByPerson from="2026-07-08" to="2026-08-07" />, { wrapper });
+
+    expect(await screen.findByText("pages.runs.othersRanAgents")).toBeVisible();
+  });
+
+  it("claims no others when the rows already name everyone active", async () => {
+    serve(PEOPLE, 2);
+
+    render(<SpendByPerson from="2026-07-08" to="2026-08-07" />, { wrapper });
+
+    expect(await screen.findByText("Katarzyna Nowak")).toBeVisible();
+    expect(screen.queryByText("pages.runs.othersRanAgents")).toBeNull();
+  });
+
   it("asks /stats/usage for the org's people over the window it was handed", async () => {
     serve(PEOPLE);
 
     render(<SpendByPerson from="2026-07-08" to="2026-08-07" />, { wrapper });
 
     await waitFor(() => expect(usageCalls().length).toBeGreaterThan(0));
-    const [, options] = usageCalls()[0]!;
+    const [, options] = usageCalls().find(
+      ([, opts]) => (opts as { params?: Record<string, string> }).params?.group_by === "user",
+    )!;
     const params = (options as { params: Record<string, string> }).params;
     expect(params.group_by).toBe("user");
     expect(params.scope).toBe("org");
@@ -134,8 +161,9 @@ describe("the per-person spend breakdown", () => {
     expect(screen.queryByText("pages.runs.nobodyHasRunAnything")).toBeNull();
 
     // Retry re-asks rather than sitting on the stale failure.
+    const before = usageCalls().length;
     await userEvent.click(screen.getByRole("button", { name: "pages.runs.tryAgain" }));
-    await waitFor(() => expect(usageCalls().length).toBeGreaterThan(1));
+    await waitFor(() => expect(usageCalls().length).toBeGreaterThan(before));
   });
 
   it("says nobody has run anything when the window is genuinely empty", async () => {
