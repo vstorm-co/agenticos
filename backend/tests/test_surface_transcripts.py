@@ -1,0 +1,319 @@
+"""Every non-streaming surface records the transcript its run produced.
+
+A run reaches :class:`~app.services.agent_runner.AgentRunnerService` from six
+places, and for most of the platform's life only web chat recorded what was
+said. The embedded widget left its conversation empty, a channel `@mention` and
+a channel bot's default agent wrote nothing - or two lines of text with no tool
+calls, no model and no version - and the HTTP API and every resumed run recorded
+nothing at all. An organization was billed for an answer given to a visitor on a
+client's site, with no row saying what was asked or what was said back (#205).
+
+The fix moved the write into :meth:`AgentRunnerService._run`, the one place a
+non-streaming run executes, so a surface cannot forget it. These tests drive each
+surface's *real* entry point - the widget session, an `@slug` mention, a bot's
+default agent - and assert the turns land at the repository boundary: the
+question, the answer attributed to the model and version that produced it, and
+the tool calls with their arguments and their results. Asserting that
+`transcript.record` was called would prove the wiring and nothing about the
+rows; asserting the rows is the point, because the rows are what was missing.
+
+The transcript only ever carries the prompt, the answer, the tool arguments and
+results, and the model label, so no persisted row can leak a credential - the
+secrets a run unseals never reach it. The two surfaces not here are tested where
+their own machinery is: `tests/test_agent_session.py` keeps a failed web-chat
+turn's partial answer, and `tests/test_agent_runner.py` with
+`tests/test_transcript.py` cover a run resumed after an approval, whose
+continuation records over HTTP rather than the socket a conversation streams.
+"""
+
+from __future__ import annotations
+
+import uuid
+from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager, contextmanager
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+from pydantic_ai.messages import ModelRequest, ModelResponse, ToolCallPart, ToolReturnPart
+
+from app.agents.capabilities.budget import SpendLedger
+from app.services.agent_runner import AgentRunnerService, PreparedRun
+from app.services.channels.mentions import ChannelAgentRouter
+from app.services.embed_session import EmbedSession
+
+pytestmark = pytest.mark.anyio
+
+
+@asynccontextmanager
+async def _noop_savepoint() -> AsyncIterator[None]:
+    yield
+
+
+def _db() -> MagicMock:
+    """A session whose SAVEPOINT is a no-op and whose commit is awaitable.
+
+    `_run` commits its own terminal write, and `TranscriptService.record`
+    wraps the transcript in `begin_nested()`; both have to be satisfiable for
+    the assertions to sit on the repository boundary that
+    `tests/integration/test_transcript_savepoint.py` exercises against a real
+    database.
+    """
+    db = MagicMock()
+    db.flush = AsyncMock()
+    db.refresh = AsyncMock()
+    db.commit = AsyncMock()
+    db.get = AsyncMock(return_value=MagicMock(monthly_budget_usd=None))
+    db.begin_nested = MagicMock(side_effect=_noop_savepoint)
+    return db
+
+
+def _searched_then_answered(output: str) -> MagicMock:
+    """A finished run that searched the knowledge base before answering.
+
+    The tool call and its return are both present, which is what an ordinary
+    (non-resumed) turn produces - so the transcript writes one closed step.
+    """
+    messages = [
+        ModelResponse(
+            parts=[ToolCallPart(tool_name="search_kb", args={"q": "refund"}, tool_call_id="c1")]
+        ),
+        ModelRequest(
+            parts=[ToolReturnPart(tool_name="search_kb", content="30 days", tool_call_id="c1")]
+        ),
+    ]
+    return MagicMock(output=output, new_messages=MagicMock(return_value=messages))
+
+
+@contextmanager
+def _run_yielding(agent_run: AsyncMock) -> Iterator[tuple[dict[str, PreparedRun], MagicMock]]:
+    """Stub the build, the terminal write and the transcript's repository.
+
+    `prepare` is replaced with one that opens a real :class:`PreparedRun` around
+    the `conversation_id` the surface passed - so the transcript lands in the
+    conversation the surface chose, not one this harness invented - and drives
+    `agent_run` as the model call. Everything else in `_run` and `finish` is
+    real, including `TranscriptService.record`.
+
+    Yields the captured prepared run and the mocked conversation repository, so a
+    test can read back the exact turns the surface caused to be written.
+    """
+    captured: dict[str, PreparedRun] = {}
+
+    def prepare(
+        _ctx: Any, agent_id: uuid.UUID, *, conversation_id: uuid.UUID | None = None, **_kwargs: Any
+    ) -> PreparedRun:
+        built = MagicMock()
+        built.ledger = SpendLedger()
+        built.model_label = "gpt-4.1"
+        built.agent.run = agent_run
+        prepared = PreparedRun(
+            run=MagicMock(
+                id=uuid.uuid4(),
+                agent_id=agent_id,
+                agent_version_id=uuid.uuid4(),
+                conversation_id=conversation_id,
+            ),
+            agent=MagicMock(),
+            spec=MagicMock(),
+            built=built,
+            approvals=MagicMock(parked={}, requested=[]),
+        )
+        captured["prepared"] = prepared
+        return prepared
+
+    with (
+        patch.object(AgentRunnerService, "prepare", new=AsyncMock(side_effect=prepare)),
+        patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+        patch("app.services.transcript.conversation_repo") as conversations,
+    ):
+        conversations.create_message = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
+        conversations.create_tool_call = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
+        conversations.complete_tool_call = AsyncMock()
+        conversations.get_open_tool_call_in_run = AsyncMock(return_value=None)
+        yield captured, conversations
+
+
+def _assert_full_turn(
+    conversations: MagicMock, run: MagicMock, *, question: str, answer: str
+) -> None:
+    """The question, the answer, and the tool call all reached the transcript."""
+    user, assistant = (call.kwargs for call in conversations.create_message.await_args_list)
+    assert (user["role"], user["content"], user["run_id"]) == ("user", question, run.id)
+    assert (assistant["role"], assistant["content"], assistant["run_id"]) == (
+        "assistant",
+        answer,
+        run.id,
+    )
+    # Attributed to the model and version that ran, not to whatever the agent
+    # says today - a bot that recorded "role and content only" was the #205 case.
+    assert assistant["model_name"] == "gpt-4.1"
+    assert (assistant["agent_id"], assistant["agent_version_id"]) == (
+        run.agent_id,
+        run.agent_version_id,
+    )
+    tool = conversations.create_tool_call.await_args.kwargs
+    assert (tool["tool_name"], tool["args"]) == ("search_kb", {"q": "refund"})
+    assert conversations.complete_tool_call.await_args.kwargs["result"] == "30 days"
+
+
+def _embed() -> MagicMock:
+    return MagicMock(
+        id=uuid.uuid4(),
+        organization_id=uuid.uuid4(),
+        agent_id=uuid.uuid4(),
+        owner_user_id=uuid.uuid4(),
+        name="Support",
+        context=None,
+    )
+
+
+class TestAWidgetRunRecordsItsTranscript:
+    """The widget is the billing-integrity case #205 opens with: a public URL
+    with a model behind it, answering a visitor on somebody else's site. A run
+    with a cost and no transcript is a bill nobody can reconstruct."""
+
+    async def test_a_widget_run_records_the_question_the_answer_and_the_tool_call(self) -> None:
+        session = EmbedSession(db=_db(), embed=_embed(), visitor=None, websocket=MagicMock())
+        run = AsyncMock(return_value=_searched_then_answered("The refund window is 30 days."))
+
+        with (
+            _run_yielding(run) as (captured, conversations),
+            patch(
+                "app.services.embed_session.conversation_repo.create_conversation",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch(
+                "app.services.embed_session.member_repo.get",
+                new=AsyncMock(return_value=MagicMock(role="builder")),
+            ),
+        ):
+            answer = await session._answer("What's your refund window?")
+
+        assert answer == "The refund window is 30 days."
+        _assert_full_turn(
+            conversations,
+            captured["prepared"].run,
+            question="What's your refund window?",
+            answer="The refund window is 30 days.",
+        )
+
+    async def test_a_broken_widget_run_still_records_what_the_visitor_asked(self) -> None:
+        """The run that failed is the one somebody opens. Without the question
+        there is a charge on the organization's month and nothing that says what
+        it paid for."""
+        session = EmbedSession(db=_db(), embed=_embed(), visitor=None, websocket=MagicMock())
+        run = AsyncMock(side_effect=RuntimeError("provider down"))
+
+        with (
+            _run_yielding(run) as (captured, conversations),
+            patch(
+                "app.services.embed_session.conversation_repo.create_conversation",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch(
+                "app.services.embed_session.member_repo.get",
+                new=AsyncMock(return_value=MagicMock(role="builder")),
+            ),
+            pytest.raises(RuntimeError),
+        ):
+            await session._answer("What's your refund window?")
+
+        recorded = conversations.create_message.await_args_list
+        assert [call.kwargs["role"] for call in recorded] == ["user"]
+        assert recorded[0].kwargs["content"] == "What's your refund window?"
+
+
+class TestAMentionRecordsItsTranscript:
+    """`@support what is the refund window` runs as the sender through the runner,
+    so it leaves the same transcript a web-chat run does - the mention path used
+    to pass a `conversation_id` through and write nothing into it."""
+
+    async def test_a_mention_records_the_full_turn(self) -> None:
+        conversation_id = uuid.uuid4()
+        run = AsyncMock(return_value=_searched_then_answered("The refund window is 30 days."))
+
+        with (
+            _run_yielding(run) as (captured, conversations),
+            patch(
+                "app.services.channels.mentions.member_repo.get",
+                new=AsyncMock(return_value=MagicMock(role="builder")),
+            ),
+            patch(
+                "app.services.channels.mentions.agent_repo.get_by_slug",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch(
+                "app.services.channels.mentions.agent_exposure_repo.get_for_bot",
+                new=AsyncMock(return_value=MagicMock(is_active=True)),
+            ),
+            patch.object(
+                ChannelAgentRouter,
+                "_with_usage",
+                new=AsyncMock(side_effect=lambda _ctx, answer, _run, **_kw: answer),
+            ),
+        ):
+            answered = await ChannelAgentRouter(_db()).answer(
+                "@support what is the refund window",
+                platform="slack",
+                organization_id=uuid.uuid4(),
+                bot_id=uuid.uuid4(),
+                user_id=uuid.uuid4(),
+                conversation_id=conversation_id,
+                platform_chat_id="C123",
+            )
+
+        assert answered.text == "The refund window is 30 days."
+        assert captured["prepared"].run.conversation_id == conversation_id
+        _assert_full_turn(
+            conversations,
+            captured["prepared"].run,
+            question="what is the refund window",
+            answer="The refund window is 30 days.",
+        )
+
+
+class TestTheDefaultAgentRecordsItsTranscript:
+    """A bot with one exposed agent answers an unaddressed message through it. It
+    used to record `role` and `content` only - so #205's "tool calls, model and
+    agent version, not only text" is exactly what this asserts."""
+
+    async def test_the_default_agent_records_its_tool_calls_model_and_version(self) -> None:
+        conversation_id = uuid.uuid4()
+        exposure, agent = MagicMock(is_active=True), MagicMock(id=uuid.uuid4(), slug="support")
+        run = AsyncMock(return_value=_searched_then_answered("The refund window is 30 days."))
+
+        with (
+            _run_yielding(run) as (captured, conversations),
+            patch(
+                "app.services.channels.mentions.agent_exposure_repo.list_active_for_bot",
+                new=AsyncMock(return_value=[(exposure, agent)]),
+            ),
+            patch(
+                "app.services.channels.mentions.member_repo.get",
+                new=AsyncMock(return_value=MagicMock(role="builder")),
+            ),
+            patch.object(
+                ChannelAgentRouter,
+                "_with_usage",
+                new=AsyncMock(side_effect=lambda _ctx, answer, _run, **_kw: answer),
+            ),
+        ):
+            answered = await ChannelAgentRouter(_db()).answer_default(
+                "what is the refund window",
+                platform="telegram",
+                organization_id=uuid.uuid4(),
+                bot_id=uuid.uuid4(),
+                user_id=uuid.uuid4(),
+                conversation_id=conversation_id,
+                platform_chat_id="123",
+            )
+
+        assert answered.text == "The refund window is 30 days."
+        assert captured["prepared"].run.conversation_id == conversation_id
+        _assert_full_turn(
+            conversations,
+            captured["prepared"].run,
+            question="what is the refund window",
+            answer="The refund window is 30 days.",
+        )
