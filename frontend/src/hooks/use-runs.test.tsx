@@ -39,6 +39,44 @@ describe("useRuns", () => {
     });
   });
 
+  it("leaves the feed's own order unsaid, so the default call stays bodyless", async () => {
+    // `started_at` descending is the server's default. Sending it would only
+    // change the cache key and the request shape for no behaviour, so the
+    // unfiltered, unsorted call carries no params at all.
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    const { result } = renderHook(
+      () => useRuns(undefined, { orderBy: "started_at", descending: true }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith("/runs", undefined);
+  });
+
+  it("sorts by duration and filters the slow runs in SQL, not over a page", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    const { result } = renderHook(
+      () =>
+        useRuns(undefined, {
+          orderBy: "duration",
+          descending: false,
+          tookOverMs: 30_000,
+          startedFrom: "2026-08-01T00:00:00.000Z",
+          startedTo: "2026-08-31T23:59:59.999Z",
+        }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith("/runs", {
+      params: {
+        order_by: "duration",
+        descending: "false",
+        took_over_ms: "30000",
+        started_from: "2026-08-01T00:00:00.000Z",
+        started_to: "2026-08-31T23:59:59.999Z",
+      },
+    });
+  });
+
   it("fetches nothing for a caller that is not ready to ask", () => {
     // The Activity tab mounts before the organization is resolved; a request sent
     // then reads another organization's runs or none at all.

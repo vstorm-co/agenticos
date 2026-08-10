@@ -384,6 +384,19 @@ sorts **last in both directions**: it has no duration, and it is not the fastest
 run either. How long a *still-running* run has been going is a different question
 and this column deliberately does not answer it.
 
+Activity surfaces that duration three ways, and all three lead to the same query.
+The **Took** column header is a sort control — like the Started header beside it,
+matching the sortable-header pattern `admin/conversations` already uses — so a
+click reorders history by `duration` rather than by the twenty-five rows on
+screen. A **"slow runs"** canned view is that sort plus a `took_over_ms` threshold
+(30s) as one click, and **"all runs"** drops both, back to newest-first — within
+whatever window is in view, since the window is a separate axis the p95 link and
+the date range set. And the
+dashboard's **p95 figure links here**, sorted by duration over the same window: it
+carries `?sort=duration` with the period's `started_from`/`started_to`, so the
+number and the runs behind it are one click apart — the rule the rest of these two
+pages already follow, and the one dimension where they did not (#210).
+
 **`rated=down` is the highest-signal queue here** — the answers real people said
 were wrong, in their own words. A rating hangs off a message, so this join runs
 through `messages.run_id`: two runs in one conversation keep their own ratings,
