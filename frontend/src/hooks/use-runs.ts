@@ -33,15 +33,36 @@ import type {
  * month, so an organization three years old showed "8,412 runs" next to "$31.20"
  * and the obvious reading of the pair was wrong by three years (#198). Any figure
  * drawn next to money passes one.
+ *
+ * `orderBy`/`descending`/`tookOverMs` are how the Took column sorts and the
+ * "slow runs" view filters - both computed in SQL over the whole narrowed set,
+ * because sorting one page of twenty-five sorts the wrong set. Only a departure
+ * from the feed is put on the wire: the default order is the server's, so an
+ * unfiltered call stays bodyless and keeps the same cache entry it always had.
  */
 export function useRuns(
   agentId?: string,
-  options?: { enabled?: boolean; startedFrom?: string; rated?: "down" | "up" },
+  options?: {
+    enabled?: boolean;
+    startedFrom?: string;
+    startedTo?: string;
+    orderBy?: "started_at" | "duration";
+    descending?: boolean;
+    tookOverMs?: number;
+    rated?: "down" | "up";
+  },
 ) {
-  const startedFrom = options?.startedFrom;
-  const rated = options?.rated;
+  const { startedFrom, startedTo, orderBy, descending, tookOverMs, rated } = options ?? {};
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: qk.runs.list(agentId, startedFrom, rated),
+    queryKey: qk.runs.list({
+      agentId,
+      startedFrom,
+      startedTo,
+      orderBy,
+      descending,
+      tookOverMs,
+      rated,
+    }),
     queryFn: () => {
       const params: Record<string, string> = {};
       if (agentId) {
@@ -49,6 +70,10 @@ export function useRuns(
         params.include_delegations = "true";
       }
       if (startedFrom) params.started_from = startedFrom;
+      if (startedTo) params.started_to = startedTo;
+      if (orderBy && orderBy !== "started_at") params.order_by = orderBy;
+      if (descending === false) params.descending = "false";
+      if (tookOverMs !== undefined) params.took_over_ms = String(tookOverMs);
       // The highest-signal queue on this page: the runs somebody said were
       // wrong. A run matches if anybody rated a message it produced that way.
       if (rated) params.rated = rated;

@@ -6,13 +6,23 @@ import { useTranslations } from "next-intl";
 import { Activity, ThumbsDown } from "lucide-react";
 
 import { FocusedRun } from "@/components/runs/focused-run";
-import { RunTable } from "@/components/runs/run-table";
+import { RunTable, type RunSort, type RunSortKey } from "@/components/runs/run-table";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
 import { usePermissions, useRuns } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { getErrorMessage } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
+
+/**
+ * The "slow runs" preset's threshold, in milliseconds.
+ *
+ * Thirty seconds is the example the design gives for the query somebody actually
+ * types - "everything slower than 30 seconds" - and the canned view is that query
+ * as one click. The number is a starting point a reader narrows from, not a
+ * definition of slow; the sort beside it is what finds the genuine outliers.
+ */
+const SLOW_RUN_THRESHOLD_MS = 30_000;
 
 /**
  * Run history, and whichever sentence says what it has been narrowed to.
@@ -28,6 +38,12 @@ import { Perm } from "@/types/permissions";
  * control that would 403 is not rendered - and a filtered-empty list says it was
  * the filter, not that nothing has ever run.
  *
+ * `initialDurationSort`, `startedFrom` and `startedTo` are how the dashboard's
+ * p95 figure hands over: it links here sorted by duration over the same window,
+ * so the sort and the window arrive already chosen and this tab opens on *those
+ * runs* rather than on the feed. The sort is then the reader's to change through
+ * the Took header or the canned views.
+ *
  * A failed request is said out loud. `?run=` is delegated to `FocusedRun`, which
  * has its own two answers for a run that is gone versus a request that did not
  * arrive - and the difference matters more there, because a link brought somebody
@@ -36,17 +52,52 @@ import { Perm } from "@/types/permissions";
 export function RunHistoryTab({
   agentId,
   focusedRunId,
+  initialDurationSort = false,
+  startedFrom = null,
+  startedTo = null,
 }: {
   agentId: string | null;
   focusedRunId: string | null;
+  initialDurationSort?: boolean;
+  startedFrom?: string | null;
+  startedTo?: string | null;
 }) {
   const t = useTranslations("pages.runs");
   const { can } = usePermissions();
   const canView = can(Perm.runsView);
   const [ratedDown, setRatedDown] = useState(false);
+  const [sort, setSort] = useState<RunSort>(
+    initialDurationSort ? { by: "duration", dir: "desc" } : { by: "started_at", dir: "desc" },
+  );
+  // Independent of the sort: "slow runs" is a filter, and the reader can still
+  // re-sort the slow set by start time without it ceasing to be the slow set.
+  const [minDurationMs, setMinDurationMs] = useState<number | null>(null);
+
   const { runs, isLoading, error, refetch } = useRuns(agentId ?? undefined, {
+    startedFrom: startedFrom ?? undefined,
+    startedTo: startedTo ?? undefined,
+    orderBy: sort.by,
+    descending: sort.dir === "desc",
+    tookOverMs: minDurationMs ?? undefined,
     rated: ratedDown ? "down" : undefined,
   });
+
+  const toggleSort = (key: RunSortKey) =>
+    setSort((current) =>
+      current.by === key
+        ? { by: key, dir: current.dir === "asc" ? "desc" : "asc" }
+        : { by: key, dir: "desc" },
+    );
+
+  const showSlow = () => {
+    setSort({ by: "duration", dir: "desc" });
+    setMinDurationMs(SLOW_RUN_THRESHOLD_MS);
+  };
+  const showAll = () => {
+    setSort({ by: "started_at", dir: "desc" });
+    setMinDurationMs(null);
+  };
+  const slowActive = minDurationMs !== null;
 
   return (
     <Card>
@@ -100,26 +151,55 @@ export function RunHistoryTab({
       <CardContent>
         {focusedRunId !== null ? (
           <FocusedRun runId={focusedRunId} />
-        ) : isLoading ? (
-          <LoadingState variant="skeleton-table" columns={6} rows={6} />
-        ) : error ? (
-          <ErrorState
-            title={t("runHistoryCouldNot")}
-            description={getErrorMessage(error, t("theseRunsHappenedThe"))}
-            cta={{ label: t("tryAgain"), onClick: () => void refetch() }}
-          />
-        ) : runs.length === 0 ? (
-          ratedDown ? (
-            <EmptyState
-              icon={ThumbsDown}
-              title={t("noRunsRatedDown")}
-              description={t("nothingHereWasRatedDown")}
-            />
-          ) : (
-            <EmptyState icon={Activity} title={t("noRunsYet")} description={t("nothingHasRun")} />
-          )
         ) : (
-          <RunTable runs={runs} />
+          <div className="space-y-3">
+            {/* Canned views: the common questions as one click each. "Slow runs"
+                is duration descending over a threshold - the gap the dashboard's
+                p95 figure points at - and "All runs" is the way back to the feed. */}
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant={slowActive ? "outline" : "secondary"}
+                size="sm"
+                aria-pressed={!slowActive}
+                onClick={showAll}
+              >
+                {t("allRuns")}
+              </Button>
+              <Button
+                variant={slowActive ? "secondary" : "outline"}
+                size="sm"
+                aria-pressed={slowActive}
+                onClick={showSlow}
+              >
+                {t("slowRuns")}
+              </Button>
+            </div>
+            {isLoading ? (
+              <LoadingState variant="skeleton-table" columns={7} rows={6} />
+            ) : error ? (
+              <ErrorState
+                title={t("runHistoryCouldNot")}
+                description={getErrorMessage(error, t("theseRunsHappenedThe"))}
+                cta={{ label: t("tryAgain"), onClick: () => void refetch() }}
+              />
+            ) : runs.length === 0 ? (
+              ratedDown ? (
+                <EmptyState
+                  icon={ThumbsDown}
+                  title={t("noRunsRatedDown")}
+                  description={t("nothingHereWasRatedDown")}
+                />
+              ) : (
+                <EmptyState
+                  icon={Activity}
+                  title={t("noRunsYet")}
+                  description={t("nothingHasRun")}
+                />
+              )
+            ) : (
+              <RunTable runs={runs} sort={sort} onSort={toggleSort} />
+            )}
+          </div>
         )}
       </CardContent>
     </Card>

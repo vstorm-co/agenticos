@@ -74,13 +74,32 @@ export const qk = {
     all: () => ["runs"] as const,
     // The window is part of the key: the same agent over two windows is two
     // answers, and caching one as the other is how a figure ends up describing a
-    // period nobody asked for. `rated` is appended only when set, so the
-    // unfiltered list keeps the same key it always had - "rated down" is a
-    // narrower request over the same rows, and must not answer for the whole.
-    list: (agentId?: string, startedFrom?: string, rated?: string) =>
-      rated
-        ? (["runs", "list", agentId ?? "all", startedFrom ?? "all-time", rated] as const)
-        : (["runs", "list", agentId ?? "all", startedFrom ?? "all-time"] as const),
+    // period nobody asked for. The sort, the minimum-duration filter and the
+    // "rated down" filter are here for the same reason: the slowest runs, the
+    // newest runs and the runs somebody rated down are different answers over one
+    // window, and caching one as another draws the wrong list.
+    list: (
+      opts: {
+        agentId?: string;
+        startedFrom?: string;
+        startedTo?: string;
+        orderBy?: string;
+        descending?: boolean;
+        tookOverMs?: number;
+        rated?: string;
+      } = {},
+    ) =>
+      [
+        "runs",
+        "list",
+        opts.agentId ?? "all",
+        opts.startedFrom ?? "all-time",
+        opts.startedTo ?? "no-end",
+        opts.orderBy ?? "started_at",
+        opts.descending ?? true,
+        opts.tookOverMs ?? "no-min",
+        opts.rated ?? "any-rating",
+      ] as const,
     detail: (id: string) => ["runs", id] as const,
     // One run's transcript, where the run-detail surface reads the answers
     // people rated down and their comments. Its own key: it is a different body
