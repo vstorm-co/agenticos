@@ -32,6 +32,15 @@ logger = logging.getLogger(__name__)
 
 class BaseVectorStore(ABC):
     @abstractmethod
+    async def aclose(self) -> None:
+        """Release any resources held for the process's lifetime.
+
+        Called once on application shutdown. A store that owns nothing to
+        release implements this as a no-op; `PgVectorStore` disposes its
+        connection pool.
+        """
+
+    @abstractmethod
     async def insert_document(self, collection_name: str, document: Document) -> None:
         pass
 
