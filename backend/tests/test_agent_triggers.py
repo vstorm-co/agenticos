@@ -376,10 +376,10 @@ class TestFiring:
         runner_cls.assert_not_called()
 
     async def test_a_trigger_whose_grant_on_this_agent_was_revoked_is_disabled_not_retried(self):
-        """Correction C: the pre-check is grants-aware (`resolve_access`), not a
-        role check. A creator who kept a role with `agents:run` but lost the grant
-        on *this* agent is refused here, before a run, and the refusal never raises
-        into a Prefect retry."""
+        """The pre-check is grants-aware (`resolve_access`), not a role check. A
+        creator who kept a role with `agents:run` but lost the grant on *this*
+        agent is refused here, before a run, and the refusal is caught rather than
+        raised into a Prefect retry."""
         service = _service()
         service.agents.get = AsyncMock(side_effect=NotFoundError(message="nope"))
         trigger = _trigger()
