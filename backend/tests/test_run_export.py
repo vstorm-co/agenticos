@@ -90,6 +90,11 @@ class TestCells:
     def test_a_plain_cell_is_left_alone(self):
         assert run_export._escape("openai") == "openai"
 
+    def test_a_negative_number_stays_summable(self):
+        """A leading `-` is a formula prefix only on a string; a number keeps it,
+        so a credit exports as `-1.50` a spreadsheet sums rather than quoted text."""
+        assert run_export._cell(Decimal("-1.50")) == "-1.50"
+
     def test_none_is_an_empty_cell_not_the_word_none(self):
         assert run_export._cell(None) == ""
 
@@ -195,6 +200,24 @@ class TestRunsExport:
         header, row = _parsed(result.content)[0], _parsed(result.content)[1]
         assert row[header.index("cost_usd")] == "0"
         assert row[header.index("cost_is_partial")] == "true"
+
+    async def test_a_negative_cost_exports_as_a_plain_summable_number(self, monkeypatch):
+        """A credit or adjustment exports as `-1.50`, not the quoted `'-1.50` a
+        leading `-` earns a string - the sum-safety the export exists for."""
+        service = _service(monkeypatch)
+        run = _run(cost_usd=Decimal("-1.50"))
+        monkeypatch.setattr(agent_run_repo, "list_runs", AsyncMock(return_value=([run], 1)))
+
+        result = await service.export_runs(
+            _ctx(Scope.ALL),
+            agent_id=None,
+            parent_run_id=None,
+            include_delegations=False,
+            filters=RunFilters(started_from=_WINDOW[0], started_to=_WINDOW[1]),
+        )
+
+        header, row = _parsed(result.content)[0], _parsed(result.content)[1]
+        assert row[header.index("cost_usd")] == "-1.50"
 
     async def test_an_orphaned_delegation_handle_is_withheld(self, monkeypatch):
         """A row with a task id but no parent named a transcript that went with the
@@ -408,6 +431,21 @@ class TestSpendExport:
         assert by_agent.await_args.kwargs["user_id"] is None
         assert result.filename.startswith("spend_export_")
 
+    async def test_the_current_month_columns_are_left_off(self, monkeypatch):
+        """`cost_usd` reads the window while month-to-date and cap read the calendar
+        month; two dollar columns on two time bases in one file are a footgun, so
+        the export carries only the window figures."""
+        service = _service(monkeypatch)
+        monkeypatch.setattr(
+            agent_run_repo, "spend_by_agent", AsyncMock(return_value=[self._agent_row()])
+        )
+
+        result = await service.export_spend(_ctx(Scope.ALL), since=_WINDOW[0], until=_WINDOW[1])
+
+        header = _parsed(result.content)[0]
+        assert "month_to_date_usd" not in header
+        assert "monthly_cap_usd" not in header
+
     async def test_an_own_scoped_caller_sums_only_their_own_runs(self, monkeypatch):
         service = _service(monkeypatch)
         by_agent = AsyncMock(return_value=[])
@@ -430,5 +468,9 @@ class TestSpendExport:
             "spend_by_agent",
             AsyncMock(return_value=[self._agent_row() for _ in range(MAX_EXPORT_ROWS + 1)]),
         )
-        with pytest.raises(ExportTooLargeError):
+        with pytest.raises(ExportTooLargeError) as exc:
             await service.export_spend(_ctx(Scope.ALL), since=_WINDOW[0], until=_WINDOW[1])
+        # A spend row is an agent, so the refusal does not send the caller to
+        # narrow a date range that would not shorten it.
+        assert "date range" not in exc.value.message
+        assert "agent" in exc.value.message

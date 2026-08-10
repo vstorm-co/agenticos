@@ -133,8 +133,6 @@ _SPEND_HEADER = [
     "cost_usd",
     "run_count",
     "partial_run_count",
-    "month_to_date_usd",
-    "monthly_cap_usd",
 ]
 
 
@@ -161,14 +159,22 @@ def _escape(value: str) -> str:
 
 
 def _cell(value: object) -> str:
-    """One value as text, with `None` an empty cell rather than the word "None"."""
+    """One value as text, with `None` an empty cell rather than the word "None".
+
+    The injection guard runs on strings alone. A number rendered as text stays a
+    number a spreadsheet can sum, so a negative `cost_usd` exports as `-1.50` and
+    not the quoted `'-1.50` a leading `-` would otherwise earn - the guard exists
+    for a tool argument or an agent name, never for a figure.
+    """
     if value is None:
         return ""
     if isinstance(value, bool):
         return "true" if value else "false"
     if isinstance(value, datetime):
         return value.isoformat()
-    return _escape(str(value))
+    if isinstance(value, str):
+        return _escape(value)
+    return str(value)
 
 
 def _write(header: list[str], rows: list[list[object]]) -> str:
@@ -226,21 +232,23 @@ class RunExportService:
             )
         return start, end
 
-    def _guard_cap(self, total: int) -> None:
+    def _guard_cap(self, total: int, *, remedy: str) -> None:
         """Refuse above the row cap rather than truncate to it.
+
+        The `remedy` is the one sentence of advice that actually shrinks *this*
+        export's match: narrowing the date range for runs and approvals, whose
+        rows scale with the window, but not for spend, whose rows are agents and
+        do not - so a caller is never sent to a control that would not help.
 
         Raises:
             ExportTooLargeError: When the match exceeds :data:`MAX_EXPORT_ROWS`.
-                The message names both numbers and points at the date range,
-                because narrowing it is the control that actually shrinks the
-                match.
+                The message names both numbers and carries the export's own remedy.
         """
         if total > MAX_EXPORT_ROWS:
             raise ExportTooLargeError(
                 message=(
                     f"This export matches {total} rows, more than the "
-                    f"{MAX_EXPORT_ROWS} an export may return. Narrow the date "
-                    "range and try again."
+                    f"{MAX_EXPORT_ROWS} an export may return. {remedy}"
                 ),
                 details={"row_count": total, "max_rows": MAX_EXPORT_ROWS},
             )
@@ -280,7 +288,7 @@ class RunExportService:
             skip=0,
             limit=MAX_EXPORT_ROWS,
         )
-        self._guard_cap(total)
+        self._guard_cap(total, remedy="Narrow the date range and try again.")
 
         content = _write(_RUNS_HEADER, [_run_row(run) for run in items])
         now = datetime.now(UTC)
@@ -326,7 +334,7 @@ class RunExportService:
             skip=0,
             limit=MAX_EXPORT_ROWS,
         )
-        self._guard_cap(total)
+        self._guard_cap(total, remedy="Narrow the date range and try again.")
 
         content = _write(_APPROVALS_HEADER, [_approval_row(row) for row in items])
         now = datetime.now(UTC)
@@ -357,9 +365,11 @@ class RunExportService:
         """The per-agent spend breakdown as CSV, over the window the tab shows.
 
         One row per agent, the Spend tab's main table: its window share (top-level
-        runs only, so the column sums to the bill), the runs behind it, how many
-        could not be priced, its own calendar month and its cap. The `Scope.OWN`
-        floor pins the sums to the caller's own runs when it binds.
+        runs only, so the column sums to the bill), the runs behind it and how many
+        could not be priced. The tab's month-to-date and cap columns are left off,
+        so every dollar column in the file shares one time base - the window it was
+        asked for. The `Scope.OWN` floor pins the sums to the caller's own runs when
+        it binds.
         """
         since, until = self._require_range(since, until)
         floor = self._own_floor(ctx)
@@ -372,7 +382,10 @@ class RunExportService:
             month_since=month_start(),
             user_id=floor,
         )
-        self._guard_cap(len(rows))
+        self._guard_cap(
+            len(rows),
+            remedy="A spend export is one row per agent, so a narrower window will not shorten it.",
+        )
 
         content = _write(_SPEND_HEADER, [_spend_row(row) for row in rows])
         now = datetime.now(UTC)
@@ -446,14 +459,20 @@ def _approval_row(row: ApprovalRow) -> list[object]:
 
 
 def _spend_row(row: AgentSpendRow) -> list[object]:
+    """One agent's window figures only.
+
+    `month_to_date_usd` and `monthly_cap_usd` are on the Spend tab but not here:
+    they read a calendar month while `cost_usd` reads the export's window, and two
+    dollar columns on two time bases side by side in a downloaded file are summed
+    across by a reader who cannot see the difference. The export carries one time
+    base, the window it was asked for.
+    """
     return [
         row.agent_id,
         row.agent_name,
         row.cost_usd,
         row.run_count,
         row.partial_run_count,
-        row.month_to_date_usd,
-        row.monthly_cap_usd,
     ]
 
 

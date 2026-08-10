@@ -403,6 +403,13 @@ the database.
 | `GET /approvals/export` | The approvals record, the same filters as `GET /approvals`. `approvals:decide` |
 | `GET /spend/export` | The per-agent spend breakdown, the same window as `GET /spend`. `runs:view` |
 
+The spend export carries only the window figures — `cost_usd`, `run_count` and
+`partial_run_count`. The Spend tab's `month_to_date_usd` and `monthly_cap_usd` are
+left off it: they read the calendar month while `cost_usd` reads the export's
+window, and two dollar columns on two time bases in one downloaded file get summed
+across by a reader who cannot see the difference. A downloaded file carries one
+time base, the window it was asked for.
+
 An export is a bulk read, not a button, and it answers six questions the list
 routes do not have to:
 

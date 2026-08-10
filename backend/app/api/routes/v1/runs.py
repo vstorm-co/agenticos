@@ -8,9 +8,10 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, Query
 
 from app.api.deps import AgentRunnerSvc, ApprovalSvc, Auth, RunExportSvc, require
+from app.api.responses import csv_response
 from app.core.exceptions import ValidationError
 from app.core.permissions import Perm
 from app.db.models.agent_run import (
@@ -33,7 +34,6 @@ from app.schemas.agent_run import (
     CostByProvider,
     CostSummary,
 )
-from app.services.run_export import ExportResult
 
 router = APIRouter()
 
@@ -141,20 +141,6 @@ def _parse_statuses(raw: str | None) -> list[str] | None:
     return values or None
 
 
-def _csv_response(result: ExportResult) -> Response:
-    """A finished export as a downloadable CSV.
-
-    `Response` rather than a `response_model`: the body is text the service
-    already built, not a model to serialise, and it carries the disposition that
-    makes a browser save it under the stamped name instead of rendering it.
-    """
-    return Response(
-        content=result.content,
-        media_type="text/csv; charset=utf-8",
-        headers={"Content-Disposition": f'attachment; filename="{result.filename}"'},
-    )
-
-
 @router.get(
     "/runs/export",
     response_model=None,
@@ -204,7 +190,7 @@ async def export_runs(
             rated=rated,
         ),
     )
-    return _csv_response(result)
+    return csv_response(result)
 
 
 @router.get(
@@ -348,7 +334,7 @@ async def export_approvals(
         ),
         oldest_first=oldest_first,
     )
-    return _csv_response(result)
+    return csv_response(result)
 
 
 @router.post(
@@ -444,10 +430,12 @@ async def export_spend(
     """The per-agent spend breakdown as CSV, over the window on the Spend tab.
 
     One row per agent - its window share (top-level runs only, so the column sums
-    to the bill), the runs behind it, how many could not be priced, its own month
-    and its cap. The date range is **mandatory**, unlike `GET /spend` where `days`
-    stands in for it, because an export has no default window to fall back to. The
-    `Scope.OWN` floor pins the sums to the caller's own runs when it binds.
+    to the bill), the runs behind it and how many could not be priced. The tab's
+    month-to-date and cap columns are left off, so every dollar column in the file
+    shares one time base. The date range is **mandatory**, unlike `GET /spend`
+    where `days` stands in for it, because an export has no default window to fall
+    back to. The `Scope.OWN` floor pins the sums to the caller's own runs when it
+    binds.
     """
     result = await service.export_spend(ctx, since=from_date, until=to_date)
-    return _csv_response(result)
+    return csv_response(result)
