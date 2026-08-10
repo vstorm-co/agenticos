@@ -492,9 +492,16 @@ string through `next-intl`, recharts behind `next/dynamic`.
 
 ### A user-arranged dashboard
 
-*Moved into stage 2 in review.* This note put it beyond v1 while settling its
-whole shape, which is exactly what made it cheap to pull forward — the shape
-below is the decision, not a starting point for a second design round:
+*Implemented in #213.* This note settled its whole shape before any code was
+written, which is what made it cheap to build; the shape below is what shipped,
+not a starting point for a second design round. Where it lives: the pure layer
+in `frontend/src/lib/dashboard/preference.ts` (sanitize, resolve, the edit
+operations) and the grid vocabulary in `layouts.ts` (span/row classes, the
+step and snap helpers a resize calls), the gate in `visibleSections` run last on
+whatever it produces, the edit UI in `frontend/src/components/dashboard/`
+(`dashboard-editor`, `widget-edit-card`, `add-widget-dialog`, the preset menu
+and save dialog) and the store behind `GET`/`PUT`/`DELETE
+/api/v1/me/dashboard-layout` with its `presets` shelf underneath.
 
 - **A preference is a third layer over the two the page already has.**
   `effective layout = preference ?? audience default`, then
@@ -503,22 +510,48 @@ below is the decision, not a starting point for a second design round:
 - **It may only ever reorder or hide — never reveal.** A stored layout
   naming a widget the caller cannot see is dropped at render time. The
   realistic case is a demotion, not an attack, and it has to be survivable
-  either way.
+  either way. A preset is the same story: applying one *writes its entries as
+  the active arrangement*, so the gate runs on them exactly as it does on a
+  hand-arranged layout — a preset can no more reveal a forbidden card than a
+  drag can.
 - **The "add a widget" catalog passes through `gate()` too**, so the list
   cannot leak what the page hides. This is the half that is easy to forget:
-  a catalog is a second surface with the same secrets.
-- **Spans come from the span vocabulary the registry declares.** An earlier
-  draft of this note said the grid uses a closed `s4/s6/s8/s12` set; that
-  was wrong about its own demo, whose layouts pair `s7`+`s5`, `s8`+`s4` and
-  `s3` alongside them. The real set is `s3`–`s8` plus `s12`, and narrowing
-  it would leave a person unable to rebuild the default they started from.
+  a catalog is a second surface with the same secrets. The catalog previews
+  the real widget with live data on hover, which is the same gate again — it
+  can only mount what the caller could already see.
+- **Editing is direct manipulation on the real cards.** Edit mode renders the
+  live widgets, not placeholders — arranging a page you cannot see the
+  contents of is guesswork — behind an overlay that carries the controls: drag
+  to reorder, a corner handle (and discrete steppers, for the keyboard) to
+  resize in **both** dimensions, and hide. The cards wobble on hover so the
+  grid reads as editable.
+- **Cards resize in two dimensions, from two closed sets.** Width is the
+  `s3`–`s8`-plus-`s12` span set an earlier draft of this note got wrong (its
+  own demo pairs `s7`+`s5`, `s8`+`s4`); height is `r2`–`r6` grid rows. Both
+  are closed so a stored size the grid cannot express is impossible, and a
+  pointer resize snaps to the nearest allowed step. **Height is optional on a
+  placement** — the audience defaults auto-size and store no height, so the
+  curated pages are pixel-identical to before personalization; a person's own
+  arrangement fills in an explicit height so every card has one to grow from.
 - **Preferences are stored per user *and* per organization.** The same
   person is a steward in one org and a member in another; one saved layout
   across both is wrong in one of them.
+- **Named presets are the versioning layer.** Beyond the single active
+  arrangement, a person keeps named ones — "Monday review", "Incident watch" —
+  on a shelf next to Customize, and switches between them. A preset is a
+  snapshot: applying it copies its entries into the active arrangement, so
+  editing afterwards diverges from the preset rather than mutating it, the same
+  contract as "save as" everywhere else. Presets share the layout's tenant
+  boundary and add a name unique per person per org (so "save as" refuses a
+  duplicate rather than silently overwriting) and a per-person cap (so the
+  table stays bounded). There is deliberately no *apply* endpoint — applying is
+  the client's `PUT` of the entries, keeping one write path and one validation
+  for what the dashboard renders.
 - Widget ids are stable registry keys, so persisting them is safe; every
   widget declares a "see all" destination pointing at a page that already
   exists, carries catalog metadata (description, permission, default span,
-  default audiences) from day one, and the page offers a reset-to-default.
+  default height, default audiences) from day one, and the page offers a
+  reset-to-default.
 
 Two entries in the list below stop being style advice once this lands, which
 is the reason they are worth the paragraph they get.
@@ -563,6 +596,17 @@ worth a second opinion before or during stage 2:
 - **Whether `scope=own` deserves the same table for one's own row.** A
   member cannot see the org table; whether they should see where they sit
   in it is a question this design does not answer either way.
-- **The arrangeable dashboard's persistence.** The shape is settled; where
-  the preference is stored, and whether it versions alongside the widget
-  registry when a widget id is retired, is stage-2 design work.
+- **The arrangeable dashboard's persistence.** Settled in #213. The active
+  preference is one row per `(user_id, organization_id)` in `dashboard_layouts`;
+  named presets are rows in `dashboard_presets` with the same key plus a unique
+  name. Both store the arrangement as a JSONB array of `{widget, span, rows?}`
+  (`rows` optional — absent means the widget's default height), cascading from
+  either side so a removed membership leaves no orphan. It is validated against
+  the widget registry **on write** — an unknown id or an out-of-set width or
+  height is a 422, not a card that never renders — and trusted on **neither**
+  read: a widget id retired since it was saved is dropped at render rather than
+  versioned, which is why the row carries no version. `sanitizeEntries` drops
+  the unknown id and coerces a stale size, and the gate drops the unpermitted
+  one, every render. The registry parity test asserts the backend's
+  `WIDGET_IDS`, `SPANS` and `ROWS` mirrors match the frontend registry in both
+  directions.
