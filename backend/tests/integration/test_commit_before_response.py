@@ -53,7 +53,8 @@ async def probe_table(engine: AsyncEngine) -> AsyncGenerator[AsyncEngine, None]:
     Not one of the product's own tables on purpose: this asserts a property of
     the request lifecycle, and it should not start failing because a model grew
     a `NOT NULL` column. The cost of being outside the metadata is that the
-    `engine` fixture's `drop_all` does not reach it, so it is dropped here.
+    `engine` fixture's per-test reset only empties model tables, so it is
+    dropped here rather than left for the reset to find.
     """
     async with engine.begin() as connection:
         await connection.execute(text(_DROP))

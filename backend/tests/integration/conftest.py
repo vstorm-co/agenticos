@@ -25,6 +25,7 @@ import re
 from collections.abc import AsyncGenerator, Iterator
 
 import pytest
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -162,24 +163,82 @@ def database_url() -> Iterator[str]:
         asyncio.run(_outside_a_transaction(maintenance, drop))
 
 
-@pytest.fixture
-async def engine(database_url: str) -> AsyncGenerator[AsyncEngine, None]:
-    """An engine on that database, with the schema freshly built from the models.
+async def _create_schema(url: str) -> None:
+    """Build the schema from the models, once, on a loop of its own."""
+    engine = create_async_engine(url)
+    try:
+        async with engine.begin() as connection:
+            await connection.run_sync(Base.metadata.create_all)
+    finally:
+        await engine.dispose()
+
+
+@pytest.fixture(scope="session")
+def schema_url(database_url: str) -> str:
+    """The suite's database URL, with the schema built from the models once.
 
     The schema is created from the models rather than by running migrations:
     these tests assert what the *code* believes the schema is. Whether the
     migrations arrive at the same place is a separate question, answered by
     `make test-migrations`.
 
-    Function-scoped rather than session-scoped: anyio's backend fixture is
-    per-function, and a session-scoped async fixture cannot depend on it.
-    Recreating the schema costs a fraction of a second and buys complete
-    isolation between tests.
+    Session-scoped and synchronous for the same reason `database_url` is: a
+    session-scoped *async* fixture cannot depend on anyio's per-function backend
+    fixture, and `asyncio.run` gives the build a loop of its own. `create_all`
+    with no `drop_all` before it is enough because `database_url` hands over a
+    database that was just created - there is nothing to drop.
+
+    This is the whole of #215: the schema used to be rebuilt in the
+    function-scoped `engine` fixture below (`drop_all` + `create_all` before
+    *every* test), ~0.4s of DDL that was very nearly the entire runtime of a
+    suite whose assertions are microseconds of Postgres work. Built once here,
+    the `engine` fixture only has to empty the data between tests.
     """
-    engine = create_async_engine(database_url)
+    asyncio.run(_create_schema(database_url))
+    return database_url
+
+
+async def _reset(engine: AsyncEngine) -> None:
+    """Return the database to the modelled schema with every table empty.
+
+    `TRUNCATE ... RESTART IDENTITY CASCADE` over every model table empties them
+    in one statement, no DDL and no ordering to get right. Unlike rolling back a
+    transaction it also clears rows a test committed through the real
+    `get_db_session` - which the API-flow tests in `test_platform_flows.py` and
+    the dispatch-ordering tests do by design, so a rollback-only reset would not
+    be enough on its own.
+
+    A test may also create a table *outside* the models - a runtime
+    `rag_<collection>`, one of the ordering probes. Those are dropped first, so
+    each test starts from the modelled schema and nothing else regardless of the
+    order the suite ran in.
+    """
     async with engine.begin() as connection:
-        await connection.run_sync(Base.metadata.drop_all)
-        await connection.run_sync(Base.metadata.create_all)
+        present = await connection.execute(
+            text("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
+        )
+        modelled = set(Base.metadata.tables)
+        # `name` is a live identifier from `pg_tables` and each table name below
+        # comes from `Base.metadata` - both are developer-controlled identifiers,
+        # not user input, and neither DROP nor TRUNCATE can bind them as
+        # parameters, so they are quoted and interpolated.
+        for name in (row[0] for row in present if row[0] not in modelled):
+            await connection.execute(text(f'DROP TABLE IF EXISTS "{name}" CASCADE'))
+        tables = ", ".join(f'"{table.name}"' for table in Base.metadata.sorted_tables)
+        await connection.execute(text(f"TRUNCATE TABLE {tables} RESTART IDENTITY CASCADE"))
+
+
+@pytest.fixture
+async def engine(schema_url: str) -> AsyncGenerator[AsyncEngine, None]:
+    """An engine on the suite's database, with every table emptied first.
+
+    Function-scoped because anyio's backend fixture is: the reset has to run on
+    the same per-function event loop the test does. The schema itself is built
+    once by `schema_url`; here each test is handed a clean slate cheaply, by
+    emptying the data rather than rebuilding the schema (#215).
+    """
+    engine = create_async_engine(schema_url)
+    await _reset(engine)
     yield engine
     await engine.dispose()
 

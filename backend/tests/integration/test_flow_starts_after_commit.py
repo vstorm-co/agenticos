@@ -68,8 +68,9 @@ async def probe_table(engine: AsyncEngine) -> AsyncGenerator[AsyncEngine, None]:
 
     Deliberately not one of the product's own tables: this asserts a property of
     dispatch, and must not start failing because a model grew a `NOT NULL`
-    column. Outside the metadata means the `engine` fixture's `drop_all` does
-    not reach it, so it is dropped here.
+    column. Outside the metadata means the `engine` fixture's per-test reset
+    only empties model tables, so it is dropped here rather than left for the
+    reset to find.
     """
     async with engine.begin() as connection:
         await connection.execute(text(_DROP))
