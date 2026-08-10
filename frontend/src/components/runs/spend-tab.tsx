@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
 import { SpendBreakdown } from "@/components/runs/spend-breakdown";
+import { SpendByPerson } from "@/components/runs/spend-by-person";
 import { useSpend } from "@/hooks";
 import { formatDate, getErrorMessage } from "@/lib/utils";
 import type { CostSummary } from "@/types/runs";
@@ -134,6 +135,19 @@ export function SpendTab() {
           )}
         </CardContent>
       </Card>
+
+      {/* Who spent it, over the same window the breakdowns above read. The
+          people rows come from `/stats/usage?group_by=user` rather than `/spend`,
+          so the window is handed over as the range this tab resolved to: the
+          `from`/`to` the caption already reflects, with an open-ended window read
+          as "up to now". Gated on runs:view inside the card, so it is absent for
+          a caller without it rather than a refused request. */}
+      {spend?.from_date != null && (
+        <SpendByPerson
+          from={spend.from_date.slice(0, 10)}
+          to={(spend.to_date ?? new Date().toISOString()).slice(0, 10)}
+        />
+      )}
     </div>
   );
 }
