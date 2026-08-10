@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { RestartTourButton } from "@/components/onboarding/restart-tour-button";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 
@@ -72,7 +73,10 @@ export function PageHeader({
             </p>
           )}
         </div>
-        {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+        <div className="flex shrink-0 items-center gap-2">
+          {actions}
+          <RestartTourButton />
+        </div>
       </div>
     </div>
   );

@@ -2067,6 +2067,53 @@
     "profile": "Profile",
     "settings": "Settings"
   },
+  "onboarding": {
+    "restart": "Replay the walkthrough",
+    "skip": "Skip",
+    "back": "Back",
+    "next": "Next",
+    "finish": "Finish",
+    "progress": "Step {current} of {total}",
+    "saveFailed": "We couldn't save that you've seen the walkthrough, so it may show again next time.",
+    "steps": {
+      "welcome": {
+        "title": "Welcome to AgenticOS",
+        "body": "This is where your team builds, runs and governs its AI agents. Here's a quick tour of what lives where — it takes about a minute, and you can skip it whenever you like."
+      },
+      "dashboard": {
+        "title": "Your dashboard",
+        "body": "The home screen gathers what's happening across your organization: recent runs, spending and the agents you work with. What you see here follows your role."
+      },
+      "chat": {
+        "title": "Chat with your agents",
+        "body": "Open a conversation with any agent you're allowed to run. It's the quickest way to try one out and see how it responds."
+      },
+      "agents": {
+        "title": "Build agents",
+        "body": "An agent is its instructions, a model, a set of tools and a budget. You configure all of that here, then publish a version so it runs the same way everywhere."
+      },
+      "skills": {
+        "title": "Reusable skills",
+        "body": "A skill is a packaged set of instructions an agent can draw on for a task. Write one once and share it across the agents that need it."
+      },
+      "activity": {
+        "title": "Watch activity",
+        "body": "Every run is recorded here with its cost and outcome, so you can see what your agents did and step in when one is waiting on a decision."
+      },
+      "knowledge": {
+        "title": "Knowledge bases",
+        "body": "Upload documents so your agents can answer from them. Each collection is searchable and stays private to your organization."
+      },
+      "vault": {
+        "title": "The vault",
+        "body": "API keys and other credentials live here, encrypted at rest. Agents use them to reach the tools they need, and nobody sees a stored secret again."
+      },
+      "finish": {
+        "title": "You're all set",
+        "body": "That's the tour. You can replay it anytime from the help button at the top of a page — head to your dashboard whenever you're ready to start building."
+      }
+    }
+  },
   "organizations": {
     "accessLost": "You no longer have access to that organization.",
     "accessLostSwitched": "You no longer have access to that organization. Switched to {name}.",
