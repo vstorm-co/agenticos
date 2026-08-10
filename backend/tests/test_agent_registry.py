@@ -2018,3 +2018,82 @@ class TestASharedWorkspaceIsAnswerableAfterwards:
         actions = await self._publish(_spec())
 
         assert "agent.workspace_shared" not in actions
+
+
+class TestACapabilityAgentsMayNotBind:
+    """`channel_tools` is granted per bound bot, and the Toolbox does not offer it.
+
+    What the product *can* still do is send it back: a browser holding a draft
+    loaded before the capability moved re-posts the whole spec on the next save.
+    Refusing at publish was the first answer and it was a dead end - the message
+    names a switch the Builder does not show, so there is nothing to act on and
+    no way to remove the binding from the only screen that edits capabilities.
+    """
+
+    @pytest.mark.anyio
+    async def test_saving_a_draft_drops_it(self):
+        service = AgentRegistryService(_db())
+        service.get = AsyncMock(return_value=MagicMock())
+        spec = _spec(capabilities=[{"id": "clock"}, {"id": "channel_tools"}])
+
+        with patch(f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock()) as stored:
+            await service.save_draft(_ctx(), uuid.uuid4(), spec)
+
+        saved = stored.call_args.kwargs["update_data"]["draft_spec"]
+        assert [binding["id"] for binding in saved["capabilities"]] == ["clock"]
+
+    @pytest.mark.anyio
+    async def test_a_stale_tab_heals_the_row_it_keeps_reposting(self):
+        """Which is the whole point of doing it on write. A migration cleared
+        these once and the next save put one straight back."""
+        service = AgentRegistryService(_db())
+        service.get = AsyncMock(return_value=MagicMock())
+
+        with patch(f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock()) as stored:
+            await service.save_draft(
+                _ctx(), uuid.uuid4(), _spec(capabilities=[{"id": "channel_tools"}])
+            )
+
+        assert stored.call_args.kwargs["update_data"]["draft_spec"]["capabilities"] == []
+
+    @pytest.mark.anyio
+    async def test_a_spec_that_names_none_is_stored_unchanged(self):
+        """No copy, no log line, nothing to explain - which is every save."""
+        service = AgentRegistryService(_db())
+        service.get = AsyncMock(return_value=MagicMock())
+        spec = _spec(capabilities=[{"id": "clock"}])
+
+        with patch(f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock()) as stored:
+            await service.save_draft(_ctx(), uuid.uuid4(), spec)
+
+        saved = stored.call_args.kwargs["update_data"]["draft_spec"]
+        assert [binding["id"] for binding in saved["capabilities"]] == ["clock"]
+
+    @pytest.mark.anyio
+    async def test_the_same_holds_for_a_spec_arriving_as_a_new_agent(self):
+        """A YAML import is the other write, and it reaches `create`."""
+        service = AgentRegistryService(_db())
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get_by_slug", new=AsyncMock(return_value=None)),
+            patch(f"{REGISTRY_PATH}.agent_repo.create", new=AsyncMock()) as created,
+            patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()),
+        ):
+            await service.create(_ctx(), _spec(capabilities=[{"id": "channel_tools"}]))
+
+        assert created.call_args.kwargs["draft_spec"]["capabilities"] == []
+
+    @pytest.mark.anyio
+    async def test_a_capability_that_does_not_exist_is_left_for_publish_to_refuse(self):
+        """A draft naming an unknown id has to stay saveable - half-finished
+        configuration is the whole reason `save_draft` does not validate."""
+        service = AgentRegistryService(_db())
+        service.get = AsyncMock(return_value=MagicMock())
+
+        with patch(f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock()) as stored:
+            await service.save_draft(
+                _ctx(), uuid.uuid4(), _spec(capabilities=[{"id": "no_such_capability"}])
+            )
+
+        saved = stored.call_args.kwargs["update_data"]["draft_spec"]
+        assert [binding["id"] for binding in saved["capabilities"]] == ["no_such_capability"]

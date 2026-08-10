@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import { Button, FormField, Input } from "@/components/ui";
 import { ActiveSessions } from "@/components/dashboard/active-sessions";
+import { ChatAccounts } from "@/components/settings/chat-accounts";
 import { SectionCard } from "@/components/settings/settings-section";
 import { useAuth } from "@/hooks";
 import { apiClient, ApiError } from "@/lib/api-client";
@@ -178,6 +179,8 @@ export default function ProfileSettingsPage() {
           </FormField>
         </div>
       </SectionCard>
+
+      <ChatAccounts />
 
       <ActiveSessions />
     </div>
