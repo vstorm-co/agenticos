@@ -96,6 +96,7 @@ describe("the query key factory", () => {
       "started_at",
       true,
       "no-min",
+      "any-rating",
     ]);
     expect(qk.runs.list({ agentId: "a1" })).toEqual([
       "runs",
@@ -106,6 +107,7 @@ describe("the query key factory", () => {
       "started_at",
       true,
       "no-min",
+      "any-rating",
     ]);
   });
 
@@ -132,7 +134,30 @@ describe("the query key factory", () => {
       "started_at",
       true,
       30_000,
+      "any-rating",
     ]);
+  });
+
+  it("keys the rated-down list apart from the whole", () => {
+    // "Rated down" is a narrower request over the same rows: it must not answer
+    // for the whole list.
+    expect(qk.runs.list({ rated: "down" })).toEqual([
+      "runs",
+      "list",
+      "all",
+      "all-time",
+      "no-end",
+      "started_at",
+      true,
+      "no-min",
+      "down",
+    ]);
+    expect(qk.runs.list({ rated: "down" })).not.toEqual(qk.runs.list());
+  });
+
+  it("keys a run's transcript apart from the run row it belongs to", () => {
+    expect(qk.runs.transcript("run-1")).toEqual(["runs", "run-1", "transcript"]);
+    expect(qk.runs.transcript("run-1")).not.toEqual(qk.runs.detail("run-1"));
   });
 
   it("keys a paged list by its window", () => {

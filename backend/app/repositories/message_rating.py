@@ -125,6 +125,38 @@ async def get_rating_counts_for_messages(
     }
 
 
+async def get_down_rating_comments_for_messages(
+    db: AsyncSession,
+    *,
+    message_ids: list[UUID],
+) -> dict[UUID, str]:
+    """Return mapping of message_id → the most recent down rating's comment.
+
+    Only down ratings (`rating == -1`) that carry a comment, newest first, so a
+    message maps to the latest word left objecting to it. A message nobody
+    down-rated, or down-rated without leaving a comment, is simply absent - the
+    caller reads that as "no comment to show" rather than an empty string.
+    """
+    if not message_ids:
+        return {}
+    query = (
+        select(MessageRating.message_id, MessageRating.comment)
+        .where(
+            MessageRating.message_id.in_(message_ids),
+            MessageRating.rating == -1,
+            MessageRating.comment.is_not(None),
+        )
+        .order_by(MessageRating.created_at.desc())
+    )
+    result = await db.execute(query)
+    comments: dict[UUID, str] = {}
+    for message_id, comment in result.all():
+        # Newest first, so the first comment seen for a message is its latest.
+        if message_id not in comments and comment:
+            comments[message_id] = comment
+    return comments
+
+
 async def get_ratings_with_users_for_messages(
     db: AsyncSession,
     *,

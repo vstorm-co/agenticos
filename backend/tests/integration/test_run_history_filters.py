@@ -33,7 +33,8 @@ from app.db.models.conversation import Conversation, Message
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
-from app.repositories.agent_run import RunFilters
+from app.repositories.agent_run import RunFilters, down_rated_run_ids
+from app.repositories.message_rating import get_down_rating_comments_for_messages
 from app.services.agent_runner import AgentRunnerService
 
 pytestmark = pytest.mark.anyio
@@ -477,6 +478,84 @@ class TestNarrowingByWhatPeopleThoughtOfIt:
         assert str(blameless.id) not in rows
 
 
+class TestTheDownRatedMarker:
+    """`down_rated_run_ids` - the set a 👎 is drawn from, one query for a page.
+
+    It answers the same "did anybody rate this down" the `rated=down` filter
+    does, so a marked row is exactly a row the filter would return. And it
+    carries the same tenant bound every read in this layer does: a neighbour's
+    run, even one rated down, is never in the answer for another organization.
+    """
+
+    @staticmethod
+    async def _rated(db, run: AgentRun, *, by: User, rating: int) -> None:
+        conversation = Conversation(
+            id=uuid.uuid4(), organization_id=run.organization_id, user_id=by.id
+        )
+        db.add(conversation)
+        await db.flush()
+        message = Message(
+            id=uuid.uuid4(),
+            conversation_id=conversation.id,
+            run_id=run.id,
+            role="assistant",
+            content="the refund window is 30 days",
+        )
+        db.add(message)
+        await db.flush()
+        db.add(MessageRating(id=uuid.uuid4(), message_id=message.id, user_id=by.id, rating=rating))
+        await db.flush()
+
+    async def test_it_marks_the_runs_somebody_rated_down_and_no_others(self, db) -> None:
+        org, user = await _org(db)
+        agent = await _agent(db, org)
+        disliked = await _run(db, org, agent)
+        liked = await _run(db, org, agent)
+        untouched = await _run(db, org, agent)
+        await self._rated(db, disliked, by=user, rating=-1)
+        await self._rated(db, liked, by=user, rating=1)
+
+        marked = await down_rated_run_ids(
+            db, organization_id=org.id, run_ids=[disliked.id, liked.id, untouched.id]
+        )
+
+        assert marked == {disliked.id}
+
+    async def test_several_dislikes_mark_a_run_once(self, db) -> None:
+        """A set, not a count - `distinct`, so three thumbs down are one id and
+        the marker query cannot multiply a page the way a bare join would."""
+        org, user = await _org(db)
+        agent = await _agent(db, org)
+        disliked = await _run(db, org, agent)
+        for _ in range(3):
+            await self._rated(db, disliked, by=await _user(db), rating=-1)
+
+        marked = await down_rated_run_ids(db, organization_id=org.id, run_ids=[disliked.id])
+
+        assert marked == {disliked.id}
+
+    async def test_a_neighbours_down_rated_run_is_never_marked(self, db) -> None:
+        """The tenant bound, tested where it bites: a run in another organization,
+        rated down, asked about with this organization's id. The rating is real
+        and the id is real, and the marker must still be empty - the same refusal
+        the listing makes, held at the one query a caller could otherwise pass a
+        borrowed id to."""
+        mine, _me = await _org(db)
+        theirs, them = await _org(db)
+        their_agent = await _agent(db, theirs)
+        their_run = await _run(db, theirs, their_agent)
+        await self._rated(db, their_run, by=them, rating=-1)
+
+        marked = await down_rated_run_ids(db, organization_id=mine.id, run_ids=[their_run.id])
+
+        assert marked == set()
+
+    async def test_no_run_ids_asks_the_database_nothing(self, db) -> None:
+        org, _user = await _org(db)
+
+        assert await down_rated_run_ids(db, organization_id=org.id, run_ids=[]) == set()
+
+
 class TestFiltersAndTheTenantBoundary:
     async def test_a_filter_can_only_shrink_what_a_caller_sees(self, db) -> None:
         """The organization clause is applied whatever the filters say, so no
@@ -513,3 +592,84 @@ class TestFiltersAndTheTenantBoundary:
         )
 
         assert (len(rows), total) == (2, 3)
+
+
+class TestDownRatingComments:
+    """The comment the run-detail feedback panel shows against a down-rated turn.
+
+    `get_down_rating_comments_for_messages` is what makes #209's "the comment is
+    readable in the detail view" true. Only a down rating's words count - an up
+    rating's note is not what went wrong - and when one turn drew more than one
+    objection the most recent word is the one shown.
+    """
+
+    @staticmethod
+    async def _message(db, org: Organization, by: User) -> Message:
+        conversation = Conversation(id=uuid.uuid4(), organization_id=org.id, user_id=by.id)
+        db.add(conversation)
+        await db.flush()
+        message = Message(
+            id=uuid.uuid4(),
+            conversation_id=conversation.id,
+            role="assistant",
+            content="the refund window is 30 days",
+        )
+        db.add(message)
+        await db.flush()
+        return message
+
+    @staticmethod
+    def _rating(message: Message, by: User, *, rating: int, comment, at: datetime) -> MessageRating:
+        # created_at is set explicitly: func.now() is the transaction's clock, so
+        # two ratings written in one test would tie and "most recent" would be a
+        # coin toss - which the ordering the panel relies on must not be.
+        return MessageRating(
+            id=uuid.uuid4(),
+            message_id=message.id,
+            user_id=by.id,
+            rating=rating,
+            comment=comment,
+            created_at=at,
+        )
+
+    async def test_a_down_ratings_comment_is_returned_an_up_ratings_is_not(self, db) -> None:
+        org, user = await _org(db)
+        down = await self._message(db, org, user)
+        up = await self._message(db, org, user)
+        db.add(self._rating(down, user, rating=-1, comment="it invented a policy", at=_NOW))
+        db.add(self._rating(up, user, rating=1, comment="perfect", at=_NOW))
+        await db.flush()
+
+        comments = await get_down_rating_comments_for_messages(db, message_ids=[down.id, up.id])
+
+        assert comments == {down.id: "it invented a policy"}
+
+    async def test_a_down_rating_with_no_comment_leaves_the_message_absent(self, db) -> None:
+        org, user = await _org(db)
+        message = await self._message(db, org, user)
+        db.add(self._rating(message, user, rating=-1, comment=None, at=_NOW))
+        await db.flush()
+
+        assert await get_down_rating_comments_for_messages(db, message_ids=[message.id]) == {}
+
+    async def test_the_most_recent_objection_is_the_one_shown(self, db) -> None:
+        org, user = await _org(db)
+        message = await self._message(db, org, user)
+        db.add(self._rating(message, user, rating=-1, comment="first take", at=_NOW))
+        db.add(
+            self._rating(
+                message,
+                await _user(db),
+                rating=-1,
+                comment="later take",
+                at=_NOW + timedelta(minutes=5),
+            )
+        )
+        await db.flush()
+
+        comments = await get_down_rating_comments_for_messages(db, message_ids=[message.id])
+
+        assert comments == {message.id: "later take"}
+
+    async def test_no_message_ids_asks_the_database_nothing(self, db) -> None:
+        assert await get_down_rating_comments_for_messages(db, message_ids=[]) == {}

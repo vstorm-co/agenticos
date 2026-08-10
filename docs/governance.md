@@ -251,6 +251,17 @@ nothing". None of this widens `GET /conversations/{id}/messages`, which stays
 scoped to the owner: a run's transcript being readable by a colleague must not make
 the private thread it sits in readable too.
 
+**Each turn the transcript serves carries the ratings people left on it** — the
+reading caller's own thumb, the organization's likes and dislikes, and the most
+recent down rating's comment. A plain message row holds none of these, so they are
+read from `message_ratings` in one batch and attached to the turns; a turn nobody
+rated carries them empty and reads exactly as a plain message does. This is what
+lets the run detail view show the answers that were rated down and the words left
+with them — the conversations behind the dashboard's quality number (#209) — read
+where the run is read, rather than only in the app-admin ratings export. The comment
+shown is a down rating's, never an up rating's, and the most recent when a turn drew
+more than one objection.
+
 ### What the dashboard's aggregates show
 
 `GET /stats/usage` takes the same two sides, and the same default. The composed
@@ -416,6 +427,24 @@ an `EXISTS`, so a run three people disliked is one row and not three; and a run
 one person liked while another disliked matches **both** `up` and `down`, because
 both are true of it. Reducing that to one verdict per run would invent a consensus
 the rows do not record.
+
+The same fact rides the row without the filter: `AgentRunRead.down_rated` is
+`true` when anybody rated an answer the run produced below zero, computed for a
+page in one query rather than an `EXISTS` per row, and it is what run history
+draws a 👎 on. Bounded to the caller's organization like every read here — a
+neighbour's run, rated down, is never marked for another tenant. The **comment**
+that thumb was left with is read in the run detail (`?run=<id>`), not on the row:
+it is user-written text about one conversation, and putting it behind the detail
+is the deliberate line between a marker anybody with `runs:view` sees and the
+words that explain it. That is the join `rated=down` was built for — the dashboard
+says quality fell four points, and this is where the conversations that did it are
+read.
+
+The trend the dashboard reads is `GET /api/v1/ratings/summary` (a headline split
+plus a per-day series): `scope=org` under `runs:view`, `scope=own` for a member's
+own conversations, the same scope rule and window vocabulary as `GET /stats/usage`
+(see [Permissions](permissions.md)). Counts only — the comments stay behind the
+run detail above.
 
 Activity's three figures above the tabs stay the organization's, including the run
 count, even when the table below is narrowed to one agent. A per-agent count beside
