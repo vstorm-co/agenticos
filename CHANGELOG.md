@@ -17,6 +17,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.94] - 2026-08-10
+
+The Activity tab gains a per-version summary that cannot disagree with the
+dashboard's completed-share figure.
+
+### Added
+
+- **A version strip on the Activity tab.** When narrowed to one agent, a card per
+  version sits above the run table — runs, completed share, cost per run, p95 and
+  the current-version marker. Its "completed share" and the dashboard's Outcomes
+  donut both compute through one shared helper (`src/lib/run-outcomes.ts`), with
+  `cancelled` and `budget_exceeded` in the denominator on both sides, so the two
+  figures cannot drift. Closes #489. (#526)
+
 ## [0.0.93] - 2026-08-10
 
 A run's transcript is readable by authorization, not only by whoever owns the
