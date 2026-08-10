@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -111,6 +111,10 @@ class AgentTriggerService:
         if data.environment_id is not None:
             await self._environment_of(ctx, agent.id, data.environment_id)
 
+        # The schema guarantees an interval trigger carries an interval; cron, the
+        # only kind that would not, is refused above. Narrowed rather than guarded
+        # so there is no unreachable branch to leave uncovered.
+        interval_seconds = cast(int, data.interval_seconds)
         now = datetime.now(UTC)
         trigger = await agent_trigger_repo.create(
             self.db,
@@ -119,13 +123,13 @@ class AgentTriggerService:
             created_by_user_id=ctx.subject_id,
             prompt=data.prompt,
             schedule_kind=data.schedule_kind,
-            interval_seconds=data.interval_seconds,
+            interval_seconds=interval_seconds,
             cron_expression=data.cron_expression,
             environment_id=data.environment_id,
             # First fire is one interval out, not immediate: creating a schedule
             # is not a request to run right now, and an immediate fire would make
             # a mistyped trigger spend before it could be deleted.
-            next_fire_at=now + timedelta(seconds=data.interval_seconds or 0),
+            next_fire_at=now + timedelta(seconds=interval_seconds),
         )
         await record_audit(
             self.db,
@@ -213,12 +217,15 @@ class AgentTriggerService:
         one).
         """
         trigger = await agent_trigger_repo.get_by_id(self.db, trigger_id)
-        if trigger is None or not trigger.is_active or trigger.created_by_user_id is None:
+        if trigger is None or not trigger.is_active:
             logger.info("trigger_fire_skipped", extra={"trigger_id": str(trigger_id)})
             return
 
         ctx = await self._creator_context(trigger)
         if ctx is None:
+            # No membership to take a role from - the creator left the
+            # organization, or the user row itself is gone and SET NULL cleared
+            # the column. Either way the schedule is no longer attributable.
             await self._disable(trigger, reason="creator_not_a_member")
             return
 
