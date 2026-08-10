@@ -162,7 +162,11 @@ export function RunHistoryTab({
                   cta={{ label: t("tryAgain"), onClick: () => void refetch() }}
                 />
               ) : runs.length === 0 ? (
-                <EmptyState icon={Activity} title={t("noRunsYet")} description={t("nothingHasRun")} />
+                <EmptyState
+                  icon={Activity}
+                  title={t("noRunsYet")}
+                  description={t("nothingHasRun")}
+                />
               ) : (
                 <RunTable runs={runs} sort={sort} onSort={toggleSort} />
               )}
