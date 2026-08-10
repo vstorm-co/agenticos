@@ -64,7 +64,6 @@ export async function backendFetch<T>(endpoint: string, options: RequestOptions 
     throw new BackendApiError(response.status, response.statusText, errorData);
   }
 
-  // Handle empty responses
   const text = await response.text();
   if (!text) {
     return null as T;

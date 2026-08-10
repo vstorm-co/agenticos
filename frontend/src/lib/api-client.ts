@@ -116,7 +116,6 @@ class ApiClient {
   private async request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
     const response = await this.send(endpoint, options);
 
-    // Handle empty responses
     const text = await response.text();
     if (!text) {
       return null as T;
