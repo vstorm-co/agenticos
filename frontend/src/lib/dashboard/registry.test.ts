@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { SPAN_CLASS } from "./layouts";
-import { WIDGET_IDS, WIDGETS, type WidgetId } from "./registry";
+import { ROW_CLASS, SPAN_CLASS } from "./layouts";
+import {
+  accentDecoration,
+  isAccentColour,
+  isPresetAccent,
+  normaliseAccent,
+  WIDGET_IDS,
+  WIDGETS,
+  type WidgetId,
+} from "./registry";
 import { ROUTES } from "@/lib/constants";
 import { Perm, type Permission } from "@/types/permissions";
 
@@ -80,6 +88,12 @@ describe("the widget catalog", () => {
     }
   });
 
+  it("every widget's default height is a class the grid knows", () => {
+    for (const id of WIDGET_IDS) {
+      expect(ROW_CLASS[WIDGETS[id].defaultRows], id).toBeTruthy();
+    }
+  });
+
   it("every see-all destination is a route that exists", () => {
     const known = new Set<string>(
       Object.values<unknown>(ROUTES).filter((value) => typeof value === "string") as string[],
@@ -90,5 +104,38 @@ describe("the widget catalog", () => {
         expect(known.has(destination), `${id} points at ${destination}`).toBe(true);
       }
     }
+  });
+});
+
+describe("section accents", () => {
+  it("recognises a named preset and nothing else as a preset", () => {
+    expect(isPresetAccent("violet")).toBe(true);
+    expect(isPresetAccent("#ff0000")).toBe(false);
+    expect(isPresetAccent("neutral")).toBe(false);
+  });
+
+  it("treats only a preset or a valid hex as a colour that paints", () => {
+    expect(isAccentColour("blue")).toBe(true);
+    expect(isAccentColour("#A1B2C3")).toBe(true);
+    expect(isAccentColour("neutral")).toBe(false);
+    expect(isAccentColour(null)).toBe(false);
+    expect(isAccentColour("not-a-colour")).toBe(false);
+  });
+
+  it("canonicalises a stored accent, lower-casing a hex and dropping the unknown", () => {
+    expect(normaliseAccent(null)).toBe("neutral");
+    expect(normaliseAccent("neutral")).toBe("neutral");
+    expect(normaliseAccent("green")).toBe("green");
+    expect(normaliseAccent("#AABBCC")).toBe("#aabbcc");
+    expect(normaliseAccent("chartreuse")).toBe("neutral");
+  });
+
+  it("decorates a preset with its class, a hex inline, and neutral with nothing", () => {
+    expect(accentDecoration("amber")).toEqual({ className: "dash-accent-amber" });
+    expect(accentDecoration("#AABBCC")).toEqual({
+      className: "",
+      style: { "--dash-solid": "#aabbcc" },
+    });
+    expect(accentDecoration("neutral")).toEqual({ className: "" });
   });
 });

@@ -13,19 +13,71 @@
  */
 
 import type { Permission } from "@/types/permissions";
-import { WIDGETS, type Span, type WidgetId } from "./registry";
+import { WIDGETS, type Rows, type SectionAccent, type Span, type WidgetId } from "./registry";
 
 export interface LayoutEntry {
+  /**
+   * The entry kind, discriminating this widget placement from a
+   * {@link DividerEntry}. Optional and defaulting to `"widget"` so the audience
+   * defaults below — and every arrangement saved before dividers existed — read
+   * as widgets without carrying the tag.
+   */
+  kind?: "widget";
   widget: WidgetId;
   span: Span;
+  /**
+   * Card height in fixed grid rows. Optional on the audience defaults, which
+   * auto-size; a person's own arrangement fills it in (see `sanitizeEntries`),
+   * so an edited card always has an explicit height to grow and shrink.
+   */
+  rows?: Rows;
   /** i18n key under `dashboard`, overriding the widget's default title. */
   titleKey?: string;
+}
+
+/**
+ * A section divider: a full-width heading a person drops into their own
+ * arrangement to break it into labelled, colour-tinted bands. It is not a
+ * widget — it exposes no data and has no gate — so it carries only a free-text
+ * label, an accent (a preset name, a custom `#rrggbb` hex, or neutral) and a
+ * `collapsed` flag folding the section down to its heading, never a registry id.
+ */
+export interface DividerEntry {
+  kind: "section";
+  /** The free-text caption the person typed; may be empty (a bare rule). */
+  label: string;
+  accent: SectionAccent;
+  /** Folded to just the heading on the page; the cards are hidden until reopened. */
+  collapsed?: boolean;
+}
+
+/** One item in an arrangement: a widget placement or a section divider. */
+export type LayoutItem = LayoutEntry | DividerEntry;
+
+/** Narrow a {@link LayoutItem} to a section divider. */
+export function isDivider(item: LayoutItem): item is DividerEntry {
+  return item.kind === "section";
+}
+
+/** Narrow a {@link LayoutItem} to a widget placement. */
+export function isWidget(item: LayoutItem): item is LayoutEntry {
+  return item.kind !== "section";
 }
 
 export interface SectionDef {
   id: string;
   /** i18n key under `dashboard.sections`, or null for an untitled section. */
   titleKey: string | null;
+  /**
+   * A literal heading, used in place of `titleKey` for the sections a person's
+   * own dividers create — those carry the text the person typed, not a key into
+   * the catalog. Absent on the curated defaults, which are translated.
+   */
+  title?: string;
+  /** The divider's colour, tinting this section's cards. Absent = neutral. */
+  accent?: SectionAccent;
+  /** Whether this section is folded to its heading — a custom divider's flag. */
+  collapsed?: boolean;
   entries: LayoutEntry[];
 }
 
@@ -67,6 +119,86 @@ export const SPAN_CLASS: Record<Span, string> = {
   s8: "lg:col-span-8",
   s12: "lg:col-span-12",
 };
+
+/**
+ * Row to grid class, the height counterpart of `SPAN_CLASS`. Literal strings so
+ * Tailwind's scanner sees them; below `lg` every card stacks at its natural
+ * height, so a `row-span` only bites where cards share a row.
+ */
+export const ROW_CLASS: Record<Rows, string> = {
+  r2: "lg:row-span-2",
+  r3: "lg:row-span-3",
+  r4: "lg:row-span-4",
+  r5: "lg:row-span-5",
+  r6: "lg:row-span-6",
+};
+
+/**
+ * The grid a person's own arrangement renders in — and the editor with it.
+ *
+ * Unlike the audience defaults (which auto-size and never set a row height),
+ * an arranged grid pins a fixed row unit so a card's chosen height means the
+ * same number of pixels wherever it sits, and `grid-flow-row-dense` lets a
+ * short card backfill the gap a tall neighbour leaves. `SPAN_CLASS` and
+ * `ROW_CLASS` on each cell then place it in two dimensions.
+ */
+export const ARRANGED_GRID_CLASS =
+  "grid grid-cols-1 gap-4 lg:auto-rows-[5.5rem] lg:grid-cols-12 lg:grid-flow-row-dense";
+
+/** The columns a span occupies, out of twelve — `s6` → 6. */
+export function spanCols(span: Span): number {
+  return Number(span.slice(1));
+}
+
+/** The rows a height occupies — `r3` → 3. */
+export function rowCount(rows: Rows): number {
+  return Number(rows.slice(1));
+}
+
+/** Widths in ascending order, for stepping and snapping. */
+export const SPAN_ORDER: Span[] = ["s3", "s4", "s5", "s6", "s7", "s8", "s12"];
+
+/** Heights in ascending order, for stepping and snapping. */
+export const ROW_ORDER: Rows[] = ["r2", "r3", "r4", "r5", "r6"];
+
+function stepInOrder<T>(order: T[], value: T, direction: -1 | 1): T {
+  const index = order.indexOf(value);
+  const next = Math.min(Math.max(index + direction, 0), order.length - 1);
+  return order[next] as T;
+}
+
+/** The next wider or narrower width, clamped at the ends of the closed set. */
+export function stepSpan(span: Span, direction: -1 | 1): Span {
+  return stepInOrder(SPAN_ORDER, span, direction);
+}
+
+/** The next taller or shorter height, clamped at the ends of the closed set. */
+export function stepRows(rows: Rows, direction: -1 | 1): Rows {
+  return stepInOrder(ROW_ORDER, rows, direction);
+}
+
+function nearest<T>(order: T[], count: number, size: (value: T) => number): T {
+  let best = order[0] as T;
+  let bestGap = Math.abs(size(best) - count);
+  for (const value of order) {
+    const gap = Math.abs(size(value) - count);
+    if (gap < bestGap) {
+      best = value;
+      bestGap = gap;
+    }
+  }
+  return best;
+}
+
+/** The allowed width closest to a column count — for snapping a pointer resize. */
+export function nearestSpan(columns: number): Span {
+  return nearest(SPAN_ORDER, columns, spanCols);
+}
+
+/** The allowed height closest to a row count — for snapping a pointer resize. */
+export function nearestRows(rows: number): Rows {
+  return nearest(ROW_ORDER, rows, rowCount);
+}
 
 /**
  * Where agents run code, for the audiences that can watch a host.
@@ -264,17 +396,20 @@ export const LAYOUTS: Record<AudienceId, SectionDef[]> = {
 };
 
 /**
- * The layout, with every entry the caller may not see removed and every
- * section that ended up empty dropped - heading included. This is the whole
- * of the page's authorization: a widget that fails its gate is never
- * mounted, so its queries are never issued either.
+ * A section list with every entry the caller may not see removed, and every
+ * section that ended up empty dropped - heading included. This is the whole of
+ * the page's authorization, and it runs **last**, on whatever layout it is
+ * handed: the audience default, or a person's own saved arrangement. A stored
+ * preference can reorder or hide, but the gate here is what stops it revealing -
+ * a widget that fails its gate is never mounted, so its queries are never
+ * issued either, whichever layer put it in the list.
  */
 export function visibleSections(
-  audience: AudienceId,
+  sections: SectionDef[],
   can: (permission: Permission) => boolean,
   isAppAdmin: boolean,
 ): SectionDef[] {
-  return LAYOUTS[audience]
+  return sections
     .map((section) => ({
       ...section,
       entries: section.entries.filter((entry) => WIDGETS[entry.widget].gate(can, isAppAdmin)),

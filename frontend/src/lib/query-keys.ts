@@ -132,6 +132,14 @@ export const qk = {
   dashboard: {
     /** One card, one query: the three shared_with_me counts travel together. */
     sharedWithMe: () => ["dashboard", "shared-with-me"] as const,
+    /**
+     * The caller's saved arrangement, keyed on the organization: the layout is
+     * per user *and* per org, so switching org must refetch rather than paint
+     * one org's arrangement onto another's dashboard.
+     */
+    layout: (orgId: string) => ["dashboard", "layout", orgId] as const,
+    /** The caller's named presets, keyed on the organization for the same reason. */
+    presets: (orgId: string) => ["dashboard", "presets", orgId] as const,
   },
   sharing: {
     all: () => ["sharing"] as const,
