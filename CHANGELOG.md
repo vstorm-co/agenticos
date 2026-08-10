@@ -17,6 +17,24 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.99] - 2026-08-10
+
+Run history can be filtered by rating, and a down-rated run says so — with the
+comment readable on the run itself.
+
+### Added
+
+- **Filter run history by rating, and flag a down-rated run.** A `rated=down`
+  filter on run history, and a `down_rated_run_ids` marker on list rows —
+  tenant-bound, `distinct`, and the same `rating < 0` definition the filter uses,
+  so a marked row is exactly a row the filter returns. In the run detail, the
+  most recent down rating's comment is read off the transcript
+  (`RunTranscriptMessage.rating_comment`, from
+  `get_down_rating_comments_for_messages`, batched newest-first), so "what people
+  said was wrong" is readable where the run is read rather than only in the
+  app-admin export. Permission-gated on `runs:view`. Completes the run side of
+  #209. (#538)
+
 ## [0.0.98] - 2026-08-10
 
 Runs, approvals and spend export as CSV — exactly the rows the list would show.
