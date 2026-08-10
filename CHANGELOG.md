@@ -17,6 +17,29 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.89] - 2026-08-10
+
+Run history gains the duration controls the dashboard's p95 needs rows behind,
+and the contributor guidance has its test-loop numbers corrected.
+
+### Added
+
+- **Sort and filter run history by duration** — a sortable `Took` column, a
+  "slow runs" canned view, and a dashboard p95 deep-link that seeds the sort and
+  the time window. The sort is server-side over the whole narrowed set, not one
+  page; the backend query landed with #202 and is reused unchanged. Closes #210.
+  (#528)
+
+### Changed
+
+- **Contributor guidance** — `CLAUDE.md` now states the scoped-vs-full test rule
+  outright and its runtime figures are corrected against measurement: CI answers
+  in about twelve minutes rather than seven, and a scoped backend file takes a
+  few seconds rather than "under one" (the wait is importing the app, not the
+  run). The same stale CI figure in `docs/testing.md` and three moved
+  `app/core/catalog/` paths in the docs trigger map went with it. Closes #522.
+  (#534)
+
 ## [0.0.88] - 2026-08-10
 
 Two grouped dependency updates, nothing else. The lockfile resolves cleanly with
