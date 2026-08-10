@@ -46,6 +46,40 @@ export function createTourDriver(): Driver {
  * hanging the spotlight; and the abort signal drops the wait when the reader
  * moves to another step before this one's element arrived.
  */
+/**
+ * Switch a Radix tab from script, by its trigger element.
+ *
+ * A `Tabs.Trigger` selects on a primary-button `mousedown` and, in the automatic
+ * activation mode this app's tabs use, on `focus` — never on a bare
+ * `HTMLElement.click()`, which dispatches only a `click` event and moves no
+ * focus. So the tour clicking a tab did nothing: the panel stayed unmounted and
+ * the next spotlight hunted a target that never appeared, landing centered with
+ * no highlight. Firing both what Radix listens to (a `mousedown`, and focus)
+ * covers either activation mode. `preventScroll` because driver.js does the
+ * scrolling; a second one here only fights it.
+ */
+export function activateTab(trigger: HTMLElement): void {
+  trigger.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0 }));
+  trigger.focus({ preventScroll: true });
+}
+
+/** Resolve after `ms`, or at once if `signal` is (or becomes) aborted. */
+export function delay(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal.aborted) {
+      resolve();
+      return;
+    }
+    const finish = () => {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", finish);
+      resolve();
+    };
+    const timer = setTimeout(finish, ms);
+    signal.addEventListener("abort", finish);
+  });
+}
+
 export function waitForElement(
   selector: string,
   signal: AbortSignal,

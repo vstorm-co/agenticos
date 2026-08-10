@@ -8,10 +8,22 @@ import { useTranslations } from "next-intl";
 import type { AllowedButtons, DriveStep, Driver } from "driver.js";
 
 import { useDetailTargets } from "@/components/onboarding/detail-targets";
-import { createTourDriver, waitForElement } from "@/components/onboarding/spotlight";
+import {
+  activateTab,
+  createTourDriver,
+  delay,
+  waitForElement,
+} from "@/components/onboarding/spotlight";
 import { useOnboardingTour } from "@/hooks";
 import { stripLocale } from "@/lib/active-route";
 import { pageKey } from "@/lib/onboarding/tour";
+
+/**
+ * How long a tab is spotlighted on its own before the panel it opens is. Long
+ * enough to read as "this is the control that gets you here" and to see the
+ * spotlight slide, short enough not to stall the walk.
+ */
+const TAB_REVEAL_MS = 650;
 
 /**
  * The guided tour: driver.js walks the reader across the product a page at a
@@ -26,15 +38,18 @@ import { pageKey } from "@/lib/onboarding/tour";
  * driver runs within a page.
  *
  * Three moves get the reader to a step. A static step navigates to its route.
- * A *detail* step (the agent builder, whose route is per-agent) resolves an
- * example to open through `useDetailTargets`, navigates into it, and — once
- * there — leaves the reader on whichever row they are already looking at; if
- * there is nothing to open, it skips the whole detail walk rather than spotlight
- * a route that would 404. And a step with an `activate` target clicks it first —
- * a Radix tab whose panel holds the spotlight's target — so a stop deep inside
- * the Builder reveals its tab before the popover lands. Which steps to show, in
- * what order, permission-filtered, and whether closing persists completion, all
- * come from `useOnboardingTour`. Mounted once in the dashboard layout.
+ * A *detail* step (the agent builder, a collection, an organization — routes
+ * that are per-row) resolves an example to open through `useDetailTargets`,
+ * navigates into it, and — once there — leaves the reader on whichever row they
+ * are already looking at; if there is nothing to open (an empty list), it
+ * describes the section centered rather than skip it, so the "?" still explains
+ * what a detail view holds before there is any data to open one on. And a step
+ * with an `activate` target spotlights that Radix tab first, holds a beat, then
+ * switches to it — so the reader sees which control opens the section and the
+ * spotlight slides from the tab down to the target its panel holds. Which steps
+ * to show, in what order, permission-filtered, and whether closing persists
+ * completion, all come from `useOnboardingTour`. Mounted once in the dashboard
+ * layout.
  */
 export function OnboardingTour() {
   const t = useTranslations("onboarding");
@@ -56,30 +71,6 @@ export function OnboardingTour() {
     const here = stripLocale(pathname);
     const detail = step.page ? detailTargets[step.page] : undefined;
 
-    if (detail) {
-      // A detail pseudo-page. If we are not already on one of its routes, open an
-      // example — or skip the whole walk when the list is empty and there is
-      // nothing to open. Once on such a route we stay on it (the "?" replayed from
-      // a builder means *this* agent), and fall through to activate + highlight.
-      if (pageKey(here) !== step.page) {
-        if (detail.href) {
-          tour.destroy();
-          router.push(detail.href);
-          return;
-        }
-        if (detail.pending) return; // wait for the list; this effect re-runs when it settles
-        next(); // nothing to open — skip to the next step, which cascades past the walk
-        return;
-      }
-    } else if (step.page && here !== step.page) {
-      // A static step the tour is not on yet: tear the overlay down so no popover
-      // is left pointing at an element that is about to unmount, navigate, and let
-      // the resulting pathname change re-run this effect on the destination.
-      tour.destroy();
-      router.push(step.page);
-      return;
-    }
-
     const buttons: AllowedButtons[] = isFirst ? ["next", "close"] : ["previous", "next", "close"];
     const show = (element: Element | undefined) => {
       const driveStep: DriveStep = {
@@ -100,6 +91,31 @@ export function OnboardingTour() {
       tour.highlight(driveStep);
     };
 
+    if (detail) {
+      // A detail pseudo-page. If we are not already on one of its routes, open an
+      // example; once on such a route we stay on it (the "?" replayed from a
+      // builder means *this* agent) and fall through to activate + highlight.
+      if (pageKey(here) !== step.page) {
+        if (detail.href) {
+          tour.destroy();
+          router.push(detail.href);
+          return;
+        }
+        if (detail.pending) return; // wait for the list; this effect re-runs when it settles
+        // Nothing to open — an empty list. Describe the section where we are
+        // rather than skip it, so the walk still says what a detail view holds.
+        show(undefined);
+        return;
+      }
+    } else if (step.page && here !== step.page) {
+      // A static step the tour is not on yet: tear the overlay down so no popover
+      // is left pointing at an element that is about to unmount, navigate, and let
+      // the resulting pathname change re-run this effect on the destination.
+      tour.destroy();
+      router.push(step.page);
+      return;
+    }
+
     if (!step.target && !step.activate) {
       show(undefined);
       return;
@@ -107,12 +123,19 @@ export function OnboardingTour() {
 
     const controller = new AbortController();
     void (async () => {
-      // Reveal the section first — a tab whose panel holds the target only mounts
-      // once its trigger is clicked.
+      // A tab whose panel holds the target only mounts once its trigger is
+      // activated. Spotlight the tab first, hold a beat so the reader sees which
+      // control opens the section, then switch — driver slides the spotlight from
+      // the tab down to the target below.
       if (step.activate) {
         const trigger = await waitForElement(`[data-tour="${step.activate}"]`, controller.signal);
         if (controller.signal.aborted) return;
-        if (trigger instanceof HTMLElement) trigger.click();
+        if (trigger instanceof HTMLElement) {
+          show(trigger);
+          await delay(TAB_REVEAL_MS, controller.signal);
+          if (controller.signal.aborted) return;
+          activateTab(trigger);
+        }
       }
       const element = step.target
         ? await waitForElement(`[data-tour="${step.target}"]`, controller.signal)

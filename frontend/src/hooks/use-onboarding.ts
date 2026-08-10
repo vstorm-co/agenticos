@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -62,9 +62,29 @@ export function useOnboardingTour(): OnboardingTourState {
   const { isOpen, index, mode, openTour, close, setIndex } = useOnboardingStore();
 
   const path = stripLocale(pathname);
+
+  // Freeze the page a "?" replay was opened on. Its walk steps into detail views
+  // (the builder, a collection, an organization), and recomputing the step list
+  // from the new pathname mid-walk would swap the array out from under the index
+  // — the step showing would jump to whatever now sits at that position, or the
+  // walk would end with nothing left on the arrived-at page. The anchor is set
+  // once, on opening in page mode, and cleared on close so the next "?" anchors
+  // wherever it is opened; navigation only fires once the engine advances into a
+  // detail step, which is after this effect has run, so the anchor is always in
+  // hand before the path moves. The first-run tour needs none of this: its list
+  // is permission-filtered, not path-derived, so navigation never changes it.
+  const [anchor, setAnchor] = useState<string | null>(null);
+  // React's "adjust state while rendering" pattern, not an effect: the guards
+  // make each branch fire at most once, so there is no loop and no extra commit.
+  if (isOpen && mode === "page" && anchor === null) {
+    setAnchor(path);
+  } else if (!isOpen && anchor !== null) {
+    setAnchor(null);
+  }
+
   const steps = useMemo(
-    () => (mode === "page" ? stepsForPage(path, can) : visibleTourSteps(can)),
-    [mode, path, can],
+    () => (mode === "page" ? stepsForPage(anchor ?? path, can) : visibleTourSteps(can)),
+    [mode, anchor, path, can],
   );
   const lastIndex = steps.length - 1;
   const clamped = Math.min(index, Math.max(lastIndex, 0));

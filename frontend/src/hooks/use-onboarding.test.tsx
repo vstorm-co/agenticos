@@ -162,6 +162,28 @@ describe("useOnboardingTour", () => {
     ]);
   });
 
+  it("freezes the page a page-mode replay opened on, so stepping into a detail view keeps the list", async () => {
+    // A completed user, on the agents list, so opening "?" here anchors on it.
+    useAuthStore.setState({ user: user({ onboarding_completed_at: "2020-01-01T00:00:00Z" }) });
+    nav.pathname = "/agents";
+    const { result, rerender } = renderHook(() => useOnboardingTour(), { wrapper });
+
+    act(() => useOnboardingStore.getState().openPage());
+    // Once permissions resolve, the list is the whole Agents-into-builder flow.
+    await waitFor(() =>
+      expect(result.current.steps.map((s) => s.id)).toContain("agent-instructions"),
+    );
+    const opened = result.current.steps.map((s) => s.id);
+    expect(opened).toContain("agents-new");
+
+    // The walk navigates into the builder. If the anchor followed the path, the
+    // list would shrink to the builder-only flow and the index would point at a
+    // different step — the "?" jumping or vanishing that this freeze prevents.
+    nav.pathname = "/agents/some-id";
+    rerender();
+    expect(result.current.steps.map((s) => s.id)).toEqual(opened);
+  });
+
   it("dismissing a page-mode replay records nothing — help is not the first run", async () => {
     // A user who has *not* finished onboarding: the guard here is the mode, not
     // the flag, so a "?" replay must still not mark them done.
