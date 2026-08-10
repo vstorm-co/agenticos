@@ -120,18 +120,25 @@ from app.agents.subagent_runtime import (
     SubagentRuntime,
 )
 from app.core.config import settings
-from app.core.exceptions import BadRequestError, NotFoundError, RunExecutionError
+from app.core.exceptions import (
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+    RunExecutionError,
+)
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import StorableSecret
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_exposure import AgentExposure
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunOrder, RunStatus, RunSurface
 from app.db.models.chat_file import ChatFile
+from app.db.models.conversation import Message
 from app.repositories import (
     agent_environment_repo,
     agent_exposure_repo,
     agent_repo,
     agent_run_repo,
+    conversation_repo,
     knowledge_base_repo,
 )
 from app.repositories.agent_run import AgentSpendRow, RunFilters
@@ -3268,6 +3275,59 @@ class AgentRunnerService:
         if run is None:
             raise NotFoundError(message="Run not found", details={"run_id": str(run_id)})
         return run
+
+    async def get_run_transcript(
+        self, ctx: AuthContext, run_id: UUID, *, skip: int = 0, limit: int = 100
+    ) -> tuple[AgentRun, list[Message], int]:
+        """One run, and the turns it produced - authorized, not owned.
+
+        Reading a run is the organization's right rather than its starter's: a
+        colleague holding `runs:view` reads a run somebody else began, which is
+        the whole reason this is a route of its own and not a filter on the
+        conversation endpoint. That endpoint stays scoped to the owner, so
+        widening *it* to reach a colleague's run would widen who can read the
+        private thread the run sits in.
+
+        The two refusals are ordered so that the first cannot be used to defeat
+        the second. Existence is resolved against the organization *before* the
+        permission is read, so a run in another tenant reads as absent - the same
+        `NotFoundError` an id that never existed raises, down to its `details` -
+        rather than as forbidden, which would confirm the id to a stranger. Only
+        once the run is known to be the caller's organization's does a missing
+        `runs:view` become a 403: a refusal that necessarily tells a member the
+        run exists, and only ever reaches a member.
+
+        A run with no conversation has no transcript by construction - the runner
+        never writes a turn for one (:meth:`TranscriptService.record` returns at
+        once when `conversation_id` is `None`) - so its emptiness is reported
+        through `run.conversation_id` being `None`, and the message read is
+        skipped rather than run to confirm a certainty.
+
+        Returns:
+            The run, its turns oldest-first, and the total number of them - the
+            last so a paged read still knows the size of the whole.
+
+        Raises:
+            NotFoundError: The run is not in the caller's organization - whether
+                it belongs to another tenant or to nobody.
+            AuthorizationError: The caller's organization holds the run but the
+                caller does not hold `runs:view`.
+        """
+        run = await agent_run_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
+        if run is None:
+            raise NotFoundError(message="Run not found", details={"run_id": str(run_id)})
+        if not ctx.has(Perm.RUNS_VIEW):
+            raise AuthorizationError(
+                message="Insufficient permissions",
+                details={"required": [Perm.RUNS_VIEW.value], "run_id": str(run_id)},
+            )
+        if run.conversation_id is None:
+            return run, [], 0
+        messages = await conversation_repo.get_messages_by_run(
+            self.db, run.id, skip=skip, limit=limit, include_tool_calls=True
+        )
+        total = await conversation_repo.count_messages_by_run(self.db, run.id)
+        return run, messages, total
 
     async def trace_url(self, ctx: AuthContext, run: AgentRun) -> str | None:
         """Where this run's trace can be read, if anywhere can.
