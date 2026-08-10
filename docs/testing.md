@@ -227,16 +227,28 @@ Everything under `tests/integration/` is the exception, and it asks for the `db`
 fixture from `tests/integration/conftest.py` rather than building an engine of its
 own — that fixture is what puts the schema in place.
 
+**The schema is built once for the whole process, and the data reset between tests.**
+The `schema_url` fixture runs `create_all` a single time; the function-scoped `engine`
+fixture then hands each test an empty database by `TRUNCATE`-ing every model table
+(and dropping any table a test created outside the models — a runtime
+`rag_<collection>`, an ordering probe) rather than rebuilding the schema. It used to
+`drop_all` + `create_all` before *every* test, ~0.4s of DDL that was very nearly the
+entire runtime of a suite whose assertions are microseconds of Postgres work; building
+it once cut `tests/integration` from ~125s to ~50s
+([#215](https://github.com/vstorm-co/agenticos/issues/215)). `TRUNCATE` rather than a
+transaction rollback because the API-flow tests commit through the real
+`get_db_session`, so their rows outlive a rollback.
+
 **The database it uses belongs to the pytest process that asked for it**:
 `<POSTGRES_DB>_p<pid>`, created when the session starts and dropped when it ends,
 failure included. That is what makes two runs at once safe — two worktrees, or a
 worktree and a `make test`, against the one Postgres container — and it needs nothing
 passed on the command line. The name was constant until [#189](https://github.com/vstorm-co/agenticos/issues/189),
-and since the fixture rebuilds the schema before every test, two runs spent their time
-dropping each other's tables and reporting failures that belonged to neither branch.
-The suite still refuses any database whose name does not contain `test` or `ci`: it
-drops tables unconditionally, so the guard is the only thing between it and a
-development database.
+and because each test dropped and recreated the schema on that shared database, two
+runs spent their time dropping each other's tables and reporting failures that belonged
+to neither branch. The suite still refuses any database whose name does not contain
+`test` or `ci`: it drops tables unconditionally, so the guard is the only thing between
+it and a development database.
 
 **The credential is resolved once, in `tests/conftest.py`, and everything reads it
 back off the settings object.** Two engines reach that database — the fixture's, and
