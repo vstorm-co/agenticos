@@ -113,7 +113,7 @@ export default function VaultPage() {
         description={t(VAULT_DESCRIPTION)}
         actions={
           canManage ? (
-            <Button onClick={() => setSecretOpen(true)}>
+            <Button data-tour="vault-new" onClick={() => setSecretOpen(true)}>
               <Plus className="h-4 w-4" />
               {t("addKey")}
             </Button>

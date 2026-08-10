@@ -162,7 +162,7 @@ export default function SkillsPage() {
       description={t("skillKnowHowWritten")}
       actions={
         canEdit ? (
-          <Button onClick={() => setCreateOpen(true)}>
+          <Button data-tour="skills-new" onClick={() => setCreateOpen(true)}>
             <Plus className="h-4 w-4" />
             {t("newSkill")}
           </Button>

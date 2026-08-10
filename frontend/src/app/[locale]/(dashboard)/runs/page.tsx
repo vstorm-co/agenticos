@@ -60,7 +60,9 @@ export default function RunsPage() {
     <div className="space-y-6">
       <PageHeader title={t("activity2")} description={t("whatYourAgentsDid2")} />
 
-      <ActivityFigures canDecide={canDecide} />
+      <div data-tour="activity-overview">
+        <ActivityFigures canDecide={canDecide} />
+      </div>
 
       {/* Not until the permission set has answered. `Tabs` is uncontrolled, so
           Radix captures `defaultValue` on first mount and never reads it again -

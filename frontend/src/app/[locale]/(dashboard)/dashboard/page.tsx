@@ -77,13 +77,15 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6 pb-8">
       <PageHeader title={t("title")} description={t(`subtitles.${audience}`)} />
-      <FilterRow
-        period={period}
-        onPeriodChange={changePeriod}
-        sections={visible}
-        selectedSections={selectedSections}
-        onSectionsChange={changeSections}
-      />
+      <div data-tour="dashboard-overview">
+        <FilterRow
+          period={period}
+          onPeriodChange={changePeriod}
+          sections={visible}
+          selectedSections={selectedSections}
+          onSectionsChange={changeSections}
+        />
+      </div>
       {sections.map((section) => (
         <Fragment key={section.id}>
           {audience === "app_admin" && section.id === firstOrgSectionId ? (

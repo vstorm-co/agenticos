@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useOnboardingTour } from "./use-onboarding";
 import { ApiError, apiClient } from "@/lib/api-client";
-import { ONBOARDING_STEPS } from "@/lib/onboarding/steps";
+import { TOUR_STEPS } from "@/lib/onboarding/tour";
 import { useAuthStore, useOnboardingStore } from "@/stores";
 import { Perm } from "@/types/permissions";
 import type { User } from "@/types";
@@ -65,21 +65,21 @@ describe("useOnboardingTour", () => {
   it("auto-opens on the dashboard for a user who has not finished onboarding", async () => {
     const { result } = renderHook(() => useOnboardingTour(), { wrapper });
     await waitFor(() => expect(result.current.isOpen).toBe(true));
-    expect(result.current.steps.length).toBe(ONBOARDING_STEPS.length);
+    expect(result.current.steps.length).toBe(TOUR_STEPS.length);
     expect(result.current.isFirst).toBe(true);
   });
 
   it("does not auto-open once onboarding is finished", async () => {
     useAuthStore.setState({ user: user({ onboarding_completed_at: "2020-01-01T00:00:00Z" }) });
     const { result } = renderHook(() => useOnboardingTour(), { wrapper });
-    await waitFor(() => expect(result.current.steps.length).toBe(ONBOARDING_STEPS.length));
+    await waitFor(() => expect(result.current.steps.length).toBe(TOUR_STEPS.length));
     expect(result.current.isOpen).toBe(false);
   });
 
   it("does not auto-open away from the dashboard", async () => {
     nav.pathname = "/agents";
     const { result } = renderHook(() => useOnboardingTour(), { wrapper });
-    await waitFor(() => expect(result.current.steps.length).toBe(ONBOARDING_STEPS.length));
+    await waitFor(() => expect(result.current.steps.length).toBe(TOUR_STEPS.length));
     expect(result.current.isOpen).toBe(false);
   });
 
@@ -102,7 +102,7 @@ describe("useOnboardingTour", () => {
   it("does not auto-open for a signed-out visitor", async () => {
     useAuthStore.setState({ user: null });
     const { result } = renderHook(() => useOnboardingTour(), { wrapper });
-    await waitFor(() => expect(result.current.steps.length).toBe(ONBOARDING_STEPS.length));
+    await waitFor(() => expect(result.current.steps.length).toBe(TOUR_STEPS.length));
     expect(result.current.isOpen).toBe(false);
   });
 
@@ -126,7 +126,7 @@ describe("useOnboardingTour", () => {
   it("does not write again for a user who already finished", async () => {
     useAuthStore.setState({ user: user({ onboarding_completed_at: "2020-01-01T00:00:00Z" }) });
     const { result } = renderHook(() => useOnboardingTour(), { wrapper });
-    await waitFor(() => expect(result.current.steps.length).toBe(ONBOARDING_STEPS.length));
+    await waitFor(() => expect(result.current.steps.length).toBe(TOUR_STEPS.length));
 
     act(() => useOnboardingStore.getState().restart());
     expect(result.current.isOpen).toBe(true);

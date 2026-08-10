@@ -119,7 +119,7 @@ export default function AgentsPage() {
         description={t("agentConfigurationNotCode")}
         actions={
           canEdit ? (
-            <Button onClick={() => setCreateOpen(true)}>
+            <Button data-tour="agents-new" onClick={() => setCreateOpen(true)}>
               <Plus className="h-4 w-4" />
               {t("newAgent")}
             </Button>

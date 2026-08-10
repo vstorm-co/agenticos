@@ -109,7 +109,7 @@ export default function RAGPage() {
         description={t("groupRelatedDocumentsInto")}
         actions={
           mayEdit ? (
-            <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <Button data-tour="knowledge-new" size="sm" onClick={() => setCreateOpen(true)}>
               <Plus className="h-4 w-4" />
               {t("newKnowledgeBase")}
             </Button>
