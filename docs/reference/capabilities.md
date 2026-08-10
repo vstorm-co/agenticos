@@ -31,6 +31,7 @@ tools listed.
 | `subagents` | Delegation | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
 | `thinking` | Thinking | reasoning | none, by design | — | — |
 | `clock` | Date and time | utility | none, by design | — | — |
+| `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 
 Two of those have no tools on purpose. `thinking` changes how the model runs
 rather than what it can reach, and `clock` puts the date in the instructions —
@@ -42,6 +43,10 @@ the argument; see [Add a capability](../howto/add-capability.md).
 offered.** Delegation is the one place the two differ: `create_agent` and `delegate`
 appear only under `allow_dynamic`, and `answer_subagent` appears to nobody at all —
 both explained under [Delegation](#delegation) below.
+
+**One of them is not in the Toolbox at all.** `channel_tools` is chosen per bound
+bot under *Where this agent is available*, and publishing refuses a spec that
+tries to carry it — see [Chat channel lookup](#chat-channel-lookup).
 
 ## Knowledge search
 
@@ -515,6 +520,45 @@ about "this quarter" from its training cutoff.
 | Config | Default | |
 |---|---|---|
 | `timezone` | `UTC` | any IANA name, e.g. `Europe/Warsaw` |
+
+## Chat channel lookup
+
+`get_channel_info` — *Describe the channel this conversation is happening in.*
+`list_channel_members` — *List the people in this channel.*
+`search_channels` — *Find other channels by name or purpose, without reading them.*
+`read_channel_history` — *Read the most recent messages in this channel, newest last.*
+
+The one capability an agent's spec may not bind. It is granted **per binding**,
+in the Builder under *Where this agent is available*, because an organization can
+bind one agent to two Mattermost servers and three Slack workspaces — and "may it
+read what was said in this channel" has a different answer on the internal one and
+the customer one. A field on the spec would have one answer for all five, so
+publish validation refuses `channel_tools` in a spec and the run assembles the
+binding from the row that admitted the message, exactly as it appends that row's
+prompt to the instructions.
+
+It is still an ordinary registry capability, which is the point of doing it that
+way rather than injecting a toolset: its tools can be gated by `tool_approval` and
+renamed by `tool_overrides`, both of which read the spec.
+
+| Config | Default | Range |
+|---|---|---|
+| `tools` | `[]` | any of the four ids |
+| `default_limit` | 20 | 1–200 |
+
+Nothing is granted by default, and what a platform cannot answer is not offered:
+Telegram gives a bot no directory of chats to search and no way to read messages
+it was not sent. `docs/channels.md` has the per-platform table and the reasoning.
+
+Three properties hold on every platform:
+
+- **The bot's membership is the whole permission boundary.** Every call uses the
+  bot's own token, so the agent sees exactly what the bot sees.
+- **The model never names a channel.** The tools are bound server-side to the one
+  the message arrived in — in a thread, to the channel that holds it.
+- **Outside a channel it contributes nothing.** A run from the dashboard, the API
+  or a schedule has no directory, so the capability is not attached at all — the
+  same reason `knowledge` with no collections is not.
 
 ## What a binding may change
 

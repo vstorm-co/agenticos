@@ -58,7 +58,39 @@ That is the whole integration. The script has no dependencies, no build step and
 no framework — it runs on a page that already loads React, jQuery or nothing at
 all.
 
-### 3. (Optional) tell it who the visitor is
+### 3. (Optional) tell it about the visitor
+
+A widget can **declare variables** - a name, whether it is required, and a line
+saying what it is for - and the page supplies them:
+
+```html
+<script>window.AgenticOSContext = { plan: "pro", locale: "pl" };</script>
+<script src="https://your-api.example.com/api/v1/embed/PUBLIC_KEY/widget.js" async></script>
+```
+
+The snippet the Builder hands you already carries that line, with your own keys
+in it, once you have declared any.
+
+They are appended to the agent's instructions as a marked block of data, under a
+line saying they are information about the visitor rather than instructions, and
+that they cannot be verified. That last part is true of every one of them,
+including on a `jwt` widget: the widget reads `window.AgenticOSContext`, and a
+token authenticates *who the visitor is* rather than *what the page said about
+them*. So nothing here may decide what the agent is allowed to do.
+
+Three rules follow from that:
+
+- **A key nobody declared is dropped.** The page is something a visitor can
+  edit; without a declaration, any key they invented would become a line inside
+  an agent's instructions.
+- **A missing required value omits its line and is logged.** `required` is a
+  promise between an integrator and themselves - enforcing it would cost a
+  visitor their answer over somebody else's deployment mistake.
+- **Sent once per conversation**, ahead of the first question, and read from
+  every frame rather than at connect time: a single-page application learns who
+  somebody is without reconnecting.
+
+### 4. (Optional) tell it who the visitor is
 
 For a widget inside your own logged-in product, set a token **before** the
 script loads. Your backend signs it; we verify it and never see your user
@@ -144,43 +176,90 @@ socket.send(JSON.stringify({ type: "message", text: "hello" }));
 ## Slack
 
 1. Create a Slack app, add a bot user, install it to the workspace.
-2. Register the bot: **Settings → Channels → Add bot**, platform `slack`, paste
+2. Register the bot: **Channels → Add bot**, platform `slack`, paste
    the bot token.
 3. Either point Slack's Events API at
    `https://your-api.example.com/api/v1/slack/BOT_ID/events`, or run Socket Mode
    (add the bot's `xapp-` token in its settings) and expose nothing.
-4. Bind the agent: Builder → the agent → **Available in** → the bot.
+4. Bind the agent: Builder → the agent → **Availability** → the bot.
 
 Works in channels and in DMs. A thread gets its own conversation, so two people
 asking different things in the same channel do not end up in one thread of
-context. `@agent-slug` inside a message routes to *that* agent and runs as the
-person who typed it — never as the bot — which is why an unlinked Slack account
-is refused rather than run with no role.
+context. A message runs as the person who typed it — never as the bot — which is
+why an unlinked Slack account is refused rather than run with no role.
 
 ## Telegram
 
 1. Create a bot with @BotFather, copy the token.
-2. **Settings → Channels → Add bot**, platform `telegram`.
+2. **Channels → Add bot**, platform `telegram`.
 3. Register the webhook from the UI, or run polling in development — no public
    URL needed.
+
+Registering the webhook is what hands Telegram the bot's secret, and **a bot with
+no secret refuses every webhook call** rather than trusting it. So a bot switched
+from polling to webhook mode has to have its webhook registered before it will
+answer anything: the secret is minted when the mode changes, and Telegram only
+learns it when the webhook is registered.
 
 ## Mattermost
 
 Mattermost is self-hosted, so a bot carries **your server's URL** as well as its
-token. Two ways in; pick by whether your Mattermost can reach this deployment.
+token — there is no api.mattermost.com to fall back to. Registering one without
+it is refused rather than accepted and discovered later: a bot that does not know
+its server cannot reply, cannot open its event stream and cannot fetch a file
+somebody attached.
 
-**Event stream (nothing exposed).** Create a bot account
-(*Integrations → Bot Accounts*), copy its token, register it here with the
-server URL — for example `https://mattermost.acme.internal` — and the deployment
-opens an authenticated WebSocket to it. This is the right choice behind a VPN.
+Two ways in; pick by whether your Mattermost can reach this deployment.
 
-**Outgoing webhook.** *System Console → Integrations → Outgoing Webhooks*,
-pointing at `https://your-api.example.com/api/v1/mattermost/BOT_ID/webhook`.
-Copy the token Mattermost generates into the bot's webhook secret here.
+**Event stream (nothing exposed).** The right choice behind a VPN.
+
+1. In Mattermost, *Integrations → Bot Accounts → Add Bot Account*. Copy the
+   token it shows once — that is the **bot token**.
+2. Register it: **Channels → Add bot**, platform `mattermost`, paste
+   the token, and set **Server URL** to your Mattermost, e.g.
+   `https://mattermost.acme.internal` or `http://mattermost:8065` inside compose.
+   Leave the webhook token empty.
+3. Invite the bot to a channel. The deployment opens an authenticated WebSocket
+   to your server and every `posted` event arrives on it.
+
+**Outgoing webhook.** For a Mattermost that can reach this API.
+
+1. Create the bot account and register it exactly as above.
+2. *System Console → Integrations → Outgoing Webhooks → Add*, with the callback
+   URL `https://your-api.example.com/api/v1/mattermost/BOT_ID/webhook` — the bot
+   id is on the row once it is registered, and `channel-webhook-register` prints
+   the whole URL.
+3. Mattermost shows a **token** when the webhook is saved. Paste that into the
+   bot's **Webhook token** field here.
+
+The token is the one thing people get wrong twice, so it is worth being exact:
+**Mattermost generates it, and you paste it into AgenticOS** — the opposite
+direction from Telegram, where this deployment generates the secret and hands it
+over when the webhook is registered. Nothing is generated locally for Mattermost,
+because a locally generated value is one Mattermost will never send.
 
 Mattermost does not sign webhook bodies the way Slack does — the token in the
-payload is the whole check — so **a bot with no webhook secret refuses every
-call** rather than trusting it.
+payload is the whole check — so **a bot with no webhook token refuses every
+call** rather than trusting it. The bot's row says so with a badge.
+
+Either way can be done from the command line, which is the only way on a
+deployment with no browser pointed at it:
+
+```bash
+uv run agenticos cmd channel-add-bot \
+    --platform mattermost --name "Ops" --token <bot-token> \
+    --api-base-url https://mattermost.acme.internal \
+    --webhook-secret <token-from-mattermost>   # omit for the event stream
+
+uv run agenticos cmd channel-test-message --bot-id <uuid> --chat-id <channel-id>
+```
+
+**What a server URL may be.** Scheme and shape are checked — http or https, a
+host, no `user:pass@` — and a private or loopback address is deliberately
+allowed, because a self-hosted Mattermost behind a VPN is the deployment this
+exists for. Instance-metadata addresses are the exception and are refused. The
+boundary that actually holds is the permission to manage channel bots, not this
+check.
 
 ## A bot that cannot start stops, rather than retrying
 
@@ -208,11 +287,87 @@ it is about to wait.
 
 ## What every channel shares
 
+- **One bot answers as one agent.** A bot user is a single identity in the chat:
+  the same avatar, the same name, whichever agent produced the reply. So a bot
+  serves exactly one agent, and binding a second is refused — in the Builder's
+  picker, which does not offer a bot somebody else's agent is already on, and in
+  the database, which is what makes it true.
+
+    An agent goes the other way freely: one agent can answer on a Slack bot, a
+    Telegram bot and two Mattermost servers at once, and each of those bindings
+    carries its own instructions, its own channel lookups and its own workspace
+    scope.
+
+    This replaced routing several agents behind one bot with `@slug`. It worked
+    and it read badly: somebody in a channel had to type a handle to pick
+    between agents they could not see, and a message that named none was
+    answered with a list of handles instead of an answer. A second bot costs an
+    operator two minutes and makes the chat say which agent it is talking to,
+    which no amount of routing can. `@slug` still parses — as an alias for the
+    agent behind this bot, refused when it names any other.
 - **Access policy per bot** — open, whitelist, or "must be linked to a member".
-- **Linking** — a channel user runs `/link` to connect their Slack, Telegram or
-  Mattermost account to their account here. After that the agent runs as them,
-  with their permissions.
-- **Rate limits** per chat.
+- **Linking, and it comes first** — a channel run belongs to a *person*: the
+  budget it spends, what it may read and the audit entry it writes are all
+  theirs. So an unlinked chat account is refused, whatever the bot's access
+  policy says.
+
+    The refusal carries the way out. Message the bot and it answers with a URL;
+    open it, and the dashboard — where you are already signed in — names the chat
+    account and asks you to confirm. Nothing is typed and no code is copied. Ask
+    again any time by sending the bot `link` (or `/link` where the platform
+    delivers a slash; Mattermost does not).
+
+    What is connected, and disconnecting it, is under **Settings → Profile →
+    Chat accounts**. Disconnecting clears the owner and keeps the row, so the
+    conversations that hang off it survive - the person is still messaging the
+    bot from the same account afterwards.
+
+    **Only in a direct message.** The URL is a bearer credential: whoever opens
+    it claims that chat account. In a channel the bot says to message it
+    directly instead, and mints nothing. A link lasts fifteen minutes, is good
+    once, and asking again retires the one before it.
+- **A reply you can watch being written.** The bot posts a message the moment
+  your question arrives and rewrites it as the answer appears — including what
+  it is doing meanwhile ("Searching the web…", "Drawing a chart…"), which is
+  when the silence used to be longest, because a tool call produces no text
+  while it runs. Edited about once a second: per token would be hundreds of
+  writes a second against a server that is often somebody's own. A platform that
+  cannot edit a sent message simply gets the finished answer, as before.
+- **Every binding carries its own extra instructions**, added to the agent's on
+  that surface alone. A new one opens holding what that client actually renders:
+  Slack draws no Markdown and writes a link as `<url|text>`, Mattermost renders
+  headings and tables, Telegram rejects a message whose `*` is unclosed — plus
+  how to give a link there, led with an emoji when it is an action or a
+  destination. It is the binding's text from then on: change it, add to it, or
+  clear it. It shapes how an answer is delivered and can never replace what the
+  agent is for — that belongs to the published version.
+- **A bot answers as soon as it is registered.** A polling bot - Telegram
+  long-polling, Slack Socket Mode, a Mattermost event stream - is reached over a
+  connection the API process holds, and that connection is opened when the row
+  is written rather than at the next restart. Pausing, deleting, changing the
+  token or the server address, and switching between polling and webhooks all
+  take effect immediately, for the same reason: the stream is reopened to match
+  whatever the row now says. It is opened *after* the transaction commits, so a
+  registration that fails leaves no connection behind.
+- **A binding's instructions may name what only the platform knows.**
+  `{channel_name}`, `{channel_purpose}`, `{channel_topic}`, `{member_count}`,
+  `{member_list}` - filled in when a run starts, from the same calls the channel
+  lookups use, so Telegram offers all five even though it offers two of the four
+  tools. The Builder lists the ones this platform can answer under the box and
+  inserts one at the cursor.
+
+    Resolved per run and never cached: a channel's membership changes, and a
+    stale list in a prompt is worse than none because the agent states it as
+    fact. Only what the prose asks for is fetched, so a binding that names no
+    placeholder costs nothing. A placeholder the platform could not answer
+    becomes `(unavailable)` rather than costing somebody their reply.
+
+    A prompt that filled any of them gains a sentence saying the substituted
+    values are information rather than orders, and every value has its line
+    breaks and braces flattened. A channel's `purpose` is editable by whoever
+    can edit the channel, and it is being pasted into an agent's instructions.
+- **Rate limits** per chat, on the bot - who may talk to it and how often is the
+  operator's, unlike everything above, which is the agent author's.
 - **Spending limits** per binding, on top of the agent's own and the
   organization's.
 - **Charts render as images** where the platform supports them, and fall back to
@@ -530,7 +685,11 @@ conversation reads it from the workspace listing, which carries the ceiling a st
 workspace fills up against. Without that, "workspace 0% full" appeared only after
 somebody sent a message — the one moment nobody needs it.
 
-Per bot, in the channel bots panel:
+Chosen **per binding**, in the Builder under *Where this agent is available* -
+beside the extra instructions and the channel lookups, because whether a reply
+carries a cost footer is part of what this agent says on this surface. It sat on
+the bot until a bot served one agent, where it was an operator's setting in a
+table of servers and tokens with nothing else about the agent near it.
 
 | Mode | |
 |---|---|
@@ -595,6 +754,56 @@ keeps files at all.
 web chat and continues in Slack is one `ChannelIdentity` linked to one account, so
 they find the same files. `conversation` and `channel` deliberately do not — those
 name a place, and a place does not follow somebody to another platform.
+
+### What the agent may look up about the channel
+
+A bot answering in `~support` knows the words somebody typed and nothing else.
+It does not know the channel is called `~support`, who is in it, what it was set
+up for, or what was said in it ten minutes ago — so *"who should I ask about
+billing?"* and *"summarise what we decided above"* are questions it can only
+answer by guessing.
+
+Four tools change that, and each is granted **per binding**, under
+*Where this agent is available*:
+
+| Tool | Answers | Slack | Telegram | Mattermost |
+|---|---|:-:|:-:|:-:|
+| `get_channel_info` | Name, purpose, topic, size | ✅ | ✅ | ✅ |
+| `list_channel_members` | Who is here | ✅ | admins only | ✅ |
+| `search_channels` | Which other channels exist | ✅ | — | ✅ |
+| `read_channel_history` | What was said recently | ✅ | — | ✅ |
+
+Per binding rather than per agent, because an organization can bind one agent to
+two Mattermost servers and three Slack workspaces — and *"may it read what was
+said in this channel"* has a different answer on the internal one and the
+customer one. A switch in the agent's Toolbox would have one answer for all
+five, which is why there is no such switch: publishing refuses a spec that
+carries `channel_tools`, and the run assembles the binding from the row that
+admitted the message, the same way it appends that binding's prompt.
+
+Nothing is granted by default. What a platform cannot answer is not offered:
+Telegram gives a bot no directory of chats to search and no way to read messages
+it was not sent, and `getChatAdministrators` is the whole of what it may list —
+so a Telegram member list is a list of administrators and says so.
+
+Three things worth knowing before granting them:
+
+- **The bot's membership is the whole permission boundary.** Every call goes
+  through the bot's own token, so the agent sees exactly what the bot sees. There
+  is no allow-list of ours to get out of step with the platform's own.
+- **The model never names a channel.** The tools are bound server-side to the
+  channel the message arrived in — in a thread, to the channel that holds it.
+  An argument for it would turn *"who is in this channel"* into *"read any
+  channel this bot is in"*, asked from a conversation somewhere else.
+- **`read_channel_history` is the one worth gating.** It is a read, so it does
+  not ask by default, but it puts other people's messages into a run transcript
+  somebody reads weeks later. A `tool_approval` override on the binding is how
+  you make it ask.
+
+This is deliberately *not* the same thing as putting the channel's member list
+and purpose into every system prompt. That is a different feature with a
+different failure mode — a `purpose` written by whoever can edit the channel,
+pasted into the instructions, is a prompt injection with a public edit button.
 
 ## Choosing
 

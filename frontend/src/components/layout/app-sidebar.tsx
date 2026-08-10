@@ -25,6 +25,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
+  MessagesSquare,
   Activity,
   Boxes,
   FolderOpen,
@@ -109,6 +110,17 @@ export const NAV_GROUPS: NavGroup[] = [
         labelKey: "mcpServers",
         href: ROUTES.MCP_SERVERS,
         icon: Plug,
+        permission: Perm.agentsView,
+      },
+      {
+        // A chat platform an organization is reachable on. Beside the MCP
+        // servers because it is the same kind of thing - a connection the
+        // organization owns, holding a credential in the vault - and not on
+        // an agent's page, where registering one made it look like a property
+        // of that agent rather than something every agent can be bound to.
+        labelKey: "channels",
+        href: ROUTES.CHANNELS,
+        icon: MessagesSquare,
         permission: Perm.agentsView,
       },
       {

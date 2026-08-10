@@ -11,6 +11,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GET as health } from "./health/route";
 import { POST as acceptInvitation, DELETE as declineInvitation } from "./invitations/[token]/route";
+import {
+  GET as readChannelLink,
+  POST as confirmChannelLink,
+  DELETE as unlinkChannelAccount,
+} from "./me/channel-link/[token]/route";
+import { GET as listChannelAccounts } from "./me/channel-link/route";
 import { GET as listConnections, POST as createConnection } from "./me/mcp-connections/route";
 import {
   PATCH as patchConnection,
@@ -67,6 +73,34 @@ const org = { params: Promise.resolve({ id: "org-1" }) };
  * says "nothing here" about data that plainly exists.
  */
 const COOKIE_GATED: [string, (signedIn: boolean) => Promise<Response>][] = [
+  [
+    "the chat account a link URL is about",
+    (s) =>
+      readChannelLink(request("http://localhost:3000/api/me/channel-link/tok", { signedIn: s }), {
+        params: Promise.resolve({ token: "tok" }),
+      }),
+  ],
+  [
+    "the chat accounts somebody has connected",
+    (s) =>
+      listChannelAccounts(request("http://localhost:3000/api/me/channel-link", { signedIn: s })),
+  ],
+  [
+    "disconnecting a chat account",
+    (s) =>
+      unlinkChannelAccount(
+        request("http://localhost:3000/api/me/channel-link/i-1", { signedIn: s }),
+        { params: Promise.resolve({ token: "i-1" }) },
+      ),
+  ],
+  [
+    "confirming a chat account is yours",
+    (s) =>
+      confirmChannelLink(
+        request("http://localhost:3000/api/me/channel-link/tok", { signedIn: s }),
+        { params: Promise.resolve({ token: "tok" }) },
+      ),
+  ],
   [
     "the organization list",
     (s) => listOrgs(request("http://localhost:3000/api/orgs", { signedIn: s })),

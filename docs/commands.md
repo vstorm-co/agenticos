@@ -282,16 +282,30 @@ See [Channels](channels.md) for what each platform supports.
 uv run agenticos cmd channel-add-bot \
     --platform telegram --name "Support" --token <token> --mode jwt_linked
 
+# Mattermost is self-hosted, so its bot carries its own server's address.
+# --webhook-secret is the token Mattermost shows when the outgoing webhook is
+# created; omit it to use the event stream and expose nothing.
+uv run agenticos cmd channel-add-bot \
+    --platform mattermost --name "Support" --token <token> \
+    --api-base-url https://mattermost.acme.internal \
+    --webhook-secret <token-from-mattermost>
+
 uv run agenticos cmd channel-list-bots
 uv run agenticos cmd channel-list-bots --platform telegram
 
-# Send a test message through it
+# Send a test message through it - the cheapest proof the token and the
+# address are right. --chat-id is a Telegram chat id or a Mattermost channel id.
 uv run agenticos cmd channel-test-message --bot-id <uuid> --chat-id <chat> --text "ping"
 
-# Webhook delivery, or delete the webhook to fall back to polling
+# Webhook delivery, or delete the webhook to fall back to polling. Telegram is
+# the only platform with an API for this; for Slack and Mattermost the command
+# prints the URL to paste into their own settings.
 uv run agenticos cmd channel-webhook-register --bot-id <uuid>
 uv run agenticos cmd channel-webhook-delete --bot-id <uuid>
 ```
+
+Registering a bot from the CLI is the only way on a deployment with no browser
+pointed at it, which is what a Mattermost server behind a VPN usually is.
 
 Access modes are `open`, `whitelist`, `jwt_linked` and `group_only`. A mention runs
 as the *sender*, never as the bot, and an unlinked identity is refused rather than

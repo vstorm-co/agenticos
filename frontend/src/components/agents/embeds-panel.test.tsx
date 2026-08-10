@@ -42,6 +42,7 @@ function embed(overrides: Partial<Embed> = {}): Embed {
     allowed_origins: ["https://acme.com"],
     theme: DEFAULT_EMBED_THEME,
     context: null,
+    context_variables: [],
     is_active: true,
     rate_limit_per_minute: 10,
     snippet: '<script src="https://app.test/embed.js" data-key="pk_live_abc"></script>',
@@ -400,5 +401,89 @@ describe("publishing a new widget", () => {
     render(<EmbedsPanel agentId="a-1" canManage />);
 
     expect(screen.queryByRole("button", { name: "Publish as widget" })).toBeInTheDocument();
+  });
+});
+
+describe("what the page must supply", () => {
+  it("declares a variable with the widget", async () => {
+    // The placement sentence is the same for every visitor; this is the part
+    // only the integrator knows.
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await openTheForm();
+
+    await userEvent.type(screen.getByLabelText("Allowed sites"), "https://acme.test");
+    await userEvent.click(screen.getByRole("button", { name: "Add a variable" }));
+    await userEvent.type(screen.getByLabelText("Variable 1 name"), "plan");
+    await userEvent.click(screen.getByRole("button", { name: "Publish widget" }));
+
+    expect(state.create.mutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        context_variables: [{ name: "plan", required: false, description: "" }],
+      }),
+      expect.anything(),
+    );
+  });
+
+  it("corrects a name to the shape the backend accepts as it is typed", async () => {
+    // The rule is invisible until it refuses, so it is applied rather than
+    // reported.
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await openTheForm();
+
+    await userEvent.click(screen.getByRole("button", { name: "Add a variable" }));
+    await userEvent.type(screen.getByLabelText("Variable 1 name"), "Plan Name");
+
+    expect(screen.getByLabelText("Variable 1 name")).toHaveValue("plan_name");
+  });
+
+  it("does not declare a row somebody started and left blank", async () => {
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await openTheForm();
+
+    await userEvent.type(screen.getByLabelText("Allowed sites"), "https://acme.test");
+    await userEvent.click(screen.getByRole("button", { name: "Add a variable" }));
+    await userEvent.click(screen.getByRole("button", { name: "Publish widget" }));
+
+    expect(state.create.mutate).toHaveBeenCalledWith(
+      expect.objectContaining({ context_variables: [] }),
+      expect.anything(),
+    );
+  });
+
+  it("carries the description and the required flag through to the declaration", async () => {
+    // `required` is documentation for whoever writes the integration, and the
+    // description is what they read while doing it - both are the row's point.
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await openTheForm();
+
+    await userEvent.type(screen.getByLabelText("Allowed sites"), "https://acme.test");
+    await userEvent.click(screen.getByRole("button", { name: "Add a variable" }));
+    await userEvent.type(screen.getByLabelText("Variable 1 name"), "plan");
+    await userEvent.type(
+      screen.getByLabelText("Variable 1 description"),
+      "Which plan this visitor is on",
+    );
+    await userEvent.click(screen.getByRole("checkbox", { name: "Required" }));
+    await userEvent.click(screen.getByRole("button", { name: "Publish widget" }));
+
+    expect(state.create.mutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        context_variables: [
+          { name: "plan", required: true, description: "Which plan this visitor is on" },
+        ],
+      }),
+      expect.anything(),
+    );
+  });
+
+  it("takes a declared variable away again", async () => {
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await openTheForm();
+
+    await userEvent.click(screen.getByRole("button", { name: "Add a variable" }));
+    await userEvent.type(screen.getByLabelText("Variable 1 name"), "plan");
+    await userEvent.click(screen.getByRole("button", { name: "Remove plan" }));
+
+    expect(screen.queryByLabelText("Variable 1 name")).toBeNull();
   });
 });

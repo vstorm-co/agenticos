@@ -31,6 +31,7 @@ from app.agents.capabilities import (
     load_builtins,
     register,
 )
+from app.agents.capabilities.channel_tools import CHANNEL_DIRECTORY_RESOURCE
 from app.agents.capabilities.charts import Charts
 from app.agents.capabilities.clock import Clock
 from app.agents.capabilities.code_execution import CodeExecution, CodeExecutionConfig
@@ -141,6 +142,10 @@ class TestToolDeclarations:
     # assertions here are about names, not about search results.
     RESOURCES = {
         "kb_collection_names": ["kb_1"],
+        # Any object at all: `channel_tools` builds when a run is in a channel
+        # and contributes nothing when it is not, and this test is about the
+        # names it offers rather than what a platform answers.
+        CHANNEL_DIRECTORY_RESOURCE: SimpleNamespace(),
         "skills": [
             SimpleNamespace(
                 name="refunds",
@@ -213,11 +218,30 @@ class TestToolDeclarations:
             definition_id, frozenset()
         )
 
+    CONFIGS: dict[str, dict[str, Any]] = {
+        # The only capability whose *tools* are configuration rather than a fixed
+        # list: a binding names which lookups it allows, so the widest
+        # configuration is the one that allows all of them. Same reason the
+        # subagents resource above is at its widest - an undeclared tool can only
+        # appear where the most tools do.
+        "channel_tools": {"tools": sorted(get("channel_tools").tool_ids)},
+    }
+    """Configurations a capability needs before it offers anything.
+
+    Absent for almost everything: a capability builds from an empty blob and
+    applies its own defaults, which is the configuration most agents run. An
+    entry here says the defaults leave tools switched off, and names the widest
+    setting instead - never a narrower one, which would hide a tool from the
+    comparison below rather than check it.
+    """
+
     def _built(self, definition_id: str) -> Any:
-        return get(definition_id).builder(
+        definition = get(definition_id)
+        blob = self.CONFIGS.get(definition_id, {})
+        return definition.builder(
             CapabilityBuildContext(
-                binding=CapabilityBinding(capability_id=definition_id),
-                config=None,
+                binding=CapabilityBinding(capability_id=definition_id, config=blob),
+                config=definition.validate_config(blob),
                 resources=self.RESOURCES,
             )
         )
@@ -314,7 +338,13 @@ class TestToolDeclarations:
                 for tool in definition.tools
             }
             built = build(
-                [CapabilityBinding(capability_id=definition.id, tool_overrides=overrides)],
+                [
+                    CapabilityBinding(
+                        capability_id=definition.id,
+                        config=self.CONFIGS.get(definition.id, {}),
+                        tool_overrides=overrides,
+                    )
+                ],
                 resources=self.RESOURCES,
             )
             assert built, definition.id

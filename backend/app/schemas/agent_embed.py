@@ -27,6 +27,39 @@ class EmbedTheme(BaseSchema):
     launcher_label: str = Field(default="Chat", max_length=24)
 
 
+class EmbedVariable(BaseSchema):
+    """One thing the page must tell this widget about the visitor.
+
+    A name and a promise, and nothing about *where* the value comes from - the
+    widget reads `window.AgenticOSContext`, and a declaration that also named a
+    source would be a second place for the two to disagree.
+    """
+
+    name: str = Field(
+        min_length=1,
+        max_length=64,
+        pattern=r"^[a-z][a-z0-9_]*$",
+        description=(
+            "The key the page supplies, e.g. `plan`. Lower case, digits and "
+            "underscores - it is written into a prompt and read back by a "
+            "person, not evaluated."
+        ),
+    )
+    required: bool = Field(
+        default=False,
+        description=(
+            "Whether the agent is expected to have it. A missing required value "
+            "omits its line and is logged rather than refusing the turn: a "
+            "visitor must not lose an answer because an integrator forgot a key."
+        ),
+    )
+    description: str = Field(
+        default="",
+        max_length=200,
+        description="What it is for, shown to whoever writes the integration",
+    )
+
+
 class EmbedCreate(BaseSchema):
     """Publish one agent as a widget."""
 
@@ -44,6 +77,15 @@ class EmbedCreate(BaseSchema):
     )
     theme: EmbedTheme = Field(default_factory=EmbedTheme)
     context: str | None = Field(default=None, max_length=2000)
+    context_variables: list[EmbedVariable] = Field(
+        default_factory=list,
+        max_length=20,
+        description=(
+            "What the page must tell this widget about the visitor in front of "
+            "it. Appended to the agent's instructions as a marked block of data "
+            "- values arrive from a browser, so they are never instructions."
+        ),
+    )
     rate_limit_per_minute: int = Field(default=10, ge=1, le=120)
 
 
@@ -61,6 +103,7 @@ class EmbedUpdate(BaseSchema):
     allowed_origins: list[HttpUrl] | None = Field(default=None, max_length=20)
     theme: EmbedTheme | None = None
     context: str | None = Field(default=None, max_length=2000)
+    context_variables: list[EmbedVariable] | None = Field(default=None, max_length=20)
     is_active: bool | None = None
     rate_limit_per_minute: int | None = Field(default=None, ge=1, le=120)
 
@@ -81,6 +124,7 @@ class EmbedRead(BaseSchema, TimestampSchema):
     allowed_origins: list[str]
     theme: EmbedTheme
     context: str | None
+    context_variables: list[EmbedVariable] = []
     is_active: bool
     rate_limit_per_minute: int
     # Ready to paste. Assembled server-side so the one place that knows the
