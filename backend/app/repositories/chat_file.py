@@ -3,19 +3,11 @@
 from collections.abc import Iterable
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.chat_file import ChatFile
-
-
-async def sum_size_for_user(db: AsyncSession, user_id: UUID) -> int:
-    """Return total bytes of chat files uploaded by a user."""
-    result = await db.execute(
-        select(func.coalesce(func.sum(ChatFile.size), 0)).where(ChatFile.user_id == user_id)
-    )
-    return int(result.scalar_one())
 
 
 async def get_by_id(db: AsyncSession, file_id: UUID) -> ChatFile | None:

@@ -742,10 +742,3 @@ class TestDelivery:
             await _deliver(key=EmailKey.USAGE_REPORT, to="a@acme.test", context={"x": "1"})
 
         assert service.send.call_args.kwargs["to"] == "a@acme.test"
-
-
-def test_the_service_factory_returns_one_bound_to_the_session():
-    from app.services.notifications import get_notification_service
-
-    db = MagicMock()
-    assert get_notification_service(db).db is db

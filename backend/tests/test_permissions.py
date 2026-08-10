@@ -140,12 +140,7 @@ class TestAuthContext:
 
     def test_app_admin_holds_everything_regardless_of_role(self):
         ctx = _ctx(OrgRoleName.VIEWER, is_app_admin=True)
-        assert ctx.has_all(*Perm)
-
-    def test_has_all_requires_every_permission(self):
-        ctx = _ctx(OrgRoleName.OPERATOR)
-        assert ctx.has_all(Perm.AGENTS_VIEW, Perm.AGENTS_RUN)
-        assert not ctx.has_all(Perm.AGENTS_VIEW, Perm.AGENTS_EDIT)
+        assert all(ctx.has(perm) for perm in Perm)
 
 
 class TestRequireDependency:

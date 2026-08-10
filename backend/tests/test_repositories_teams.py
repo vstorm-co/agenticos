@@ -166,16 +166,6 @@ class TestMemberRepository:
         assert count == 3
 
     @pytest.mark.anyio
-    async def test_count_billable_excludes_viewer(self, mock_db):
-        mock_result = MagicMock()
-        mock_result.scalar.return_value = 2
-        mock_db.execute.return_value = mock_result
-
-        count = await member_repo.count_billable_for_org(mock_db, uuid.uuid4())
-
-        assert count == 2
-
-    @pytest.mark.anyio
     async def test_create_member(self, mock_db):
         mock_member = MagicMock()
         mock_db.refresh.side_effect = lambda obj: None

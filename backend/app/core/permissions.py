@@ -368,6 +368,3 @@ class AuthContext:
         :func:`app.services.access.resolve_access`.
         """
         return self.scope_for(perm) is not Scope.NONE
-
-    def has_all(self, *perms: Perm) -> bool:
-        return all(self.has(perm) for perm in perms)

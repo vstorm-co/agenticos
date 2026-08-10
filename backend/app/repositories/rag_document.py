@@ -149,16 +149,6 @@ async def delete(db: AsyncSession, doc_id: UUID) -> bool:
     return True
 
 
-async def sum_filesize_for_org(db: AsyncSession, org_id: UUID) -> int:
-    """Return total bytes of RAG documents stored for an organization."""
-    result = await db.execute(
-        select(func.coalesce(func.sum(RAGDocument.filesize), 0)).where(
-            RAGDocument.organization_id == org_id
-        )
-    )
-    return int(result.scalar_one())
-
-
 async def counts_by_collection(
     db: AsyncSession, *, collections: list[str]
 ) -> dict[str, CollectionCounts]:
