@@ -17,6 +17,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.93] - 2026-08-10
+
+A run's transcript is readable by authorization, not only by whoever owns the
+run.
+
+### Added
+
+- **`GET /api/v1/runs/{run_id}/transcript`** — returns a run's messages
+  (paginated) to any colleague in the same organization holding `runs:view`; a
+  run is read by authorization, not by ownership. A caller from another tenant is
+  refused exactly as a run that does not exist is, so existence never leaks. The
+  response's `conversation_id` is `null` when the run has no transcript, distinct
+  from an empty `items`. `AgentRunnerService.get_run_transcript` resolves the run
+  org-scoped (404 before the permission is read), then checks `runs:view` (403).
+  Closes #490. (#525)
+
 ## [0.0.92] - 2026-08-10
 
 The whole-suite test targets run across worker processes, roughly halving them.
