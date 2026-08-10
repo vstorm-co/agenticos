@@ -33,7 +33,6 @@ from app.services.rag.vectorstore import BaseVectorStore
 from app.repositories.channel_bot import get_active_polling_bots
 from app.services.channel_bot import unseal_bot_token, unseal_slack_app_token
 from app.services.channels import register_adapter
-from app.services.channels import register_adapter as _slack_register
 from app.services.channels.supervisor import open_inbound_stream
 from app.core.rate_limit import limiter
 
@@ -134,7 +133,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
         logger.error("Mattermost: failed to start the event stream: %s", _mm_exc)
 
     _slack_adapter = SlackAdapter()
-    _slack_register(_slack_adapter)
+    register_adapter(_slack_adapter)
     try:
         await _start_channel_polling("slack")
     except (OSError, ValueError, RuntimeError) as _slack_exc:
