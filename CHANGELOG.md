@@ -17,6 +17,23 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.90] - 2026-08-10
+
+Importing the application stops dragging in two SDKs it never uses on the
+request path, so every process start and scoped test run is a couple of seconds
+shorter.
+
+### Changed
+
+- **`import app.main` no longer pulls in `aiogram` and `prefect`.** The Telegram,
+  Slack and Mattermost adapters are imported inside `lifespan` (which the test
+  client never runs) and the sync flows inside their dispatcher, so a cold app
+  import drops from ~5.5s to ~2.3s — a cost every scoped `pytest` run and every
+  process start paid for libraries neither the API nor the tests touch. A
+  subprocess guard test keeps them out of `sys.modules`, and a dead
+  `_slack_register` alias went with it. Runtime behaviour is unchanged; startup
+  imports them as before. Refs #520. (#544)
+
 ## [0.0.89] - 2026-08-10
 
 Run history gains the duration controls the dashboard's p95 needs rows behind,
