@@ -41,19 +41,11 @@ export function VersionStrip({ agentId }: { agentId: string }) {
   const { agent } = useAgent(agentId);
   const currentVersionId = agent?.current_version_id ?? null;
 
-  if (isLoading) {
-    return <Skeleton className="h-28 w-full" />;
-  }
-  if (error) {
-    return (
-      <ErrorState
-        title={t("versionStripCouldNot")}
-        description={t("theseRunsHappenedThe")}
-        cta={{ label: t("tryAgain"), onClick: () => void refetch() }}
-      />
-    );
-  }
-  if (byVersion.length === 0) {
+  // The empty window is the one state with nothing to frame, so it collapses to
+  // nothing. Loading and error keep the card's shell - title and caption over a
+  // skeleton or the failure - so the block holds its height as it resolves
+  // rather than jumping shape under the table.
+  if (!isLoading && !error && byVersion.length === 0) {
     return null;
   }
 
@@ -63,14 +55,28 @@ export function VersionStrip({ agentId }: { agentId: string }) {
         <CardTitle>{t("versionsTitle")}</CardTitle>
         <CardDescription>{t("versionsCaption")}</CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {byVersion.map((row) => (
-          <VersionCard
-            key={row.agent_version_id ?? "deleted"}
-            row={row}
-            isCurrent={row.agent_version_id !== null && row.agent_version_id === currentVersionId}
+      <CardContent>
+        {isLoading ? (
+          <Skeleton className="h-28 w-full" />
+        ) : error ? (
+          <ErrorState
+            title={t("versionStripCouldNot")}
+            description={t("theseRunsHappenedThe")}
+            cta={{ label: t("tryAgain"), onClick: () => void refetch() }}
           />
-        ))}
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {byVersion.map((row) => (
+              <VersionCard
+                key={row.agent_version_id ?? "deleted"}
+                row={row}
+                isCurrent={
+                  row.agent_version_id !== null && row.agent_version_id === currentVersionId
+                }
+              />
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

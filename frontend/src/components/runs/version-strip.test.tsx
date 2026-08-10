@@ -49,16 +49,18 @@ beforeEach(() => {
 });
 
 describe("VersionStrip", () => {
-  it("shows a skeleton while the summary is loading", () => {
+  it("keeps the card's title and caption over a skeleton while loading", () => {
     mockVersions({ isLoading: true });
     const { container } = render(<VersionStrip agentId="a1" />);
     expect(container.querySelector(".animate-pulse")).not.toBeNull();
-    expect(screen.queryByText("By version")).toBeNull();
+    // The shell stays put as the summary resolves, so the block does not jump shape.
+    expect(screen.getByText("By version")).toBeInTheDocument();
   });
 
-  it("says the summary could not be read, and retries", async () => {
+  it("says the summary could not be read inside the card, and retries", async () => {
     mockVersions({ error: new Error("boom") });
     render(<VersionStrip agentId="a1" />);
+    expect(screen.getByText("By version")).toBeInTheDocument();
     expect(screen.getByText("The per-version summary could not be read")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(refetch).toHaveBeenCalledOnce();
