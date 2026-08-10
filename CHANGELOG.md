@@ -17,6 +17,48 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.97] - 2026-08-10
+
+Regression coverage that every entry point records a run's transcript.
+
+### Changed
+
+- **Transcript recording is covered for embed, channel and default-agent runs.**
+  `backend/tests/test_surface_transcripts.py` asserts at the repository boundary
+  that a widget run, a channel mention and the default agent each record their
+  turns — role, content, run id, the model and version that actually ran, and
+  tool-call args and results — and that a broken widget run still records what
+  the visitor asked. Closes #205's requirement that the fix ship with a
+  regression test. (#530)
+
+## [0.0.96] - 2026-08-10
+
+The sync-source wizard is decomposed into one component per step — a structural
+refactor, no behaviour change.
+
+### Changed
+
+- **Sync-source wizard split into per-step components.** The 761-line
+  `sync-source-wizard.tsx` becomes a ~320-line shell (cross-step flow, the shared
+  form, the header and step indicator, and the `connectorsFailed` /
+  `orgIntegrationsFailed` flags it hands down) plus one component per step —
+  `sync-source-{connector,configure,schedule,clone}-step.tsx` — following the
+  pattern #221 set in `components/rag/`. A folded-in fix routes the empty-config
+  note through `next-intl`. Closes #461, #540. (#529)
+
+## [0.0.95] - 2026-08-10
+
+The Activity tab's spend view breaks down who spent what.
+
+### Added
+
+- **Per-person spend on the Activity tab.** A `SpendByPerson` card beneath "By
+  agent" on the Spend tab reads `/stats/usage?group_by=user` over the tab's date
+  window, gated on `runs:view` (renders nothing and issues no query without it),
+  with delegated runs excluded. A "+N others" line appears when `active_users`
+  exceeds the rows shown, so a top-N list never reads as the whole organization.
+  Closes #214. (#578, superseding the stacked #527)
+
 ## [0.0.94] - 2026-08-10
 
 The Activity tab gains a per-version summary that cannot disagree with the

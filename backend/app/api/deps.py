@@ -419,6 +419,22 @@ def get_approval_service(db: DBSession) -> ApprovalService:
 AgentRunnerSvc = Annotated[AgentRunnerService, Depends(get_agent_runner_service)]
 ApprovalSvc = Annotated[ApprovalService, Depends(get_approval_service)]
 
+from app.services.run_export import RunExportService
+
+
+def get_run_export_service(db: DBSession) -> RunExportService:
+    """Create RunExportService instance with database session.
+
+    The function-scoped session on purpose, not `StreamingDBSession`: the row cap
+    bounds the body so it is built in one pass, and this write - the audit entry -
+    has to commit before the response leaves, which the streaming session resolves
+    too late to promise.
+    """
+    return RunExportService(db)
+
+
+RunExportSvc = Annotated[RunExportService, Depends(get_run_export_service)]
+
 from app.services.stats import StatsService
 
 
