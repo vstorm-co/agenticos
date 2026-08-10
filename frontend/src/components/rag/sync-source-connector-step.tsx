@@ -15,7 +15,7 @@ export function ConnectorStep({
   setForm,
 }: {
   connectors: ConnectorInfo[];
-  connectorsFailed?: boolean;
+  connectorsFailed: boolean;
   form: SyncSourceCreate;
   setForm: React.Dispatch<React.SetStateAction<SyncSourceCreate>>;
 }) {
