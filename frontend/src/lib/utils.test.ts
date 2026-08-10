@@ -6,6 +6,7 @@ import {
   formatCurrency,
   formatDate,
   formatDateTime,
+  formatRunDuration,
   getErrorMessage,
   getPasswordStrength,
   isAppAdmin,
@@ -217,6 +218,28 @@ describe("formatDateTime", () => {
   it("reads a timestamp down to the minute", () => {
     expect(formatDateTime("2026-07-31T12:34:00Z")).toMatch(/Jul 31, 2026/);
     expect(formatDateTime(new Date("2026-07-31T12:34:00Z"))).toMatch(/Jul 31, 2026/);
+  });
+});
+
+describe("formatRunDuration", () => {
+  it("reports sub-second runs in milliseconds and longer ones in seconds", () => {
+    expect(formatRunDuration("2026-08-04T09:00:00.000Z", "2026-08-04T09:00:00.850Z")).toBe(
+      "850 ms",
+    );
+    expect(formatRunDuration("2026-08-04T09:00:00Z", "2026-08-04T09:00:01.400Z")).toBe("1.4 s");
+    expect(formatRunDuration("2026-08-04T09:00:00Z", "2026-08-04T09:00:30Z")).toBe("30 s");
+  });
+
+  it("admits it does not know a duration when the run has not finished", () => {
+    // A null end is not a fast run: a still-running or parked run has no duration
+    // yet, and rendering "0 ms" would call the unfinished the fastest.
+    expect(formatRunDuration("2026-08-04T09:00:00Z", null)).toBe("-");
+    expect(formatRunDuration(null, "2026-08-04T09:00:30Z")).toBe("-");
+  });
+
+  it("refuses a negative or unparsable window rather than printing nonsense", () => {
+    expect(formatRunDuration("2026-08-04T09:00:30Z", "2026-08-04T09:00:00Z")).toBe("-");
+    expect(formatRunDuration("2026-08-04T09:00:00Z", "not a date")).toBe("-");
   });
 });
 
