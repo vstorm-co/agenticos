@@ -21,7 +21,9 @@ export default function WorkspacesPage() {
   return (
     <div className="space-y-6">
       <PageHeader title={t("workspaces")} description={t(WORKSPACES_DESCRIPTION)} />
-      <WorkspaceBrowser />
+      <div data-tour="workspaces-browser">
+        <WorkspaceBrowser />
+      </div>
     </div>
   );
 }

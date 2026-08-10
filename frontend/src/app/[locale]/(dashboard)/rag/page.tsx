@@ -210,7 +210,9 @@ export default function RAGPage() {
 
           {/* Below the collections, because it is the thing they are fed from: a
           connector configured once and cloned into each base that needs it. */}
-          <ReusableIntegrations targets={kbs} />
+          <div data-tour="knowledge-integrations">
+            <ReusableIntegrations targets={kbs} />
+          </div>
         </>
       )}
 

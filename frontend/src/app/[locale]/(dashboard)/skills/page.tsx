@@ -358,7 +358,9 @@ export default function SkillsPage() {
 
       {/* Below the organization's own, not above: what somebody already wrote
           is what they came here for. */}
-      <SkillLibraryGallery canInstall={canEdit} />
+      <div data-tour="skills-library">
+        <SkillLibraryGallery canInstall={canEdit} />
+      </div>
 
       <Dialog
         open={selected !== null}

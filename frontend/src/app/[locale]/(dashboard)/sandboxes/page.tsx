@@ -107,33 +107,35 @@ export default function SandboxesPage() {
           is said out loud rather than left to look like "none registered". */}
       {error !== null && <p className="text-destructive text-sm">{error}</p>}
 
-      <ConnectionsCard count={connections.length}>
-        {connections.length === 0 ? (
-          <div className="px-6 py-16 text-center">
-            <div className="bg-muted text-muted-foreground mx-auto flex h-11 w-11 items-center justify-center rounded-xl">
-              <Boxes className="h-5 w-5" />
+      <div data-tour="sandboxes-connections">
+        <ConnectionsCard count={connections.length}>
+          {connections.length === 0 ? (
+            <div className="px-6 py-16 text-center">
+              <div className="bg-muted text-muted-foreground mx-auto flex h-11 w-11 items-center justify-center rounded-xl">
+                <Boxes className="h-5 w-5" />
+              </div>
+              <p className="text-foreground mt-4 text-sm font-medium">
+                {t("noSandboxConnectionsYet")}
+              </p>
+              <p className="text-muted-foreground mx-auto mt-1 max-w-md text-sm">
+                {t("agentsCanStillKeep")}
+              </p>
             </div>
-            <p className="text-foreground mt-4 text-sm font-medium">
-              {t("noSandboxConnectionsYet")}
-            </p>
-            <p className="text-muted-foreground mx-auto mt-1 max-w-md text-sm">
-              {t("agentsCanStillKeep")}
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto px-5 pb-2">
-            <ConnectionsTable
-              connections={connections}
-              onEdit={(connection) => {
-                setEditing(connection);
-                setDialogOpen(true);
-              }}
-              onInspect={setInspecting}
-              onDelete={(connection) => void remove(connection.id)}
-            />
-          </div>
-        )}
-      </ConnectionsCard>
+          ) : (
+            <div className="overflow-x-auto px-5 pb-2">
+              <ConnectionsTable
+                connections={connections}
+                onEdit={(connection) => {
+                  setEditing(connection);
+                  setDialogOpen(true);
+                }}
+                onInspect={setInspecting}
+                onDelete={(connection) => void remove(connection.id)}
+              />
+            </div>
+          )}
+        </ConnectionsCard>
+      </div>
 
       {/* Mounted only while it is open, and keyed on the row it is editing. The
           form reads its initial values once; without this, clicking Edit on a

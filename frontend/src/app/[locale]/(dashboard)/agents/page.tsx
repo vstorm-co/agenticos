@@ -131,7 +131,7 @@ export default function AgentsPage() {
           rather than at opposite ends of the row. As a segmented control the
           four statuses took the width of a heading on the left, which read as a
           section title for the page rather than as a filter on the gallery. */}
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      <div data-tour="agents-filters" className="flex flex-wrap items-center justify-end gap-2">
         <Select value={filter} onValueChange={(value) => setFilter(value as Filter)}>
           <SelectTrigger className="w-full sm:w-40" aria-label={t("filterByStatus")}>
             <SelectValue />

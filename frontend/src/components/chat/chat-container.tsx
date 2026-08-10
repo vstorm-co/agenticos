@@ -17,6 +17,7 @@ import { DelegationPanels } from "./delegation-panel";
 import { PendingMessages } from "./pending-messages";
 import { ToolApprovalDialog } from "./tool-approval-dialog";
 import { QuestionPrompt } from "@/components/ui";
+import { RestartTourButton } from "@/components/onboarding/restart-tour-button";
 import type {
   PendingApproval,
   AskUserQuestion,
@@ -380,7 +381,10 @@ function ChatUI({
           {queuedMessages && queuedMessages.length > 0 && onCancelQueued && (
             <PendingMessages messages={queuedMessages} onCancel={onCancelQueued} />
           )}
-          <div className="bg-card border-border focus-within:border-foreground/30 rounded-2xl border transition-colors">
+          <div
+            data-tour="chat-composer"
+            className="bg-card border-border focus-within:border-foreground/30 rounded-2xl border transition-colors"
+          >
             <div className="px-3 pt-3 sm:px-4 sm:pt-4">
               {isArchived && (
                 <p className="text-muted-foreground pb-2 text-center font-mono text-[11px] tracking-wider uppercase">
@@ -422,11 +426,16 @@ function ChatUI({
                 {/* Who answers, first and largest: it is the most consequential
                     choice in the composer and it was a tab inside a popover. */}
                 <AgentPicker />
-                <ChatControls
-                  onModelProfileChange={onModelProfileChange}
-                  onTemperatureChange={onTemperatureChange}
-                  onThinkingEffortChange={onThinkingEffortChange}
-                />
+                <div data-tour="chat-model-picker">
+                  <ChatControls
+                    onModelProfileChange={onModelProfileChange}
+                    onTemperatureChange={onTemperatureChange}
+                    onThinkingEffortChange={onThinkingEffortChange}
+                  />
+                </div>
+                {/* Chat is the one surface with no PageHeader, so the "?" that
+                    replays a page's tips has nowhere else to live here. */}
+                <RestartTourButton />
               </div>
             </div>
           </div>

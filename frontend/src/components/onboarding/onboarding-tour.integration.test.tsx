@@ -7,8 +7,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { OnboardingTour } from "./onboarding-tour";
 import { RestartTourButton } from "./restart-tour-button";
 import { apiClient } from "@/lib/api-client";
+import { visibleTourSteps } from "@/lib/onboarding/tour";
 import { useAuthStore, useOnboardingStore } from "@/stores";
-import { Perm } from "@/types/permissions";
+import { Perm, type Permission } from "@/types/permissions";
 import type { DriveStep } from "driver.js";
 import type { User } from "@/types";
 
@@ -38,6 +39,12 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const VIEWER = [Perm.agentsView, Perm.skillsView, Perm.collectionsView];
 const OWNER = Object.values(Perm);
+
+// The walkthrough lengths are derived, not hard-coded, so adding a stop moves
+// the progress text with the registry rather than reddening this file.
+const OWNER_LAUNCH = visibleTourSteps(() => true).length;
+const VIEWER_HELD = new Set<Permission>(VIEWER);
+const VIEWER_LAUNCH = visibleTourSteps((permission) => VIEWER_HELD.has(permission)).length;
 
 function user(overrides: Partial<User> = {}): User {
   return {
@@ -83,7 +90,7 @@ describe("OnboardingTour", () => {
     servePermissions(OWNER);
     render(<OnboardingTour />, { wrapper });
     await waitFor(() => expect(shownStep().popover?.title).toBe("Welcome to AgenticOS"));
-    expect(shownStep().popover?.progressText).toBe("Step 1 of 10");
+    expect(shownStep().popover?.progressText).toBe(`Step 1 of ${OWNER_LAUNCH}`);
   });
 
   it("advances to the next highlight when Next is clicked", async () => {
@@ -94,13 +101,15 @@ describe("OnboardingTour", () => {
 
     act(() => shownStep().popover?.onNextClick?.(undefined, {} as DriveStep, {} as never));
     await waitFor(() => expect(shownStep().popover?.title).toBe("Start here"));
-    expect(shownStep().popover?.progressText).toBe("Step 2 of 10");
+    expect(shownStep().popover?.progressText).toBe(`Step 2 of ${OWNER_LAUNCH}`);
   });
 
   it("shows a view-only member their shorter tour", async () => {
     servePermissions(VIEWER);
     render(<OnboardingTour />, { wrapper });
-    await waitFor(() => expect(shownStep().popover?.progressText).toBe("Step 1 of 5"));
+    await waitFor(() =>
+      expect(shownStep().popover?.progressText).toBe(`Step 1 of ${VIEWER_LAUNCH}`),
+    );
   });
 
   it("persists completion when the tour is closed", async () => {

@@ -125,7 +125,7 @@ interface McpServerListProps {
 export function ServersCard({ count, children }: { count: number | null; children: ReactNode }) {
   const t = useTranslations("mcp");
   return (
-    <Card>
+    <Card data-tour="mcp-catalog">
       <CardHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-4">
         <div className="space-y-1">
           <CardTitle className="text-sm">{t("servers")}</CardTitle>

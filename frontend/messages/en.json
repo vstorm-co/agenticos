@@ -2089,27 +2089,71 @@
       },
       "chat-start": {
         "title": "Chat with your agents",
-        "body": "Start a conversation with any agent you're allowed to run. It's the quickest way to try one out and watch how it responds, step by step."
+        "body": "New chat opens a fresh thread, and your past conversations stack up in this rail. It's the quickest way to try an agent out and watch how it works, step by step."
+      },
+      "chat-agent-picker": {
+        "title": "Choose who answers",
+        "body": "Switch between your agents right here. Each brings its own instructions, tools and knowledge, so the same question can get a very different answer."
+      },
+      "chat-composer": {
+        "title": "Ask anything",
+        "body": "Type a message, drop in a file, or start with a slash-command. Enter sends; Shift+Enter adds a line."
+      },
+      "chat-model-picker": {
+        "title": "Tune the model",
+        "body": "Pick the model behind the agent and dial its reasoning effort or temperature — just for this conversation."
       },
       "agents-new": {
         "title": "Build an agent",
-        "body": "An agent is its instructions, a model, a set of tools and a budget. Create one here, then publish a version so it runs the same way everywhere — chat, API, Slack or a widget."
+        "body": "An agent is its instructions, a model, and the tools, MCP servers and skills you give it. Create one here, then publish a version so it runs the same way everywhere — chat, API, Slack or a widget."
+      },
+      "agents-filters": {
+        "title": "Find one fast",
+        "body": "Filter by status or search by name once the roster grows past a screenful."
       },
       "skills-new": {
         "title": "Reusable skills",
         "body": "A skill is a packaged set of instructions an agent can draw on for a task. Write one once here and share it across the agents that need it."
       },
+      "skills-library": {
+        "title": "Start from a library",
+        "body": "You don't have to write one from scratch — install a ready-made skill from here and adapt it to how your team works."
+      },
       "activity-overview": {
         "title": "Watch activity",
         "body": "Every run is recorded with its cost and outcome, so you can see what your agents did and step in when one is waiting on a decision. These figures summarise the lot."
+      },
+      "activity-tabs": {
+        "title": "Approvals, runs and spend",
+        "body": "Switch between what's waiting on a decision, the full history of runs, and where the money went."
       },
       "knowledge-new": {
         "title": "Knowledge bases",
         "body": "Upload documents so your agents can answer from them. Each collection is searchable and stays private to your organization — create your first one here."
       },
+      "knowledge-integrations": {
+        "title": "Feed it automatically",
+        "body": "Connect a source once — a site, a drive, a repo — and it keeps the bases above topped up, instead of you re-uploading by hand."
+      },
+      "orgs-new": {
+        "title": "Your workspaces",
+        "body": "Everything is scoped to an organization. Create one, or switch between the ones you belong to — each keeps its own agents, keys and knowledge apart."
+      },
       "vault-new": {
         "title": "The vault",
         "body": "API keys and other credentials live here, encrypted at rest. Agents use them to reach the tools they need, and nobody sees a stored secret again."
+      },
+      "mcp-catalog": {
+        "title": "Plug in tools",
+        "body": "MCP servers are ready-made tool sets your agents can call. Connect one here, then add it to an agent from its Toolbox."
+      },
+      "sandboxes-connections": {
+        "title": "Where agents run code",
+        "body": "Agents that write and run code do it on these hosts. Watch the live sessions and set the ceilings from here."
+      },
+      "workspaces-browser": {
+        "title": "Files agents kept for you",
+        "body": "When an agent saves a file, it lands here — browse, preview and download whatever your conversations produced."
       },
       "finish": {
         "title": "You're all set",

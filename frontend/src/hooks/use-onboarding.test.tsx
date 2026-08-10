@@ -5,10 +5,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useOnboardingTour } from "./use-onboarding";
 import { ApiError, apiClient } from "@/lib/api-client";
-import { TOUR_STEPS } from "@/lib/onboarding/tour";
+import { visibleTourSteps } from "@/lib/onboarding/tour";
 import { useAuthStore, useOnboardingStore } from "@/stores";
 import { Perm } from "@/types/permissions";
 import type { User } from "@/types";
+
+// The curated walkthrough for a caller who holds everything (served below), and
+// for one whose organization is refused so `can()` answers false throughout.
+const LAUNCH_ALL = visibleTourSteps(() => true).length;
+const LAUNCH_NONE = visibleTourSteps(() => false).length;
 
 const nav = vi.hoisted(() => ({ pathname: "/dashboard" }));
 vi.mock("next/navigation", () => ({
@@ -65,21 +70,21 @@ describe("useOnboardingTour", () => {
   it("auto-opens on the dashboard for a user who has not finished onboarding", async () => {
     const { result } = renderHook(() => useOnboardingTour(), { wrapper });
     await waitFor(() => expect(result.current.isOpen).toBe(true));
-    expect(result.current.steps.length).toBe(TOUR_STEPS.length);
+    expect(result.current.steps.length).toBe(LAUNCH_ALL);
     expect(result.current.isFirst).toBe(true);
   });
 
   it("does not auto-open once onboarding is finished", async () => {
     useAuthStore.setState({ user: user({ onboarding_completed_at: "2020-01-01T00:00:00Z" }) });
     const { result } = renderHook(() => useOnboardingTour(), { wrapper });
-    await waitFor(() => expect(result.current.steps.length).toBe(TOUR_STEPS.length));
+    await waitFor(() => expect(result.current.steps.length).toBe(LAUNCH_ALL));
     expect(result.current.isOpen).toBe(false);
   });
 
   it("does not auto-open away from the dashboard", async () => {
     nav.pathname = "/agents";
     const { result } = renderHook(() => useOnboardingTour(), { wrapper });
-    await waitFor(() => expect(result.current.steps.length).toBe(TOUR_STEPS.length));
+    await waitFor(() => expect(result.current.steps.length).toBe(LAUNCH_ALL));
     expect(result.current.isOpen).toBe(false);
   });
 
@@ -91,18 +96,18 @@ describe("useOnboardingTour", () => {
 
   it("does not auto-open when the permission set is in error", async () => {
     // A refused organization leaves can() answering false forever, which would
-    // collapse the tour to its five ungated steps on top of the org-recovery
-    // banner. A 404 is refused without a retry, so the error settles at once.
+    // collapse the tour to its ungated steps on top of the org-recovery banner.
+    // A 404 is refused without a retry, so the error settles at once.
     vi.mocked(apiClient.get).mockRejectedValue(new ApiError(404, "no such organization"));
     const { result } = renderHook(() => useOnboardingTour(), { wrapper });
-    await waitFor(() => expect(result.current.steps.length).toBe(5));
+    await waitFor(() => expect(result.current.steps.length).toBe(LAUNCH_NONE));
     expect(result.current.isOpen).toBe(false);
   });
 
   it("does not auto-open for a signed-out visitor", async () => {
     useAuthStore.setState({ user: null });
     const { result } = renderHook(() => useOnboardingTour(), { wrapper });
-    await waitFor(() => expect(result.current.steps.length).toBe(TOUR_STEPS.length));
+    await waitFor(() => expect(result.current.steps.length).toBe(LAUNCH_ALL));
     expect(result.current.isOpen).toBe(false);
   });
 
@@ -126,7 +131,7 @@ describe("useOnboardingTour", () => {
   it("does not write again for a user who already finished", async () => {
     useAuthStore.setState({ user: user({ onboarding_completed_at: "2020-01-01T00:00:00Z" }) });
     const { result } = renderHook(() => useOnboardingTour(), { wrapper });
-    await waitFor(() => expect(result.current.steps.length).toBe(TOUR_STEPS.length));
+    await waitFor(() => expect(result.current.steps.length).toBe(LAUNCH_ALL));
 
     act(() => useOnboardingStore.getState().openTour());
     expect(result.current.isOpen).toBe(true);
@@ -148,7 +153,7 @@ describe("useOnboardingTour", () => {
     // A completed user so the auto-start does not open a tour first.
     useAuthStore.setState({ user: user({ onboarding_completed_at: "2020-01-01T00:00:00Z" }) });
     const { result } = renderHook(() => useOnboardingTour(), { wrapper });
-    await waitFor(() => expect(result.current.steps.length).toBe(TOUR_STEPS.length));
+    await waitFor(() => expect(result.current.steps.length).toBe(LAUNCH_ALL));
 
     act(() => useOnboardingStore.getState().openPage());
     expect(result.current.steps.map((step) => step.id)).toEqual([

@@ -74,7 +74,7 @@ export default function RunsPage() {
         <LoadingState variant="skeleton-table" columns={6} rows={6} />
       ) : (
         <Tabs defaultValue={sortParam ? "runs" : canDecide ? "approvals" : "runs"}>
-          <TabsList>
+          <TabsList data-tour="activity-tabs">
             {canDecide && (
               <TabsTrigger value="approvals">
                 {t("approvals")}
