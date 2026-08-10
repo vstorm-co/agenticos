@@ -17,6 +17,23 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.91] - 2026-08-10
+
+The integration test suite builds its schema once per process instead of before
+every test, halving it.
+
+### Changed
+
+- **Integration tests build the schema once, not before every test.** The
+  per-test `drop_all` + `create_all` (~0.4s of DDL each, very nearly the whole
+  runtime of a suite whose assertions are microseconds of Postgres work) is
+  replaced by a session-scoped build plus a `TRUNCATE ... RESTART IDENTITY
+  CASCADE` reset between tests. The integration slice drops from ~125s to ~53s,
+  and the per-process `_p<pid>` database isolation is untouched, so two runs on
+  one machine stay safe. `TRUNCATE`, not a rollback: the API-flow tests commit
+  through the real session, so their rows would outlive a rollback. Closes #215.
+  Refs #520. (#535)
+
 ## [0.0.90] - 2026-08-10
 
 Importing the application stops dragging in two SDKs it never uses on the
