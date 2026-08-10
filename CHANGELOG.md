@@ -17,6 +17,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.92] - 2026-08-10
+
+The whole-suite test targets run across worker processes, roughly halving them.
+
+### Changed
+
+- **`make test` and the other whole-suite targets run across workers.** `pytest
+  -n auto --maxprocesses 4` on `test`, `test-fast`, `test-integration` and
+  `test-cov`; `pytest-cov` combines the per-worker data so the 100% platform gate
+  is unchanged, and scoped `pytest <file>` runs stay serial (spawning workers for
+  one file costs more than the file). The cap is four because the unit slice is
+  import-bound — every worker imports the app once — and an uncapped `-n auto` on
+  a many-core machine runs *slower* than serial, all of it worker startup. Adds
+  `pytest-xdist` to the dev group. Refs #520. (#570)
+
 ## [0.0.91] - 2026-08-10
 
 The integration test suite builds its schema once per process instead of before
