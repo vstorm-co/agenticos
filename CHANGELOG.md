@@ -17,6 +17,181 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.94] - 2026-08-10
+
+The Activity tab gains a per-version summary that cannot disagree with the
+dashboard's completed-share figure.
+
+### Added
+
+- **A version strip on the Activity tab.** When narrowed to one agent, a card per
+  version sits above the run table — runs, completed share, cost per run, p95 and
+  the current-version marker. Its "completed share" and the dashboard's Outcomes
+  donut both compute through one shared helper (`src/lib/run-outcomes.ts`), with
+  `cancelled` and `budget_exceeded` in the denominator on both sides, so the two
+  figures cannot drift. Closes #489. (#526)
+
+## [0.0.93] - 2026-08-10
+
+A run's transcript is readable by authorization, not only by whoever owns the
+run.
+
+### Added
+
+- **`GET /api/v1/runs/{run_id}/transcript`** — returns a run's messages
+  (paginated) to any colleague in the same organization holding `runs:view`; a
+  run is read by authorization, not by ownership. A caller from another tenant is
+  refused exactly as a run that does not exist is, so existence never leaks. The
+  response's `conversation_id` is `null` when the run has no transcript, distinct
+  from an empty `items`. `AgentRunnerService.get_run_transcript` resolves the run
+  org-scoped (404 before the permission is read), then checks `runs:view` (403).
+  Closes #490. (#525)
+
+## [0.0.92] - 2026-08-10
+
+The whole-suite test targets run across worker processes, roughly halving them.
+
+### Changed
+
+- **`make test` and the other whole-suite targets run across workers.** `pytest
+  -n auto --maxprocesses 4` on `test`, `test-fast`, `test-integration` and
+  `test-cov`; `pytest-cov` combines the per-worker data so the 100% platform gate
+  is unchanged, and scoped `pytest <file>` runs stay serial (spawning workers for
+  one file costs more than the file). The cap is four because the unit slice is
+  import-bound — every worker imports the app once — and an uncapped `-n auto` on
+  a many-core machine runs *slower* than serial, all of it worker startup. Adds
+  `pytest-xdist` to the dev group. Refs #520. (#570)
+
+## [0.0.91] - 2026-08-10
+
+The integration test suite builds its schema once per process instead of before
+every test, halving it.
+
+### Changed
+
+- **Integration tests build the schema once, not before every test.** The
+  per-test `drop_all` + `create_all` (~0.4s of DDL each, very nearly the whole
+  runtime of a suite whose assertions are microseconds of Postgres work) is
+  replaced by a session-scoped build plus a `TRUNCATE ... RESTART IDENTITY
+  CASCADE` reset between tests. The integration slice drops from ~125s to ~53s,
+  and the per-process `_p<pid>` database isolation is untouched, so two runs on
+  one machine stay safe. `TRUNCATE`, not a rollback: the API-flow tests commit
+  through the real session, so their rows would outlive a rollback. Closes #215.
+  Refs #520. (#535)
+
+## [0.0.90] - 2026-08-10
+
+Importing the application stops dragging in two SDKs it never uses on the
+request path, so every process start and scoped test run is a couple of seconds
+shorter.
+
+### Changed
+
+- **`import app.main` no longer pulls in `aiogram` and `prefect`.** The Telegram,
+  Slack and Mattermost adapters are imported inside `lifespan` (which the test
+  client never runs) and the sync flows inside their dispatcher, so a cold app
+  import drops from ~5.5s to ~2.3s — a cost every scoped `pytest` run and every
+  process start paid for libraries neither the API nor the tests touch. A
+  subprocess guard test keeps them out of `sys.modules`, and a dead
+  `_slack_register` alias went with it. Runtime behaviour is unchanged; startup
+  imports them as before. Refs #520. (#544)
+
+## [0.0.89] - 2026-08-10
+
+Run history gains the duration controls the dashboard's p95 needs rows behind,
+and the contributor guidance has its test-loop numbers corrected.
+
+### Added
+
+- **Sort and filter run history by duration** — a sortable `Took` column, a
+  "slow runs" canned view, and a dashboard p95 deep-link that seeds the sort and
+  the time window. The sort is server-side over the whole narrowed set, not one
+  page; the backend query landed with #202 and is reused unchanged. Closes #210.
+  (#528)
+
+### Changed
+
+- **Contributor guidance** — `CLAUDE.md` now states the scoped-vs-full test rule
+  outright and its runtime figures are corrected against measurement: CI answers
+  in about twelve minutes rather than seven, and a scoped backend file takes a
+  few seconds rather than "under one" (the wait is importing the app, not the
+  run). The same stale CI figure in `docs/testing.md` and three moved
+  `app/core/catalog/` paths in the docs trigger map went with it. Closes #522.
+  (#534)
+
+## [0.0.88] - 2026-08-10
+
+Two grouped dependency updates, nothing else. The lockfile resolves cleanly with
+both applied (`uv lock --check`), and CI is green on the combination.
+
+### Changed
+
+- **Agent-framework dependencies** — `pydantic-ai-slim` to 2.26.0 (including its
+  `mcp` extra), `logfire` to 4.40.0, and `genai-prices` to 0.1.1. (#523)
+- **The rest of the backend** — `uvicorn[standard]` to 0.52.1, `alembic` to
+  1.19.0, `pymupdf` to 1.28.2, `liteparse` to 2.11.1, `google-auth` to 2.56.3,
+  `boto3` to 1.43.66, and the `ty` type checker to 0.0.69. (#524)
+
+## [0.0.87] - 2026-08-10
+
+Mattermost is a channel you can register and talk to, and the gaps that stopped
+any channel from being a complete surface are closed with it. One agent can now
+answer on Mattermost, Slack and Telegram, be watched writing its reply, read the
+channel it is answering in, and be told how to write for that surface — without
+editing the spec every surface shares. Closes eleven issues (#41, #24, #22, #10,
+#205, #157, #152, #208, #26, #153, #514). The delivery-dedup guard a retried
+webhook needs is deliberately not here and stays tracked as #167.
+
+Nine migrations, `0013`–`0021`, add the link-request, exposure-prompt and
+per-binding tool columns and settle the "one agent per bot" rule. `SPEC_VERSION`
+stays at **8**: the channel-tools capability is assembled per run from the
+binding that admitted the message, never stored in a published spec.
+
+### Added
+
+- **A working Mattermost integration.** A bot is registered with its own server
+  URL and an operator-supplied webhook secret, and answers over either an
+  outgoing webhook or an authenticated event stream — the latter the right
+  choice behind a VPN, exposing nothing. Registerable from the exposure panel
+  and from the CLI (`agenticos cmd channel-add-bot`), for a deployment with no
+  browser pointed at it. `api_base_url` is validated on scheme and shape so an internal
+  address passes. (#41, #24)
+- **A reply a chat can watch being written.** A placeholder post appears the
+  moment the question arrives, grows in place — throttled to about one edit a
+  second — and shows what the agent is doing while a tool runs, on Mattermost,
+  Slack and Telegram through one seam. An adapter that cannot edit a message
+  still posts one finished answer. (#514)
+- **A per-channel prompt on the binding.** House style for a surface — how to
+  lay a message out, how long to answer, which language — appended to the spec's
+  instructions at run time and never substituted for them, seeded per platform
+  and editable beside the environment and session-scope controls. It lives on
+  the exposure row, so it never enters a client's exported YAML. (#153)
+- **An agent can read the channel it is answering in** — its info and members —
+  through tools granted by the binding, so "may it read what was said here" has
+  a different answer on an internal server and a customer one.
+- **Account linking and complete channel runs.** `/link` mints a code and
+  `@slug` runs as the person who typed it; a channel run records its messages
+  and the surface it arrived on, renders a chart as an image, and answers a tool
+  approval in the thread that asked for it. (#10, #205, #208, #157, #152)
+
+### Changed
+
+- **`webhook_secret` is sealed at rest** through the vault, beside the three
+  secrets that already were; the Mattermost webhook accepts the token Mattermost
+  generates rather than one minted locally, while Telegram keeps minting the one
+  we hand out. (#22)
+- **A channel webhook hands its work over with `spawn_after_commit`**, so the
+  background run sees the row the request just wrote. (#26)
+- One bot serves one agent; a second binding to the same bot is refused.
+
+### Fixed
+
+- A failed final live-reply edit re-posts the answer whole instead of blanking
+  it; "needs approval" is said only when a run actually parked; a resumed channel
+  run keeps its exposure prompt and channel tools; and the chart renderer sizes a
+  stacked bar to the stack rather than the tallest bar, treats a non-finite value
+  as a gap, and draws in any colour Pillow accepts.
+
 ## [0.0.86] - 2026-08-09
 
 A file dragged into the chat lands wherever it is dropped.

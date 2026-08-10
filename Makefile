@@ -333,19 +333,26 @@ format:
 # in a log nobody reads when it is green. Same run, same gate, either way.
 COV_REPORT ?= term-missing
 
+# `-n auto --maxprocesses 4`: run across worker processes. The integration
+# suite is I/O-bound on one Postgres and roughly halves; the unit suite is
+# import-bound (every worker imports the app once) and gains little past four
+# workers, so `auto` is capped there - on a many-core laptop an uncapped `auto`
+# is slower than serial, all of it worker startup. pytest-cov combines the
+# per-worker data, so the 100% gate holds unchanged. A scoped `pytest <file>`
+# stays serial: worker startup is not worth paying for one file.
 test:
-	uv run --directory backend pytest tests/ -v --cov --cov-report=$(COV_REPORT)
+	uv run --directory backend pytest tests/ -v --cov --cov-report=$(COV_REPORT) -n auto --maxprocesses 4
 
 # Fast loop while writing code — no coverage, no gate.
 test-fast:
-	uv run --directory backend pytest tests/ -q --no-cov
+	uv run --directory backend pytest tests/ -q --no-cov -n auto --maxprocesses 4
 
 # Integration tests only. These talk to a real database; start it with `make docker-db`.
 test-integration:
-	uv run --directory backend pytest tests/integration -v --no-cov
+	uv run --directory backend pytest tests/integration -v --no-cov -n auto --maxprocesses 4
 
 test-cov:
-	uv run --directory backend pytest tests/ --cov --cov-report=html --cov-report=term-missing
+	uv run --directory backend pytest tests/ --cov --cov-report=html --cov-report=term-missing -n auto --maxprocesses 4
 	@echo "Open backend/htmlcov/index.html"
 
 # Everything, including template-inherited subsystems. Informational: those are

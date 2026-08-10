@@ -146,6 +146,21 @@ def get_channel_bot_service(db: DBSession) -> ChannelBotService:
 
 ChannelBotSvc = Annotated[ChannelBotService, Depends(get_channel_bot_service)]
 
+
+from app.services.channel_link import ChannelLinkService
+
+
+def get_channel_link_service(db: DBSession) -> ChannelLinkService:
+    """Minting and spending the codes that connect a chat account to a person.
+
+    Not organization-scoped: a code names a *user*, and the same person's chat
+    identity is theirs in every organization they belong to.
+    """
+    return ChannelLinkService(db)
+
+
+ChannelLinkSvc = Annotated[ChannelLinkService, Depends(get_channel_link_service)]
+
 from app.services.message_rating import MessageRatingService
 
 

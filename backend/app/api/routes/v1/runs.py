@@ -33,7 +33,9 @@ from app.schemas.agent_run import (
     CostByKey,
     CostByProvider,
     CostSummary,
+    RunTranscript,
 )
+from app.schemas.conversation import MessageRead
 
 router = APIRouter()
 
@@ -206,6 +208,36 @@ async def get_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
     run = await service.get_run(ctx, run_id)
     return AgentRunRead.model_validate(run).model_copy(
         update={"logfire_url": await service.trace_url(ctx, run)}
+    )
+
+
+@router.get("/runs/{run_id}/transcript", response_model=RunTranscript)
+async def get_run_transcript(
+    run_id: UUID,
+    service: AgentRunnerSvc,
+    ctx: Auth,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+) -> Any:
+    """The turns one run produced, for a run detail view to render as steps.
+
+    No `require(...)` gate, on purpose: reading a run is authorized rather than
+    owned, so the decision belongs to the service, which resolves the run against
+    the caller's organization and then checks `runs:view`. A run in another tenant
+    reads as absent - the same 404 an id that never existed answers with - so the
+    response cannot be used to discover that a run exists. The conversation
+    endpoint one route over stays owner-scoped; this does not widen it.
+
+    `conversation_id` is null when the run ran with no conversation, which is how
+    the response says "there is no transcript" rather than answering an empty list
+    that reads as "the run did nothing".
+    """
+    run, messages, total = await service.get_run_transcript(ctx, run_id, skip=skip, limit=limit)
+    return RunTranscript(
+        run_id=run.id,
+        conversation_id=run.conversation_id,
+        items=[MessageRead.model_validate(m) for m in messages],
+        total=total,
     )
 
 

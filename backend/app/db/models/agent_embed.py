@@ -102,6 +102,24 @@ class AgentEmbed(Base, TimestampMixin):
     # "answer in German". Appended to the agent's own, never replacing them.
     context: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    context_variables: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+    """What the page must tell this widget about the visitor in front of it.
+
+    `context` is one sentence, the same for every visitor. This is the part only
+    the integrator knows - which plan they are on, which order they are looking
+    at - declared here as a name, a `required` flag and a line saying what it is
+    for, and supplied by the page at integration time.
+
+    Declared rather than accepted freely: without a declaration, any key the
+    page sent would become a line in an agent's instructions, and the page is
+    something a visitor can edit. Anything not named here is dropped.
+
+    The flag is documentation and a warning, not a gate - a missing required
+    value omits its line and logs, rather than costing the visitor an answer.
+    """
+
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     # Per visitor, per minute. The one control between a public URL and an
     # afternoon's model budget.
