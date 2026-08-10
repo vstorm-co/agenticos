@@ -69,7 +69,7 @@ function normalizeUrl(url: string): string {
  * widening them to the shared shape here would lose it at the one call site
  * that wants it.
  */
-export function connectionForEntry<T extends McpConnectionRecord>(
+function connectionForEntry<T extends McpConnectionRecord>(
   entry: McpCatalogEntry,
   connections: T[],
 ): T | null {

@@ -17,7 +17,7 @@ import type { Agent } from "@/types/agents";
  * Only a published agent has a version to run - the backend refuses a draft or
  * an archived one - so offering it would turn the picker into a trap.
  */
-export const isRunnable = (agent: Agent): boolean => agent.status === "published";
+const isRunnable = (agent: Agent): boolean => agent.status === "published";
 
 /**
  * Who answers, as its own control beside the composer.

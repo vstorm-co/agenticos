@@ -80,7 +80,7 @@ export function toolNameError(name: string): string | null {
 }
 
 /** What the chosen mode means for *this* capability, as a catalog key. */
-export function approvalHint(mode: ApprovalMode, sideEffecting: boolean): string {
+function approvalHint(mode: ApprovalMode, sideEffecting: boolean): string {
   if (mode === "required") return "approvalHintRequired";
   if (mode === "never") {
     return sideEffecting ? "approvalHintNeverSideEffecting" : "approvalHintNeverReadOnly";

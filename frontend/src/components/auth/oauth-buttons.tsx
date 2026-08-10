@@ -35,7 +35,7 @@ interface OAuthButtonsProps {
   variant?: "signin" | "signup";
 }
 
-export function OAuthButtons({ next, variant = "signin" }: OAuthButtonsProps) {
+function OAuthButtons({ next, variant = "signin" }: OAuthButtonsProps) {
   const t = useTranslations("auth");
   const providers = readProviders();
   if (providers.length === 0) return null;
@@ -75,7 +75,7 @@ export function OAuthBlock({ label, variant }: { label: string; variant?: "signi
   );
 }
 
-export function OAuthDivider({ label = "or" }: { label?: string }) {
+function OAuthDivider({ label = "or" }: { label?: string }) {
   return (
     <div className="flex items-center gap-3">
       <span className="bg-foreground/15 h-px flex-1" />

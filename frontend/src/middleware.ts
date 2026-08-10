@@ -8,7 +8,7 @@ export default createMiddleware({
   localePrefix: "as-needed",
 
   // Always serve `defaultLocale` (en) at root, regardless of the visitor's
-  // Accept-Language header. The user opts into Polish via the LanguageSwitcher.
+  // Accept-Language header. The user opts into Polish via the language switcher.
   localeDetection: false,
 });
 
