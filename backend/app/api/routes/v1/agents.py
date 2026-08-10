@@ -86,7 +86,12 @@ async def list_capability_catalog() -> Any:
             config_schema=definition.config_json_schema(),
             requires_secret=definition.secret,
         )
+        # `selectable` only. A capability a spec may not bind is a switch the
+        # Toolbox cannot honestly offer: `channel_tools` is chosen per bound bot
+        # under "Where this agent is available", because an agent on two
+        # Mattermost servers has two answers and this form has one.
         for definition in all_capabilities()
+        if definition.selectable
     ]
     return CapabilityCatalog(items=items, total=len(items))
 

@@ -55,7 +55,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections import Counter
-from collections.abc import AsyncIterator, Callable, Mapping, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -84,6 +84,11 @@ from app.agents.capabilities.budget import (
     BudgetScope,
     SpendEntry,
     metered_by,
+)
+from app.agents.capabilities.channel_tools import (
+    CHANNEL_DIRECTORY_RESOURCE,
+    CHANNEL_TOOLS_CAPABILITY_ID,
+    ChannelDirectory,
 )
 from app.agents.capabilities.sandbox import WORKSPACE_BACKEND_RESOURCE, WorkspaceIdentity
 from app.agents.capabilities.sandbox._identity import SessionScope
@@ -124,6 +129,7 @@ from app.db.models.agent_run import AgentRun, ApprovalStatus, RunOrder, RunStatu
 from app.db.models.chat_file import ChatFile
 from app.repositories import (
     agent_environment_repo,
+    agent_exposure_repo,
     agent_repo,
     agent_run_repo,
     knowledge_base_repo,
@@ -140,6 +146,7 @@ from app.services.approvals import ApprovalService
 from app.services.attachments import AttachmentRouter
 from app.services.channels.attachments import files_written, workspace_snapshot
 from app.services.channels.base import OutgoingAttachment
+from app.services.channels.prompt_variables import resolve as resolve_prompt_variables
 from app.services.mcp_connection import build_toolsets_for_agent
 from app.services.model_profile import ModelProfileService
 from app.services.notifications import NotificationService
@@ -958,6 +965,84 @@ class PreparedRun:
                 yield iteration
 
 
+def _outcome(
+    agent_run: AgentIteration[AgentDeps, str | DeferredToolRequests],
+) -> AgentRunResult[str | DeferredToolRequests]:
+    """What the iterated run ended with.
+
+    Raises:
+        RuntimeError: If it ended without a result. That is not a state the
+            agent can reach on its own - it means whoever drove the loop stopped
+            early - so it fails loudly and is recorded as a failed run, rather
+            than being persisted as an empty answer.
+    """
+    if agent_run.result is None:
+        raise RuntimeError("The agent run ended without a result")
+    return agent_run.result
+
+
+type RunStream = Callable[[AgentIteration[AgentDeps, str | DeferredToolRequests]], Awaitable[None]]
+"""How a surface that shows an answer arriving drives the run.
+
+Given to :meth:`AgentRunnerService.execute`, which iterates the graph instead of
+awaiting it and hands the run object over. The surface decides what to forward -
+the web chat forwards every event to a socket, a chat platform edits one post
+every second or so - and the settle path around it is unchanged, so a streamed
+run is metered exactly like one that was waited for.
+"""
+
+
+async def _with_exposure_prompt(
+    spec: AgentSpec, exposure: AgentExposure | None, directory: ChannelDirectory | None = None
+) -> AgentSpec:
+    """The spec as this binding wants it, if the binding says anything.
+
+    A binding is created holding the platform's own style - what that client
+    renders, how a link is written there - as its starting text, so what the
+    agent will be told is what somebody editing it can see, change and delete.
+    From here it is simply the binding's text.
+
+    **Appended, never substituted.** A surface shapes how an answer is
+    delivered; what the agent is *for* belongs to the version somebody published,
+    and a binding that could replace it would be a way to repurpose an approved
+    agent without approving anything. The copy is local to this run -
+    `model_copy` leaves the stored spec alone.
+    """
+    added = "" if exposure is None else (exposure.prompt or "").strip()
+    if not added:
+        return spec
+    # `{channel_name}`, `{member_list}` - filled in from the platform, per run,
+    # and only when the prose actually names one. Async for that reason: a
+    # placeholder is an HTTP call to somebody's chat server, and a binding that
+    # names none costs nothing at all.
+    added = await resolve_prompt_variables(added, directory)
+    return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{added}"})
+
+
+def _with_channel_tools(spec: AgentSpec, exposure: AgentExposure | None) -> AgentSpec:
+    """The spec with the lookups *this* binding grants, if it grants any.
+
+    The one capability whose binding is not in the published spec, and the
+    reason is the same one that put `prompt` on the exposure: an agent can
+    answer on two Mattermost servers and three Slack workspaces, and "may it
+    read what was said in this channel" has a different answer on the internal
+    one and the customer one. A field on the spec has one answer for all five.
+
+    So it is assembled here, per run, from the row that admitted the message -
+    and it goes through `AgentSpec.capabilities` rather than straight into
+    `resources` on purpose. That is what keeps these tools ordinary: gateable by
+    the approval policy, renameable by a binding, and visible to
+    `approval_required_tools`, all of which read the spec. The copy is local to
+    this run; `model_copy` leaves the stored spec alone, and publishing refuses
+    a stored spec that tries to carry this capability itself.
+    """
+    granted = [] if exposure is None else list(exposure.tools or [])
+    if not granted:
+        return spec
+    binding = CapabilityBindingSpec(id=CHANNEL_TOOLS_CAPABILITY_ID, config={"tools": granted})
+    return spec.model_copy(update={"capabilities": [*spec.capabilities, binding]})
+
+
 @dataclass
 class _RunBudget:
     """The run's budget guard, once the build has produced one.
@@ -1306,6 +1391,7 @@ class AgentRunnerService:
         surface: RunSurface = RunSurface.API,
         conversation_id: UUID | None = None,
         channel_key: str | None = None,
+        channel_directory: ChannelDirectory | None = None,
         user_name: str | None = None,
         extra_toolsets: list[Any] | None = None,
         exposure: AgentExposure | None = None,
@@ -1315,6 +1401,12 @@ class AgentRunnerService:
         """Assemble everything a run needs and open its row.
 
         Args:
+            channel_directory: The one channel this run is answering in, ready
+                to be asked about, or `None` on every surface that is not a
+                channel. Bound by the caller because binding one needs the bot
+                row and its unsealed token, and a capability may reach neither -
+                the same reason the workspace backend is opened here rather than
+                inside `sandbox`.
             exposure: The binding that admitted this run, when one did. It is
                 stamped on the run row and its caps are enforced - so a run that
                 arrived through a place the agent was published to is both
@@ -1343,6 +1435,8 @@ class AgentRunnerService:
         spec = await self._with_environment_observability(
             ctx, spec, environment_id=effective_environment_id
         )
+        spec = await _with_exposure_prompt(spec, exposure, channel_directory)
+        spec = _with_channel_tools(spec, exposure)
         return await self._assemble(
             ctx,
             agent=agent,
@@ -1351,6 +1445,7 @@ class AgentRunnerService:
             surface=surface,
             conversation_id=conversation_id,
             channel_key=channel_key,
+            channel_directory=channel_directory,
             model_profile_id=model_profile_id,
             user_name=user_name,
             extra_toolsets=extra_toolsets,
@@ -1373,6 +1468,7 @@ class AgentRunnerService:
         surface: RunSurface,
         conversation_id: UUID | None,
         channel_key: str | None = None,
+        channel_directory: ChannelDirectory | None = None,
         user_name: str | None,
         extra_toolsets: list[Any] | None,
         exposure: AgentExposure | None,
@@ -1438,6 +1534,13 @@ class AgentRunnerService:
             "kb_collection_names": await self._collection_names(spec, ctx),
             "skills": await self.skills.resolve_for_agent(ctx, spec.skill_ids),
         }
+        # Only on a channel run, and bound to the channel the message arrived in
+        # before it got here. Absent everywhere else, and `channel_tools` then
+        # builds nothing at all - an agent in the dashboard has no channel to
+        # ask about, and four tools that can only answer "there is no channel
+        # here" are worse than none, because the model keeps trying.
+        if channel_directory is not None:
+            resources[CHANNEL_DIRECTORY_RESOURCE] = channel_directory
 
         # Unsealed here and handed straight to the factory, which hands them to
         # the capability instances that declared them. They are kept out of
@@ -2577,12 +2680,15 @@ class AgentRunnerService:
         surface: RunSurface = RunSurface.API,
         conversation_id: UUID | None = None,
         channel_key: str | None = None,
+        channel_directory: ChannelDirectory | None = None,
         message_history: list[Any] | None = None,
         exposure: AgentExposure | None = None,
         environment_id: UUID | None = None,
         attachments: list[ChatFile] | None = None,
         outbound: list[OutgoingAttachment] | None = None,
         outbound_refused: list[str] | None = None,
+        tool_calls: list[RecordedToolCall] | None = None,
+        stream: RunStream | None = None,
     ) -> tuple[str, AgentRun]:
         """Run an agent to completion and return its answer.
 
@@ -2614,6 +2720,7 @@ class AgentRunnerService:
             surface=surface,
             conversation_id=conversation_id,
             channel_key=channel_key,
+            channel_directory=channel_directory,
             exposure=exposure,
             environment_id=environment_id,
         )
@@ -2630,11 +2737,17 @@ class AgentRunnerService:
             user_prompt=assembled,
             message_history=message_history,
             deferred_tool_results=None,
+            stream=stream,
         )
         if outbound is not None:
             outbound.extend(prepared.outbound)
         if outbound_refused is not None:
             outbound_refused.extend(prepared.outbound_refused)
+        # Handed back the same way as the files: a surface that can draw a chart
+        # needs what the turn called, and reading it off the row afterwards is
+        # not open to a channel run, which writes no messages (#205).
+        if tool_calls is not None:
+            tool_calls.extend(segment.tool_calls)
         return segment.output, segment.run
 
     async def parked_calls(self, ctx: AuthContext, run: AgentRun) -> list[ParkedCall]:
@@ -2733,6 +2846,24 @@ class AgentRunnerService:
         spec = await self._with_environment_observability(
             ctx, spec, environment_id=run.environment_id
         )
+        # The binding that admitted the run enriches its spec two ways `prepare`
+        # does: the platform's own formatting prompt and the `channel_tools`
+        # capability. A continuation that skipped them would answer a channel
+        # approval without channel tools and formatted for the wrong platform
+        # (#513 was S14 - "an approval is answered in the thread that asked for
+        # it"). The exposure id is stamped on the row, so it can be reloaded and
+        # the same two helpers run. The directory stays `None`: an
+        # approve-then-resume has no live channel handle, and
+        # `_with_channel_tools` still restores the binding for wherever one is.
+        exposure = (
+            await agent_exposure_repo.get(
+                self.db, run.exposure_id, organization_id=ctx.organization_id
+            )
+            if run.exposure_id is not None
+            else None
+        )
+        spec = await _with_exposure_prompt(spec, exposure)
+        spec = _with_channel_tools(spec, exposure)
         prepared = await self._assemble(
             ctx,
             agent=agent,
@@ -2742,9 +2873,9 @@ class AgentRunnerService:
             conversation_id=run.conversation_id,
             user_name=None,
             extra_toolsets=None,
-            # A resumed run reuses its row, and the binding that admitted it was
-            # stamped on that row when it was opened - there is nothing left for
-            # the exposure to contribute here.
+            # A resumed run reuses its row, and the binding is reloaded above to
+            # re-enrich the spec, so there is nothing left for `_assemble` to
+            # stamp from the exposure here.
             exposure=None,
             decided=decided,
             resuming=plan.delegations,
@@ -2921,6 +3052,38 @@ class AgentRunnerService:
             )
         return agent, AgentSpec.model_validate(version.spec)
 
+    @staticmethod
+    async def _answer(
+        prepared: PreparedRun,
+        *,
+        user_prompt: str | list[Any] | None,
+        message_history: list[Any] | None,
+        deferred_tool_results: DeferredToolResults | None,
+        stream: RunStream | None,
+    ) -> AgentRunResult[Any]:
+        """One turn, streamed if the surface can show one arriving.
+
+        Both halves settle through the same `_run` around this call - the same
+        usage, the same budget stop, the same transcript row - so a channel that
+        watches an answer being written is metered identically to an HTTP caller
+        that waits for it. The alternative was a second copy of the settle path,
+        which is how the streaming chat came to bill nothing for a year
+        (agenticos#16).
+
+        `deferred_tool_results` wins over `stream`: `iterate()` cannot carry
+        them, and a resumed run is a run somebody already waited for. It resumes
+        the way it always has, and the surface gets its answer at the end.
+        """
+        if stream is None or deferred_tool_results is not None:
+            return await prepared.execute(
+                user_prompt,
+                message_history=message_history,
+                deferred_tool_results=deferred_tool_results,
+            )
+        async with prepared.iterate(user_prompt, message_history=message_history) as agent_run:
+            await stream(agent_run)
+        return _outcome(agent_run)
+
     async def _run(
         self,
         prepared: PreparedRun,
@@ -2928,6 +3091,7 @@ class AgentRunnerService:
         user_prompt: str | list[Any] | None,
         message_history: list[Any] | None,
         deferred_tool_results: DeferredToolResults | None,
+        stream: RunStream | None = None,
     ) -> RunSegment:
         """Execute the agent and account for it, however it ends.
 
@@ -2965,10 +3129,12 @@ class AgentRunnerService:
         called: list[RecordedToolCall] = []
         settled: dict[str, str] = {}
         try:
-            result = await prepared.execute(
-                user_prompt,
+            result = await self._answer(
+                prepared,
+                user_prompt=user_prompt,
                 message_history=message_history,
                 deferred_tool_results=deferred_tool_results,
+                stream=stream,
             )
             # `new_messages`, not `all_messages`: a resumed run is handed
             # everything up to the park as history, and the wider list would

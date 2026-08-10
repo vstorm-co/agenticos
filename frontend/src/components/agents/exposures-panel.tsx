@@ -19,7 +19,10 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { useAgentEnvironments, useExposures } from "@/hooks";
-import type { ExposureSurface, SessionScope } from "@/types/exposures";
+import { ExposurePrompt } from "@/components/agents/exposure-prompt";
+import { ExposureCostReporting } from "@/components/agents/exposure-cost-reporting";
+import { ExposureTools } from "@/components/agents/exposure-tools";
+import type { ExposureSurface } from "@/types/exposures";
 import { useTranslations } from "next-intl";
 
 interface ExposuresPanelProps {
@@ -63,26 +66,6 @@ const SURFACE_LABEL: Record<ExposureSurface, string> = {
 /** Sentinel for "the default environment" - a Select item may not be empty. */
 const DEFAULT_ENV = "__default__";
 
-/** The same trick for "whatever the spec says". */
-const SPEC_SCOPE = "__spec__";
-
-/**
- * Who shares a workspace *here*, when this surface disagrees with the spec.
- *
- * The labels are the surface's own vocabulary rather than the Builder's, because
- * this is where the question stops being abstract: on Slack a thread is a chat,
- * so "this conversation" means per-thread and a busy channel is fifty
- * workspaces. That is exactly the mistake this control exists to let somebody
- * fix without republishing the agent.
- */
-const SCOPE_LABEL: Record<SessionScope, string> = {
-  run: "fresh each turn",
-  conversation: "per chat or thread",
-  channel: "per channel",
-  user: "per person",
-  agent: "one for everyone",
-};
-
 export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPanelProps) {
   const t = useTranslations("agents");
   const {
@@ -92,7 +75,9 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
     expose,
     setActive,
     setEnvironment,
-    setSessionScope,
+    setPrompt,
+    setTools,
+    setUsageReporting,
     revoke,
   } = useExposures(agentId);
   const { environments } = useAgentEnvironments(agentId);
@@ -168,36 +153,6 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
                   </SelectContent>
                 </Select>
               )}
-              {/* Only where the agent has a workspace at all: an override on an
-                  agent that keeps no files is a control that changes nothing,
-                  and a section full of those is how the real ones get ignored. */}
-              {hasWorkspace && (
-                <Select
-                  value={exposure.session_scope ?? SPEC_SCOPE}
-                  disabled={!canManage || setSessionScope.isPending}
-                  onValueChange={(next) =>
-                    setSessionScope.mutate({
-                      exposureId: exposure.id,
-                      sessionScope: next === SPEC_SCOPE ? null : (next as SessionScope),
-                    })
-                  }
-                >
-                  <SelectTrigger
-                    className="w-44"
-                    aria-label={t("workspaceSharingOn", { bot: exposure.channel_bot_name })}
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={SPEC_SCOPE}>{t("asAgentSays")}</SelectItem>
-                    {(Object.keys(SCOPE_LABEL) as SessionScope[]).map((scope) => (
-                      <SelectItem key={scope} value={scope}>
-                        {SCOPE_LABEL[scope]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
               <Button
                 variant="ghost"
                 size="sm"
@@ -223,6 +178,42 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
+
+            {/* Under the row rather than behind a dialog: it is the one thing
+                about a binding somebody actually wants to change after making
+                it, and a surface's own instructions are worth reading beside
+                the surface they belong to. */}
+            {canManage && (
+              <>
+                {/* Under the binding, because that is what the answer belongs
+                    to: the same agent on an internal Mattermost and a customer
+                    Slack gets a different answer here, and a switch in the
+                    Toolbox would have one for both. */}
+                <ExposureCostReporting
+                  exposureId={exposure.id}
+                  value={exposure.usage_reporting}
+                  disabled={setUsageReporting.isPending}
+                  onChange={(usageReporting) =>
+                    setUsageReporting.mutate({ exposureId: exposure.id, usageReporting })
+                  }
+                />
+                <ExposureTools
+                  exposureId={exposure.id}
+                  platform={SURFACE_LABEL[exposure.surface]}
+                  available={exposure.available_tools}
+                  granted={exposure.tools}
+                  disabled={setTools.isPending}
+                  onChange={(tools) => setTools.mutate({ exposureId: exposure.id, tools })}
+                />
+                <ExposurePrompt
+                  botName={exposure.channel_bot_name}
+                  value={exposure.prompt}
+                  variables={exposure.available_variables}
+                  disabled={setPrompt.isPending}
+                  onSave={(prompt) => setPrompt.mutate({ exposureId: exposure.id, prompt })}
+                />
+              </>
+            )}
           </div>
         ))}
 
@@ -265,11 +256,14 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
               </Button>
             </div>
           ) : (
-            // A disabled picker here was a dead end: it said no bot could be
-            // chosen without saying which of the two absences this is - no
-            // bots at all, or all of them already bound.
+            // One sentence, not two. It used to split on whether this agent had
+            // any bindings - "already on every bot" against "no bots yet" - and
+            // since a bot serves one agent there is a third case the client
+            // cannot tell from either: every bot registered, and every one of
+            // them serving somebody else. What all three have in common is the
+            // fix, so that is what it says.
             <p className="text-muted-foreground border-t pt-3 text-sm">
-              {exposures.length > 0 ? t("agentAlreadyEveryBot") : t("organizationHasNoChannel")}
+              {t("organizationHasNoChannel")}
             </p>
           ))}
       </CardContent>

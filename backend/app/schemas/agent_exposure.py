@@ -8,6 +8,35 @@ from pydantic import Field
 
 from app.db.models.agent_exposure import ExposureSurface
 from app.schemas.base import BaseSchema
+from app.schemas.channel_bot import UsageReporting
+
+
+class ExposureTool(BaseSchema):
+    """One channel lookup, as the binding's form offers it.
+
+    Name and description come from the capability registry rather than being
+    written again in the client. A tool's description is the sentence the model
+    reads before deciding to call it, and the person deciding whether to grant
+    it should be reading the same one - two paraphrases in two repositories is
+    the shape of #144.
+    """
+
+    id: str
+    name: str
+    description: str
+
+
+class ExposureVariable(BaseSchema):
+    """One placeholder a binding's instructions may carry.
+
+    Served with the binding rather than written out in the client, for the same
+    reason `available_tools` is: what a platform can fill in is decided by what
+    its adapter implements, and a list in the browser is a list that goes on
+    offering a placeholder the day an adapter stops answering it.
+    """
+
+    name: str
+    description: str
 
 
 class ExposureRead(BaseSchema):
@@ -26,6 +55,39 @@ class ExposureRead(BaseSchema):
     channel_bot_name: str
     environment_id: UUID | None = None
     session_scope: str | None = None
+    # Read back, unlike a credential: it is instructions somebody wrote and has
+    # to be able to edit, and the form that edits it needs its current value.
+    prompt: str | None = None
+    tools: list[str] = Field(
+        default_factory=list,
+        description="Channel lookups granted on this binding, by tool id",
+    )
+    available_tools: list[ExposureTool] = Field(
+        default_factory=list,
+        description=(
+            "What this binding's platform can actually answer, so the form "
+            "offers a checkbox only where there is something behind it. Telegram "
+            "gives a bot no channel search and no way to read history, and a "
+            "control whose only effect is a tool that says so is a worse answer "
+            "than no control."
+        ),
+    )
+    available_variables: list[ExposureVariable] = Field(
+        default_factory=list,
+        description=(
+            "Placeholders the prompt may carry - `{channel_name}`, "
+            "`{member_list}` - filled in from the platform when a run starts. "
+            "Only what this binding's platform can actually answer."
+        ),
+    )
+    usage_reporting: UsageReporting = Field(default_factory=UsageReporting)
+    """How talkative the agent is about what a turn cost, here.
+
+    On the binding rather than on the bot: it is one of the things the agent's
+    author decides about this surface, beside the extra instructions and the
+    channel lookups, and a bot serves one agent so there was nothing left for
+    the bot's copy to mean."""
+
     is_active: bool
     created_at: datetime | None = None
 
@@ -51,6 +113,17 @@ class ExposureCreate(BaseSchema):
             "A dev bot bound to a dev environment serves the version it pins."
         ),
     )
+    prompt: str | None = Field(
+        default=None,
+        max_length=4000,
+        description=(
+            "Added to the agent's instructions on this binding only - how to lay "
+            "a message out here, how to give a link, how long an answer should "
+            "be. Appended rather than substituted, so a surface can shape an "
+            "answer and never contradict what the agent is for. Explicit null "
+            "removes it."
+        ),
+    )
     session_scope: Literal["run", "conversation", "channel", "user", "agent"] | None = Field(
         default=None,
         description=(
@@ -64,6 +137,26 @@ class ExposureCreate(BaseSchema):
 
 
 class ExposureUpdate(BaseSchema):
+    usage_reporting: UsageReporting | None = Field(
+        default=None,
+        description=(
+            "When the agent says what a turn cost here, and when it only records "
+            "it. Recorded either way - 'the bot went quiet' is a question "
+            "somebody asks days later, and a report never written is no help "
+            "then."
+        ),
+    )
+    tools: list[str] | None = Field(
+        default=None,
+        description=(
+            "Which channel lookups this agent may make on this bot, by tool id - "
+            "who is in the channel, what the channel is for, what was said in "
+            "it. Per binding rather than per agent: the same agent on an "
+            "internal Mattermost and a customer Slack has two different answers. "
+            "Refused when the platform cannot answer the tool; an empty list "
+            "grants none, which is what a new binding starts as."
+        ),
+    )
     is_active: bool | None = Field(
         default=None,
         description="Stop or resume answering here without losing who bound it, and when",
@@ -71,6 +164,17 @@ class ExposureUpdate(BaseSchema):
     environment_id: UUID | None = Field(
         default=None,
         description="Rebind to another named environment; explicit null returns to the default",
+    )
+    prompt: str | None = Field(
+        default=None,
+        max_length=4000,
+        description=(
+            "Added to the agent's instructions on this binding only - how to lay "
+            "a message out here, how to give a link, how long an answer should "
+            "be. Appended rather than substituted, so a surface can shape an "
+            "answer and never contradict what the agent is for. Explicit null "
+            "removes it."
+        ),
     )
     session_scope: Literal["run", "conversation", "channel", "user", "agent"] | None = Field(
         default=None,

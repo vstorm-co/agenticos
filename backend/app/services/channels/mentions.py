@@ -1,15 +1,18 @@
-"""Routing a channel message to the agent it names.
+"""Routing a channel message to the agent behind the bot.
 
-A Slack or Telegram bot is one endpoint standing in front of every agent an
-organization has published. Without a way to say *which* one, the bot can only
-ever be a single assistant, and every new agent needs its own bot token, its own
-webhook and its own place in the workspace's app directory.
+**A bot serves exactly one agent** - `uq_exposure_bot` - so most of what this
+module does is find that agent and hand it the message. A bot user is one
+identity in the chat: on Mattermost every reply arrives from the same avatar
+and the same name whichever agent produced it, so several behind one bot meant
+somebody in a channel typing a slug to pick between things they could not see,
+and a message naming none was answered with a list of handles rather than an
+answer. Two agents is two bots, which costs an operator two minutes and makes
+the chat say which agent it is talking to.
 
-`@support what is the refund window` is that way. The handle is the agent's
-slug - the same one the Builder shows and the same one the API takes - so a
-person who can see an agent in the UI already knows how to reach it from Slack.
-A message that names no handle goes to the bot's only exposed agent, when there
-is exactly one; a bot is never anything more than the agents put behind it.
+`@support what is the refund window` still works, and is now an *alias* rather
+than a router: the handle is the agent's slug - the same one the Builder shows
+and the same one the API takes - and naming an agent that is not the one behind
+this bot is refused rather than reaching it.
 
 Three rules make this safe to expose in a shared channel:
 
@@ -18,7 +21,7 @@ refused rather than run as the bot or as the organization. Budgets, resource
 grants and the audit trail all take a subject, and a run with no subject is one
 nobody is accountable for.
 
-*The agent has to have been put here.* A handle resolves only among the agents
+*The agent has to have been put here.* A handle resolves only against the agent
 *exposed* to this bot - see :mod:`app.services.agent_exposure`. It used to
 resolve against every published agent in the organization, which made one Slack
 app a door onto all of them; nobody decided that, it fell out of resolving the
@@ -41,14 +44,18 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.channel_tools import ChannelDirectory
+from app.agents.capabilities.charts._spec import parse_chart_spec
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
-from app.db.models.agent_run import RunSurface
+from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
 from app.repositories import agent_exposure_repo, agent_repo, member_repo
-from app.services.agent_runner import AgentRunnerService
+from app.services.agent_runner import AgentRunnerService, RunStream
 from app.services.channels.base import OutgoingAttachment
+from app.services.channels.chart_png import render_chart_png
+from app.services.transcript import RecordedToolCall
 from app.services.usage_report import (
     UsageReportService,
     format_footer,
@@ -73,10 +80,36 @@ _SURFACES: dict[str, RunSurface] = {
     "mattermost": RunSurface.MATTERMOST,
 }
 
+
 # Said to anyone whose channel identity has no account behind it. Deliberately
 # identical whether they never linked or were removed from the organization -
 # both are "we do not know who you are here", and telling them apart would leak
 # whether an account exists.
+def drawn_chart(called: list[RecordedToolCall]) -> bytes | None:
+    """The last chart this turn drew, as a PNG, or None if it drew none.
+
+    The *last*, because a turn that draws twice has refined the first attempt and
+    a reply carries one image. A result that no longer parses is skipped rather
+    than raised on: the payload is whatever the tool returned, and a chart that
+    cannot be drawn must not cost somebody the answer it came with.
+    """
+    for call in reversed(called):
+        if call.tool_name != _CHART_TOOL or call.result is None:
+            continue
+        spec = parse_chart_spec(call.result)
+        if spec is None:
+            continue
+        try:
+            return render_chart_png(spec)
+        except Exception:
+            logger.exception("Could not render a chart for a channel reply")
+            return None
+    return None
+
+
+_CHART_TOOL = "create_chart"
+"""What the charts capability registers. One name, read in one place."""
+
 _LINK_FIRST = "Link your account before talking to an agent - send /link to this bot."
 
 # Said when the handle names a real agent that nobody has made available here.
@@ -99,13 +132,6 @@ _NOT_EXPOSED_HERE = (
 _NOTHING_EXPOSED_HERE = (
     "No agent is available on this bot yet. Publish an agent and add this bot "
     "under 'Where this agent is available' in the Builder."
-)
-
-# Said when a message names no agent and the bot serves several, so answering
-# would mean guessing which one was meant. The handles are listed because the
-# sender's next message should be able to just start with one.
-_SAY_WHICH = (
-    "Several agents answer on this bot - start your message with the one you want: {handles}"
 )
 
 
@@ -132,6 +158,23 @@ def parse_mention(text: str) -> Mention | None:
     return Mention(slug=slug, prompt=prompt)
 
 
+def channel_key(platform_chat_id: str) -> str:
+    """The chat a message arrived in, with any thread stripped.
+
+    Slack folds `thread_ts` into `platform_chat_id` as `channel:thread_ts` and
+    Mattermost folds `root_id` in the same way, so the raw id identifies a
+    *thread*. Anything scoped to the channel - a workspace shared across its
+    threads, an API call about the channel itself - has to key on what is stable
+    across them, which is the part before the colon. Every other platform's id
+    is already the chat.
+
+    Module-level rather than a method: the channel bindings this feeds are built
+    where the bot row is, and two implementations of "which channel is this" is
+    how one of them ends up asking Mattermost about a thread id.
+    """
+    return platform_chat_id.partition(":")[0]
+
+
 class UnaddressedMessage(Exception):
     """The message names no agent, so the caller should handle it itself."""
 
@@ -154,6 +197,37 @@ class AnsweredTurn:
     refused: list[str] = field(default_factory=list)
     """Produced files the reply names instead of carrying."""
 
+    awaiting_approval_run_id: UUID | None = None
+    """The run parked on a decision, when that is how the turn ended.
+
+    Carried so the reply can link to it. "Check the approvals queue" told
+    somebody in a chat window to go and find a page they may never have opened,
+    on a product they reach through a bot - which is most of the way to not
+    telling them at all.
+    """
+
+    image_png: bytes | None = None
+    """A chart the turn drew, rendered for a surface that cannot run Recharts.
+
+    Beside the attachments rather than among them because a chart is not a file
+    somebody asked for: it is the answer, and every adapter posts it as an image
+    with the text rather than as something to download.
+    """
+
+    status: str = RunStatus.COMPLETED
+    """How the run ended, so the reply can tell an empty answer's reasons apart.
+
+    Typed `str` to match `AgentRun.status` (`Mapped[str]`) - the whole codebase
+    holds a run status as a string and compares it against the `RunStatus`
+    members, which are strings.
+
+    An empty `text` is not one thing: a run parked on an approval, one stopped
+    at its budget, and one that simply produced no words all arrive empty, and
+    only `awaiting_approval_run_id` distinguished the first - so the other two
+    were told "that needs approval", which sends somebody to a runs page over a
+    decision that was never raised.
+    """
+
 
 class ChannelAgentRouter:
     """Answers channel messages that name a published agent."""
@@ -162,17 +236,6 @@ class ChannelAgentRouter:
         self.db = db
         self.runner = AgentRunnerService(db)
         self.usage = UsageReportService(db)
-
-    @staticmethod
-    def _channel_key(platform_chat_id: str) -> str:
-        """The chat this message arrived in, with any thread stripped.
-
-        Slack folds `thread_ts` into `platform_chat_id` as `channel:thread_ts`, so
-        the raw id identifies a *thread*. A workspace scoped to the channel has to
-        key on what is stable across the threads inside it, which is the part
-        before the colon. Every other platform's id is already the chat.
-        """
-        return platform_chat_id.partition(":")[0]
 
     async def answer(
         self,
@@ -184,9 +247,10 @@ class ChannelAgentRouter:
         user_id: UUID | None,
         conversation_id: UUID | None = None,
         platform_chat_id: str | None = None,
-        usage_reporting: dict[str, Any] | None = None,
+        channel_directory: ChannelDirectory | None = None,
         turn: int = 0,
         attachments: list[ChatFile] | None = None,
+        stream: RunStream | None = None,
     ) -> AnsweredTurn:
         """Run the agent named in `text` and return what it said.
 
@@ -202,6 +266,16 @@ class ChannelAgentRouter:
                 never linked one.
             conversation_id: The channel session's conversation, so a thread
                 keeps its history.
+            channel_directory: This channel, ready to be asked about, for an
+                agent whose spec binds `channel_tools`. Bound by the caller
+                because it holds the bot's token, and passed through unread:
+                a run with none simply gets no channel tools.
+
+        How talkative the reply is about what a turn cost is not a parameter:
+        it is the binding's, read off the exposure this method has just
+        resolved. It used to arrive from the router as the *bot's* setting,
+        which made it the operator's rather than the agent author's - and once
+        a bot served one agent there was nothing left for two copies to say.
 
         Returns:
             The agent's answer, or an empty string when a tool call was parked
@@ -248,6 +322,7 @@ class ChannelAgentRouter:
 
         produced: list[OutgoingAttachment] = []
         refused: list[str] = []
+        called: list[RecordedToolCall] = []
         answer, run = await self.runner.execute(
             ctx,
             agent.id,
@@ -255,9 +330,12 @@ class ChannelAgentRouter:
             attachments=attachments,
             outbound=produced,
             outbound_refused=refused,
+            tool_calls=called,
+            stream=stream,
             surface=_SURFACES.get(platform, RunSurface.API),
             conversation_id=conversation_id,
-            channel_key=(None if platform_chat_id is None else self._channel_key(platform_chat_id)),
+            channel_key=(None if platform_chat_id is None else channel_key(platform_chat_id)),
+            channel_directory=channel_directory,
             # The binding is what let this message through, so it is also what
             # the run is attributed to and bounded by. Resolving it here and
             # then not passing it on would leave a cap somebody set on this bot
@@ -266,10 +344,15 @@ class ChannelAgentRouter:
         )
         return AnsweredTurn(
             text=await self._with_usage(
-                ctx, answer, run, usage_reporting=usage_reporting, turn=turn
+                ctx, answer, run, usage_reporting=exposure.usage_reporting, turn=turn
             ),
             attachments=produced,
             refused=refused,
+            image_png=drawn_chart(called),
+            awaiting_approval_run_id=(
+                run.id if run.status == RunStatus.AWAITING_APPROVAL else None
+            ),
+            status=run.status,
         )
 
     async def answer_default(
@@ -282,18 +365,18 @@ class ChannelAgentRouter:
         user_id: UUID | None,
         conversation_id: UUID | None = None,
         platform_chat_id: str | None = None,
-        usage_reporting: dict[str, Any] | None = None,
+        channel_directory: ChannelDirectory | None = None,
         turn: int = 0,
         attachments: list[ChatFile] | None = None,
         message_history: list[Any] | None = None,
+        stream: RunStream | None = None,
     ) -> AnsweredTurn:
         """Run the only agent this bot serves and return what it said.
 
-        The unaddressed half of :meth:`answer`: a message naming no handle goes
-        to the bot's single active exposure, because someone messaging a bot
-        that serves exactly one agent has already said which agent they want.
-        With several exposed there is no honest guess - the sender is asked to
-        name one - and with none there is nothing to run at all.
+        The unaddressed half of :meth:`answer`, and the ordinary one: a bot
+        serves exactly one agent - `uq_exposure_bot` - so a message that names
+        no handle has already said which agent it is for. The only other state
+        is a bot nobody has bound anything to, and there is nothing to run.
 
         Args:
             text: The whole incoming message; there is no handle to strip.
@@ -303,26 +386,25 @@ class ChannelAgentRouter:
                 shared channels, not about this one.
 
         Raises:
-            BadRequestError: If the bot exposes no agent, or more than one.
-                Both messages say what to do next, because the person reading
-                them is standing in a chat that just refused to answer.
+            BadRequestError: If the bot exposes no agent. The message says what
+                to do next, because the person reading it is standing in a chat
+                that just refused to answer.
             AuthorizationError: If the sender never linked an account.
             NotFoundError: If the sender may not see the one exposed agent.
         """
         exposed = await agent_exposure_repo.list_active_for_bot(self.db, channel_bot_id=bot_id)
         if not exposed:
             raise BadRequestError(message=_NOTHING_EXPOSED_HERE, details={"bot_id": str(bot_id)})
-        if len(exposed) > 1:
-            handles = ", ".join(f"@{agent.slug}" for _, agent in exposed)
-            raise BadRequestError(
-                message=_SAY_WHICH.format(handles=handles),
-                details={"bot_id": str(bot_id), "handles": handles},
-            )
 
+        # At most one, guaranteed by the unique constraint on the bot. This used
+        # to be a list to choose from, and choosing was the sender's problem:
+        # a message naming no handle was answered with a list of slugs instead
+        # of an answer, for agents they could not see.
         exposure, agent = exposed[0]
         ctx = await self._context(organization_id, user_id, slug=agent.slug)
         produced: list[OutgoingAttachment] = []
         refused: list[str] = []
+        called: list[RecordedToolCall] = []
         answer, run = await self.runner.execute(
             ctx,
             agent.id,
@@ -330,18 +412,26 @@ class ChannelAgentRouter:
             attachments=attachments,
             outbound=produced,
             outbound_refused=refused,
+            tool_calls=called,
+            stream=stream,
             surface=_SURFACES.get(platform, RunSurface.API),
             conversation_id=conversation_id,
-            channel_key=(None if platform_chat_id is None else self._channel_key(platform_chat_id)),
+            channel_key=(None if platform_chat_id is None else channel_key(platform_chat_id)),
+            channel_directory=channel_directory,
             message_history=message_history,
             exposure=exposure,
         )
         return AnsweredTurn(
             text=await self._with_usage(
-                ctx, answer, run, usage_reporting=usage_reporting, turn=turn
+                ctx, answer, run, usage_reporting=exposure.usage_reporting, turn=turn
             ),
             attachments=produced,
             refused=refused,
+            image_png=drawn_chart(called),
+            awaiting_approval_run_id=(
+                run.id if run.status == RunStatus.AWAITING_APPROVAL else None
+            ),
+            status=run.status,
         )
 
     async def _with_usage(

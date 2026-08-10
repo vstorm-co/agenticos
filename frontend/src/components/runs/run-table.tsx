@@ -3,9 +3,16 @@
 import { useTranslations } from "next-intl";
 
 import { RunStatusBadge } from "@/components/agents/status-badge";
-import { Badge } from "@/components/ui";
-import { formatDate } from "@/lib/utils";
+import { Badge, SortButton } from "@/components/ui";
+import { formatDate, formatRunDuration } from "@/lib/utils";
 import type { AgentRun } from "@/types/runs";
+
+/** The two orders `GET /runs` offers, matching `RunOrder` on the backend. */
+export type RunSortKey = "started_at" | "duration";
+export interface RunSort {
+  by: RunSortKey;
+  dir: "asc" | "desc";
+}
 
 /**
  * Run history as rows, wherever they came from.
@@ -17,12 +24,28 @@ import type { AgentRun } from "@/types/runs";
  * so a page that mixes them silently has a cost column nobody can add up. That
  * is the bug this badge exists for, next to a month-to-date figure that counts
  * each parent once.
+ *
+ * `sort`/`onSort` turn the Started and Took headers into sort controls. Both are
+ * optional and travel together: a delegations table and a focused run render the
+ * same rows with nothing to sort - the order came from the one query that asked
+ * for them - so they pass neither and get plain headers. When they are given,
+ * the sort is the server's over the whole narrowed set, never this page of rows:
+ * the slowest run of a month is not in whichever twenty-five a feed returned.
  */
-export function RunTable({ runs }: { runs: AgentRun[] }) {
+export function RunTable({
+  runs,
+  sort,
+  onSort,
+}: {
+  runs: AgentRun[];
+  sort?: RunSort;
+  onSort?: (key: RunSortKey) => void;
+}) {
   const t = useTranslations("pages.runs");
+  const sortable = sort !== undefined && onSort !== undefined;
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[40rem] text-sm">
+      <table className="w-full min-w-[46rem] text-sm">
         <thead>
           <tr className="text-muted-foreground border-b text-left">
             <th className="py-2 font-medium">{t("status")}</th>
@@ -30,7 +53,32 @@ export function RunTable({ runs }: { runs: AgentRun[] }) {
             <th className="px-3 py-2 font-medium">{t("model")}</th>
             <th className="px-3 py-2 text-right font-medium">{t("tokens")}</th>
             <th className="px-3 py-2 text-right font-medium">{t("cost")}</th>
-            <th className="px-3 py-2 font-medium">{t("started")}</th>
+            <th className="px-3 py-2 text-right font-medium">
+              {sortable ? (
+                <SortButton
+                  active={sort.by === "duration"}
+                  direction={sort.dir}
+                  onClick={() => onSort("duration")}
+                >
+                  {t("took")}
+                </SortButton>
+              ) : (
+                t("took")
+              )}
+            </th>
+            <th className="px-3 py-2 font-medium">
+              {sortable ? (
+                <SortButton
+                  active={sort.by === "started_at"}
+                  direction={sort.dir}
+                  onClick={() => onSort("started_at")}
+                >
+                  {t("started")}
+                </SortButton>
+              ) : (
+                t("started")
+              )}
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -67,6 +115,12 @@ export function RunTable({ runs }: { runs: AgentRun[] }) {
                     {" +"}
                   </span>
                 )}
+              </td>
+              {/* A still-running or parked run reads "-", the same absence the
+                  duration sort places last in both directions - it has no
+                  duration yet, which is a different fact from having been fast. */}
+              <td className="text-muted-foreground px-3 py-2 text-right font-mono text-xs">
+                {formatRunDuration(run.started_at, run.ended_at)}
               </td>
               <td className="text-muted-foreground px-3 py-2 text-xs">
                 {run.started_at === null ? "-" : formatDate(run.started_at)}

@@ -31,7 +31,7 @@ from typing import Any
 from uuid import UUID
 
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter, UserContent
-from pydantic_ai.run import AgentRun, AgentRunResult
+from pydantic_ai.run import AgentRun
 from pydantic_ai.tools import DeferredToolRequests
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -50,6 +50,7 @@ from app.services.agent_runner import (
     ParkedApproval,
     PausedRunState,
     PreparedRun,
+    _outcome,
 )
 from app.services.attachments import AttachmentRouter
 from app.services.usage_report import UsageReport, UsageReportService
@@ -142,22 +143,6 @@ def requested_environment_id(frame: Mapping[str, Any]) -> UUID | None:
         raise BadRequestError(
             message="That is not a valid environment id", details={"environment_id": str(raw)}
         ) from exc
-
-
-def _outcome(
-    agent_run: AgentRun[AgentDeps, str | DeferredToolRequests],
-) -> AgentRunResult[str | DeferredToolRequests]:
-    """What the iterated run ended with.
-
-    Raises:
-        RuntimeError: If it ended without a result. That is not a state the
-            agent can reach on its own - it means whoever drove the loop stopped
-            early - so it fails loudly and is recorded as a failed run, rather
-            than being persisted as an empty answer.
-    """
-    if agent_run.result is None:
-        raise RuntimeError("The agent run ended without a result")
-    return agent_run.result
 
 
 def display_output(output: str | DeferredToolRequests) -> str:

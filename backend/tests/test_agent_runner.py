@@ -21,6 +21,7 @@ from pydantic_ai.usage import RequestUsage
 
 from app.agents.capabilities.approval import ApprovalGranted, ApprovalRejected
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, SpendLedger
+from app.agents.capabilities.channel_tools import CHANNEL_DIRECTORY_RESOURCE
 from app.agents.spec import AgentSpec, CapabilityBindingSpec, ObservabilitySpec
 from app.agents.subagent_runtime import DelegationSpend, DelegationStash, ParkedDelegation
 from app.core.exceptions import BadRequestError, NotFoundError, RunExecutionError
@@ -37,6 +38,7 @@ from app.services.agent_runner import (
     month_start,
 )
 from app.services.approvals import ApprovalService
+from app.services.transcript import RecordedToolCall
 
 
 def _ctx() -> AuthContext:
@@ -317,6 +319,100 @@ class TestPrepare:
 
         assert toolsets.await_args.kwargs["connection_ids"] == spec.mcp_server_ids
         assert build.call_args.kwargs["extra_toolsets"] == ["linear-toolset"]
+
+    @pytest.mark.anyio
+    async def test_a_resumed_channel_run_keeps_its_binding_prompt_and_tools(self):
+        """A channel run parks, a reviewer approves, and the continuation must be
+        the same agent: with the platform's formatting prompt and the
+        `channel_tools` capability the binding grants. Resuming without them
+        answered the approval formatted for the wrong platform and with the
+        channel lookups gone (#513, S14)."""
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        exposure_id = uuid.uuid4()
+        run = _parked_run(exposure_id=exposure_id, surface=RunSurface.MATTERMOST.value)
+        agent = MagicMock(id=run.agent_id, current_version_id=run.agent_version_id)
+        spec = AgentSpec(name="Support")
+        exposure = MagicMock(
+            id=exposure_id, prompt="Answer in Mattermost style.", tools=["get_channel_info"]
+        )
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                new=AsyncMock(return_value=run),
+            ),
+            patch(
+                "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch("app.services.agent_runner.agent_run_repo.mark_running", new=AsyncMock()),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch(
+                "app.services.agent_runner.agent_exposure_repo.get",
+                new=AsyncMock(return_value=exposure),
+            ) as get_exposure,
+            patch.object(service, "_parked_spec", new=AsyncMock(return_value=(agent, spec))),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch("app.services.agent_runner.build_agent") as build,
+        ):
+            build.return_value.agent.run = AsyncMock(return_value=MagicMock(output="done"))
+            build.return_value.ledger = SpendLedger()
+            await service.resume(ctx, run.id)
+
+        assert get_exposure.await_args.args[1] == exposure_id
+        assert get_exposure.await_args.kwargs["organization_id"] == ctx.organization_id
+        built_spec = build.call_args.args[0]
+        assert "Answer in Mattermost style." in built_spec.instructions
+        assert "channel_tools" in {capability.id for capability in built_spec.capabilities}
+
+    @pytest.mark.anyio
+    async def test_a_resumed_run_with_no_binding_reloads_no_exposure(self):
+        """The common resume has no binding, so it must not go looking one up."""
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        run = _parked_run()  # exposure_id is None by default
+        agent = MagicMock(id=run.agent_id, current_version_id=run.agent_version_id)
+        spec = AgentSpec(name="Support")
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                new=AsyncMock(return_value=run),
+            ),
+            patch(
+                "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch("app.services.agent_runner.agent_run_repo.mark_running", new=AsyncMock()),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch(
+                "app.services.agent_runner.agent_exposure_repo.get", new=AsyncMock()
+            ) as get_exposure,
+            patch.object(service, "_parked_spec", new=AsyncMock(return_value=(agent, spec))),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch("app.services.agent_runner.build_agent") as build,
+        ):
+            build.return_value.agent.run = AsyncMock(return_value=MagicMock(output="done"))
+            build.return_value.ledger = SpendLedger()
+            await service.resume(ctx, run.id)
+
+        get_exposure.assert_not_awaited()
+        assert build.call_args.args[0].capabilities == []
 
     @staticmethod
     async def _period_lookups(ctx) -> dict[str, object]:
@@ -643,6 +739,28 @@ class TestFilesAcrossOneTurn:
 
         assert outbound == [produced]
         assert refused == ["/huge.csv"]
+
+    @pytest.mark.anyio
+    async def test_the_tool_calls_a_turn_made_reach_the_caller(self):
+        """A channel run reads a chart off what the turn called, not off the row
+        - it writes no messages (#205) - so `execute` hands the calls back
+        through the list it was given, the same way it hands back the files."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.outbound = []
+        prepared.outbound_refused = []
+        service.prepare = AsyncMock(return_value=prepared)
+        drew = RecordedToolCall(tool_call_id="c-1", tool_name="create_chart", args={}, result="{}")
+        service._run = AsyncMock(
+            return_value=RunSegment(
+                output="answered", run=prepared.run, tool_calls=[drew], settled={}
+            )
+        )
+
+        called: list[RecordedToolCall] = []
+        await service.execute(MagicMock(), uuid.uuid4(), "chart it", tool_calls=called)
+
+        assert called == [drew]
 
     @pytest.mark.anyio
     async def test_a_caller_that_cannot_deliver_files_asks_for_none(self):
@@ -1930,12 +2048,22 @@ class TestWhoTheRunSaysItIs:
         assert create_run.call_args.kwargs["user_id"] is None
 
 
-def _exposure(*, organization_id=None, environment_id=None):
-    """A binding row."""
+def _exposure(*, organization_id=None, environment_id=None, surface="web", prompt=None, tools=None):
+    """A binding row.
+
+    `surface`, `prompt` and `tools` are real values rather than mock attributes:
+    the run appends what the surface renders, what the binding was told, and
+    which channel lookups it granted. A mock for the first two is a `MagicMock`
+    concatenated into the agent's instructions, and one for the third is a
+    capability config the model would be offered.
+    """
     return MagicMock(
         id=uuid.uuid4(),
         organization_id=organization_id or uuid.uuid4(),
         environment_id=environment_id,
+        surface=surface,
+        prompt=prompt,
+        tools=tools or [],
     )
 
 
@@ -2221,3 +2349,62 @@ class TestTheWorkspaceReachesTheAgent:
 
         assert prepared.workspace is None
         assert "workspace_backend" not in resources
+
+
+class TestWhatTheChannelLetsTheAgentLookUp:
+    """The binding decides, and only a channel run gets a directory at all.
+
+    Both halves are here rather than in the capability's own tests, because both
+    are wiring: a directory that never reached `resources` and a grant that never
+    reached the spec look identical from inside `channel_tools` - it builds
+    nothing, and the agent answers without ever mentioning it.
+    """
+
+    @staticmethod
+    async def _built(*, exposure, directory):
+        """Prepare a run and hand back what `build_agent` was given."""
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(
+                    return_value=(agent, AgentSpec(name="Support"), agent.current_version_id)
+                ),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch("app.services.agent_runner.build_agent") as build,
+        ):
+            await service.prepare(_ctx(), agent.id, exposure=exposure, channel_directory=directory)
+
+        # The spec is positional; everything else the factory takes is a keyword.
+        return build.call_args.args[0], build.call_args.kwargs
+
+    @pytest.mark.anyio
+    async def test_a_channel_run_hands_the_capability_its_channel(self):
+        directory = MagicMock()
+        spec, built = await self._built(
+            exposure=_exposure(surface="mattermost", tools=["get_channel_info"]),
+            directory=directory,
+        )
+
+        assert built["resources"][CHANNEL_DIRECTORY_RESOURCE] is directory
+        assert [binding.id for binding in spec.capabilities] == ["channel_tools"]
+
+    @pytest.mark.anyio
+    async def test_a_run_outside_a_channel_carries_no_directory(self):
+        """The dashboard, the API, a schedule. A resource nobody set is the
+        capability's own signal that there is nothing here to ask about."""
+        spec, built = await self._built(exposure=None, directory=None)
+
+        assert CHANNEL_DIRECTORY_RESOURCE not in built["resources"]
+        assert spec.capabilities == []
