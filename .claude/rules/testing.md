@@ -18,12 +18,12 @@ Deeper guidance lives in the `backend-tests` skill and `docs/testing.md`.
 ## Running — narrowest first
 
 **Run what covers the change, not the suite.** The suite is the check before a push;
-after an edit it answers the same question thirty times slower.
+after an edit it answers the same question ten to fifty times slower.
 
 | From | Command | About |
 |---|---|---|
-| `backend/` | `uv run pytest tests/test_sandbox_workspace.py -q` | 1s |
-| `backend/` | `uv run pytest tests/api/test_workspace_routes.py -k bytes -x` | 1s |
+| `backend/` | `uv run pytest tests/test_sandbox_workspace.py -q` | ~6s, nearly all importing the app |
+| `backend/` | `uv run pytest tests/api/test_workspace_routes.py -k bytes -x` | ~6s, same |
 | `backend/` | `uv run pytest tests/test_a.py tests/test_b.py -q` | as many files as the change touched |
 | `frontend/` | `bunx vitest run src/components/chat/usage-strip.test.tsx` | 2s |
 | `frontend/` | `bunx vitest run src/components/chat` | a directory |

@@ -26,7 +26,8 @@ make docs-build         # mkdocs --strict — a dead link is a failure
 make audit              # the locked dependency set against the advisory database
 ```
 
-About five minutes serial, against CI's seven in parallel. The equality is
+About five minutes serial, against CI's twelve in parallel — the backend `test`
+job the long pole there, which #520 is cutting. The equality is
 maintained rather than asserted: the workflow calls these targets rather than
 repeating their commands, and `tests/test_ci_parity.py` fails if a gating job
 grows a step `make check` does not run. It has drifted four times — see
