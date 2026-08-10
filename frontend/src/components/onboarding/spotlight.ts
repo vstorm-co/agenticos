@@ -63,23 +63,6 @@ export function activateTab(trigger: HTMLElement): void {
   trigger.focus({ preventScroll: true });
 }
 
-/** Resolve after `ms`, or at once if `signal` is (or becomes) aborted. */
-export function delay(ms: number, signal: AbortSignal): Promise<void> {
-  return new Promise((resolve) => {
-    if (signal.aborted) {
-      resolve();
-      return;
-    }
-    const finish = () => {
-      clearTimeout(timer);
-      signal.removeEventListener("abort", finish);
-      resolve();
-    };
-    const timer = setTimeout(finish, ms);
-    signal.addEventListener("abort", finish);
-  });
-}
-
 export function waitForElement(
   selector: string,
   signal: AbortSignal,

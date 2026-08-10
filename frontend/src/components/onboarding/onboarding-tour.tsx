@@ -8,22 +8,10 @@ import { useTranslations } from "next-intl";
 import type { AllowedButtons, DriveStep, Driver } from "driver.js";
 
 import { useDetailTargets } from "@/components/onboarding/detail-targets";
-import {
-  activateTab,
-  createTourDriver,
-  delay,
-  waitForElement,
-} from "@/components/onboarding/spotlight";
+import { activateTab, createTourDriver, waitForElement } from "@/components/onboarding/spotlight";
 import { useOnboardingTour } from "@/hooks";
 import { stripLocale } from "@/lib/active-route";
 import { pageKey } from "@/lib/onboarding/tour";
-
-/**
- * How long a tab is spotlighted on its own before the panel it opens is. Long
- * enough to read as "this is the control that gets you here" and to see the
- * spotlight slide, short enough not to stall the walk.
- */
-const TAB_REVEAL_MS = 650;
 
 /**
  * The guided tour: driver.js walks the reader across the product a page at a
@@ -44,12 +32,11 @@ const TAB_REVEAL_MS = 650;
  * are already looking at; if there is nothing to open (an empty list), it
  * describes the section centered rather than skip it, so the "?" still explains
  * what a detail view holds before there is any data to open one on. And a step
- * with an `activate` target spotlights that Radix tab first, holds a beat, then
- * switches to it — so the reader sees which control opens the section and the
- * spotlight slides from the tab down to the target its panel holds. Which steps
- * to show, in what order, permission-filtered, and whether closing persists
- * completion, all come from `useOnboardingTour`. Mounted once in the dashboard
- * layout.
+ * with an `activate` target switches to that Radix tab, then spotlights the
+ * target its panel holds — one Next, one panel, and the popover stays put on it
+ * to be read rather than sliding off mid-sentence. Which steps to show, in what
+ * order, permission-filtered, and whether closing persists completion, all come
+ * from `useOnboardingTour`. Mounted once in the dashboard layout.
  */
 export function OnboardingTour() {
   const t = useTranslations("onboarding");
@@ -124,18 +111,12 @@ export function OnboardingTour() {
     const controller = new AbortController();
     void (async () => {
       // A tab whose panel holds the target only mounts once its trigger is
-      // activated. Spotlight the tab first, hold a beat so the reader sees which
-      // control opens the section, then switch — driver slides the spotlight from
-      // the tab down to the target below.
+      // activated, so switch to it first — then the one spotlight lands on the
+      // target and stays there until Next, never sliding off it mid-read.
       if (step.activate) {
         const trigger = await waitForElement(`[data-tour="${step.activate}"]`, controller.signal);
         if (controller.signal.aborted) return;
-        if (trigger instanceof HTMLElement) {
-          show(trigger);
-          await delay(TAB_REVEAL_MS, controller.signal);
-          if (controller.signal.aborted) return;
-          activateTab(trigger);
-        }
+        if (trigger instanceof HTMLElement) activateTab(trigger);
       }
       const element = step.target
         ? await waitForElement(`[data-tour="${step.target}"]`, controller.signal)
