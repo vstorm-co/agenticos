@@ -17,6 +17,34 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.96] - 2026-08-10
+
+The sync-source wizard is decomposed into one component per step — a structural
+refactor, no behaviour change.
+
+### Changed
+
+- **Sync-source wizard split into per-step components.** The 761-line
+  `sync-source-wizard.tsx` becomes a ~320-line shell (cross-step flow, the shared
+  form, the header and step indicator, and the `connectorsFailed` /
+  `orgIntegrationsFailed` flags it hands down) plus one component per step —
+  `sync-source-{connector,configure,schedule,clone}-step.tsx` — following the
+  pattern #221 set in `components/rag/`. A folded-in fix routes the empty-config
+  note through `next-intl`. Closes #461, #540. (#529)
+
+## [0.0.95] - 2026-08-10
+
+The Activity tab's spend view breaks down who spent what.
+
+### Added
+
+- **Per-person spend on the Activity tab.** A `SpendByPerson` card beneath "By
+  agent" on the Spend tab reads `/stats/usage?group_by=user` over the tab's date
+  window, gated on `runs:view` (renders nothing and issues no query without it),
+  with delegated runs excluded. A "+N others" line appears when `active_users`
+  exceeds the rows shown, so a top-N list never reads as the whole organization.
+  Closes #214. (#578, superseding the stacked #527)
+
 ## [0.0.94] - 2026-08-10
 
 The Activity tab gains a per-version summary that cannot disagree with the

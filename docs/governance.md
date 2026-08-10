@@ -324,6 +324,17 @@ reader expects an agent, and split one agent across two rows for having answered
 two models. The per-model shape survives where it is the question being asked: the
 usage email still groups that way.
 
+**Who spent it is a fourth breakdown**, beneath By provider, By key and By agent —
+the one that answers with people rather than vendors or agents. It reads the same
+`group_by=user` rows the dashboard's adoption table does — top-level runs only,
+busiest first — so a delegate's cost lands once, inside the run that started it, and
+it covers the window the rest of the tab shows rather than a rolling default of its
+own. Naming the organization's people is the same call the dashboard card makes, so
+it takes the same gate: `runs:view`, held by builder and operator as well as the two
+stewards, and it says so in its own copy. A caller without `runs:view` does not see
+it — the card is absent, and its question is never asked, rather than a request that
+comes back refused.
+
 ### Narrowing the approvals queue
 
 `GET /approvals` serves two views of the same rows. Pending only by default, which
