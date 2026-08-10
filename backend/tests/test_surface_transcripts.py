@@ -138,6 +138,7 @@ def _assert_full_turn(
     conversations: MagicMock, run: MagicMock, *, question: str, answer: str
 ) -> None:
     """The question, the answer, and the tool call all reached the transcript."""
+    assert len(conversations.create_message.await_args_list) == 2
     user, assistant = (call.kwargs for call in conversations.create_message.await_args_list)
     assert (user["role"], user["content"], user["run_id"]) == ("user", question, run.id)
     assert (assistant["role"], assistant["content"], assistant["run_id"]) == (
