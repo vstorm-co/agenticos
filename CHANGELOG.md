@@ -17,6 +17,26 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.98] - 2026-08-10
+
+Runs, approvals and spend export as CSV — exactly the rows the list would show.
+
+### Added
+
+- **CSV export for runs, approvals and spend.** `GET /runs/export`,
+  `/approvals/export` and `/spend/export` each serialise exactly the rows their
+  list route would return, gated as their list sibling is (runs and spend on
+  `runs:view`, approvals on `approvals:decide`) with the `Scope.OWN` floor
+  enforced in-query. An unbounded export gets the two rules it needs by design: a
+  mandatory date range and a row cap that refuses rather than truncates above it.
+  Columns survive a spreadsheet sum — `cost_is_partial` on runs,
+  `partial_run_count` on spend, so a wholly unpriced run exports a real `0` beside
+  `cost_is_partial=true`, never a bare `0` — and CSV formula injection is
+  neutralised. Each export writes an `audit_log` entry (window, applied filter
+  names, row count — never the request body or a resolved row). An export menu on
+  the Activity page carries the applied filters, gated on `runs:view`. Closes
+  #211. (#531)
+
 ## [0.0.97] - 2026-08-10
 
 Regression coverage that every entry point records a run's transcript.
