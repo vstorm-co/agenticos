@@ -20,6 +20,15 @@ import { driver, type Driver } from "driver.js";
  * the popover to a fixed spot at the bottom (see `globals.css`): the text and its
  * Next button hold still for the whole walk, and only the spotlight moves.
  *
+ * `animate: false` is what keeps that spotlight move from reading as a blink.
+ * With driver's animation on, each transition adds a `driver-fade` that fades the
+ * popover and overlay back in, and rebuilds the overlay SVG on every frame of the
+ * slide; against a pinned, unchanging caption that whole scene flashes on every
+ * step — and a step that reveals a control and then lands on its target flashes
+ * twice. Off, driver updates the overlay cut-out in place and the cut-out jumps
+ * straight to the next control: the caption never moves, nothing fades, and the
+ * only thing that changes is where the light is.
+ *
  * Lives under `components/onboarding`, not in a hook: it is DOM and third-party
  * overlay work, and the hook layer is held to a 100% line-coverage gate this
  * could only meet by asserting on driver.js's internals.
@@ -32,7 +41,7 @@ export function createTourDriver(): Driver {
     stagePadding: 8,
     stageRadius: 10,
     disableActiveInteraction: true,
-    animate: true,
+    animate: false,
     popoverClass: "tour-popover",
   });
 }
