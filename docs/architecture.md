@@ -326,6 +326,22 @@ return await service.usage(ctx, scope=scope, ...)
     gate lives in the service. `tests/api/test_platform_routes.py` enforces
     all of it.
 
+!!! note "A personal preference carries no gate at all"
+
+    A row scoped to `(user_id, organization_id)` that only its owner reads and
+    writes is not org data, so no permission gates it and there is no route that
+    reaches somebody else's. `GET`/`PUT`/`DELETE /me/dashboard-layout` (the
+    saved dashboard arrangement) and its `/presets` shelf underneath (the named
+    arrangements a person switches between) are the pattern: `CurrentUser` +
+    `ActiveOrg`, every query filtered on **both** ids. The composite key is the
+    whole tenant boundary — a layout or preset saved in one organization is
+    invisible in another *even to its owner*, which a per-user check alone would
+    wave through, so `tests/integration/test_dashboard_layout.py` and
+    `tests/integration/test_dashboard_preset.py` cover exactly that. There is no
+    *apply-a-preset* route: applying one is the client's `PUT` of the preset's
+    entries as the active arrangement, so the dashboard keeps one write path and
+    one validation for what it renders.
+
 `UserRole`, `User.has_role()`, `RoleChecker`, `CurrentAdmin` and
 `CurrentSuperuser` were the template's model and are gone, along with the
 `users.role` column (migration `0066`). They were a third answer to a question

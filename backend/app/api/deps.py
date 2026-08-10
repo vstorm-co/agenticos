@@ -794,6 +794,22 @@ def get_user_slash_command_service(db: DBSession) -> UserSlashCommandService:
 
 
 UserSlashCommandSvc = Annotated[UserSlashCommandService, Depends(get_user_slash_command_service)]
+from app.services.dashboard_layout import DashboardLayoutService
+
+
+def get_dashboard_layout_service(db: DBSession) -> DashboardLayoutService:
+    return DashboardLayoutService(db)
+
+
+DashboardLayoutSvc = Annotated[DashboardLayoutService, Depends(get_dashboard_layout_service)]
+from app.services.dashboard_preset import DashboardPresetService
+
+
+def get_dashboard_preset_service(db: DBSession) -> DashboardPresetService:
+    return DashboardPresetService(db)
+
+
+DashboardPresetSvc = Annotated[DashboardPresetService, Depends(get_dashboard_preset_service)]
 from app.services.admin import AdminService
 
 

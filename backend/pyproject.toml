@@ -411,6 +411,11 @@ include = [
     "app/api/routes/v1/_workspace_bytes.py",
     "app/api/routes/v1/sharing.py",
     "app/api/routes/v1/stats.py",
+    "app/repositories/dashboard_layout.py",
+    "app/services/dashboard_layout.py",
+    "app/api/routes/v1/me_dashboard_layout.py",
+    "app/repositories/dashboard_preset.py",
+    "app/services/dashboard_preset.py",
 ]
 # Mirrors `[tool.coverage.run] omit` - one definition of "ours", asserted equal
 # by tests/test_coverage_gate.py.
@@ -568,6 +573,11 @@ include = [
     "app/api/routes/v1/_workspace_bytes.py",
     "app/api/routes/v1/sharing.py",
     "app/api/routes/v1/stats.py",
+    "app/repositories/dashboard_layout.py",
+    "app/services/dashboard_layout.py",
+    "app/api/routes/v1/me_dashboard_layout.py",
+    "app/repositories/dashboard_preset.py",
+    "app/services/dashboard_preset.py",
 ]
 branch = true
 omit = [
