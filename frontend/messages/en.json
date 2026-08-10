@@ -2155,6 +2155,10 @@
         "title": "Reusable skills",
         "body": "A skill is a packaged set of instructions an agent can draw on for a task. Write one once here and share it across the agents that need it."
       },
+      "skills-list": {
+        "title": "Your skills",
+        "body": "The skills you've written or installed. An agent picks the ones it needs from its Skills tab, and the same skill can serve several agents at once."
+      },
       "skills-library": {
         "title": "Start from a library",
         "body": "You don't have to write one from scratch — install a ready-made skill from here and adapt it to how your team works."
@@ -2214,6 +2218,10 @@
       "vault-new": {
         "title": "The vault",
         "body": "API keys and other credentials live here, encrypted at rest. Agents use them to reach the tools they need, and nobody sees a stored secret again."
+      },
+      "vault-keys": {
+        "title": "What's stored",
+        "body": "Every credential in this workspace, listed by name and kind. An agent references a key by its name; the value itself is shown to no one once it's saved."
       },
       "mcp-catalog": {
         "title": "Plug in tools",

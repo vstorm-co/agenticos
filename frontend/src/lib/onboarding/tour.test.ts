@@ -84,14 +84,24 @@ describe("visibleTourSteps", () => {
     expect(visibleTourSteps(() => false).map((step) => step.id)).toEqual(UNGATED_LAUNCH);
   });
 
-  it("steps into the builder on the launch pass — instructions, tools, then publish", () => {
+  it("steps into the builder on the launch pass — one stop per tab", () => {
     const launch = visibleTourSteps(() => true).map((step) => step.id);
-    expect(launch).toContain("agent-instructions");
-    expect(launch).toContain("agent-toolbox");
-    expect(launch).toContain("agent-publish");
-    // …but not the "?"-only builder stops.
+    // One per builder tab, so a first login gets a line on each section.
+    for (const id of [
+      "agent-instructions",
+      "agent-toolbox",
+      "agent-knowledge",
+      "agent-skills",
+      "agent-limits",
+      "agent-availability",
+      "agent-history",
+      "agent-publish",
+    ]) {
+      expect(launch).toContain(id);
+    }
+    // …but not the sub-cards inside a tab — those are "?"-only.
+    expect(launch).not.toContain("agent-model");
     expect(launch).not.toContain("agent-mcp");
-    expect(launch).not.toContain("agent-history");
   });
 
   it("gives a view-only member the builder and collection walks but not the publish stop", () => {
@@ -108,6 +118,11 @@ describe("visibleTourSteps", () => {
       "chat-agent-picker",
       "agent-instructions",
       "agent-toolbox",
+      "agent-knowledge",
+      "agent-skills",
+      "agent-limits",
+      "agent-availability",
+      "agent-history",
       "kb-documents",
       "mcp-catalog",
       "finish",

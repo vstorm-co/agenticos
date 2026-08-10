@@ -90,9 +90,10 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: "agents-filters", page: ROUTES.AGENTS, target: "agents-filters" },
 
   // The builder, entered from the Agents list. The engine opens an example agent
-  // (the seeded "Getting Started", or the first one there is), clicks the named
-  // tab, then spotlights the section. The launch pass takes three of these —
-  // instructions, tools, publish; the "?" walks every tab.
+  // (the seeded "Getting Started", or the first one there is), switches to the
+  // named tab, then spotlights the section. The launch pass takes one per tab —
+  // enough for a short line on each section; the "?" adds the sub-cards (model,
+  // MCP) the launch leaves out.
   {
     id: "agent-instructions",
     page: AGENT_BUILDER,
@@ -129,6 +130,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "agent-collections",
     activate: "agent-tab-knowledge",
     permission: Perm.agentsView,
+    inTour: true,
   },
   {
     id: "agent-skills",
@@ -136,6 +138,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "agent-skills",
     activate: "agent-tab-skills",
     permission: Perm.agentsView,
+    inTour: true,
   },
   {
     id: "agent-limits",
@@ -143,6 +146,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "agent-limits",
     activate: "agent-tab-limits",
     permission: Perm.agentsView,
+    inTour: true,
   },
   {
     id: "agent-availability",
@@ -150,6 +154,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "agent-availability",
     activate: "agent-tab-availability",
     permission: Perm.agentsView,
+    inTour: true,
   },
   {
     id: "agent-history",
@@ -157,6 +162,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "agent-history",
     activate: "agent-tab-history",
     permission: Perm.agentsView,
+    inTour: true,
   },
   {
     id: "agent-publish",
@@ -173,6 +179,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.skillsEdit,
     inTour: true,
   },
+  { id: "skills-list", page: ROUTES.SKILLS, target: "skills-list", permission: Perm.skillsView },
   { id: "skills-library", page: ROUTES.SKILLS, target: "skills-library" },
 
   {
@@ -233,6 +240,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.secretsEdit,
     inTour: true,
   },
+  { id: "vault-keys", page: ROUTES.VAULT, target: "vault-keys", permission: Perm.secretsView },
 
   {
     id: "mcp-catalog",

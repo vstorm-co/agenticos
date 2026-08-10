@@ -96,7 +96,7 @@ function SkillsCard({
 }) {
   const t = useTranslations("pages.skills");
   return (
-    <Card>
+    <Card data-tour="skills-list">
       <CardHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-4">
         <div className="space-y-1">
           <CardTitle className="text-sm">{t("skills")}</CardTitle>
