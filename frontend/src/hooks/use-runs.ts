@@ -26,11 +26,27 @@ import type { AgentRun, AgentRunList, ApprovalList, CostSummary, ToolApproval } 
  * month, so an organization three years old showed "8,412 runs" next to "$31.20"
  * and the obvious reading of the pair was wrong by three years (#198). Any figure
  * drawn next to money passes one.
+ *
+ * `orderBy`/`descending`/`tookOverMs` are how the Took column sorts and the
+ * "slow runs" view filters - both computed in SQL over the whole narrowed set,
+ * because sorting one page of twenty-five sorts the wrong set. Only a departure
+ * from the feed is put on the wire: the default order is the server's, so an
+ * unfiltered call stays bodyless and keeps the same cache entry it always had.
  */
-export function useRuns(agentId?: string, options?: { enabled?: boolean; startedFrom?: string }) {
-  const startedFrom = options?.startedFrom;
+export function useRuns(
+  agentId?: string,
+  options?: {
+    enabled?: boolean;
+    startedFrom?: string;
+    startedTo?: string;
+    orderBy?: "started_at" | "duration";
+    descending?: boolean;
+    tookOverMs?: number;
+  },
+) {
+  const { startedFrom, startedTo, orderBy, descending, tookOverMs } = options ?? {};
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: qk.runs.list(agentId, startedFrom),
+    queryKey: qk.runs.list({ agentId, startedFrom, startedTo, orderBy, descending, tookOverMs }),
     queryFn: () => {
       const params: Record<string, string> = {};
       if (agentId) {
@@ -38,6 +54,10 @@ export function useRuns(agentId?: string, options?: { enabled?: boolean; started
         params.include_delegations = "true";
       }
       if (startedFrom) params.started_from = startedFrom;
+      if (startedTo) params.started_to = startedTo;
+      if (orderBy && orderBy !== "started_at") params.order_by = orderBy;
+      if (descending === false) params.descending = "false";
+      if (tookOverMs !== undefined) params.took_over_ms = String(tookOverMs);
       return apiClient.get<AgentRunList>(
         "/runs",
         Object.keys(params).length > 0 ? { params } : undefined,

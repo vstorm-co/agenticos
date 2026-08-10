@@ -74,9 +74,30 @@ export const qk = {
     all: () => ["runs"] as const,
     // The window is part of the key: the same agent over two windows is two
     // answers, and caching one as the other is how a figure ends up describing a
-    // period nobody asked for.
-    list: (agentId?: string, startedFrom?: string) =>
-      ["runs", "list", agentId ?? "all", startedFrom ?? "all-time"] as const,
+    // period nobody asked for. The sort and the minimum-duration filter are in
+    // for the same reason - the slowest runs and the newest runs are two answers
+    // to the same window, and the p95 deep-link asks for the first while the feed
+    // asks for the second.
+    list: (
+      opts: {
+        agentId?: string;
+        startedFrom?: string;
+        startedTo?: string;
+        orderBy?: string;
+        descending?: boolean;
+        tookOverMs?: number;
+      } = {},
+    ) =>
+      [
+        "runs",
+        "list",
+        opts.agentId ?? "all",
+        opts.startedFrom ?? "all-time",
+        opts.startedTo ?? "no-end",
+        opts.orderBy ?? "started_at",
+        opts.descending ?? true,
+        opts.tookOverMs ?? "no-min",
+      ] as const,
     detail: (id: string) => ["runs", id] as const,
     // A separate key from `list`, because it is a separate question: `list`
     // answers "the top level", this answers "what did this run delegate", and

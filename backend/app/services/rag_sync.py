@@ -9,7 +9,6 @@ from app.core.exceptions import BadRequestError, NotFoundError
 from app.db.models.sync_log import SyncLog
 from app.repositories import sync_log_repo
 from app.schemas.rag import RAGSyncLogItem, RAGSyncLogList
-from app.worker.tasks.rag_tasks import sync_collection_flow
 
 
 def _as_item(log: SyncLog) -> RAGSyncLogItem:
@@ -102,6 +101,12 @@ class RAGSyncService:
             mode=mode,
         )
         from app.core.background import spawn_after_commit
+
+        # Imported here rather than at module top so that importing this service
+        # does not pull in Prefect (~1.4s), which the API and the test suite pay
+        # for and never use - the flow only runs in the worker. The same reason
+        # `rag_document.py` and `sync_source.py` import their flows locally (#520).
+        from app.worker.tasks.rag_tasks import sync_collection_flow
 
         # The flow reads this sync log by id on its own session, so it starts
         # after the commit rather than after this line (#417).

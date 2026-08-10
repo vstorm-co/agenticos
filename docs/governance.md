@@ -235,6 +235,21 @@ work included:
 | `GET /runs?agent_id=<id>&include_delegations=true` | One agent's own history. What the Builder's Recent runs panel and Activity's `?agent=` ask, because a delegate's rows are the only record of what it itself did |
 | `GET /runs?parent_run_id=<id>` | What that run delegated — the query `agent_runs_parent_run_id_idx` exists for. Takes precedence over `include_delegations` |
 | `GET /runs/<id>` | One run, delegated or not. Where a link from a transcript lands |
+| `GET /runs/<id>/transcript` | That run's turns, in order - what a run detail view renders as steps. Authorized, not owned (below) |
+
+**Reading a run is authorized, not owned.** A colleague holding `runs:view` reads
+a run somebody else started - authority over a run is the organization's, because
+a run is what the organization is billed and held accountable for, not the private
+property of whoever pressed go. So the decision lives in the service rather than in
+a route gate: it resolves the run against the caller's organization first, then
+checks `runs:view`. A run in another tenant reads as *absent* - the same 404 an id
+that never existed answers with, down to its body - so the response cannot be used
+to discover that a run exists. A run that ran with no conversation (an API call
+that passed no `conversation_id`) has no transcript to read, and says so with a
+null `conversation_id` rather than an empty list that would read as "it did
+nothing". None of this widens `GET /conversations/{id}/messages`, which stays
+scoped to the owner: a run's transcript being readable by a colleague must not make
+the private thread it sits in readable too.
 
 ### What the dashboard's aggregates show
 
@@ -309,6 +324,17 @@ reader expects an agent, and split one agent across two rows for having answered
 two models. The per-model shape survives where it is the question being asked: the
 usage email still groups that way.
 
+**Who spent it is a fourth breakdown**, beneath By provider, By key and By agent —
+the one that answers with people rather than vendors or agents. It reads the same
+`group_by=user` rows the dashboard's adoption table does — top-level runs only,
+busiest first — so a delegate's cost lands once, inside the run that started it, and
+it covers the window the rest of the tab shows rather than a rolling default of its
+own. Naming the organization's people is the same call the dashboard card makes, so
+it takes the same gate: `runs:view`, held by builder and operator as well as the two
+stewards, and it says so in its own copy. A caller without `runs:view` does not see
+it — the card is absent, and its question is never asked, rather than a request that
+comes back refused.
+
 ### Narrowing the approvals queue
 
 `GET /approvals` serves two views of the same rows. Pending only by default, which
@@ -368,6 +394,19 @@ whichever rows a newest-first page happened to return. A run with no `ended_at`
 sorts **last in both directions**: it has no duration, and it is not the fastest
 run either. How long a *still-running* run has been going is a different question
 and this column deliberately does not answer it.
+
+Activity surfaces that duration three ways, and all three lead to the same query.
+The **Took** column header is a sort control — like the Started header beside it,
+matching the sortable-header pattern `admin/conversations` already uses — so a
+click reorders history by `duration` rather than by the twenty-five rows on
+screen. A **"slow runs"** canned view is that sort plus a `took_over_ms` threshold
+(30s) as one click, and **"all runs"** drops both, back to newest-first — within
+whatever window is in view, since the window is a separate axis the p95 link and
+the date range set. And the
+dashboard's **p95 figure links here**, sorted by duration over the same window: it
+carries `?sort=duration` with the period's `started_from`/`started_to`, so the
+number and the runs behind it are one click apart — the rule the rest of these two
+pages already follow, and the one dimension where they did not (#210).
 
 **`rated=down` is the highest-signal queue here** — the answers real people said
 were wrong, in their own words. A rating hangs off a message, so this join runs

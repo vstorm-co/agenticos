@@ -36,6 +36,12 @@ export default function RunsPage() {
   // deliberately not in the top-level list - see `useRuns` - so the only way to
   // reach one is to name it, and `FocusedRun` is what answers.
   const focusedRunId = searchParams.get("run");
+  // The dashboard's p95 figure links here sorted by duration over the same
+  // window - the number and the runs behind it, one click apart. The tab reads
+  // the sort and the window off the URL so the link lands on *those runs*.
+  const sortParam = searchParams.get("sort");
+  const startedFrom = searchParams.get("started_from");
+  const startedTo = searchParams.get("started_to");
   const { can, isLoading: permissionsLoading } = usePermissions();
   // Reading the queue takes the same permission as deciding one - both routes
   // carry `require(Perm.APPROVALS_DECIDE)` - so for a caller without it there is
@@ -64,7 +70,7 @@ export default function RunsPage() {
       {permissionsLoading ? (
         <LoadingState variant="skeleton-table" columns={6} rows={6} />
       ) : (
-        <Tabs defaultValue={canDecide ? "approvals" : "runs"}>
+        <Tabs defaultValue={sortParam ? "runs" : canDecide ? "approvals" : "runs"}>
           <TabsList>
             {canDecide && (
               <TabsTrigger value="approvals">
@@ -87,7 +93,13 @@ export default function RunsPage() {
           )}
 
           <TabsContent value="runs">
-            <RunHistoryTab agentId={agentId} focusedRunId={focusedRunId} />
+            <RunHistoryTab
+              agentId={agentId}
+              focusedRunId={focusedRunId}
+              initialDurationSort={sortParam === "duration"}
+              startedFrom={startedFrom}
+              startedTo={startedTo}
+            />
           </TabsContent>
 
           <TabsContent value="spend">
