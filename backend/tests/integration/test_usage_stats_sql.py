@@ -874,6 +874,45 @@ class TestPersonRows:
             is None
         )
 
+    async def test_another_organizations_unattributed_runs_never_enter_the_bucket(self, db) -> None:
+        """A null-user run in another organization stays out of this one's bucket.
+
+        `unattributed_usage` takes its organization id from the caller and gathers
+        the window's account-less runs, so it needs the same tenant bound the named
+        rows carry: without it a widget or channel run in a stranger's organization
+        would inflate a reconciliation total that is supposed to be the caller's
+        alone. The bound bites at exactly the query that reads an id from the caller,
+        which is where a borrowed id would."""
+        mine, my_owner = await _org_with_owner(db, "MineBucket")
+        theirs, their_owner = await _org_with_owner(db, "TheirsBucket")
+        my_agent = await _agent(db, mine, my_owner)
+        their_agent = await _agent(db, theirs, their_owner)
+        await _run(
+            db,
+            organization=mine,
+            agent=my_agent,
+            started_at=START,
+            user_id=None,
+            cost=Decimal("0.50"),
+        )
+        for _ in range(9):
+            await _run(
+                db,
+                organization=theirs,
+                agent=their_agent,
+                started_at=START,
+                user_id=None,
+                cost=Decimal("1.00"),
+            )
+
+        bucket = await agent_run_repo.unattributed_usage(
+            db, organization_id=mine.id, start=START, end=END
+        )
+
+        assert bucket is not None
+        bucket_runs, bucket_cost, _last = bucket
+        assert (bucket_runs, bucket_cost) == (1, Decimal("0.50"))
+
 
 class TestDelegationsAndDoubleCounting:
     """Which side of `include_delegations` each dashboard aggregate takes.
