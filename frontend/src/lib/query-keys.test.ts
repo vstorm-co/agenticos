@@ -98,6 +98,24 @@ describe("the query key factory", () => {
     expect(qk.runs.list(undefined, "2026-08-01T00:00:00.000Z")).not.toEqual(qk.runs.list());
   });
 
+  it("keys the rated-down list apart from the whole, and only when filtered", () => {
+    // "Rated down" is a narrower request over the same rows: it must not answer
+    // for the whole list, and the unfiltered list must keep the key it had.
+    expect(qk.runs.list(undefined, undefined, "down")).toEqual([
+      "runs",
+      "list",
+      "all",
+      "all-time",
+      "down",
+    ]);
+    expect(qk.runs.list(undefined, undefined, "down")).not.toEqual(qk.runs.list());
+  });
+
+  it("keys a run's transcript apart from the run row it belongs to", () => {
+    expect(qk.runs.transcript("run-1")).toEqual(["runs", "run-1", "transcript"]);
+    expect(qk.runs.transcript("run-1")).not.toEqual(qk.runs.detail("run-1"));
+  });
+
   it("keys a paged list by its window", () => {
     expect(qk.conversationShares.sharedWithMe(0, 20)).not.toEqual(
       qk.conversationShares.sharedWithMe(20, 20),

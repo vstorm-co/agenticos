@@ -66,6 +66,7 @@ function run(overrides: Partial<AgentRun> = {}): AgentRun {
     cost_is_partial: false,
     logfire_trace_id: null,
     error: null,
+    down_rated: false,
     started_at: "2026-08-04T09:00:00Z",
     ended_at: "2026-08-04T09:00:30Z",
     parent_run_id: null,

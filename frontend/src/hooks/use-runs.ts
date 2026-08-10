@@ -6,7 +6,14 @@ import { apiClient } from "@/lib/api-client";
 import { DASHBOARD_FRESHNESS } from "@/lib/query-freshness";
 import { qk } from "@/lib/query-keys";
 import { getErrorMessage } from "@/lib/utils";
-import type { AgentRun, AgentRunList, ApprovalList, CostSummary, ToolApproval } from "@/types/runs";
+import type {
+  AgentRun,
+  AgentRunList,
+  ApprovalList,
+  CostSummary,
+  RunTranscript,
+  ToolApproval,
+} from "@/types/runs";
 
 /**
  * Run history for the organization, or for one agent.
@@ -27,10 +34,14 @@ import type { AgentRun, AgentRunList, ApprovalList, CostSummary, ToolApproval } 
  * and the obvious reading of the pair was wrong by three years (#198). Any figure
  * drawn next to money passes one.
  */
-export function useRuns(agentId?: string, options?: { enabled?: boolean; startedFrom?: string }) {
+export function useRuns(
+  agentId?: string,
+  options?: { enabled?: boolean; startedFrom?: string; rated?: "down" | "up" },
+) {
   const startedFrom = options?.startedFrom;
+  const rated = options?.rated;
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: qk.runs.list(agentId, startedFrom),
+    queryKey: qk.runs.list(agentId, startedFrom, rated),
     queryFn: () => {
       const params: Record<string, string> = {};
       if (agentId) {
@@ -38,6 +49,9 @@ export function useRuns(agentId?: string, options?: { enabled?: boolean; started
         params.include_delegations = "true";
       }
       if (startedFrom) params.started_from = startedFrom;
+      // The highest-signal queue on this page: the runs somebody said were
+      // wrong. A run matches if anybody rated a message it produced that way.
+      if (rated) params.rated = rated;
       return apiClient.get<AgentRunList>(
         "/runs",
         Object.keys(params).length > 0 ? { params } : undefined,
@@ -67,6 +81,24 @@ export function useRun(runId: string) {
     queryFn: () => apiClient.get<AgentRun>(`/runs/${runId}`),
   });
   return { run: data, isLoading, error };
+}
+
+/**
+ * A run's transcript - the turns it produced, with the ratings people gave.
+ *
+ * The run-detail surface reads it to show the answers rated down and the
+ * comments left with them, which is where the dashboard's "quality fell four
+ * points" becomes the eleven conversations that did it. `error` is returned so
+ * the surface can tell a run with nothing rated down from a request that failed:
+ * every page here renders its empty state on a failed query, and those two must
+ * not be the same pixels.
+ */
+export function useRunTranscript(runId: string) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: qk.runs.transcript(runId),
+    queryFn: () => apiClient.get<RunTranscript>(`/runs/${runId}/transcript`),
+  });
+  return { transcript: data, isLoading, error };
 }
 
 /** What one run delegated - the rows the top-level list leaves out. */

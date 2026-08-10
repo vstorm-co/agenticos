@@ -3,7 +3,14 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useApprovals, useDelegatedRuns, useRun, useRuns, useSpend } from "./use-runs";
+import {
+  useApprovals,
+  useDelegatedRuns,
+  useRun,
+  useRuns,
+  useRunTranscript,
+  useSpend,
+} from "./use-runs";
 import { apiClient } from "@/lib/api-client";
 
 vi.mock("@/lib/api-client", () => ({
@@ -55,6 +62,42 @@ describe("useRuns", () => {
 
     await waitFor(() => expect(result.current.error).toBeTruthy());
     expect(result.current.runs).toEqual([]);
+  });
+
+  it("narrows to the runs somebody rated down when asked", async () => {
+    // The highest-signal queue here: the answers real people said were wrong.
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    const { result } = renderHook(() => useRuns(undefined, { rated: "down" }), { wrapper });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith("/runs", { params: { rated: "down" } });
+  });
+});
+
+describe("useRunTranscript", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("reads one run's transcript, where the ratings and their comments live", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      run_id: "run-9",
+      conversation_id: "c1",
+      items: [],
+      total: 0,
+    });
+    const { result } = renderHook(() => useRunTranscript("run-9"), { wrapper });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith("/runs/run-9/transcript");
+  });
+
+  it("hands back the failure rather than an empty transcript", async () => {
+    // A run with nothing rated down and a request that failed are the same
+    // absence to the surface, and only one of them is worth an error.
+    vi.mocked(apiClient.get).mockRejectedValue(new Error("boom"));
+    const { result } = renderHook(() => useRunTranscript("run-9"), { wrapper });
+
+    await waitFor(() => expect(result.current.error).toBeTruthy());
+    expect(result.current.transcript).toBeUndefined();
   });
 });
 

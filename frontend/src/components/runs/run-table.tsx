@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { ThumbsDown } from "lucide-react";
 
 import { RunStatusBadge } from "@/components/agents/status-badge";
 import { Badge } from "@/components/ui";
@@ -37,7 +38,19 @@ export function RunTable({ runs }: { runs: AgentRun[] }) {
           {runs.map((run) => (
             <tr key={run.id} className="border-b last:border-0">
               <td className="space-y-1 py-2">
-                <RunStatusBadge status={run.status} />
+                <div className="flex items-center gap-1.5">
+                  <RunStatusBadge status={run.status} />
+                  {/* The reason this list is worth reading top to bottom: an
+                      answer somebody said was wrong. A marker, not a count -
+                      the row links to the detail where the comment is read. */}
+                  {run.down_rated && (
+                    <ThumbsDown
+                      role="img"
+                      aria-label={t("ratedDown")}
+                      className="text-destructive h-3.5 w-3.5 shrink-0"
+                    />
+                  )}
+                </div>
                 {run.parent_run_id !== null && (
                   <Badge
                     variant="outline"

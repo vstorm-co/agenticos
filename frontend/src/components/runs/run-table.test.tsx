@@ -30,6 +30,7 @@ function run(overrides: Partial<AgentRun> = {}): AgentRun {
     cost_is_partial: false,
     logfire_trace_id: null,
     error: null,
+    down_rated: false,
     started_at: "2026-08-04T09:00:00Z",
     ended_at: "2026-08-04T09:00:30Z",
     parent_run_id: null,
@@ -88,5 +89,19 @@ describe("a run history row", () => {
     render(<RunTable runs={[run({ model_label: null, started_at: null })]} />);
 
     expect(within(row()).getAllByText("-")).toHaveLength(2);
+  });
+
+  it("marks a run somebody rated down, and says nothing on one nobody did", () => {
+    // The reason to read this list top to bottom: an answer somebody said was
+    // wrong. A marker on the row, with the comment behind the run detail.
+    render(<RunTable runs={[run({ down_rated: true })]} />);
+
+    expect(within(row()).getByRole("img", { name: "Rated down" })).toBeVisible();
+  });
+
+  it("shows no rated-down marker on a run nobody rated down", () => {
+    render(<RunTable runs={[run({ down_rated: false })]} />);
+
+    expect(within(row()).queryByRole("img", { name: "Rated down" })).toBeNull();
   });
 });
