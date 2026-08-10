@@ -2,8 +2,8 @@
 
 The pgvector store creates its own SQLAlchemy engine, so the application
 lifespan must release that pool on shutdown. It does so through the public
-`aclose`, not by reaching into `.engine`; these tests pin both halves of that
-contract.
+`aclose`, not by reaching into `.engine`; this test pins the store side of that
+contract — `aclose` disposes the pool.
 """
 
 from unittest.mock import AsyncMock, MagicMock
