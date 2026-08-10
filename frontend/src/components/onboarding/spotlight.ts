@@ -1,57 +1,50 @@
 import { driver, type Driver } from "driver.js";
 
 /**
- * The spotlight overlay, wrapping driver.js so the rest of the tour never touches
- * it directly.
+ * A driver.js instance configured for the tour, so the rest of the feature never
+ * touches the library's config directly.
  *
- * driver.js is used for the dimmed overlay and the cut-out around one control —
- * never its popover. The tour's own docked panel carries the copy and the
- * buttons, and that split is deliberate: a popover anchors to an element that can
- * scroll off-screen or unmount when the tour navigates to the next page, where a
- * fixed panel spanning the foot of the window does neither.
+ * The tour uses driver.js the way it is meant to be used: an element is
+ * spotlighted and a popover is anchored to it with the step's caption. The tour
+ * drives it one step at a time with `highlight()` rather than handing it the
+ * whole step array, because the steps span pages and driver.js runs within one —
+ * so navigation between a page's last step and the next page's first is the
+ * caller's job (`onboarding-tour.tsx`), and the popover's Next/Back/close are
+ * wired to the caller's handlers per step.
  *
- * Lives under `components/onboarding` rather than in a hook because it is DOM
- * work — `document`, a `MutationObserver`, a live third-party overlay — and the
- * hook layer is held to a 100% line-coverage gate this could only meet by
- * asserting on driver.js's internals.
+ * `allowClose: false` stops an overlay click or Escape from closing the tour by
+ * accident; the popover's own close button is what dismisses it, wired
+ * explicitly. `disableActiveInteraction: true` keeps the spotlighted control
+ * inert while it is only being described — the interactive tutorial that lets the
+ * reader actually use it is a later, separate mode.
+ *
+ * Lives under `components/onboarding`, not in a hook: it is DOM and third-party
+ * overlay work, and the hook layer is held to a 100% line-coverage gate this
+ * could only meet by asserting on driver.js's internals.
  */
-export interface Spotlight {
-  /** Dim the page and cut a hole around `element`; moves the hole on repeat calls. */
-  show: (element: Element) => void;
-  /** Remove the overlay and forget the instance, so the next `show` builds a fresh one. */
-  destroy: () => void;
-}
-
-export function createSpotlight(): Spotlight {
-  let instance: Driver | null = null;
-  return {
-    show: (element) => {
-      instance ??= driver({
-        allowClose: false,
-        overlayColor: "#0a0a0a",
-        overlayOpacity: 0.55,
-        stagePadding: 8,
-        stageRadius: 10,
-      });
-      instance.highlight({ element });
-    },
-    destroy: () => {
-      instance?.destroy();
-      instance = null;
-    },
-  };
+export function createTourDriver(): Driver {
+  return driver({
+    allowClose: false,
+    overlayColor: "#0a0a0a",
+    overlayOpacity: 0.6,
+    stagePadding: 8,
+    stageRadius: 10,
+    disableActiveInteraction: true,
+    animate: true,
+  });
 }
 
 /**
  * Resolve once `selector` is in the document, or with `null` if the wait is
  * aborted or `timeoutMs` elapses first.
  *
- * A step's target only exists after its page has mounted, which is a navigation
- * and a render away — so the engine cannot query for it synchronously. The
+ * A step's target only exists after its page has mounted and its data has
+ * settled, which is a navigation and a render or two away — so the engine cannot
+ * query for it synchronously after telling the router to move. The
  * `MutationObserver` catches it the moment it appears; the timeout keeps a step
- * whose target never renders (a control a permission hid, a slow page) from
- * hanging the spotlight forever; and the abort signal drops the wait when the
- * reader moves to another step before this one's element arrived.
+ * whose target never renders (a slow page, a control a permission hid) from
+ * hanging the spotlight; and the abort signal drops the wait when the reader
+ * moves to another step before this one's element arrived.
  */
 export function waitForElement(
   selector: string,

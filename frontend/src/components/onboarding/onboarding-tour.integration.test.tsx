@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,6 +9,7 @@ import { RestartTourButton } from "./restart-tour-button";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore, useOnboardingStore } from "@/stores";
 import { Perm } from "@/types/permissions";
+import type { DriveStep } from "driver.js";
 import type { User } from "@/types";
 
 const nav = vi.hoisted(() => ({ pathname: "/dashboard" }));
@@ -19,15 +20,23 @@ vi.mock("next/navigation", () => ({
   useParams: () => ({}),
 }));
 
+// The spotlight is the DOM/driver.js boundary; mocking it lets the test drive the
+// orchestration — which step's copy shows, and that Next advances — without
+// driver.js's real layout, which jsdom cannot provide. `waitForElement` resolves
+// at once so a targeted step highlights immediately.
+const spotlight = vi.hoisted(() => ({ highlight: vi.fn(), destroy: vi.fn() }));
+vi.mock("@/components/onboarding/spotlight", () => ({
+  createTourDriver: () => ({ highlight: spotlight.highlight, destroy: spotlight.destroy }),
+  waitForElement: vi.fn(async () => ({}) as Element),
+}));
+
 vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
   return { ...actual, apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() } };
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
-/** A Viewer holds the three view permissions and nothing else. */
 const VIEWER = [Perm.agentsView, Perm.skillsView, Perm.collectionsView];
-/** An Owner holds the lot; the tour shows every step. */
 const OWNER = Object.values(Perm);
 
 function user(overrides: Partial<User> = {}): User {
@@ -55,10 +64,17 @@ function wrapper({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
+/** The most recent step driver was asked to highlight. */
+function shownStep(): DriveStep {
+  const call = spotlight.highlight.mock.calls.at(-1);
+  if (!call) throw new Error("driver.highlight was never called");
+  return call[0] as DriveStep;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   nav.pathname = "/dashboard";
-  useOnboardingStore.setState({ isOpen: false, index: 0 });
+  useOnboardingStore.setState({ isOpen: false, index: 0, mode: "tour" });
   useAuthStore.setState({ user: user(), isAuthenticated: true });
 });
 
@@ -66,85 +82,46 @@ describe("OnboardingTour", () => {
   it("auto-opens on the dashboard and welcomes a new user", async () => {
     servePermissions(OWNER);
     render(<OnboardingTour />, { wrapper });
-    expect(await screen.findByText("Welcome to AgenticOS")).toBeInTheDocument();
+    await waitFor(() => expect(shownStep().popover?.title).toBe("Welcome to AgenticOS"));
+    expect(shownStep().popover?.progressText).toBe("Step 1 of 10");
   });
 
-  it("skips the steps a Viewer cannot act on", async () => {
-    servePermissions(VIEWER);
-    render(<OnboardingTour />, { wrapper });
-    await screen.findByText("Welcome to AgenticOS");
-
-    // Two of the nine steps are gated on permissions the Viewer lacks, so the
-    // walkthrough it sees is seven long and never stops on either page.
-    expect(screen.getByText("Step 1 of 7")).toBeInTheDocument();
-
-    const user_ = userEvent.setup();
-    for (let i = 0; i < 6; i++) {
-      expect(screen.queryByText("Watch activity")).not.toBeInTheDocument();
-      expect(screen.queryByText("The vault")).not.toBeInTheDocument();
-      await user_.click(screen.getByRole("button", { name: "Next" }));
-    }
-    expect(await screen.findByText("You're all set")).toBeInTheDocument();
-    expect(screen.getByText("Step 7 of 7")).toBeInTheDocument();
-  });
-
-  it("walks an Owner through the full nine steps, Activity and Vault included", async () => {
+  it("advances to the next highlight when Next is clicked", async () => {
+    // The bug this replaces: a click on Next did nothing once a spotlight was up.
     servePermissions(OWNER);
     render(<OnboardingTour />, { wrapper });
-    await screen.findByText("Welcome to AgenticOS");
-    expect(screen.getByText("Step 1 of 9")).toBeInTheDocument();
+    await waitFor(() => expect(shownStep().popover?.title).toBe("Welcome to AgenticOS"));
 
-    const user_ = userEvent.setup();
-    const seen = new Set<string>();
-    for (let i = 0; i < 8; i++) {
-      if (screen.queryByText("Watch activity")) seen.add("activity");
-      if (screen.queryByText("The vault")) seen.add("vault");
-      await user_.click(screen.getByRole("button", { name: "Next" }));
-    }
-    if (screen.queryByText("The vault")) seen.add("vault");
-    expect(seen).toEqual(new Set(["activity", "vault"]));
-    expect(await screen.findByText("You're all set")).toBeInTheDocument();
+    act(() => shownStep().popover?.onNextClick?.(undefined, {} as DriveStep, {} as never));
+    await waitFor(() => expect(shownStep().popover?.title).toBe("Start here"));
+    expect(shownStep().popover?.progressText).toBe("Step 2 of 10");
   });
 
-  it("persists completion when finished, so it does not return", async () => {
+  it("shows a view-only member their shorter tour", async () => {
     servePermissions(VIEWER);
-    vi.mocked(apiClient.patch).mockResolvedValue(
-      user({ onboarding_completed_at: "2026-02-02T00:00:00Z" }),
-    );
     render(<OnboardingTour />, { wrapper });
-    await screen.findByText("Welcome to AgenticOS");
+    await waitFor(() => expect(shownStep().popover?.progressText).toBe("Step 1 of 5"));
+  });
 
-    const user_ = userEvent.setup();
-    for (let i = 0; i < 6; i++) await user_.click(screen.getByRole("button", { name: "Next" }));
-    await user_.click(screen.getByRole("button", { name: "Finish" }));
+  it("persists completion when the tour is closed", async () => {
+    servePermissions(OWNER);
+    vi.mocked(apiClient.patch).mockResolvedValue(user({ onboarding_completed_at: "2026-02-02" }));
+    render(<OnboardingTour />, { wrapper });
+    await waitFor(() => expect(shownStep().popover?.title).toBe("Welcome to AgenticOS"));
 
+    act(() => shownStep().popover?.onCloseClick?.(undefined, {} as DriveStep, {} as never));
     await waitFor(() =>
       expect(apiClient.patch).toHaveBeenCalledWith("/users/me", {
         onboarding_completed_at: expect.any(String),
       }),
     );
-    await waitFor(() => expect(screen.queryByText("You're all set")).not.toBeInTheDocument());
-  });
-
-  it("skipping from the first step also persists completion", async () => {
-    servePermissions(VIEWER);
-    vi.mocked(apiClient.patch).mockResolvedValue(user({ onboarding_completed_at: "x" }));
-    render(<OnboardingTour />, { wrapper });
-    await screen.findByText("Welcome to AgenticOS");
-
-    await userEvent.setup().click(screen.getByRole("button", { name: "Skip" }));
-    await waitFor(() =>
-      expect(apiClient.patch).toHaveBeenCalledWith("/users/me", expect.anything()),
-    );
   });
 });
 
 describe("RestartTourButton", () => {
-  it("reopens the walkthrough at the first step, from wherever it had reached", async () => {
-    useOnboardingStore.setState({ isOpen: false, index: 4 });
+  it("opens the current page's tips in page mode", async () => {
     render(<RestartTourButton />);
-
-    await userEvent.setup().click(screen.getByRole("button", { name: "Replay the walkthrough" }));
-    expect(useOnboardingStore.getState()).toMatchObject({ isOpen: true, index: 0 });
+    await userEvent.setup().click(screen.getByRole("button", { name: "Show tips for this page" }));
+    expect(useOnboardingStore.getState()).toMatchObject({ isOpen: true, index: 0, mode: "page" });
   });
 });

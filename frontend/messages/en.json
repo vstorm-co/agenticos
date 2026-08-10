@@ -2068,8 +2068,7 @@
     "settings": "Settings"
   },
   "onboarding": {
-    "restart": "Replay the walkthrough",
-    "skip": "Skip",
+    "pageHelp": "Show tips for this page",
     "back": "Back",
     "next": "Next",
     "finish": "Finish",
@@ -2078,39 +2077,43 @@
     "steps": {
       "welcome": {
         "title": "Welcome to AgenticOS",
-        "body": "This is where your team builds, runs and governs its AI agents. Here's a quick tour of what lives where — it takes about a minute, and you can skip it whenever you like."
+        "body": "This is where your team builds, runs and governs its AI agents. We'll step through each section and point out what's worth noticing — about a minute, and you can close it whenever you like."
       },
-      "dashboard": {
-        "title": "Your dashboard",
-        "body": "The home screen gathers what's happening across your organization: recent runs, spending and the agents you work with. What you see here follows your role."
+      "dashboard-actions": {
+        "title": "Start here",
+        "body": "These shortcuts are the quickest way in: open a chat, create your first agent, review anything waiting on a decision, or invite a teammate."
       },
-      "chat": {
+      "dashboard-filters": {
+        "title": "Slice the dashboard",
+        "body": "Every number on this page follows the period you pick here, and you can hide sections you don't need. The view lives in the URL, so it survives a reload and travels in a link."
+      },
+      "chat-start": {
         "title": "Chat with your agents",
-        "body": "Open a conversation with any agent you're allowed to run. It's the quickest way to try one out and see how it responds."
+        "body": "Start a conversation with any agent you're allowed to run. It's the quickest way to try one out and watch how it responds, step by step."
       },
-      "agents": {
-        "title": "Build agents",
-        "body": "An agent is its instructions, a model, a set of tools and a budget. You configure all of that here, then publish a version so it runs the same way everywhere."
+      "agents-new": {
+        "title": "Build an agent",
+        "body": "An agent is its instructions, a model, a set of tools and a budget. Create one here, then publish a version so it runs the same way everywhere — chat, API, Slack or a widget."
       },
-      "skills": {
+      "skills-new": {
         "title": "Reusable skills",
-        "body": "A skill is a packaged set of instructions an agent can draw on for a task. Write one once and share it across the agents that need it."
+        "body": "A skill is a packaged set of instructions an agent can draw on for a task. Write one once here and share it across the agents that need it."
       },
-      "activity": {
+      "activity-overview": {
         "title": "Watch activity",
-        "body": "Every run is recorded here with its cost and outcome, so you can see what your agents did and step in when one is waiting on a decision."
+        "body": "Every run is recorded with its cost and outcome, so you can see what your agents did and step in when one is waiting on a decision. These figures summarise the lot."
       },
-      "knowledge": {
+      "knowledge-new": {
         "title": "Knowledge bases",
-        "body": "Upload documents so your agents can answer from them. Each collection is searchable and stays private to your organization."
+        "body": "Upload documents so your agents can answer from them. Each collection is searchable and stays private to your organization — create your first one here."
       },
-      "vault": {
+      "vault-new": {
         "title": "The vault",
         "body": "API keys and other credentials live here, encrypted at rest. Agents use them to reach the tools they need, and nobody sees a stored secret again."
       },
       "finish": {
         "title": "You're all set",
-        "body": "That's the tour. You can replay it anytime from the help button at the top of a page — head to your dashboard whenever you're ready to start building."
+        "body": "That's the tour. Replay any page's tips anytime from the help button at the top — head to your dashboard whenever you're ready to start building."
       }
     }
   },

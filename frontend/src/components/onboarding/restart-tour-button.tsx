@@ -10,23 +10,25 @@ import { IconButton } from "@/components/ui";
 import { useOnboardingStore } from "@/stores/onboarding-store";
 
 /**
- * Replays the walkthrough. Rendered by `PageHeader`, so it sits at the top of
- * every page — a persistent help affordance rather than a control wired into
- * each page by hand.
+ * Replays the current page's tips. Rendered by `PageHeader`, so it sits at the
+ * top of every page — a persistent help affordance rather than a control wired
+ * into each page by hand.
  *
- * Deliberately the whole of its dependencies: a translator, the icon, and the
- * store's `restart`. It carries neither the permission query nor the first-run
- * machinery, both of which belong to the modal — which is also where the step
- * list stays permission-filtered. Keeping this button that thin is what lets it
+ * It opens the tour in `"page"` mode, which shows only the highlights that live
+ * on the page the reader is on, unchained from the rest of the walkthrough; the
+ * tour component resolves *which* page from the current path. Deliberately the
+ * whole of its dependencies: a translator, the icon, and the store's `openPage`.
+ * It carries neither the permission query nor the path lookup, both of which
+ * belong to the tour component — keeping this button that thin is what lets it
  * live in a header shared by twenty surfaces without dragging the router and a
  * dozen queries into each of their tests.
  */
 export function RestartTourButton() {
   const t = useTranslations("onboarding");
-  const restart = useOnboardingStore((state) => state.restart);
+  const openPage = useOnboardingStore((state) => state.openPage);
 
   return (
-    <IconButton aria-label={t("restart")} title={t("restart")} onClick={restart}>
+    <IconButton aria-label={t("pageHelp")} title={t("pageHelp")} onClick={openPage}>
       <HelpCircle />
     </IconButton>
   );

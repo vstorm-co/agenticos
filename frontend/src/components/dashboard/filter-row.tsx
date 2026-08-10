@@ -59,6 +59,7 @@ export function FilterRow({
   return (
     <div className="flex flex-wrap items-center gap-2">
       <div
+        data-tour="dashboard-filters"
         className="flex flex-wrap items-center gap-1"
         role="group"
         aria-label={t("period.label")}
@@ -144,7 +145,7 @@ export function FilterRow({
         </DropdownMenu>
       ) : null}
 
-      <div className="ml-auto flex flex-wrap items-center gap-2">
+      <div data-tour="dashboard-actions" className="ml-auto flex flex-wrap items-center gap-2">
         {can(Perm.agentsRun) ? (
           <Button asChild size="sm">
             <Link href={ROUTES.CHAT}>{t("actions.newChat")}</Link>

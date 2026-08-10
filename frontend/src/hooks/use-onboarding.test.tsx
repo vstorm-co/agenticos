@@ -91,11 +91,11 @@ describe("useOnboardingTour", () => {
 
   it("does not auto-open when the permission set is in error", async () => {
     // A refused organization leaves can() answering false forever, which would
-    // collapse the tour to its four ungated steps on top of the org-recovery
+    // collapse the tour to its five ungated steps on top of the org-recovery
     // banner. A 404 is refused without a retry, so the error settles at once.
     vi.mocked(apiClient.get).mockRejectedValue(new ApiError(404, "no such organization"));
     const { result } = renderHook(() => useOnboardingTour(), { wrapper });
-    await waitFor(() => expect(result.current.steps.length).toBe(4));
+    await waitFor(() => expect(result.current.steps.length).toBe(5));
     expect(result.current.isOpen).toBe(false);
   });
 
@@ -128,7 +128,7 @@ describe("useOnboardingTour", () => {
     const { result } = renderHook(() => useOnboardingTour(), { wrapper });
     await waitFor(() => expect(result.current.steps.length).toBe(TOUR_STEPS.length));
 
-    act(() => useOnboardingStore.getState().restart());
+    act(() => useOnboardingStore.getState().openTour());
     expect(result.current.isOpen).toBe(true);
     act(() => result.current.dismiss());
     expect(result.current.isOpen).toBe(false);
@@ -138,7 +138,32 @@ describe("useOnboardingTour", () => {
   it("closes without a write for a signed-out caller", () => {
     useAuthStore.setState({ user: null });
     const { result } = renderHook(() => useOnboardingTour(), { wrapper });
-    act(() => useOnboardingStore.getState().restart());
+    act(() => useOnboardingStore.getState().openTour());
+    act(() => result.current.dismiss());
+    expect(result.current.isOpen).toBe(false);
+    expect(apiClient.patch).not.toHaveBeenCalled();
+  });
+
+  it("in page mode shows only the current page's highlights", async () => {
+    // A completed user so the auto-start does not open a tour first.
+    useAuthStore.setState({ user: user({ onboarding_completed_at: "2020-01-01T00:00:00Z" }) });
+    const { result } = renderHook(() => useOnboardingTour(), { wrapper });
+    await waitFor(() => expect(result.current.steps.length).toBe(TOUR_STEPS.length));
+
+    act(() => useOnboardingStore.getState().openPage());
+    expect(result.current.steps.map((step) => step.id)).toEqual([
+      "dashboard-actions",
+      "dashboard-filters",
+    ]);
+  });
+
+  it("dismissing a page-mode replay records nothing — help is not the first run", async () => {
+    // A user who has *not* finished onboarding: the guard here is the mode, not
+    // the flag, so a "?" replay must still not mark them done.
+    const { result } = renderHook(() => useOnboardingTour(), { wrapper });
+    await waitFor(() => expect(result.current.isOpen).toBe(true));
+
+    act(() => useOnboardingStore.getState().openPage());
     act(() => result.current.dismiss());
     expect(result.current.isOpen).toBe(false);
     expect(apiClient.patch).not.toHaveBeenCalled();
