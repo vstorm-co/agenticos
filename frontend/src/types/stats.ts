@@ -84,6 +84,13 @@ export interface PersonUsageRow {
   last_run_at: string;
 }
 
+export interface UnattributedUsage {
+  runs: number;
+  /** Serialised Decimal - never parse into a float for arithmetic. */
+  cost_usd: string;
+  last_run_at: string;
+}
+
 export interface UsageStats {
   from: string;
   to: string;
@@ -106,6 +113,8 @@ export interface UsageStats {
   by_version: VersionUsageRow[] | null;
   /** group_by=user only, capped by the request's limit. */
   by_user: PersonUsageRow[] | null;
+  /** group_by=user, scope=org only: runs with no named user, as one bucket. */
+  unattributed_usage: UnattributedUsage | null;
 }
 
 export interface RatingsByDay {

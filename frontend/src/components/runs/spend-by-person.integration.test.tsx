@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SpendByPerson } from "./spend-by-person";
 import { apiClient } from "@/lib/api-client";
 import type { Permission } from "@/types/permissions";
-import type { PersonUsageRow } from "@/types/stats";
+import type { PersonUsageRow, UnattributedUsage } from "@/types/stats";
 
 /**
  * Who is spending, on the Spend tab.
@@ -69,10 +69,15 @@ const PEOPLE: PersonUsageRow[] = [
   },
 ];
 
-function serve(byUser: PersonUsageRow[] | null, active: number | null = null) {
+function serve(
+  byUser: PersonUsageRow[] | null,
+  active: number | null = null,
+  unattributed: UnattributedUsage | null = null,
+) {
   vi.mocked(apiClient.get).mockImplementation((_path: string, options?: unknown) => {
     const params = (options as { params?: Record<string, string> } | undefined)?.params;
-    if (params?.group_by === "user") return Promise.resolve({ by_user: byUser });
+    if (params?.group_by === "user")
+      return Promise.resolve({ by_user: byUser, unattributed_usage: unattributed });
     return Promise.resolve({
       active_users: active === null ? null : { active, total_members: active },
     });
@@ -119,6 +124,26 @@ describe("the per-person spend breakdown", () => {
 
     expect(await screen.findByText("Katarzyna Nowak")).toBeVisible();
     expect(screen.queryByText("pages.runs.othersRanAgents")).toBeNull();
+  });
+
+  it("shows an unattributed bucket so the total reconciles with by agent", async () => {
+    // A deleted user's runs and account-less runs are counted by the by-agent
+    // card; the bucket keeps them visible here rather than silently dropped.
+    serve(PEOPLE, 2, { runs: 5, cost_usd: "0.9000", last_run_at: "2026-08-05T12:00:00Z" });
+
+    render(<SpendByPerson from="2026-07-08" to="2026-08-07" />, { wrapper });
+
+    expect(await screen.findByText("pages.runs.spendUnattributed")).toBeVisible();
+    expect(screen.getByText("$0.9000")).toBeVisible();
+  });
+
+  it("omits the unattributed bucket when every run has a named user", async () => {
+    serve(PEOPLE, 2, null);
+
+    render(<SpendByPerson from="2026-07-08" to="2026-08-07" />, { wrapper });
+
+    expect(await screen.findByText("Katarzyna Nowak")).toBeVisible();
+    expect(screen.queryByText("pages.runs.spendUnattributed")).toBeNull();
   });
 
   it("asks /stats/usage for the org's people over the window it was handed", async () => {

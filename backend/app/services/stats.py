@@ -37,6 +37,7 @@ from app.schemas.stats import (
     ScopedRatingSummary,
     StatusCount,
     SurfaceCount,
+    UnattributedUsage,
     UsageStats,
     VersionUsageRow,
 )
@@ -350,6 +351,18 @@ class StatsService:
             user_id=user_id,
             limit=limit,
         )
+        # Only org scope carries the bucket: a scope=own answer is already one
+        # person's own rows, none of which are unattributed.
+        unattributed = (
+            await agent_run_repo.unattributed_usage(
+                self.db,
+                organization_id=ctx.organization_id,
+                start=window.start,
+                end=window.end,
+            )
+            if scope == "org"
+            else None
+        )
         return UsageStats(
             from_date=window.from_date,
             to_date=window.to_date,
@@ -365,6 +378,13 @@ class StatsService:
                 )
                 for row_user_id, email, full_name, runs, cost, last_run_at in rows
             ],
+            unattributed_usage=(
+                UnattributedUsage(
+                    runs=unattributed[0], cost_usd=unattributed[1], last_run_at=unattributed[2]
+                )
+                if unattributed is not None
+                else None
+            ),
         )
 
     async def ratings_summary(

@@ -47,6 +47,7 @@ def repos(monkeypatch: pytest.MonkeyPatch) -> dict[str, AsyncMock]:
         ("count_pending_approval_runs", 0),
         ("usage_by_version", []),
         ("usage_by_user", []),
+        ("unattributed_usage", None),
     ):
         mock = AsyncMock(return_value=value)
         monkeypatch.setattr(f"app.services.stats.agent_run_repo.{name}", mock)
@@ -351,6 +352,30 @@ class TestPersonGrouping:
             await StatsService(MagicMock()).usage_by_user(
                 _ctx(role=OrgRoleName.MEMBER.value), scope="org", limit=10
             )
+
+    async def test_org_scope_gathers_the_unattributed_bucket(self, repos) -> None:
+        """Null-user runs come back as a bucket so the card reconciles with By agent."""
+        repos["unattributed_usage"].return_value = (7, Decimal("4.20"), _AT)
+
+        result = await StatsService(MagicMock()).usage_by_user(_ctx(), scope="org", limit=10)
+
+        assert result.unattributed_usage is not None
+        bucket = result.unattributed_usage
+        assert (bucket.runs, bucket.cost_usd, bucket.last_run_at) == (7, Decimal("4.20"), _AT)
+
+    async def test_no_unattributed_runs_leaves_the_bucket_off(self, repos) -> None:
+        result = await StatsService(MagicMock()).usage_by_user(_ctx(), scope="org", limit=10)
+
+        assert result.unattributed_usage is None
+
+    async def test_own_scope_never_asks_for_an_unattributed_bucket(self, repos) -> None:
+        """A caller's own rows are never unattributed, so the query is skipped."""
+        ctx = _ctx(role=OrgRoleName.MEMBER.value)
+
+        result = await StatsService(MagicMock()).usage_by_user(ctx, scope="own", limit=10)
+
+        assert result.unattributed_usage is None
+        repos["unattributed_usage"].assert_not_called()
 
 
 class TestRatingsSummary:

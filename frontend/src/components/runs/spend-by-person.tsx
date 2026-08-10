@@ -24,12 +24,17 @@ const ROWS = 10;
  * failed request says so here rather than reporting that nobody spent anything.
  * The rows exclude delegated runs, the same as every other figure on the page, so
  * a delegate's cost is counted once inside the run that started it.
+ *
+ * Runs with no named user - a deleted account, or an account-less channel run -
+ * are the figure the by-agent card counts and a per-person list cannot name; they
+ * are shown as one muted bucket row so the two cards reconcile rather than silently
+ * disagree.
  */
 export function SpendByPerson({ from, to }: { from: string; to: string }) {
   const t = useTranslations("pages.runs");
   const { can } = usePermissions();
   const maySee = can(Perm.runsView);
-  const { byUser, isLoading, error, refetch } = usePeopleUsage(
+  const { byUser, unattributed, isLoading, error, refetch } = usePeopleUsage(
     { from, to },
     { scope: "org", limit: ROWS, enabled: maySee },
   );
@@ -74,12 +79,20 @@ export function SpendByPerson({ from, to }: { from: string; to: string }) {
                 <span className="font-mono">${Number(person.cost_usd).toFixed(4)}</span>
               </div>
             ))}
+            {unattributed && unattributed.runs > 0 ? (
+              <div className="text-muted-foreground flex items-center justify-between gap-3 rounded-md border border-dashed p-3 text-sm">
+                <span className="min-w-0 flex-1 truncate italic">{t("spendUnattributed")}</span>
+                <span className="text-xs">{t("runCount", { count: unattributed.runs })}</span>
+                <span className="font-mono">${Number(unattributed.cost_usd).toFixed(4)}</span>
+              </div>
+            ) : null}
             {others > 0 ? (
               <p className="text-muted-foreground text-xs">
                 {t("othersRanAgents", { count: others })}
               </p>
             ) : null}
             <p className="text-muted-foreground text-xs">{t("perPersonDisclosure")}</p>
+            <p className="text-muted-foreground text-xs">{t("spendWindowNote")}</p>
           </>
         )}
       </CardContent>

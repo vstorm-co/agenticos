@@ -801,6 +801,79 @@ class TestPersonRows:
         assert [(row.user_id, row.runs) for row in result.by_user] == [(owner.id, 1)]
         assert result.total_runs is None
 
+    async def test_the_unattributed_bucket_reconciles_by_person_with_by_agent(self, db) -> None:
+        """A deleted user's priced runs, and account-less ones, are gathered
+        into the bucket rather than dropped, so the per-person total lines up
+        with the by-agent total, which still counts them under their agent."""
+        organization, owner = await _org_with_owner(db, "Reconcile")
+        agent = await _agent(db, organization, owner)
+        named = await _user(db)
+        leaver = await _user(db)
+        await _run(
+            db,
+            organization=organization,
+            agent=agent,
+            started_at=START,
+            user_id=named.id,
+            cost=Decimal("2.00"),
+        )
+        await _run(
+            db,
+            organization=organization,
+            agent=agent,
+            started_at=START + timedelta(days=1),
+            user_id=leaver.id,
+            cost=Decimal("3.00"),
+        )
+        # A channel or widget run that never had an account behind it.
+        await _run(
+            db,
+            organization=organization,
+            agent=agent,
+            started_at=START,
+            user_id=None,
+            cost=Decimal("0.50"),
+        )
+        # The user leaves the organization: ondelete=SET NULL nulls their run.
+        await db.delete(leaver)
+        await db.flush()
+
+        named_rows = await agent_run_repo.usage_by_user(
+            db, organization_id=organization.id, start=START, end=END, limit=10
+        )
+        bucket = await agent_run_repo.unattributed_usage(
+            db, organization_id=organization.id, start=START, end=END
+        )
+        total_runs = await agent_run_repo.count_runs(
+            db, organization_id=organization.id, start=START, end=END
+        )
+        total_cost = await agent_run_repo.sum_cost_window(
+            db, organization_id=organization.id, start=START, end=END
+        )
+
+        # The leaver has dropped out of the named rows; the account-less run
+        # never was one. Both land in the bucket.
+        assert [row[0] for row in named_rows] == [named.id]
+        assert bucket is not None
+        bucket_runs, bucket_cost, _last = bucket
+        assert (bucket_runs, bucket_cost) == (2, Decimal("3.50"))
+        # Named rows plus the bucket reconcile with the by-agent totals.
+        assert sum(row[3] for row in named_rows) + bucket_runs == total_runs
+        assert sum(row[4] for row in named_rows) + bucket_cost == total_cost
+
+    async def test_a_window_with_every_run_named_has_no_bucket(self, db) -> None:
+        organization, owner = await _org_with_owner(db, "AllNamed")
+        agent = await _agent(db, organization, owner)
+        person = await _user(db)
+        await _run(db, organization=organization, agent=agent, started_at=START, user_id=person.id)
+
+        assert (
+            await agent_run_repo.unattributed_usage(
+                db, organization_id=organization.id, start=START, end=END
+            )
+            is None
+        )
+
 
 class TestDelegationsAndDoubleCounting:
     """Which side of `include_delegations` each dashboard aggregate takes.

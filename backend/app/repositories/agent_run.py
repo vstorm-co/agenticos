@@ -1069,6 +1069,42 @@ async def usage_by_user(
     return [(row[0], row[1], row[2], row[3], Decimal(row[4]), row[5]) for row in result.all()]
 
 
+async def unattributed_usage(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    start: datetime,
+    end: datetime,
+) -> tuple[int, Decimal, datetime] | None:
+    """The window's runs with no user behind them, gathered into one bucket.
+
+    The counterpart to :func:`usage_by_user`'s inner JOIN, which drops a run
+    whose `user_id` is null - a deleted user (the foreign key SET-NULLs) or an
+    account-less channel or widget run. Collected here rather than dropped so
+    the per-person spend card reconciles with the by-agent total, which counts
+    these runs under their agent. Returns None when the window holds no such
+    run, so the card shows the bucket only when it has something to account for.
+
+    Top-level only, like every window aggregate: a delegated child copies its
+    parent's null `user_id`, and its cost already sits inside the parent's row.
+    """
+    conditions = _window_conditions(
+        organization_id=organization_id, start=start, end=end, user_id=None
+    )
+    conditions.append(AgentRun.user_id.is_(None))
+    result = await db.execute(
+        select(
+            func.count(AgentRun.id),
+            func.coalesce(func.sum(AgentRun.cost_usd), 0),
+            func.max(AgentRun.started_at),
+        ).where(*conditions)
+    )
+    runs, cost, last_run_at = result.one()
+    if not runs:
+        return None
+    return (int(runs), Decimal(cost), last_run_at)
+
+
 async def count_pending_approval_runs(
     db: AsyncSession,
     *,

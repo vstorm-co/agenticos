@@ -153,12 +153,13 @@ class VersionUsageRow(BaseSchema):
 class PersonUsageRow(BaseSchema):
     """One person's share of the window - the who-is-using-it card's row.
 
-    Runs with no user behind them are excluded rather than collected into an
-    "unattributed" row: a channel message from somebody with no account, and a
-    run whose user was deleted (the foreign key SET-NULLs), both land in that
-    bucket, and neither is a person this card can name. That exclusion is also
-    what keeps the card consistent with the `active_users` count it sits
-    under, which counts distinct non-null users over the same rows.
+    Runs with no user behind them are not named here: a channel message from
+    somebody with no account, and a run whose user was deleted (the foreign key
+    SET-NULLs), neither is a person this card can name. Keeping them out of
+    these rows is what keeps the card consistent with the `active_users` count
+    it sits under, which counts distinct non-null users over the same rows;
+    their runs and cost are gathered into `UnattributedUsage` instead, so the
+    per-person total still reconciles with the by-agent card.
 
     Ordered by `runs`, deliberately not by cost - the same rows sorted by
     spend read as a league table, and the question the card answers is
@@ -169,6 +170,22 @@ class PersonUsageRow(BaseSchema):
     user_id: UUID
     email: str
     full_name: str | None
+    runs: int
+    cost_usd: Decimal
+    last_run_at: datetime
+
+
+class UnattributedUsage(BaseSchema):
+    """The window's runs with no user behind them, as one muted bucket.
+
+    A run whose `user_id` is null - a deleted user (the foreign key SET-NULLs)
+    or an account-less channel or widget run - is dropped from `by_user`'s
+    named rows. It names nobody, so it cannot be a `PersonUsageRow`; it is
+    collected here so the per-person spend card reconciles with the by-agent
+    total, which counts these runs. `scope=org` only: a `scope=own` request is
+    already one person's own rows, none of which are unattributed.
+    """
+
     runs: int
     cost_usd: Decimal
     last_run_at: datetime
@@ -204,3 +221,4 @@ class UsageStats(BaseSchema):
     agent_id: UUID | None = None
     by_version: list[VersionUsageRow] | None = None
     by_user: list[PersonUsageRow] | None = None
+    unattributed_usage: UnattributedUsage | None = None

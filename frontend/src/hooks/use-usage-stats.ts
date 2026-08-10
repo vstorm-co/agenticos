@@ -91,7 +91,13 @@ export function usePeopleUsage(
     enabled: options?.enabled ?? true,
     ...DASHBOARD_FRESHNESS,
   });
-  return { byUser: data?.by_user ?? [], isLoading, error, refetch };
+  return {
+    byUser: data?.by_user ?? [],
+    unattributed: data?.unattributed_usage ?? null,
+    isLoading,
+    error,
+    refetch,
+  };
 }
 
 /** Answer quality for the window: the thumbs split and its per-day series. */

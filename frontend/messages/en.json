@@ -2420,6 +2420,8 @@
       "spendByAgent": "Spend by agent",
       "spendCouldNotBeRead": "Spend could not be read",
       "spendMonth": "Spend this month",
+      "spendUnattributed": "Deleted users and anonymous runs",
+      "spendWindowNote": "Figures cover the selected window, bucketed by UTC day, so the total can differ slightly from By agent at the edges.",
       "started": "Started",
       "status": "Status",
       "surface": "Surface",
