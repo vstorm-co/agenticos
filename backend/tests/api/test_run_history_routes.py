@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
@@ -25,6 +26,7 @@ from httpx import ASGITransport, AsyncClient
 
 from app.api import deps
 from app.core.permissions import AuthContext, OrgRoleName
+from app.db.models.agent_run import AgentRun
 from app.main import app
 
 pytestmark = pytest.mark.anyio
@@ -190,3 +192,51 @@ class TestWhatIsRefusedRatherThanMatchedAgainstNothing:
             response = await client.get(f"/api/v1/runs{query}")
 
         assert response.status_code == 422
+
+
+class TestTheDownRatedMarkerReachesTheRow:
+    """The 👎 a run history row draws is a field on the response, set by the
+    route from the marker set - so a run somebody rated down says so on the wire,
+    and one nobody did says the opposite rather than leaving the client to guess.
+    """
+
+    @staticmethod
+    def _run() -> AgentRun:
+        return AgentRun(
+            id=uuid4(),
+            organization_id=_ORGANIZATION_ID,
+            agent_id=uuid4(),
+            surface="web",
+            status="completed",
+            input_tokens=10,
+            output_tokens=5,
+            cost_usd=Decimal("0.01"),
+            cost_is_partial=False,
+        )
+
+    async def test_a_run_rated_down_is_marked_and_an_unrated_one_is_not(self):
+        disliked, clean = self._run(), self._run()
+        service = _service()
+        service.list_runs = AsyncMock(return_value=([disliked, clean], 2))
+        service.down_rated_run_ids = AsyncMock(return_value={disliked.id})
+
+        async with _client(service) as client:
+            response = await client.get("/api/v1/runs")
+
+        assert response.status_code == 200, response.text
+        by_id = {item["id"]: item["down_rated"] for item in response.json()["items"]}
+        assert by_id[str(disliked.id)] is True
+        assert by_id[str(clean.id)] is False
+        assert service.down_rated_run_ids.await_args.args[1] == [disliked.id, clean.id]
+
+    async def test_an_empty_page_asks_for_no_marker_at_all(self):
+        """Nothing to mark, so the marker query is skipped rather than asked with
+        an empty set - one fewer round trip on the common empty case."""
+        service = _service()
+        service.down_rated_run_ids = AsyncMock(return_value=set())
+
+        async with _client(service) as client:
+            response = await client.get("/api/v1/runs")
+
+        assert response.status_code == 200
+        service.down_rated_run_ids.assert_not_awaited()

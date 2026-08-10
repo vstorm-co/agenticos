@@ -35,6 +35,11 @@ pytestmark = pytest.mark.anyio
 
 _ORGANIZATION_ID = uuid4()
 
+# What `transcript_ratings` returns for a turn nobody rated - the three fields
+# present and empty, which is how a plain turn serializes identically to a rated
+# one until somebody rates it.
+_NO_RATING = {"user_rating": None, "rating_count": None, "rating_comment": None}
+
 
 @asynccontextmanager
 async def _client(service: MagicMock) -> AsyncIterator[AsyncClient]:
@@ -69,7 +74,10 @@ def _message(*, run_id, content: str) -> Message:
 async def test_the_transcript_is_served_with_its_run_and_turns() -> None:
     run = MagicMock(id=uuid4(), conversation_id=uuid4())
     message = _message(run_id=run.id, content="two are open")
-    service = MagicMock(get_run_transcript=AsyncMock(return_value=(run, [message], 1)))
+    service = MagicMock(
+        get_run_transcript=AsyncMock(return_value=(run, [message], 1)),
+        transcript_ratings=AsyncMock(return_value={message.id: _NO_RATING}),
+    )
 
     async with _client(service) as client:
         response = await client.get(f"/api/v1/runs/{run.id}/transcript")
@@ -84,6 +92,37 @@ async def test_the_transcript_is_served_with_its_run_and_turns() -> None:
     ]
     # The caller and the id reached the service; the route decides nothing itself.
     assert service.get_run_transcript.await_args.args[1] == run.id
+
+
+async def test_a_down_rated_turn_carries_its_verdict_and_the_words_left_with_it() -> None:
+    """The three fields the run-detail feedback panel reads, sourced from the
+    service and copied onto the turn: a plain `MessageRead` carries none of them,
+    so a turn that shows a comment is the whole reason this route exists (#209)."""
+    run = MagicMock(id=uuid4(), conversation_id=uuid4())
+    message = _message(run_id=run.id, content="the refund window is 30 days")
+    service = MagicMock(
+        get_run_transcript=AsyncMock(return_value=(run, [message], 1)),
+        transcript_ratings=AsyncMock(
+            return_value={
+                message.id: {
+                    "user_rating": -1,
+                    "rating_count": {"likes": 0, "dislikes": 2},
+                    "rating_comment": "it invented a policy we do not have",
+                }
+            }
+        ),
+    )
+
+    async with _client(service) as client:
+        response = await client.get(f"/api/v1/runs/{run.id}/transcript")
+
+    assert response.status_code == 200, response.text
+    item = response.json()["items"][0]
+    assert item["user_rating"] == -1
+    assert item["rating_count"] == {"likes": 0, "dislikes": 2}
+    assert item["rating_comment"] == "it invented a policy we do not have"
+    # The route asked the service for the ratings of the turns it is about to serve.
+    assert service.transcript_ratings.await_args.args[1] == [message.id]
 
 
 async def test_a_missing_or_cross_tenant_run_is_a_404_naming_only_the_id() -> None:
@@ -130,7 +169,10 @@ async def test_a_run_with_no_conversation_says_so_rather_than_an_empty_list() ->
     distinction a client draws from an empty list under a real conversation id,
     which would read as "it did nothing"."""
     run = MagicMock(id=uuid4(), conversation_id=None)
-    service = MagicMock(get_run_transcript=AsyncMock(return_value=(run, [], 0)))
+    service = MagicMock(
+        get_run_transcript=AsyncMock(return_value=(run, [], 0)),
+        transcript_ratings=AsyncMock(return_value={}),
+    )
 
     async with _client(service) as client:
         response = await client.get(f"/api/v1/runs/{run.id}/transcript")

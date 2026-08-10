@@ -22,6 +22,9 @@ vi.mock("@/hooks", () => ({
   // Imported by FocusedRun, which never renders on the list path exercised here.
   useRun: () => ({ run: undefined, isLoading: false, error: null }),
   useDelegatedRuns: () => ({ runs: [], total: 0, isLoading: false }),
+  // The tab gates its "rated down" control on runs:view; these tests exercise the
+  // sort and window controls, so the holder is given everything.
+  usePermissions: () => ({ can: () => true }),
 }));
 
 function aRun(): AgentRun {
@@ -43,6 +46,7 @@ function aRun(): AgentRun {
     ended_at: "2026-08-04T09:00:30Z",
     parent_run_id: null,
     subagent_task_id: null,
+    down_rated: false,
   };
 }
 

@@ -2408,3 +2408,108 @@ class TestWhatTheChannelLetsTheAgentLookUp:
 
         assert CHANNEL_DIRECTORY_RESOURCE not in built["resources"]
         assert spec.capabilities == []
+
+
+class TestTheDownRatedMarker:
+    """The set run history draws its 👎 from.
+
+    The service adds only its tenant bound - the caller's organization - over
+    the repository query, so a wrong argument here is a marker that reaches past
+    the organization the reader belongs to. The query itself is proven against a
+    real database in `tests/integration/test_run_history_filters.py`.
+    """
+
+    @pytest.mark.anyio
+    async def test_it_asks_the_repository_within_the_callers_organization(self):
+        ctx = _ctx()
+        run_ids = [uuid.uuid4(), uuid.uuid4()]
+        marked = {run_ids[0]}
+        repo = AsyncMock(return_value=marked)
+        with patch("app.services.agent_runner.agent_run_repo.down_rated_run_ids", repo):
+            result = await AgentRunnerService(_db()).down_rated_run_ids(ctx, run_ids)
+
+        assert result == marked
+        assert repo.await_args.kwargs["organization_id"] == ctx.organization_id
+        assert repo.await_args.kwargs["run_ids"] == run_ids
+
+
+class TestTranscriptRatings:
+    """The per-turn rating detail the run-detail feedback panel reads.
+
+    The service batches three lookups and assembles one entry per message; the
+    queries themselves are proven against a real database in the integration
+    suite. What matters here is the assembly - that every id gets an entry, that
+    the caller's own thumb is asked for only when a person is behind the request,
+    and that a turn nobody rated maps to three empty answers rather than being
+    left out of the map.
+    """
+
+    @staticmethod
+    def _patches(user_ratings, counts, comments):
+        return (
+            patch(
+                "app.services.agent_runner.message_rating_repo.get_user_ratings_for_messages",
+                user_ratings,
+            ),
+            patch(
+                "app.services.agent_runner.message_rating_repo.get_rating_counts_for_messages",
+                counts,
+            ),
+            patch(
+                "app.services.agent_runner.message_rating_repo.get_down_rating_comments_for_messages",
+                comments,
+            ),
+        )
+
+    @pytest.mark.anyio
+    async def test_it_gives_every_message_an_entry_rated_or_not(self):
+        ctx = _ctx()
+        rated, unrated = uuid.uuid4(), uuid.uuid4()
+        user_ratings = AsyncMock(return_value={rated: -1})
+        counts = AsyncMock(return_value={rated: {"likes": 0, "dislikes": 2}})
+        comments = AsyncMock(return_value={rated: "it invented a policy"})
+        p1, p2, p3 = self._patches(user_ratings, counts, comments)
+        with p1, p2, p3:
+            result = await AgentRunnerService(_db()).transcript_ratings(ctx, [rated, unrated])
+
+        assert result[rated] == {
+            "user_rating": -1,
+            "rating_count": {"likes": 0, "dislikes": 2},
+            "rating_comment": "it invented a policy",
+        }
+        assert result[unrated] == {
+            "user_rating": None,
+            "rating_count": None,
+            "rating_comment": None,
+        }
+        assert user_ratings.await_args.kwargs["user_id"] == ctx.user_id
+
+    @pytest.mark.anyio
+    async def test_an_empty_page_asks_the_database_nothing(self):
+        # A page with no turns must not fan out to three empty-`IN` queries.
+        user_ratings, counts, comments = AsyncMock(), AsyncMock(), AsyncMock()
+        p1, p2, p3 = self._patches(user_ratings, counts, comments)
+        with p1, p2, p3:
+            result = await AgentRunnerService(_db()).transcript_ratings(_ctx(), [])
+
+        assert result == {}
+        user_ratings.assert_not_awaited()
+        counts.assert_not_awaited()
+        comments.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_caller_with_no_user_is_not_asked_for_its_own_thumb(self):
+        # A service-to-service key reads the transcript but has no thumb of its
+        # own, so that lookup is skipped rather than asked with a null user id.
+        ctx = AuthContext.anonymous(uuid.uuid4())
+        message_id = uuid.uuid4()
+        user_ratings = AsyncMock()
+        counts = AsyncMock(return_value={message_id: {"likes": 1, "dislikes": 0}})
+        comments = AsyncMock(return_value={})
+        p1, p2, p3 = self._patches(user_ratings, counts, comments)
+        with p1, p2, p3:
+            result = await AgentRunnerService(_db()).transcript_ratings(ctx, [message_id])
+
+        assert result[message_id]["user_rating"] is None
+        assert result[message_id]["rating_count"] == {"likes": 1, "dislikes": 0}
+        user_ratings.assert_not_awaited()
