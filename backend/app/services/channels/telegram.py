@@ -6,7 +6,7 @@ import hmac
 import logging
 from typing import Any
 
-from aiogram import Bot, Dispatcher, Router
+from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramBadRequest
@@ -23,8 +23,6 @@ from app.services.channels.base import (
 from app.services.channels.router import ChannelMessageRouter
 
 logger = logging.getLogger(__name__)
-
-_telegram_router = Router()
 
 
 # Every field Telegram puts a file in, with a name and a type for the kinds that
