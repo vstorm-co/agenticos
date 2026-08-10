@@ -6,12 +6,16 @@ unique index actually prevents a second default. Those are the guarantees the
 schema is supposed to provide, and the only way to know is to ask Postgres.
 
 The database belongs to this pytest process alone: it is created here and
-dropped again when the session ends. `drop_all` below is unconditional, so a
-shared name meant two runs on one machine demolishing each other's tables
-mid-test - deadlocks between one run's `DROP TABLE` and another's `CREATE
-INDEX`, a column that "does not exist" on a database that had it, and two runs
-of the same commit reporting different failures (#189). `tests/conftest.py`
-derives the per-process name; this module owns its lifecycle.
+dropped again when the session ends. The per-process name is what keeps two
+runs on one machine off each other's tables - without it a shared name once had
+them demolishing each other mid-test, back when each test rebuilt the schema
+with `drop_all` + `create_all` and the collision was a deadlock between one
+run's `DROP TABLE` and another's `CREATE INDEX`, a column that "does not exist"
+on a database that had it, and two runs of the same commit reporting different
+failures (#189). The schema is built once now and the reset between tests is
+`TRUNCATE` (#215), so that DDL deadlock can no longer happen - but the
+per-process name still earns its place. `tests/conftest.py` derives it; this
+module owns its lifecycle.
 
 The whole module is skipped when no database is reachable, so `make test` on a
 laptop without Docker still runs everything else.
@@ -99,12 +103,12 @@ _PLAIN_IDENTIFIER = re.compile(r"[A-Za-z0-9_]+")
 def _refuse_a_real_database(name: str) -> None:
     """Refuse to run against a database that is not obviously a test one.
 
-    `drop_all` here is unconditional and this module drops the database itself
-    afterwards, so pointing the suite at a development database destroys it.
-    Nothing in the fixture can tell the difference once it has happened; the only
-    moment it can be caught is before the first drop. The per-process suffix is
-    appended before this runs, so what is checked is the name that will actually
-    be dropped.
+    The reset between tests `TRUNCATE`s every table unconditionally and this
+    module drops the database itself afterwards, so pointing the suite at a
+    development database destroys it. Nothing in the fixture can tell the
+    difference once it has happened; the only moment it can be caught is before
+    the first of those runs. The per-process suffix is appended before this runs,
+    so what is checked is the name that will actually be dropped.
     """
     if not _PLAIN_IDENTIFIER.fullmatch(name):
         raise RuntimeError(
