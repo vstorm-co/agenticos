@@ -251,6 +251,17 @@ nothing". None of this widens `GET /conversations/{id}/messages`, which stays
 scoped to the owner: a run's transcript being readable by a colleague must not make
 the private thread it sits in readable too.
 
+**Each turn the transcript serves carries the ratings people left on it** — the
+reading caller's own thumb, the organization's likes and dislikes, and the most
+recent down rating's comment. A plain message row holds none of these, so they are
+read from `message_ratings` in one batch and attached to the turns; a turn nobody
+rated carries them empty and reads exactly as a plain message does. This is what
+lets the run detail view show the answers that were rated down and the words left
+with them — the conversations behind the dashboard's quality number (#209) — read
+where the run is read, rather than only in the app-admin ratings export. The comment
+shown is a down rating's, never an up rating's, and the most recent when a turn drew
+more than one objection.
+
 ### What the dashboard's aggregates show
 
 `GET /stats/usage` takes the same two sides, and the same default. The composed
@@ -323,6 +334,17 @@ A row is **one per agent**, with `agent_name` on it. It used to be one per agent
 reader expects an agent, and split one agent across two rows for having answered on
 two models. The per-model shape survives where it is the question being asked: the
 usage email still groups that way.
+
+**Who spent it is a fourth breakdown**, beneath By provider, By key and By agent —
+the one that answers with people rather than vendors or agents. It reads the same
+`group_by=user` rows the dashboard's adoption table does — top-level runs only,
+busiest first — so a delegate's cost lands once, inside the run that started it, and
+it covers the window the rest of the tab shows rather than a rolling default of its
+own. Naming the organization's people is the same call the dashboard card makes, so
+it takes the same gate: `runs:view`, held by builder and operator as well as the two
+stewards, and it says so in its own copy. A caller without `runs:view` does not see
+it — the card is absent, and its question is never asked, rather than a request that
+comes back refused.
 
 ### Narrowing the approvals queue
 
@@ -406,6 +428,24 @@ one person liked while another disliked matches **both** `up` and `down`, becaus
 both are true of it. Reducing that to one verdict per run would invent a consensus
 the rows do not record.
 
+The same fact rides the row without the filter: `AgentRunRead.down_rated` is
+`true` when anybody rated an answer the run produced below zero, computed for a
+page in one query rather than an `EXISTS` per row, and it is what run history
+draws a 👎 on. Bounded to the caller's organization like every read here — a
+neighbour's run, rated down, is never marked for another tenant. The **comment**
+that thumb was left with is read in the run detail (`?run=<id>`), not on the row:
+it is user-written text about one conversation, and putting it behind the detail
+is the deliberate line between a marker anybody with `runs:view` sees and the
+words that explain it. That is the join `rated=down` was built for — the dashboard
+says quality fell four points, and this is where the conversations that did it are
+read.
+
+The trend the dashboard reads is `GET /api/v1/ratings/summary` (a headline split
+plus a per-day series): `scope=org` under `runs:view`, `scope=own` for a member's
+own conversations, the same scope rule and window vocabulary as `GET /stats/usage`
+(see [Permissions](permissions.md)). Counts only — the comments stay behind the
+run detail above.
+
 Activity's three figures above the tabs stay the organization's, including the run
 count, even when the table below is narrowed to one agent. A per-agent count beside
 the organization's month would be two questions under one label — and the per-agent
@@ -417,6 +457,65 @@ counting toward the bill - but a foreign key can only null its own column, and t
 stored `subagent_task_id` then names a transcript that went with the parent.
 `AgentRunRead` withholds it whenever `parent_run_id` is null, so no surface offers
 a delegation handle that reaches nothing.
+
+### Exporting to CSV
+
+Everything the three tabs show can be taken off the screen as CSV: the rows
+somebody reconciles against an invoice, hands to a finance team, or attaches to an
+audit. A page that can answer the question on screen and not off it sends people to
+the database.
+
+| Ask | Answer |
+|---|---|
+| `GET /runs/export` | Run history, the same filters as `GET /runs` and the same top-level-only default. `runs:view` |
+| `GET /approvals/export` | The approvals record, the same filters as `GET /approvals`. `approvals:decide` |
+| `GET /spend/export` | The per-agent spend breakdown, the same window as `GET /spend`. `runs:view` |
+
+The spend export carries only the window figures — `cost_usd`, `run_count` and
+`partial_run_count`. The Spend tab's `month_to_date_usd` and `monthly_cap_usd` are
+left off it: they read the calendar month while `cost_usd` reads the export's
+window, and two dollar columns on two time bases in one downloaded file get summed
+across by a reader who cannot see the difference. A downloaded file carries one
+time base, the window it was asked for.
+
+An export is a bulk read, not a button, and it answers six questions the list
+routes do not have to:
+
+- **Tenancy.** Each export carries the gate of the tab it comes from, and every
+  read is scoped to the caller's organization - a neighbour's rows never reach it,
+  including a row the caller owns in an organization that is not the one they are
+  asking from. The two on `runs:view` also apply a **`Scope.OWN` floor in the
+  query**: a caller whose `runs:view` reaches less than the whole organization
+  exports only their own rows, `WHERE user_id = <them>`, and a `user_id` they pass
+  is overwritten with their own rather than widening it. No built-in role holds
+  `runs:view` below `all` yet; the floor is in place for when the member/viewer
+  scope decision lands.
+- **Size.** An export has no ceiling by nature, so it is given one by design. The
+  **date range is mandatory** - a request without both ends is refused - and the
+  match is **capped at 10,000 rows**, above which the request is refused with a
+  message naming the count and telling the caller to narrow the range. Never a
+  silent truncation: a trimmed CSV is worse than a refused one, because a
+  spreadsheet sums whatever arrives. The cap is what lets the body be built in one
+  pass and the audit entry committed before the response leaves, rather than
+  streamed down a held connection.
+- **Partial cost.** `cost_is_partial` is its own column on the runs export and
+  `partial_run_count` its own column on the spend export, so a floor survives a
+  spreadsheet sum. A run whose only model was unpriced exports its real `cost_usd`
+  of `0` beside `cost_is_partial=true` - never a bare `0` a reader takes for free.
+- **Delegated runs.** The runs export defaults to top-level rows only, exactly as
+  the list does, so summing `cost_usd` gives the bill and not double it. The stance
+  is in the file, not only here: every row carries a `parent_run_id` column, blank
+  for a run somebody started and set for a delegation, so a reader who opts into
+  `include_delegations` can see which rows would double-count if summed whole.
+- **PII.** Each export ships exactly the identity its tab already shows. The runs
+  table shows a `user_id` and no name, so the runs export ships the id alone - a
+  CSV of who-ran-what with names resolved is the per-person table decision 3 of the
+  activity design refused, arriving as a download. The approvals queue already
+  resolves the triggering and deciding emails on screen, so the approvals export
+  keeps them.
+- **Audit.** Every export writes one `audit_log` entry - a privileged bulk read,
+  cheap to record now and impossible to reconstruct later. It names the window, the
+  filters that were applied and the row count, never the request body.
 
 ### A pinned delegate does not move on its own
 
@@ -653,7 +752,10 @@ ended must not fail again because SMTP was down.
 
 Actions that change access or spend money are recorded with an actor, and the
 actor column is `NOT NULL` - which is why a context with no subject raises rather
-than letting the absence travel.
+than letting the absence travel. A privileged bulk read is recorded too: each CSV
+export writes a `runs.export`, `approvals.export` or `spend.export` entry naming
+the window and the row count, because who took the whole table off the screen is a
+question that is cheap to answer now and impossible to reconstruct later.
 
 `audit:read` gates reading it. An app admin's bypass is exactly what the trail
 exists to hold to account.

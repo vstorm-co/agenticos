@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "0.0.92"
+version = "0.0.99"
 description = "OS for your agents."
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -391,6 +391,7 @@ include = [
     "app/services/rag/remote_names.py",
     "app/services/sharing.py",
     "app/services/skills.py",
+    "app/services/run_export.py",
     "app/services/spend.py",
     "app/services/stats.py",
     "app/services/transcript.py",
@@ -547,6 +548,7 @@ include = [
     "app/services/rag/remote_names.py",
     "app/services/sharing.py",
     "app/services/skills.py",
+    "app/services/run_export.py",
     "app/services/spend.py",
     "app/services/stats.py",
     "app/services/transcript.py",

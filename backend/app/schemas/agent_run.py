@@ -49,6 +49,17 @@ class AgentRunRead(BaseSchema):
         ),
     )
     error: str | None = None
+    down_rated: bool = Field(
+        default=False,
+        description=(
+            "Whether an assistant answer this run produced was rated down by "
+            "anybody - the 👎 run history draws on the row, and the same fact "
+            "the `rated=down` filter selects on. A rating hangs off a message "
+            "and a message names its run, so a run older than that stamping "
+            "reads false. Set by the run reads; false on any other surface, "
+            "which does not compute it."
+        ),
+    )
     started_at: datetime | None = None
     ended_at: datetime | None = None
     parent_run_id: UUID | None = Field(
@@ -102,6 +113,31 @@ class AgentRunList(BaseSchema):
     total: int
 
 
+class RunTranscriptMessage(MessageRead):
+    """A transcript turn, carrying the ratings people left on it.
+
+    The base is the same row `GET /conversations/{id}/messages` returns; the run
+    detail view needs three things more, so the answers people rated down and the
+    words they left can be read where the dashboard's quality number is explained.
+    All three default to their empty answer, so a turn nobody rated serializes
+    exactly as a plain message does - the fields are additive, and a client that
+    ignores them sees the message it always did.
+
+    Attributes:
+        user_rating: The reading caller's own thumb on this turn - `1`, `-1`, or
+            null. Usually null: a transcript is read by whoever holds `runs:view`,
+            not by whoever the run ran as.
+        rating_count: How the organization rated it, `{"likes": n, "dislikes": n}`,
+            or null when nobody has. The same shape the rating repository counts in.
+        rating_comment: The most recent down rating's comment, or null. An up
+            rating's note is not it - the panel shows what people said was wrong.
+    """
+
+    user_rating: int | None = None
+    rating_count: dict[str, int] | None = None
+    rating_comment: str | None = None
+
+
 class RunTranscript(BaseSchema):
     """One run's turns, in the order they happened, as the run detail view reads them.
 
@@ -135,7 +171,7 @@ class RunTranscript(BaseSchema):
             "drawing an empty list that reads as 'it did nothing'."
         ),
     )
-    items: list[MessageRead]
+    items: list[RunTranscriptMessage]
     total: int
 
 

@@ -17,6 +17,116 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.99] - 2026-08-10
+
+Run history can be filtered by rating, and a down-rated run says so — with the
+comment readable on the run itself.
+
+### Added
+
+- **Filter run history by rating, and flag a down-rated run.** A `rated=down`
+  filter on run history, and a `down_rated_run_ids` marker on list rows —
+  tenant-bound, `distinct`, and the same `rating < 0` definition the filter uses,
+  so a marked row is exactly a row the filter returns. In the run detail, the
+  most recent down rating's comment is read off the transcript
+  (`RunTranscriptMessage.rating_comment`, from
+  `get_down_rating_comments_for_messages`, batched newest-first), so "what people
+  said was wrong" is readable where the run is read rather than only in the
+  app-admin export. Permission-gated on `runs:view`. Completes the run side of
+  #209. (#538)
+
+## [0.0.98] - 2026-08-10
+
+Runs, approvals and spend export as CSV — exactly the rows the list would show.
+
+### Added
+
+- **CSV export for runs, approvals and spend.** `GET /runs/export`,
+  `/approvals/export` and `/spend/export` each serialise exactly the rows their
+  list route would return, gated as their list sibling is (runs and spend on
+  `runs:view`, approvals on `approvals:decide`) with the `Scope.OWN` floor
+  enforced in-query. An unbounded export gets the two rules it needs by design: a
+  mandatory date range and a row cap that refuses rather than truncates above it.
+  Columns survive a spreadsheet sum — `cost_is_partial` on runs,
+  `partial_run_count` on spend, so a wholly unpriced run exports a real `0` beside
+  `cost_is_partial=true`, never a bare `0` — and CSV formula injection is
+  neutralised. Each export writes an `audit_log` entry (window, applied filter
+  names, row count — never the request body or a resolved row). An export menu on
+  the Activity page carries the applied filters, gated on `runs:view`. Closes
+  #211. (#531)
+
+## [0.0.97] - 2026-08-10
+
+Regression coverage that every entry point records a run's transcript.
+
+### Changed
+
+- **Transcript recording is covered for embed, channel and default-agent runs.**
+  `backend/tests/test_surface_transcripts.py` asserts at the repository boundary
+  that a widget run, a channel mention and the default agent each record their
+  turns — role, content, run id, the model and version that actually ran, and
+  tool-call args and results — and that a broken widget run still records what
+  the visitor asked. Closes #205's requirement that the fix ship with a
+  regression test. (#530)
+
+## [0.0.96] - 2026-08-10
+
+The sync-source wizard is decomposed into one component per step — a structural
+refactor, no behaviour change.
+
+### Changed
+
+- **Sync-source wizard split into per-step components.** The 761-line
+  `sync-source-wizard.tsx` becomes a ~320-line shell (cross-step flow, the shared
+  form, the header and step indicator, and the `connectorsFailed` /
+  `orgIntegrationsFailed` flags it hands down) plus one component per step —
+  `sync-source-{connector,configure,schedule,clone}-step.tsx` — following the
+  pattern #221 set in `components/rag/`. A folded-in fix routes the empty-config
+  note through `next-intl`. Closes #461, #540. (#529)
+
+## [0.0.95] - 2026-08-10
+
+The Activity tab's spend view breaks down who spent what.
+
+### Added
+
+- **Per-person spend on the Activity tab.** A `SpendByPerson` card beneath "By
+  agent" on the Spend tab reads `/stats/usage?group_by=user` over the tab's date
+  window, gated on `runs:view` (renders nothing and issues no query without it),
+  with delegated runs excluded. A "+N others" line appears when `active_users`
+  exceeds the rows shown, so a top-N list never reads as the whole organization.
+  Closes #214. (#578, superseding the stacked #527)
+
+## [0.0.94] - 2026-08-10
+
+The Activity tab gains a per-version summary that cannot disagree with the
+dashboard's completed-share figure.
+
+### Added
+
+- **A version strip on the Activity tab.** When narrowed to one agent, a card per
+  version sits above the run table — runs, completed share, cost per run, p95 and
+  the current-version marker. Its "completed share" and the dashboard's Outcomes
+  donut both compute through one shared helper (`src/lib/run-outcomes.ts`), with
+  `cancelled` and `budget_exceeded` in the denominator on both sides, so the two
+  figures cannot drift. Closes #489. (#526)
+
+## [0.0.93] - 2026-08-10
+
+A run's transcript is readable by authorization, not only by whoever owns the
+run.
+
+### Added
+
+- **`GET /api/v1/runs/{run_id}/transcript`** — returns a run's messages
+  (paginated) to any colleague in the same organization holding `runs:view`; a
+  run is read by authorization, not by ownership. A caller from another tenant is
+  refused exactly as a run that does not exist is, so existence never leaks. The
+  response's `conversation_id` is `null` when the run has no transcript, distinct
+  from an empty `items`. `AgentRunnerService.get_run_transcript` resolves the run
+  org-scoped (404 before the permission is read), then checks `runs:view` (403).
+  Closes #490. (#525)
+
 ## [0.0.92] - 2026-08-10
 
 The whole-suite test targets run across worker processes, roughly halving them.

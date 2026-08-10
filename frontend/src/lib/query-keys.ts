@@ -74,10 +74,10 @@ export const qk = {
     all: () => ["runs"] as const,
     // The window is part of the key: the same agent over two windows is two
     // answers, and caching one as the other is how a figure ends up describing a
-    // period nobody asked for. The sort and the minimum-duration filter are in
-    // for the same reason - the slowest runs and the newest runs are two answers
-    // to the same window, and the p95 deep-link asks for the first while the feed
-    // asks for the second.
+    // period nobody asked for. The sort, the minimum-duration filter and the
+    // "rated down" filter are here for the same reason: the slowest runs, the
+    // newest runs and the runs somebody rated down are different answers over one
+    // window, and caching one as another draws the wrong list.
     list: (
       opts: {
         agentId?: string;
@@ -86,6 +86,7 @@ export const qk = {
         orderBy?: string;
         descending?: boolean;
         tookOverMs?: number;
+        rated?: string;
       } = {},
     ) =>
       [
@@ -97,8 +98,13 @@ export const qk = {
         opts.orderBy ?? "started_at",
         opts.descending ?? true,
         opts.tookOverMs ?? "no-min",
+        opts.rated ?? "any-rating",
       ] as const,
     detail: (id: string) => ["runs", id] as const,
+    // One run's transcript, where the run-detail surface reads the answers
+    // people rated down and their comments. Its own key: it is a different body
+    // from the run row, and a caching collision would draw one as the other.
+    transcript: (runId: string) => ["runs", runId, "transcript"] as const,
     // A separate key from `list`, because it is a separate question: `list`
     // answers "the top level", this answers "what did this run delegate", and
     // caching one as the other would show a run's children as the whole history.
