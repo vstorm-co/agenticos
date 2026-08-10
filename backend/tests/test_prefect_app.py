@@ -78,6 +78,8 @@ async def test_every_deployment_is_registered_before_the_runner_starts(
         "sync-single-source",
         "sync-collection",
         "rag-sync-check",
+        "run-scheduled-trigger",
+        "agent-triggers-check",
         "mcp-connection-sweep",
         "approval-expiry-sweep",
         "weekly-usage-report",

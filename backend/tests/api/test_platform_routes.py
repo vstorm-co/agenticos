@@ -693,6 +693,11 @@ RESOURCE_AWARE_SERVICES = (
     # it before touching a binding - so where an agent is available is decided
     # by the same grants that decide whether it can be published at all.
     deps.get_agent_exposure_service,
+    # Triggers follow the exposures' shape exactly: every route acts on one agent,
+    # and scheduling it to run itself is `agents:run` on that agent, resolved
+    # against its grants - so a viewer with an explicit run grant is not refused
+    # before the service can widen their access.
+    deps.get_agent_trigger_service,
     # Environments follow the exposures' shape exactly: every route acts on one
     # agent, and which version answers under which name is `agents:publish` on
     # that agent, resolved against its grants.

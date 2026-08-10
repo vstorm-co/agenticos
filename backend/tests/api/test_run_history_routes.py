@@ -173,12 +173,12 @@ class TestWhatIsRefusedRatherThanMatchedAgainstNothing:
             "?surface=carrier-pigeon",
             "?started_from=last-tuesday",
             "?user_id=not-a-uuid",
-            # Both were `RunSurface` members nothing ever assigned, so a filter
-            # offering either answered with nothing on every deployment for ever
-            # (#207). Refusing them is the shape of the fix: the vocabulary is
-            # now exactly the surfaces that exist, and this fails if one comes
-            # back without a writer.
-            "?surface=schedule",
+            # `playground` is a `RunSurface` value nothing assigns, so a filter
+            # offering it would answer with nothing on every deployment for ever
+            # (#207). Refusing it is the shape of the fix: the vocabulary is
+            # exactly the surfaces that exist. (`schedule` used to sit here too;
+            # agenticos#44 gave it a writer - the trigger heartbeat - so it is a
+            # valid filter now, not a 422.)
             "?surface=playground",
         ],
     )
