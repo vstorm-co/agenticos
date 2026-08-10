@@ -320,6 +320,16 @@ stewards, and it says so in its own copy. A caller without `runs:view` does not 
 it — the card is absent, and its question is never asked, rather than a request that
 comes back refused.
 
+A run with **nobody behind it** — a member whose account was deleted, whose runs the
+foreign key SET-NULLs, or an account-less channel or widget run — would fall out of a
+per-person breakdown built on an inner join, and the tab would read as if that spend
+had vanished. It does not: those runs are gathered into a single **unattributed**
+bucket shown beside the named rows, over the same window, so the people total
+reconciles with By agent — which still counts them under the agent that ran them. The
+bucket appears only when the window holds such a run, and like every window aggregate
+it is top-level only, so a delegation's null `user_id` is not counted a second time
+outside its parent.
+
 ### Narrowing the approvals queue
 
 `GET /approvals` serves two views of the same rows. Pending only by default, which
