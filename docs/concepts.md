@@ -1,13 +1,15 @@
 # Concepts
 
-Four nouns. Everything in the product is built from them, and most confusion
+Five nouns. Everything in the product is built from them, and most confusion
 about it comes from conflating two.
 
 ```mermaid
 graph LR
     S[Spec] -->|publish freezes| V[Version]
     V -->|an exposure admits a caller| E[Exposure]
+    V -->|a trigger fires on a schedule| T[Trigger]
     E -->|one execution| R[Run]
+    T -->|one execution| R
     R -->|records| C[cost, tokens, version]
 ```
 
@@ -60,6 +62,32 @@ Channel mentions have one rule worth stating on its own. `@slug` resolves only
 inside the bot's own organization, and the run executes as the **sender**, never
 as the bot. An unlinked chat identity is refused rather than run with no role -
 because a run nobody can be held to is worse than a run that did not happen.
+
+## Trigger
+
+**When an agent runs with nobody at the keyboard.** A schedule - every *N* minutes -
+that fires the agent on its own. Like an exposure, a trigger is operational state
+beside the agent, not part of the spec: you add, pause and remove one without minting
+a version, and it is not exported in a client's YAML because it carries things a spec
+cannot - a subject, and when it last fired.
+
+The channel-mention rule above applies here, for the same reason: a triggered run
+executes **as the member who created the trigger**, re-resolved every fire, never as
+an invented service user. When that member can no longer run the agent - they left the
+organization, or their grant on it was revoked - the trigger disables itself and
+records why, rather than retrying a refusal for ever.
+
+Everything else is deliberately identical to any other run, because it goes through
+the same runner: the budget is enforced the same way, an approval parks it the same
+way, the audit trail names it the same way. It is stamped the `schedule` surface, so
+"how is this agent used" can tell an unattended run from a person's; each fire is its
+own run in Activity; and its answers accumulate in one run-log conversation the trigger
+opens once, rather than a new conversation every minute. A heartbeat fires the due ones
+once a minute - so a minute is the finest interval - and a run that outlives its own
+interval finishes before the next fire rather than piling up on itself.
+
+Interval schedules ship first; cron expressions and email-arrival triggers are their
+own later work.
 
 ## Run
 

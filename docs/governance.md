@@ -6,6 +6,17 @@ agent platform something you can put a credit card behind.
 All of them apply identically on every surface, because every surface goes through
 one runner.
 
+The newest of those surfaces is a **trigger**: an agent running itself on a schedule
+(see [Concepts](concepts.md#trigger)). It changes none of what follows - it spends
+against the same two caps, parks on the same approval gate (routed to its creator, the
+member it runs as, and the administrators), and is recorded in the same audit trail.
+The one thing "unattended" adds is what happens to a *refusal*: a fired run the budget
+stops ends `budget_exceeded` and waits for the schedule's next due time rather than
+being retried, and a fired run the creator may no longer make - they left the
+organization, or lost their grant on the agent - disables the trigger and writes an
+audit entry saying why. A refusal a heartbeat retried every minute would be a bill, or
+an alert, that never stops.
+
 ## Budgets
 
 Two levels, and they are not variations on one number.
