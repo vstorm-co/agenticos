@@ -17,6 +17,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.100] - 2026-08-10
+
+Dead weight removed across the backend and frontend, and one dead method turned
+into a real contract.
+
+### Changed
+
+- **Stripped unreferenced code across the tree.** Repository helpers, service
+  methods, sanitizers and frontend exports with no surviving caller are deleted
+  (each traced first), and four frontend `export`s narrowed to module-internal.
+  Net −892/+53. Not only deletion: the vector store's dead `aclose()` becomes an
+  abstract contract the application lifespan shuts down through, so teardown no
+  longer reaches past the interface into `.engine` behind a `# type: ignore`.
+  (#579)
+
 ## [0.0.99] - 2026-08-10
 
 Run history can be filtered by rating, and a down-rated run says so — with the
