@@ -26,6 +26,7 @@ from app.db.models.agent_run import RunSurface
 from app.services.channels.mentions import (
     ChannelAgentRouter,
     UnaddressedMessage,
+    channel_key,
     parse_mention,
 )
 from app.services.usage_report import UsageReport
@@ -65,11 +66,11 @@ class TestTheChannelAWorkspaceSharesAcross:
     def test_a_thread_resolves_to_the_channel_that_holds_it(
         self, platform_chat_id: str, expected: str
     ):
-        assert ChannelAgentRouter._channel_key(platform_chat_id) == expected
+        assert channel_key(platform_chat_id) == expected
 
     def test_two_threads_in_one_channel_agree_on_the_key(self):
-        first = ChannelAgentRouter._channel_key("C0123456:1717171717.001")
-        second = ChannelAgentRouter._channel_key("C0123456:1818181818.002")
+        first = channel_key("C0123456:1717171717.001")
+        second = channel_key("C0123456:1818181818.002")
 
         assert first == second
 
@@ -500,11 +501,11 @@ def _serving(*slugs: str) -> AsyncMock:
 
 
 class TestAnswerDefault:
-    """A message naming no handle goes to the bot's only exposed agent.
+    """A message naming no handle goes to the agent behind the bot.
 
-    There is no assistant behind a bot: with no agent exposed there is nothing
-    to run, and with several there is no honest guess. Only the single-exposure
-    bot answers - and it answers as the *sender*, exactly like a mention.
+    A bot serves exactly one - `uq_exposure_bot` - so this is the ordinary path
+    and not a special case, and the only other state is a bot nobody has bound
+    anything to. It answers as the *sender*, exactly like a mention.
     """
 
     async def test_a_bot_serving_no_agent_refuses_with_the_fix(self):
@@ -526,28 +527,6 @@ class TestAnswerDefault:
 
         assert "No agent is available on this bot" in refused.value.message
         assert "Where this agent is available" in refused.value.message
-        runner_cls.return_value.execute.assert_not_called()
-
-    async def test_a_bot_serving_several_agents_asks_the_sender_to_name_one(self):
-        """Guessing would mean a user asking one thing and something else answering."""
-        with (
-            patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
-            patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
-        ):
-            exposures.list_active_for_bot = _serving("billing", "support")
-            runner_cls.return_value.execute = AsyncMock()
-
-            with pytest.raises(BadRequestError) as refused:
-                await ChannelAgentRouter(MagicMock()).answer_default(
-                    "hello there",
-                    platform="slack",
-                    organization_id=uuid.uuid4(),
-                    bot_id=_BOT_ID,
-                    user_id=uuid.uuid4(),
-                )
-
-        assert "@billing" in refused.value.message
-        assert "@support" in refused.value.message
         runner_cls.return_value.execute.assert_not_called()
 
     async def test_an_unlinked_sender_is_refused_before_anything_runs(self):

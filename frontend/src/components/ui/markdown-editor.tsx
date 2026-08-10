@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { RefObject } from "react";
 import { Code2, Eye } from "lucide-react";
 
 import { MarkdownContent } from "@/components/chat/markdown-content";
@@ -17,6 +18,15 @@ interface MarkdownEditorProps {
   rows?: number;
   disabled?: boolean;
   id?: string;
+  /**
+   * The source textarea, for a caller that has to write into it.
+   *
+   * Only one thing needs it - inserting a placeholder where the caret is,
+   * rather than at the end - and that is worth a prop: the alternative is
+   * reaching for the element by id from outside the component, which is the
+   * same coupling with nothing naming it.
+   */
+  textareaRef?: RefObject<HTMLTextAreaElement | null>;
 }
 
 /**
@@ -40,6 +50,7 @@ export function MarkdownEditor({
   rows = 10,
   disabled,
   id,
+  textareaRef,
 }: MarkdownEditorProps) {
   const t = useTranslations("ui");
   const [mode, setMode] = useState<"source" | "preview">("source");
@@ -68,6 +79,7 @@ export function MarkdownEditor({
         // Borderless: the wrapper draws the border now, and two nested ones read
         // as a field inside a field.
         <Textarea
+          ref={textareaRef}
           id={id}
           aria-label={label}
           value={value}

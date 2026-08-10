@@ -12,6 +12,7 @@ from app.db.models.sync_source import SyncSource
 from app.db.models.conversation_share import ConversationShare
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.channel_identity import ChannelIdentity
+from app.db.models.channel_link_request import ChannelLinkRequest
 from app.db.models.channel_session import ChannelSession
 from app.db.models.organization import Invitation, Organization, OrganizationMember
 from app.db.models.audit_log import AppAdminAuditLog
@@ -46,6 +47,7 @@ __all__ = [
     "ConversationShare",
     "ChannelBot",
     "ChannelIdentity",
+    "ChannelLinkRequest",
     "ChannelSession",
     "Organization",
     "OrganizationMember",

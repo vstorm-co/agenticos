@@ -28,6 +28,11 @@ function exposure(overrides: Partial<Exposure> = {}): Exposure {
     channel_bot_name: "Acme Support",
     environment_id: null,
     session_scope: null,
+    prompt: null,
+    tools: [],
+    available_tools: [],
+    available_variables: [],
+    usage_reporting: { mode: "near_limit", near_limit_percent: 80, every_n: 10 },
     is_active: true,
     created_at: null,
     ...overrides,
@@ -133,23 +138,6 @@ describe("useExposures", () => {
     });
   });
 
-  it("sends only session_scope when a surface overrides who shares a workspace", async () => {
-    // The same rule the other patches follow: the server applies exactly what it
-    // was sent, so a field read back and returned would overwrite whatever
-    // somebody changed in between.
-    vi.mocked(apiClient.patch).mockResolvedValue(exposure({ session_scope: "channel" }));
-    const result = await hook();
-
-    await result.current.setSessionScope.mutateAsync({
-      exposureId: "e1",
-      sessionScope: "channel",
-    });
-
-    expect(apiClient.patch).toHaveBeenCalledWith("/agents/a1/exposures/e1", {
-      session_scope: "channel",
-    });
-  });
-
   it("re-reads the bindings after one is removed", async () => {
     const { toast } = await import("sonner");
     vi.mocked(apiClient.delete).mockResolvedValue(undefined);
@@ -180,11 +168,65 @@ describe("useExposures", () => {
       result.current.setEnvironment.mutateAsync({ exposureId: "e1", environmentId: "env-1" }),
     ).rejects.toThrow(refused);
     await expect(
-      result.current.setSessionScope.mutateAsync({ exposureId: "e1", sessionScope: "channel" }),
+      result.current.setPrompt.mutateAsync({ exposureId: "e1", prompt: "Be terse." }),
+    ).rejects.toThrow(refused);
+    await expect(
+      result.current.setTools.mutateAsync({ exposureId: "e1", tools: ["get_channel_info"] }),
+    ).rejects.toThrow(refused);
+    await expect(
+      result.current.setUsageReporting.mutateAsync({
+        exposureId: "e1",
+        usageReporting: { mode: "off", near_limit_percent: 80, every_n: 10 },
+      }),
     ).rejects.toThrow(refused);
     await expect(result.current.revoke.mutateAsync("e1")).rejects.toThrow(refused);
 
-    expect(toast.error).toHaveBeenCalledTimes(5);
+    expect(toast.error).toHaveBeenCalledTimes(7);
     expect(toast.error).toHaveBeenCalledWith("You cannot publish this agent");
+  });
+  it("sends only the cost-reporting mode, and only that field", async () => {
+    // It moved here from the bot: whether a reply says what the turn cost is
+    // part of what this agent says on this surface, not a property of the chat
+    // server. Sending anything more would let it overwrite a prompt somebody
+    // changed in between.
+    vi.mocked(apiClient.patch).mockResolvedValue(exposure());
+    const result = await hook();
+
+    await result.current.setUsageReporting.mutateAsync({
+      exposureId: "e1",
+      usageReporting: { mode: "always", near_limit_percent: 80, every_n: 10 },
+    });
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/agents/a1/exposures/e1", {
+      usage_reporting: { mode: "always", near_limit_percent: 80, every_n: 10 },
+    });
+  });
+
+  it("sends the whole grant of channel lookups, and only that field", async () => {
+    // What a binding grants is what it is - a patch describing one checkbox
+    // could not say "and nothing else" - and sending anything more would let a
+    // grant overwrite a prompt somebody changed in between.
+    vi.mocked(apiClient.patch).mockResolvedValue(exposure({ tools: ["get_channel_info"] }));
+    const result = await hook();
+
+    await result.current.setTools.mutateAsync({
+      exposureId: "e1",
+      tools: ["get_channel_info"],
+    });
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/agents/a1/exposures/e1", {
+      tools: ["get_channel_info"],
+    });
+  });
+
+  it("sends only the prompt, so a concurrent edit is not overwritten", async () => {
+    vi.mocked(apiClient.patch).mockResolvedValue(exposure({ prompt: "Be terse." }));
+    const result = await hook();
+
+    await result.current.setPrompt.mutateAsync({ exposureId: "e1", prompt: "Be terse." });
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/agents/a1/exposures/e1", {
+      prompt: "Be terse.",
+    });
   });
 });

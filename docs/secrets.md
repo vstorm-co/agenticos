@@ -72,7 +72,11 @@ says which one. See
 **MCP connections.** Bearer tokens and OAuth payloads, sealed to the organization
 or to the member. See [MCP](mcp.md#authentication).
 
-**Channel bots.** Slack and Telegram tokens. See [Channels](channels.md).
+**Channel bots.** Every credential on the row, sealed to the bot's organization at
+one shared `key_version`: the bot token, a Slack app's signing secret and app
+token, and the shared secret an inbound webhook is authenticated against —
+Telegram's `X-Telegram-Bot-Api-Secret-Token`, a Mattermost outgoing webhook's
+token. See [Channels](channels.md).
 
 **Third-party services.** A small catalog of services an organization may bring its
 own key for:

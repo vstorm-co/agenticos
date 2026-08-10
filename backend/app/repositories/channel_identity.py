@@ -1,6 +1,5 @@
 """ChannelIdentity repository (PostgreSQL async)."""
 
-from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import select
@@ -29,16 +28,19 @@ async def get_by_platform_user(
     return result.scalar_one_or_none()
 
 
-async def get_by_link_code(db: AsyncSession, link_code: str) -> ChannelIdentity | None:
-    """Get identity by link code (only if not expired)."""
-    now = datetime.now(UTC)
+async def list_for_user(db: AsyncSession, *, user_id: UUID) -> list[ChannelIdentity]:
+    """Every chat account this person has connected, oldest first.
+
+    Ordered so the list does not reshuffle between visits: these rows are
+    identical at a glance apart from the platform, and a list that reorders
+    itself is one somebody unlinks the wrong row from.
+    """
     result = await db.execute(
-        select(ChannelIdentity).where(
-            ChannelIdentity.link_code == link_code,
-            ChannelIdentity.link_code_expires_at > now,
-        )
+        select(ChannelIdentity)
+        .where(ChannelIdentity.user_id == user_id)
+        .order_by(ChannelIdentity.created_at)
     )
-    return result.scalar_one_or_none()
+    return list(result.scalars().all())
 
 
 async def create(
@@ -73,22 +75,6 @@ async def update(
     """Update a channel identity."""
     for field, value in update_data.items():
         setattr(db_identity, field, value)
-    db.add(db_identity)
-    await db.flush()
-    await db.refresh(db_identity)
-    return db_identity
-
-
-async def link_to_user(
-    db: AsyncSession,
-    *,
-    db_identity: ChannelIdentity,
-    user_id: UUID,
-) -> ChannelIdentity:
-    """Link a platform identity to an app user and clear the link code."""
-    db_identity.user_id = user_id
-    db_identity.link_code = None
-    db_identity.link_code_expires_at = None
     db.add(db_identity)
     await db.flush()
     await db.refresh(db_identity)

@@ -6,6 +6,8 @@ NOT NULL despite channel conversations having no user.
 """
 
 import uuid
+from datetime import UTC, datetime
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -289,3 +291,203 @@ class TestChannelConversationOrg:
             await ChannelMessageRouter()._resolve_session(incoming, bot, identity, MagicMock())
 
         assert create_conv.call_args.kwargs["organization_id"] == bot.organization_id
+
+
+class TestWhoAnswersOnEachBot:
+    """The channels listing says which agents a bot serves, and when none does.
+
+    "Registered and silent" is the state somebody opens that page to explain,
+    and from a chat window it is indistinguishable from a broken bot. Resolved
+    with the listing rather than fetched per row by the client: an organization
+    with a dozen channels would otherwise be a dozen requests behind one table.
+    """
+
+    @staticmethod
+    def _row(**overrides) -> SimpleNamespace:
+        """A bot row real enough for `ChannelBotRead` to validate.
+
+        `_bot` above is a bare `MagicMock`, which is all the scoping tests need
+        - they assert on what a repository was asked. This listing builds a
+        schema out of the row, so every column has to be the type it is.
+        """
+        return SimpleNamespace(
+            id=uuid.uuid4(),
+            platform="mattermost",
+            name="Acme Support",
+            is_active=True,
+            webhook_mode=False,
+            webhook_url=None,
+            api_base_url="https://mattermost.acme.com",
+            access_policy={},
+            usage_reporting={},
+            has_webhook_secret=False,
+            has_slack_signing_secret=False,
+            has_slack_app_token=False,
+            created_at=datetime.now(UTC),
+            updated_at=None,
+            **overrides,
+        )
+
+    @staticmethod
+    def _agent(slug: str = "support") -> MagicMock:
+        agent = MagicMock(id=uuid.uuid4(), slug=slug, has_avatar=False)
+        agent.name = slug.title()
+        return agent
+
+    async def _listed(self, *, bots: list, answering: dict) -> list:
+        with (
+            patch(
+                "app.services.channel_bot.channel_bot_repo.list_for_org",
+                new=AsyncMock(return_value=bots),
+            ),
+            patch(
+                "app.services.channel_bot.channel_bot_repo.count",
+                new=AsyncMock(return_value=len(bots)),
+            ),
+            patch(
+                "app.services.channel_bot.agent_exposure_repo.active_agents_for_bots",
+                new=AsyncMock(return_value=answering),
+            ) as grouped,
+        ):
+            rows, _total = await ChannelBotService(
+                MagicMock(), organization_id=uuid.uuid4()
+            ).list_all()
+        self.asked_for = grouped.call_args.kwargs["channel_bot_ids"]
+        return rows
+
+    @pytest.mark.anyio
+    async def test_a_bot_names_the_agents_that_answer_on_it(self):
+        bot = self._row()
+        agent = self._agent()
+
+        (row,) = await self._listed(bots=[bot], answering={bot.id: [agent]})
+
+        assert [(found.slug, found.name) for found in row.agents] == [("support", "Support")]
+
+    @pytest.mark.anyio
+    async def test_a_bot_nobody_bound_says_so_with_an_empty_list(self):
+        bot = self._row()
+
+        (row,) = await self._listed(bots=[bot], answering={})
+
+        assert row.agents == []
+
+    @pytest.mark.anyio
+    async def test_every_bot_on_the_page_is_asked_about_at_once(self):
+        """One grouped query, not one per row."""
+        bots = [self._row() for _ in range(3)]
+
+        await self._listed(bots=bots, answering={})
+
+        assert self.asked_for == [bot.id for bot in bots]
+
+    @pytest.mark.anyio
+    async def test_an_empty_page_asks_about_nothing(self):
+        await self._listed(bots=[], answering={})
+
+        assert self.asked_for == []
+
+
+class TestAStreamThatOpensWithoutARestart:
+    """A polling bot is reached over a connection this process holds.
+
+    Only the lifespan ever opened one, so registering a bot wrote a row and
+    produced silence until somebody restarted the API - and pausing had the
+    mirror problem with the worse shape: a bot switched off went on answering.
+    """
+
+    @staticmethod
+    def _bot_row(**overrides) -> MagicMock:
+        bot = MagicMock(
+            id=uuid.uuid4(),
+            platform="mattermost",
+            webhook_mode=False,
+            is_active=True,
+            api_base_url="https://mattermost.acme.com",
+            slack_app_token_encrypted=None,
+        )
+        bot.name = "Acme Support"
+        for key, value in overrides.items():
+            setattr(bot, key, value)
+        return bot
+
+    def _deferred(self, bot: MagicMock) -> list[str]:
+        """The names of the background tasks a write queued behind its commit."""
+        service = ChannelBotService(MagicMock(), organization_id=uuid.uuid4())
+        queued: list[str] = []
+        with (
+            patch(
+                "app.services.channel_bot.spawn_after_commit",
+                side_effect=lambda _db, coro, *, name: (coro.close(), queued.append(name))[1],
+            ),
+            patch("app.services.channel_bot.unseal_bot_token", return_value="tok"),
+            patch("app.services.channel_bot.unseal_slack_app_token", return_value=None),
+        ):
+            service._reopen_stream(bot)
+        return queued
+
+    def test_a_live_polling_bot_gets_its_stream_opened(self):
+        (name,) = self._deferred(self._bot_row())
+
+        assert name.startswith("open_channel_stream:")
+
+    def test_a_paused_bot_gets_its_stream_closed(self):
+        """The one that needed a deploy: switched off and still answering."""
+        (name,) = self._deferred(self._bot_row(is_active=False))
+
+        assert name.startswith("close_channel_stream:")
+
+    def test_a_bot_in_webhook_mode_has_no_stream_to_open(self):
+        """Switching to webhooks has to take the socket down, not leave it up
+        beside the endpoint."""
+        (name,) = self._deferred(self._bot_row(webhook_mode=True))
+
+        assert name.startswith("close_channel_stream:")
+
+    @pytest.mark.anyio
+    async def test_the_stream_is_opened_after_the_commit_not_during_it(self):
+        """A connection opened against a row the transaction then rolls back is
+        one talking to somebody's Mattermost about a bot that does not exist."""
+        service = ChannelBotService(MagicMock(), organization_id=uuid.uuid4())
+        with (
+            patch("app.services.channel_bot.channel_bot_repo") as bots,
+            patch("app.services.channel_bot.spawn_after_commit") as deferred,
+            patch("app.services.channel_bot.unseal_bot_token", return_value="tok"),
+            patch("app.services.channel_bot.unseal_slack_app_token", return_value=None),
+        ):
+            bots.create = AsyncMock(return_value=self._bot_row())
+
+            await service.create(
+                ChannelBotCreate(
+                    platform="mattermost",
+                    name="Acme Support",
+                    token="a-long-enough-token",
+                    api_base_url="https://mattermost.acme.com",
+                )
+            )
+
+        # Handed over, and not started: `spawn_after_commit` creates the task
+        # only once the session has committed, which is what keeps a connection
+        # from existing for a row that may still be rolled back.
+        assert deferred.call_count == 1
+        coro = deferred.call_args.args[1]
+        assert not coro.cr_running
+        coro.close()
+
+    @pytest.mark.anyio
+    async def test_deleting_a_bot_closes_what_it_was_reached_over(self):
+        """Read out before the delete: the row is gone by the time this runs, so
+        the platform has to be a string the coroutine already holds."""
+        service = ChannelBotService(MagicMock(), organization_id=uuid.uuid4())
+        bot = self._bot_row()
+        with (
+            patch("app.services.channel_bot.channel_bot_repo") as bots,
+            patch("app.services.channel_bot.spawn_after_commit") as deferred,
+        ):
+            bots.get_for_org = AsyncMock(return_value=bot)
+            bots.delete = AsyncMock()
+
+            await service.delete(bot.id)
+
+        deferred.call_args.args[1].close()
+        assert deferred.call_args.kwargs["name"] == f"close_channel_stream:{bot.id}"

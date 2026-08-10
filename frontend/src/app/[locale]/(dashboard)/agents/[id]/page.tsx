@@ -24,7 +24,6 @@ import { AgentMap, MAP_ICONS, type MapDelegate, type MapNode } from "@/component
 import { AgentStatusBadge } from "@/components/agents/status-badge";
 import { AlertsPanel } from "@/components/agents/alerts-panel";
 import { CapabilityWorkbench } from "@/components/agents/capability-workbench";
-import { ChannelBotsPanel } from "@/components/agents/channel-bots-panel";
 import { CollectionPicker } from "@/components/agents/collection-picker";
 import { EmbedsPanel } from "@/components/agents/embeds-panel";
 import { ExposuresPanel } from "@/components/agents/exposures-panel";
@@ -867,10 +866,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
               (binding) => binding.id === SANDBOX_ID && binding.enabled !== false,
             )}
           />
-          {/* Bots stay organization resources - one bot serves many agents -
-              but they are registered here, beside the binding they exist for.
-              The panel hides itself from anyone without channels:manage. */}
-          <ChannelBotsPanel canManage={can(Perm.channelsManage)} />
           <EmbedsPanel agentId={id} canManage={canPublish} />
           <SharingPanel resourceType="agent" resourceId={id} canManage={canEdit} />
         </TabsContent>

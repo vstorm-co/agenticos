@@ -10,6 +10,7 @@ from app.api.routes.v1 import oauth
 from app.api.routes.v1 import sessions
 from app.api.routes.v1 import conversations
 from app.api.routes.v1 import admin_conversations
+from app.api.routes.v1 import me_channel_link
 from app.api.routes.v1 import me_mcp_connections
 from app.api.routes.v1 import org_mcp_connections
 from app.api.routes.v1 import sandbox_connections
@@ -92,6 +93,10 @@ v1_router.include_router(
 
 v1_router.include_router(
     me_mcp_connections.router, prefix="/me/mcp-connections", tags=["me:mcp-connections"]
+)
+
+v1_router.include_router(
+    me_channel_link.router, prefix="/me/channel-link", tags=["me:channel-link"]
 )
 
 v1_router.include_router(agent.router, tags=["agent"])
