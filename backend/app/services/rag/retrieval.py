@@ -30,12 +30,6 @@ class BaseRetrievalService(ABC):
     ) -> list[SearchResult]:
         pass
 
-    @abstractmethod
-    async def retrieve_by_document(
-        self, query: str, collection_name: str, document_id: str, limit: int = 3
-    ) -> list[SearchResult]:
-        pass
-
 
 class RetrievalService(BaseRetrievalService):
     def __init__(
@@ -247,27 +241,3 @@ class RetrievalService(BaseRetrievalService):
                 deduped.append(r)
 
         return deduped[:limit]
-
-    async def retrieve_by_document(
-        self,
-        query: str,
-        collection_name: str,
-        document_id: str,
-        limit: int = 3,
-    ) -> list[SearchResult]:
-        """Retrieve chunks restricted to a single document."""
-        # Sanitize document_id to prevent filter injection
-        sanitized_id = document_id.replace('"', "").replace("\\", "")
-        filter_expr = f'parent_doc_id == "{sanitized_id}"'
-        logger.info(
-            "[RETRIEVAL] Retrieve by document: doc_id=%s, query='%.30s...', limit=%d",
-            document_id,
-            query,
-            limit,
-        )
-        return await self.retrieve(
-            query=query,
-            collection_name=collection_name,
-            limit=limit,
-            filter=filter_expr,
-        )

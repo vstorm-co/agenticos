@@ -10,7 +10,7 @@ from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.db.models.agent import Agent, AgentVersion
+from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.user import User
@@ -141,22 +141,6 @@ async def count_by_agent(
         .group_by(Message.agent_id)
     )
     return {agent_id: count for agent_id, count in result.all() if agent_id is not None}
-
-
-async def version_numbers(db: AsyncSession, version_ids: list[UUID]) -> dict[UUID, int]:
-    """The human-readable number behind each version id.
-
-    A transcript says "v3"; the message stores a UUID, which names nothing to a
-    reader. Resolved in one query for the whole page rather than joined onto the
-    message query, because most messages have no version at all and a join would
-    pay for the column on every row that does not use it.
-    """
-    if not version_ids:
-        return {}
-    result = await db.execute(
-        select(AgentVersion.id, AgentVersion.version).where(AgentVersion.id.in_(version_ids))
-    )
-    return {row[0]: row[1] for row in result.all()}
 
 
 async def get_conversation_by_id(
@@ -588,20 +572,6 @@ async def delete_message(db: AsyncSession, message_id: UUID) -> bool:
 async def get_tool_call_by_id(db: AsyncSession, tool_call_id: UUID) -> ToolCall | None:
     """Get tool call by ID."""
     return await db.get(ToolCall, tool_call_id)
-
-
-async def get_tool_calls_by_message(
-    db: AsyncSession,
-    message_id: UUID,
-) -> list[ToolCall]:
-    """Get tool calls for a message."""
-    query = (
-        select(ToolCall)
-        .where(ToolCall.message_id == message_id)
-        .order_by(ToolCall.started_at.asc())
-    )
-    result = await db.execute(query)
-    return list(result.scalars().all())
 
 
 async def get_open_tool_call_in_run(

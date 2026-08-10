@@ -8,7 +8,7 @@ export { useConversations } from "./use-conversations";
 export { useConversationShares } from "./use-conversation-shares";
 export { useAdminConversations } from "./use-admin-conversations";
 export { useOrganizations, useOrganizationList, preferredOrg } from "./use-organizations";
-export { useActiveOrganizationRecovery, refusesOrganization } from "./use-active-organization";
+export { useActiveOrganizationRecovery } from "./use-active-organization";
 export { useMembers } from "./use-members";
 export { useInvitations } from "./use-invitations";
 export { useKnowledgeBases, useKBDetail } from "./use-knowledge-bases";
@@ -26,7 +26,7 @@ export {
   useCapabilityCatalog,
 } from "./use-agents";
 export { useMcpCatalog, useMcpServers, type McpServerRow } from "./use-mcp-servers";
-export { useModelProviders, useProviderModels, providerInfo } from "./use-model-providers";
+export { useModelProviders, useProviderModels } from "./use-model-providers";
 export {
   useLocalSandboxService,
   useSandboxConnections,

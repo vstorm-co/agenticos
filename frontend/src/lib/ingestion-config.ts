@@ -159,7 +159,7 @@ export const INGESTION_LIMITS = {
  * round trip: "pl" reads as a plausible answer and is the one Tesseract has no
  * pack for, so the parse would succeed and return nothing.
  */
-export const OCR_LANGUAGE_PATTERN = /^[a-z]{3}(\+[a-z]{3})*$/;
+const OCR_LANGUAGE_PATTERN = /^[a-z]{3}(\+[a-z]{3})*$/;
 
 /**
  * The names `IngestionSettings` shows a refusal under, for `submitFailure`.

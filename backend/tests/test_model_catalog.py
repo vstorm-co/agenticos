@@ -20,9 +20,9 @@ MODULE = "app.services.model_catalog"
 
 @pytest.fixture(autouse=True)
 def _empty_cache():
-    model_catalog.clear_cache()
+    model_catalog._cache.clear()
     yield
-    model_catalog.clear_cache()
+    model_catalog._cache.clear()
 
 
 def _responds(payload: object) -> MagicMock:

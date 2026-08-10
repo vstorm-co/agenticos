@@ -18,8 +18,6 @@ import type { SandboxConnectionRecord } from "@/lib/sandbox-connections-api";
 import type { CapabilityBindingSpec, CapabilityCatalogEntry } from "@/types/agents";
 import { useTranslations } from "next-intl";
 
-export const SANDBOX_CAPABILITY_ID = "sandbox";
-
 type Backend = "state" | "service";
 type Scope = "run" | "conversation" | "channel" | "user" | "agent";
 

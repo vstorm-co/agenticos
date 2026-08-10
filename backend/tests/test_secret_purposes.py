@@ -78,7 +78,7 @@ class TestTheCatalog:
     def test_custom_is_last_and_is_not_a_model_provider(self):
         purposes = secret_purposes.all_purposes()
         assert purposes[-1].id == "custom"
-        assert secret_purposes.is_model_provider("custom") is False
+        assert purposes[-1].category is not secret_purposes.PurposeCategory.MODEL_PROVIDER
 
     def test_an_unknown_purpose_resolves_to_nothing(self):
         assert secret_purposes.get("not-a-service") is None

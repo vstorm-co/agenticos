@@ -349,32 +349,6 @@ class KnowledgeBaseService:
                 details={"purpose": row.purpose},
             )
 
-    async def create_default_for_org(
-        self,
-        organization_id: UUID,
-        collection_name: str,
-    ) -> KnowledgeBase:
-        existing = await knowledge_base_repo.get_default_for_org(self.db, organization_id)
-        if existing:
-            return existing
-        embedding_model, embedding_dim = deployment_embedding()
-        return await knowledge_base_repo.create(
-            self.db,
-            name="Default",
-            collection_name=collection_name,
-            scope=KBScope.ORG.value,
-            description="Default knowledge base",
-            organization_id=organization_id,
-            is_default=True,
-            # The default base is the whole workspace's - ownerless and
-            # org-visible, or a Member could not reach the one base every
-            # fresh organization is given.
-            visibility=Visibility.ORG.value,
-            ingestion_config=deployment_defaults().model_dump(mode="json"),
-            embedding_model=embedding_model,
-            embedding_dim=embedding_dim,
-        )
-
     async def update(
         self,
         kb_id: UUID,

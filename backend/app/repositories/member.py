@@ -208,34 +208,6 @@ async def count_for_org(db: AsyncSession, organization_id: UUID) -> int:
     return result.scalar() or 0
 
 
-async def count_billable_for_org(db: AsyncSession, organization_id: UUID) -> int:
-    """Count billable members (Owner + Admin + Member; Viewer excluded)."""
-    result = await db.execute(
-        select(func.count(OrganizationMember.id)).where(
-            OrganizationMember.organization_id == organization_id,
-            OrganizationMember.role != OrgRole.VIEWER.value,
-        )
-    )
-    return result.scalar() or 0
-
-
-async def has_owner(db: AsyncSession, organization_id: UUID) -> bool:
-    result = await db.execute(
-        select(func.count(OrganizationMember.id)).where(
-            OrganizationMember.organization_id == organization_id,
-            OrganizationMember.role == OrgRole.OWNER.value,
-        )
-    )
-    return (result.scalar() or 0) > 0
-
-
-async def list_orgs_for_user(db: AsyncSession, user_id: UUID) -> list[OrganizationMember]:
-    result = await db.execute(
-        select(OrganizationMember).where(OrganizationMember.user_id == user_id)
-    )
-    return list(result.scalars().all())
-
-
 async def create(
     db: AsyncSession,
     *,

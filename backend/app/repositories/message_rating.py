@@ -11,7 +11,6 @@ from sqlalchemy.orm import selectinload
 
 from app.db.models.conversation import Conversation, Message
 from app.db.models.message_rating import MessageRating
-from app.db.models.user import User
 
 
 async def get_rating_by_message_and_user(
@@ -72,16 +71,6 @@ async def delete_rating(db: AsyncSession, rating: MessageRating) -> None:
     """Delete a rating."""
     await db.delete(rating)
     await db.flush()
-
-
-async def get_ratings_for_message(
-    db: AsyncSession,
-    message_id: UUID,
-) -> list[MessageRating]:
-    """Get all ratings for a message."""
-    query = select(MessageRating).where(MessageRating.message_id == message_id)
-    result = await db.execute(query)
-    return list(result.scalars().all())
 
 
 async def get_user_ratings_for_messages(
@@ -155,23 +144,6 @@ async def get_down_rating_comments_for_messages(
         if message_id not in comments and comment:
             comments[message_id] = comment
     return comments
-
-
-async def get_ratings_with_users_for_messages(
-    db: AsyncSession,
-    *,
-    message_ids: list[UUID],
-) -> list[tuple[MessageRating, Any]]:
-    """Return ratings joined with users for the given message IDs (admin export)."""
-    if not message_ids:
-        return []
-    query = (
-        select(MessageRating, User)
-        .join(User, MessageRating.user_id == User.id)
-        .where(MessageRating.message_id.in_(message_ids))
-    )
-    result = await db.execute(query)
-    return [(rating, user) for rating, user in result.all()]
 
 
 async def list_ratings(

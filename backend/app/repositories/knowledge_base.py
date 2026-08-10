@@ -3,11 +3,10 @@
 from collections.abc import Sequence
 from uuid import UUID
 
-from sqlalchemy import false, func, or_, select
+from sqlalchemy import false, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
-from app.db.models.rag_document import RAGDocument
 from app.db.models.resource_grant import Visibility
 
 
@@ -78,24 +77,6 @@ async def get_accessible(
         select(KnowledgeBase).where(or_(*conditions)).order_by(KnowledgeBase.created_at)
     )
     return list(result.scalars().all())
-
-
-async def get_default_for_org(db: AsyncSession, organization_id: UUID) -> KnowledgeBase | None:
-    result = await db.execute(
-        select(KnowledgeBase).where(
-            KnowledgeBase.organization_id == organization_id,
-            KnowledgeBase.scope == KBScope.ORG.value,
-            KnowledgeBase.is_default.is_(True),
-        )
-    )
-    return result.scalar_one_or_none()
-
-
-async def get_documents_count(db: AsyncSession, kb_id: UUID) -> int:
-    result = await db.execute(
-        select(func.count(RAGDocument.id)).where(RAGDocument.knowledge_base_id == kb_id)
-    )
-    return result.scalar() or 0
 
 
 async def create(

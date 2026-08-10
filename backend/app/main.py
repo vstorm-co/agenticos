@@ -149,7 +149,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     yield state
     if "vector_store" in state:
         with suppress(Exception):
-            await state["vector_store"].engine.dispose()  # type: ignore[attr-defined]
+            await state["vector_store"].aclose()
     for _bid in list(_telegram_adapter._polling_tasks.keys()):
         await _telegram_adapter.stop_polling(_bid)
     for _sbid in list(_slack_adapter._socket_tasks.keys()):

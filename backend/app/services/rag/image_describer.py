@@ -1,6 +1,5 @@
 """LLM-based image description for RAG document processing."""
 
-import base64
 import logging
 from abc import ABC, abstractmethod
 
@@ -24,11 +23,6 @@ class BaseImageDescriber(ABC):
     @abstractmethod
     async def describe(self, image_bytes: bytes, mime_type: str = "image/png") -> str:
         """Generate a text description of an image."""
-
-
-def _b64_encode(image_bytes: bytes) -> str:
-    """Base64-encode raw image bytes."""
-    return base64.b64encode(image_bytes).decode("utf-8")
 
 
 class PydanticAIImageDescriber(BaseImageDescriber):
