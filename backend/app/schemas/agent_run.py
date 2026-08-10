@@ -118,10 +118,10 @@ class RunTranscriptMessage(MessageRead):
 
     The base is the same row `GET /conversations/{id}/messages` returns; the run
     detail view needs three things more, so the answers people rated down and the
-    words they left can be read where the dashboard's quality number is explained
-    (#209). All three default to their empty answer, so a turn nobody rated
-    serializes exactly as a plain message does - the fields are additive, and a
-    client that ignores them sees the message it always did.
+    words they left can be read where the dashboard's quality number is explained.
+    All three default to their empty answer, so a turn nobody rated serializes
+    exactly as a plain message does - the fields are additive, and a client that
+    ignores them sees the message it always did.
 
     Attributes:
         user_rating: The reading caller's own thumb on this turn - `1`, `-1`, or
