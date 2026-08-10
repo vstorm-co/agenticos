@@ -2433,7 +2433,7 @@
       "perVersionCostPerRun": "per run",
       "perVersionLatency": "p95",
       "versionStripCouldNot": "The per-version summary could not be read",
-      "versionsCaption": "Completed counts every status - nothing excluded, so it reads the same as the dashboard's Outcomes donut. Runs include what this version did as a delegate.",
+      "versionsCaption": "The last 30 days, so a version can show fewer runs than the whole history in the table below. Completed counts every status - nothing excluded, so it reads the same as the dashboard's Outcomes donut. Runs include what this version did as a delegate.",
       "versionsTitle": "By version",
       "waitingDecision": "Waiting for a decision",
       "waitingPerson": "Waiting on a person",
