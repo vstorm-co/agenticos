@@ -1,0 +1,177 @@
+"""When an agent runs without anyone writing to it - one row per schedule.
+
+Today an agent answers only when a person sends it something. A trigger is the
+other way in: a stored schedule that fires the same agent on its own, through the
+same run path (:meth:`app.services.agent_runner.AgentRunnerService.execute`), so
+budgets, approvals and accounting behave identically to a chat run.
+
+Like :class:`app.db.models.agent_exposure.AgentExposure`, a trigger is operational
+state, not part of what the agent *is*: you add, disable and remove one without
+minting an agent version, and publishing a new version must not silently change
+what is scheduled. That is why it is a row here and not a field on
+:class:`app.agents.spec.AgentSpec` - the spec is exported and reused across
+organizations, and a trigger carries two things that cannot travel with it: a
+subject (`created_by_user_id`, the member a fired run runs as) and
+deployment-local runtime state (`next_fire_at`, `last_run_id`, the run-log
+conversation).
+
+`cron_expression` and the `'cron'` half of :class:`ScheduleKind` are modelled
+but not yet served: interval schedules ship first (agenticos#44), and a request
+for a cron schedule is refused at creation until the follow-up lands. The column
+and the CHECK branch exist so that follow-up is a code change, not a migration on
+a populated table.
+"""
+
+import enum
+import uuid
+from datetime import datetime
+
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+)
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.db.base import Base, TimestampMixin
+
+# The floor a trigger's interval cannot go below. The heartbeat ticks once a
+# minute, so a shorter interval could not be honoured anyway - and it bounds the
+# worst case a fat-fingered value reaches.
+MIN_INTERVAL_SECONDS = 60
+
+
+class ScheduleKind(enum.StrEnum):
+    """How a trigger decides it is due.
+
+    `INTERVAL` is "every N seconds since the last fire" and is what ships first.
+    `CRON` - a crontab expression evaluated against a timezone - is modelled
+    here so the stored vocabulary is stable, but refused at creation until
+    agenticos#44's follow-up implements it: an interval survives a restart without
+    a timezone decision, which a cron does not, so it is the cheaper half to ship
+    alone.
+    """
+
+    INTERVAL = "interval"
+    CRON = "cron"
+
+
+class AgentTrigger(Base, TimestampMixin):
+    """One schedule that fires one agent."""
+
+    __tablename__ = "agent_triggers"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    agent_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agents.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    # The subject a fired run runs as. SET NULL, like the exposure's creator:
+    # deleting the user must not delete the schedule's history. A null creator is
+    # not licence to run as nobody - it is a trigger that can no longer be
+    # attributed, so the claim query requires it non-null and the row is disabled
+    # the next time it is inspected.
+    created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    # Turned off without being forgotten - the exposure's rationale exactly. Set
+    # false when a creator loses access to the agent, so a schedule nobody can run
+    # stops rather than retrying against a wall for ever.
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    # Which named environment's version this fires, like an exposure. SET NULL
+    # keeps a schedule firing the default version rather than going silent when a
+    # dev environment is removed.
+    environment_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agent_environments.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    schedule_kind: Mapped[str] = mapped_column(
+        String(16), nullable=False, default=ScheduleKind.INTERVAL.value
+    )
+    interval_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cron_expression: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    # The input each fire sends. A scheduled run has no human turn, so the message
+    # the agent answers is stored here.
+    prompt: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # When it is next due. The heartbeat's claim query is
+    # `is_active AND created_by_user_id IS NOT NULL AND next_fire_at <= now()`,
+    # taken FOR UPDATE SKIP LOCKED; the flow advances it under that lock before
+    # dispatching, so two ticks cannot fire one trigger.
+    next_fire_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_fired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # The run the last fire opened. The no-overlap guard reads its status: a fire
+    # is skipped while this names a run that has not reached a terminal state. SET
+    # NULL so pruning a run does not delete the schedule; a null reads as "no fire
+    # yet, or the last run was pruned" - both "not running".
+    last_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agent_runs.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    # The single run-log conversation every fire appends to. Opened on the first
+    # fire (a per-fire conversation would be ~1440 rows a day on the interval
+    # floor) and reused after. SET NULL so deleting the conversation reopens a
+    # fresh log on the next fire rather than losing the schedule.
+    conversation_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("conversations.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    # Declared here as well as in the migration: the integration tests build the
+    # schema from the models, so a constraint stated only in the migration would
+    # be absent from exactly the tests written to prove it rejects a row.
+    __table_args__ = (
+        CheckConstraint("schedule_kind IN ('interval', 'cron')", name="ck_trigger_schedule_kind"),
+        # The discriminator: an interval trigger carries an interval and no cron
+        # expression, a cron trigger the reverse. One row cannot be both or
+        # neither, so "what makes this due" always has exactly one answer.
+        CheckConstraint(
+            "(schedule_kind = 'interval' AND interval_seconds IS NOT NULL "
+            "AND cron_expression IS NULL) "
+            "OR (schedule_kind = 'cron' AND cron_expression IS NOT NULL "
+            "AND interval_seconds IS NULL)",
+            name="ck_trigger_schedule_shape",
+        ),
+        # The runaway floor. A NULL interval passes here because the discriminator
+        # above already forbids one on an interval trigger.
+        CheckConstraint(
+            f"interval_seconds IS NULL OR interval_seconds >= {MIN_INTERVAL_SECONDS}",
+            name="ck_trigger_interval_floor",
+        ),
+        # The claim query filters on `is_active` and `next_fire_at` together.
+        Index("ix_agent_triggers_due", "is_active", "next_fire_at"),
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<AgentTrigger(id={self.id}, agent_id={self.agent_id}, "
+            f"kind={self.schedule_kind}, active={self.is_active})>"
+        )
