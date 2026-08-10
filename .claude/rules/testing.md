@@ -33,9 +33,10 @@ Then, once, before the push:
 ```bash
 make lint               # ruff, ruff format, ty, eslint, prettier, tsc, the two guards,
                         # and codespell over every tracked file
-make test               # backend + the 100% gate on the platform layer
+make test               # backend + the 100% gate; runs across workers (-n auto,
+                        # capped at 4), pytest-cov combines their data
 make test-frontend-cov  # frontend + its gate: 100% lines/stmts/funcs, 97.5% branches
-make test-integration   # only if the change is near the database
+make test-integration   # only if the change is near the database; also parallel
 make check              # every CI job except e2e - lint, test, db-check,
                         # test-frontend-cov, build-frontend, docs-build, audit.
                         # About five minutes.
@@ -117,8 +118,8 @@ name meant two runs on one machine dropping each other's tables mid-test (#189).
 drops it at the end, even when the suite fails, so **two concurrent runs are safe and
 nothing has to be passed to make them so**. It still skips when no database is
 reachable (a laptop without Docker) and still refuses any database whose name contains
-neither `test` nor `ci`, or that is not a plain identifier — it calls `drop_all`
-unconditionally and drops the database itself afterwards.
+neither `test` nor `ci`, or that is not a plain identifier — it empties every table
+unconditionally between tests and drops the database itself afterwards.
 
 A run killed outright (`SIGKILL`) leaks its database; the next run with that pid drops
 it before creating its own. Anything else named `agenticos_*` on a shared Postgres was

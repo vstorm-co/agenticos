@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "0.0.88"
+version = "0.0.94"
 description = "OS for your agents."
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -98,6 +98,7 @@ dev = [
     "ruff>=0.16.1",
     "ty>=0.0.69",
     "pre-commit>=4.0.0",
+    "pytest-xdist>=3.8.0",
 ]
 # The documentation site. Its own group rather than part of `dev`, because the
 # reference pages import the application to read its docstrings - so this group

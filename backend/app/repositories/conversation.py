@@ -478,6 +478,37 @@ async def count_messages(db: AsyncSession, conversation_id: UUID) -> int:
     return result.scalar() or 0
 
 
+async def get_messages_by_run(
+    db: AsyncSession,
+    run_id: UUID,
+    *,
+    skip: int = 0,
+    limit: int = 100,
+    include_tool_calls: bool = False,
+) -> list[Message]:
+    """The turns one run produced, oldest first.
+
+    Narrowed by `messages.run_id` rather than by a time window over the
+    conversation: two runs started in one thread interleave, so windowing by the
+    run's `started_at`/`ended_at` returns the wrong rows for the first and none
+    for a run that never ended.
+    """
+    query = select(Message).where(Message.run_id == run_id)
+    if include_tool_calls:
+        query = query.options(selectinload(Message.tool_calls))
+    query = query.options(selectinload(Message.files))
+    query = query.order_by(Message.created_at.asc()).offset(skip).limit(limit)
+    result = await db.execute(query)
+    return list(result.scalars().all())
+
+
+async def count_messages_by_run(db: AsyncSession, run_id: UUID) -> int:
+    """Count the turns one run produced."""
+    query = select(func.count(Message.id)).where(Message.run_id == run_id)
+    result = await db.execute(query)
+    return result.scalar() or 0
+
+
 async def create_message(
     db: AsyncSession,
     *,
