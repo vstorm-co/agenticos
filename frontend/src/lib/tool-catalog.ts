@@ -101,6 +101,33 @@ export interface ToolEntry {
  * there.
  */
 export const TOOL_CATALOG: Record<string, ToolEntry> = {
+  // channel_tools - only ever called on a Slack, Telegram or Mattermost run, so these
+  // steps are read back in the run timeline rather than watched live in the dashboard.
+  get_channel_info: {
+    kind: "read",
+    render: "generic",
+    caption: "Looking at the channel",
+    displayName: "Channel Info",
+  },
+  list_channel_members: {
+    kind: "list",
+    render: "generic",
+    caption: "Looking at who is in the channel",
+    displayName: "Channel Members",
+  },
+  search_channels: {
+    kind: "search",
+    render: "generic",
+    caption: "Looking for a channel",
+    displayName: "Channel Search",
+  },
+  read_channel_history: {
+    kind: "read",
+    render: "generic",
+    caption: "Reading the channel",
+    displayName: "Channel History",
+  },
+
   // charts
   create_chart: {
     kind: "chart",

@@ -26,6 +26,7 @@ export const ROUTES = {
   SETTINGS_NOTIFICATIONS: "/settings/notifications",
   SETTINGS_SLASH_COMMANDS: "/settings/slash-commands",
   MCP_SERVERS: "/mcp-servers",
+  CHANNELS: "/channels",
   RAG: "/rag",
   RAG_DETAIL: (id: string) => `/rag/${id}`,
   RAG_SEARCH: "/rag?tab=search",

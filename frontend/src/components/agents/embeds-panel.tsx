@@ -21,12 +21,19 @@ import {
   SelectTrigger,
   SelectValue,
   Switch,
+  MarkdownEditor,
   Textarea,
 } from "@/components/ui";
 import { useEmbeds } from "@/hooks";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { cn } from "@/lib/utils";
-import { DEFAULT_EMBED_THEME, type Embed, type EmbedAuthMode } from "@/types/embeds";
+import {
+  DEFAULT_EMBED_THEME,
+  type Embed,
+  type EmbedAuthMode,
+  type EmbedVariable,
+} from "@/types/embeds";
+import { EmbedVariables } from "@/components/agents/embed-variables";
 import { useTranslations } from "next-intl";
 
 interface EmbedsPanelProps {
@@ -65,6 +72,7 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
   const [authMode, setAuthMode] = useState<EmbedAuthMode>("public");
   const [secret, setSecret] = useState("");
   const [context, setContext] = useState("");
+  const [variables, setVariables] = useState<EmbedVariable[]>([]);
   const [accent, setAccent] = useState(DEFAULT_EMBED_THEME.accent);
 
   const reset = () => {
@@ -74,6 +82,7 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
     setAuthMode("public");
     setSecret("");
     setContext("");
+    setVariables([]);
     setAccent(DEFAULT_EMBED_THEME.accent);
   };
 
@@ -87,6 +96,10 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
         allowed_origins: parseOrigins(origins),
         theme: { ...DEFAULT_EMBED_THEME, accent },
         context: context.trim() || null,
+        // A row somebody started and left blank is not a declaration. Dropped
+        // here rather than refused on save: the name is the contract, and an
+        // empty one has nothing to contract about.
+        context_variables: variables.filter((variable) => variable.name.trim() !== ""),
         rate_limit_per_minute: 10,
       },
       { onSuccess: reset },
@@ -227,15 +240,23 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
 
             <div className="space-y-2">
               <Label htmlFor="embed-context">{t("contextPlacement")}</Label>
-              <Textarea
+              <MarkdownEditor
                 id="embed-context"
                 value={context}
-                onChange={(event) => setContext(event.target.value)}
+                onChange={setContext}
+                label={t("contextPlacement")}
                 placeholder={t("youArePricingPage")}
-                rows={2}
+                rows={6}
+                disabled={create.isPending}
               />
               <p className="text-muted-foreground text-xs">{t("addedFirstMessageEach")}</p>
             </div>
+
+            <EmbedVariables
+              variables={variables}
+              disabled={create.isPending}
+              onChange={setVariables}
+            />
 
             <div className="flex items-center gap-2">
               <Button

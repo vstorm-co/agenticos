@@ -36,6 +36,11 @@ function exposure(overrides: Partial<Exposure> = {}): Exposure {
     channel_bot_name: "Acme Support",
     environment_id: null,
     session_scope: null,
+    prompt: null,
+    tools: [],
+    available_tools: [],
+    available_variables: [],
+    usage_reporting: { mode: "near_limit", near_limit_percent: 80, every_n: 10 },
     is_active: true,
     created_at: null,
     ...overrides,
@@ -117,32 +122,24 @@ describe("ExposuresPanel", () => {
     ).toBeInTheDocument();
   });
 
-  it("points at the register panel instead of a picker nothing can be picked from", async () => {
-    // A disabled select saying "no unbound bots" was a dead end: somebody who
-    // has never registered a bot learns here that one is needed, and that the
-    // panel below this one is where it happens.
+  it("names the fix instead of a picker nothing can be picked from", async () => {
+    // A disabled select saying "no unbound bots" was a dead end. It said which
+    // of two absences this was, which stopped being knowable here: a bot serves
+    // one agent, so "every bot registered and every one serving somebody else"
+    // looks from the client exactly like "no bots at all". What all of them
+    // share is the fix, so that is what it says.
     serve([], []);
     await mount();
 
     expect(screen.queryByRole("combobox", { name: "Add a channel" })).not.toBeInTheDocument();
-    expect(
-      await screen.findByText(
-        "This organization has no channel bots yet. Register one in the panel below, then bind it here.",
-      ),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/No bot is free to bind/)).toBeInTheDocument();
   });
 
-  it("says when the agent is already on every registered bot", async () => {
-    // Same empty picker, opposite meaning: nothing is missing, everything is
-    // already bound - sending somebody off to register a bot would be wrong.
+  it("says the same thing when this agent is on the only bot there is", async () => {
     serve([exposure({ channel_bot_id: "b1" })], [target({ id: "b1" })]);
     await mount();
 
-    expect(
-      await screen.findByText(
-        "This agent is already on every bot this organization has registered.",
-      ),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/No bot is free to bind/)).toBeInTheDocument();
   });
 
   it("does not offer a bot the agent already answers on", async () => {
@@ -317,48 +314,130 @@ describe("ExposuresPanel", () => {
     expect(screen.queryByText(/the thread sits there meanwhile/)).toBeNull();
   });
 
-  it("overrides who shares a workspace on this surface alone", async () => {
-    // The mistake this exists to fix without republishing: on Slack a thread is
-    // a chat, so the spec's "this conversation" means one workspace per thread -
-    // and a busy channel is fifty containers.
+  it("saves extra instructions for one binding only", async () => {
+    // The same published agent answers in a dashboard, on a widget and in a
+    // Mattermost channel. Editing the spec to suit one changes all of them.
     serve([exposure()], []);
-    vi.mocked(apiClient.patch).mockResolvedValue(exposure({ session_scope: "channel" }));
+    vi.mocked(apiClient.patch).mockResolvedValue(exposure({ prompt: "Be terse." }));
     await mount();
 
-    await userEvent.click(
-      await screen.findByRole("combobox", { name: "Workspace sharing on Acme Support" }),
+    await userEvent.type(
+      await screen.findByLabelText("Extra instructions on Acme Support"),
+      "Be terse.",
     );
-    await userEvent.click(await screen.findByRole("option", { name: "per channel" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
     expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures/e1`, {
-      session_scope: "channel",
+      prompt: "Be terse.",
     });
   });
 
-  it("hands the decision back to the spec as an explicit null", async () => {
-    serve([exposure({ session_scope: "channel" })], []);
+  it("offers no workspace-sharing control at all", async () => {
+    // Six options, on every binding of every agent, for a question most people
+    // never ask: who shares the sandbox. The spec already answers it the way
+    // Slack does - a thread is a chat - and somebody who genuinely needs
+    // otherwise changes the agent rather than each of its bindings.
+    serve([exposure()], []);
+    await mount();
+
+    await screen.findByText(/Acme Support/);
+    expect(screen.queryByRole("combobox", { name: /Workspace sharing/ })).toBeNull();
+  });
+
+  it("offers the channel lookups this platform can actually answer", async () => {
+    // Under the binding rather than in the Toolbox, because the answer belongs
+    // to the binding: the same agent on an internal Mattermost and a customer
+    // Slack gets a different one.
+    serve(
+      [
+        exposure({
+          available_tools: [
+            { id: "get_channel_info", name: "get_channel_info", description: "Describe it." },
+            { id: "read_channel_history", name: "read_channel_history", description: "Read it." },
+          ],
+          tools: ["get_channel_info"],
+        }),
+      ],
+      [],
+    );
+    await mount();
+
+    expect(await screen.findByText("What this agent may look up on Slack")).toBeInTheDocument();
+    expect(screen.getByLabelText("Describe it.")).toBeChecked();
+    expect(screen.getByLabelText("Read it.")).not.toBeChecked();
+  });
+
+  it("sends the whole grant, not the box that moved", async () => {
+    // What a binding grants is what it is: a patch describing one checkbox
+    // could not say "and nothing else".
+    serve(
+      [
+        exposure({
+          available_tools: [
+            { id: "get_channel_info", name: "get_channel_info", description: "Describe it." },
+            { id: "read_channel_history", name: "read_channel_history", description: "Read it." },
+          ],
+          tools: ["get_channel_info"],
+        }),
+      ],
+      [],
+    );
+    await mount();
+
+    await userEvent.click(await screen.findByLabelText("Read it."));
+
+    expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures/e1`, {
+      tools: ["get_channel_info", "read_channel_history"],
+    });
+  });
+
+  it("takes a lookup away without touching the others", async () => {
+    serve(
+      [
+        exposure({
+          available_tools: [
+            { id: "get_channel_info", name: "get_channel_info", description: "Describe it." },
+            { id: "read_channel_history", name: "read_channel_history", description: "Read it." },
+          ],
+          tools: ["get_channel_info", "read_channel_history"],
+        }),
+      ],
+      [],
+    );
+    await mount();
+
+    await userEvent.click(await screen.findByLabelText("Read it."));
+
+    expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures/e1`, {
+      tools: ["get_channel_info"],
+    });
+  });
+
+  it("is where cost reporting is chosen, per binding", async () => {
+    // It moved off the Channels page: whether a reply says what the turn cost
+    // is part of what this agent says on this surface, and on the bot it was an
+    // operator's setting in a table of servers and tokens.
+    serve([exposure()], []);
     vi.mocked(apiClient.patch).mockResolvedValue(exposure());
     await mount();
 
-    await userEvent.click(
-      await screen.findByRole("combobox", { name: "Workspace sharing on Acme Support" }),
-    );
-    await userEvent.click(await screen.findByRole("option", { name: "as the agent says" }));
+    await userEvent.click(await screen.findByRole("combobox", { name: "Cost reporting" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Cost: on every reply" }));
 
-    expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures/e1`, {
-      session_scope: null,
-    });
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures/e1`, {
+        usage_reporting: { mode: "always", near_limit_percent: 80, every_n: 10 },
+      }),
+    );
   });
 
-  it("offers no sharing override for an agent that keeps no files", async () => {
-    // A control that changes nothing is how the ones that matter get ignored.
-    serve([exposure()], []);
-    await mount({ hasWorkspace: false });
+  it("offers nothing where the platform answers nothing", async () => {
+    // A checkbox whose only effect is a tool that refuses is worse than none.
+    serve([exposure({ available_tools: [] })], []);
+    await mount();
 
     await screen.findByText(/Acme Support/);
-    expect(
-      screen.queryByRole("combobox", { name: "Workspace sharing on Acme Support" }),
-    ).toBeNull();
+    expect(screen.queryByText(/What this agent may look up/)).toBeNull();
   });
 
   it("shows a placeholder while the bindings are being fetched", () => {

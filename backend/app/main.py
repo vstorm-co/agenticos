@@ -4,7 +4,7 @@
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
-from typing import Any, TypedDict
+from typing import TypedDict
 
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
@@ -33,6 +33,7 @@ from app.services.rag.vectorstore import BaseVectorStore
 from app.repositories.channel_bot import get_active_polling_bots
 from app.services.channel_bot import unseal_bot_token, unseal_slack_app_token
 from app.services.channels import register_adapter
+from app.services.channels.supervisor import open_inbound_stream
 from app.services.channels.telegram import TelegramAdapter
 from app.services.channels import register_adapter as _slack_register
 from app.services.channels.mattermost import MattermostAdapter
@@ -50,25 +51,26 @@ class LifespanState(TypedDict, total=False):
     vector_store: BaseVectorStore
 
 
-async def _start_channel_polling(adapter: Any, channel: str) -> None:
-    """Start polling for all active bots of the given channel type."""
+async def _start_channel_polling(channel: str) -> None:
+    """Open a stream for every active polling bot on this platform.
+
+    The catch-up pass, and only that. A bot registered *while* the process is
+    running has its stream opened by `ChannelBotService`, through the same
+    `open_inbound_stream` - which is why the sequence lives there rather than
+    here. Two copies of "tell the adapter the server address, then connect"
+    is one copy that will be missing a step.
+
+    """
     async with get_db_context() as _db:
         _bots = await get_active_polling_bots(_db, channel)
     for _bot in _bots:
-        # Self-hosted platforms carry their own address. Told before the stream
-        # opens, because the adapter is a singleton and the URL is per bot.
-        remember = getattr(adapter, "remember_server", None)
-        if remember is not None and _bot.api_base_url:
-            remember(str(_bot.id), _bot.api_base_url)
-        # Slack's Socket Mode connects with the bot's own xapp- token - each
-        # bot is its own Slack app. Registered the same way as the server
-        # address above, and for the same reason.
-        remember_app = getattr(adapter, "remember_app_token", None)
-        if remember_app is not None:
-            _app_token = unseal_slack_app_token(_bot)
-            if _app_token:
-                remember_app(str(_bot.id), _app_token)
-        await adapter.start_polling(str(_bot.id), unseal_bot_token(_bot))
+        await open_inbound_stream(
+            bot_id=str(_bot.id),
+            platform=channel,
+            token=unseal_bot_token(_bot),
+            api_base_url=_bot.api_base_url,
+            app_token=unseal_slack_app_token(_bot),
+        )
     logger.info("%s: polling started for %d bot(s)", channel.capitalize(), len(_bots))
 
 
@@ -114,21 +116,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     _telegram_adapter = TelegramAdapter()
     register_adapter(_telegram_adapter)
     try:
-        await _start_channel_polling(_telegram_adapter, "telegram")
+        await _start_channel_polling("telegram")
     except (OSError, ValueError, RuntimeError) as _exc:
         logger.error("Telegram: failed to start polling: %s", _exc)
 
     _mattermost_adapter = MattermostAdapter()
     register_adapter(_mattermost_adapter)
     try:
-        await _start_channel_polling(_mattermost_adapter, "mattermost")
+        await _start_channel_polling("mattermost")
     except (OSError, ValueError, RuntimeError) as _mm_exc:
         logger.error("Mattermost: failed to start the event stream: %s", _mm_exc)
 
     _slack_adapter = SlackAdapter()
     _slack_register(_slack_adapter)
     try:
-        await _start_channel_polling(_slack_adapter, "slack")
+        await _start_channel_polling("slack")
     except (OSError, ValueError, RuntimeError) as _slack_exc:
         logger.error("Slack: failed to start Socket Mode: %s", _slack_exc)
 
