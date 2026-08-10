@@ -1,0 +1,68 @@
+import { render, screen } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import messages from "../../../../messages/en.json";
+import { LatencyWidget } from "./latency";
+import type { Period } from "@/lib/dashboard/period";
+
+/**
+ * The p95 figure is the number *and its evidence*: it links to the runs behind
+ * it, sorted by duration over the same window. That is the rule the dashboard and
+ * Activity already follow for every other figure, and duration was the one it did
+ * not (#210).
+ */
+
+const useUsageStatsMock = vi.fn();
+vi.mock("@/hooks", () => ({
+  useUsageStats: (...args: unknown[]) => useUsageStatsMock(...args),
+}));
+
+const PERIOD: Period = { preset: "30d", from: "2026-07-07", to: "2026-08-05" };
+
+function withLatency(latency_ms: { p50: number; p95: number } | null) {
+  useUsageStatsMock.mockReturnValue({
+    usage: { total_runs: 40, latency_ms },
+    isLoading: false,
+    error: null,
+    refetch: vi.fn(),
+  });
+}
+
+function renderWidget() {
+  return render(
+    <NextIntlClientProvider locale="en" messages={messages}>
+      <LatencyWidget title="Latency" period={PERIOD} />
+    </NextIntlClientProvider>,
+  );
+}
+
+beforeEach(() => useUsageStatsMock.mockReset());
+
+describe("the latency widget's p95 figure", () => {
+  it("links to run history sorted by duration over the same window", () => {
+    withLatency({ p50: 3200, p95: 14800 });
+    renderWidget();
+
+    const link = screen.getByRole("link", { name: messages.dashboard.widgets.latency.viewSlowest });
+    const href = decodeURIComponent(link.getAttribute("href") ?? "");
+
+    expect(href).toContain("/runs?");
+    expect(href).toContain("sort=duration");
+    expect(href).toContain("started_from=2026-07-07T00:00:00.000Z");
+    expect(href).toContain("started_to=2026-08-05T23:59:59.999Z");
+    expect(link).toHaveTextContent("14.8 s");
+  });
+
+  it("does not link when nothing finished, because there is nothing to reach", () => {
+    // A null p95 is "no completed runs", so the figure stays a plain "—" rather
+    // than a link into an empty list.
+    withLatency(null);
+    renderWidget();
+
+    expect(screen.queryByRole("link")).toBeNull();
+    // Both percentiles read "—" with nothing finished; the point is that neither
+    // is a link.
+    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(1);
+  });
+});
