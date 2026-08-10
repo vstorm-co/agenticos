@@ -16,7 +16,7 @@ uv run pytest tests/integration -v --no-cov                # the ones needing a 
 
 These stay **serial** on purpose: spawning worker processes to run one file costs
 more than the file does. The whole-suite targets — `make test`, `make test-fast`,
-`make test-integration` — run across workers (`pytest -n auto --maxprocesses 4`),
+`make test-integration`, `make test-cov` — run across workers (`pytest -n auto --maxprocesses 4`),
 which roughly halves the I/O-bound integration suite; `pytest-cov` combines the
 per-worker data, so the 100% gate is unchanged. The cap is four because the unit
 suite is import-bound — every worker imports the app once — and gains nothing past

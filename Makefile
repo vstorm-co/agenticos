@@ -352,7 +352,7 @@ test-integration:
 	uv run --directory backend pytest tests/integration -v --no-cov -n auto --maxprocesses 4
 
 test-cov:
-	uv run --directory backend pytest tests/ --cov --cov-report=html --cov-report=term-missing
+	uv run --directory backend pytest tests/ --cov --cov-report=html --cov-report=term-missing -n auto --maxprocesses 4
 	@echo "Open backend/htmlcov/index.html"
 
 # Everything, including template-inherited subsystems. Informational: those are
