@@ -48,6 +48,17 @@ class AgentRunRead(BaseSchema):
         ),
     )
     error: str | None = None
+    down_rated: bool = Field(
+        default=False,
+        description=(
+            "Whether an assistant answer this run produced was rated down by "
+            "anybody - the 👎 run history draws on the row, and the same fact "
+            "the `rated=down` filter selects on. A rating hangs off a message "
+            "and a message names its run, so a run older than that stamping "
+            "reads false. Set by the run reads; false on any other surface, "
+            "which does not compute it."
+        ),
+    )
     started_at: datetime | None = None
     ended_at: datetime | None = None
     parent_run_id: UUID | None = Field(

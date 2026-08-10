@@ -409,6 +409,39 @@ async def list_runs(
     return items, total
 
 
+async def down_rated_run_ids(
+    db: AsyncSession, *, organization_id: UUID, run_ids: Sequence[UUID]
+) -> set[UUID]:
+    """Which of these runs produced an answer somebody rated down.
+
+    The set behind the 👎 on a run history row, and it answers the same
+    question `_was_rated(RunRating.DOWN)` does so a marked row is exactly a row
+    the `rated=down` filter would return: a run matches when *anybody* rated a
+    message it produced below zero. One query for the whole page rather than an
+    `EXISTS` per row, because the marker is wanted for every row at once where
+    the filter is asked of the set.
+
+    `organization_id` bounds the query as defence in depth. The ids come from an
+    already tenant-scoped listing, so this changes no result today; it keeps the
+    marker safe if it is ever handed ids resolved somewhere else, the same
+    boundary every read in this layer carries.
+    """
+    if not run_ids:
+        return set()
+    result = await db.execute(
+        select(Message.run_id)
+        .join(MessageRating, MessageRating.message_id == Message.id)
+        .join(AgentRun, AgentRun.id == Message.run_id)
+        .where(
+            Message.run_id.in_(run_ids),
+            AgentRun.organization_id == organization_id,
+            MessageRating.rating < 0,
+        )
+        .distinct()
+    )
+    return {run_id for (run_id,) in result.all()}
+
+
 async def sum_cost_since(
     db: AsyncSession,
     *,

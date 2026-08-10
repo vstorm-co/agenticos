@@ -123,7 +123,19 @@ async def list_runs(
         skip=skip,
         limit=limit,
     )
-    return AgentRunList(items=items, total=total)
+    # Which of this page's runs earned a 👎, in one query rather than an EXISTS
+    # per row. Skipped when the page is empty - there is nothing to mark, and
+    # nothing to ask the database about.
+    down_rated = (
+        await service.down_rated_run_ids(ctx, [run.id for run in items]) if items else set()
+    )
+    return AgentRunList(
+        items=[
+            AgentRunRead.model_validate(run).model_copy(update={"down_rated": run.id in down_rated})
+            for run in items
+        ],
+        total=total,
+    )
 
 
 def _parse_statuses(raw: str | None) -> list[str] | None:
@@ -151,8 +163,12 @@ async def get_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
     own Logfire project, and fifty rows have no use for fifty trace links.
     """
     run = await service.get_run(ctx, run_id)
+    down_rated = await service.down_rated_run_ids(ctx, [run.id])
     return AgentRunRead.model_validate(run).model_copy(
-        update={"logfire_url": await service.trace_url(ctx, run)}
+        update={
+            "logfire_url": await service.trace_url(ctx, run),
+            "down_rated": run.id in down_rated,
+        }
     )
 
 

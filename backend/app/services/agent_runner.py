@@ -3256,6 +3256,18 @@ class AgentRunnerService:
             limit=limit,
         )
 
+    async def down_rated_run_ids(self, ctx: AuthContext, run_ids: Sequence[UUID]) -> set[UUID]:
+        """Which of these runs an assistant answer was rated down on.
+
+        The marker run history draws its 👎 from, computed for a whole page at
+        once and again for a single run read - the same answer either way.
+        Scoped to the caller's organization, like every read in this service, so
+        the marker cannot be a place a listing widens past its tenant boundary.
+        """
+        return await agent_run_repo.down_rated_run_ids(
+            self.db, organization_id=ctx.organization_id, run_ids=run_ids
+        )
+
     async def get_run(self, ctx: AuthContext, run_id: UUID) -> AgentRun:
         """One run in the caller's organization.
 

@@ -2408,3 +2408,26 @@ class TestWhatTheChannelLetsTheAgentLookUp:
 
         assert CHANNEL_DIRECTORY_RESOURCE not in built["resources"]
         assert spec.capabilities == []
+
+
+class TestTheDownRatedMarker:
+    """The set run history draws its 👎 from.
+
+    The service adds only its tenant bound - the caller's organization - over
+    the repository query, so a wrong argument here is a marker that reaches past
+    the organization the reader belongs to. The query itself is proven against a
+    real database in `tests/integration/test_run_history_filters.py`.
+    """
+
+    @pytest.mark.anyio
+    async def test_it_asks_the_repository_within_the_callers_organization(self):
+        ctx = _ctx()
+        run_ids = [uuid.uuid4(), uuid.uuid4()]
+        marked = {run_ids[0]}
+        repo = AsyncMock(return_value=marked)
+        with patch("app.services.agent_runner.agent_run_repo.down_rated_run_ids", repo):
+            result = await AgentRunnerService(_db()).down_rated_run_ids(ctx, run_ids)
+
+        assert result == marked
+        assert repo.await_args.kwargs["organization_id"] == ctx.organization_id
+        assert repo.await_args.kwargs["run_ids"] == run_ids
