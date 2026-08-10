@@ -11,7 +11,6 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 
 from app.api.deps import AgentRunnerSvc, ApprovalSvc, Auth, require
-from app.core.exceptions import ValidationError
 from app.core.permissions import Perm
 from app.db.models.agent_run import (
     ApprovalStatus,
@@ -109,7 +108,7 @@ async def list_runs(
         parent_run_id=parent_run_id,
         include_delegations=include_delegations,
         filters=RunFilters(
-            statuses=_parse_statuses(status),
+            statuses=RunStatus.parse_csv(status),
             surface=None if surface is None else surface.value,
             user_id=user_id,
             started_from=started_from,
@@ -126,22 +125,6 @@ async def list_runs(
         limit=limit,
     )
     return AgentRunList(items=items, total=total)
-
-
-# routes-helper: HTTP query-param parsing for the runs list route - it validates
-# the raw `status` string and raises at the edge, before any service is called.
-def _parse_statuses(raw: str | None) -> list[str] | None:
-    if raw is None:
-        return None
-    values = [part.strip() for part in raw.split(",") if part.strip()]
-    known = {member.value for member in RunStatus}
-    unknown = sorted(set(values) - known)
-    if unknown:
-        raise ValidationError(
-            message="Unknown run status",
-            details={"unknown": unknown, "expected": sorted(known)},
-        )
-    return values or None
 
 
 @router.get(

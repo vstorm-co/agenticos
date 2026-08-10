@@ -35,8 +35,6 @@ wrote it" is not a trust boundary.
 """
 
 
-# routes-helper: the shared display-vs-download decision for both workspace-bytes
-# routes, deliberately in one place (see the module docstring).
 def file_response(data: bytes, *, path: str, download: bool) -> Response:
     """One workspace file as an HTTP response.
 

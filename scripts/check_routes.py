@@ -6,7 +6,12 @@ out. A plain helper that lands here - a parser, a loader, a formatter - is
 business logic in the one place the architecture says holds none, and it gets
 there quietly because nothing complains. This is that complaint.
 
-A module-level function in a route file is allowed only when it is one of:
+Only endpoint modules are checked - a file whose name starts with `_` is a
+dedicated helper module (`_workspace_bytes.py`, `_sharing_routes.py`), which is
+the sanctioned place to put route-adjacent code that is not an endpoint, so it is
+skipped.
+
+In an endpoint module, a module-level function is allowed only when it is one of:
 
 - a **route handler** - decorated `@router.get(...)`, `@router.post(...)` and so
   on (any `<router>.<http-method>` decorator);
@@ -14,12 +19,14 @@ A module-level function in a route file is allowed only when it is one of:
   of endpoints from one definition (e.g. `build_sharing_router`);
 - **declared on purpose** with `# routes-helper: <reason>` on the `def` line or
   the line above it. The reason is required, the same bargain as `i18n-exempt`
-  and `ty: ignore`: a helper may live here, but only as a conscious choice with
-  a note saying why - not by accident.
+  and `ty: ignore`, and it is for the rare helper that genuinely cannot move -
+  a callback the routing itself injects, not a parser or a loader that a service
+  should own.
 
 Everything else is reported. The fix is almost always to move it: a loader or a
-validator belongs in a service, a dependency in `api/deps.py`. If it genuinely
-belongs at the HTTP layer, mark it and say so.
+validator belongs in a service, a dependency in `api/deps.py`, and anything else
+route-adjacent in a `_`-prefixed module beside the endpoints. Reach for the
+marker last, not first.
 
 Usage::
 
@@ -101,6 +108,8 @@ def main() -> int:
         return 1
     found = False
     for path in sorted(ROUTES_DIR.rglob("*.py")):
+        if path.name.startswith("_"):
+            continue
         for lineno, name in _findings(path):
             found = True
             rel = path.relative_to(REPO_ROOT)

@@ -152,10 +152,16 @@ that lands in a route file — a loader, a parser, a formatter — is business l
 the one place the architecture says holds none, and it arrives quietly because
 nothing complains.
 
-`scripts/check_routes.py` is that complaint, run by `make lint`. A module-level
-function under `app/api/routes/**` is allowed only when it is a route handler
-(`@router.get(...)` &c.), a router factory (annotated `-> APIRouter`, like
-`build_sharing_router`), or **declared on purpose** with `# routes-helper: <reason>`
-on or just above the `def` — the same bargain as `i18n-exempt` and `ty: ignore`. A
-helper may live here, but only as a conscious choice with a note; the default is to
-move it to a service or `deps.py`.
+`scripts/check_routes.py` is that complaint, run by `make lint`. In an **endpoint
+module**, a top-level function must be a route handler (`@router.get(...)` &c.) or a
+router factory (annotated `-> APIRouter`, like `build_sharing_router`). Anything
+else is reported, and the fix is to **move it**: a parser or loader to the service
+that owns the domain (`RunStatus.parse_csv` left `runs.py` this way), a dependency
+to `deps.py`, and anything genuinely route-adjacent to a `_`-prefixed helper module
+beside the endpoints — `_workspace_bytes.py`, `_sharing_loaders.py`. Those `_*.py`
+modules are skipped by the guard; they are the sanctioned home for route-adjacent
+code that is not an endpoint.
+
+There is a last resort — `# routes-helper: <reason>` on or above the `def`, the same
+bargain as `i18n-exempt` — but it is for a helper that genuinely cannot move, not
+for dodging the move. Reach for it last; the default is to move the code out.
