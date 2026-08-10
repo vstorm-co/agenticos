@@ -14,6 +14,15 @@ export const AGENT_BUILDER = "agent-builder";
 export const KB_DETAIL = "kb-detail";
 
 /**
+ * The two organization detail routes, collapsed the same way. Unlike the builder
+ * and the collection — one detail route each — an organization opens onto two,
+ * `/orgs/<id>/members` and `/orgs/<id>/roles`, so it takes two identities chained
+ * in one flow: the "?" walks the members page and then steps across into roles.
+ */
+export const ORG_MEMBERS = "org-members-detail";
+export const ORG_ROLES = "org-roles-detail";
+
+/**
  * One stop on the guided tour.
  *
  * The engine (`components/onboarding`) gets the reader to `page`, optionally
@@ -210,6 +219,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
 
   { id: "orgs-new", page: ROUTES.ORGS, target: "orgs-new" },
 
+  // The organization detail, entered from the workspaces list. Two routes, one
+  // walk: the members page (profile, then the member list) and then a step
+  // across into the roles matrix. Ungated — any member reaches both.
+  { id: "org-profile", page: ORG_MEMBERS, target: "org-profile" },
+  { id: "org-members", page: ORG_MEMBERS, target: "org-members" },
+  { id: "org-roles", page: ORG_ROLES, target: "org-roles" },
+
   {
     id: "vault-new",
     page: ROUTES.VAULT,
@@ -262,12 +278,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
 const SECTION_FLOWS: readonly (readonly string[])[] = [
   [ROUTES.AGENTS, AGENT_BUILDER],
   [ROUTES.RAG, KB_DETAIL],
+  [ROUTES.ORGS, ORG_MEMBERS, ORG_ROLES],
 ];
 
 /** The page identity a real pathname belongs to; detail routes collapse onto their pseudo-page. */
 export function pageKey(path: string): string {
   if (path.startsWith(`${ROUTES.AGENTS}/`)) return AGENT_BUILDER;
   if (path.startsWith(`${ROUTES.RAG}/`)) return KB_DETAIL;
+  if (path.startsWith(`${ROUTES.ORGS}/`)) return path.endsWith("/roles") ? ORG_ROLES : ORG_MEMBERS;
   return path;
 }
 

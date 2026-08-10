@@ -59,8 +59,9 @@ function user(overrides: Partial<User> = {}): User {
 
 function servePermissions(permissions: readonly string[]) {
   // The engine resolves an example to open for each detail walk — an agent for
-  // the builder, a collection for the KB — so `/agents` and `/kb` have to answer
-  // with a list shape, not the permission set every other GET returns.
+  // the builder, a collection for the KB, an organization for members/roles — so
+  // `/agents`, `/kb` and `/orgs` have to answer with a list shape, not the
+  // permission set every other GET returns.
   vi.mocked(apiClient.get).mockImplementation((path: string) => {
     if (path === "/agents") {
       return Promise.resolve({
@@ -71,6 +72,12 @@ function servePermissions(permissions: readonly string[]) {
     if (path === "/kb") {
       return Promise.resolve({
         items: [{ id: "kb-1", is_default: true, name: "Default collection" }],
+        total: 1,
+      });
+    }
+    if (path === "/orgs") {
+      return Promise.resolve({
+        items: [{ id: "org-1", is_personal: true, name: "Personal" }],
         total: 1,
       });
     }

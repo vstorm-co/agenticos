@@ -2199,6 +2199,18 @@
         "title": "Your workspaces",
         "body": "Everything is scoped to an organization. Create one, or switch between the ones you belong to — each keeps its own agents, keys and knowledge apart."
       },
+      "org-profile": {
+        "title": "Name and face",
+        "body": "The workspace's name and avatar, shown wherever it appears. Owners and admins can change them here."
+      },
+      "org-members": {
+        "title": "Who's in it",
+        "body": "Everyone in the workspace and the role each holds. Invite teammates, change a role, or remove someone — all from this list."
+      },
+      "org-roles": {
+        "title": "What each role may do",
+        "body": "The permission matrix, role by role: what each may touch and how far it reaches. Sharing a single resource can widen access beyond the role, never narrow it."
+      },
       "vault-new": {
         "title": "The vault",
         "body": "API keys and other credentials live here, encrypted at rest. Agents use them to reach the tools they need, and nobody sees a stored secret again."

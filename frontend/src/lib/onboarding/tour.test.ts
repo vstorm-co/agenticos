@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   AGENT_BUILDER,
   KB_DETAIL,
+  ORG_MEMBERS,
+  ORG_ROLES,
   pageKey,
   stepsForPage,
   TOUR_STEPS,
@@ -42,6 +44,10 @@ const BUILDER_STEPS = [
 // pass takes one of these (kb-documents).
 const KB_STEPS = ["kb-header", "kb-documents", "kb-ingestion", "kb-sync"];
 
+// The organization detail walk: the members page (profile, then the list), then
+// across into the roles matrix. None are inTour — orgs is a "?"-only section.
+const ORG_STEPS = ["org-profile", "org-members", "org-roles"];
+
 describe("pageKey", () => {
   it("collapses every concrete builder route onto the one builder identity", () => {
     expect(pageKey("/agents/abc-123")).toBe(AGENT_BUILDER);
@@ -53,9 +59,15 @@ describe("pageKey", () => {
     expect(pageKey("/rag/abc-123/anything")).toBe(KB_DETAIL);
   });
 
+  it("splits the two organization detail routes onto their own identities", () => {
+    expect(pageKey("/orgs/abc-123/members")).toBe(ORG_MEMBERS);
+    expect(pageKey("/orgs/abc-123/roles")).toBe(ORG_ROLES);
+  });
+
   it("leaves the list routes and other pages as their own route", () => {
     expect(pageKey(ROUTES.AGENTS)).toBe(ROUTES.AGENTS);
     expect(pageKey(ROUTES.RAG)).toBe(ROUTES.RAG);
+    expect(pageKey(ROUTES.ORGS)).toBe(ROUTES.ORGS);
     expect(pageKey(ROUTES.CHAT)).toBe(ROUTES.CHAT);
   });
 });
@@ -178,6 +190,25 @@ describe("stepsForPage", () => {
 
   it("walks only the collection when asked from a collection route — past the list", () => {
     expect(stepsForPage("/rag/some-id", () => true).map((step) => step.id)).toEqual(KB_STEPS);
+  });
+
+  it("chains the two organization routes into one walk from the Workspaces list", () => {
+    expect(stepsForPage(ROUTES.ORGS, () => true).map((step) => step.id)).toEqual([
+      "orgs-new",
+      ...ORG_STEPS,
+    ]);
+  });
+
+  it("walks members then across into roles from a members route", () => {
+    expect(stepsForPage("/orgs/some-id/members", () => true).map((step) => step.id)).toEqual(
+      ORG_STEPS,
+    );
+  });
+
+  it("walks only the roles matrix from a roles route — the last page of the flow", () => {
+    expect(stepsForPage("/orgs/some-id/roles", () => true).map((step) => step.id)).toEqual([
+      "org-roles",
+    ]);
   });
 
   it("deepens the MCP page component by component", () => {

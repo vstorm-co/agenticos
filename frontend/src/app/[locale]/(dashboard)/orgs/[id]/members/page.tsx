@@ -270,7 +270,10 @@ export default function OrgMembersPage({ params }: PageProps) {
       />
 
       {org && (
-        <section className="border-border bg-card flex flex-wrap items-start gap-5 rounded-xl border p-5 sm:p-6">
+        <section
+          data-tour="org-profile"
+          className="border-border bg-card flex flex-wrap items-start gap-5 rounded-xl border p-5 sm:p-6"
+        >
           <button
             type="button"
             onClick={() => avatarInputRef.current?.click()}
@@ -346,27 +349,29 @@ export default function OrgMembersPage({ params }: PageProps) {
       {/* The table draws its own skeleton from the same column definitions, so
           the header and every column width are already right while it loads -
           a stand-in list could only approximate them. */}
-      {!isLoading && members.length === 0 ? (
-        <EmptyState
-          icon={Users}
-          title={t("noMembersYet")}
-          description={t("inviteTeammatesByEmail")}
-          cta={
-            canManage
-              ? { label: t("inviteTeammate"), onClick: () => setInviteOpen(true) }
-              : undefined
-          }
-        />
-      ) : (
-        <DataTable<OrganizationMember>
-          columns={columns}
-          rows={members}
-          loading={isLoading}
-          skeletonRows={4}
-          getRowKey={(m) => m.id}
-          empty={t("noMembersYet")}
-        />
-      )}
+      <div data-tour="org-members">
+        {!isLoading && members.length === 0 ? (
+          <EmptyState
+            icon={Users}
+            title={t("noMembersYet")}
+            description={t("inviteTeammatesByEmail")}
+            cta={
+              canManage
+                ? { label: t("inviteTeammate"), onClick: () => setInviteOpen(true) }
+                : undefined
+            }
+          />
+        ) : (
+          <DataTable<OrganizationMember>
+            columns={columns}
+            rows={members}
+            loading={isLoading}
+            skeletonRows={4}
+            getRowKey={(m) => m.id}
+            empty={t("noMembersYet")}
+          />
+        )}
+      </div>
 
       {pendingInvitations.length > 0 && (
         <section className="space-y-3">
