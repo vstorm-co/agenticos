@@ -549,6 +549,7 @@ async def spend_by_agent(
     since: datetime,
     until: datetime | None = None,
     month_since: datetime,
+    user_id: UUID | None = None,
 ) -> list[AgentSpendRow]:
     """One row per agent for the Spend tab: the window, the month and the cap.
 
@@ -565,6 +566,12 @@ async def spend_by_agent(
     validating the spec. A cap has to render for an agent whose spec has stopped
     building - a deleted secret, a capability dropped in a deploy - and that is
     exactly the agent somebody is looking at the bill for.
+
+    `user_id` narrows every aggregate to one person's runs, which is the whole of
+    a `Scope.OWN` floor: a caller without organization-wide `runs:view` exports
+    their own spend and no one else's, and the narrowing is a `WHERE` here rather
+    than a filter applied after the sums - so both windows and the counts describe
+    the same person's rows.
     """
     window = [AgentRun.started_at >= since]
     if until is not None:
@@ -587,6 +594,7 @@ async def spend_by_agent(
         .outerjoin(AgentVersion, AgentVersion.id == Agent.current_version_id)
         .where(
             Agent.organization_id == organization_id,
+            *([] if user_id is None else [AgentRun.user_id == user_id]),
             # The union of the two windows, so one pass serves both filters. A
             # row outside both contributes to neither aggregate and only costs
             # the scan it would have cost twice otherwise. `and_(*window)` before
