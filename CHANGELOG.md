@@ -17,6 +17,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.97] - 2026-08-10
+
+Regression coverage that every entry point records a run's transcript.
+
+### Changed
+
+- **Transcript recording is covered for embed, channel and default-agent runs.**
+  `backend/tests/test_surface_transcripts.py` asserts at the repository boundary
+  that a widget run, a channel mention and the default agent each record their
+  turns — role, content, run id, the model and version that actually ran, and
+  tool-call args and results — and that a broken widget run still records what
+  the visitor asked. Closes #205's requirement that the fix ship with a
+  regression test. (#530)
+
 ## [0.0.96] - 2026-08-10
 
 The sync-source wizard is decomposed into one component per step — a structural
