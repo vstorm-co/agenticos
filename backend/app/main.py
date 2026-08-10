@@ -33,11 +33,8 @@ from app.services.rag.vectorstore import BaseVectorStore
 from app.repositories.channel_bot import get_active_polling_bots
 from app.services.channel_bot import unseal_bot_token, unseal_slack_app_token
 from app.services.channels import register_adapter
-from app.services.channels.supervisor import open_inbound_stream
-from app.services.channels.telegram import TelegramAdapter
 from app.services.channels import register_adapter as _slack_register
-from app.services.channels.mattermost import MattermostAdapter
-from app.services.channels.slack import SlackAdapter
+from app.services.channels.supervisor import open_inbound_stream
 from app.core.rate_limit import limiter
 
 logger = logging.getLogger(__name__)
@@ -112,6 +109,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
             state["vector_store"] = vector_store
         except Exception as e:
             logger.error("pgvector connection failed: %s. Vector store will not be available.", e)
+
+    # Imported here rather than at module top so that importing `app.main` does
+    # not pull in the channel SDKs (aiogram, the Slack client) - ~1.2s of import
+    # that the API and the test suite pay for on every process start and never
+    # use. The adapters are only ever needed from this point on: registered at
+    # startup, and stopped after the yield below (#520).
+    from app.services.channels.mattermost import MattermostAdapter
+    from app.services.channels.slack import SlackAdapter
+    from app.services.channels.telegram import TelegramAdapter
 
     _telegram_adapter = TelegramAdapter()
     register_adapter(_telegram_adapter)
