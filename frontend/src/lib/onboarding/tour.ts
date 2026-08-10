@@ -189,7 +189,30 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.runsView,
     inTour: true,
   },
-  { id: "activity-tabs", page: ROUTES.RUNS, target: "activity-tabs", permission: Perm.runsView },
+  // The three tabs the "?" digs into, each switched to and described in turn —
+  // approvals only where the caller may decide one, the same permission that
+  // renders that tab.
+  {
+    id: "activity-approvals",
+    page: ROUTES.RUNS,
+    target: "activity-approvals",
+    activate: "activity-tab-approvals",
+    permission: Perm.approvalsDecide,
+  },
+  {
+    id: "activity-runs",
+    page: ROUTES.RUNS,
+    target: "activity-runs",
+    activate: "activity-tab-runs",
+    permission: Perm.runsView,
+  },
+  {
+    id: "activity-spend",
+    page: ROUTES.RUNS,
+    target: "activity-spend",
+    activate: "activity-tab-spend",
+    permission: Perm.runsView,
+  },
 
   {
     id: "knowledge-new",
@@ -204,11 +227,21 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "knowledge-tabs",
     permission: Perm.collectionsView,
   },
+  // The reusable connections — an S3 bucket, a drive, a repo configured once and
+  // cloned into any collection. Both stops are gated on connections:manage, the
+  // permission that renders the section and its "Add integration" button; without
+  // it the section returns null and there is nothing to spotlight.
   {
     id: "knowledge-integrations",
     page: ROUTES.RAG,
     target: "knowledge-integrations",
-    permission: Perm.collectionsView,
+    permission: Perm.connectionsManage,
+  },
+  {
+    id: "knowledge-add-integration",
+    page: ROUTES.RAG,
+    target: "knowledge-add-integration",
+    permission: Perm.connectionsManage,
   },
 
   // The collection detail, entered from the Knowledge list. Stacked sections

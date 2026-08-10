@@ -199,8 +199,25 @@ describe("stepsForPage", () => {
       "knowledge-new",
       "knowledge-tabs",
       "knowledge-integrations",
+      "knowledge-add-integration",
       ...KB_STEPS,
     ]);
+  });
+
+  it("walks the three activity tabs on the '?' pass, approvals first for a decider", () => {
+    expect(stepsForPage(ROUTES.RUNS, () => true).map((step) => step.id)).toEqual([
+      "activity-overview",
+      "activity-approvals",
+      "activity-runs",
+      "activity-spend",
+    ]);
+  });
+
+  it("drops the approvals tab for a caller who may see runs but not decide them", () => {
+    const held = new Set<Permission>([Perm.runsView]);
+    expect(
+      stepsForPage(ROUTES.RUNS, (permission) => held.has(permission)).map((s) => s.id),
+    ).toEqual(["activity-overview", "activity-runs", "activity-spend"]);
   });
 
   it("walks only the collection when asked from a collection route — past the list", () => {

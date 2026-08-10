@@ -2167,9 +2167,17 @@
         "title": "Watch activity",
         "body": "Every run is recorded with its cost and outcome, so you can see what your agents did and step in when one is waiting on a decision. These figures summarise the lot."
       },
-      "activity-tabs": {
-        "title": "Approvals, runs and spend",
-        "body": "Switch between what's waiting on a decision, the full history of runs, and where the money went."
+      "activity-approvals": {
+        "title": "What's waiting on you",
+        "body": "Runs that paused for a human decision queue here. Approve or reject each one and the run picks up from where it stopped — this tab only appears if you're allowed to decide them."
+      },
+      "activity-runs": {
+        "title": "Every run",
+        "body": "The full history: who ran which agent, what it cost and how it ended. Filter it, or open a run to see the whole conversation and the tools it called."
+      },
+      "activity-spend": {
+        "title": "Where the money went",
+        "body": "Spend over time and by agent, against the budgets you've set — so an agent quietly getting expensive shows up here before the bill does."
       },
       "knowledge-new": {
         "title": "Knowledge bases",
@@ -2180,8 +2188,12 @@
         "body": "Two views of the same knowledge: the collections you've built, and a search that runs across all of them at once."
       },
       "knowledge-integrations": {
-        "title": "Feed it automatically",
-        "body": "Connect a source once — a site, a drive, a repo — and it keeps the bases above topped up, instead of you re-uploading by hand."
+        "title": "Reusable connections",
+        "body": "Connections shared across the organization: set up an S3 bucket, a drive, a site or a repo once here, and clone it into any collection instead of re-configuring it each time."
+      },
+      "knowledge-add-integration": {
+        "title": "Add a connection",
+        "body": "Start a new one here — pick a connector like S3 or Google Drive, give it credentials, and it becomes available to clone into any collection that needs it."
       },
       "kb-header": {
         "title": "Inside a collection",

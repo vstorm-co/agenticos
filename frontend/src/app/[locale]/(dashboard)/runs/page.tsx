@@ -74,9 +74,9 @@ export default function RunsPage() {
         <LoadingState variant="skeleton-table" columns={6} rows={6} />
       ) : (
         <Tabs defaultValue={sortParam ? "runs" : canDecide ? "approvals" : "runs"}>
-          <TabsList data-tour="activity-tabs">
+          <TabsList>
             {canDecide && (
-              <TabsTrigger value="approvals">
+              <TabsTrigger value="approvals" data-tour="activity-tab-approvals">
                 {t("approvals")}
                 {waiting > 0 && (
                   <Badge variant="secondary" className="ml-2">
@@ -85,12 +85,16 @@ export default function RunsPage() {
                 )}
               </TabsTrigger>
             )}
-            <TabsTrigger value="runs">{t("runs2")}</TabsTrigger>
-            <TabsTrigger value="spend">{t("spend")}</TabsTrigger>
+            <TabsTrigger value="runs" data-tour="activity-tab-runs">
+              {t("runs2")}
+            </TabsTrigger>
+            <TabsTrigger value="spend" data-tour="activity-tab-spend">
+              {t("spend")}
+            </TabsTrigger>
           </TabsList>
 
           {canDecide && (
-            <TabsContent value="approvals">
+            <TabsContent value="approvals" data-tour="activity-approvals">
               {/* Export the record for whatever window, gated on the same
                   permission the tab is - absent, not disabled, without it. */}
               <div className="mb-3 flex justify-end">
@@ -105,7 +109,7 @@ export default function RunsPage() {
             </TabsContent>
           )}
 
-          <TabsContent value="runs">
+          <TabsContent value="runs" data-tour="activity-runs">
             {/* Not on a single-run view: a CSV of one run is a download nobody
                 asked for, and `?run=` is the only shape that has no history. */}
             {focusedRunId === null && (
@@ -132,7 +136,7 @@ export default function RunsPage() {
             />
           </TabsContent>
 
-          <TabsContent value="spend">
+          <TabsContent value="spend" data-tour="activity-spend">
             <div className="mb-3 flex justify-end">
               <ExportMenu
                 permission={Perm.runsView}
