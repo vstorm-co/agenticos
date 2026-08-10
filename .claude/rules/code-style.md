@@ -58,6 +58,34 @@ from app.core.exceptions import NotFoundError
 from app.schemas.user import UserCreate, UserRead
 ```
 
+## Comments
+
+Comments are scarce and earn their place. The reference docs are generated from
+docstrings, so **reasoning lives in a docstring**, not in a running commentary of
+`#` lines.
+
+- A comment explains **why** something non-obvious is done — a constraint, a
+  footgun, a decision that looks wrong until you know the reason. It never
+  restates **what** the code already says (`# increment i`).
+- **No ASCII banners.** `# --- sending ---------`, `// ==== internals ====` and
+  the like are decoration, not information: the code's own structure marks its
+  sections, and the format reads as machine-generated. `scripts/check_comments.py`
+  rejects them (run by `make lint`); a plain `# Sending` says the same thing if a
+  heading is truly wanted.
+- **No commented-out code.** Git remembers it; delete it.
+- When a comment grows into a paragraph, it is usually a docstring in the wrong
+  place — move it, or cut it to the one sentence that carries the *why*.
+
+## Dead code
+
+- No unused function, parameter, branch or import. `make lint` runs `vulture` as
+  a gate on what it is certain of (unused variables, parameters); `make dead-code`
+  is the deeper, human-read scan for unused functions and methods — noisier,
+  because the codebase is registry-driven, so read each finding before deleting.
+- False positives that are genuinely reachable (a dynamic dispatch vulture cannot
+  follow) go in `ignore_names` under `[tool.vulture]` in `backend/pyproject.toml`,
+  each with a comment saying what uses it.
+
 ## Other Conventions
 
 - `datetime.now(UTC)` not `datetime.utcnow()`

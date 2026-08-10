@@ -44,8 +44,14 @@ changes" is. Concretely, in this repo:
   an exception, never add a fallback that papers over a bug.
 - **No dead weight.** No speculative abstraction, unused parameter, commented-out code
   or "just in case" branch. If a branch cannot be reached, delete it; if it can, test it.
-- **Reasoning lives in docstrings.** The reference docs are generated from them, so a
-  decision explained in a commit message is a decision nobody will find.
+  `make lint` runs `vulture` as a gate on what it is sure of; `make dead-code` is the
+  deeper, human-read scan for unused functions (`docs/branching.md`, `code-style.md`).
+- **Reasoning lives in docstrings, and comments are scarce.** The reference docs are
+  generated from docstrings, so a decision explained in a commit message is a decision
+  nobody will find. A `#`/`//` comment explains *why* something non-obvious is done — it
+  never restates *what* the code says, and never draws an ASCII banner (`# ---- foo ----`),
+  which a guard rejects. When in doubt, delete the comment or move the reasoning into a
+  docstring. See `code-style.md`.
 - **Scoped diffs.** Fix what was asked. Propose follow-ups instead of taking them.
 - **Tests are part of the change.** New behaviour ships with a test; a bug ships with a
   regression test that fails without the fix.
@@ -132,8 +138,9 @@ make check                                        # every CI job but e2e — bef
 
 | | |
 |---|---|
-| `make lint` / `make format` | ruff + ty + eslint + prettier + tsc + the two guards + codespell |
+| `make lint` / `make format` | ruff + ty + vulture + eslint + prettier + tsc + the guard scripts + codespell |
 | `make lint-backend` / `make lint-frontend` | one half of it — CI runs them in two jobs |
+| `make dead-code` | vulture + knip, unused functions — a report to read, not a gate |
 | `make test-fast` | no coverage — the write-run-write loop |
 | `make test` | backend + the 100% gate on the platform layer |
 | `make test-integration` | only the tests needing a real database |

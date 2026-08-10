@@ -143,3 +143,19 @@ Rules:
 - Use `status_code=status.HTTP_201_CREATED` for POST, `HTTP_204_NO_CONTENT` for DELETE
 - DELETE endpoints: `response_model=None`
 - Pagination: `skip: int = Query(0, ge=0)`, `limit: int = Query(50, ge=1, le=100)`
+
+### A route module holds routers, not helpers
+
+The HTTP layer validates, delegates and returns; the logic it delegates to lives
+in a service, and the dependencies it needs live in `api/deps.py`. A plain helper
+that lands in a route file — a loader, a parser, a formatter — is business logic in
+the one place the architecture says holds none, and it arrives quietly because
+nothing complains.
+
+`scripts/check_routes.py` is that complaint, run by `make lint`. A module-level
+function under `app/api/routes/**` is allowed only when it is a route handler
+(`@router.get(...)` &c.), a router factory (annotated `-> APIRouter`, like
+`build_sharing_router`), or **declared on purpose** with `# routes-helper: <reason>`
+on or just above the `def` — the same bargain as `i18n-exempt` and `ty: ignore`. A
+helper may live here, but only as a conscious choice with a note; the default is to
+move it to a service or `deps.py`.
