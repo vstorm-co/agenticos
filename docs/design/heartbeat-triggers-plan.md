@@ -1,13 +1,14 @@
 # Heartbeat & agent triggers — plan first
 
-Written for review before implementation, per [#44](https://github.com/vstorm-co/agenticos/issues/44).
-The Notion card and the issue both say the same thing: *design first, bring a written
-plan to @DEENUU1 before a line of code.* This is that plan. Nothing here is built.
+Design for [#44](https://github.com/vstorm-co/agenticos/issues/44), written plan-first per
+the Notion card's *design first, bring a written plan to @DEENUU1 before a line of code* —
+**reviewed and approved by @DEENUU1 on 2026-08-10**, then revised to match his answers and
+two implementation corrections (recorded in the final section). Implementation follows on
+the same branch.
 
-The brief is one sentence: today an agent only runs when somebody writes to it; add
-other triggers — **every X minutes**, **when an email arrives**, and so on. The five
-questions the issue poses are answered below, three of them decided and two carried to
-@DEENUU1 as the choices a plan cannot make alone.
+The brief is one sentence: today an agent only runs when somebody writes to it; add other
+triggers — **every X minutes**, **when an email arrives**, and so on. The five questions the
+issue poses are all answered below.
 
 ## 0. What already exists — corrected
 
@@ -50,7 +51,9 @@ Two things the issue points at that are exactly right, and that this plan builds
   runs once a minute — registered as `rag-sync-check` with `IntervalSchedule(interval=60)`
   in `app/worker/prefect_app.py:53` — queries `sync_source_repo.get_due_for_sync(db)` and
   dispatches one flow per due row. A periodic trigger is the same shape aimed at a
-  different table. **This is the precedent to copy, not a scheduler to invent.**
+  different table. **The precedent to follow — but not to copy line for line: the row-claim
+  lock and the submit-and-return are net-new here (§3, §4), because `get_due_for_sync` takes
+  no lock and `check_scheduled_syncs_flow` awaits its children.**
 - **`AgentRunnerService.execute` is the run path** (`app/services/agent_runner.py:2571`):
   `execute(ctx, agent_id, prompt, *, surface=…, conversation_id=…, exposure=…,
   environment_id=…) -> (answer, AgentRun)`. It is the non-streaming funnel the API and
@@ -104,7 +107,8 @@ belongs in an exposure-shaped table.
 
 ### The `agent_triggers` table
 
-Modelled column-for-column on `agent_exposures` where the questions are the same.
+Modelled on `agent_exposures` where the questions are the same; two columns — `last_run_id`
+and `conversation_id` — are net-new, for guards the exposure never needed.
 
 | Column | Type | Why |
 |---|---|---|
@@ -118,8 +122,10 @@ Modelled column-for-column on `agent_exposures` where the questions are the same
 | `interval_seconds` | int, nullable | Set when `schedule_kind='interval'`. A CHECK enforces a floor (see §3) and that exactly one of interval/cron is set for the kind. |
 | `cron_expression` | str, nullable | Set when `schedule_kind='cron'`. **Deferred — interval ships first** (§3). |
 | `prompt` | Text | The input sent on each fire. A scheduled run has no human turn, so the "message" is stored here. |
-| `next_fire_at` | timestamptz, indexed | When it is next due. The heartbeat's whole query is `is_active AND created_by_user_id IS NOT NULL AND next_fire_at <= now()`. |
-| `last_fired_at` | timestamptz, nullable | Observability, and the basis of the no-overlap guard (§3). |
+| `next_fire_at` | timestamptz, indexed | When it is next due. The heartbeat's claim query is `is_active AND created_by_user_id IS NOT NULL AND next_fire_at <= now()`, taken `FOR UPDATE SKIP LOCKED` (§3, §4). |
+| `last_fired_at` | timestamptz, nullable | Observability — when it last dispatched. |
+| `last_run_id` | UUID FK agent_runs, **SET NULL**, nullable | **What the no-overlap guard reads (§3).** "Skip a trigger whose previous run has not reached a terminal status" has to *find* that run; `last_fired_at` is only a timestamp and nothing on `agent_runs` points back at a trigger. Net-new — the sync precedent keeps status on its own row (`sync_sources.last_sync_status`), and this table needs the same link. |
+| `conversation_id` | UUID FK conversations, **SET NULL**, nullable | The **one** run-log conversation this trigger appends to on every fire (§5). Opened once, not per fire — a 60-second trigger would otherwise mint ~1440 conversations a day, for ever. |
 
 Plus `TimestampMixin` and a `__repr__`, per `schemas-models.md`. `*Create`/`*Update`/
 `*Read`/`*List` schemas and a `TriggerService` over a `trigger_repo`, per the layering in
@@ -163,25 +169,30 @@ AuthContext(user_id=trigger.created_by_user_id, organization_id=trigger.organiza
 
 re-fetching `membership` with `member_repo.get`, exactly as the mention and embed paths do.
 
-### The one genuine choice — carry to @DEENUU1
+### The creator is gone — auto-disable (resolved in review)
 
-The two precedents *disagree* on what to do when the creator is no longer a member who may
-run the agent (left the org, or their role lost `AGENTS_RUN`):
+When the creator is no longer a member who may run *this* agent, the trigger
+**auto-disables** (`is_active = False`), writes an audit entry saying why, and **notifies an
+admin** — @DEENUU1 confirmed all three. A recurring, budget-spending automation with nobody
+accountable to it is exactly *"a run nobody could be held to"* that `AuthContext` refuses to
+mint. Refusing quietly per-fire would leave it retrying for ever against a wall; disabling
+makes the failure visible and stops the noise. The rejected alternatives, for the record:
+*keep firing and alert* (it cannot actually run), and *reassign to the agent's owner* (it
+silently moves the bill and the authority to someone who did not ask for either, and lets a
+low-privilege member escalate by scheduling against a higher-privilege owner).
 
-- The **mention** precedent refuses outright.
-- The **embed** precedent downgrades to `VIEWER` and keeps serving — but note `VIEWER`
-  holds no `AGENTS_RUN` (`permissions.py:248`), so for a *run* that downgrade is a refusal
-  in all but name.
-
-**Recommendation: auto-disable the trigger** (`is_active = False`), write an audit entry
-saying why, and — worth deciding — notify an admin. A recurring, budget-spending
-automation with nobody accountable to it is exactly *"a run nobody could be held to"* that
-`AuthContext` refuses to mint. Refusing quietly per-fire would leave it retrying forever
-against a wall; disabling makes the failure visible and stops the noise. The alternatives
-worth a sentence at review: *keep firing and alert* (rejected — it cannot actually run),
-or *reassign to the agent's owner* (rejected — it silently moves the bill and the
-authority to someone who did not ask for either, and lets a low-privilege member escalate
-by scheduling against a higher-privilege owner). **This is @DEENUU1's call to confirm.**
+**"May run *this* agent" is a per-resource question, not a role-level one — and this is
+where a happy-path implementation gets it wrong** (Correction C, review). The run path
+resolves `get(ctx, agent_id, perm=Perm.AGENTS_RUN)` (`agent_registry.py:1438`), which goes
+through `resolve_access` and therefore sees **grants**. A pre-check that only asks "does the
+creator's role still hold `AGENTS_RUN`" (`role_has`) is a *different, weaker* decision: a
+creator who kept a role with `AGENTS_RUN: SHARED` but had their grant on this one agent
+revoked would pass it, then be refused *inside* `execute` — which raises `AuthorizationError`,
+which Prefect retries. That is the "silently retried refusal" #44 guards against, arriving
+through the authz door instead of the budget one. So the pre-check **must mirror the run
+path** — `resolve_access(ctx, agent, Perm.AGENTS_RUN, resource_type=AGENT)`, not `role_has` —
+and an authz refusal that still escapes the run is caught and treated exactly like
+`BUDGET_EXCEEDED` (§3): the trigger disables, it does not raise into a retry.
 
 ### Managing triggers is itself gated
 
@@ -202,15 +213,22 @@ two of them free:
    (§4), and it bounds the worst case a fat-fingered value can reach.
 
 2. **No self-overlap — the primary guard, and the fix for this feature's slice of #15b.**
-   The heartbeat claims a due trigger by advancing `next_fire_at` under
-   `SELECT … FOR UPDATE SKIP LOCKED` before dispatching, and **skips a trigger whose
-   previous run has not reached a terminal status.** So a trigger never races itself, and
-   #15b — *concurrent runs each reading the same stale budget baseline* — cannot be
-   reached *by one trigger against itself*. The cross-trigger and cross-surface
-   case (two different triggers, or a trigger and a chat run, reading the same baseline at
-   once) is still #15b's, unchanged and unsolved here. **This plan bounds the new overlap
-   it would otherwise introduce; it does not claim to fix #15b, and names it as a
-   dependency (§7).**
+   The heartbeat claims a due trigger with `SELECT … FOR UPDATE SKIP LOCKED`, advances its
+   `next_fire_at` under that lock before dispatching, and **skips a trigger whose previous
+   run — found via `last_run_id` (§1) — has not reached a terminal status.** So a trigger
+   never races itself, and #15b — *concurrent runs each reading the same stale budget
+   baseline* — cannot be reached *by one trigger against itself*. The cross-trigger and
+   cross-surface case (two different triggers, or a trigger and a chat run, reading the same
+   baseline at once) is still #15b's, unchanged and unsolved here. **This plan bounds the
+   new overlap it would otherwise introduce; it does not claim to fix #15b, and names it as
+   a dependency (§7).**
+
+   **The lock is invented here, not inherited** (Correction A, review). `get_due_for_sync`
+   (`sync_source.py:40`) is a plain `SELECT … WHERE is_active …` with a Python-side
+   `last_sync_at + interval <= now` filter and **no** `FOR UPDATE SKIP LOCKED` — it arguably
+   has a latent double-fire precisely because it omits this. The claim-and-advance-under-lock
+   protocol is new work, deliberately, and the plan says so rather than pretending the
+   precedent hands it over.
 
 3. **The budget, inherited whole.** Because the run goes through `execute → prepare →
    _assemble`, it meets the same two ceilings every other run does: the agent's own cap
@@ -224,16 +242,20 @@ two of them free:
      (`rag_tasks.py`) — *"the budget can be reached by runs that finished while this file
      waited in the queue."* Same reasoning: the queue between "due" and "run" is time in
      which the budget can be spent elsewhere.
-   - **Do not retry a refusal.** A `BUDGET_EXCEEDED` outcome is the platform working, not a
-     malfunction — the flow returns normally so Prefect's retry policy never fires. Retrying
-     a budget refusal is the "silently retried" failure the issue's test guards against.
+   - **Do not retry a refusal — budget *or* authz.** A `BUDGET_EXCEEDED` outcome is the
+     platform working, not a malfunction, and so is an `AuthorizationError` from a creator
+     whose grant was revoked (§2). Both are caught and end the flow *normally* — the trigger
+     disables or parks — so Prefect's retry policy never fires. A refusal that raises into a
+     retry is the "silently retried" failure the issue's test guards against, and it has two
+     doors, not one.
 
 ## 4. Question — the shape: a heartbeat over rows, not a deployment per trigger
 
 **Decision: one `check_agent_triggers_flow` heartbeat, `IntervalSchedule(interval=60)`,
-registered once in `prefect_app.py` — copying `check_scheduled_syncs_flow` exactly.** Each
-tick opens a worker session, claims due triggers (§3), and dispatches one run flow per
-claimed trigger.
+registered once in `prefect_app.py` — following `check_scheduled_syncs_flow`'s shape, but
+diverging from it in the two places it does not cover (the row lock, §3, and the
+submit-and-return below).** Each tick opens a worker session, claims due triggers under the
+lock (§3), and dispatches one run flow per claimed trigger.
 
 The alternative — **a Prefect deployment per trigger**, each with its own
 `CronSchedule`/`IntervalSchedule` — was considered and rejected for user-created triggers.
@@ -249,21 +271,36 @@ interval_seconds`) and is why **cron expressions are deferred**: a cron needs `c
 and a timezone decision that `prefect_app.py:78` already notes an interval avoids. Interval
 first; cron as a bounded follow-up.
 
-Dispatch stays cheap by not executing inline: like `check_scheduled_syncs_flow`, the
-heartbeat *submits* a per-trigger run flow and returns, so one slow agent run cannot stall
-the tick that would fire the others.
+**Dispatch must submit-and-return, and here the precedent is the wrong model to copy.**
+`check_scheduled_syncs_flow` does `asyncio.gather(*tasks)` over
+`asyncio.create_task(sync_single_source_flow(...))` and **awaits all of them**
+(`rag_tasks.py:244`). Copy that literally and one slow agent run holds the whole 60-second
+tick open — and the *next* `IntervalSchedule(60)` tick then starts a second concurrent
+heartbeat on top of it, which is exactly the double-fire the `SKIP LOCKED` claim (§3) exists
+to stop. To genuinely submit-and-return, the heartbeat fires each child through Prefect —
+`run_deployment(..., timeout=0)` for `run_scheduled_trigger_flow`, which enqueues a run and
+does not await it — so the tick stays short and the lock, not luck, is what keeps two
+heartbeats off one trigger. (Accepting a blocking tick is the alternative; rejected, because
+it makes the tick's duration a function of the slowest run.)
 
 ## 5. Question 3 — where does a triggered run's output go?
 
 A chat run answers into a conversation; a scheduled run answers into nothing, and a run
 whose output nobody can see is one this platform's Activity page exists to refuse.
 
-**Decision: each fire creates its own conversation** (`user_id=None`, a title like
-`"{agent} — scheduled {when}"`), exactly as the embed widget does for an anonymous visitor
-(`embed_session.py:144`). That conversation is what `execute` writes the transcript into,
-which is what makes the run **appear in Activity** and gives the run-detail view (the
-`activity-plan.md` drill-down) something to show — satisfying the issue's "appears in
-Activity" line. Passing no `conversation_id` is not an option: `TranscriptService.record`
+**Decision: one conversation *per trigger*, not per fire — a run-log opened once and
+appended to** (resolved in review). The `conversation_id` lives on the trigger row (§1); on
+the first fire the flow opens a conversation (`user_id=None`, titled for the trigger, as the
+embed widget does at `embed_session.py:144`) and stores its id, and every later fire passes
+that same id to `execute`. Per-*fire* was the first draft and is unbounded — a trigger on
+the 60-second floor mints ~1440 conversations a day for ever, and the sync precedent
+pointedly does not create a row per fire. Per-*trigger* keeps one scrollable log instead of
+a firehose.
+
+**Activity loses nothing by this**, which is what makes it safe: an Activity entry is an
+`agent_run` row, and **every fire still writes its own run** stamped `RunSurface.SCHEDULE` —
+the run-detail drill-down reads the run and its transcript, not the conversation's shape.
+Passing no `conversation_id` at all is still not an option: `TranscriptService.record`
 writes nothing without one, and the run would be a cost with no visible reason.
 
 Two sinks already work for a triggered run for free, because they hang off the run path:
@@ -298,20 +335,24 @@ and budget answers.
 
 ```
 Prefect (worker):  check_agent_triggers_flow          [IntervalSchedule(interval=60)]
-                     └─ claim due triggers (FOR UPDATE SKIP LOCKED; advance next_fire_at)
-                     └─ for each: submit run_scheduled_trigger_flow(trigger_id: str)
+                     └─ claim due triggers: SELECT … FOR UPDATE SKIP LOCKED,
+                        advance next_fire_at, skip if last_run_id is non-terminal   §3
+                     └─ for each: run_deployment(run_scheduled_trigger_flow, trigger_id),
+                        timeout=0 — submit and return, do not await                 §4
                                     │  serializable arg only — an id (background-task skill)
                                     ▼
 Prefect (worker):  run_scheduled_trigger_flow
                      └─ open worker session; load trigger (org, agent, subject, prompt, env)
                      └─ re-assert org budget  (assert_organization_within_budget)   §3
-                     └─ build AuthContext from re-fetched membership                §2
-                        └─ no membership / no AGENTS_RUN → disable trigger, audit, return  §2
-                     └─ create per-fire conversation (user_id=None)                 §5
+                     └─ build AuthContext from re-fetched membership, then
+                        resolve_access(ctx, agent, AGENTS_RUN) — grants-aware, not role  §2
+                        └─ refused → disable trigger, audit, notify admin, return    §2
+                     └─ open or reuse the trigger's run-log conversation            §5
                      └─ answer, run = runner.execute(ctx, agent_id, prompt,
                                         surface=RunSurface.SCHEDULE,                 §0.1
-                                        conversation_id=…, environment_id=…)
-                     └─ set last_fired_at; return normally even on BUDGET_EXCEEDED    §3
+                                        conversation_id=trigger.conversation_id, environment_id=…)
+                     └─ set last_fired_at + last_run_id; return normally on
+                        BUDGET_EXCEEDED or an authz refusal (never raise into retry) §3
 ```
 
 The **fire** is durable — a Prefect deployment survives a restart, which is the whole
@@ -345,14 +386,18 @@ ones a happy-path implementation would miss:
 
 - `test_a_trigger_against_an_exhausted_budget_is_refused_not_retried` — the issue's own
   line: run ends `BUDGET_EXCEEDED`, flow returns without raising, no second attempt.
-- `test_a_trigger_whose_creator_left_the_org_is_disabled_not_run` — membership gone →
-  `is_active=False`, audit written, no run row.
-- `test_a_trigger_does_not_overlap_itself` — a fire is skipped while the previous run is
-  non-terminal.
+- `test_a_trigger_whose_creator_left_the_org_is_disabled_not_run` — no membership →
+  `is_active=False`, audit written, admin notified, no run row.
+- `test_a_trigger_whose_grant_on_this_agent_was_revoked_is_disabled_not_retried` — creator
+  keeps a role with `AGENTS_RUN: SHARED` but the per-resource grant is gone; the
+  `resolve_access` pre-check refuses (a `role_has` check would not — Correction C), the
+  trigger disables, and the authz refusal never raises into a Prefect retry.
+- `test_a_trigger_does_not_overlap_itself` — a fire is skipped while `last_run_id` names a
+  non-terminal run.
 - `test_two_heartbeats_do_not_double_fire_one_trigger` — the `FOR UPDATE SKIP LOCKED`
   claim (integration, real Postgres — it is a locking claim, which a mock cannot prove).
 - `test_a_triggered_run_is_stamped_schedule_and_appears_in_activity` — `RunSurface.SCHEDULE`
-  on the row, transcript in the per-fire conversation.
+  on the run row, transcript appended to the trigger's run-log conversation.
 - `test_a_trigger_cannot_be_created_against_an_agent_the_caller_cannot_run` —
   `resolve_access(AGENTS_RUN)` refuses; tenant isolation on every trigger read.
 
@@ -365,16 +410,29 @@ design doc under `docs/design/` is engineering material for review, excluded fro
 by `exclude_docs: design/` in `mkdocs.yml`, so it neither needs a `nav` entry nor triggers
 the docs-drift stop hook.
 
-## Open questions for @DEENUU1
+## Resolved in review — @DEENUU1, 2026-08-10
 
-1. **Creator-gone fallback (§2).** Confirm **auto-disable + audit (+ notify an admin?)**,
-   versus keep-firing-and-alert or reassign-to-owner. This is the one real fork.
-2. **Spec vs. row (§1).** This plan overrides the issue's lean and keeps triggers *out* of
-   `AgentSpec` (so `SPEC_VERSION` stays at 8), argued from the spec's own exclusion of
-   "where the agent runs and who may use it." Confirm you are content that a trigger is
-   therefore *not* exported in a client's YAML — it is deployment-local, like an exposure.
-3. **Heartbeat vs. deployment-per-trigger (§4).** Confirm the single-heartbeat model.
-4. **Output sink now (§5).** Confirm the per-fire conversation is enough to ship, with a
-   "run completed" notification as a fast follow rather than in-scope here.
-5. **Email-in split (§6).** Confirm cron-only for #44 and a separate issue for email
-   (I will file it, inheriting #44's identity and budget answers, and link it here).
+All five questions answered; the plan above is revised to match, and this section records
+the outcome so the doc stands as the final design rather than a set of proposals.
+
+1. **Creator-gone (§2).** **Auto-disable + audit + notify an admin.** Folded into §2, with
+   the per-resource `resolve_access` pre-check that Correction C added.
+2. **Spec vs. row (§1).** **Row. `SPEC_VERSION` stays at 8.** Confirmed — "keep it a row"
+   was called the strongest argument in the plan; a trigger is not exported in a client's
+   YAML, by design.
+3. **Heartbeat vs. deployment-per-trigger (§4).** **Single heartbeat.** Confirmed.
+4. **Output sink (§5).** **One conversation *per trigger*, not per fire.** Changed from the
+   first draft on review — per-fire is an unbounded ~1440-conversations-a-day firehose; the
+   run-log adds a `conversation_id` to the §1 schema.
+5. **Email-in split (§6).** **Cron-only here; email is its own issue.** Confirmed — I file it
+   once this lands, inheriting #44's identity and budget answers, and link it.
+
+Two implementation corrections from the review, both folded in above because they change the
+schema and the flow, not just the prose:
+
+- **The no-overlap guard needs a column the table did not have** — `last_run_id` (§1), so
+  the guard can find the previous run's status. Net-new, not inherited from the sync row.
+- **"Copying `check_scheduled_syncs_flow` exactly" overstated it** — that flow neither locks
+  rows nor submits-and-returns (`rag_tasks.py:244`), so the `FOR UPDATE SKIP LOCKED` claim
+  (§3) and the `run_deployment` submit-and-return (§4) are new work. The plan now says it is
+  inventing them.
