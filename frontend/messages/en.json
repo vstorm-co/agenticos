@@ -2171,9 +2171,29 @@
         "title": "Knowledge bases",
         "body": "Upload documents so your agents can answer from them. Each collection is searchable and stays private to your organization — create your first one here."
       },
+      "knowledge-tabs": {
+        "title": "Browse or search",
+        "body": "Two views of the same knowledge: the collections you've built, and a search that runs across all of them at once."
+      },
       "knowledge-integrations": {
         "title": "Feed it automatically",
         "body": "Connect a source once — a site, a drive, a repo — and it keeps the bases above topped up, instead of you re-uploading by hand."
+      },
+      "kb-header": {
+        "title": "Inside a collection",
+        "body": "The collection's name, scope and controls sit up top — refresh it, drop in files, change how they're read, or remove it."
+      },
+      "kb-documents": {
+        "title": "What's in it",
+        "body": "Every document the collection holds, with the status of each as it's parsed and indexed. Add more here, or preview and remove what's already there."
+      },
+      "kb-ingestion": {
+        "title": "How documents are read",
+        "body": "The parser, chunking and embedding model behind this collection — what turns your files into something searchable. Change it, and new uploads follow the new settings."
+      },
+      "kb-sync": {
+        "title": "Keep it in step",
+        "body": "Connect a drive, a site or a repo, and the collection refreshes itself from the source instead of waiting on a manual re-upload."
       },
       "orgs-new": {
         "title": "Your workspaces",

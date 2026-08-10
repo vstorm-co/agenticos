@@ -5,9 +5,10 @@ import { useQuery } from "@tanstack/react-query";
 
 import { apiClient } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
-import { AGENT_BUILDER } from "@/lib/onboarding/tour";
+import { AGENT_BUILDER, KB_DETAIL } from "@/lib/onboarding/tour";
 import { qk } from "@/lib/query-keys";
 import type { AgentList } from "@/types/agents";
+import type { KnowledgeBaseList } from "@/types/knowledge-base";
 
 /** Where a detail pseudo-page resolves to, and whether we are still finding out. */
 export interface ResolvedDetail {
@@ -39,13 +40,24 @@ export function useDetailTargets(enabled: boolean): Record<string, ResolvedDetai
     agents.data?.items[0]?.id ??
     null;
 
+  const kbs = useQuery({
+    queryKey: qk.kb.list(),
+    queryFn: () => apiClient.get<KnowledgeBaseList>("/kb"),
+    enabled,
+  });
+  const kbId = kbs.data?.items.find((kb) => kb.is_default)?.id ?? kbs.data?.items[0]?.id ?? null;
+
   return useMemo(
     () => ({
       [AGENT_BUILDER]: {
         pending: enabled && agents.isPending,
         href: agentId ? ROUTES.AGENT_DETAIL(agentId) : null,
       },
+      [KB_DETAIL]: {
+        pending: enabled && kbs.isPending,
+        href: kbId ? ROUTES.RAG_DETAIL(kbId) : null,
+      },
     }),
-    [enabled, agents.isPending, agentId],
+    [enabled, agents.isPending, agentId, kbs.isPending, kbId],
   );
 }

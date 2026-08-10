@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { AGENT_BUILDER, pageKey, stepsForPage, TOUR_STEPS, visibleTourSteps } from "./tour";
+import {
+  AGENT_BUILDER,
+  KB_DETAIL,
+  pageKey,
+  stepsForPage,
+  TOUR_STEPS,
+  visibleTourSteps,
+} from "./tour";
 import { ROUTES } from "@/lib/constants";
 import { Perm, type Permission } from "@/types/permissions";
 
@@ -31,14 +38,24 @@ const BUILDER_STEPS = [
   "agent-publish",
 ];
 
+// Every collection-detail stop, in the order the "?" walks them. The launch
+// pass takes one of these (kb-documents).
+const KB_STEPS = ["kb-header", "kb-documents", "kb-ingestion", "kb-sync"];
+
 describe("pageKey", () => {
   it("collapses every concrete builder route onto the one builder identity", () => {
     expect(pageKey("/agents/abc-123")).toBe(AGENT_BUILDER);
     expect(pageKey("/agents/abc-123/anything")).toBe(AGENT_BUILDER);
   });
 
-  it("leaves the agents list and other pages as their own route", () => {
+  it("collapses every concrete collection route onto the one KB identity", () => {
+    expect(pageKey("/rag/abc-123")).toBe(KB_DETAIL);
+    expect(pageKey("/rag/abc-123/anything")).toBe(KB_DETAIL);
+  });
+
+  it("leaves the list routes and other pages as their own route", () => {
     expect(pageKey(ROUTES.AGENTS)).toBe(ROUTES.AGENTS);
+    expect(pageKey(ROUTES.RAG)).toBe(ROUTES.RAG);
     expect(pageKey(ROUTES.CHAT)).toBe(ROUTES.CHAT);
   });
 });
@@ -65,9 +82,10 @@ describe("visibleTourSteps", () => {
     expect(launch).not.toContain("agent-history");
   });
 
-  it("gives a view-only member the builder walk but not the publish stop", () => {
-    // Instructions and the toolbox render for anyone who may view an agent;
-    // Publish is agents:publish, which a Viewer lacks, so that stop drops. The
+  it("gives a view-only member the builder and collection walks but not the publish stop", () => {
+    // Instructions and the toolbox render for anyone who may view an agent, and
+    // the collection's documents for anyone who may view a collection; Publish
+    // is agents:publish, which a Viewer lacks, so that stop drops. The
     // edit-gated create buttons (agents-new, skills-new, …) drop too.
     const held = new Set<Permission>([Perm.agentsView, Perm.skillsView, Perm.collectionsView]);
     expect(visibleTourSteps((permission) => held.has(permission)).map((step) => step.id)).toEqual([
@@ -78,6 +96,7 @@ describe("visibleTourSteps", () => {
       "chat-agent-picker",
       "agent-instructions",
       "agent-toolbox",
+      "kb-documents",
       "mcp-catalog",
       "finish",
     ]);
@@ -146,6 +165,19 @@ describe("stepsForPage", () => {
         (step) => step.id,
       ),
     ).toEqual(BUILDER_STEPS.filter((id) => id !== "agent-publish"));
+  });
+
+  it("walks the list and then the whole collection when asked from the Knowledge list", () => {
+    expect(stepsForPage(ROUTES.RAG, () => true).map((step) => step.id)).toEqual([
+      "knowledge-new",
+      "knowledge-tabs",
+      "knowledge-integrations",
+      ...KB_STEPS,
+    ]);
+  });
+
+  it("walks only the collection when asked from a collection route — past the list", () => {
+    expect(stepsForPage("/rag/some-id", () => true).map((step) => step.id)).toEqual(KB_STEPS);
   });
 
   it("deepens the MCP page component by component", () => {

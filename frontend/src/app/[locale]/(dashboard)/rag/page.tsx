@@ -117,7 +117,7 @@ export default function RAGPage() {
         }
       />
 
-      <div className="border-border flex gap-6 border-b">
+      <div data-tour="knowledge-tabs" className="border-border flex gap-6 border-b">
         {(["bases", "search"] as const).map((id) => (
           <button
             key={id}

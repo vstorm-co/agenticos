@@ -58,12 +58,19 @@ function user(overrides: Partial<User> = {}): User {
 }
 
 function servePermissions(permissions: readonly string[]) {
-  // The engine resolves an agent to open for the builder walk, so `/agents` has
-  // to answer with a list shape, not the permission set every other GET returns.
+  // The engine resolves an example to open for each detail walk — an agent for
+  // the builder, a collection for the KB — so `/agents` and `/kb` have to answer
+  // with a list shape, not the permission set every other GET returns.
   vi.mocked(apiClient.get).mockImplementation((path: string) => {
     if (path === "/agents") {
       return Promise.resolve({
         items: [{ id: "agent-1", slug: "getting-started", name: "Getting Started" }],
+        total: 1,
+      });
+    }
+    if (path === "/kb") {
+      return Promise.resolve({
+        items: [{ id: "kb-1", is_default: true, name: "Default collection" }],
         total: 1,
       });
     }

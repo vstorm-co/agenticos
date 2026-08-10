@@ -165,7 +165,7 @@ export function DocumentsTable({
   );
 
   return (
-    <section className="mb-8">
+    <section className="mb-8" data-tour="kb-documents">
       <h2 className="text-foreground mb-3 text-sm font-semibold">{t("documents")}</h2>
       <DataTable<KBDocument>
         columns={columns}
