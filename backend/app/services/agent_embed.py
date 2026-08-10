@@ -83,7 +83,7 @@ class AgentEmbedService:
         self.db = db
         self.agents = AgentRegistryService(db)
 
-    # --- the owner's side --------------------------------------------------
+    # the owner's side
 
     async def list_for_agent(self, ctx: AuthContext, agent_id: UUID) -> list[EmbedRead]:
         """Every widget publishing one agent.
@@ -204,7 +204,7 @@ class AgentEmbedService:
             details={"embed_id": str(embed_id)},
         )
 
-    # --- the visitor's side ------------------------------------------------
+    # the visitor's side
 
     async def admit(
         self, public_key: str, *, origin: str | None, token: str | None
@@ -259,7 +259,7 @@ class AgentEmbedService:
             agent_name=agent.name if agent else "Assistant",
         )
 
-    # --- internals ---------------------------------------------------------
+    # internals
 
     def _origin_allowed(self, embed: AgentEmbed, origin: str | None) -> bool:
         """Whether the page the widget is on may use it.

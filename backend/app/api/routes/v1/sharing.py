@@ -19,6 +19,8 @@ from app.db.models.skill import Skill
 from app.services.access import AGENT, COLLECTION, SECRET, SKILL
 
 
+# routes-helper: per-resource loader injected into build_sharing_router; kept out
+# of the agnostic sharing service by design (see the module docstring).
 async def _load_agent(db: AsyncSession, agent_id: UUID, organization_id: UUID) -> Agent:
     agent = await db.get(Agent, agent_id)
     if agent is None or agent.organization_id != organization_id:
@@ -26,6 +28,7 @@ async def _load_agent(db: AsyncSession, agent_id: UUID, organization_id: UUID) -
     return agent
 
 
+# routes-helper: per-resource loader injected into build_sharing_router.
 async def _load_collection(db: AsyncSession, kb_id: UUID, organization_id: UUID) -> KnowledgeBase:
     collection = await db.get(KnowledgeBase, kb_id)
     if collection is None or collection.organization_id != organization_id:
@@ -33,6 +36,7 @@ async def _load_collection(db: AsyncSession, kb_id: UUID, organization_id: UUID)
     return collection
 
 
+# routes-helper: per-resource loader injected into build_sharing_router.
 async def _load_skill(db: AsyncSession, skill_id: UUID, organization_id: UUID) -> Skill:
     skill = await db.get(Skill, skill_id)
     if skill is None or skill.organization_id != organization_id:
@@ -40,6 +44,7 @@ async def _load_skill(db: AsyncSession, skill_id: UUID, organization_id: UUID) -
     return skill
 
 
+# routes-helper: per-resource loader injected into build_sharing_router.
 async def _load_secret(
     db: AsyncSession, secret_id: UUID, organization_id: UUID
 ) -> OrganizationSecret:

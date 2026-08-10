@@ -128,6 +128,8 @@ async def list_runs(
     return AgentRunList(items=items, total=total)
 
 
+# routes-helper: HTTP query-param parsing for the runs list route - it validates
+# the raw `status` string and raises at the edge, before any service is called.
 def _parse_statuses(raw: str | None) -> list[str] | None:
     if raw is None:
         return None

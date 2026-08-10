@@ -79,7 +79,7 @@ test("an agent delegates to another, and both runs are recorded", async ({ page 
   const parentToken = `PONG-PARENT-${stamp}`;
   const delegateToken = `PONG-CHILD-${stamp}`;
 
-  // ------------------------------------------------------- 1. the delegate
+  // 1. the delegate
   const delegateId = await createAgent(page, delegateName);
   expect(
     new URL(page.url()).pathname,
@@ -98,7 +98,7 @@ test("an agent delegates to another, and both runs are recorded", async ({ page 
     "the delegate has run before it was ever delegated to",
   ).toBe(0);
 
-  // --------------------------------------------------------- 2. the parent
+  // 2. the parent
   const parentId = await createAgent(page, parentName);
   await instruct(
     page,
@@ -111,7 +111,7 @@ test("an agent delegates to another, and both runs are recorded", async ({ page 
   );
   await useSavedModel(page, modelLabel);
 
-  // ------------------------------------------------- 3. binding the delegate
+  // 3. binding the delegate
   await openBuilderTab(page, "Toolbox");
   const grant = page.getByRole("switch", { name: "Give this agent Delegation", exact: true });
   await expect(
@@ -143,7 +143,7 @@ test("an agent delegates to another, and both runs are recorded", async ({ page 
 
   await publish(page);
 
-  // ------------------------------------------------------- 4. running it
+  // 4. running it
   await page.getByRole("button", { name: "Open in chat" }).click();
   await expect(page).toHaveURL(/\/chat$/, { timeout: 30_000 });
   await expect(page.getByRole("button", { name: /^Agent:/ })).toContainText(parentName);
@@ -158,7 +158,7 @@ test("an agent delegates to another, and both runs are recorded", async ({ page 
   // was typed into it.
   await expect(composer).toHaveValue("");
 
-  // ---------------------------------------------- 5. the nested panel
+  // 5. the nested panel
   // Found by the delegate's handle, which the platform put there: the panel is
   // built from `subagent_start`, whose `subagent` is the name the parent's spec
   // pinned. A panel with a name in it is a delegation that was resolved, begun
@@ -190,7 +190,7 @@ test("an agent delegates to another, and both runs are recorded", async ({ page 
     "the panel is open but holds nothing the delegate generated",
   ).toBeVisible();
 
-  // ------------------------------------------- 6. two runs, attributed apart
+  // 6. two runs, attributed apart
   // The delegate's history, which was empty before this turn. One row on it is a
   // run row created for the delegate's *own* agent id - the fact that separates
   // real delegation from a parent that did the work and narrated it.
@@ -222,7 +222,7 @@ test("an agent delegates to another, and both runs are recorded", async ({ page 
   await page.getByRole("tab", { name: "Runs", exact: true }).click();
   await expect(page.getByRole("row").filter({ hasText: modelLabel })).toHaveCount(1);
 
-  // ----------------------------------------------------------- 7. cleaning up
+  // 7. cleaning up
   // Through the API, in dependency order - the parent pins the delegate, both
   // name the profile - because this spec runs on every push and an organization
   // that grows two agents and a model per run stops resembling the seed the other

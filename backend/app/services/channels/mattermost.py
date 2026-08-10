@@ -116,7 +116,7 @@ class MattermostAdapter(ChannelAdapter):
         """Record which Mattermost server a bot belongs to."""
         self._base_urls[bot_id] = api_base_url.rstrip("/")
 
-    # --- sending -----------------------------------------------------------
+    # sending
 
     async def send_message(self, bot_token: str, msg: OutgoingMessage) -> None:
         """Post a reply.
@@ -174,7 +174,7 @@ class MattermostAdapter(ChannelAdapter):
             response = await client.post(f"{base_url}/api/v4/posts", headers=headers, json=body)
             response.raise_for_status()
 
-    # --- an answer somebody can watch arrive -------------------------------
+    # an answer somebody can watch arrive
 
     async def begin_reply(self, bot_token: str, msg: OutgoingMessage) -> str | None:
         """Post the message that will become the answer, and return its id."""
@@ -250,7 +250,7 @@ class MattermostAdapter(ChannelAdapter):
         self._seq[bot_id] = self._seq.get(bot_id, 1) + 1
         return self._seq[bot_id]
 
-    # --- what the agent may ask about the channel --------------------------
+    # what the agent may ask about the channel
     #
     # Every call here needs `read_channel` on the channel, which a bot holds by
     # being a member of it. That is the permission boundary, it is Mattermost's
@@ -468,7 +468,7 @@ class MattermostAdapter(ChannelAdapter):
             for post_id in order
         ]
 
-    # --- receiving, over the socket ---------------------------------------
+    # receiving, over the socket
 
     async def start_polling(self, bot_id: str, bot_token: str) -> None:
         """Open the event stream for one bot."""
@@ -585,7 +585,7 @@ class MattermostAdapter(ChannelAdapter):
         async with get_db_context() as db:
             await router.route(incoming, db)
 
-    # --- receiving, over a webhook ----------------------------------------
+    # receiving, over a webhook
 
     async def register_webhook(self, bot_token: str, url: str, secret: str | None) -> bool:
         """Mattermost has no API for this: outgoing webhooks are created in its
@@ -617,7 +617,7 @@ class MattermostAdapter(ChannelAdapter):
         token = str(payload.get("token", ""))
         return bool(token) and secrets.compare_digest(token, secret)
 
-    # --- normalising -------------------------------------------------------
+    # normalising
 
     def parse_incoming(self, raw_payload: dict[str, Any], bot_id: str) -> IncomingMessage | None:
         """Normalise a `posted` event or an outgoing-webhook body.

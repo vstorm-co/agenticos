@@ -99,6 +99,7 @@ dev = [
     "ty>=0.0.69",
     "pre-commit>=4.0.0",
     "pytest-xdist>=3.8.0",
+    "vulture>=2.14",
 ]
 # The documentation site. Its own group rather than part of `dev`, because the
 # reference pages import the application to read its docstrings - so this group
@@ -118,6 +119,37 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["app", "cli"]
+
+# Dead-code detection. Two modes share this config:
+#   `make lint` runs `vulture` at the default confidence below - a blocking gate,
+#   but only on what vulture is sure of (unused variables, parameters, imports).
+#   Unused *functions and methods* sit at 60% confidence here because the
+#   codebase is registry-driven: FastAPI route handlers, Pydantic validators and
+#   capability-protocol methods are all called by name from a framework vulture
+#   cannot see, so a blocking function-level gate would be false positives all
+#   the way down. `make dead-code` lowers the confidence to 60 for a periodic,
+#   human-read scan instead - the same role `dependency-freshness` plays.
+# `ignore_decorators` removes the framework false positives from both modes;
+# `ignore_names` is the allowlist for anything left that is reachable in a way
+# vulture cannot follow - add `name  # why` when a real false positive appears.
+[tool.vulture]
+paths = ["app"]
+min_confidence = 80
+ignore_decorators = [
+    "@field_validator",
+    "@model_validator",
+    "@field_serializer",
+    "@model_serializer",
+    "@computed_field",
+    "@router.*",
+    "@*.get",
+    "@*.post",
+    "@*.put",
+    "@*.patch",
+    "@*.delete",
+    "@*.websocket",
+]
+ignore_names = []
 
 [tool.ruff]
 target-version = "py312"

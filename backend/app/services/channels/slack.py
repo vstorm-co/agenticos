@@ -125,7 +125,7 @@ class SlackAdapter(ChannelAdapter):
 
         await client.chat_postMessage(**kwargs)
 
-    # --- what the agent may ask about the channel --------------------------
+    # what the agent may ask about the channel
     #
     # `channels:read`, `groups:read` and `channels:history` on the Slack app -
     # scopes an admin grants when they install it. The bot sees what the app was
