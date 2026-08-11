@@ -1061,21 +1061,24 @@ class TestFiringAnEvent:
 
 class TestEventTriggerRestrictions:
     async def test_retiming_an_event_trigger_is_refused(self):
-        """`interval_seconds` is meaningless on an event trigger, and setting it
-        would trip the shape CHECK as a 500 - so the service refuses it as a 400."""
+        """A cadence is meaningless on an event trigger, and setting one would trip
+        the shape CHECK as a 500 - so the service refuses it as a 400."""
         agent = _agent()
         service = _service(agent)
         trigger = _event_trigger(agent_id=agent.id)
         with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
             repo.get = AsyncMock(return_value=trigger)
             repo.update = AsyncMock()
-            with pytest.raises(BadRequestError, match="interval schedule"):
+            with pytest.raises(BadRequestError, match="cadence"):
                 await service.update(
                     _ctx(), agent.id, trigger.id, TriggerUpdate(interval_seconds=600)
                 )
             repo.update.assert_not_called()
 
-    async def test_retiming_a_cron_schedule_is_refused(self):
+    async def test_retiming_a_cron_schedule_to_an_interval_switches_it(self):
+        """Sending an interval to a cron schedule switches its kind in place -
+        editing the cadence, not deleting and recreating. The opposite field is
+        cleared so the resolved row is a valid interval schedule."""
         agent = _agent()
         service = _service(agent)
         trigger = _trigger(
@@ -1084,11 +1087,56 @@ class TestEventTriggerRestrictions:
             interval_seconds=None,
             cron_expression="0 9 * * *",
         )
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock(return_value=trigger)
+            await service.update(_ctx(), agent.id, trigger.id, TriggerUpdate(interval_seconds=600))
+        changes = repo.update.call_args.kwargs["update_data"]
+        assert changes["schedule_kind"] == "interval"
+        assert changes["interval_seconds"] == 600
+        assert changes["cron_expression"] is None
+        assert changes["next_fire_at"] is not None
+
+    async def test_switching_an_interval_schedule_to_cron_in_place(self):
+        """The other direction: a named `schedule_kind` with its expression retimes
+        an interval schedule onto a clock, clearing the interval it no longer uses."""
+        agent = _agent()
+        service = _service(agent)
+        trigger = _trigger(agent_id=agent.id, interval_seconds=3600)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock(return_value=trigger)
+            await service.update(
+                _ctx(),
+                agent.id,
+                trigger.id,
+                TriggerUpdate(schedule_kind="cron", cron_expression="0 9 * * *"),
+            )
+        changes = repo.update.call_args.kwargs["update_data"]
+        assert changes["schedule_kind"] == "cron"
+        assert changes["cron_expression"] == "0 9 * * *"
+        assert changes["interval_seconds"] is None
+
+    async def test_an_unschedulable_cron_on_update_is_refused(self):
+        """A cron that croniter cannot parse is a 400 naming the field, not a row
+        the shape CHECK accepts and the heartbeat never fires."""
+        agent = _agent()
+        service = _service(agent)
+        trigger = _trigger(agent_id=agent.id, interval_seconds=3600)
         with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
             repo.get = AsyncMock(return_value=trigger)
             repo.update = AsyncMock()
-            with pytest.raises(BadRequestError, match="interval schedule"):
+            with pytest.raises(BadRequestError, match="crontab"):
                 await service.update(
-                    _ctx(), agent.id, trigger.id, TriggerUpdate(interval_seconds=600)
+                    _ctx(),
+                    agent.id,
+                    trigger.id,
+                    TriggerUpdate(cron_expression="not a cron"),
                 )
             repo.update.assert_not_called()

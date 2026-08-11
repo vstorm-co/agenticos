@@ -75,6 +75,103 @@ function eventFilterConfig(
   return Object.keys(config).length ? config : undefined;
 }
 
+/**
+ * How the "at a set time" builder repeats, before it is compiled to cron. Each
+ * maps to a crontab shape: daily `M H * * *`, every-N-days `M H * / N * *`, weekly
+ * `M H * * <days>`, monthly `M H <dom> * *`. `advanced` is the escape hatch that
+ * takes a raw expression for the cases the presets do not cover.
+ */
+type CronFrequency = "daily" | "everyNDays" | "weekly" | "monthly" | "advanced";
+
+/** The repeat options, as translation keys so the catalog check can see them. */
+const CRON_FREQUENCIES: readonly { value: CronFrequency; key: string }[] = [
+  { value: "daily", key: "freqDaily" },
+  { value: "everyNDays", key: "freqEveryNDays" },
+  { value: "weekly", key: "freqWeekly" },
+  { value: "monthly", key: "freqMonthly" },
+  { value: "advanced", key: "freqAdvanced" },
+];
+
+/** The weekdays, in cron's numbering (0 = Sunday), Monday-first for display. */
+const WEEKDAYS: readonly { value: number; key: string }[] = [
+  { value: 1, key: "weekdayMon" },
+  { value: 2, key: "weekdayTue" },
+  { value: 3, key: "weekdayWed" },
+  { value: 4, key: "weekdayThu" },
+  { value: 5, key: "weekdayFri" },
+  { value: 6, key: "weekdaySat" },
+  { value: 0, key: "weekdaySun" },
+];
+
+/** The translation key for a weekday value, defaulting to Monday off-range. */
+function weekdayKey(value: number): string {
+  return WEEKDAYS.find((day) => day.value === value)?.key ?? "weekdayMon";
+}
+
+/** A bounded integer from a form string, or the fallback when it is not one. */
+function clampInt(value: string, min: number, max: number, fallback: number): number {
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isNaN(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
+}
+
+/** The builder state a cron expression seeds, for editing an existing schedule. */
+interface ParsedCron {
+  freq: CronFrequency;
+  time: string;
+  everyDays: string;
+  weekdays: number[];
+  dayOfMonth: string;
+}
+
+/**
+ * A cron expression read back into the builder's choices, or "advanced" when no
+ * preset represents it. Only the shapes `composeCron` produces are recognised - a
+ * fixed minute and hour, a wildcard month, and one of daily / every-N-days /
+ * weekdays / day-of-month - so a builder-made schedule round-trips on edit, and a
+ * hand-written one opens on its raw expression rather than a wrong preset.
+ */
+function parseCron(expression: string): ParsedCron {
+  const fallback: ParsedCron = {
+    freq: "advanced",
+    time: "09:00",
+    everyDays: "2",
+    weekdays: [1],
+    dayOfMonth: "1",
+  };
+  const parts = expression.trim().split(/\s+/);
+  if (parts.length !== 5) return fallback;
+  const [rawMinute, rawHour, dom, month, dow] = parts as [string, string, string, string, string];
+  const minute = Number(rawMinute);
+  const hour = Number(rawHour);
+  const timed =
+    Number.isInteger(minute) &&
+    minute >= 0 &&
+    minute <= 59 &&
+    Number.isInteger(hour) &&
+    hour >= 0 &&
+    hour <= 23;
+  if (!timed || month !== "*") return fallback;
+  const time = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  if (dom === "*" && dow === "*") return { ...fallback, freq: "daily", time };
+  const everyN = /^\*\/([0-9]+)$/.exec(dom)?.[1];
+  if (everyN !== undefined && dow === "*") {
+    return { ...fallback, freq: "everyNDays", time, everyDays: everyN };
+  }
+  if (dom === "*" && dow !== "*") {
+    const days = dow.split(",").map(Number);
+    if (days.every((day) => Number.isInteger(day) && day >= 0 && day <= 6)) {
+      return { ...fallback, freq: "weekly", time, weekdays: days };
+    }
+    return fallback;
+  }
+  const day = Number(dom);
+  if (dow === "*" && Number.isInteger(day) && day >= 1 && day <= 31) {
+    return { ...fallback, freq: "monthly", time, dayOfMonth: String(day) };
+  }
+  return fallback;
+}
+
 interface TriggerFormDialogProps {
   /**
    * The agent the trigger belongs to, or null when the surface has no agent in
@@ -129,6 +226,7 @@ export function TriggerFormDialog({
 
   const [type, setType] = useState<TriggerType>(trigger?.trigger_type ?? initialType);
   const [prompt, setPrompt] = useState(trigger?.prompt ?? "");
+  const [name, setName] = useState(trigger?.name ?? "");
   const [environmentId, setEnvironmentId] = useState(trigger?.environment_id ?? DEFAULT_ENV);
 
   const seed = trigger?.interval_seconds
@@ -139,7 +237,22 @@ export function TriggerFormDialog({
   );
   const [intervalCount, setIntervalCount] = useState(String(seed.count));
   const [intervalUnit, setIntervalUnit] = useState<IntervalUnit>(seed.unit);
-  const [cron, setCron] = useState(trigger?.cron_expression ?? "0 9 * * *");
+
+  // The "at a set time" builder composes a cron expression from plain choices - a
+  // time and how it repeats - so nobody has to write crontab. Editing a cron
+  // schedule seeds the builder back from its expression (falling to "advanced"
+  // for one no preset represents); a new schedule opens on 09:00 daily, which is
+  // exactly the `0 9 * * *` the old raw field seeded.
+  const cronSeed =
+    trigger?.schedule_kind === "cron" && trigger.cron_expression
+      ? parseCron(trigger.cron_expression)
+      : null;
+  const [cronFreq, setCronFreq] = useState<CronFrequency>(cronSeed?.freq ?? "daily");
+  const [cronTime, setCronTime] = useState(cronSeed?.time ?? "09:00");
+  const [cronEveryDays, setCronEveryDays] = useState(cronSeed?.everyDays ?? "2");
+  const [cronWeekdays, setCronWeekdays] = useState<number[]>(cronSeed?.weekdays ?? [1]);
+  const [cronDayOfMonth, setCronDayOfMonth] = useState(cronSeed?.dayOfMonth ?? "1");
+  const [cronAdvanced, setCronAdvanced] = useState(trigger?.cron_expression ?? "0 9 * * *");
 
   const [eventSource, setEventSource] = useState<EventSource>(trigger?.event_source ?? "github");
   const [secret, setSecret] = useState("");
@@ -155,20 +268,53 @@ export function TriggerFormDialog({
 
   const pending = create.isPending || update.isPending;
 
+  /** The cron expression the builder's current choices compile to. */
+  function composeCron(): string {
+    if (cronFreq === "advanced") return cronAdvanced.trim();
+    const [rawHour, rawMinute] = cronTime.split(":");
+    const hour = clampInt(rawHour ?? "", 0, 23, 9);
+    const minute = clampInt(rawMinute ?? "", 0, 59, 0);
+    if (cronFreq === "everyNDays") {
+      return `${minute} ${hour} */${clampInt(cronEveryDays, 1, 31, 1)} * *`;
+    }
+    if (cronFreq === "weekly") {
+      const days = cronWeekdays.length ? [...cronWeekdays].sort((a, b) => a - b).join(",") : "1";
+      return `${minute} ${hour} * * ${days}`;
+    }
+    if (cronFreq === "monthly") {
+      return `${minute} ${hour} ${clampInt(cronDayOfMonth, 1, 31, 1)} * *`;
+    }
+    return `${minute} ${hour} * * *`;
+  }
+
+  function toggleWeekday(value: number) {
+    setCronWeekdays((current) =>
+      current.includes(value) ? current.filter((day) => day !== value) : [...current, value],
+    );
+  }
+
+  /** The cadence fields a schedule sends - on create, and on a cadence edit. */
+  function scheduleCadence(): Pick<
+    TriggerCreate,
+    "schedule_kind" | "interval_seconds" | "cron_expression"
+  > {
+    return scheduleKind === "cron"
+      ? { schedule_kind: "cron", cron_expression: composeCron() }
+      : {
+          schedule_kind: "interval",
+          interval_seconds: unitToSeconds(intervalUnit, Math.max(1, Number(intervalCount) || 1)),
+        };
+  }
+
   function buildCreate(): TriggerCreate {
     const base = {
       prompt,
+      name: name.trim() || null,
       trigger_type: type,
       environment_id: environmentId === DEFAULT_ENV ? null : environmentId,
     };
     if (type === "schedule") {
-      return scheduleKind === "cron"
-        ? { ...base, schedule_kind: "cron", cron_expression: cron.trim() }
-        : {
-            ...base,
-            schedule_kind: "interval",
-            interval_seconds: unitToSeconds(intervalUnit, Math.max(1, Number(intervalCount) || 1)),
-          };
+      return { ...base, ...scheduleCadence() };
     }
     return {
       ...base,
@@ -186,8 +332,23 @@ export function TriggerFormDialog({
         // would overwrite an environment somebody rebound in between.
         const patch: TriggerUpdate = {};
         if (prompt !== trigger.prompt) patch.prompt = prompt;
+        const nextName = name.trim() || null;
+        if (nextName !== (trigger.name ?? null)) patch.name = nextName;
         const env = environmentId === DEFAULT_ENV ? null : environmentId;
         if (env !== (trigger.environment_id ?? null)) patch.environment_id = env;
+        // A schedule's cadence, only when it actually changed - the server
+        // recomputes next_fire_at on any cadence field it receives, so echoing an
+        // unchanged cadence on a prompt-only edit would needlessly reset the clock.
+        if (trigger.trigger_type === "schedule") {
+          const cadence = scheduleCadence();
+          const changed =
+            cadence.schedule_kind !== trigger.schedule_kind ||
+            (cadence.schedule_kind === "interval" &&
+              cadence.interval_seconds !== trigger.interval_seconds) ||
+            (cadence.schedule_kind === "cron" &&
+              cadence.cron_expression !== trigger.cron_expression);
+          if (changed) Object.assign(patch, cadence);
+        }
         await update.mutateAsync({ triggerId: trigger.id, patch });
         onOpenChange(false);
       } else {
@@ -204,12 +365,16 @@ export function TriggerFormDialog({
     }
   }
 
+  // A preset always composes a valid expression; only the raw "advanced" escape
+  // hatch can be left empty, so it is the one cron shape worth guarding.
+  const cronValid = cronFreq !== "advanced" || cronAdvanced.trim().length > 0;
+  const scheduleValid = scheduleKind === "cron" ? cronValid : Number(intervalCount) > 0;
+  // Editing a schedule can now change its cadence, so the cadence is guarded then
+  // too; an event edit has no cadence and only its prompt/name to check.
   const shapeValid = editing
-    ? true
+    ? type !== "schedule" || scheduleValid
     : type === "schedule"
-      ? scheduleKind === "cron"
-        ? cron.trim().length > 0
-        : Number(intervalCount) > 0
+      ? scheduleValid
       : secret.length >= MIN_SECRET;
   const canSubmit = prompt.trim().length > 0 && shapeValid && effectiveAgentId !== null && !pending;
 
@@ -288,7 +453,17 @@ export function TriggerFormDialog({
             />
           </FormField>
 
-          {!editing && type === "schedule" && (
+          <FormField label={t("nameLabel")} htmlFor="trigger-name" description={t("nameHelp")}>
+            <Input
+              id="trigger-name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder={t("namePlaceholder")}
+              maxLength={120}
+            />
+          </FormField>
+
+          {type === "schedule" && (
             <ScheduleFields
               scheduleKind={scheduleKind}
               onScheduleKind={setScheduleKind}
@@ -296,8 +471,20 @@ export function TriggerFormDialog({
               onIntervalCount={setIntervalCount}
               intervalUnit={intervalUnit}
               onIntervalUnit={setIntervalUnit}
-              cron={cron}
-              onCron={setCron}
+              cron={{
+                freq: cronFreq,
+                onFreq: setCronFreq,
+                time: cronTime,
+                onTime: setCronTime,
+                everyDays: cronEveryDays,
+                onEveryDays: setCronEveryDays,
+                weekdays: cronWeekdays,
+                onToggleWeekday: toggleWeekday,
+                dayOfMonth: cronDayOfMonth,
+                onDayOfMonth: setCronDayOfMonth,
+                advanced: cronAdvanced,
+                onAdvanced: setCronAdvanced,
+              }}
             />
           )}
 
@@ -361,6 +548,22 @@ export function TriggerFormDialog({
   );
 }
 
+/** Everything the "at a set time" builder needs, bundled so it passes as one prop. */
+interface CronBuilderState {
+  freq: CronFrequency;
+  onFreq: (freq: CronFrequency) => void;
+  time: string;
+  onTime: (value: string) => void;
+  everyDays: string;
+  onEveryDays: (value: string) => void;
+  weekdays: number[];
+  onToggleWeekday: (value: number) => void;
+  dayOfMonth: string;
+  onDayOfMonth: (value: string) => void;
+  advanced: string;
+  onAdvanced: (value: string) => void;
+}
+
 interface ScheduleFieldsProps {
   scheduleKind: ScheduleKind;
   onScheduleKind: (kind: ScheduleKind) => void;
@@ -368,8 +571,7 @@ interface ScheduleFieldsProps {
   onIntervalCount: (value: string) => void;
   intervalUnit: IntervalUnit;
   onIntervalUnit: (unit: IntervalUnit) => void;
-  cron: string;
-  onCron: (value: string) => void;
+  cron: CronBuilderState;
 }
 
 function ScheduleFields({
@@ -380,7 +582,6 @@ function ScheduleFields({
   intervalUnit,
   onIntervalUnit,
   cron,
-  onCron,
 }: ScheduleFieldsProps) {
   const t = useTranslations("triggers");
   return (
@@ -419,18 +620,172 @@ function ScheduleFields({
           </div>
         </div>
       ) : (
-        <FormField label={t("cronExpression")} htmlFor="trigger-cron" description={t("cronHelp")}>
+        <CronBuilder {...cron} />
+      )}
+    </div>
+  );
+}
+
+/**
+ * The "at a set time" builder: a repeat preset and a clock time, compiled to cron
+ * by `composeCron` in the parent. A non-technical user picks "every day at 09:00"
+ * rather than writing `0 9 * * *`; "Custom (cron)" still takes a raw expression for
+ * anything the presets miss. A live summary states what the current choices mean.
+ */
+function CronBuilder({
+  freq,
+  onFreq,
+  time,
+  onTime,
+  everyDays,
+  onEveryDays,
+  weekdays,
+  onToggleWeekday,
+  dayOfMonth,
+  onDayOfMonth,
+  advanced,
+  onAdvanced,
+}: CronBuilderState) {
+  const t = useTranslations("triggers");
+  return (
+    <div className="space-y-3">
+      <FormField label={t("repeat")} htmlFor="cron-frequency">
+        <Select value={freq} onValueChange={(next) => onFreq(next as CronFrequency)}>
+          <SelectTrigger id="cron-frequency">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {CRON_FREQUENCIES.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {t(option.key)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FormField>
+
+      {freq === "advanced" ? (
+        <FormField label={t("cronExpression")} htmlFor="cron-advanced" description={t("cronHelp")}>
           <Input
-            id="trigger-cron"
-            value={cron}
-            onChange={(event) => onCron(event.target.value)}
+            id="cron-advanced"
+            value={advanced}
+            onChange={(event) => onAdvanced(event.target.value)}
             placeholder="0 9 * * *"
             className="font-mono"
           />
         </FormField>
+      ) : (
+        <>
+          {freq === "everyNDays" && (
+            <div className="space-y-1">
+              <Label htmlFor="cron-every-days">{t("runEvery")}</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="cron-every-days"
+                  type="number"
+                  min={1}
+                  max={31}
+                  value={everyDays}
+                  onChange={(event) => onEveryDays(event.target.value)}
+                  className="w-24"
+                />
+                <span className="text-muted-foreground text-sm">{t("unitDays")}</span>
+              </div>
+            </div>
+          )}
+
+          {freq === "weekly" && (
+            <div className="space-y-1">
+              <Label>{t("weekdaysLabel")}</Label>
+              <div className="flex flex-wrap gap-1" role="group" aria-label={t("weekdaysLabel")}>
+                {WEEKDAYS.map((day) => {
+                  const active = weekdays.includes(day.value);
+                  return (
+                    <Button
+                      key={day.value}
+                      type="button"
+                      variant={active ? "default" : "outline"}
+                      aria-pressed={active}
+                      onClick={() => onToggleWeekday(day.value)}
+                      className="h-8 flex-1 px-2 text-xs"
+                    >
+                      {t(day.key)}
+                    </Button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {freq === "monthly" && (
+            <FormField label={t("dayOfMonthLabel")} htmlFor="cron-day-of-month">
+              <Input
+                id="cron-day-of-month"
+                type="number"
+                min={1}
+                max={31}
+                value={dayOfMonth}
+                onChange={(event) => onDayOfMonth(event.target.value)}
+                className="w-24"
+              />
+            </FormField>
+          )}
+
+          <FormField label={t("timeLabel")} htmlFor="cron-time">
+            <Input
+              id="cron-time"
+              type="time"
+              value={time}
+              onChange={(event) => onTime(event.target.value)}
+              className="w-36"
+            />
+          </FormField>
+
+          <p className="text-muted-foreground text-sm">
+            <CronSummary
+              freq={freq}
+              time={time}
+              everyDays={everyDays}
+              weekdays={weekdays}
+              dayOfMonth={dayOfMonth}
+            />
+          </p>
+        </>
       )}
     </div>
   );
+}
+
+/** A plain-language restatement of the builder's current choices, for reassurance. */
+function CronSummary({
+  freq,
+  time,
+  everyDays,
+  weekdays,
+  dayOfMonth,
+}: {
+  freq: CronFrequency;
+  time: string;
+  everyDays: string;
+  weekdays: number[];
+  dayOfMonth: string;
+}) {
+  const t = useTranslations("triggers");
+  if (freq === "everyNDays") {
+    return <>{t("summaryEveryNDays", { count: clampInt(everyDays, 1, 31, 1), time })}</>;
+  }
+  if (freq === "weekly") {
+    const chosen = weekdays.length ? weekdays : [1];
+    const days = [...chosen]
+      .sort((a, b) => a - b)
+      .map((value) => t(weekdayKey(value)))
+      .join(", ");
+    return <>{t("summaryWeekly", { time, days })}</>;
+  }
+  if (freq === "monthly") {
+    return <>{t("summaryMonthly", { day: clampInt(dayOfMonth, 1, 31, 1), time })}</>;
+  }
+  return <>{t("summaryDaily", { time })}</>;
 }
 
 interface EventFieldsProps {

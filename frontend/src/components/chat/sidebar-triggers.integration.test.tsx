@@ -29,6 +29,7 @@ function trigger(overrides: Partial<Trigger> = {}): Trigger {
     id: "t1",
     agent_id: "a1",
     agent_name: "Nightly",
+    name: null,
     created_by_user_id: null,
     is_active: true,
     environment_id: null,

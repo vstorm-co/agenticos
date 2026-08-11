@@ -111,6 +111,48 @@ def _next_fire_from(trigger: AgentTrigger, *, now: datetime) -> datetime:
     )
 
 
+def _resolve_cadence(trigger: AgentTrigger, changes: dict[str, Any]) -> None:
+    """Normalise a schedule's edited cadence to exactly one of interval/cron.
+
+    A caller may send a new `schedule_kind`, a new cadence field, or both. Where
+    the kind is left implicit it is inferred from the field sent - an interval
+    means "switch to interval", a cron "switch to cron" - so the common edit needs
+    only the value. The shape CHECK requires the chosen kind's field set and the
+    other null, so the pair is resolved from the row where the caller left one
+    implicit (switching to cron with no new expression keeps the row's) and the
+    opposite field is always cleared. Mutates `changes` in place; raises
+    `BadRequestError` on a kind with no usable value, so an unschedulable edit is a
+    422 naming the field, not a 500.
+    """
+    if "schedule_kind" in changes:
+        kind = changes["schedule_kind"]
+    elif "cron_expression" in changes:
+        kind = ScheduleKind.CRON.value
+    else:
+        # `touches_cadence` guarantees a cadence key; interval is what is left.
+        kind = ScheduleKind.INTERVAL.value
+    if kind == ScheduleKind.INTERVAL.value:
+        interval = changes.get("interval_seconds", trigger.interval_seconds)
+        if interval is None:
+            raise BadRequestError(
+                message="an interval schedule needs interval_seconds",
+                details={"trigger_id": str(trigger.id)},
+            )
+        changes["schedule_kind"] = ScheduleKind.INTERVAL.value
+        changes["interval_seconds"] = interval
+        changes["cron_expression"] = None
+    else:
+        cron = changes.get("cron_expression", trigger.cron_expression)
+        if not cron or not croniter.is_valid(cron):
+            raise BadRequestError(
+                message="a cron schedule needs a valid crontab expression",
+                details={"trigger_id": str(trigger.id)},
+            )
+        changes["schedule_kind"] = ScheduleKind.CRON.value
+        changes["cron_expression"] = cron
+        changes["interval_seconds"] = None
+
+
 def _audit_changes(changes: dict[str, Any]) -> dict[str, Any]:
     """The applied changes, JSON-safe for the audit's JSONB `details`.
 
@@ -255,6 +297,7 @@ class AgentTriggerService:
             agent_id=agent.id,
             created_by_user_id=ctx.subject_id,
             prompt=data.prompt,
+            name=data.name,
             trigger_type=data.trigger_type,
             schedule_kind=data.schedule_kind,
             interval_seconds=data.interval_seconds,
@@ -308,32 +351,36 @@ class AgentTriggerService:
         """
         trigger = await self._owned(ctx, agent_id, trigger_id)
         changes = data.model_dump(exclude_unset=True)
-        if "interval_seconds" in changes and (
-            trigger.trigger_type != TriggerType.SCHEDULE.value
-            or trigger.schedule_kind != ScheduleKind.INTERVAL.value
-        ):
-            # Retiming only means something for an interval schedule; on a cron
-            # schedule or an event trigger the column is null by the shape CHECK,
-            # so setting it here would be a 500 IntegrityError, not a 422.
+
+        # Cadence edits: a schedule may be retimed in place - a new interval, a new
+        # cron, or a switch between the two - rather than deleted and recreated. An
+        # event has no cadence, so any cadence field on one is refused here rather
+        # than written through the shape CHECK as a 500.
+        cadence_keys = ("schedule_kind", "interval_seconds", "cron_expression")
+        touches_cadence = any(key in changes for key in cadence_keys)
+        if touches_cadence and trigger.trigger_type != TriggerType.SCHEDULE.value:
             raise BadRequestError(
-                message="interval_seconds can only be set on an interval schedule",
+                message="only a schedule has a cadence to change",
                 details={"trigger_id": str(trigger.id)},
             )
+
         if changes.get("environment_id") is not None:
             await self._environment_of(ctx, agent_id, changes["environment_id"])
-        # A new interval, or a resume, takes effect from now: without this a
-        # schedule shrunk from daily to five-minutely would still wait out the old
-        # day, and a resumed one would keep whatever stale `next_fire_at` it was
-        # paused with. Computed from the *new* interval (the one in `changes`, not
-        # the row's, which the repo has not applied yet), so the field is never
-        # read back stale. A cron schedule takes its next matching instant.
+
+        # A cadence change or a resume takes effect from now: a schedule shrunk from
+        # daily to minutely, switched to cron, or resumed must not wait out the old
+        # cadence's next instant. A cadence change first resolves the pair so exactly
+        # one of interval/cron is set - what the shape CHECK requires and the repo
+        # writes verbatim; a bare resume recomputes from the row's own cadence.
         if trigger.trigger_type == TriggerType.SCHEDULE.value and (
-            "interval_seconds" in changes or changes.get("is_active") is True
+            touches_cadence or changes.get("is_active") is True
         ):
+            if touches_cadence:
+                _resolve_cadence(trigger, changes)
             changes["next_fire_at"] = _next_fire(
-                schedule_kind=trigger.schedule_kind,
+                schedule_kind=changes.get("schedule_kind", trigger.schedule_kind),
                 interval_seconds=changes.get("interval_seconds", trigger.interval_seconds),
-                cron_expression=trigger.cron_expression,
+                cron_expression=changes.get("cron_expression", trigger.cron_expression),
                 now=datetime.now(UTC),
             )
         updated = await agent_trigger_repo.update(self.db, trigger=trigger, update_data=changes)

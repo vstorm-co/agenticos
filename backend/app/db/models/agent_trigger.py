@@ -150,6 +150,11 @@ class AgentTrigger(Base, TimestampMixin):
     # stops rather than retrying against a wall for ever.
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
+    # A human label for this trigger, shown where it is listed away from a form.
+    # Optional: null falls back to the agent's name, so an existing row and a
+    # "just schedule it" without a title both still read sensibly in every list.
+    name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+
     # Which named environment's version this fires, like an exposure. SET NULL
     # keeps a schedule firing the default version rather than going silent when a
     # dev environment is removed.

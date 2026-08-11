@@ -116,6 +116,8 @@ class TriggerCreate(BaseSchema):
     """
 
     prompt: str = Field(min_length=1, max_length=10000)
+    # An optional human title; null lists the trigger by its agent's name instead.
+    name: str | None = Field(default=None, max_length=120)
     trigger_type: Literal["schedule", "event"] = "schedule"
     environment_id: UUID | None = None
 
@@ -193,26 +195,29 @@ _UPDATE_NOT_NULLABLE = ("prompt", "interval_seconds", "is_active")
 
 
 class TriggerUpdate(BaseSchema):
-    """Pause, resume, retime, repoint, or reword a trigger. All fields optional.
+    """Pause, resume, retime, rename, or reword a trigger. All fields optional.
 
-    What cannot change here is a trigger's shape: neither `schedule_kind` nor
-    `trigger_type`, nor an event's source, filter or secret. Switching a schedule
-    to cron, or repointing an event at a different repository, is a different
-    trigger - made by deleting this one and creating that - so the columns the
-    shape CHECK depends on stay consistent without a second validator policing a
-    half-changed row. `interval_seconds` is accepted only for interval schedules;
-    the service refuses it on a cron schedule or an event trigger.
+    A schedule's cadence can change in place: a new interval, a new cron, or a
+    switch between the two (`schedule_kind` with its cadence field). The service
+    resolves the pair, re-validates a cron and recomputes the next fire, so the
+    columns the shape CHECK depends on stay consistent. What still cannot change is
+    a trigger's *type* - a schedule never becomes an event - nor an event's source,
+    filter or secret: repointing an event is a different trigger, made by deleting
+    this one and creating that, so a cadence field on an event is refused.
 
-    `None` means "not sent" for every field except `environment_id`, whose null is
-    the deliberate "back to the default". `prompt`, `interval_seconds` and
-    `is_active` map to NOT NULL columns, so an *explicit* null in the body is
-    refused here as a 422 rather than reaching the row as a 500 IntegrityError -
-    the `exclude_unset` dump cannot tell a sent null from an unsent one, so the
-    field must.
+    `None` means "not sent" for every field except `environment_id` and `name`,
+    whose null is the deliberate "back to the default" - the default environment,
+    the agent's own name. `prompt`, `interval_seconds` and `is_active` map to NOT
+    NULL columns, so an *explicit* null for one is refused here as a 422 rather than
+    reaching the row as a 500 IntegrityError - the `exclude_unset` dump cannot tell
+    a sent null from an unsent one, so the field must.
     """
 
     prompt: str | None = Field(default=None, min_length=1, max_length=10000)
+    name: str | None = Field(default=None, max_length=120)
+    schedule_kind: Literal["interval", "cron"] | None = None
     interval_seconds: int | None = Field(default=None, ge=MIN_INTERVAL_SECONDS)
+    cron_expression: str | None = Field(default=None, max_length=255)
     is_active: bool | None = None
     environment_id: UUID | None = None
 
@@ -240,6 +245,8 @@ class TriggerRead(BaseSchema, TimestampSchema):
     # and needs to name it; the per-agent list leaves it unset (the agent is the
     # page). The service fills it from the listing query's join onto agents.
     agent_name: str | None = None
+    # The trigger's own title, or null to fall back to the agent's name.
+    name: str | None = None
     created_by_user_id: UUID | None = None
     is_active: bool
     environment_id: UUID | None = None

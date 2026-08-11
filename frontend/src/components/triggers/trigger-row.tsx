@@ -39,8 +39,11 @@ export function TriggerRow({ trigger, canManage, showAgent = false }: TriggerRow
   return (
     <div className="flex items-center gap-3 rounded-md border p-3">
       <div className="min-w-0 flex-1">
-        {showAgent && trigger.agent_name && (
-          <p className="truncate text-xs font-medium">{trigger.agent_name}</p>
+        {(trigger.name || (showAgent && trigger.agent_name)) && (
+          <p className="truncate text-xs font-medium">{trigger.name ?? trigger.agent_name}</p>
+        )}
+        {trigger.name && showAgent && trigger.agent_name && (
+          <p className="text-muted-foreground truncate text-[11px]">{trigger.agent_name}</p>
         )}
         <p className="truncate text-sm">
           <TriggerSummary trigger={trigger} />

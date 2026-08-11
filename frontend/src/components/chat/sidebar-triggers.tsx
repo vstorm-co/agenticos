@@ -128,6 +128,7 @@ function SidebarTriggerItem({
   const t = useTranslations("triggers");
   const { setActive, runNow, remove } = useTriggers(trigger.agent_id);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const title = trigger.name ?? trigger.agent_name ?? "";
 
   return (
     <div className="group hover:bg-secondary flex items-center rounded-md transition-colors">
@@ -135,7 +136,7 @@ function SidebarTriggerItem({
         type="button"
         onClick={onOpen}
         className="min-w-0 flex-1 px-3 py-1.5 text-left"
-        aria-label={t("openItem", { agent: trigger.agent_name ?? "" })}
+        aria-label={t("openItem", { agent: title })}
       >
         <span
           className={cn(
@@ -143,7 +144,7 @@ function SidebarTriggerItem({
             !trigger.is_active && "text-muted-foreground line-through",
           )}
         >
-          {trigger.agent_name}
+          {title}
         </span>
         <span className="text-muted-foreground block truncate text-[11px]">
           <TriggerSummary trigger={trigger} />
@@ -156,7 +157,7 @@ function SidebarTriggerItem({
               variant="ghost"
               size="sm"
               className="h-7 w-7 shrink-0 p-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
-              aria-label={t("itemActions", { agent: trigger.agent_name ?? "" })}
+              aria-label={t("itemActions", { agent: title })}
             >
               <MoreHorizontal className="h-3.5 w-3.5" aria-hidden />
             </Button>

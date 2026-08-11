@@ -31,6 +31,7 @@ function trigger(overrides: Partial<Trigger> = {}): Trigger {
     id: "t1",
     agent_id: AGENT_ID,
     agent_name: null,
+    name: null,
     created_by_user_id: null,
     is_active: true,
     environment_id: null,
@@ -170,6 +171,7 @@ describe("TriggersPanel", () => {
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
       prompt: "Do the thing",
+      name: null,
       trigger_type: "schedule",
       environment_id: null,
       schedule_kind: "interval",
@@ -194,6 +196,7 @@ describe("TriggersPanel", () => {
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
       prompt: "Triage it",
+      name: null,
       trigger_type: "event",
       environment_id: null,
       event_source: "github",
@@ -254,6 +257,7 @@ describe("TriggersPanel", () => {
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
       prompt: "Draft a reply",
+      name: null,
       trigger_type: "event",
       environment_id: null,
       event_source: "linkedin",
@@ -282,6 +286,7 @@ describe("TriggersPanel", () => {
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
       prompt: "Handle it",
+      name: null,
       trigger_type: "event",
       environment_id: null,
       event_source: "webhook",
@@ -334,13 +339,13 @@ describe("TriggersPanel", () => {
     const dialog = await screen.findByRole("dialog");
     await user.type(within(dialog).getByLabelText("Message"), "Daily digest");
     await user.click(within(dialog).getByRole("tab", { name: "At a set time" }));
-    const cron = within(dialog).getByLabelText("Cron expression");
-    await user.clear(cron);
-    await user.type(cron, "0 9 * * *");
+    // The builder opens on "every day at 09:00", which composes to 0 9 * * * with
+    // nobody having to write crontab - the whole point of the redesign.
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
       prompt: "Daily digest",
+      name: null,
       trigger_type: "schedule",
       environment_id: null,
       schedule_kind: "cron",
@@ -368,6 +373,7 @@ describe("TriggersPanel", () => {
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
       prompt: "Reply to it",
+      name: null,
       trigger_type: "event",
       environment_id: null,
       event_source: "email",

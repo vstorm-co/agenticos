@@ -22,6 +22,8 @@ export interface Trigger {
   agent_id: string;
   /** Set only on the org-wide listing, where a row is shown away from its agent. */
   agent_name: string | null;
+  /** A human title for this trigger; null lists it by the agent's name instead. */
+  name: string | null;
   created_by_user_id: string | null;
   is_active: boolean;
   /** Which named environment answers here; null = the default. */
@@ -63,6 +65,8 @@ export interface TriggerList {
  */
 export interface TriggerCreate {
   prompt: string;
+  /** An optional title; omit to list the trigger by its agent's name. */
+  name?: string | null;
   trigger_type: TriggerType;
   environment_id?: string | null;
   schedule_kind?: ScheduleKind;
@@ -74,14 +78,18 @@ export interface TriggerCreate {
 }
 
 /**
- * A partial edit. A trigger's shape cannot change here - not its type, its
- * schedule kind, or an event's source, filter or secret; those are set once and
- * otherwise made by deleting and recreating. `interval_seconds` is accepted only
- * for an interval schedule.
+ * A partial edit. A schedule's cadence can change in place - a new interval, a new
+ * cron, or a switch between the two (`schedule_kind` with its field) - and its
+ * title. What cannot change is a trigger's *type* (a schedule never becomes an
+ * event) or an event's source, filter or secret; those are set once and otherwise
+ * remade by deleting and recreating.
  */
 export interface TriggerUpdate {
   prompt?: string;
+  name?: string | null;
+  schedule_kind?: ScheduleKind;
   interval_seconds?: number | null;
+  cron_expression?: string | null;
   is_active?: boolean;
   environment_id?: string | null;
 }
