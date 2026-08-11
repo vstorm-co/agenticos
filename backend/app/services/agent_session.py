@@ -262,7 +262,6 @@ class AgentSession:
             model_label = turn.model_label
             agent_version_id = turn.agent_version_id
 
-            # Update in-memory history only after a complete agent run
             self.conversation_history.append({"role": "user", "content": user_message})
             self.conversation_history.append({"role": "assistant", "content": output})
             assistant_msg_id: str | None = None

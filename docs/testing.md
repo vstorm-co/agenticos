@@ -26,7 +26,7 @@ it worker startup (#520).
 Once, before pushing — `make check` runs all of it, in this order:
 
 ```bash
-make lint               # ruff, ruff format, ty, eslint, prettier, tsc, and the two guards
+make lint               # ruff, ruff format, ty, vulture, eslint, prettier, tsc, the guards
 make test               # the suite plus the 100% gate on the platform layer
 make db-check           # alembic check — a model change with no migration fails here
 make test-frontend-cov  # the frontend suite plus its own gate

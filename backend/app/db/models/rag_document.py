@@ -28,8 +28,6 @@ class RAGDocument(TimestampMixin, Base):
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     vector_document_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     chunk_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    # -- how this document, specifically, was read ------------------------
-    #
     # A collection's configuration changes; a document does not get re-parsed
     # when it does. Without these columns "why is this one chunked differently"
     # has no answer, and a per-upload override would be invisible the moment the

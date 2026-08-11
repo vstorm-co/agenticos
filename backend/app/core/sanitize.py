@@ -1,15 +1,10 @@
 """Input sanitization utilities.
 
-This module provides security-focused input sanitization functions:
-- Filename sanitization to prevent path traversal and unsafe characters
-- Webhook URL validation to prevent SSRF attacks
+Webhook URL validation to prevent SSRF attacks.
 """
 
 import ipaddress
-import os
-import re
 import socket
-import unicodedata
 from urllib.parse import urlparse
 
 WEBHOOK_ALLOWED_SCHEMES = frozenset({"http", "https"})
@@ -27,43 +22,6 @@ class SSRFBlockedError(ValueError):
     Dedicated exception type to avoid fragile string matching when
     distinguishing SSRF blocks from other ValueErrors.
     """
-
-
-def sanitize_filename(filename: str, allow_unicode: bool = False) -> str:
-    """Sanitize a filename to prevent path traversal and unsafe characters.
-
-    Args:
-        filename: The filename to sanitize.
-        allow_unicode: Whether to allow unicode characters.
-
-    Returns:
-        A safe filename string.
-
-    Example:
-        >>> sanitize_filename("../../../etc/passwd")
-        "etc_passwd"
-        >>> sanitize_filename("hello world.txt")
-        "hello_world.txt"
-    """
-    if not filename:
-        return ""
-
-    if allow_unicode:
-        filename = unicodedata.normalize("NFKC", filename)
-    else:
-        filename = unicodedata.normalize("NFKD", filename).encode("ascii", "ignore").decode("ascii")
-
-    filename = os.path.basename(filename)
-    filename = filename.replace("\x00", "")
-
-    filename = re.sub(r"[/\\:*?\"<>|]", "_", filename)
-    filename = re.sub(r"[\s_]+", "_", filename)
-    filename = filename.strip("._")
-
-    if not filename:
-        return "unnamed"
-
-    return filename
 
 
 def _is_ip_blocked(ip_str: str) -> bool:

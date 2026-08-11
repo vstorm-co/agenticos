@@ -81,14 +81,12 @@ class VersionDeprecationMiddleware(BaseHTTPMiddleware):
         response.headers["Deprecation"] = "true"
 
         if sunset := info.get("sunset"):
-            # Convert to HTTP date format
             sunset_date = datetime.fromisoformat(sunset)
             response.headers["Sunset"] = sunset_date.strftime("%a, %d %b %Y %H:%M:%S GMT")
 
         if link := info.get("link"):
             response.headers["Link"] = f'<{link}>; rel="deprecation"'
 
-        # Custom warning header
         message = info.get("message", f"API {version} is deprecated")
         response.headers["X-API-Deprecation-Warning"] = message
 

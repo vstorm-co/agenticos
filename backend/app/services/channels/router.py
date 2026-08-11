@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 # key format: "{bot_id}:{identity_id}", value = (count, window_start_ts)
 _rate_buckets: dict[str, tuple[int, float]] = {}
 
-_DEFAULT_RPM = 10  # requests per minute
+_DEFAULT_RPM = 10
 
 # In group chats multiple users can message simultaneously. Without a lock the router
 # would race: duplicate ChannelSession creation, interleaved agent calls, rate-limit races.
@@ -616,7 +616,6 @@ class ChannelMessageRouter:
                     raise BadRequestError(message="Rate limit exceeded. Please slow down.")
                 _rate_buckets[key] = (count + 1, window_start)
             else:
-                # Window expired - reset
                 _rate_buckets[key] = (1, now)
         else:
             _rate_buckets[key] = (1, now)

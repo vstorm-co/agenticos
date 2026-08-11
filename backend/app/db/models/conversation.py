@@ -79,7 +79,7 @@ class Message(Base, TimestampMixin):
         nullable=False,
         index=True,
     )
-    role: Mapped[str] = mapped_column(String(20), nullable=False)  # user, assistant, system
+    role: Mapped[str] = mapped_column(String(20), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     thinking: Mapped[str | None] = mapped_column(Text, nullable=True)
     model_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -201,9 +201,7 @@ class ToolCall(Base):
     tool_name: Mapped[str] = mapped_column(String(100), nullable=False)
     args: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False, default=dict)
     result: Mapped[str | None] = mapped_column(Text, nullable=True)
-    status: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="pending"
-    )  # pending, running, completed, failed
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)

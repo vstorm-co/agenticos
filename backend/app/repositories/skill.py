@@ -16,7 +16,6 @@ from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill, SkillResource
 from app.repositories._search import contains_ci
 
-# How a listing may be ordered: by name, or by when a skill last changed.
 SkillSort = Literal["name", "updated"]
 
 
@@ -129,8 +128,6 @@ async def list_visible(
             )
         )
     if categories:
-        # Several shelves at once: the filter is a multi-select, and a row
-        # matches any of the picked categories.
         where.append(Skill.category.in_(categories))
 
     order_by = (

@@ -59,7 +59,7 @@ test("an agent goes from a stored key to a run with a cost", async ({ page }) =>
   const agentName = `E2E Journey ${stamp}`;
   const answerToken = `PONG-${stamp}`;
 
-  // ---------------------------------------------------------------- 1. a key
+  // 1. a key
   await page.goto("/vault");
   await expect(pageHeading(page, "Vault")).toBeVisible();
 
@@ -93,7 +93,7 @@ test("an agent goes from a stored key to a run with a cost", async ({ page }) =>
   // on the second.
   await expect(page.getByRole("main").getByText(keyLabel)).toBeVisible();
 
-  // ------------------------------------------------------------- 2. an agent
+  // 2. an agent
   await page.goto("/agents");
   await expect(pageHeading(page, "Agents")).toBeVisible();
 
@@ -115,7 +115,7 @@ test("an agent goes from a stored key to a run with a cost", async ({ page }) =>
   await expect(pageHeading(page, new RegExp(agentName))).toBeVisible();
   const agentId = new URL(page.url()).pathname.split("/").pop() ?? "";
 
-  // ----------------------------------------------- 3. instructions and a model
+  // 3. instructions and a model
   const build = page.getByRole("tabpanel");
   await build
     .getByPlaceholder(/^You are Support Copilot/)
@@ -159,7 +159,7 @@ test("an agent goes from a stored key to a run with a cost", async ({ page }) =>
     page.getByRole("group", { name: "Current model" }).getByText(modelLabel),
   ).toBeVisible();
 
-  // ---------------------------------------------------------- 4. a capability
+  // 4. a capability
   // Capabilities live in Toolbox, not Build. This used to look for them in the
   // Build panel and find none, so the step below skipped itself with "the
   // capability catalog is empty" against a deployment whose catalog was fine -
@@ -189,7 +189,7 @@ test("an agent goes from a stored key to a run with a cost", async ({ page }) =>
     await page.getByRole("option", { name: "Never ask" }).click();
   }
 
-  // ------------------------------------------------------------ 5. publishing
+  // 5. publishing
   const publish = page.getByRole("button", { name: "Publish" });
   if (!(await publish.isVisible())) {
     test.skip(true, "this user cannot publish agents");
@@ -202,7 +202,7 @@ test("an agent goes from a stored key to a run with a cost", async ({ page }) =>
   await expect(pageHeading(page)).toContainText("published", { timeout: 30_000 });
   await expect(page.getByText("This agent cannot be published yet")).toHaveCount(0);
 
-  // ------------------------------------------------------------ 6. running it
+  // 6. running it
   // The Builder hands the agent to the chat, which is where this product runs
   // one. That the chat is addressed to *this* agent rather than the general
   // assistant is what the next assertion turns on: the assistant would answer
@@ -226,7 +226,7 @@ test("an agent goes from a stored key to a run with a cost", async ({ page }) =>
   await expect(composer).toHaveValue("");
   await expect(page.getByRole("main").getByText(answerToken)).toBeVisible({ timeout: 120_000 });
 
-  // -------------------------------------------------- 7. the run in Activity
+  // 7. the run in Activity
   await page.goto("/runs");
   await expect(pageHeading(page, "Activity")).toBeVisible();
   await page.getByRole("tab", { name: "Runs", exact: true }).click();
@@ -238,7 +238,7 @@ test("an agent goes from a stored key to a run with a cost", async ({ page }) =>
   await expect(row).toBeVisible();
   await expect(row).toContainText(/\$\d+\.\d{4}/);
 
-  // ----------------------------------------------------------- 8. cleaning up
+  // 8. cleaning up
   // This is the one spec that creates a whole agent, and it runs on every push -
   // so without this the organization grows an agent, a model and a key per run,
   // and the counts other specs take start describing the history of CI rather

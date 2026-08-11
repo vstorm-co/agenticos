@@ -103,6 +103,30 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
+      # Dead code, at the confidence set in `[tool.vulture]` - a gate on what
+      # vulture is sure of (unused variables, parameters). The deeper,
+      # false-positive-prone function scan is `make dead-code`, not this.
+      - id: vulture
+        name: vulture
+        entry: uv run --no-sync --directory backend vulture
+        language: system
+        types: [python]
+        pass_filenames: false
+      # A route module holds routers, not helpers. Anything else needs a
+      # `# routes-helper: <reason>` marker.
+      - id: check-routes
+        name: routes hold only routers
+        entry: python3 scripts/check_routes.py
+        language: system
+        types: [python]
+        pass_filenames: false
+      # No ASCII banner comments (`# ---- foo ----`).
+      - id: check-comments
+        name: no banner comments
+        entry: python3 scripts/check_comments.py
+        language: system
+        types_or: [python, ts, tsx, yaml]
+        pass_filenames: false
       # Double backticks are reStructuredText; Markdown renders them literally,
       # and so do editor hovers over a docstring.
       - id: check-backticks

@@ -106,7 +106,6 @@ class BaseDocumentSource(ABC):
             for source_file in files:
                 try:
                     local_path = await self.download_file(source_file.id, dest)
-                    # Pass source-specific path for deduplication
                     source_uri = f"{source_file.path or source_file.id}"
                     ingest_result = await ingestion_service.ingest_file(
                         filepath=local_path,
