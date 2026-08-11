@@ -14,7 +14,8 @@ The claim is one atomic `SET NX` against the deployment's shared Redis, so
 it holds across API workers and covers the pollers as well as the webhook
 routes - the router's module-level `_chat_locks` and `_rate_buckets` are
 per-process and deliberately no model to follow here. The router takes the
-claim at the top of `route`, the one point all six inbound paths cross.
+claim at the top of `route`, the one point all six inbound paths cross, and
+gives it back if the run under it does not finish.
 """
 
 from __future__ import annotations
@@ -97,3 +98,28 @@ async def claim_delivery(incoming: IncomingMessage) -> bool:
     except Exception:
         logger.warning("channel_dedupe_redis_unavailable", exc_info=True)
         return True
+
+
+async def release_delivery(incoming: IncomingMessage) -> None:
+    """Give the claim back, so a redelivery of a run that never finished is
+    processed rather than mistaken for one that was.
+
+    The claim is taken on receipt, not on completion. Without this, a run that
+    dies mid-flight - a provider error, a task cancelled while the pod drains -
+    swallows every redelivery of that message for the next fifteen minutes,
+    which is the one way this module could lose a question rather than a
+    duplicate. The polling paths make it concrete: aiogram re-fetches an
+    unconfirmed `getUpdates` batch after a restart and Socket Mode redelivers an
+    envelope it saw no acknowledgement for, and both would meet a claim that
+    outlived the run it was taken for.
+
+    Best effort, on the same reasoning as `claim_delivery`: a claim that cannot
+    be given back costs one duplicate answer, where raising here would replace
+    the failure the caller is already handling with this one.
+    """
+    if incoming.message_id is None or _redis is None:
+        return
+    try:
+        await _redis.delete(_key(incoming))
+    except Exception:
+        logger.warning("channel_dedupe_release_failed", exc_info=True)

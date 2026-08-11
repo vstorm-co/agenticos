@@ -40,7 +40,7 @@ def _message(**overrides: Any) -> IncomingMessage:
 
 
 class _FakeRedis:
-    """The one Redis behaviour the claim depends on: atomic SET NX."""
+    """The two Redis behaviours this module depends on: SET NX, and DEL."""
 
     def __init__(self) -> None:
         self.store: dict[str, str] = {}
@@ -53,11 +53,18 @@ class _FakeRedis:
         self.ttls[key] = ttl
         return True
 
+    async def delete(self, key: str) -> int:
+        self.ttls.pop(key, None)
+        return int(self.store.pop(key, None) is not None)
+
 
 class _BrokenRedis:
     """A Redis that cannot be reached mid-flight."""
 
     async def set(self, key: str, value: str, ttl: int | None = None, nx: bool = False) -> bool:
+        raise ConnectionError("redis unreachable")
+
+    async def delete(self, key: str) -> int:
         raise ConnectionError("redis unreachable")
 
 
@@ -86,7 +93,9 @@ async def test_the_same_delivery_is_claimed_once(fake_redis: _FakeRedis) -> None
 
 
 async def test_two_concurrent_deliveries_exactly_one_proceeds(fake_redis: _FakeRedis) -> None:
-    """The claim is one atomic SET NX, never a get-then-set race."""
+    """The claim goes through SET NX - the fake has no `get` to race on. What a
+    real interleaving would do to a get-then-set is Redis's contract, asserted
+    on the wrapper in `test_clients.py`."""
     incoming = _message()
 
     results = await asyncio.gather(
@@ -162,3 +171,70 @@ async def test_a_redelivered_event_reaches_the_router_once(fake_redis: _FakeRedi
         await process_channel_event(incoming)
 
     inner.assert_awaited_once()
+
+
+async def test_a_run_that_fails_gives_its_claim_back(fake_redis: _FakeRedis) -> None:
+    """The claim is taken on receipt, not on completion, so a run that dies
+    mid-flight must release it - otherwise the redelivery that follows reads as
+    a duplicate and the question goes unanswered for fifteen minutes."""
+    incoming = _message()
+    inner = AsyncMock(side_effect=[RuntimeError("the model provider fell over"), None])
+
+    @asynccontextmanager
+    async def _db() -> Any:
+        yield AsyncMock()
+
+    with (
+        patch("app.worker.background.channel.get_db_context", _db),
+        patch.object(ChannelMessageRouter, "_route_inner", inner),
+    ):
+        await process_channel_event(incoming)
+        assert fake_redis.store == {}
+        await process_channel_event(incoming)
+
+    assert inner.await_count == 2
+
+
+async def test_a_cancelled_run_gives_its_claim_back(fake_redis: _FakeRedis) -> None:
+    """Cancellation is the case the claim would most easily outlive - a pod
+    draining mid-run - and it does not pass through `except Exception`."""
+    incoming = _message()
+    router = ChannelMessageRouter()
+
+    with (
+        patch.object(
+            ChannelMessageRouter, "_route_inner", AsyncMock(side_effect=asyncio.CancelledError)
+        ),
+        pytest.raises(asyncio.CancelledError),
+    ):
+        await router.route(incoming, AsyncMock())
+
+    assert fake_redis.store == {}
+
+
+async def test_releasing_a_delivery_with_no_message_id_touches_nothing(
+    fake_redis: _FakeRedis,
+) -> None:
+    """Nothing was claimed for it, so there is nothing to give back."""
+    await dedupe.release_delivery(_message(message_id=None))
+
+    assert fake_redis.store == {}
+
+
+async def test_releasing_without_a_configured_redis_is_a_no_op() -> None:
+    dedupe.configure(None)
+
+    await dedupe.release_delivery(_message())
+
+
+async def test_a_redis_error_while_releasing_is_logged_not_raised(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The caller is already handling a failure; replacing it with this one
+    would bury the reason the run died."""
+    dedupe.configure(cast(RedisClient, _BrokenRedis()))
+
+    with caplog.at_level("WARNING"):
+        await dedupe.release_delivery(_message())
+
+    assert "channel_dedupe_release_failed" in caplog.text

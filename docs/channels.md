@@ -375,15 +375,21 @@ it is about to wait.
   the message, inside its chat) at the point every inbound path crosses — the
   three webhook routes and the three polling streams alike — so the retry is
   acknowledged and dropped, whichever API worker receives it. A claim lasts
-  fifteen minutes, which outlives every platform's retry window. A Slack request
-  carrying `x-slack-retry-num` is acknowledged before even that: Slack sends the
-  header only on a redelivery.
+  fifteen minutes, which outlives every platform's retry window.
+
+    The claim is taken on receipt, so a run that does not finish gives it back:
+    a redelivery after a failed or cancelled run is answered rather than
+    mistaken for a duplicate. That matters most for the polling streams, which
+    re-read a message the process died on.
 
     The guarantee degrades open, never shut. A message that arrives with no
     platform message id, and a Redis that cannot be reached, are both processed
     rather than refused — a duplicated answer is the rarer, cheaper failure than
     a dropped question — and each writes a warning saying the guarantee was off
-    for that delivery.
+    for that delivery. Nothing is refused on a platform's retry header alone:
+    Slack's `x-slack-retry-num` says a redelivery is happening, not that the
+    first attempt got far enough to do anything, and `reason=http_error` means
+    it explicitly did not. The header is logged; the claim decides.
 - **Rate limits** per chat, on the bot - who may talk to it and how often is the
   operator's, unlike everything above, which is the agent author's.
 - **Spending limits** per binding, on top of the agent's own and the
