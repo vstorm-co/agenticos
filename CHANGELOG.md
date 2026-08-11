@@ -17,6 +17,38 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.108] - 2026-08-12
+
+The backend suite runs in a random order, and the first shuffle found a
+connection-pool defect that had been hiding behind collection order.
+
+### Added
+
+- **`pytest-randomly`, and the documentation that described it is now true.**
+  Two pages said the shuffle was on by default while the plugin was in neither
+  `pyproject.toml` nor the lockfile: the suite ran in collection order, the
+  documented `-p no:randomly` was a silent no-op, and the order-independence
+  those pages called verified had never been exercised by that mechanism. The
+  seed is printed in the header and reaches every xdist worker through
+  `workerinput`, so `-n auto` collects one order rather than four. A guard test
+  asserts the *declaration*, so removing the dependency fails a test rather than
+  silently un-shuffling the suite. (#571)
+
+### Fixed
+
+- **A closed event loop's connection was left in the app engine's pool.**
+  `app.db.session.engine` is a module-level object, so its pool outlives the test
+  that filled it, while anyio gives every test its own event loop — and a
+  connection created on a loop that has since closed answers
+  `cannot perform operation: another operation is in progress` for the next
+  statement issued through it, in whichever test checked it out. The two files
+  driving the real `get_db_session` each disposed the engine on the way *out*,
+  which covers only the pair of them; anything else sharing the xdist worker
+  could leave a connection there. The `engine` fixture now disposes on the way
+  *in*, and the two per-file disposes are gone. Pre-existing — which tests share
+  a worker was already decided at run time by `--dist load`; the shuffle only
+  changed the adjacencies and made it surface, red on run 6 of 8. (#571)
+
 ## [0.0.107] - 2026-08-12
 
 Picking Polish now survives the next click.
