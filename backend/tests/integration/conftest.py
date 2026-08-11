@@ -39,6 +39,7 @@ from sqlalchemy.ext.asyncio import (
 
 from app.core.config import settings
 from app.db.base import Base
+from app.db.session import engine as app_engine
 
 # Where to connect to issue `CREATE DATABASE` / `DROP DATABASE`, neither of
 # which can run from inside the database it names. Every Postgres image this
@@ -240,7 +241,18 @@ async def engine(schema_url: str) -> AsyncGenerator[AsyncEngine, None]:
     the same per-function event loop the test does. The schema itself is built
     once by `schema_url`; here each test is handed a clean slate cheaply, by
     emptying the data rather than rebuilding the schema (#215).
+
+    The application's own engine is disposed first. It is a module-level object,
+    so its pool outlives the test that filled it, while anyio gives each test an
+    event loop of its own - and a connection created on a loop that has since
+    closed answers the next statement issued through it with `InterfaceError:
+    another operation is in progress`, from whichever unlucky test checked it
+    out. The tests that drive the real `get_db_session` used to each dispose it
+    on the way out, which only covers the pair of them; disposing on the way *in*
+    covers every test that could be handed one, whatever ran before it in this
+    worker. Disposing an empty pool costs nothing, which is the common case.
     """
+    await app_engine.dispose()
     engine = create_async_engine(schema_url)
     await _reset(engine)
     yield engine
