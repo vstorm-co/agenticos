@@ -148,6 +148,18 @@ def _finished_turn(
     )
 
 
+def _parked_call() -> tuple[ParkedApproval, ...]:
+    """One gated call waiting on a person - what makes a turn a parked one."""
+    return (
+        ParkedApproval(
+            approval_id=uuid4(),
+            tool_call_id="call-1",
+            tool_name="send_email",
+            tool_args={"to": "ops@example.com"},
+        ),
+    )
+
+
 @contextmanager
 def _chat(
     run: AsyncMock,
@@ -518,6 +530,52 @@ class TestATurnThatFinished:
                 "review_configs": [{"tool_name": "send_email", "allow_edit": False}],
             },
         )
+
+    async def test_a_parked_turn_stores_no_notice_in_the_agents_own_voice(self):
+        """Whatever this turn ends with becomes the assistant message's `content`,
+        so a sentence about the approvals queue is stored as something the agent
+        said - and it is still there, in the middle of the turn, once somebody
+        approves and the run visibly goes on (#509). The step that parked and the
+        panel below it already say it, and they stop saying it when it stops being
+        true."""
+        session = _session()
+        turn = _finished_turn(output="", parked=_parked_call())
+
+        with _chat(AsyncMock(return_value=turn)) as chat:
+            await session.process_message(_message())
+
+        assert chat.answer.await_args.args[1] == ""
+
+    async def test_a_parked_turn_keeps_what_the_model_wrote_before_it_stopped(self):
+        """`turn.output` is what the run *ended* with, and a parked run ended with
+        nothing - so the words are read off the timeline, the route a turn that
+        failed already takes. Without it a model that explained itself and then
+        asked for a gated call is written down as having said nothing at all.
+
+        Driven over a real `Agent.iter` so the text travels the way the client's
+        `text_delta` frames do: what is stored is what its reader saw."""
+        session = _session()
+
+        async def stopped_on_an_approval(**kwargs: Any) -> ChatTurn:
+            async with _answering_agent().iter("how many are open?") as agent_run:
+                await kwargs["stream"](agent_run)
+            return _finished_turn(output="", parked=_parked_call())
+
+        with _chat(AsyncMock(side_effect=stopped_on_an_approval)) as chat:
+            await session.process_message(_message())
+
+        assert chat.answer.await_args.args[1] == "Two are open."
+
+    async def test_a_turn_that_answered_nothing_leaves_no_empty_reply_in_the_history(self):
+        """The history is replayed as `ModelResponse` parts on the next request,
+        and an assistant turn with no content is a `TextPart` carrying nothing. A
+        parked turn is the ordinary way to reach this."""
+        session = _session()
+
+        with _chat(AsyncMock(return_value=_finished_turn(output="", parked=_parked_call()))):
+            await session.process_message(_message("how many are open?"))
+
+        assert session.conversation_history == [{"role": "user", "content": "how many are open?"}]
 
 
 class TestATurnThatDidNotFinish:

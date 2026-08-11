@@ -200,11 +200,12 @@ class AgentSession:
         # stored, so a reloaded conversation is the one somebody watched rather
         # than a reconstruction of it; see `chat_timeline.TurnTimeline`.
         #
-        # It also holds what the model has said so far, for the turn that does not
-        # finish. On the success path `turn.output` is the answer and `.text` is
-        # never read; nothing can tell in advance which path a turn is on, and the
-        # alternative is throwing away a half-written answer on exactly the runs
-        # somebody opens afterwards.
+        # It also holds what the model has said so far, for every turn that does
+        # not end with an answer: one that failed, was stopped or lost its socket,
+        # and one that parked on an approval. `turn.output` is the answer where
+        # there is one and empty where there is not; nothing can tell in advance
+        # which path a turn is on, and the alternative is throwing away a
+        # half-written answer on exactly the runs somebody opens afterwards.
         timeline = TurnTimeline()
         # The run row, as soon as `prepare` opens one. A list because the
         # callback is `list.append` and a turn opens at most one run - it is
@@ -258,12 +259,23 @@ class AgentSession:
                     model_profile_id=requested_model_profile_id(data),
                     environment_id=requested_environment_id(data),
                 )
-            output = turn.output
+            # What the model actually wrote. `turn.output` is what the run ended
+            # with, and a turn that parked on an approval ended with nothing - so
+            # what it said before it stopped is on the timeline, exactly as it is
+            # for a turn that failed. The notice that used to stand in for the
+            # answer was stored as the agent's words and stayed there after the
+            # decision, saying a turn was waiting inside a turn that went on
+            # (#509); the step and the approval panel say it instead, and stop.
+            output = turn.output or timeline.text
             model_label = turn.model_label
             agent_version_id = turn.agent_version_id
 
             self.conversation_history.append({"role": "user", "content": user_message})
-            self.conversation_history.append({"role": "assistant", "content": output})
+            # Only when there was something to say. A parked turn is the ordinary
+            # way to reach this with nothing, and an empty assistant turn in the
+            # history is a `TextPart` with no content on the next request.
+            if output:
+                self.conversation_history.append({"role": "assistant", "content": output})
             assistant_msg_id: str | None = None
             if self.current_conversation_id:
                 assistant_msg_id = await persist_assistant_turn(
