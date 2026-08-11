@@ -9,21 +9,21 @@ import { SITE } from "@/lib/seo";
 // build on branches that never touched the frontend (#572). `src/app/fonts/`
 // says where each file came from and how to refresh it.
 const display = localFont({
-  src: "./fonts/bricolage-grotesque-latin-700-800.woff2",
+  src: "./fonts/bricolage-grotesque-latin.woff2",
   variable: "--font-display",
   weight: "700 800",
   display: "swap",
 });
 
 const body = localFont({
-  src: "./fonts/inter-latin-400-700.woff2",
+  src: "./fonts/inter-latin.woff2",
   variable: "--font-body",
   weight: "400 700",
   display: "swap",
 });
 
 const mono = localFont({
-  src: "./fonts/geist-mono-latin-400-500.woff2",
+  src: "./fonts/geist-mono-latin.woff2",
   variable: "--font-mono",
   weight: "400 500",
   display: "swap",
