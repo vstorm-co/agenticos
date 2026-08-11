@@ -20,6 +20,7 @@ from app.api.routes.v1.agent_triggers import (
     create_trigger,
     delete_trigger,
     list_triggers,
+    run_trigger_now,
     update_trigger,
 )
 from app.core.permissions import AuthContext, OrgRoleName
@@ -65,6 +66,15 @@ async def test_updating_answers_with_what_the_service_returned():
         uuid.uuid4(), uuid.uuid4(), TriggerUpdate(is_active=False), _CTX, service
     )
     assert result is updated
+
+
+async def test_running_now_answers_with_what_the_service_returned():
+    fired = _read()
+    service = MagicMock(run_now=AsyncMock(return_value=fired))
+    agent_id, trigger_id = uuid.uuid4(), uuid.uuid4()
+    result = await run_trigger_now(agent_id, trigger_id, _CTX, service)
+    assert result is fired
+    service.run_now.assert_awaited_once_with(_CTX, agent_id, trigger_id)
 
 
 async def test_removing_a_schedule_answers_with_no_content():

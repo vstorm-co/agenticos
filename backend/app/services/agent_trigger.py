@@ -208,6 +208,24 @@ class AgentTriggerService:
             details={"trigger_id": str(trigger_id)},
         )
 
+    async def run_now(self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID) -> AgentTrigger:
+        """Fire this schedule now, without waiting for or disturbing its cadence.
+
+        The caller needs `agents:run` on the agent - the floor for scheduling it
+        at all, checked by `_owned`. The fire runs as the trigger's creator, the
+        same subject a heartbeat fire uses, so a schedule always runs as one
+        identity however it was set off. `next_fire_at` is left untouched: running
+        now is one extra fire, not a reschedule. A paused schedule is respected -
+        `fire` no-ops on an inactive trigger - so this is offered only on a live one.
+
+        Returns the trigger with its `last_run_id` advanced: `_owned` and `fire`
+        read the same session, so they share one instance and the fire's stamp is
+        visible on the row this returns.
+        """
+        trigger = await self._owned(ctx, agent_id, trigger_id)
+        await self.fire(trigger.id)
+        return trigger
+
     async def claim_and_advance(self, *, now: datetime, limit: int = 100) -> list[AgentTrigger]:
         """Claim the triggers due now, advancing each so no later tick re-fires it.
 

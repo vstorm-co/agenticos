@@ -37,6 +37,14 @@ async def create_trigger(
     return await service.create(ctx, agent_id, data)
 
 
+@router.post("/{agent_id}/triggers/{trigger_id}/run", response_model=TriggerRead)
+async def run_trigger_now(
+    agent_id: UUID, trigger_id: UUID, ctx: Auth, service: AgentTriggerSvc
+) -> Any:
+    """Fire this schedule now, as its creator, without disturbing its cadence."""
+    return await service.run_now(ctx, agent_id, trigger_id)
+
+
 @router.patch("/{agent_id}/triggers/{trigger_id}", response_model=TriggerRead)
 async def update_trigger(
     agent_id: UUID,

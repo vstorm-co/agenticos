@@ -349,6 +349,43 @@ class TestChangingASchedule:
         environments.get.assert_not_called()
 
 
+class TestRunningNow:
+    async def test_running_now_demands_permission_to_run_the_agent(self):
+        """The same floor as scheduling it - `agents:run` on the agent, per row."""
+        agent = _agent()
+        service = _service(agent)
+        trigger = _trigger(agent_id=agent.id)
+        service.fire = AsyncMock()
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.get = AsyncMock(return_value=trigger)
+            await service.run_now(_ctx(), agent.id, trigger.id)
+        assert service.agents.get.call_args.kwargs["perm"].value == "agents:run"
+        service.fire.assert_awaited_once_with(trigger.id)
+
+    async def test_running_now_fires_without_rescheduling(self):
+        """A manual fire is one extra run, not a reschedule - next_fire_at stands."""
+        agent = _agent()
+        service = _service(agent)
+        original_next = datetime(2026, 1, 1, tzinfo=UTC)
+        trigger = _trigger(agent_id=agent.id, next_fire_at=original_next)
+        service.fire = AsyncMock()
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.get = AsyncMock(return_value=trigger)
+            result = await service.run_now(_ctx(), agent.id, trigger.id)
+        assert trigger.next_fire_at == original_next
+        assert result is trigger
+
+    async def test_running_now_on_another_agents_trigger_is_not_reachable(self):
+        agent = _agent()
+        service = _service(agent)
+        service.fire = AsyncMock()
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.get = AsyncMock(return_value=_trigger(agent_id=uuid.uuid4()))
+            with pytest.raises(NotFoundError):
+                await service.run_now(_ctx(), agent.id, uuid.uuid4())
+        service.fire.assert_not_called()
+
+
 class TestClaiming:
     async def test_claiming_advances_each_trigger_so_no_later_tick_re_fires_it(self):
         service = _service()
