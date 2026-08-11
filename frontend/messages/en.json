@@ -2160,7 +2160,7 @@
       },
       "flow-agent-skills-create": {
         "title": "Create the skill",
-        "body": "Choose New skill and write it. We'll move on the moment it's created, then walk you back to your agent."
+        "body": "Give it a name and a short description, then switch to Source to write the skill in Markdown and choose Create. We'll move on the moment it's created, then walk you back to your agent."
       },
       "flow-agent-skills-return-nav": {
         "title": "Back to your agents",
@@ -2192,11 +2192,19 @@
       },
       "flow-agent-publish": {
         "title": "Publish it",
-        "body": "Publishing makes this version the one that runs everywhere the agent is used. Choose Publish when you're ready, then finish here."
+        "body": "Publishing makes this version the one that runs everywhere the agent is used. Choose Publish when you're ready — we'll move on the moment it's live."
+      },
+      "flow-agent-run-pick": {
+        "title": "Pick your agent",
+        "body": "You're in the chat now. Open the picker and choose the agent you just built, so your first message goes to it."
+      },
+      "flow-agent-run-send": {
+        "title": "Send it a message",
+        "body": "Type a prompt and send it — your agent's first run, and the end of the tour. We'll close the moment it's on its way."
       },
       "flow-skill-create": {
         "title": "Add your skill",
-        "body": "Choose New skill, give it a name and a short description, write what it should do, and create it. We'll move on as soon as it's saved."
+        "body": "Choose New skill, give it a name and a short description, then switch to Source to write it in Markdown and create it. We'll move on as soon as it's saved."
       },
       "flow-kb-create": {
         "title": "Create the knowledge base",

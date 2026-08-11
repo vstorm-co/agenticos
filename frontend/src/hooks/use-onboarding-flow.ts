@@ -21,6 +21,8 @@ import {
 } from "@/lib/onboarding/flows";
 import { pageKey } from "@/lib/onboarding/tour";
 import { useOnboardingStore } from "@/stores";
+import { useAgentSelectionStore } from "@/stores/agent-selection-store";
+import { useConversationStore } from "@/stores/conversation-store";
 import type { ChoiceValue } from "@/stores/onboarding-store";
 
 export interface OnboardingFlowState {
@@ -87,6 +89,8 @@ function settled(loading: boolean, count: number): MaybeCount {
 function useOrgSnapshot(): {
   counts: Record<FlowResource, MaybeCount>;
   liveState: OrgState | null;
+  /** The ids of agents with a published version — what a `published` signal checks. */
+  publishedIds: ReadonlySet<string>;
 } {
   const agents = useAgents();
   const models = useModelProviders();
@@ -123,6 +127,9 @@ function useOrgSnapshot(): {
           hasPublishedAgent: agents.agents.some((agent) => agent.status === "published"),
         }
       : null,
+    publishedIds: new Set(
+      agents.agents.filter((agent) => agent.status === "published").map((agent) => agent.id),
+    ),
   };
 }
 
@@ -159,8 +166,14 @@ export function useOnboardingFlow(): OnboardingFlowState {
   const flowAgentId = useOnboardingStore((state) => state.flowAgentId);
   const setFlowAgentId = useOnboardingStore((state) => state.setFlowAgentId);
   const { can } = usePermissions();
-  const { counts, liveState } = useOrgSnapshot();
+  const { counts, liveState, publishedIds } = useOrgSnapshot();
   const here = pageKey(stripLocale(usePathname()));
+  // The chat run's tail keys off the chat stores rather than a list: which agent
+  // is selected, and how many messages the open conversation holds — sending
+  // appends optimistically, so the count growing is the send. Read here so
+  // `signalMet` can settle a `selected`/`sent` step.
+  const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
+  const messageCount = useConversationStore((state) => state.currentMessages.length);
 
   // Freeze the org state at flow start, once its inputs have settled, so an
   // adaptive step does not morph as the reader satisfies it: the "add a model"
@@ -185,7 +198,13 @@ export function useOnboardingFlow(): OnboardingFlowState {
 
   const signal = step?.signal;
   const resource = signal?.kind === "created" ? signal.resource : null;
-  const count = resource ? counts[resource] : null;
+  // A `sent` step baselines the open conversation's message count the same way a
+  // `created` step baselines its list: the send is the count growing while the
+  // step shows. Keyed to the step, so a conversation the reader had open before
+  // the flow (or a message sent in an earlier session) never reads as this send —
+  // and the freeze keeps the sidebar out of reach, so nothing else can grow it.
+  const count = resource ? counts[resource] : signal?.kind === "sent" ? messageCount : null;
+  const needsBaseline = resource !== null || signal?.kind === "sent";
 
   // Capture the count as the step began and compare on every render; when the
   // list grows past that baseline the reader has created the thing. State rather
@@ -198,16 +217,22 @@ export function useOnboardingFlow(): OnboardingFlowState {
   // creation.
   const stepKey = `${flowId}:${clamped}`;
   const [baseline, setBaseline] = useState<{ key: string; count: number } | null>(null);
-  if (resource !== null && count !== null && baseline?.key !== stepKey) {
+  if (needsBaseline && count !== null && baseline?.key !== stepKey) {
     setBaseline({ key: stepKey, count });
   }
-  // A `created` step is met when its list grows past the baseline; an `arrived`
-  // step when the reader reaches the page it names — the click it pointed at
-  // having landed. Each step carries at most one, so the two never contend.
+  // How each signal settles. `created` and `sent` grow their count past the
+  // step's baseline; `arrived` reaches the page it names; `published` and
+  // `selected` read the agent this flow built (`flowAgentId`) — the former met
+  // once that agent has a version to run, the latter once it is the agent the
+  // chat will address. Each step carries at most one, so they never contend.
   const signalMet =
     signal?.kind === "arrived"
       ? here === signal.page
-      : resource !== null && count !== null && baseline?.key === stepKey && count > baseline.count;
+      : signal?.kind === "published"
+        ? flowAgentId !== null && publishedIds.has(flowAgentId)
+        : signal?.kind === "selected"
+          ? flowAgentId !== null && selectedAgentId === flowAgentId
+          : needsBaseline && count !== null && baseline?.key === stepKey && count > baseline.count;
 
   const next = useCallback(() => {
     if (clamped >= steps.length - 1) close();

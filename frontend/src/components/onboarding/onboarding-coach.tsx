@@ -10,6 +10,7 @@ import { Button, IconButton } from "@/components/ui";
 import { useOnboardingFlow } from "@/hooks/use-onboarding-flow";
 import { stripLocale } from "@/lib/active-route";
 import { ROUTES } from "@/lib/constants";
+import { AGENT_BUILDER, pageKey } from "@/lib/onboarding/tour";
 
 /** Space between the control and the freeze layer's cut-out, so the ring plays inside it. */
 const HOLE_PADDING = 10;
@@ -204,10 +205,17 @@ export function OnboardingCoach() {
     const sid = step.id;
 
     void (async () => {
-      // Only real routes are navigable. A detail view's pseudo-identity (the
-      // builder's `AGENT_BUILDER`) is reached by the step before it — creating the
-      // agent opens the builder — so the coach never pushes one; it just proceeds
-      // to find the target on the page it was left on.
+      // Real routes are navigable directly. The builder's pseudo-identity
+      // (`AGENT_BUILDER`) is navigable too once the flow has captured which agent
+      // it built: a fork that crossed to another section to ask its question
+      // leaves the reader there on Skip, and the next builder step must be able to
+      // carry them back rather than hunt for its control on the wrong page under a
+      // full-screen freeze. Before the id exists (the create step) the coach
+      // waits instead — the app's own navigation into the builder is what arrives.
+      if (step.page === AGENT_BUILDER && pageKey(here) !== AGENT_BUILDER && flowAgentId) {
+        router.push(`${ROUTES.AGENTS}/${flowAgentId}`);
+        return; // this effect re-runs once the navigation lands
+      }
       if (step.page?.startsWith("/") && here !== step.page) {
         router.push(step.page);
         return; // this effect re-runs once the navigation lands

@@ -113,6 +113,22 @@ describe("OnboardingCoach", () => {
     await waitFor(() => expect(router.push).toHaveBeenCalledWith("/skills"));
   });
 
+  it("carries the reader back to the built agent for a builder step left behind", async () => {
+    // A fork that crossed to another section to ask leaves the reader there on
+    // Skip; the next builder step must return them to the agent this flow built
+    // rather than hunt for its control on the wrong page under the freeze.
+    nav.pathname = "/skills";
+    const builderStep = step({ id: "flow-agent-tools", page: "agent-builder", signal: undefined });
+    flow.state = makeState({
+      flowId: "create-agent",
+      step: builderStep,
+      steps: [builderStep],
+      flowAgentId: "a-42",
+    });
+    render(<OnboardingCoach />);
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith("/agents/a-42"));
+  });
+
   it("renders nothing when no flow is active", () => {
     flow.state = makeState({ isActive: false });
     const { container } = render(<OnboardingCoach />);

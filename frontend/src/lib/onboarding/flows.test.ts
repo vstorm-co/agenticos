@@ -79,7 +79,37 @@ describe("FLOWS", () => {
       "flow-agent-mcp-ask",
       "flow-agent-mcp-connect",
       "flow-agent-publish",
+      "flow-agent-run-pick",
+      "flow-agent-run-send",
     ]);
+  });
+
+  it("carries the run into chat: publish waits, then pick the built agent and send", () => {
+    const byId = new Map(FLOWS["create-agent"].steps.map((step) => [step.id, step]));
+    // Publish advances on the publish landing, not the click, so the chat steps
+    // that follow have a published version to address.
+    expect(byId.get("flow-agent-publish")?.signal).toEqual({ kind: "published" });
+    const pick = byId.get("flow-agent-run-pick");
+    expect(pick?.page).toBe(ROUTES.CHAT);
+    expect(pick?.signal).toEqual({ kind: "selected" });
+    const send = byId.get("flow-agent-run-send");
+    expect(send?.page).toBe(ROUTES.CHAT);
+    expect(send?.signal).toEqual({ kind: "sent" });
+    // The whole tail is gated on publish: a caller who cannot publish has no
+    // published agent to run, so it must drop with the publish step.
+    for (const id of ["flow-agent-publish", "flow-agent-run-pick", "flow-agent-run-send"]) {
+      expect(byId.get(id)?.permission).toBe(Perm.agentsPublish);
+    }
+  });
+
+  it("asks about a missing resource on that resource's own screen", () => {
+    const byId = new Map(FLOWS["create-agent"].steps.map((step) => [step.id, step]));
+    // The fork navigates to the section first, so the question lands where the
+    // answer happens rather than over the builder.
+    expect(byId.get("flow-agent-knowledge-ask")?.page).toBe(ROUTES.RAG);
+    expect(byId.get("flow-agent-skills-ask")?.page).toBe(ROUTES.SKILLS);
+    // MCP connects inline, so its "screen" is the Toolbox tab it reveals.
+    expect(byId.get("flow-agent-mcp-ask")?.activate).toBe("agent-tab-toolbox");
   });
 
   it("teaches the return leg by click, not by navigating for the reader", () => {
@@ -245,12 +275,16 @@ describe("stepsForFlow", () => {
     expect(stocked).not.toContain("flow-agent-model-none");
   });
 
-  it("drops publish for a caller who may build but not publish", () => {
+  it("drops publish and the chat run for a caller who may build but not publish", () => {
     const canButNotPublish = (permission: Permission) => permission !== Perm.agentsPublish;
     const ids = stepsForFlow(FLOWS["create-agent"], EMPTY, canButNotPublish, NO_CHOICES).map(
       (step) => step.id,
     );
     expect(ids).not.toContain("flow-agent-publish");
+    // The run tail is gated on publish too, so it drops with it rather than
+    // walking a non-publisher to a chat with no published agent to address.
+    expect(ids).not.toContain("flow-agent-run-pick");
+    expect(ids).not.toContain("flow-agent-run-send");
     expect(ids).toContain("flow-agent-create");
   });
 

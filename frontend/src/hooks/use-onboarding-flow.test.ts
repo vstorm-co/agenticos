@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useOnboardingFlow } from "./use-onboarding-flow";
 import { useOnboardingStore } from "@/stores";
+import { useAgentSelectionStore } from "@/stores/agent-selection-store";
+import { useConversationStore } from "@/stores/conversation-store";
 import type { Permission } from "@/types/permissions";
 
 // The pathname the arrived-signal reads; a test moves it to fake a navigation.
@@ -13,7 +15,7 @@ vi.mock("next/navigation", () => ({ usePathname: () => nav.pathname }));
 const rig = vi.hoisted(() => ({
   agentTotal: 0,
   agentsLoading: false,
-  agentsList: [] as { status: string }[],
+  agentsList: [] as { id?: string; status: string }[],
   profiles: [] as { secret_id: string | null; base_url?: string | null }[],
   modelsLoading: false,
   skillTotal: 0,
@@ -86,6 +88,8 @@ beforeEach(() => {
   rig.orgs = [];
   rig.can = () => true;
   nav.pathname = "/dashboard";
+  useAgentSelectionStore.setState({ selectedAgentId: null });
+  useConversationStore.setState({ currentConversationId: null, currentMessages: [] });
   useOnboardingStore.setState({
     isOpen: false,
     index: 0,
@@ -286,6 +290,63 @@ describe("useOnboardingFlow", () => {
     act(() => useOnboardingStore.getState().openFlow("explore-chat"));
     act(() => result.current.openFlow("create-agent"));
     expect(result.current.flowId).toBe("create-agent");
+  });
+
+  it("meets the publish signal only when the flow's own agent gains a version", () => {
+    rig.agentsList = [{ id: "a-other", status: "published" }]; // someone else's
+    const { result, rerender } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-agent"));
+    act(() => useOnboardingStore.getState().setFlowAgentId("a-mine"));
+    const publishAt = result.current.steps.findIndex((s) => s.id === "flow-agent-publish");
+    act(() => useOnboardingStore.getState().setIndex(publishAt));
+    // Another agent being published is not this one going live.
+    expect(result.current.step?.id).toBe("flow-agent-publish");
+    expect(result.current.signalMet).toBe(false);
+
+    rig.agentsList = [
+      { id: "a-other", status: "published" },
+      { id: "a-mine", status: "published" },
+    ];
+    rerender();
+    expect(result.current.signalMet).toBe(true);
+  });
+
+  it("meets the selected signal only when the built agent is the one chat will address", () => {
+    const { result, rerender } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-agent"));
+    act(() => useOnboardingStore.getState().setFlowAgentId("a-mine"));
+    const pickAt = result.current.steps.findIndex((s) => s.id === "flow-agent-run-pick");
+    act(() => useOnboardingStore.getState().setIndex(pickAt));
+    expect(result.current.step?.id).toBe("flow-agent-run-pick");
+    expect(result.current.signalMet).toBe(false);
+
+    // Picking a different agent does not advance the step about this one.
+    act(() => useAgentSelectionStore.setState({ selectedAgentId: "a-other" }));
+    rerender();
+    expect(result.current.signalMet).toBe(false);
+
+    act(() => useAgentSelectionStore.setState({ selectedAgentId: "a-mine" }));
+    rerender();
+    expect(result.current.signalMet).toBe(true);
+  });
+
+  it("ends the run on a message sent while the step shows, not one from before", () => {
+    // A conversation already open when the step begins must not read as the send:
+    // the baseline captures its message count, and only growth past it counts.
+    const before = { id: "m-0" } as never;
+    act(() => useConversationStore.setState({ currentMessages: [before] }));
+    const { result, rerender } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-agent"));
+    const sendAt = result.current.steps.findIndex((s) => s.id === "flow-agent-run-send");
+    act(() => useOnboardingStore.getState().setIndex(sendAt));
+    expect(result.current.step?.id).toBe("flow-agent-run-send");
+    expect(result.current.isLast).toBe(true);
+    expect(result.current.signalMet).toBe(false);
+
+    // Sending appends optimistically; the count growing is the send.
+    act(() => useConversationStore.getState().addMessage({ id: "m-1" } as never));
+    rerender();
+    expect(result.current.signalMet).toBe(true);
   });
 
   it("opens the knowledge detour on yes and meets its arrived signals by page", () => {

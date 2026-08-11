@@ -34,7 +34,7 @@ export type FlowId =
 export type FlowResource = "agent" | "model" | "skill" | "kb" | "orgMcp" | "org";
 
 /**
- * How a step knows it is finished. Two shapes.
+ * How a step knows it is finished. Five shapes.
  *
  * `created` is a resource appearing — the list the reader adds to grows by one.
  * The predicate is "count ≥ baseline + 1" and must be idempotent, because the
@@ -48,9 +48,23 @@ export type FlowResource = "agent" | "model" | "skill" | "kb" | "orgMcp" | "org"
  * `/agents/<id>` the reader opens. A step carrying one never auto-navigates —
  * the whole point is that the reader performs the move — so it names no `page`
  * of its own and points at the control that makes the move.
+ *
+ * The last three carry the run past building an agent into using it, and all
+ * key off the agent this flow built (`flowAgentId`) or the chat stores rather
+ * than a list count. `published` is that agent gaining a version to run — the
+ * step advances when Publish actually succeeds, not when the button is clicked,
+ * so a draft that fails validation does not walk on. `selected` is that agent
+ * being the one the chat will address. `sent` is the reader sending their first
+ * message — the end of the whole walkthrough, and the one place it asks for a
+ * (charged) model call, because a first agent nobody has run is a tour that
+ * stopped one step short of the point.
  */
 export type FlowSignal =
-  { kind: "created"; resource: FlowResource } | { kind: "arrived"; page: string };
+  | { kind: "created"; resource: FlowResource }
+  | { kind: "arrived"; page: string }
+  | { kind: "published" }
+  | { kind: "selected" }
+  | { kind: "sent" };
 
 /**
  * What an organization already has, read from the resource hooks, so an adaptive
@@ -154,7 +168,9 @@ export interface CreationFlow {
  *
  * `create-agent` is the adaptive one. It creates the agent (which opens the
  * builder), walks its instructions and model, guides the knowledge, skills and MCP
- * servers it can be given, points out its tools, and ends at Publish. The model
+ * servers it can be given, points out its tools, and publishes — then carries the
+ * reader into the chat to pick the agent they just built and send it a first
+ * message, ending only once that message is sent. The model
  * step is three mutually exclusive branches on what the organization and the
  * caller have: no runnable model and the permission to add one → taught to add it
  * inline (`AddModel` stores the key and the profile in a single submit); a model
@@ -260,6 +276,10 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       // attach either, so the section drops for them entirely.
       {
         id: "flow-agent-knowledge-ask",
+        // Ask on the Knowledge screen, not over the builder: the coach crosses to
+        // it first so the question ("create one?") lands where the answer happens,
+        // and a yes is already where the New button is.
+        page: ROUTES.RAG,
         permission: Perm.collectionsEdit,
         include: (state) => !state.hasKnowledgeBase,
         question: true,
@@ -307,6 +327,8 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       },
       {
         id: "flow-agent-skills-ask",
+        // Same as knowledge: cross to the Skills screen, then ask there.
+        page: ROUTES.SKILLS,
         permission: Perm.skillsEdit,
         include: (state) => !state.hasSkill,
         question: true,
@@ -365,6 +387,10 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       },
       {
         id: "flow-agent-mcp-ask",
+        // MCP connects inline in the Toolbox, so its "screen" is that tab: reveal
+        // it, then ask there — the connect button the yes points at is right below.
+        page: AGENT_BUILDER,
+        activate: "agent-tab-toolbox",
         permission: Perm.connectionsManage,
         include: (state) => !state.hasOrgMcp,
         question: true,
@@ -383,6 +409,30 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         page: AGENT_BUILDER,
         target: "agent-publish",
         permission: Perm.agentsPublish,
+        // Wait for the publish to land, not just the click: publish no-ops on a
+        // spec that fails validation, and the chat steps that follow need a
+        // published version to address.
+        signal: { kind: "published" },
+      },
+      // Building an agent is not the point; running it is. So the walk does not end
+      // at Publish — it carries the reader into the chat, has them pick the agent
+      // they just built, and ends only when they send it a first message. All three
+      // steps are gated on `agents:publish`: a reader who could not publish has no
+      // published agent to run, so the tail drops with the publish step rather than
+      // walking them to a chat that cannot address one.
+      {
+        id: "flow-agent-run-pick",
+        page: ROUTES.CHAT,
+        target: "chat-agent-picker",
+        permission: Perm.agentsPublish,
+        signal: { kind: "selected" },
+      },
+      {
+        id: "flow-agent-run-send",
+        page: ROUTES.CHAT,
+        target: "chat-composer",
+        permission: Perm.agentsPublish,
+        signal: { kind: "sent" },
       },
     ],
   },
