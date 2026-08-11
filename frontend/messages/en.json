@@ -2080,7 +2080,7 @@
       "decline": "Not now",
       "create-agent": {
         "title": "Create your first agent?",
-        "body": "An agent is instructions, a model and a set of tools. Want to build your first one together? We'll check what your workspace already has and only stop where you need to."
+        "body": "An agent is instructions, a model and a set of tools. Want to build your first one together? We'll check what your organization already has and only stop where you need to."
       },
       "create-skill": {
         "title": "Create a skill?",
@@ -2095,8 +2095,8 @@
         "body": "MCP servers give agents tools from other systems. Want to add a connection now? We'll walk you through it."
       },
       "create-org": {
-        "title": "Create a workspace?",
-        "body": "A workspace is a separate space with its own agents, members and settings. Want to create one now? We'll walk you through it."
+        "title": "Create an organization?",
+        "body": "An organization is a separate space with its own agents, members and settings. Want to create one now? We'll walk you through it."
       }
     },
     "steps": {
@@ -2110,7 +2110,7 @@
       },
       "flow-agent-model-add": {
         "title": "Add a model",
-        "body": "Your workspace has no model yet. Pick a provider, name a model, and paste a key — it's stored in the vault and the model is ready. We'll move on once it's added."
+        "body": "Your organization has no model yet. Pick a provider, name a model, and paste a key — it's stored in the vault and the model is ready. We'll move on once it's added."
       },
       "flow-agent-model-pick": {
         "title": "Choose its model",
@@ -2142,11 +2142,11 @@
       },
       "flow-mcp-create": {
         "title": "Add the connection",
-        "body": "Choose Add server, give it a name and URL, and connect. We'll move on as soon as it's added — a connection that signs in through the provider will hand off to their consent screen."
+        "body": "Choose Add custom server, give it a name and URL, and connect. We'll move on as soon as it's added — a connection that signs in through the provider will hand off to their consent screen."
       },
       "flow-org-create": {
-        "title": "Create the workspace",
-        "body": "Choose New workspace, give it a name, and create it. We'll move on as soon as it exists."
+        "title": "Create the organization",
+        "body": "Choose New organization, give it a name, and create it. We'll move on as soon as it exists."
       },
       "welcome": {
         "title": "Welcome to AgenticOS",
@@ -2285,16 +2285,16 @@
         "body": "Connect a drive, a site or a repo, and the collection refreshes itself from the source instead of waiting on a manual re-upload."
       },
       "orgs-new": {
-        "title": "Your workspaces",
+        "title": "Your organizations",
         "body": "Everything is scoped to an organization. Create one, or switch between the ones you belong to — each keeps its own agents, keys and knowledge apart."
       },
       "org-profile": {
         "title": "Name and face",
-        "body": "The workspace's name and avatar, shown wherever it appears. Owners and admins can change them here."
+        "body": "The organization's name and avatar, shown wherever it appears. Owners and admins can change them here."
       },
       "org-members": {
         "title": "Who's in it",
-        "body": "Everyone in the workspace and the role each holds. Invite teammates, change a role, or remove someone — all from this list."
+        "body": "Everyone in the organization and the role each holds. Invite teammates, change a role, or remove someone — all from this list."
       },
       "org-roles": {
         "title": "What each role may do",
@@ -2306,7 +2306,7 @@
       },
       "vault-keys": {
         "title": "What's stored",
-        "body": "Every credential in this workspace, listed by name and kind. An agent references a key by its name; the value itself is shown to no one once it's saved."
+        "body": "Every credential in this organization, listed by name and kind. An agent references a key by its name; the value itself is shown to no one once it's saved."
       },
       "mcp-catalog": {
         "title": "Plug in tools",
