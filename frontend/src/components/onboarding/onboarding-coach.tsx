@@ -280,9 +280,21 @@ export function OnboardingCoach() {
         setRingRect(ringBoxFor(box));
       };
       place();
+      // Measure again once layout has settled. A control measured a frame too
+      // early — or before its webfont swaps in and changes its width, which moves
+      // the left edge of a right-aligned button — leaves the ring and cut-out
+      // off-centre. A frame later catches the first; a size observer on the
+      // control and on the body catches the font swap and any reflow that shifts
+      // it. The CSS transition on the ring makes each correction a glide, not a jump.
+      const raf = requestAnimationFrame(place);
+      const observer = new ResizeObserver(place);
+      observer.observe(target);
+      observer.observe(document.body);
       window.addEventListener("scroll", place, true);
       window.addEventListener("resize", place);
       signal.addEventListener("abort", () => {
+        cancelAnimationFrame(raf);
+        observer.disconnect();
         window.removeEventListener("scroll", place, true);
         window.removeEventListener("resize", place);
       });
@@ -327,6 +339,7 @@ export function OnboardingCoach() {
         />
       )}
       <div
+        data-coach-card
         role="dialog"
         aria-label={t(`steps.${step.id}.title`)}
         className="bg-popover text-popover-foreground fixed bottom-6 left-1/2 z-[1000000002] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border p-4 shadow-lg"
