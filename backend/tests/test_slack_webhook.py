@@ -87,6 +87,41 @@ class TestVerification:
         # Verified with the bot's own secret, not anything deployment-wide.
         assert adapter.verify_webhook_signature.call_args.args[1] == "bot-secret"
 
+    async def test_a_redelivered_event_is_acknowledged_without_processing(self):
+        """x-slack-retry-num only appears when Slack redelivers an event it
+        saw no 2xx for, so the message has been scheduled once already -
+        acknowledge it and run nothing (#167)."""
+        bot = MagicMock()
+        request = _request({"type": "event_callback", "event": {"type": "message"}})
+        request.headers = {"x-slack-retry-num": "1", "x-slack-retry-reason": "http_timeout"}
+
+        with (
+            patch(f"{_MODULE}.unseal_slack_signing_secret", return_value="bot-secret"),
+            patch(f"{_MODULE}.spawn") as spawn,
+        ):
+            response = await slack_events(uuid.uuid4(), request, _bot_service(bot))
+
+        assert response.status_code == 200
+        spawn.assert_not_called()
+
+    async def test_a_retry_header_does_not_bypass_verification(self):
+        """The short-circuit sits after the signature check, so a forged
+        request cannot use the header to probe which events were processed."""
+        bot = MagicMock()
+        adapter = MagicMock()
+        adapter.verify_webhook_signature.return_value = False
+        request = _request({"type": "event_callback", "event": {"type": "message"}})
+        request.headers = {"x-slack-retry-num": "1"}
+
+        with (
+            patch(f"{_MODULE}.unseal_slack_signing_secret", return_value="bot-secret"),
+            patch(f"{_MODULE}.get_adapter", return_value=adapter),
+            pytest.raises(HTTPException) as refused,
+        ):
+            await slack_events(uuid.uuid4(), request, _bot_service(bot))
+
+        assert refused.value.status_code == 403
+
     async def test_url_verification_echoes_the_challenge_once_verified(self):
         bot = MagicMock()
 

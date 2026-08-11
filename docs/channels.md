@@ -366,6 +366,24 @@ it is about to wait.
     values are information rather than orders, and every value has its line
     breaks and braces flattened. A channel's `purpose` is editable by whoever
     can edit the channel, and it is being pasted into an agent's instructions.
+- **A redelivered message is answered once.** Every platform delivers
+  at-least-once: the webhook routes answer 200 before any work so a slow handler
+  never triggers a retry, but a 200 lost on the wire — a proxy drops it, the pod
+  restarts — was never received, and the redelivery that follows is a valid,
+  signed, brand-new request carrying the same message. The first delivery claims
+  the message in Redis (one atomic `SET NX`, keyed on what the platform calls
+  the message, inside its chat) at the point every inbound path crosses — the
+  three webhook routes and the three polling streams alike — so the retry is
+  acknowledged and dropped, whichever API worker receives it. A claim lasts
+  fifteen minutes, which outlives every platform's retry window. A Slack request
+  carrying `x-slack-retry-num` is acknowledged before even that: Slack sends the
+  header only on a redelivery.
+
+    The guarantee degrades open, never shut. A message that arrives with no
+    platform message id, and a Redis that cannot be reached, are both processed
+    rather than refused — a duplicated answer is the rarer, cheaper failure than
+    a dropped question — and each writes a warning saying the guarantee was off
+    for that delivery.
 - **Rate limits** per chat, on the bot - who may talk to it and how often is the
   operator's, unlike everything above, which is the agent author's.
 - **Spending limits** per binding, on top of the agent's own and the

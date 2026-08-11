@@ -55,6 +55,21 @@ async def slack_events(
     if not adapter.verify_webhook_signature(headers, signing_secret, body=raw_body):
         raise HTTPException(status_code=403, detail="Invalid Slack signature")
 
+    # A request carrying x-slack-retry-num is by definition not a new message:
+    # Slack sends the header only when it redelivers an event it saw no 2xx
+    # for. The Redis claim in the router would refuse it anyway; answering
+    # here is cheaper and is checked after the signature so an unverified
+    # request cannot use the header to probe which events were processed.
+    retry_num = headers.get("x-slack-retry-num")
+    if retry_num is not None:
+        logger.info(
+            "Slack redelivery acknowledged without processing: bot=%s retry=%s reason=%s",
+            bot_id,
+            retry_num,
+            headers.get("x-slack-retry-reason"),
+        )
+        return Response(status_code=200)
+
     if payload.get("type") == "url_verification":
         return {"challenge": payload.get("challenge", "")}
 

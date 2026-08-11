@@ -22,6 +22,7 @@ from app.services.channel_link import ChannelLinkService
 from app.services.channels import get_adapter
 from app.services.channels.attachments import ChannelAttachmentService
 from app.services.channels.base import IncomingMessage, OutgoingAttachment, OutgoingMessage
+from app.services.channels.dedupe import claim_delivery
 from app.services.channels.directory import BoundChannelDirectory
 from app.services.channels.live_reply import WORKING, LiveReply, channel_stream
 from app.services.channels.mentions import ChannelAgentRouter, UnaddressedMessage, channel_key
@@ -119,12 +120,24 @@ class ChannelMessageRouter:
     """Process an incoming channel message end-to-end."""
 
     async def route(self, incoming: IncomingMessage, db: Any) -> None:
-        """Acquire per-chat lock, then process the message.
+        """Claim the delivery, acquire the per-chat lock, then process.
 
-        The lock ensures that concurrent messages in the same group chat
-        are processed sequentially - no duplicate sessions, no interleaved
-        agent calls.
+        The claim comes first, and before the lock on purpose: a redelivered
+        message (a platform retries when its 2xx is lost) would otherwise
+        queue behind the run it duplicates and then answer again - the lock
+        converts the race into an orderly double answer, it never prevents
+        one (#167). The lock then ensures concurrent messages in the same
+        group chat are processed sequentially - no duplicate sessions, no
+        interleaved agent calls.
         """
+        if not await claim_delivery(incoming):
+            logger.info(
+                "Duplicate channel delivery ignored: bot=%s platform=%s message=%s",
+                incoming.bot_id,
+                incoming.platform,
+                incoming.message_id,
+            )
+            return
         lock = _get_chat_lock(incoming.bot_id, incoming.platform_chat_id)
         async with lock:
             await self._route_inner(incoming, db)
