@@ -968,8 +968,11 @@ function BuilderSkeleton() {
 
       {/* Tab strip - seven tabs, at the widths their labels take. */}
       <div className="bg-muted inline-flex h-9 items-center gap-1 rounded-lg p-1">
-        {["w-12", "w-20", "w-24", "w-16", "w-16", "w-24", "w-16"].map((width) => (
-          <div key={width} className={cn("bg-foreground/10 h-7 animate-pulse rounded-md", width)} />
+        {["w-12", "w-20", "w-24", "w-16", "w-16", "w-24", "w-16"].map((width, index) => (
+          <div
+            key={`${index}-${width}`}
+            className={cn("bg-foreground/10 h-7 animate-pulse rounded-md", width)}
+          />
         ))}
       </div>
 
