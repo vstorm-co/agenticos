@@ -10,9 +10,11 @@
  *     a lot. Settings page lets users disable individual built-ins, too.
  *
  * `mergeWithUserCommands()` fuses the two - that's what <ChatContainer> hands
- * down to <ChatInput>.
+ * down to <ChatInput>. It takes the caller's `chat.commands` translator, because the
+ * built-ins hold keys rather than sentences (#446).
  */
 
+import type { Translate } from "@/lib/agent-step-captions";
 import type { UserSlashCommandRecord } from "@/lib/slash-commands-api";
 
 export type SlashCommandAction =
@@ -22,13 +24,35 @@ export type SlashCommandAction =
 export interface SlashCommand {
   /** No leading slash - e.g. "clear", "regen". */
   name: string;
-  /** One-line description shown in the palette. */
+  /** One-line description shown in the palette, ready to render. */
   description: string;
   /** Optional alias slugs that also resolve to this command. */
   aliases?: string[];
   action: SlashCommandAction;
   /** Marks user-defined entries so the UI can label/edit them differently. */
   source?: "builtin" | "custom";
+}
+
+/**
+ * A built-in before its copy has been resolved.
+ *
+ * Two shapes rather than one because only half of a `SlashCommand`'s text is copy: a
+ * built-in's description is a message in the catalog, and a custom command's is a
+ * preview of the prompt its owner typed. A module cannot call a translator, so the
+ * built-ins hold keys under `chat.commands` and `mergeWithUserCommands` resolves them
+ * (#446).
+ *
+ * `replaceWith` is a key too: it becomes the reader's own message in the transcript,
+ * so a Polish reader must not find an English sentence there over their own name - and
+ * an agent answers in the language it was asked in.
+ */
+export interface BuiltinSlashCommand {
+  name: string;
+  descriptionKey: string;
+  aliases?: string[];
+  action:
+    | { kind: "client"; run: (ctx: SlashCommandContext) => void }
+    | { kind: "send-as-message"; replaceWithKey: string };
 }
 
 export interface SlashCommandContext {
@@ -40,48 +64,49 @@ export interface SlashCommandContext {
   openSettings: () => void;
 }
 
-export const BUILTIN_COMMANDS: SlashCommand[] = [
+export const BUILTIN_COMMANDS: BuiltinSlashCommand[] = [
   {
     name: "clear",
-    description: "Clear the current chat (does not delete the conversation).",
+    descriptionKey: "clearDescription",
     aliases: ["reset"],
     action: { kind: "client", run: (ctx) => ctx.clearChat() },
-    source: "builtin",
   },
   {
     name: "regen",
-    description: "Regenerate the last assistant response.",
+    descriptionKey: "regenDescription",
     aliases: ["regenerate", "retry"],
     action: { kind: "client", run: (ctx) => ctx.regenerateLast() },
-    source: "builtin",
   },
   {
     name: "settings",
-    description: "Open chat settings (model, temperature, thinking).",
+    descriptionKey: "settingsDescription",
     action: { kind: "client", run: (ctx) => ctx.openSettings() },
-    source: "builtin",
   },
   {
     name: "summarize",
-    description: "Ask the agent to summarize the conversation so far.",
-    action: {
-      kind: "send-as-message",
-      replaceWith:
-        "Please give me a concise summary of our conversation so far - key topics, decisions, and any open questions.",
-    },
-    source: "builtin",
+    descriptionKey: "summarizeDescription",
+    action: { kind: "send-as-message", replaceWithKey: "summarizePrompt" },
   },
   {
     name: "explain",
-    description: "Ask the agent to explain its last response in simpler terms.",
-    action: {
-      kind: "send-as-message",
-      replaceWith:
-        "Explain your last response again, in simpler terms - assume I don't have technical background.",
-    },
-    source: "builtin",
+    descriptionKey: "explainDescription",
+    action: { kind: "send-as-message", replaceWithKey: "explainPrompt" },
   },
 ];
+
+/** One built-in with its copy resolved against `chat.commands`. */
+export function resolveBuiltin(command: BuiltinSlashCommand, t: Translate): SlashCommand {
+  return {
+    name: command.name,
+    description: t(command.descriptionKey),
+    aliases: command.aliases,
+    action:
+      command.action.kind === "client"
+        ? command.action
+        : { kind: "send-as-message", replaceWith: t(command.action.replaceWithKey) },
+    source: "builtin",
+  };
+}
 
 /**
  * Merge built-ins with the user's overrides + custom commands.
@@ -93,7 +118,10 @@ export const BUILTIN_COMMANDS: SlashCommand[] = [
  * Pass an empty array for `userRecords` (e.g. before the API responds) to
  * get plain BUILTIN_COMMANDS.
  */
-export function mergeWithUserCommands(userRecords: UserSlashCommandRecord[]): SlashCommand[] {
+export function mergeWithUserCommands(
+  userRecords: UserSlashCommandRecord[],
+  t: Translate,
+): SlashCommand[] {
   const overridesByName = new Map<string, UserSlashCommandRecord>();
   const customs: SlashCommand[] = [];
 
@@ -114,7 +142,7 @@ export function mergeWithUserCommands(userRecords: UserSlashCommandRecord[]): Sl
   const builtins = BUILTIN_COMMANDS.filter((c) => {
     const ovr = overridesByName.get(c.name);
     return ovr ? ovr.is_enabled : true;
-  });
+  }).map((command) => resolveBuiltin(command, t));
 
   return [...builtins, ...customs];
 }

@@ -36,6 +36,7 @@ export interface PromoteSpecialist {
  * server did is how a Builder starts showing a draft as published.
  */
 export function useAgents({ includeArchived = false }: { includeArchived?: boolean } = {}) {
+  const t = useTranslations("agents");
   const queryClient = useQueryClient();
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
@@ -62,7 +63,7 @@ export function useAgents({ includeArchived = false }: { includeArchived?: boole
     mutationFn: (spec: AgentSpec) => apiClient.post<Agent>("/agents", { spec }),
     onSuccess: async (agent) => {
       await invalidate();
-      toast.success(`Created ${agent.name}`);
+      toast.success(t("created", { name: agent.name }));
     },
   });
 
@@ -77,7 +78,7 @@ export function useAgents({ includeArchived = false }: { includeArchived?: boole
     mutationFn: (id: string) => apiClient.post<Agent>(`/agents/${id}/clone`, {}),
     onSuccess: async (agent) => {
       await invalidate();
-      toast.success(`Created ${agent.name} - a draft, nothing published yet`);
+      toast.success(t("createdDraft", { name: agent.name }));
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   });
@@ -106,7 +107,7 @@ export function useAgents({ includeArchived = false }: { includeArchived?: boole
     mutationFn: (id: string) => apiClient.post<Agent>(`/agents/${id}/archive`, {}),
     onSuccess: async () => {
       await invalidate();
-      toast.success("Agent archived. Its history and runs are kept.");
+      toast.success(t("archived"));
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   });
@@ -117,8 +118,8 @@ export function useAgents({ includeArchived = false }: { includeArchived?: boole
       await invalidate();
       toast.success(
         agent.status === "published"
-          ? `${agent.name} is live again`
-          : `${agent.name} is back as a draft - publish it to run it`,
+          ? t("liveAgain", { name: agent.name })
+          : t("backAsDraft", { name: agent.name }),
       );
     },
     onError: (error) => toast.error(getErrorMessage(error)),
@@ -128,7 +129,7 @@ export function useAgents({ includeArchived = false }: { includeArchived?: boole
     mutationFn: (id: string) => apiClient.delete<void>(`/agents/${id}`),
     onSuccess: async () => {
       await invalidate();
-      toast.success("Agent deleted");
+      toast.success(t("deleted"));
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   });
@@ -155,8 +156,6 @@ export function useAgents({ includeArchived = false }: { includeArchived?: boole
 /** One agent, with the spec currently being edited. */
 export function useAgent(agentId: string | null) {
   const queryClient = useQueryClient();
-  // The one toast here the catalog already had a message for (#425). The rest of
-  // this file still writes its own, and no catalog message covers them.
   const t = useTranslations("agents");
 
   const { data, isLoading } = useQuery({
@@ -202,7 +201,7 @@ export function useAgent(agentId: string | null) {
       apiClient.post<{ version: number }>(`/agents/${agentId}/publish`, { note }),
     onSuccess: async (version) => {
       await invalidate();
-      toast.success(`Published v${version.version}`);
+      toast.success(t("publishedVersion", { version: version.version }));
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   });
@@ -214,7 +213,7 @@ export function useAgent(agentId: string | null) {
       await invalidate();
       // Rolling back publishes a *new* version rather than moving a pointer
       // backwards, so run history keeps telling the truth about what was live.
-      toast.success(`Rolled back - now running v${version.version}`);
+      toast.success(t("rolledBack", { version: version.version }));
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   });

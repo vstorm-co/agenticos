@@ -87,6 +87,7 @@ const STATUS_KEY: Record<DelegationStatus, string> = {
  */
 function DelegationPanel({ delegation, all }: { delegation: Delegation; all: Delegation[] }) {
   const t = useTranslations("chat.delegation");
+  const tTools = useTranslations("chat.tools");
   const { can } = usePermissions();
   const [open, setOpen] = useState(delegation.status === "running");
   // The render-time transition `ToolCallCard` uses rather than an effect: a panel
@@ -176,7 +177,7 @@ function DelegationPanel({ delegation, all }: { delegation: Delegation; all: Del
                 // rather than a rendering choice: the frames carry no arguments and
                 // no result, so there is nothing behind a chevron. See
                 // `DelegationStep`.
-                const shown = toolStep(step.name, undefined, step.ok !== null);
+                const shown = toolStep(step.name, undefined, step.ok !== null, tTools);
                 return (
                   <AgentStep
                     key={step.id}

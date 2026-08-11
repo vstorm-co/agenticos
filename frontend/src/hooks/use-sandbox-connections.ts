@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 
 import { qk } from "@/lib/query-keys";
 import {
@@ -46,6 +47,7 @@ interface UseSandboxConnectionsResult {
  * get" is precisely the question that view answers.
  */
 export function useSandboxConnections(): UseSandboxConnectionsResult {
+  const t = useTranslations("sandboxes");
   const queryClient = useQueryClient();
 
   const {
@@ -94,7 +96,7 @@ export function useSandboxConnections(): UseSandboxConnectionsResult {
       queryError instanceof Error
         ? queryError.message
         : queryError
-          ? "Failed to load sandbox connections"
+          ? t("failedLoadConnections")
           : null,
     refresh: invalidate,
     create,
@@ -121,6 +123,7 @@ interface UseSandboxPolicyResult {
  * before an author has chosen a connection at all.
  */
 export function useSandboxPolicy(connectionId: string | null): UseSandboxPolicyResult {
+  const t = useTranslations("sandboxes");
   const {
     data: policy = null,
     isLoading,
@@ -137,8 +140,7 @@ export function useSandboxPolicy(connectionId: string | null): UseSandboxPolicyR
   return {
     policy,
     isLoading: connectionId !== null && isLoading,
-    error:
-      error instanceof Error ? error.message : error ? "The sandbox service did not answer" : null,
+    error: error instanceof Error ? error.message : error ? t("serviceSilent") : null,
     refetch: () => void refetch(),
   };
 }
@@ -218,6 +220,7 @@ export function useSandboxSessions(
   connectionId: string | null,
   usage = false,
 ): UseSandboxSessionsResult {
+  const t = useTranslations("sandboxes");
   const {
     data: listing = null,
     isLoading,
@@ -233,8 +236,7 @@ export function useSandboxSessions(
   return {
     listing,
     isLoading: connectionId !== null && isLoading,
-    error:
-      error instanceof Error ? error.message : error ? "The sandbox service did not answer" : null,
+    error: error instanceof Error ? error.message : error ? t("serviceSilent") : null,
   };
 }
 
@@ -256,6 +258,7 @@ export function useSandboxEvents(
   connectionId: string | null,
   sessionId: string | null,
 ): UseSandboxEventsResult {
+  const t = useTranslations("sandboxes");
   const {
     data: log = null,
     isLoading,
@@ -270,7 +273,6 @@ export function useSandboxEvents(
   return {
     log,
     isLoading: connectionId !== null && sessionId !== null && isLoading,
-    error:
-      error instanceof Error ? error.message : error ? "That activity log could not be read" : null,
+    error: error instanceof Error ? error.message : error ? t("activityLogUnreadable") : null,
   };
 }

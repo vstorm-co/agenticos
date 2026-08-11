@@ -96,7 +96,7 @@ export function useKnowledgeBases() {
         toast.success(t("updated"));
         return updated;
       } catch {
-        toast.error("Failed to update knowledge base");
+        toast.error(t("failedUpdate"));
         return null;
       }
     },
@@ -201,6 +201,13 @@ export function useKBDetail(id: string | null) {
   // page's `useEffect([refresh])` runs once instead of looping after each fetch.
   const stillSameTenant = useTenantGuard();
 
+  // The two failures these callbacks report, resolved *here* rather than inside them.
+  // A string is a stable dependency by value where a translator is one only as long as
+  // it is memoised; `refresh` is a dependency of the page's effect and of the ingest
+  // poll, so it must not be able to change identity at all (#446).
+  const failedLoadMessage = t("failedLoad");
+  const failedLoadMoreMessage = t("failedLoadMoreDocuments");
+
   const loadedDocCountRef = useRef(0);
   useEffect(() => {
     loadedDocCountRef.current = documents.length;
@@ -244,11 +251,11 @@ export function useKBDetail(id: string | null) {
         connectors: connectorList === null,
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load knowledge base");
+      setError(e instanceof Error ? e.message : failedLoadMessage);
     } finally {
       setIsLoading(false);
     }
-  }, [id, activeOrgId, stillSameTenant]);
+  }, [id, activeOrgId, stillSameTenant, failedLoadMessage]);
 
   /** Append the next page of documents (server-side skip/limit pagination). */
   const loadMoreDocuments = useCallback(async () => {
@@ -267,11 +274,11 @@ export function useKBDetail(id: string | null) {
       });
       setDocumentsTotal(docList.total);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to load more documents");
+      toast.error(e instanceof Error ? e.message : failedLoadMoreMessage);
     } finally {
       setIsLoadingMoreDocs(false);
     }
-  }, [id, activeOrgId, stillSameTenant]);
+  }, [id, activeOrgId, stillSameTenant, failedLoadMoreMessage]);
 
   /**
    * Replace how this collection's documents are parsed, from now on.
@@ -282,6 +289,7 @@ export function useKBDetail(id: string | null) {
    */
   const updateIngestion = useCallback(
     async (config: IngestionConfig): Promise<KnowledgeBase> => {
+      // i18n-exempt: a narrowing guard on a hook only mounted with an id, not copy.
       if (!id) throw new Error("No knowledge base is open");
       const startedIn = activeOrgId;
       const updated = await apiClient.patch<KnowledgeBase>(`/kb/${id}`, {
@@ -291,11 +299,11 @@ export function useKBDetail(id: string | null) {
       // save happened - but it is not written into a page showing somebody else.
       if (stillSameTenant(startedIn)) {
         setKb(updated);
-        toast.success("Ingestion settings saved");
+        toast.success(t("ingestionSaved"));
       }
       return updated;
     },
-    [id, activeOrgId, stillSameTenant],
+    [id, activeOrgId, stillSameTenant, t],
   );
 
   const uploadDocument = useCallback(
@@ -368,7 +376,7 @@ export function useKBDetail(id: string | null) {
           xhr.onerror = () => reject(new ApiError(0, t("uploadFailed")));
           xhr.send(formData);
         });
-        toast.success(`Uploaded ${file.name}`);
+        toast.success(t("uploaded", { name: file.name }));
         await refresh();
       } catch (e) {
         const msg = e instanceof Error ? e.message : t("uploadFailed");
@@ -390,12 +398,12 @@ export function useKBDetail(id: string | null) {
         if (!stillSameTenant(startedIn)) return;
         setDocuments((prev) => prev.filter((d) => d.id !== docId));
         setDocumentsTotal((prev) => Math.max(0, prev - 1));
-        toast.success("Document removed");
+        toast.success(t("documentRemoved"));
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Failed to delete document");
+        toast.error(e instanceof Error ? e.message : t("failedDeleteDocument"));
       }
     },
-    [id, activeOrgId, stillSameTenant],
+    [id, activeOrgId, stillSameTenant, t],
   );
 
   /**
@@ -418,7 +426,7 @@ export function useKBDetail(id: string | null) {
       queryClient.invalidateQueries({ queryKey: qk.kb.list() });
       toast.success(t("deleted"));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to delete knowledge base");
+      toast.error(e instanceof Error ? e.message : t("failedDelete"));
       throw e;
     }
   }, [id, queryClient, t]);
@@ -432,14 +440,14 @@ export function useKBDetail(id: string | null) {
         // An append, not a replace - so a late answer does not overwrite the
         // new tenant's list, it adds the previous tenant's row to it.
         if (stillSameTenant(startedIn)) setSyncSources((prev) => [created, ...prev]);
-        toast.success("Sync source connected");
+        toast.success(t("syncSourceConnected"));
         return created;
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Failed to create sync source");
+        toast.error(e instanceof Error ? e.message : t("failedCreateSyncSource"));
         throw e;
       }
     },
-    [id, activeOrgId, stillSameTenant],
+    [id, activeOrgId, stillSameTenant, t],
   );
 
   const cloneSyncSource = useCallback(
@@ -454,15 +462,15 @@ export function useKBDetail(id: string | null) {
         if (stillSameTenant(startedIn)) {
           setSyncSources((prev) => [created, ...prev]);
           setOrgIntegrations((prev) => prev.filter((s) => s.id !== sourceId));
-          toast.success("Integration cloned to this knowledge base");
+          toast.success(t("integrationCloned"));
         }
         return created;
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Failed to clone integration");
+        toast.error(e instanceof Error ? e.message : t("failedCloneIntegration"));
         throw e;
       }
     },
-    [id, activeOrgId, stillSameTenant],
+    [id, activeOrgId, stillSameTenant, t],
   );
 
   const triggerSyncSource = useCallback(
@@ -470,7 +478,7 @@ export function useKBDetail(id: string | null) {
       if (!id) return;
       try {
         await apiClient.post(`/kb/${id}/sync-sources/${sourceId}/trigger`);
-        toast.success("Sync started - documents will appear as they ingest");
+        toast.success(t("syncStarted"));
         // Refresh later to pick up new docs that the worker pulls in.
         setTimeout(() => refresh(), 2000);
       } catch (e) {
@@ -488,12 +496,12 @@ export function useKBDetail(id: string | null) {
         await apiClient.delete(`/kb/${id}/sync-sources/${sourceId}`);
         if (!stillSameTenant(startedIn)) return;
         setSyncSources((prev) => prev.filter((s) => s.id !== sourceId));
-        toast.success("Sync source removed");
+        toast.success(t("syncSourceRemoved"));
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Failed to remove sync source");
+        toast.error(e instanceof Error ? e.message : t("failedRemoveSyncSource"));
       }
     },
-    [id, activeOrgId, stillSameTenant],
+    [id, activeOrgId, stillSameTenant, t],
   );
 
   return {

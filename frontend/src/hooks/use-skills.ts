@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { PAGE_SIZE } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
@@ -49,6 +50,7 @@ export function useSkills({
   skip = 0,
   limit = PAGE_SIZE,
 }: SkillQuery = {}) {
+  const t = useTranslations("skills");
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
@@ -81,7 +83,7 @@ export function useSkills({
     mutationFn: (skill: NewSkill) => apiClient.post<Skill>("/skills", skill),
     onSuccess: async (skill) => {
       await invalidate();
-      toast.success(`Created ${skill.name}`);
+      toast.success(t("created", { name: skill.name }));
     },
   });
 
@@ -91,7 +93,7 @@ export function useSkills({
     onSuccess: async () => {
       await invalidate();
       // Skills are bound by reference, so an edit reaches every agent at once.
-      toast.success("Saved. Every agent using this skill is now current.");
+      toast.success(t("savedAgentsCurrent"));
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   });
@@ -100,7 +102,7 @@ export function useSkills({
     mutationFn: (id: string) => apiClient.delete<void>(`/skills/${id}`),
     onSuccess: async () => {
       await invalidate();
-      toast.success("Skill deleted");
+      toast.success(t("deleted"));
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   });
@@ -136,6 +138,7 @@ export interface SkillEdit {
  * model both use, and `enabled` only means something once it exists.
  */
 export function useSkill(skillId: string | null) {
+  const t = useTranslations("skills");
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
@@ -149,7 +152,7 @@ export function useSkill(skillId: string | null) {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: qk.skills.all() });
       // Agents bind to the skill, not to a version of it, so this is already live.
-      toast.success("Saved. Every agent using this skill is now current.");
+      toast.success(t("savedAgentsCurrent"));
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   });
@@ -167,7 +170,7 @@ export function useSkill(skillId: string | null) {
       apiClient.post<SkillResource>(`/skills/${skillId}/resources`, resource),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: qk.skills.all() });
-      toast.success("File added");
+      toast.success(t("fileAdded"));
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   });
@@ -177,7 +180,7 @@ export function useSkill(skillId: string | null) {
       apiClient.patch<SkillResource>(`/skills/${skillId}/resources/${id}`, edit),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: qk.skills.all() });
-      toast.success("File saved");
+      toast.success(t("fileSaved"));
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   });
@@ -187,7 +190,7 @@ export function useSkill(skillId: string | null) {
       apiClient.delete<void>(`/skills/${skillId}/resources/${resourceId}`),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: qk.skills.all() });
-      toast.success("File removed");
+      toast.success(t("fileRemoved"));
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   });
@@ -211,8 +214,7 @@ export function useSkill(skillId: string | null) {
       ),
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: qk.skills.all() });
-      const count = result.items.length;
-      toast.success(`${count} file${count === 1 ? "" : "s"} uploaded`);
+      toast.success(t("filesUploaded", { count: result.items.length }));
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   });
@@ -247,6 +249,7 @@ export function useSkillResource(skillId: string | null, resourceId: string | nu
  * owns and edits.
  */
 export function useSkillLibrary() {
+  const t = useTranslations("skills");
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
@@ -258,7 +261,7 @@ export function useSkillLibrary() {
     mutationFn: (key: string) => apiClient.post<Skill>(`/skills/library/${key}/install`, {}),
     onSuccess: async (skill) => {
       await queryClient.invalidateQueries({ queryKey: qk.skills.all() });
-      toast.success(`${skill.name} installed - it is yours to edit now`);
+      toast.success(t("installed", { name: skill.name }));
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   });

@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
@@ -21,6 +22,7 @@ import type { Exposure, ExposureList, ExposureTarget, ExposureTargetList } from 
  * guessed it would render a place that does not exist.
  */
 export function useExposures(agentId: string | null) {
+  const t = useTranslations("agents");
   const queryClient = useQueryClient();
   const base = `/agents/${agentId}/exposures`;
 
@@ -46,7 +48,7 @@ export function useExposures(agentId: string | null) {
       apiClient.post<Exposure>(base, { channel_bot_id: channelBotId }),
     onSuccess: async (exposure) => {
       await invalidate();
-      toast.success(`Now available on ${exposure.channel_bot_name}`);
+      toast.success(t("exposureLive", { bot: exposure.channel_bot_name }));
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   });
@@ -61,8 +63,8 @@ export function useExposures(agentId: string | null) {
       await invalidate();
       toast.success(
         exposure.is_active
-          ? `Answering again on ${exposure.channel_bot_name}`
-          : `Paused on ${exposure.channel_bot_name}`,
+          ? t("exposureResumed", { bot: exposure.channel_bot_name })
+          : t("exposurePaused", { bot: exposure.channel_bot_name }),
       );
     },
     onError: (error) => toast.error(getErrorMessage(error)),
@@ -123,7 +125,7 @@ export function useExposures(agentId: string | null) {
     mutationFn: (exposureId: string) => apiClient.delete<void>(`${base}/${exposureId}`),
     onSuccess: async () => {
       await invalidate();
-      toast.success("No longer available there");
+      toast.success(t("exposureRevoked"));
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   });

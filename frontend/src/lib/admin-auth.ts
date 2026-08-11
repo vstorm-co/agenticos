@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { backendFetch } from "@/lib/server-api";
 import { isAppAdmin } from "@/lib/utils";
 
+/**
+ * The token behind an `/api/admin/*` route, or the refusal to answer with.
+ *
+ * Each `detail` is a wire payload, not copy: this runs outside the `[locale]`
+ * segment, so there is no locale to resolve a message against, and rendering it
+ * is the client's job (#603).
+ */
 export async function requireAdmin(
   request: NextRequest,
 ): Promise<{ error: NextResponse } | { accessToken: string }> {
@@ -9,6 +16,7 @@ export async function requireAdmin(
 
   if (!accessToken) {
     return {
+      // i18n-exempt: a wire payload from a route with no locale in scope - see above.
       error: NextResponse.json({ detail: "Not authenticated" }, { status: 401 }),
     };
   }
@@ -27,6 +35,7 @@ export async function requireAdmin(
     return { accessToken };
   } catch {
     return {
+      // i18n-exempt: a wire payload from a route with no locale in scope - see above.
       error: NextResponse.json({ detail: "Not authenticated" }, { status: 401 }),
     };
   }

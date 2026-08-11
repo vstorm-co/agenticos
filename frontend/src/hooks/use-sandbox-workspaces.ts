@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 
 import { qk } from "@/lib/query-keys";
 import {
@@ -26,6 +27,7 @@ interface UseWorkspacesResult {
  * is not something worth a request every ten seconds.
  */
 export function useSandboxWorkspaces(): UseWorkspacesResult {
+  const t = useTranslations("pages.workspaces");
   const {
     data: workspaces = [],
     isLoading,
@@ -38,7 +40,7 @@ export function useSandboxWorkspaces(): UseWorkspacesResult {
   return {
     workspaces,
     isLoading,
-    error: error instanceof Error ? error.message : error ? "Failed to load workspaces" : null,
+    error: error instanceof Error ? error.message : error ? t("failedLoadWorkspaces") : null,
   };
 }
 
@@ -86,6 +88,7 @@ interface UseWorkspaceFilesResult {
  * carries no files: this is a query per row and nobody wants all of them.
  */
 export function useWorkspaceFiles(workspaceId: string | null): UseWorkspaceFilesResult {
+  const t = useTranslations("pages.workspaces");
   const {
     data: files = null,
     isLoading,
@@ -100,8 +103,7 @@ export function useWorkspaceFiles(workspaceId: string | null): UseWorkspaceFiles
   return {
     files,
     isLoading: workspaceId !== null && isLoading,
-    error:
-      error instanceof Error ? error.message : error ? "That workspace could not be read" : null,
+    error: error instanceof Error ? error.message : error ? t("workspaceUnreadable") : null,
   };
 }
 

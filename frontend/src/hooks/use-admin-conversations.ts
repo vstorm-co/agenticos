@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { apiClient } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/utils";
 import type {
@@ -12,6 +13,13 @@ import type {
 } from "@/types";
 
 export function useAdminConversations() {
+  const t = useTranslations("admin");
+  // Resolved here, not inside the callbacks: the admin page keys an effect on
+  // `fetchUsers`, and a string is a stable dependency by value where a translator is one
+  // only as long as it is memoised (#446).
+  const failedConversations = t("failedLoadConversations");
+  const failedUsers = t("failedLoadUsers");
+  const failedConversation = t("failedLoadConversation");
   const [conversations, setConversations] = useState<AdminConversation[]>([]);
   const [conversationsTotal, setConversationsTotal] = useState(0);
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -62,13 +70,13 @@ export function useAdminConversations() {
         setConversations(response.items);
         setConversationsTotal(response.total);
       } catch (err: unknown) {
-        const message = getErrorMessage(err, "Failed to load conversations");
+        const message = getErrorMessage(err, failedConversations);
         setError(message);
       } finally {
         endLoad();
       }
     },
-    [],
+    [failedConversations],
   );
 
   /**
@@ -105,32 +113,35 @@ export function useAdminConversations() {
         setUsers(response.items);
         setUsersTotal(response.total);
       } catch (err: unknown) {
-        const message = getErrorMessage(err, "Failed to load users");
+        const message = getErrorMessage(err, failedUsers);
         setError(message);
       } finally {
         endLoad();
       }
     },
-    [],
+    [failedUsers],
   );
 
-  const fetchConversationDetail = useCallback(async (conversationId: string) => {
-    startLoad();
-    setError(null);
-    try {
-      const conv = await apiClient.get<ConversationWithMessages>(
-        `/admin/conversations/${conversationId}`,
-      );
-      setSelectedConversation(conv);
-      return conv;
-    } catch (err: unknown) {
-      const message = getErrorMessage(err, "Failed to load conversation");
-      setError(message);
-      return null;
-    } finally {
-      endLoad();
-    }
-  }, []);
+  const fetchConversationDetail = useCallback(
+    async (conversationId: string) => {
+      startLoad();
+      setError(null);
+      try {
+        const conv = await apiClient.get<ConversationWithMessages>(
+          `/admin/conversations/${conversationId}`,
+        );
+        setSelectedConversation(conv);
+        return conv;
+      } catch (err: unknown) {
+        const message = getErrorMessage(err, failedConversation);
+        setError(message);
+        return null;
+      } finally {
+        endLoad();
+      }
+    },
+    [failedConversation],
+  );
 
   return {
     conversations,

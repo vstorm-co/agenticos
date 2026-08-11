@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { apiClient } from "@/lib/api-client";
@@ -44,6 +45,7 @@ interface UseReusableIntegrationsResult {
  * reusable.
  */
 export function useReusableIntegrations(orgId: string | null): UseReusableIntegrationsResult {
+  const t = useTranslations("kb");
   const queryClient = useQueryClient();
 
   const {
@@ -70,7 +72,7 @@ export function useReusableIntegrations(orgId: string | null): UseReusableIntegr
     queryError instanceof Error
       ? queryError.message
       : queryError
-        ? "Failed to load reusable integrations"
+        ? t("failedLoadReusableIntegrations")
         : null;
 
   const writeCache = useCallback(
@@ -93,17 +95,17 @@ export function useReusableIntegrations(orgId: string | null): UseReusableIntegr
           collection_name: null,
         });
         writeCache((prev) => [created, ...prev]);
-        toast.success("Integration saved - use it in a knowledge base to start syncing");
+        toast.success(t("integrationSaved"));
         return created;
       } catch (cause) {
         // Reported here and raised again: the connector's own refusal ("Invalid
         // connector config: …") is the only sentence that says what to change,
         // and the wizard has to stay open on the step holding the answer.
-        toast.error(cause instanceof Error ? cause.message : "Failed to save integration");
+        toast.error(cause instanceof Error ? cause.message : t("failedSaveIntegration"));
         throw cause;
       }
     },
-    [orgId, writeCache],
+    [orgId, writeCache, t],
   );
 
   const remove = useCallback<UseReusableIntegrationsResult["remove"]>(
@@ -111,12 +113,12 @@ export function useReusableIntegrations(orgId: string | null): UseReusableIntegr
       try {
         await apiClient.delete(`/orgs/${orgId}/integrations/${sourceId}`);
         writeCache((prev) => prev.filter((source) => source.id !== sourceId));
-        toast.success("Integration removed");
+        toast.success(t("integrationRemoved"));
       } catch (cause) {
-        toast.error(cause instanceof Error ? cause.message : "Failed to remove integration");
+        toast.error(cause instanceof Error ? cause.message : t("failedRemoveIntegration"));
       }
     },
-    [orgId, writeCache],
+    [orgId, writeCache, t],
   );
 
   const cloneInto = useCallback<UseReusableIntegrationsResult["cloneInto"]>(
@@ -126,13 +128,13 @@ export function useReusableIntegrations(orgId: string | null): UseReusableIntegr
           collection_name: target.collection_name,
           name,
         });
-        toast.success(`Added to ${target.name}`);
+        toast.success(t("integrationAddedTo", { name: target.name }));
       } catch (cause) {
-        toast.error(cause instanceof Error ? cause.message : "Failed to use this integration");
+        toast.error(cause instanceof Error ? cause.message : t("failedUseIntegration"));
         throw cause;
       }
     },
-    [],
+    [t],
   );
 
   return { integrations, connectors, isLoading, error, create, remove, cloneInto };

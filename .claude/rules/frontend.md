@@ -40,6 +40,14 @@ There is no `(marketing)` route group.
   component - a text node, a readable attribute, a toast, a sentence in a ternary -
   and on the reverse, a key a component reads that `messages/en.json` does not hold.
   A genuine non-string takes `i18n-exempt: <reason>`; the reason is required.
+- **It reads a `.ts` file as well as a `.tsx` one, by fewer rules.** `JSX_TEXT`,
+  `MIXED`, `COUNT` and `LEAD` anchor on a bracket and run on `.tsx` alone - in a `.ts`
+  file `; return` is a text node and `a > b` is a count. What is left reads a string
+  literal wherever it sits, which is where a hook's toast and a module table of labels
+  are: 381 offences across 90 files, unread for as long as the sweep walked `*.tsx`
+  alone (#446). Two directories are skipped rather than exempted line by line -
+  `dev/`, the playground, and `src/app/api/**`, whose route handlers sit outside the
+  `[locale]` segment and so have no translator to reach at all (#603).
 - **A count is an ICU `plural`, never a ternary.** `{n} file{n === 1 ? "" : "s"}`
   and `count === 1 ? "1 skill" : \`${count} skills\`` are sentences only English
   builds that way, so they are refused too - the message holds
@@ -57,10 +65,10 @@ There is no `(marketing)` route group.
 - **A key nothing reads is not a translation, and a sentence is one message.** The
   guard asks the catalog both questions now: `check_i18n.py` refuses a key no component
   reads, and a message whose words are also written out in the source. Both are anchored
-  on the catalog rather than on the source, which is what lets them reach a `.ts` file -
-  the offence sweep walks `*.tsx` alone, so `src/hooks/**` had never been read by it at
-  all and nineteen toasts sat there in English beside the keys holding them. 141 keys
-  were unread, 82 of them translated into Polish for nobody (#425).
+  on the catalog rather than on the source, which is how they found the `.ts` copy first:
+  the offence sweep walked `*.tsx` alone until #446, so `src/hooks/**` had never been
+  read by it at all and nineteen toasts sat there in English beside the keys holding
+  them. 141 keys were unread, 82 of them translated into Polish for nobody (#425).
   `messages/catalog.test.ts` adds the third and cheapest: **a value opening on `.`, `,`,
   `:` or `;` is half a sentence** - the other half is still in the JSX. A sentence with
   emphasis or a link in it is *one* message with a tag, read with `t.rich`
@@ -71,6 +79,19 @@ There is no `(marketing)` route group.
   how 18 Tailwind class lists and 148 fragments of source ended up in there, the class
   lists read back through `cn(t("flexItemsStartGap"))` where translating one strips the
   component of its styling (#348). `messages/catalog.test.ts` refuses both shapes now.
+- **A module table holds keys, and the component translates.** A module constant cannot
+  call a translator, so a table of labels holds catalog keys and the copy is resolved at
+  the point of use - `TOOL_CATALOG`'s `captionKey`, `MCP_AUTH_LABEL`, the `Choice` rows
+  in `ingestion-config.ts`. A *pure function* over such a table either answers with a
+  key or takes `t`: `toolStep`, `toolCaption`, `ingestionProblems` and
+  `mergeWithUserCommands` all take the caller's translator, and `Translate` in
+  `agent-step-captions.ts` is the shape they take. A table whose labels nothing renders
+  is **deleted** rather than translated - four MCP category headings and a whole
+  superseded catalog went that way, and a key nothing reads fails the build anyway.
+- **A verb the sentence agrees with is not a parameter either.** `{verb} {subject}` is
+  the `{noun}` defect below under another name, so a step naming its own subject holds
+  one message per tense and selects on whether it has one:
+  `{named, select, no {Writing…} other {Writing {subject}}}`.
 - **A noun the sentence agrees with is not a parameter, and not a prop.**
   `{matched} of {total} {noun}` with `noun="skills"` reads as translated and renders
   `3 of 40 skills` under `pl`. The noun goes inside the ICU `plural` or `select`, so
@@ -115,7 +136,9 @@ There is no `(marketing)` route group.
   `backend/tests/test_capability_registry.py::TestFrontendToolCatalog` compares the two
   in both directions, so a missing row and a surplus one each fail there, naming the
   tool. A name from anywhere else — an MCP tool, one a binding renamed — has no row and
-  needs none: it falls back to a humanized name and the generic renderer.
+  needs none: it falls back to a humanized name and the generic renderer. What a row
+  holds is `captionKey` / `displayNameKey` / `verbs`, all of them keys under
+  `chat.tools`, because the table is a module constant with no translator to reach.
 
 ## Permissions
 

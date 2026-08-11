@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 
 import {
   createOrgMcpConnection,
@@ -44,6 +45,7 @@ interface UseOrgMcpConnectionsResult {
  * response says nothing about the row it changed.
  */
 export function useOrgMcpConnections(): UseOrgMcpConnectionsResult {
+  const t = useTranslations("mcp");
   const queryClient = useQueryClient();
 
   const {
@@ -60,7 +62,7 @@ export function useOrgMcpConnections(): UseOrgMcpConnectionsResult {
     queryError instanceof Error
       ? queryError.message
       : queryError
-        ? "Failed to load the organization's MCP servers"
+        ? t("failedLoadOrgServers")
         : null;
 
   const writeCache = useCallback(
