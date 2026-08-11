@@ -17,6 +17,27 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.107] - 2026-08-12
+
+Picking Polish now survives the next click.
+
+### Fixed
+
+- **The language switcher redrew the current page and nothing more.** The
+  locale's entire persistence was the `/pl` URL prefix, and under
+  `localePrefix: "as-needed"` a path without a prefix *is* the default locale —
+  so every ordinary `<Link href="/agents">` and `router.push("/orgs")` in the app
+  dropped the prefix and the language with it, and a reload never brought Polish
+  back either. next-intl reads a `NEXT_LOCALE` cookie itself, but only under
+  `localeDetection`, which also turns on `accept-language` sniffing — and this
+  deployment serves English at the root whatever the browser asks for. So nothing
+  wrote the cookie and nothing read it. One routing config now backs both the
+  middleware and the navigation APIs: the switcher writes the cookie with a
+  year's `maxAge`, making the choice a preference rather than a session, and the
+  middleware redirects an unprefixed path to the picked locale while still
+  ignoring `accept-language`. A path that names a locale always wins, so a shared
+  `/pl/...` URL still means what it says. (#285)
+
 ## [0.0.106] - 2026-08-11
 
 The seam that puts a chart in a Slack reply is covered, so the line holding it
