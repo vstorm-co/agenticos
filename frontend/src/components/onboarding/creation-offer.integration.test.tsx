@@ -53,7 +53,7 @@ describe("CreationOffer", () => {
     rig.can = () => false;
     useOnboardingStore.setState({ offer: "create-org" });
     render(<CreationOffer />);
-    expect(screen.getByText("Create a workspace?")).toBeInTheDocument();
+    expect(screen.getByText("Create an organization?")).toBeInTheDocument();
   });
 
   it("renders nothing when there is no offer", () => {

@@ -2075,6 +2075,8 @@
     "progress": "Step {current} of {total}",
     "saveFailed": "We couldn't save that you've seen the walkthrough, so it may show again next time.",
     "coachClose": "Close",
+    "coachYes": "Yes, let's do it",
+    "coachSkip": "Skip",
     "offer": {
       "accept": "Yes, guide me",
       "decline": "Not now",
@@ -2097,6 +2099,10 @@
       "create-org": {
         "title": "Create an organization?",
         "body": "An organization is a separate space with its own agents, members and settings. Want to create one now? We'll walk you through it."
+      },
+      "explore-chat": {
+        "title": "Take a quick tour of chat?",
+        "body": "See how to start a conversation, switch which agent answers, and change the model or thinking effort for a single chat. Want a quick guided run through it?"
       }
     },
     "steps": {
@@ -2120,9 +2126,49 @@
         "title": "Give it documents to read (optional)",
         "body": "Attach a knowledge base and the agent can search those documents and cite them. You can skip this and add one anytime — choose Next to move on."
       },
+      "flow-agent-knowledge-ask": {
+        "title": "No knowledge base yet — create one?",
+        "body": "A knowledge base lets this agent search your documents and cite them, and you don't have one yet. Want to create one now and attach it? We'll guide you there and all the way back."
+      },
+      "flow-agent-knowledge-create": {
+        "title": "Create the knowledge base",
+        "body": "Choose New knowledge base and set it up. We'll move on the moment it's created, then walk you back to your agent."
+      },
+      "flow-agent-knowledge-return-nav": {
+        "title": "Back to your agents",
+        "body": "Choose Agents in the sidebar to head back to the agent you were building."
+      },
+      "flow-agent-knowledge-return-edit": {
+        "title": "Open your agent again",
+        "body": "Choose the edit pencil on the agent you just built to reopen its builder."
+      },
+      "flow-agent-knowledge-attach": {
+        "title": "Attach what you made",
+        "body": "Open the Knowledge tab and attach the knowledge base you just created, then choose Next."
+      },
       "flow-agent-skills": {
         "title": "Give it skills (optional)",
         "body": "A skill is written know-how the agent loads when it's relevant — a refund policy, a house style. Attach any, or choose Next to move on."
+      },
+      "flow-agent-skills-ask": {
+        "title": "No skills yet — create one?",
+        "body": "A skill is written know-how the agent loads when it's relevant, and you don't have one yet. Want to create one now and attach it? We'll guide you there and all the way back."
+      },
+      "flow-agent-skills-create": {
+        "title": "Create the skill",
+        "body": "Choose New skill and write it. We'll move on the moment it's created, then walk you back to your agent."
+      },
+      "flow-agent-skills-return-nav": {
+        "title": "Back to your agents",
+        "body": "Choose Agents in the sidebar to head back to the agent you were building."
+      },
+      "flow-agent-skills-return-edit": {
+        "title": "Open your agent again",
+        "body": "Choose the edit pencil on the agent you just built to reopen its builder."
+      },
+      "flow-agent-skills-attach": {
+        "title": "Attach your skill",
+        "body": "Open the Skills tab and attach the skill you just created, then choose Next."
       },
       "flow-agent-tools": {
         "title": "Give it tools (optional)",
@@ -2147,6 +2193,22 @@
       "flow-org-create": {
         "title": "Create the organization",
         "body": "Choose New organization, give it a name, and create it. We'll move on as soon as it exists."
+      },
+      "flow-chat-start": {
+        "title": "Start a conversation",
+        "body": "Choose New conversation to begin a fresh thread. Each one keeps its own history and settings. Choose Next when you've had a look."
+      },
+      "flow-chat-agent": {
+        "title": "Choose who answers",
+        "body": "This picks which of your published agents replies. Open it to switch agents — you can even change partway through a conversation. Choose Next."
+      },
+      "flow-chat-controls": {
+        "title": "Tune this conversation",
+        "body": "Open Controls to run this chat on a different model, or change how hard it thinks — just for this conversation, without touching the agent itself. Choose Next."
+      },
+      "flow-chat-composer": {
+        "title": "Type and send",
+        "body": "Write your message here and send it — that's your first conversation. Choose Finish when you're ready."
       },
       "welcome": {
         "title": "Welcome to AgenticOS",

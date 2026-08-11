@@ -5,6 +5,10 @@ import { useOnboardingFlow } from "./use-onboarding-flow";
 import { useOnboardingStore } from "@/stores";
 import type { Permission } from "@/types/permissions";
 
+// The pathname the arrived-signal reads; a test moves it to fake a navigation.
+const nav = vi.hoisted(() => ({ pathname: "/dashboard" }));
+vi.mock("next/navigation", () => ({ usePathname: () => nav.pathname }));
+
 // Mutable state the mocked hooks read, so a test can grow a list between renders.
 const rig = vi.hoisted(() => ({
   agentTotal: 0,
@@ -73,7 +77,16 @@ beforeEach(() => {
   rig.connections = [];
   rig.orgs = [];
   rig.can = () => true;
-  useOnboardingStore.setState({ isOpen: false, index: 0, mode: "tour", flowId: null, offer: null });
+  nav.pathname = "/dashboard";
+  useOnboardingStore.setState({
+    isOpen: false,
+    index: 0,
+    mode: "tour",
+    flowId: null,
+    offer: null,
+    choices: {},
+    flowAgentId: null,
+  });
 });
 
 describe("useOnboardingFlow", () => {
@@ -200,6 +213,45 @@ describe("useOnboardingFlow", () => {
     act(() => useOnboardingStore.getState().openFlow("create-agent"));
     // Nothing frozen yet, so the flow defaults to teaching how to add one.
     expect(result.current.steps.map((step) => step.id)).toContain("flow-agent-model-add");
+  });
+
+  it("opens the knowledge detour on yes and meets its arrived signals by page", () => {
+    rig.kbs = []; // no knowledge base, so the fork is asked
+    nav.pathname = "/rag";
+    const { result, rerender } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-agent"));
+
+    // create(0), instructions(1), model-add(2), knowledge-ask(3) — no model, no KB.
+    act(() => useOnboardingStore.getState().setIndex(3));
+    expect(result.current.step?.id).toBe("flow-agent-knowledge-ask");
+
+    // Yes records the fork and steps onto the detour it opens.
+    act(() => result.current.answer("flow-agent-knowledge-ask", "yes"));
+    expect(result.current.step?.id).toBe("flow-agent-knowledge-create");
+
+    act(() => result.current.next());
+    expect(result.current.step?.id).toBe("flow-agent-knowledge-return-nav");
+    // On /rag still, so the "click Agents" step is not yet satisfied.
+    expect(result.current.signalMet).toBe(false);
+    nav.pathname = "/agents";
+    rerender();
+    expect(result.current.signalMet).toBe(true);
+
+    act(() => result.current.next());
+    expect(result.current.step?.id).toBe("flow-agent-knowledge-return-edit");
+    // Any /agents/<id> is the builder, so opening the agent meets the arrival.
+    expect(result.current.signalMet).toBe(false);
+    nav.pathname = "/agents/agent-42";
+    rerender();
+    expect(result.current.signalMet).toBe(true);
+  });
+
+  it("exposes the captured agent id for a detour's return leg", () => {
+    const { result } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-agent"));
+    expect(result.current.flowAgentId).toBeNull();
+    act(() => result.current.setFlowAgentId("agent-42"));
+    expect(result.current.flowAgentId).toBe("agent-42");
   });
 
   it("does not let the add-model step morph once the reader adds a model", () => {

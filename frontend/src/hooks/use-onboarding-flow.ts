@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 
 import { useAgents } from "@/hooks/use-agents";
 import { useKnowledgeBases } from "@/hooks/use-knowledge-bases";
@@ -9,6 +10,7 @@ import { useOrgMcpConnections } from "@/hooks/use-org-mcp-connections";
 import { useOrganizationList } from "@/hooks/use-organizations";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useSkills } from "@/hooks/use-skills";
+import { stripLocale } from "@/lib/active-route";
 import {
   FLOWS,
   stepsForFlow,
@@ -17,7 +19,9 @@ import {
   type FlowStep,
   type OrgState,
 } from "@/lib/onboarding/flows";
+import { pageKey } from "@/lib/onboarding/tour";
 import { useOnboardingStore } from "@/stores";
+import type { ChoiceValue } from "@/stores/onboarding-store";
 
 export interface OnboardingFlowState {
   /** A flow is running and has at least one step this caller can act on. */
@@ -29,23 +33,33 @@ export interface OnboardingFlowState {
   index: number;
   isLast: boolean;
   /**
-   * The current step's success event has happened — the reader created the
-   * thing, so the coach may advance. `false` for a step with no signal (advance
-   * is a Next click) and until the resource's list grows past what it held when
-   * the step began.
+   * The current step's success event has happened, so the coach may advance: the
+   * reader created the resource a `created` step names, or reached the page an
+   * `arrived` step names. `false` for a step with no signal (advance is a Next
+   * click), and until that event.
    */
   signalMet: boolean;
   /** Advance to the next step, or end the flow if this was the last. */
   next: () => void;
   /** End the flow now — the coach's close button. */
   finish: () => void;
+  /** Answer a fork step: records the choice and steps onto whatever it opens. */
+  answer: (questionId: string, value: ChoiceValue) => void;
+  /** The agent this flow created, for a detour's return leg; `null` until captured. */
+  flowAgentId: string | null;
+  /** Remember the agent the flow just created — the coach reads it from the builder URL. */
+  setFlowAgentId: (agentId: string) => void;
 }
 
 /** A resource count, or `null` while its list is still loading. */
 type MaybeCount = number | null;
 
 /** The org state assumed until the real one has loaded — treat nothing as present. */
-const DEFAULT_STATE: OrgState = { hasRunnableModel: false };
+const DEFAULT_STATE: OrgState = {
+  hasRunnableModel: false,
+  hasKnowledgeBase: false,
+  hasSkill: false,
+};
 
 /** A list's count, or `null` while it is still loading — the one gate every resource passes through. */
 function settled(loading: boolean, count: number): MaybeCount {
@@ -55,8 +69,9 @@ function settled(loading: boolean, count: number): MaybeCount {
 /**
  * The organization snapshot a flow reads: the count of each creatable resource,
  * and the state its adaptive steps branch on. `liveState` is `null` until the
- * model list has loaded, so a flow does not freeze "no runnable model" from the
- * empty first frame.
+ * lists it reads have loaded, so a flow does not freeze "no runnable model" or
+ * "no knowledge base" from the empty first frame and offer to create what is
+ * merely not yet fetched.
  *
  * The `null`-while-loading on the counts is load-bearing too: the baseline a step
  * captures must be the real pre-creation count, not the `0` a list reads as before
@@ -75,6 +90,7 @@ function useOrgSnapshot(): {
   const kb = useKnowledgeBases();
   const mcp = useOrgMcpConnections();
   const orgs = useOrganizationList();
+  const stateSettled = !models.isLoading && !kb.isLoading && !skills.isLoading;
   return {
     counts: {
       agent: settled(agents.isLoading, agents.total),
@@ -86,14 +102,18 @@ function useOrgSnapshot(): {
     },
     // A profile is runnable when it is keyed by a vault secret, or self-hosted at
     // a `base_url` with no key — the same rule the model resolver enforces. A key
-    // stored with no profile, or a profile whose key was deleted, is not.
-    liveState: models.isLoading
-      ? null
-      : {
+    // stored with no profile, or a profile whose key was deleted, is not. The
+    // knowledge and skill flags are simply whether the organization holds one, the
+    // fork each section's step branches on.
+    liveState: stateSettled
+      ? {
           hasRunnableModel: models.profiles.some(
             (profile) => profile.secret_id !== null || !!profile.base_url,
           ),
-        },
+          hasKnowledgeBase: kb.kbs.length > 0,
+          hasSkill: skills.total > 0,
+        }
+      : null,
   };
 }
 
@@ -124,8 +144,13 @@ export function useOnboardingFlow(): OnboardingFlowState {
   const index = useOnboardingStore((state) => state.index);
   const setIndex = useOnboardingStore((state) => state.setIndex);
   const close = useOnboardingStore((state) => state.close);
+  const choices = useOnboardingStore((state) => state.choices);
+  const answer = useOnboardingStore((state) => state.answer);
+  const flowAgentId = useOnboardingStore((state) => state.flowAgentId);
+  const setFlowAgentId = useOnboardingStore((state) => state.setFlowAgentId);
   const { can } = usePermissions();
   const { counts, liveState } = useOrgSnapshot();
+  const here = pageKey(stripLocale(usePathname()));
 
   // Freeze the org state at flow start, once its inputs have settled, so an
   // adaptive step does not morph as the reader satisfies it: the "add a model"
@@ -141,14 +166,15 @@ export function useOnboardingFlow(): OnboardingFlowState {
 
   const flow = mode === "flow" && flowId ? FLOWS[flowId] : null;
   const steps = useMemo(
-    () => (flow ? stepsForFlow(flow, orgState, can) : []),
-    [flow, orgState, can],
+    () => (flow ? stepsForFlow(flow, orgState, can, choices) : []),
+    [flow, orgState, can, choices],
   );
   const clamped = Math.min(index, Math.max(steps.length - 1, 0));
   const step = steps[clamped];
   const isLast = clamped === steps.length - 1;
 
-  const resource = step?.signal?.resource ?? null;
+  const signal = step?.signal;
+  const resource = signal?.kind === "created" ? signal.resource : null;
   const count = resource ? counts[resource] : null;
 
   // Capture the count as the step began and compare on every render; when the
@@ -165,8 +191,13 @@ export function useOnboardingFlow(): OnboardingFlowState {
   if (resource !== null && count !== null && baseline?.key !== stepKey) {
     setBaseline({ key: stepKey, count });
   }
+  // A `created` step is met when its list grows past the baseline; an `arrived`
+  // step when the reader reaches the page it names — the click it pointed at
+  // having landed. Each step carries at most one, so the two never contend.
   const signalMet =
-    resource !== null && count !== null && baseline?.key === stepKey && count > baseline.count;
+    signal?.kind === "arrived"
+      ? here === signal.page
+      : resource !== null && count !== null && baseline?.key === stepKey && count > baseline.count;
 
   const next = useCallback(() => {
     if (clamped >= steps.length - 1) close();
@@ -185,5 +216,8 @@ export function useOnboardingFlow(): OnboardingFlowState {
     signalMet,
     next,
     finish,
+    answer,
+    flowAgentId,
+    setFlowAgentId,
   };
 }

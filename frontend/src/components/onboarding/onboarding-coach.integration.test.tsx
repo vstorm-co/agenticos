@@ -58,6 +58,9 @@ function makeState(overrides: Partial<OnboardingFlowState> = {}): OnboardingFlow
     signalMet: false,
     next: vi.fn(),
     finish: vi.fn(),
+    answer: vi.fn(),
+    flowAgentId: null,
+    setFlowAgentId: vi.fn(),
     ...overrides,
   };
 }
@@ -135,5 +138,38 @@ describe("OnboardingCoach", () => {
   it("draws the travelling highlight ring while a step is showing", async () => {
     render(<OnboardingCoach />);
     await waitFor(() => expect(document.querySelector("[data-coach-ring]")).toBeInTheDocument());
+  });
+
+  it("lifts the freeze while a Radix popper is open, so a picker can be used", async () => {
+    // A popover/dropdown/select portals a wrapper the coach must step aside for,
+    // or its ring and dim would sit over the picker the step points at.
+    const popper = document.createElement("div");
+    popper.setAttribute("data-radix-popper-content-wrapper", "");
+    document.body.appendChild(popper);
+
+    render(<OnboardingCoach />);
+    await screen.findByText("Add your skill");
+    await waitFor(() => expect(document.querySelector("[data-coach-freeze]")).toBeNull());
+  });
+
+  it("asks a fork with Yes/Skip and records the answer, showing no ring", async () => {
+    const answer = vi.fn();
+    const fork = step({
+      id: "flow-agent-knowledge-ask",
+      question: true,
+      signal: undefined,
+      target: undefined,
+      page: undefined,
+    });
+    flow.state = makeState({ flowId: "create-agent", step: fork, steps: [fork], answer });
+    render(<OnboardingCoach />);
+
+    // A fork points at nothing, so it dims the page whole and draws no ring.
+    expect(document.querySelector("[data-coach-ring]")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Yes, let's do it" }));
+    expect(answer).toHaveBeenCalledWith("flow-agent-knowledge-ask", "yes");
+
+    await userEvent.click(screen.getByRole("button", { name: "Skip" }));
+    expect(answer).toHaveBeenCalledWith("flow-agent-knowledge-ask", "skip");
   });
 });

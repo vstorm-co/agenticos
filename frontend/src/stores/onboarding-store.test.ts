@@ -10,6 +10,8 @@ describe("useOnboardingStore", () => {
       mode: "tour",
       flowId: null,
       offer: null,
+      choices: {},
+      flowAgentId: null,
     }),
   );
 
@@ -46,8 +48,14 @@ describe("useOnboardingStore", () => {
     expect(useOnboardingStore.getState().flowId).toBeNull();
   });
 
-  it("openFlow starts the named flow at its first step", () => {
-    useOnboardingStore.setState({ index: 5, mode: "page", offer: "create-skill" });
+  it("openFlow starts the named flow at its first step, clearing a prior flow's forks", () => {
+    useOnboardingStore.setState({
+      index: 5,
+      mode: "page",
+      offer: "create-skill",
+      choices: { "flow-agent-knowledge-ask": "yes" },
+      flowAgentId: "agent-42",
+    });
     useOnboardingStore.getState().openFlow("create-skill");
     expect(useOnboardingStore.getState()).toMatchObject({
       isOpen: true,
@@ -56,7 +64,38 @@ describe("useOnboardingStore", () => {
       flowId: "create-skill",
       // Accepting an offer starts the flow, so the prompt is gone.
       offer: null,
+      // A fresh flow answers its own forks and captures its own agent.
+      choices: {},
+      flowAgentId: null,
     });
+  });
+
+  it("answer records a fork and steps past the question in one move", () => {
+    useOnboardingStore.setState({ mode: "flow", flowId: "create-agent", index: 4 });
+    useOnboardingStore.getState().answer("flow-agent-knowledge-ask", "yes");
+    expect(useOnboardingStore.getState().choices).toEqual({ "flow-agent-knowledge-ask": "yes" });
+    // The detour is now in the flow and the step after the question is where the
+    // reader lands.
+    expect(useOnboardingStore.getState().index).toBe(5);
+  });
+
+  it("answer keeps earlier forks when a second one is answered", () => {
+    useOnboardingStore.setState({
+      mode: "flow",
+      flowId: "create-agent",
+      index: 9,
+      choices: { "flow-agent-knowledge-ask": "yes" },
+    });
+    useOnboardingStore.getState().answer("flow-agent-skills-ask", "skip");
+    expect(useOnboardingStore.getState().choices).toEqual({
+      "flow-agent-knowledge-ask": "yes",
+      "flow-agent-skills-ask": "skip",
+    });
+  });
+
+  it("setFlowAgentId remembers the agent the flow created", () => {
+    useOnboardingStore.getState().setFlowAgentId("agent-7");
+    expect(useOnboardingStore.getState().flowAgentId).toBe("agent-7");
   });
 
   it("openOffer shows the prompt without opening a walkthrough", () => {

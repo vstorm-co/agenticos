@@ -18,12 +18,30 @@ page's tips whenever they are wanted.
 Finishing the walkthrough offers to build the first agent *together*. That is an
 interactive flow, not a spotlight: it points at the real controls, the reader
 operates the real dialogs, and it advances the moment the thing is actually
-created. It is adaptive - it walks the path below, checks what the organization
-already has, and only stops where something is missing, teaching a workspace with
-no model how to add one and skipping straight past a prerequisite already in
-place. Declining guides nobody; the offer returns at the end of the Agents **?**
-walk. Every other section's **?** ends the same way, offering to create that
-section's resource - a skill, a knowledge base, an MCP connection, a workspace.
+created. While it runs the page is **frozen** - everything dims but the one
+control the step is about, so the reader cannot wander off mid-flow and strand a
+guided step on the wrong page; the freeze steps aside on its own whenever a dialog
+or a picker opens, so the control the step points at is always usable. It is
+adaptive - it walks the path below, checks what the organization already has, and
+only stops where something is missing, teaching a workspace with no model how to
+add one and skipping straight past a prerequisite already in place.
+
+Knowledge and skills are where it does the most. With one already, the flow just
+points at where it attaches. With none, it *asks* - "no knowledge base yet, create
+one?" - and if the answer is yes it runs the whole round trip: across into the
+Knowledge section, through creating the base, then back again by pointing at
+**Agents** in the sidebar, the edit pencil on the very agent just built, and the
+Knowledge tab where the new base attaches. The return leg is taught by pointing
+and waiting for the click, not by navigating for the reader, so it teaches the
+path through the app rather than performing it. Skills work the same way.
+
+Declining guides nobody; the offer returns at the end of the Agents **?** walk.
+Every other section's **?** ends the same way, offering to create that section's
+resource - a skill, a knowledge base, an MCP connection, a workspace - and the
+Chat **?** offers a guided run through the chat surface itself: starting a
+conversation, switching which agent answers, and changing the model or thinking
+effort for a single chat. That one creates nothing, so it advances on Next rather
+than on anything appearing.
 
 ## 1. Store a provider key
 

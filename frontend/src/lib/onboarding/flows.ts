@@ -6,20 +6,22 @@ import { Perm, type Permission } from "@/types/permissions";
  * A guided *creation* flow — the Phase-2 counterpart to the passive tour.
  *
  * Where the tour (`tour.ts`) describes inert controls, a flow lets the reader
- * actually make the thing: it points at the real create control, the reader
- * operates the real dialog, and the flow advances when the resource appears
- * rather than when a Next button is pressed. One flow per resource a section can
- * create; the id is what the store carries in `"flow"` mode and what the "Create
- * X?" offer names.
+ * actually operate them: it points at the real control, the reader works the real
+ * dialog, and the flow advances when the resource appears rather than when a Next
+ * button is pressed. Most are one flow per resource a section can create; the id
+ * is what the store carries in `"flow"` mode and what the "Create X?" offer names.
+ * `explore-chat` is the exception — a guided run of the chat surface that creates
+ * nothing, so its steps carry no signal and advance on Next.
  *
  * The passive tour and the flow are deliberately separate mechanisms, not one
  * with a flag: driver.js's overlay sits above the app and swallows clicks outside
  * its spotlight, so it would leave a create dialog dimmed and unusable. The coach
  * draws its own freeze instead — a dim with a cut-out over the one control — and
- * lifts it while a modal dialog is open, so the reader fills the dialog against
- * Radix's own overlay rather than a second one fighting it.
+ * lifts it while a modal dialog or a picker is open, so the reader works it
+ * against Radix's own stacking rather than a second one fighting it.
  */
-export type FlowId = "create-agent" | "create-skill" | "create-kb" | "create-mcp" | "create-org";
+export type FlowId =
+  "create-agent" | "create-skill" | "create-kb" | "create-mcp" | "create-org" | "explore-chat";
 
 /**
  * A resource whose *appearance* ends a step. It is the react-query list the coach
@@ -32,22 +34,35 @@ export type FlowId = "create-agent" | "create-skill" | "create-kb" | "create-mcp
 export type FlowResource = "agent" | "model" | "skill" | "kb" | "orgMcp" | "org";
 
 /**
- * How a step knows it is finished. Today the only signal is a resource being
- * created — the list the reader adds to grows by one. The predicate is
- * "count ≥ baseline + 1" and must be idempotent, because the create hooks that
- * patch the cache optimistically and then invalidate can tick the count twice.
+ * How a step knows it is finished. Two shapes.
+ *
+ * `created` is a resource appearing — the list the reader adds to grows by one.
+ * The predicate is "count ≥ baseline + 1" and must be idempotent, because the
+ * create hooks that patch the cache optimistically and then invalidate can tick
+ * the count twice.
+ *
+ * `arrived` is the reader reaching a page — the signal for a step that teaches a
+ * navigation rather than a creation, so the flow advances when the click it
+ * pointed at lands rather than on a Next the reader could press without moving.
+ * `page` is a page *identity* (`pageKey`), so `AGENT_BUILDER` matches whichever
+ * `/agents/<id>` the reader opens. A step carrying one never auto-navigates —
+ * the whole point is that the reader performs the move — so it names no `page`
+ * of its own and points at the control that makes the move.
  */
-export type FlowSignal = { kind: "created"; resource: FlowResource };
+export type FlowSignal =
+  { kind: "created"; resource: FlowResource } | { kind: "arrived"; page: string };
 
 /**
  * What an organization already has, read from the resource hooks, so an adaptive
- * flow can teach only what is missing. Just `hasRunnableModel` today — the one
- * prerequisite a new agent cannot run without — because a stored key with no
- * profile pointing at it is not runnable, and a profile whose key was deleted is
- * not either. A flow grows this as it grows the branches that read it.
+ * flow can teach only what is missing, and ask to create what it lacks. A stored
+ * key with no profile pointing at it is not a runnable model, and a profile whose
+ * key was deleted is not either; a knowledge base or a skill is simply one the
+ * organization holds. A flow grows this as it grows the branches that read it.
  */
 export interface OrgState {
   hasRunnableModel: boolean;
+  hasKnowledgeBase: boolean;
+  hasSkill: boolean;
 }
 
 /**
@@ -72,6 +87,27 @@ export interface FlowStep {
   signal?: FlowSignal;
   /** Run this step only when the organization's state calls for it. */
   include?: (state: OrgState) => boolean;
+  /**
+   * A fork rather than a control: the card asks a yes/no question instead of
+   * pointing at anything, and the page freezes whole behind it. Answering `"yes"`
+   * records the step's id and brings its detour — the steps that `requires` it —
+   * into the flow; `"skip"` steps over them. Used where the flow can only go on
+   * once the reader decides, as "no knowledge base yet — create one?" does.
+   */
+  question?: boolean;
+  /**
+   * Run this step only when the question with this id was answered `"yes"`. It is
+   * the detour a fork opens: the guided creation and the round-trip back, present
+   * only for a reader who asked for it.
+   */
+  requires?: string;
+  /**
+   * Resolve `target` against an id the coach captured at runtime rather than a
+   * fixed `data-tour`. `"createdAgentEdit"` points at the edit control of the very
+   * agent this flow created, so the return leg of a detour opens *that* agent's
+   * builder — not the first card in a gallery that may hold many.
+   */
+  dynamicTarget?: "createdAgentEdit";
 }
 
 /**
@@ -98,16 +134,27 @@ export interface CreationFlow {
  * `created` signal to wait on.
  *
  * `create-agent` is the adaptive one. It creates the agent (which opens the
- * builder), walks its instructions and model, points out the knowledge, skills
- * and tools it can be given, and ends at Publish. The model step is two mutually
- * exclusive halves: an organization with no runnable model is taught to add one
- * inline (`AddModel` stores the key and the profile in a single submit), one that
- * already has a model is only shown where to pick it. The knowledge/skills/tools
- * steps carry no signal — they are "attach one, or move on with Next", because a
- * first agent needs none of them; a reader who wants to create one has each
- * section's own "?" flow. Its later steps live on the builder, a detail view with
- * no route of its own, so they carry the `AGENT_BUILDER` identity and rely on the
- * create step having navigated there; the coach does not navigate to a pseudo-page.
+ * builder), walks its instructions and model, guides the knowledge and skills it
+ * can be given, points out its tools, and ends at Publish. The model step is two
+ * mutually exclusive halves: an organization with no runnable model is taught to
+ * add one inline (`AddModel` stores the key and the profile in a single submit),
+ * one that already has a model is only shown where to pick it.
+ *
+ * Knowledge and skills each branch the same way, on what the organization has.
+ * With one already, the step just points at where it attaches and carries a Next.
+ * With none, the step is a *fork*: "no knowledge base yet — create one?". Skip
+ * moves on; Yes opens a detour that is the whole point of the guided flow — it
+ * crosses into the Knowledge section, guides the creation, then walks the reader
+ * *back*: click Agents in the sidebar, then the pencil on the agent just built,
+ * then attach what was made. The return leg is taught, not driven — its steps
+ * carry an `arrived` signal and no `page`, so the coach points at the control and
+ * waits for the reader's click to land rather than navigating for them. The
+ * pencil it points at is resolved from the id this flow captured (`dynamicTarget`),
+ * so a gallery of many agents still returns to the right one.
+ *
+ * The steps from the builder on live on a detail view with no route of its own,
+ * so they carry the `AGENT_BUILDER` identity and rely on an earlier step having
+ * navigated there; the coach does not navigate to a pseudo-page.
  */
 export const FLOWS: Record<FlowId, CreationFlow> = {
   "create-agent": {
@@ -154,19 +201,102 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         permission: Perm.agentsView,
         include: (state) => state.hasRunnableModel,
       },
+      // Knowledge, with a knowledge base already: just show where it attaches.
       {
         id: "flow-agent-knowledge",
         page: AGENT_BUILDER,
         target: "agent-collections",
         activate: "agent-tab-knowledge",
         permission: Perm.agentsView,
+        include: (state) => state.hasKnowledgeBase,
       },
+      // Knowledge, with none: ask, and only to a caller who could create one —
+      // pointing someone without `collections:edit` at a create they cannot do is
+      // the 403-as-tutorial this gate exists to avoid, and there is nothing to
+      // attach either, so the section drops for them entirely.
+      {
+        id: "flow-agent-knowledge-ask",
+        permission: Perm.collectionsEdit,
+        include: (state) => !state.hasKnowledgeBase,
+        question: true,
+      },
+      {
+        id: "flow-agent-knowledge-create",
+        page: ROUTES.RAG,
+        target: "knowledge-new",
+        permission: Perm.collectionsEdit,
+        signal: { kind: "created", resource: "kb" },
+        requires: "flow-agent-knowledge-ask",
+      },
+      {
+        id: "flow-agent-knowledge-return-nav",
+        target: "nav-agents",
+        permission: Perm.agentsView,
+        signal: { kind: "arrived", page: ROUTES.AGENTS },
+        requires: "flow-agent-knowledge-ask",
+      },
+      {
+        id: "flow-agent-knowledge-return-edit",
+        target: "agent-card-edit",
+        dynamicTarget: "createdAgentEdit",
+        permission: Perm.agentsEdit,
+        signal: { kind: "arrived", page: AGENT_BUILDER },
+        requires: "flow-agent-knowledge-ask",
+      },
+      {
+        id: "flow-agent-knowledge-attach",
+        page: AGENT_BUILDER,
+        target: "agent-collections",
+        activate: "agent-tab-knowledge",
+        permission: Perm.agentsView,
+        requires: "flow-agent-knowledge-ask",
+      },
+      // Skills, the same shape: attach an existing one, or ask and detour to make
+      // one and bring it back.
       {
         id: "flow-agent-skills",
         page: AGENT_BUILDER,
         target: "agent-skills",
         activate: "agent-tab-skills",
         permission: Perm.agentsView,
+        include: (state) => state.hasSkill,
+      },
+      {
+        id: "flow-agent-skills-ask",
+        permission: Perm.skillsEdit,
+        include: (state) => !state.hasSkill,
+        question: true,
+      },
+      {
+        id: "flow-agent-skills-create",
+        page: ROUTES.SKILLS,
+        target: "skills-new",
+        permission: Perm.skillsEdit,
+        signal: { kind: "created", resource: "skill" },
+        requires: "flow-agent-skills-ask",
+      },
+      {
+        id: "flow-agent-skills-return-nav",
+        target: "nav-agents",
+        permission: Perm.agentsView,
+        signal: { kind: "arrived", page: ROUTES.AGENTS },
+        requires: "flow-agent-skills-ask",
+      },
+      {
+        id: "flow-agent-skills-return-edit",
+        target: "agent-card-edit",
+        dynamicTarget: "createdAgentEdit",
+        permission: Perm.agentsEdit,
+        signal: { kind: "arrived", page: AGENT_BUILDER },
+        requires: "flow-agent-skills-ask",
+      },
+      {
+        id: "flow-agent-skills-attach",
+        page: AGENT_BUILDER,
+        target: "agent-skills",
+        activate: "agent-tab-skills",
+        permission: Perm.agentsView,
+        requires: "flow-agent-skills-ask",
       },
       {
         id: "flow-agent-tools",
@@ -233,17 +363,36 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       },
     ],
   },
+  // The one flow that creates nothing: a guided run of the chat surface, freezing
+  // it a control at a time to show how a conversation is set up. Every step is
+  // descriptive — it points, explains, and advances on Next — because there is no
+  // resource whose appearance could end it, and forcing the reader to send a
+  // (charged) message would be the wrong thing to teach with. It needs no
+  // permission: anyone signed in can chat.
+  "explore-chat": {
+    id: "explore-chat",
+    steps: [
+      { id: "flow-chat-start", page: ROUTES.CHAT, target: "chat-start" },
+      { id: "flow-chat-agent", page: ROUTES.CHAT, target: "chat-agent-picker" },
+      { id: "flow-chat-controls", page: ROUTES.CHAT, target: "chat-model-picker" },
+      { id: "flow-chat-composer", page: ROUTES.CHAT, target: "chat-composer" },
+    ],
+  },
 };
 
 /**
  * The flow offered at the end of a section's "?" walk, or `null` for a page with
- * nothing to create. Detail routes collapse onto their section the way `pageKey`
+ * nothing to offer. Detail routes collapse onto their section the way `pageKey`
  * collapses them, so the builder offers the same flow as the Agents list and a
  * collection the same as the Knowledge list — which is why an Agents "?" that
- * walked into the builder still offers `create-agent`.
+ * walked into the builder still offers `create-agent`. Chat is the odd one: it
+ * creates nothing, but its walk offers `explore-chat`, the guided run of the
+ * surface itself.
  */
 export function flowForPage(pageId: string): FlowId | null {
   switch (pageId) {
+    case ROUTES.CHAT:
+      return "explore-chat";
     case ROUTES.AGENTS:
     case AGENT_BUILDER:
       return "create-agent";
@@ -264,21 +413,32 @@ export function flowForPage(pageId: string): FlowId | null {
 }
 
 /**
- * The steps of `flow` this caller runs against `state`: permission-filtered the
- * way the tour is — a step whose control the server would hide is dropped rather
- * than left for the coach to hunt — and adaptively filtered, so a step that only
- * makes sense for a missing prerequisite (add a model) drops out for an
- * organization that already has it, and its complement (pick the model you have)
- * takes its place. The flow-level permission gates whether the offer is made at
+ * The steps of `flow` this caller runs against `state` and the forks they have
+ * answered in `choices`.
+ *
+ * Three filters, all in the dropping direction. Permission-filtered the way the
+ * tour is — a step whose control the server would hide is dropped rather than
+ * left for the coach to hunt. Adaptively filtered on `state`, so a step that only
+ * makes sense for a missing prerequisite (add a model, ask about a knowledge
+ * base) drops out for an organization that already has it, and its complement
+ * (pick the model, attach the base) takes its place. And fork-filtered on
+ * `choices`, so a detour step runs only once its question was answered `"yes"` —
+ * which is what lets recording an answer widen the step list, the question
+ * sitting immediately before the steps it gates so the index after it lands on
+ * the first of them. The flow-level permission gates whether the offer is made at
  * all; this gates the steps within one that is.
  */
 export function stepsForFlow(
   flow: CreationFlow,
   state: OrgState,
   can: (permission: Permission) => boolean,
+  choices: Record<string, "yes" | "skip">,
 ): readonly FlowStep[] {
   return flow.steps.filter(
-    (step) => (!step.permission || can(step.permission)) && (!step.include || step.include(state)),
+    (step) =>
+      (!step.permission || can(step.permission)) &&
+      (!step.include || step.include(state)) &&
+      (!step.requires || choices[step.requires] === "yes"),
   );
 }
 

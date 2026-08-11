@@ -9,6 +9,7 @@ import { activateTab, spotlightPath, waitForElement } from "@/components/onboard
 import { Button, IconButton } from "@/components/ui";
 import { useOnboardingFlow } from "@/hooks/use-onboarding-flow";
 import { stripLocale } from "@/lib/active-route";
+import { ROUTES } from "@/lib/constants";
 
 /** Space between the control and the freeze layer's cut-out, so the ring plays inside it. */
 const HOLE_PADDING = 10;
@@ -40,8 +41,17 @@ interface Rect extends Box {
   stepId: string;
 }
 
-/** An open modal dialog, ours excepted — Radix marks its content `data-state`, the coach card does not. */
-const OPEN_DIALOG = '[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]';
+/**
+ * A floating layer the freeze must step aside for: a modal dialog, or any Radix
+ * popper (a popover, dropdown, select or combobox). Both are portalled above the
+ * page at a low z-index, so the freeze would otherwise dim the create dialog the
+ * step asks the reader to fill, or the knowledge-base picker it asks them to
+ * open — the "frozen screen with a ring on it" a reader hit clicking "create new
+ * one" inside a picker. Our own card is `role="dialog"` with no `data-state`, so
+ * it is not matched here and the freeze does not lift for it.
+ */
+const OPEN_OVERLAY =
+  '[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"], [data-radix-popper-content-wrapper]';
 
 /** A small dot centred in the viewport — where the ring starts each flow before it travels. */
 function centerDot(): Box {
@@ -75,59 +85,85 @@ function ringBoxFor(box: Box): Box {
  * the hole. That is what keeps a guided step guided — the reader cannot wander to
  * another tab or the sidebar mid-flow, only operate the control being pointed at.
  *
- * The freeze steps aside the moment a modal dialog opens (`OPEN_DIALOG`): a Radix
- * dialog is already modal and dims the page itself, so a second freeze over it
- * would only fight its stacking and re-dim it — exactly the trap that kept the
- * coach driver-less. While the dialog is up the reader fills it against Radix's
- * own overlay, and the step advances when its resource appears.
+ * The freeze steps aside the moment a floating layer opens (`OPEN_OVERLAY`): a
+ * Radix dialog is already modal and dims the page itself, and a popover, dropdown
+ * or select is the control the step wants operated — so a second freeze over
+ * either would only fight its stacking and re-dim it, the trap that kept the coach
+ * driver-less and the one a reader hit opening a picker mid-step. While a layer is
+ * up the reader works against Radix's own stacking, and the step advances when its
+ * resource appears.
  *
  * The highlight is a ring that travels and grows from the centre of the screen
  * onto the first control, then from one control to the next — a fixed element so
  * it can animate its own position and size, which the freeze makes safe (nothing
  * scrolls under it, and the control is scrolled into view first). Its size and
- * position are `ringRect`; the CSS transition on those is the travel, and it is
- * kept from a step's own tag so it holds on the previous control until the next
- * is found rather than snapping back to the centre between steps.
+ * position are `ringRect`; the CSS transition on those is the travel. The ring
+ * re-centres at each fork, so its move out of a `question` is a fresh travel from
+ * the middle rather than a slide from wherever the last control sat.
  *
- * Advancement is the app's, not a button's: a step with a signal ends when its
- * resource appears (`signalMet` from `useOnboardingFlow`), so the reader is never
- * told "now click Next" after doing the thing the step asked for, and carries no
- * button — the doing is the advance. A step with no signal (write instructions,
- * or an optional "attach one or move on") carries a Next. The close button always
- * ends the flow, because a walkthrough is never worth trapping someone in.
- * Mounted only while a flow runs, so the resource-count queries its hook fires
- * live only then.
+ * A `question` step is a fork rather than a control: the page freezes whole (no
+ * cut-out) and the card offers Yes/Skip, `answer` recording the choice and
+ * widening the flow to its detour or stepping over it. A detour's return leg is
+ * *taught*: its steps point at the sidebar and the agent's own card and wait for
+ * the reader's click to land (`signalMet` on an `arrived` signal), the pencil
+ * resolved from the id the flow captured so a full gallery still returns to the
+ * right agent.
+ *
+ * Otherwise advancement is the app's, not a button's: a step with a signal ends
+ * when its resource appears or its page is reached (`signalMet` from
+ * `useOnboardingFlow`), so the reader is never told "now click Next" after doing
+ * the thing the step asked for, and carries no button — the doing is the advance.
+ * A step with no signal (write instructions, or "here is where it attaches")
+ * carries a Next. The close button always ends the flow, because a walkthrough is
+ * never worth trapping someone in. Mounted only while a flow runs, so the
+ * resource-count queries its hook fires live only then.
  */
 export function OnboardingCoach() {
   const t = useTranslations("onboarding");
   const router = useRouter();
   const pathname = usePathname();
-  const { isActive, flowId, step, index, steps, isLast, signalMet, next, finish } =
-    useOnboardingFlow();
+  const {
+    isActive,
+    flowId,
+    step,
+    index,
+    steps,
+    isLast,
+    signalMet,
+    next,
+    finish,
+    answer,
+    flowAgentId,
+    setFlowAgentId,
+  } = useOnboardingFlow();
   const [rect, setRect] = useState<Rect | null>(null);
   const [ringRect, setRingRect] = useState<Box | null>(null);
-  const [ringFlow, setRingFlow] = useState<string | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [ringAnchor, setRingAnchor] = useState<string | null>(null);
+  const [overlayOpen, setOverlayOpen] = useState(false);
 
   const stepId = step?.id;
 
-  // Each flow starts the ring as a dot in the centre, so its first move is a
-  // travel out to the first control rather than a jump from nowhere. Adjusted
-  // during render, guarded on the flow changing — React's supported reset-on-prop
-  // pattern — because an effect that set state here would fire a frame late and
-  // trip `react-hooks/set-state-in-effect`. Keyed on the flow, not the step, so
-  // mid-flow steps travel control-to-control instead of snapping back to centre.
-  if (isActive && flowId && flowId !== ringFlow && typeof window !== "undefined") {
-    setRingFlow(flowId);
+  // The ring re-centres at the start of a flow and again at each fork, so its
+  // first move is a travel out from the middle rather than a jump from nowhere.
+  // Adjusted during render, guarded on the anchor changing — React's supported
+  // reset-on-prop pattern — because an effect that set state here would fire a
+  // frame late and trip `react-hooks/set-state-in-effect`. The anchor is a
+  // constant across a run's pointer steps (so they travel control-to-control) and
+  // a step's own id on a `question` (so leaving the fork re-centres it).
+  const anchor = isActive && flowId ? `${flowId}:${step?.question ? stepId : "run"}` : null;
+  if (anchor !== null && anchor !== ringAnchor && typeof window !== "undefined") {
+    setRingAnchor(anchor);
     setRingRect(centerDot());
   }
 
-  // The freeze must yield to a modal dialog the moment one opens and take back
+  // The freeze must yield to a floating layer the moment one opens and take back
   // over when it closes — watched here rather than polled, so the handover is a
-  // frame, not a tick.
+  // frame, not a tick. A popper wrapper is added and removed as a node, which the
+  // subtree watch catches; a dialog toggles `data-state`, which the attribute one
+  // does.
   useEffect(() => {
     if (!isActive) return;
-    const check = () => setDialogOpen(document.querySelector(OPEN_DIALOG) !== null);
+    const check = () => setOverlayOpen(document.querySelector(OPEN_OVERLAY) !== null);
     check();
     const observer = new MutationObserver(check);
     observer.observe(document.body, {
@@ -138,6 +174,19 @@ export function OnboardingCoach() {
     });
     return () => observer.disconnect();
   }, [isActive]);
+
+  // The agent a create-agent flow builds opens in the builder; capture its id the
+  // first time the coach sees a builder route, so a detour's return leg can point
+  // back at that agent's card rather than the first in the gallery. Once only —
+  // the first `/agents/<id>` a create-agent flow reaches is the one it just made.
+  useEffect(() => {
+    if (!isActive || flowId !== "create-agent" || flowAgentId) return;
+    const prefix = `${ROUTES.AGENTS}/`;
+    const here = stripLocale(pathname);
+    if (!here.startsWith(prefix)) return;
+    const id = here.slice(prefix.length).split("/")[0];
+    if (id) setFlowAgentId(id);
+  }, [isActive, flowId, flowAgentId, pathname, setFlowAgentId]);
 
   // Get to the page, reveal the tab that holds the control, find it, scroll it
   // into view, and measure it — for both the freeze cut-out and the ring. The
@@ -165,7 +214,15 @@ export function OnboardingCoach() {
         if (trigger instanceof HTMLElement) activateTab(trigger);
       }
       if (!step.target) return;
-      const target = await waitForElement(`[data-tour="${step.target}"]`, signal);
+      // A dynamic step points at the very agent this flow created, resolved from
+      // the captured id; a plain one at its fixed `data-tour`. Without the id yet
+      // (it is captured on the builder, before any return leg) the dynamic
+      // selector falls back to the first such control rather than hunting forever.
+      const selector =
+        step.dynamicTarget === "createdAgentEdit"
+          ? `[data-tour="agent-card-edit"]${flowAgentId ? `[data-agent-id="${flowAgentId}"]` : ""}`
+          : `[data-tour="${step.target}"]`;
+      const target = await waitForElement(selector, signal);
       if (signal.aborted || !(target instanceof HTMLElement)) return;
 
       target.scrollIntoView({ block: "center", inline: "center" });
@@ -185,7 +242,7 @@ export function OnboardingCoach() {
     })();
 
     return () => controller.abort();
-  }, [isActive, step, stepId, pathname, router]);
+  }, [isActive, step, stepId, pathname, router, flowAgentId]);
 
   // The resource appeared — the reader did the thing. Advance, or end the flow if
   // this was the last step.
@@ -195,12 +252,16 @@ export function OnboardingCoach() {
 
   if (!isActive || !step) return null;
 
-  const current = rect?.stepId === stepId ? rect : null;
+  // A fork freezes the page whole and shows no ring; a pointer step cuts a hole
+  // over its control and rings it. The tag on `rect` is what clears a stale hole
+  // between steps: a rect measured for the previous step stops matching `stepId`.
+  const isQuestion = !!step.question;
+  const current = isQuestion ? null : rect?.stepId === stepId ? rect : null;
 
   return (
     <>
-      {!dialogOpen && <FreezeLayer rect={current} />}
-      {!dialogOpen && ringRect && (
+      {!overlayOpen && <FreezeLayer rect={current} />}
+      {!overlayOpen && !isQuestion && ringRect && (
         <div
           aria-hidden
           data-coach-ring
@@ -227,20 +288,31 @@ export function OnboardingCoach() {
         </IconButton>
         <h2 className="pr-6 text-sm font-semibold">{t(`steps.${step.id}.title`)}</h2>
         <p className="text-muted-foreground mt-1 text-sm">{t(`steps.${step.id}.body`)}</p>
-        <div className="mt-3 flex items-center justify-between gap-2">
-          {steps.length > 1 ? (
-            <span className="text-muted-foreground text-xs">
-              {t("progress", { current: index + 1, total: steps.length })}
-            </span>
-          ) : (
-            <span />
-          )}
-          {!step.signal && (
-            <Button size="sm" onClick={next}>
-              {isLast ? t("finish") : t("next")}
+        {isQuestion ? (
+          <div className="mt-3 flex items-center justify-end gap-2">
+            <Button size="sm" variant="ghost" onClick={() => answer(step.id, "skip")}>
+              {t("coachSkip")}
             </Button>
-          )}
-        </div>
+            <Button size="sm" onClick={() => answer(step.id, "yes")}>
+              {t("coachYes")}
+            </Button>
+          </div>
+        ) : (
+          <div className="mt-3 flex items-center justify-between gap-2">
+            {steps.length > 1 ? (
+              <span className="text-muted-foreground text-xs">
+                {t("progress", { current: index + 1, total: steps.length })}
+              </span>
+            ) : (
+              <span />
+            )}
+            {!step.signal && (
+              <Button size="sm" onClick={next}>
+                {isLast ? t("finish") : t("next")}
+              </Button>
+            )}
+          </div>
+        )}
       </div>
     </>
   );
