@@ -88,7 +88,7 @@ export { DataTable, type Column } from "./data-table";
 export {
   OptionalSetting,
   OptionalSlider,
-  PROVIDER_DEFAULT,
+  PROVIDER_DEFAULT_KEY,
   type OptionalSettingProps,
   type OptionalSliderProps,
 } from "./optional-setting";

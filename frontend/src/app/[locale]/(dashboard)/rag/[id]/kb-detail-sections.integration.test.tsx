@@ -17,11 +17,15 @@ vi.mock("@/lib/api-client", () => ({
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 // Key-returning translator: the refresh-failure assertions name message keys. The
 // rest of this page is not on next-intl, so its literals below are the real copy.
+//
+// `rich` as well as the call itself, because a component under this tree reads a
+// message with a tag in it. A mock that models only half of `t` fails as a
+// `t.rich is not a function` inside a render, several files from the assertion.
 vi.mock("next-intl", () => ({
-  useTranslations:
-    (ns: string) =>
-    (key: string): string =>
-      `${ns}.${key}`,
+  useTranslations: (ns: string) =>
+    Object.assign((key: string): string => `${ns}.${key}`, {
+      rich: (key: string): string => `${ns}.${key}`,
+    }),
 }));
 
 const perms = new Set<string>(["collections:view"]);

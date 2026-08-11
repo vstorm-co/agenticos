@@ -2,13 +2,17 @@ import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { ModelSettingsForm, PROVIDER_DEFAULT } from "./model-settings-form";
+import { ModelSettingsForm } from "./model-settings-form";
+import en from "../../../messages/en.json";
 import type { ModelSettingsSpec } from "@/types/agents";
 
 function renderForm(value: ModelSettingsSpec = {}, onChange = vi.fn(), disabled = false) {
   render(<ModelSettingsForm value={value} onChange={onChange} disabled={disabled} />);
   return onChange;
 }
+
+// The words the key resolves to, read from the catalogue rather than spelled twice.
+const PROVIDER_DEFAULT = en.ui.providerDefault;
 
 const temperature = () => screen.getByLabelText("Temperature");
 const resetTemperature = () =>

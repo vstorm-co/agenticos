@@ -115,6 +115,7 @@ function SkillsCard({
 
 export default function SkillsPage() {
   const t = useTranslations("pages.skills");
+  const tc = useTranslations("common");
   const [query, setQuery] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [sort, setSort] = useState<SkillSort>("name");
@@ -242,7 +243,7 @@ export default function SkillsPage() {
                           ? t("allCategories")
                           : selectedCategories.length === 1
                             ? categoryLabel(selectedCategories[0]!)
-                            : `${selectedCategories.length} categories`}
+                            : t("categoryCount", { count: selectedCategories.length })}
                         <ChevronDown className="h-4 w-4 opacity-60" />
                       </Button>
                     </DropdownMenuTrigger>
@@ -395,7 +396,7 @@ export default function SkillsPage() {
         <ConfirmDialog
           open
           onOpenChange={() => setPendingDelete(null)}
-          title={`Delete ${pendingDelete.name}?`}
+          title={tc("deleteNamedConfirm", { name: pendingDelete.name })}
           description={t("agentsBoundSkillWill")}
           confirmLabel={t("delete")}
           destructive

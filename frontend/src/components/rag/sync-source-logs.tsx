@@ -34,6 +34,7 @@ function duration(log: RAGSyncLog): string {
 }
 
 function LogRow({ log }: { log: RAGSyncLog }) {
+  const t = useTranslations("rag");
   return (
     <div className="border-foreground/8 flex items-start gap-3 border-b py-2.5 last:border-0">
       <div className="mt-0.5 shrink-0">{statusIcon(log.status)}</div>
@@ -50,11 +51,11 @@ function LogRow({ log }: { log: RAGSyncLog }) {
         </div>
         {log.status !== "running" && log.status !== "pending" && (
           <p className="text-foreground/55 mt-0.5 text-[10px]">
-            {log.ingested > 0 && `${log.ingested} ingested`}
-            {log.updated > 0 && ` · ${log.updated} updated`}
-            {log.skipped > 0 && ` · ${log.skipped} skipped`}
-            {log.failed > 0 && ` · ${log.failed} failed`}
-            {log.total_files === 0 && log.ingested === 0 && "no files processed"}
+            {log.ingested > 0 && t("ingestedCount", { count: log.ingested })}
+            {log.updated > 0 && ` · ${t("updatedCount", { count: log.updated })}`}
+            {log.skipped > 0 && ` · ${t("skippedCount", { count: log.skipped })}`}
+            {log.failed > 0 && ` · ${t("failedCount", { count: log.failed })}`}
+            {log.total_files === 0 && log.ingested === 0 && t("noFilesProcessed")}
           </p>
         )}
         {log.error_message && (
@@ -102,7 +103,7 @@ export function SyncSourceLogs({ logsPath }: SyncSourceLogsProps) {
         )}
       >
         {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-        Sync history
+        {t("syncHistory")}
         {loaded && logs.length > 0 && (
           <span className="text-foreground/35 ml-1">({logs.length})</span>
         )}

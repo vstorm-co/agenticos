@@ -305,7 +305,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
       return;
     }
     if (!/^https?:\/\//.test(url)) {
-      toast.error("URL must start with http:// or https://");
+      toast.error(t("urlMustStartWithHttp"));
       return;
     }
     const { scope, row, existing } = draft;
@@ -347,7 +347,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
           ...(url !== existing.url ? { url } : {}),
           ...(token ? { auth_token: token } : clearToken ? { auth_token: "" } : {}),
         });
-        toast.success(`${name} updated.`);
+        toast.success(t("serverUpdated", { name }));
         setDraft(null);
       }
     } catch (caught) {
@@ -360,12 +360,12 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
   const handleDisconnect = async (scope: Scope, connection: McpConnectionRecord) => {
     const warning =
       scope === "organization"
-        ? `Disconnect "${connection.name}"? Agents bound to it keep running, without its tools.`
-        : `Disconnect "${connection.name}"?`;
+        ? t("disconnectOrgWarning", { name: connection.name })
+        : t("disconnectWarning", { name: connection.name });
     if (!confirm(warning)) return;
     try {
       await api(scope).remove(connection.id);
-      toast.success(`${connection.name} disconnected.`);
+      toast.success(t("serverDisconnected", { name: connection.name }));
     } catch (caught) {
       toast.error(errorMessage(caught, t("couldNotDisconnect")));
     }
@@ -610,8 +610,8 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
               {draft === null
                 ? ""
                 : draft.existing
-                  ? `Edit "${draft.existing.name}"`
-                  : `Connect ${draft.row.name} for ${draft.scope === "organization" ? t("organization") : "yourself"}`}
+                  ? t("editNamed", { name: draft.existing.name })
+                  : t("connectForScope", { name: draft.row.name, scope: draft.scope })}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
@@ -817,7 +817,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                       return { ...previous, checked: next };
                     })
                   }
-                  aria-label={`Toggle ${tool.name}`}
+                  aria-label={t("toggleNamed", { name: tool.name })}
                 />
               </li>
             ))}
@@ -932,7 +932,7 @@ function ConnectionMenu({
           size="sm"
           variant="outline"
           disabled={busy}
-          aria-label={`Manage ${owner}`}
+          aria-label={t("manageNamed", { name: owner })}
           title={`${owner}: ${t(MCP_STATE_LABEL[state])}`}
         >
           <Icon className="mr-1 h-3.5 w-3.5" />

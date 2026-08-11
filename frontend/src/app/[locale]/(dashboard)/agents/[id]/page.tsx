@@ -103,6 +103,7 @@ interface PageProps {
 
 export default function AgentBuilderPage({ params }: PageProps) {
   const t = useTranslations("pages.agents");
+  const tc = useTranslations("common");
   const { id } = use(params);
   const router = useRouter();
   const { agent, isLoading, saveDraft, validate, publish, rollback, setAvatar } = useAgent(id);
@@ -204,12 +205,12 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const mapNodes = useMemo<MapNode[]>(() => {
     if (!spec) return [];
     const name = <T extends { id: string; name: string }>(pool: T[], id: string) =>
-      pool.find((entry) => entry.id === id)?.name ?? `${id} (missing)`;
+      pool.find((entry) => entry.id === id)?.name ?? t("namedMissing", { name: id });
     const chosen = profiles.find((entry) => entry.id === spec.model_profile_id);
     const profile = spec.model_profile_id
       ? chosen
         ? `${chosen.label} · ${chosen.model}`
-        : `${spec.model_profile_id} (missing)`
+        : t("namedMissing", { name: spec.model_profile_id })
       : t("organizationDefault");
 
     return [
@@ -563,7 +564,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
         <ConfirmDialog
           open
           onOpenChange={() => setConfirming(null)}
-          title={`Archive ${agent.name}?`}
+          title={tc("archiveNamedConfirm", { name: agent.name })}
           description={t("stopsAnsweringEverywhereAvailable")}
           confirmLabel={t("archive")}
           loading={archive.isPending}
@@ -578,7 +579,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
         <ConfirmDialog
           open
           onOpenChange={() => setConfirming(null)}
-          title={`Delete ${agent.name}?`}
+          title={tc("deleteNamedConfirm", { name: agent.name })}
           description={t("removesAgentEveryVersion")}
           confirmLabel={t("delete")}
           confirmText={agent.slug}

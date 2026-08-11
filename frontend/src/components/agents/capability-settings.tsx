@@ -505,11 +505,13 @@ function SecretField({ binding, requirement, onChange, disabled }: SecretFieldPr
 
       {state === "empty" && requirement.kind !== "api_key" && (
         <p className="text-muted-foreground text-xs">
-          <Link href={ROUTES.VAULT} className="underline">
-            {t("storeOneVault")}
-          </Link>{" "}
-          and it appears here - this shape has several fields, so it is filled in there. The value
-          stays in the vault; an agent records which secret to use, never the secret.
+          {t.rich("storeInVaultHint", {
+            link: (chunks) => (
+              <Link href={ROUTES.VAULT} className="underline">
+                {chunks}
+              </Link>
+            ),
+          })}
         </p>
       )}
     </div>
@@ -635,16 +637,17 @@ function ToolList({ binding, tools, contracts, sideEffecting, onChange, disabled
             disabled={disabled}
             onClick={() => onChange({ ...binding, tool_approval: {}, tool_overrides: {} })}
           >
-            {changed.length === 1 ? t("clear1Override") : `Clear ${changed.length} overrides`}
+            {t("clearOverrides", { count: changed.length })}
           </Button>
         )}
       </div>
 
       <p className="text-muted-foreground text-xs">
-        A tool&apos;s name and description are the prompt the model reads before it decides to call
-        it, so both steer it: <span className="font-mono">{t("searchRefundPolicy")}</span> is
-        reached for on questions <span className="font-mono">{t("searchDocuments")}</span>
-        {t("passedOverEditsHere")}
+        {t.rich("toolNameSteersModel", {
+          mono: (chunks) => <span className="font-mono">{chunks}</span>,
+          reached: t("searchRefundPolicy"),
+          passed: t("searchDocuments"),
+        })}
       </p>
 
       <ul className="divide-y rounded-md border">
@@ -808,7 +811,7 @@ function ToolContract({ contract }: { contract: CapabilityToolContract }) {
         <details className="group">
           <summary className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1.5 text-xs">
             <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
-            Arguments ({names.length})
+            {t("argumentsCount", { count: names.length })}
           </summary>
           <ul className="mt-1.5 space-y-1">
             {names.map((name) => (

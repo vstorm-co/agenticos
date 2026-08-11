@@ -65,6 +65,7 @@ function UserAvatar({
 
 export default function AdminConversationsPage() {
   const t = useTranslations("admin");
+  const tc = useTranslations("common");
   const {
     conversations,
     conversationsTotal,
@@ -328,7 +329,7 @@ export default function AdminConversationsPage() {
           <SelectContent>
             {PAGE_SIZE_OPTIONS.map((n) => (
               <SelectItem key={n} value={String(n)}>
-                {n} / page
+                {tc("perPage", { count: n })}
               </SelectItem>
             ))}
           </SelectContent>
@@ -384,13 +385,14 @@ function PaginationBar({
   onNext: () => void;
 }) {
   const t = useTranslations("pages.admin");
+  const tc = useTranslations("common");
   if (total === 0) return null;
   const start = page * pageSize + 1;
   const end = Math.min(total, (page + 1) * pageSize);
   return (
     <div className="flex items-center justify-between">
       <span className="text-muted-foreground text-sm">
-        {start}–{end} of {total}
+        {tc("rangeOfTotal", { start, end, total })}
       </span>
       <div className="flex items-center gap-1">
         <Button

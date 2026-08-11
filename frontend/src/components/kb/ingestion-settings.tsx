@@ -310,7 +310,7 @@ export function IngestionSettings({
             <OptionalSetting
               htmlFor={id("ocr-language")}
               label={t("ocrLanguage")}
-              description={`Tesseract codes, which are three letters: "eng", "pol", "deu". Join several with "+".`}
+              description={t("ocrLanguageHint")}
               error={errors.ocr_language}
               disabled={disabled}
             >

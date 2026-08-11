@@ -222,7 +222,7 @@ export function CapabilityWorkbench({
                 // is fine; two switches answering to the same name is not - a
                 // screen reader announces them identically and neither says
                 // which capability it belongs to.
-                aria-label={`${focused.name} enabled`}
+                aria-label={t("namedEnabled", { name: focused.name })}
                 onCheckedChange={() => onToggle(focused.id)}
               />
             </div>

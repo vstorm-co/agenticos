@@ -4,7 +4,7 @@ import {
   Input,
   OptionalSetting,
   OptionalSlider,
-  PROVIDER_DEFAULT,
+  PROVIDER_DEFAULT_KEY,
   Select,
   SelectContent,
   SelectItem,
@@ -20,14 +20,14 @@ interface ModelSettingsFormProps {
   disabled?: boolean;
 }
 
-export { PROVIDER_DEFAULT };
+export { PROVIDER_DEFAULT_KEY };
 
 /**
  * Where a slider sits before anybody has chosen anything.
  *
  * A range input has no empty state, so an untouched one has to point
  * *somewhere*. It points at the value most providers use, and says
- * `PROVIDER_DEFAULT` beside itself so the position is never read as a choice.
+ * `PROVIDER_DEFAULT_KEY` beside itself so the position is never read as a choice.
  */
 const RESTING: Record<"temperature" | "top_p", number> = { temperature: 1, top_p: 1 };
 
@@ -51,6 +51,7 @@ const RESTING: Record<"temperature" | "top_p", number> = { temperature: 1, top_p
  */
 export function ModelSettingsForm({ value, onChange, disabled }: ModelSettingsFormProps) {
   const t = useTranslations("agents");
+  const tu = useTranslations("ui");
   /** Remove the key rather than store an empty value - see the note above. */
   const set = <K extends keyof ModelSettingsSpec>(key: K, next: ModelSettingsSpec[K]) => {
     const updated = { ...value };
@@ -102,7 +103,7 @@ export function ModelSettingsForm({ value, onChange, disabled }: ModelSettingsFo
             step={1}
             value={value.max_tokens ?? ""}
             disabled={disabled}
-            placeholder={PROVIDER_DEFAULT}
+            placeholder={tu(PROVIDER_DEFAULT_KEY)}
             onChange={(event) => set("max_tokens", asNumber(event.target.value))}
           />
         </OptionalSetting>
@@ -122,7 +123,7 @@ export function ModelSettingsForm({ value, onChange, disabled }: ModelSettingsFo
             step={1}
             value={value.timeout ?? ""}
             disabled={disabled}
-            placeholder={PROVIDER_DEFAULT}
+            placeholder={tu(PROVIDER_DEFAULT_KEY)}
             onChange={(event) => set("timeout", asNumber(event.target.value))}
           />
         </OptionalSetting>
@@ -151,7 +152,7 @@ export function ModelSettingsForm({ value, onChange, disabled }: ModelSettingsFo
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="default">{PROVIDER_DEFAULT}</SelectItem>
+            <SelectItem value="default">{tu(PROVIDER_DEFAULT_KEY)}</SelectItem>
             <SelectItem value="parallel">{t("severalAtOnce")}</SelectItem>
             <SelectItem value="sequential">{t("oneAtTime")}</SelectItem>
           </SelectContent>

@@ -18,9 +18,16 @@ import { Label } from "./label";
  * about the same wire format.
  */
 
-/** How the untouched state of every control reads, in one place. */
 import { useTranslations } from "next-intl";
-export const PROVIDER_DEFAULT = "Provider default";
+
+/**
+ * How the untouched state of every control reads, in one place - as a key.
+ *
+ * A module-level constant cannot call a translator, so it holds the key and each
+ * component translates at the point of use. Holding the words instead is how
+ * `Provider default` reached three call sites and every locale in English.
+ */
+export const PROVIDER_DEFAULT_KEY = "providerDefault";
 
 export interface OptionalSettingProps {
   htmlFor: string;
@@ -115,6 +122,7 @@ export function OptionalSlider({
   disabled,
   onChange,
 }: OptionalSliderProps) {
+  const t = useTranslations("ui");
   const isSet = value !== undefined;
 
   return (
@@ -143,7 +151,7 @@ export function OptionalSlider({
             isSet ? "text-foreground" : "text-muted-foreground",
           )}
         >
-          {isSet ? value.toFixed(2) : PROVIDER_DEFAULT}
+          {isSet ? value.toFixed(2) : t(PROVIDER_DEFAULT_KEY)}
         </span>
       </div>
     </OptionalSetting>

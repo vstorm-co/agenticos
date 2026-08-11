@@ -85,7 +85,7 @@ export default function AdminOverviewPage() {
         id: c.id,
         type: "conversation_created" as const,
         title: c.title || t("newConversation"),
-        description: c.user_email ? `by ${c.user_email}` : "",
+        description: c.user_email ? t("byUser", { email: c.user_email }) : "",
         timestamp: c.created_at,
       }));
     },

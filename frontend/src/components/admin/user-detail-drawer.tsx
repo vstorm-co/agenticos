@@ -184,7 +184,8 @@ export function UserDetailDrawer({
                       </p>
                       <p className="text-foreground/45 truncate font-mono text-[10px] tracking-wider uppercase">
                         {formatDateTime(c.created_at)}
-                        {typeof c.message_count === "number" && ` · ${c.message_count} msg`}
+                        {typeof c.message_count === "number" &&
+                          ` · ${t("messageCountShort", { count: c.message_count })}`}
                       </p>
                     </div>
                     <a

@@ -45,8 +45,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
           <div className="relative z-10 max-w-[28rem]">
             <h2 className="text-display-lg text-foreground mb-6 leading-[1.05] [&_em]:font-normal [&_em]:italic">
-              The operating system for <em>{t("yourCompanyAposS")}</em>
-              {t("aiAgents")}
+              {t.rich("operatingSystemHeading", { em: (chunks) => <em>{chunks}</em> })}
             </h2>
             <p className="text-foreground/65 max-w-md text-base leading-relaxed">
               {t("agentHereDataNot")}
