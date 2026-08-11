@@ -28,6 +28,7 @@ import { ChannelBotsPanel } from "@/components/agents/channel-bots-panel";
 import { CollectionPicker } from "@/components/agents/collection-picker";
 import { EmbedsPanel } from "@/components/agents/embeds-panel";
 import { ExposuresPanel } from "@/components/agents/exposures-panel";
+import { TriggersPanel } from "@/components/triggers/triggers-panel";
 import { McpServerPicker } from "@/components/agents/mcp-server-picker";
 import { McpServerList } from "@/components/mcp/mcp-server-list";
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
@@ -867,6 +868,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
               (binding) => binding.id === SANDBOX_ID && binding.enabled !== false,
             )}
           />
+          {/* Managing a trigger is the same floor as running the agent, not
+              publishing it - the server resolves `agents:run` per row. */}
+          <TriggersPanel agentId={id} canManage={can(Perm.agentsRun)} />
           {/* Bots stay organization resources - one bot serves many agents -
               but they are registered here, beside the binding they exist for.
               The panel hides itself from anyone without channels:manage. */}
