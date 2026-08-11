@@ -17,6 +17,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.112] - 2026-08-12
+
+The copy guard reads the frontend with a TypeScript parser instead of five
+regexes, and the 137 English strings it can now see are in the catalog.
+
 ### Changed
 
 - **The i18n guard parses instead of grepping, and the copy it found is in the
