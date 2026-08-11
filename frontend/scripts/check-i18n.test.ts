@@ -348,6 +348,16 @@ describe("a string literal", () => {
     expect(said(source).filter((what) => what.startsWith("plural "))).toHaveLength(1);
   });
 
+  it("is quoted so the report says where the string ends", () => {
+    // A backslash in the copy, escaped after the quote rather than before it, leaves a
+    // report line that is ambiguous about its own terminator. CodeQL calls this
+    // `js/incomplete-sanitization` and is right about it even here, where the only sink
+    // is a build log.
+    const source = 'const label = "Escape a \\\\ and a \' in one sentence";\n';
+
+    expect(said(source)).toEqual(["string 'Escape a \\\\ and a \\' in one sentence'"]);
+  });
+
   it("passes a two-token label, an icon name and an import", () => {
     expect(said('import { Button } from "@/components/ui/button";\n')).toEqual([]);
     expect(said('const icon = "chevron-right";\n')).toEqual([]);

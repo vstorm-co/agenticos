@@ -622,11 +622,17 @@ function escaped(part: string): string {
   return part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/** A value in the report, quoted the way the Python guard quoted it. */
+/**
+ * A value in the report, quoted the way the Python guard quoted it.
+ *
+ * Backslashes before quotes, and in that order: escaping the quote alone leaves
+ * `\'` reading as an escaped backslash followed by the terminator, so a report line
+ * about a string holding one is ambiguous about where it ends.
+ */
 function quote(value: string): string {
   const said = collapse(value);
   const shown = said.length > 120 ? `${said.slice(0, 117)}…` : said;
-  return `'${shown.replace(/'/g, "\\'")}'`;
+  return `'${shown.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`;
 }
 
 /**
