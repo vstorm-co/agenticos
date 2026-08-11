@@ -31,6 +31,12 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
   usePathname: () => "/",
   useParams: () => ({}),
+  // next-intl's `createNavigation` wraps these at module scope, so a component
+  // reaching for locale-aware navigation fails to import at all without them -
+  // "No 'redirect' export is defined on the 'next/navigation' mock", from a file
+  // that never mentions redirects.
+  redirect: vi.fn(),
+  permanentRedirect: vi.fn(),
 }));
 
 // Node 22+ ships a built-in localStorage that is disabled (undefined) without
