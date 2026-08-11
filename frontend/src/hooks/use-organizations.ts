@@ -149,7 +149,7 @@ export function useOrganizations() {
         toast.success(t("updated"));
         return updated;
       } catch {
-        toast.error("Failed to update organization");
+        toast.error(t("failedUpdate"));
         return null;
       }
     },
@@ -191,7 +191,7 @@ export function useOrganizations() {
         }
         toast.success(t("deleted"));
       } catch {
-        toast.error("Failed to delete organization");
+        toast.error(t("failedDelete"));
       }
     },
     [writeCache, setActiveOrgId, t],

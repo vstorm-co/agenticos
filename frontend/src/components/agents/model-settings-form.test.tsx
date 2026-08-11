@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { ModelSettingsForm, PROVIDER_DEFAULT } from "./model-settings-form";
+import { ModelSettingsForm } from "./model-settings-form";
+
+/** What `ui.providerDefault` holds - a test names the copy it asserts on. */
+const PROVIDER_DEFAULT = "Provider default";
 import type { ModelSettingsSpec } from "@/types/agents";
 
 function renderForm(value: ModelSettingsSpec = {}, onChange = vi.fn(), disabled = false) {

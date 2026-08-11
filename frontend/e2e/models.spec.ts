@@ -1,5 +1,5 @@
 import { expect, test } from "./fixtures";
-import type { Locator, Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 
 import {
   AUTH_STATE,
@@ -9,6 +9,8 @@ import {
   expectNoRenderedSecret,
   openAgent,
   saveDraft,
+  savedModels,
+  selectSavedModel,
 } from "./helpers";
 
 test.use({ storageState: AUTH_STATE });
@@ -150,31 +152,6 @@ test.describe("Models", () => {
     await expect(endpoint).toHaveValue("file:///etc/passwd");
   });
 });
-
-/** The disclosure holding the profiles this organization has already named. */
-function savedModels(page: Page): Locator {
-  return page.getByRole("radiogroup", { name: "Model" });
-}
-
-/**
- * Point the agent at a profile that already exists.
- *
- * Behind a disclosure on purpose — the panel leads with the form, because
- * choosing a model *is* choosing a provider, a model id and a key, and a list of
- * profiles somebody else created is not where that decision starts. `<details>`
- * has no ARIA role to aim at, so the summary is clicked by its own text, and
- * only when it is still shut: clicking it twice closes it again.
- */
-async function selectSavedModel(page: Page, label: string): Promise<void> {
-  const list = savedModels(page);
-  const radio = list.getByRole("radio", { name: label, exact: true });
-  if (!(await radio.isVisible())) {
-    await page.getByText(/^Use a saved model \(\d+\)$/).click();
-  }
-  await expect(radio).toBeVisible();
-  if ((await radio.getAttribute("aria-checked")) !== "true") await radio.click();
-  await expect(radio).toHaveAttribute("aria-checked", "true");
-}
 
 /** Choose a provider, which is what decides every field below it. */
 async function pickProvider(page: Page, label: string): Promise<void> {

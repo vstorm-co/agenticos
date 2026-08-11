@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { useTranslations } from "next-intl";
 
 import { cn } from "@/lib/utils";
 import { Button } from "./button";
@@ -17,10 +18,6 @@ import { Label } from "./label";
  * what unset looks like, and then the two pages would be saying different things
  * about the same wire format.
  */
-
-/** How the untouched state of every control reads, in one place. */
-import { useTranslations } from "next-intl";
-export const PROVIDER_DEFAULT = "Provider default";
 
 export interface OptionalSettingProps {
   htmlFor: string;
@@ -115,6 +112,7 @@ export function OptionalSlider({
   disabled,
   onChange,
 }: OptionalSliderProps) {
+  const t = useTranslations("ui");
   const isSet = value !== undefined;
 
   return (
@@ -143,7 +141,7 @@ export function OptionalSlider({
             isSet ? "text-foreground" : "text-muted-foreground",
           )}
         >
-          {isSet ? value.toFixed(2) : PROVIDER_DEFAULT}
+          {isSet ? value.toFixed(2) : t("providerDefault")}
         </span>
       </div>
     </OptionalSetting>

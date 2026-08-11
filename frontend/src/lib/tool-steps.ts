@@ -18,9 +18,12 @@
  *
  * Dependency-free on purpose: this is the vocabulary, not the presentation, and the
  * live step animation, the step row and any test can all read it.
+ *
+ * `toolStep` takes the caller's `chat` translator: the wording is in the catalog and a
+ * module cannot reach one (#446).
  */
 
-import { toolCaption, toolDisplayName } from "./agent-step-captions";
+import { toolCaption, toolDisplayName, type Translate } from "./agent-step-captions";
 import { toolEntry, type StepKind } from "./tool-catalog";
 
 export interface ToolStep {
@@ -148,6 +151,7 @@ export function toolStep(
   name: string,
   args: Record<string, unknown> | undefined,
   finished: boolean,
+  t: Translate,
   servers: readonly McpServerRef[] = [],
 ): ToolStep {
   const fromMcp = mcpCall(name, servers);
@@ -170,16 +174,24 @@ export function toolStep(
     // Everything not from the workspace toolset keeps the captions it had: present
     // tense while running, and what happened once it has.
     return {
-      label: finished ? finishedLabel(name, args) : toolCaption(name),
+      label: finished ? finishedLabel(name, args, t) : toolCaption(name, t),
       detail: subjectOf(name, args),
       kind,
     };
   }
 
-  const verb = finished ? verbs.done : verbs.now;
-  const subject = subjectOf(name, args);
-  if (subject === null) return { label: `${verb}…`, detail: null, kind };
-  return { label: `${verb} ${subject}`, detail: null, kind };
+  // The whole sentence comes from one message per tense, which selects on whether the
+  // call named a subject. A verb interpolated into `{verb} {subject}` would be the
+  // `{noun}` defect under another name (#362).
+  const named = subjectOf(name, args);
+  return {
+    label: t(finished ? verbs.done : verbs.now, {
+      named: named === null ? "no" : "yes",
+      subject: named ?? "",
+    }),
+    detail: null,
+    kind,
+  };
 }
 
 /**
@@ -188,12 +200,16 @@ export function toolStep(
  * A loaded skill is the clearest case: the step that matters says *Refund Policy*, not
  * *Load Skill* - which skill it was is the whole content of the step.
  */
-function finishedLabel(name: string, args: Record<string, unknown> | undefined): string {
+function finishedLabel(
+  name: string,
+  args: Record<string, unknown> | undefined,
+  t: Translate,
+): string {
   if (name === "load_skill") {
     const skill = text((args ?? {}).skill_name);
     if (skill !== null) return titleWords(skill);
   }
-  return toolDisplayName(name);
+  return toolDisplayName(name, t);
 }
 
 /**
@@ -210,6 +226,8 @@ function subjectOf(name: string, args: Record<string, unknown> | undefined): str
     const pattern = text(given.pattern);
     const where = pathArg(given);
     if (pattern === null) return null;
+    // i18n-exempt: `in` joins a pattern to a filename in a step's detail; #603 covers
+    // moving the join into a message, which needs `subjectOf` to take a translator.
     return where === null ? pattern : `${pattern} in ${basename(where)}`;
   }
   const path = pathArg(given);

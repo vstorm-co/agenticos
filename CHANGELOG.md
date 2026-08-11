@@ -17,6 +17,83 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.103] - 2026-08-11
+
+The Builder says when the agent people are talking to is not the one on screen,
+and Publish says what it will move before it moves it.
+
+### Added
+
+- **Publish says what it will move before it moves it.** The confirmation dialog
+  names the version it creates, the default environment that follows the publish
+  the moment it lands (or, on a first publish, that `production` is created and
+  the agent goes live), and each pinned environment that stays on the version it
+  is pinned to. (#519)
+
+### Fixed
+
+- **The Builder tracked "unsaved" and never "unpublished".** Once the autosave
+  settled the page read as finished, while every channel, widget and API call was
+  still answering with the published version — toggle a tool off in the Toolbox
+  and nothing on screen said a publish was needed. A header badge now compares the
+  *stored* draft against the frozen version spec: "Draft differs from v7", with a
+  title spelling out that published surfaces keep answering with v7 until a
+  publish, or "Up to date with v7". Compared as sorted-keys YAML, the same
+  serialization the version diff reads, so key order cannot read as a change
+  nobody made. (#519)
+- **A publish left the environments panel naming the pin it had just moved.**
+  Publish and rollback invalidated `qk.agents` and not `qk.environments`, so the
+  History tab contradicted the dialog's own sentence seconds after it was read.
+  Pre-existing; included because the new dialog makes it visible. (#519)
+
+## [0.0.102] - 2026-08-11
+
+The copy guard reads a `.ts` file, and the 381 English strings it had never been
+pointed at are in the catalog.
+
+### Fixed
+
+- **`check_i18n.py` never read a `.ts` file, so every hook toast was invisible to
+  it.** The offence sweep walked `frontend/src/**/*.tsx` and nothing else, which
+  left 381 offences across 90 files unread since the guard was written: nineteen
+  `toast.success("…")` in `src/hooks/**` alone, plus the module tables of labels in
+  `lib/tool-catalog.ts`, `lib/ingestion-config.ts` and `lib/mcp-servers.ts`.
+  Widening the glob was not the fix — in a `.ts` file `; return` is a text node and
+  `a > b` is a count — so `JSX_TEXT`, `MIXED`, `COUNT` and `LEAD` are gated on the
+  suffix and the rest now read a string literal wherever it sits. All 381 are
+  migrated: 233 messages added to `messages/en.json`, and the module tables hold
+  keys with the copy resolved where it renders, pure helpers taking the caller's
+  translator (`toolStep`, `toolCaption`, `ingestionProblems`,
+  `mergeWithUserCommands`). (#446)
+- **The `import`/`export` line-skip keyed on the keyword rather than the module
+  specifier**, which in a `.ts` file hid every `export const LABEL = "…"` and every
+  default parameter on an `export function` — `getErrorMessage`'s
+  `"An unexpected error occurred"`, the sentence behind most failed requests here,
+  and `PROVIDER_DEFAULT` beside a `useTranslations` import somebody had already
+  added and never used. (#446)
+- **The MCP add-server dialog rendered a catalog key as its hint.** `AUTH_CHOICES`
+  held `hint: "authTokenHint"` and the paragraph below the radio group printed it
+  verbatim, in every locale — neither a hardcoded string nor a missing key, so no
+  guard could see it. Found by the duplication rule once the catalog held the
+  sentence. (#446)
+- **The test translator was rebuilt on every call**, where the real
+  `useTranslations` is a `useMemo` over stable inputs. A hook putting `t` in a
+  `useCallback`'s dependencies then handed a new function to every render, and an
+  effect keyed on that callback re-fired forever: the admin conversations screen
+  loaded in a loop and never left its spinner. `vitest.setup.ts` caches one
+  translator per namespace. (#446)
+
+### Removed
+
+- **A superseded MCP catalog and two dead helpers.** `lib/mcp-catalog.ts` held a
+  curated table of fourteen servers with their own descriptions, examples and
+  category headings; nothing rendered it — the catalog the product shows is served
+  by the backend from `app/core/catalog/mcp_servers.json`, is fifty-nine entries
+  deep, and has its own categories. Its copy was dead English, so it was deleted
+  rather than translated, along with `MCP_CATEGORIES`' four unrendered headings and
+  `summarizeIngestion`, which only its own test called. `gen-mcp-logos.ts` now
+  takes its domains from the backend catalog. (#446)
+
 ## [0.0.101] - 2026-08-11
 
 Three static guards against the code getting worse, and the slop they target

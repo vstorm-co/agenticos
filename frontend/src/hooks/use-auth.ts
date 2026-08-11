@@ -4,6 +4,7 @@ import { useCallback, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { resetSessionState, useAuthStore } from "@/stores";
 import { apiClient, ApiError } from "@/lib/api-client";
@@ -153,6 +154,7 @@ function runAuthCheck(setUser: (u: User | null) => void): Promise<void> {
 
 export function useAuth() {
   const router = useRouter();
+  const t = useTranslations("auth");
   const queryClient = useQueryClient();
   const { user, isAuthenticated, isLoading, setUser, setLoading, logout } = useAuthStore();
 
@@ -217,10 +219,10 @@ export function useAuth() {
       queryClient.clear();
       resetSessionState();
       logout();
-      toast.success("Logged out");
+      toast.success(t("loggedOut"));
       router.push(ROUTES.LOGIN);
     }
-  }, [logout, router, queryClient]);
+  }, [logout, router, queryClient, t]);
 
   const refreshToken = useCallback(async () => {
     try {

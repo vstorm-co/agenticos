@@ -196,6 +196,10 @@ test("an agent goes from a stored key to a run with a cost", async ({ page }) =>
   }
   await publish.click();
 
+  // The first publish creates the production environment, and the dialog says
+  // so before it happens (#519) - confirming is what actually publishes.
+  await page.getByRole("dialog").getByRole("button", { name: "Publish" }).click();
+
   // Publishing validates the draft first, so this is also the assertion that the
   // spec the Builder wrote is one the API accepts. The status badge lives in the
   // page title, and it is the only thing that unlocks the chat action below.
