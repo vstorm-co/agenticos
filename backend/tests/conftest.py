@@ -86,6 +86,37 @@ def _a_password_is_already_configured() -> bool:
 if not _a_password_is_already_configured():
     os.environ["POSTGRES_PASSWORD"] = "postgres"
 
+
+# Prefect reads `.env` itself - its own settings model carries `env_file=".env"` - so
+# `PREFECT_API_URL=http://localhost:4200/api`, which `backend/.env` sets for `make dev`,
+# is also the address a `@flow` call in this suite tries to reach. With no server up
+# that is `RuntimeError: Failed to reach API at http://localhost:4200/api/` out of a
+# test that patched every collaborator it has, which is #536: the failure belongs to the
+# environment and reads as the test's. CI never saw it, having no `.env` and therefore no
+# URL at all, so what a laptop ran was never what CI ran.
+#
+# Deleting the variable would not do it: an unset variable leaves the dotenv source to
+# answer, and the dotenv source is what holds the URL. An empty *assignment* is what
+# outranks it, and Prefect reads an empty URL as no URL - it then runs the flow against
+# a temporary server of its own, which is what CI has always done. Unconditionally,
+# because the point is that the two agree: a developer with `make dev` up gets the same
+# run CI gets rather than a different code path.
+#
+# Ephemeral mode is named rather than assumed. It is the default today, but with no URL
+# and no ephemeral server a `@flow` call does not fail - it retries for 75 seconds and
+# then fails, which is a worse version of the bug this removes.
+#
+# The allowance for starting it is raised past Prefect's own 20 seconds, which is not
+# enough for the first run on a given machine: the server migrates a SQLite database
+# under `PREFECT_HOME` before it answers, taking ~75 seconds where nothing has written
+# one yet - a fresh container, or a developer whose Prefect runs in Docker and whose
+# `~/.prefect` is therefore empty - and about seven on every run after. Twenty is
+# therefore `RuntimeError: Timed out while attempting to connect to ephemeral Prefect
+# API server` once, then a pass, which is the same defect wearing a different message.
+os.environ["PREFECT_API_URL"] = ""
+os.environ["PREFECT_SERVER_EPHEMERAL_ENABLED"] = "true"
+os.environ["PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS"] = "90"
+
 from collections.abc import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock
 
