@@ -44,6 +44,16 @@ export const qk = {
     list: (agentId: string) => ["exposures", agentId] as const,
     targets: (agentId: string) => ["exposures", agentId, "targets"] as const,
   },
+  triggers: {
+    all: () => ["triggers"] as const,
+    // One agent's schedules and event triggers, for the Builder's panel.
+    list: (agentId: string) => ["triggers", agentId] as const,
+    // Every trigger across the organization, for the sidebar and the Activity
+    // tab. A separate key from `list`: it is a different question and a different
+    // endpoint, and a mutation on one agent's trigger invalidates both under the
+    // shared `all()` prefix.
+    orgList: () => ["triggers", "org"] as const,
+  },
   embeds: {
     all: () => ["embeds"] as const,
     list: (agentId: string) => ["embeds", agentId] as const,

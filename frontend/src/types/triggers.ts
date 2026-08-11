@@ -1,0 +1,87 @@
+/**
+ * Types for agent triggers - when an agent runs with nobody at the keyboard.
+ *
+ * One table, two concepts, mirroring the backend's `AgentTrigger`. A **schedule**
+ * fires on the clock (an interval, or a cron expression in UTC); an **event** fires
+ * on an arrival (a GitHub issue, an inbound email) delivered as a signed webhook.
+ * `trigger_type` tells them apart, and the fields each uses are disjoint - the same
+ * split the shape CHECK enforces server-side.
+ */
+
+/** Which of the two concepts a trigger is. Mirrors the backend's `TriggerType`. */
+export type TriggerType = "schedule" | "event";
+
+/** How a schedule decides it is due. Mirrors the backend's `ScheduleKind`. */
+export type ScheduleKind = "interval" | "cron";
+
+/** Where an event trigger's fire comes from. Mirrors the backend's `EventSource`. */
+export type EventSource = "github" | "email";
+
+export interface Trigger {
+  id: string;
+  agent_id: string;
+  /** Set only on the org-wide listing, where a row is shown away from its agent. */
+  agent_name: string | null;
+  created_by_user_id: string | null;
+  is_active: boolean;
+  /** Which named environment answers here; null = the default. */
+  environment_id: string | null;
+  trigger_type: TriggerType;
+  schedule_kind: ScheduleKind;
+  interval_seconds: number | null;
+  cron_expression: string | null;
+  event_source: EventSource | null;
+  /** The per-source filter (which actions, which sender); `{}` on a schedule. */
+  event_config: Record<string, unknown>;
+  prompt: string;
+  /** Null on an event trigger, which has no scheduled next fire. */
+  next_fire_at: string | null;
+  last_fired_at: string | null;
+  last_run_id: string | null;
+  /** The one run-log conversation every fire appends to, opened eagerly on create. */
+  conversation_id: string | null;
+  /**
+   * Where a provider must deliver, under the deployment's origin; null for a
+   * schedule. Derived server-side from the source and id - the secret that
+   * authenticates a delivery is never part of it.
+   */
+  webhook_path: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface TriggerList {
+  items: Trigger[];
+  total: number;
+}
+
+/**
+ * A new trigger. `trigger_type` decides which fields are read: a schedule uses
+ * `schedule_kind` plus its cadence field; an event uses `event_source`,
+ * `event_config` and `event_secret`. The secret is sent once, on create, and never
+ * returned - the server seals it and only its ciphertext is stored.
+ */
+export interface TriggerCreate {
+  prompt: string;
+  trigger_type: TriggerType;
+  environment_id?: string | null;
+  schedule_kind?: ScheduleKind;
+  interval_seconds?: number | null;
+  cron_expression?: string | null;
+  event_source?: EventSource | null;
+  event_config?: Record<string, unknown> | null;
+  event_secret?: string | null;
+}
+
+/**
+ * A partial edit. A trigger's shape cannot change here - not its type, its
+ * schedule kind, or an event's source, filter or secret; those are set once and
+ * otherwise made by deleting and recreating. `interval_seconds` is accepted only
+ * for an interval schedule.
+ */
+export interface TriggerUpdate {
+  prompt?: string;
+  interval_seconds?: number | null;
+  is_active?: boolean;
+  environment_id?: string | null;
+}
