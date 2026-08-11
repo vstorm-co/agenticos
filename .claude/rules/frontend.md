@@ -50,6 +50,16 @@ There is no `(marketing)` route group.
   lines is one node, a type argument list is not JsxText at all, and a comment is
   invisible rather than blanked. The four shapes patched into the old regexes - #199,
   #246, #249, #314 - each keep a spec, and so does #141's plain multi-line node.
+- **It reads a `.ts` file as well as a `.tsx` one, and by the same rules.** A parser
+  reads one by construction: there is no bracket to anchor on and so nothing to gate on
+  the suffix, and a file with no JSX in it simply yields no phrases. That matters because
+  a hook's toast and a module table of labels are copy - 381 offences across 90 files,
+  unread for as long as the sweep walked `*.tsx` alone (#446). **`src/app/api/**` is
+  skipped by the offence sweep and read by the catalog rules**, which is not an
+  inconsistency: a route handler sits outside the `[locale]` segment and has no
+  translator to reach, so what it writes is a wire payload (#603) - but a `detail` it
+  writes that duplicates a message is still worth reporting, and `duplicatedInSource` is
+  what reports it. `dev/`, the playground, is skipped by both.
 - **A count is an ICU `plural`, never a ternary.** `{n} file{n === 1 ? "" : "s"}`
   and `count === 1 ? "1 skill" : \`${count} skills\`` are sentences only English
   builds that way, so they are refused too - the message holds
@@ -67,10 +77,11 @@ There is no `(marketing)` route group.
 - **A key nothing reads is not a translation, and a sentence is one message.** The
   guard asks the catalog both questions: it refuses a key no component
   reads, and a message whose words are also written out in the source. Both are anchored
-  on the catalog rather than on the source, which is what lets them reach a `.ts` file -
-  the offence sweep walks `*.tsx` alone, so `src/hooks/**` had never been read by it at
-  all and nineteen toasts sat there in English beside the keys holding them. 141 keys
-  were unread, 82 of them translated into Polish for nobody (#425).
+  on the catalog rather than on the source, which is how they found the `.ts` copy first:
+  the offence sweep walked `*.tsx` alone until #446, so `src/hooks/**` had never been
+  read by it at all and nineteen toasts sat there in English beside the keys holding
+  them. Both halves read every `.ts` file now. 141 keys were unread, 82 of them
+  translated into Polish for nobody (#425).
   `messages/catalog.test.ts` adds the third and cheapest: **a value opening on `.`, `,`,
   `:` or `;` is half a sentence** - the other half is still in the JSX. A sentence with
   emphasis or a link in it is *one* message with a tag, read with `t.rich`
@@ -81,6 +92,19 @@ There is no `(marketing)` route group.
   how 18 Tailwind class lists and 148 fragments of source ended up in there, the class
   lists read back through `cn(t("flexItemsStartGap"))` where translating one strips the
   component of its styling (#348). `messages/catalog.test.ts` refuses both shapes now.
+- **A module table holds keys, and the component translates.** A module constant cannot
+  call a translator, so a table of labels holds catalog keys and the copy is resolved at
+  the point of use - `TOOL_CATALOG`'s `captionKey`, `MCP_AUTH_LABEL`, the `Choice` rows
+  in `ingestion-config.ts`. A *pure function* over such a table either answers with a
+  key or takes `t`: `toolStep`, `toolCaption`, `ingestionProblems` and
+  `mergeWithUserCommands` all take the caller's translator, and `Translate` in
+  `agent-step-captions.ts` is the shape they take. A table whose labels nothing renders
+  is **deleted** rather than translated - four MCP category headings and a whole
+  superseded catalog went that way, and a key nothing reads fails the build anyway.
+- **A verb the sentence agrees with is not a parameter either.** `{verb} {subject}` is
+  the `{noun}` defect below under another name, so a step naming its own subject holds
+  one message per tense and selects on whether it has one:
+  `{named, select, no {Writing…} other {Writing {subject}}}`.
 - **A noun the sentence agrees with is not a parameter, and not a prop.**
   `{matched} of {total} {noun}` with `noun="skills"` reads as translated and renders
   `3 of 40 skills` under `pl`. The noun goes inside the ICU `plural` or `select`, so
@@ -125,7 +149,9 @@ There is no `(marketing)` route group.
   `backend/tests/test_capability_registry.py::TestFrontendToolCatalog` compares the two
   in both directions, so a missing row and a surplus one each fail there, naming the
   tool. A name from anywhere else — an MCP tool, one a binding renamed — has no row and
-  needs none: it falls back to a humanized name and the generic renderer.
+  needs none: it falls back to a humanized name and the generic renderer. What a row
+  holds is `captionKey` / `displayNameKey` / `verbs`, all of them keys under
+  `chat.tools`, because the table is a module constant with no translator to reach.
 
 ## Permissions
 

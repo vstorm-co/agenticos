@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { qk } from "@/lib/query-keys";
@@ -31,6 +32,7 @@ interface UseSkillChangesResult {
  * the old body would be showing something no agent is following any more.
  */
 export function useSkillChanges(status: ProposalStatus = "pending"): UseSkillChangesResult {
+  const t = useTranslations("skills");
   const queryClient = useQueryClient();
 
   const {
@@ -53,7 +55,7 @@ export function useSkillChanges(status: ProposalStatus = "pending"): UseSkillCha
     mutationFn: (id: string) => applySkillChange(id),
     onSuccess: async (change) => {
       await invalidate();
-      toast.success(`Applied to ${change.name}`);
+      toast.success(t("changeApplied", { name: change.name }));
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   });
@@ -62,7 +64,7 @@ export function useSkillChanges(status: ProposalStatus = "pending"): UseSkillCha
     mutationFn: (id: string) => discardSkillChange(id),
     onSuccess: async (change) => {
       await invalidate();
-      toast.success(`Discarded the change to ${change.name}`);
+      toast.success(t("changeDiscarded", { name: change.name }));
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   });
@@ -74,7 +76,7 @@ export function useSkillChanges(status: ProposalStatus = "pending"): UseSkillCha
       queryError instanceof Error
         ? queryError.message
         : queryError
-          ? "Failed to load proposed skill changes"
+          ? t("failedLoadProposedChanges")
           : null,
     apply: async (id: string) => {
       await applied.mutateAsync(id);

@@ -9,6 +9,7 @@ import { getErrorMessage, MAX_UPLOAD_SIZE_MB } from "@/lib/utils";
 import { AttachmentCard, PendingAttachmentCard } from "./attachment-card";
 import {
   BUILTIN_COMMANDS,
+  resolveBuiltin,
   searchCommands,
   type SlashCommand,
   type SlashCommandContext,
@@ -71,6 +72,7 @@ export function ChatInput({
   commands,
 }: ChatInputProps) {
   const t = useTranslations("chat.input");
+  const tCommands = useTranslations("chat.commands");
   const [message, setMessage] = useState("");
   const [attachedFiles, setAttachedFiles] = useState<Attachment[]>([]);
   const [pending, setPending] = useState<PendingUpload[]>([]);
@@ -85,7 +87,12 @@ export function ChatInput({
   const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   const showPalette = !!slashContext && message.startsWith("/") && !message.includes("\n");
-  const allCommands = commands ?? BUILTIN_COMMANDS;
+  // The palette before the user's own commands have loaded: the built-ins, with their
+  // copy resolved here because the registry holds keys (#446).
+  const allCommands = useMemo(
+    () => commands ?? BUILTIN_COMMANDS.map((command) => resolveBuiltin(command, tCommands)),
+    [commands, tCommands],
+  );
   const filteredCommands = useMemo(
     () => (showPalette ? searchCommands(allCommands, message) : []),
     [showPalette, message, allCommands],

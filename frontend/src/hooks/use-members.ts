@@ -11,8 +11,8 @@ import type { OrganizationMember, OrganizationMemberList, OrgRole } from "@/type
 export function useMembers(orgId: string) {
   const queryClient = useQueryClient();
   // A toast is as user-facing as anything on screen, and the catalog already
-  // held every one of these four - `scripts/check_i18n.py` walked `*.tsx` alone,
-  // so no hook in this directory had ever been read by it (#425).
+  // held every one of these four - the guard walked `*.tsx` alone then, so no hook in
+  // this directory had ever been read by it (#425). It reads them now.
   const t = useTranslations("members");
 
   // React Query owns the list: cached per-org, deduped, no refetch storms.

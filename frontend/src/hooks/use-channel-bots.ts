@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
@@ -17,6 +18,7 @@ import type { ChannelBot, ChannelBotCreate, ChannelBotList } from "@/types/chann
  * network log for every member visiting the org page would read as a bug.
  */
 export function useChannelBots(enabled: boolean) {
+  const t = useTranslations("pages.channels");
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
@@ -40,7 +42,7 @@ export function useChannelBots(enabled: boolean) {
     mutationFn: (bot: ChannelBotCreate) => apiClient.post<ChannelBot>("/channels/bots", bot),
     onSuccess: async (bot) => {
       await invalidate();
-      toast.success(`${bot.name} registered - agents can now be exposed on it`);
+      toast.success(t("botRegistered", { bot: bot.name }));
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   });
@@ -53,7 +55,11 @@ export function useChannelBots(enabled: boolean) {
       ),
     onSuccess: async (bot) => {
       await invalidate();
-      toast.success(bot.is_active ? `${bot.name} activated` : `${bot.name} deactivated`);
+      toast.success(
+        bot.is_active
+          ? t("botActivated", { bot: bot.name })
+          : t("botDeactivated", { bot: bot.name }),
+      );
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   });
@@ -62,7 +68,7 @@ export function useChannelBots(enabled: boolean) {
     mutationFn: (botId: string) => apiClient.delete<void>(`/channels/bots/${botId}`),
     onSuccess: async () => {
       await invalidate();
-      toast.success("Bot removed");
+      toast.success(t("botRemoved"));
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   });

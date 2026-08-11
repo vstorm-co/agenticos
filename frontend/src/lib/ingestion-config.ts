@@ -10,22 +10,30 @@
  * a parser is *for*, which a generated form could not.
  */
 
+import type { Translate } from "@/lib/agent-step-captions";
 import type {
   ChunkingStrategy,
   ImageDescriptionConfig,
   IngestionConfig,
   IngestionOverride,
-  KnowledgeBase,
   LiteParseOutputFormat,
   LlamaParseTier,
   PdfParser,
   ThinkingEffort,
 } from "@/types";
 
-/** What the model is asked about each image when nobody has said otherwise. */
+/**
+ * What the model is asked about each image when nobody has said otherwise.
+ *
+ * i18n-exempt: a prompt, not copy. It is a field value posted to the API and stored on
+ * the collection, so what matters is the sentence the model was asked - not the locale
+ * of whoever last opened the editor.
+ */
 export const DEFAULT_IMAGE_PROMPT =
+  // i18n-exempt: see above.
   "Describe this image in detail. Focus on any text, data, charts, diagrams, " +
   "or visual information that would be useful for document search and retrieval. " +
+  // i18n-exempt: see above.
   "Be concise but comprehensive.";
 
 /**
@@ -65,63 +73,70 @@ export const DEFAULT_INGESTION_CONFIG: IngestionConfig = {
   },
 };
 
+/**
+ * One option in a menu, as keys under `kb`.
+ *
+ * Keys rather than words for the usual reason - a module constant cannot call a
+ * translator - and *both* fields, including the labels that are product names. Keying
+ * half a table of four is what leaves the next reader guessing which half (#446).
+ */
 interface Choice<T extends string> {
   readonly value: T;
-  readonly label: string;
+  readonly labelKey: string;
   /** The one sentence that decides whether somebody picks this. */
-  readonly hint: string;
+  readonly hintKey: string;
 }
 
 export const PDF_PARSERS: readonly Choice<PdfParser>[] = [
   {
     value: "pymupdf",
-    label: "PyMuPDF",
-    hint: "Local and fast. Reads the text a PDF already carries.",
+    labelKey: "parserPymupdf",
+    hintKey: "parserPymupdfHint",
   },
   {
     value: "llamaparse",
-    label: "LlamaParse",
-    hint: "A hosted service that reconstructs layout, tables and columns. Billed per page.",
+    labelKey: "parserLlamaparse",
+    hintKey: "parserLlamaparseHint",
   },
   {
     value: "liteparse",
-    label: "LiteParse",
-    hint: "Local, with its own OCR. Also reads spreadsheets, slide decks and images.",
+    labelKey: "parserLiteparse",
+    hintKey: "parserLiteparseHint",
   },
 ];
 
 export const LITEPARSE_OUTPUT_FORMATS: readonly Choice<LiteParseOutputFormat>[] = [
   {
     value: "markdown",
-    label: "Markdown",
-    hint: "Rebuilds headings, tables and lists - what the Markdown chunking strategy splits on.",
+    labelKey: "formatMarkdown",
+    hintKey: "formatMarkdownHint",
   },
   {
     value: "text",
-    label: "Layout text",
-    hint: "Keeps the page's spatial grid, so a table stays aligned but carries no structure.",
+    labelKey: "formatText",
+    hintKey: "formatTextHint",
   },
 ];
 
 export const LLAMAPARSE_TIERS: readonly Choice<LlamaParseTier>[] = [
-  { value: "fast", label: "Fast", hint: "Cheapest, and the least faithful to layout." },
-  { value: "cost_effective", label: "Cost effective", hint: "A middle setting." },
-  { value: "agentic", label: "Agentic", hint: "Reads structure the way a person would." },
-  { value: "agentic_plus", label: "Agentic plus", hint: "The most thorough, and the dearest." },
+  { value: "fast", labelKey: "tierFast", hintKey: "tierFastHint" },
+  { value: "cost_effective", labelKey: "tierCostEffective", hintKey: "tierCostEffectiveHint" },
+  { value: "agentic", labelKey: "tierAgentic", hintKey: "tierAgenticHint" },
+  { value: "agentic_plus", labelKey: "tierAgenticPlus", hintKey: "tierAgenticPlusHint" },
 ];
 
 export const CHUNKING_STRATEGIES: readonly Choice<ChunkingStrategy>[] = [
   {
     value: "recursive",
-    label: "Recursive",
-    hint: "Split on paragraphs, then sentences, then words - whatever fits.",
+    labelKey: "chunkingRecursive",
+    hintKey: "chunkingRecursiveHint",
   },
   {
     value: "markdown",
-    label: "Markdown",
-    hint: "Split on headings, so a chunk stays inside one section.",
+    labelKey: "chunkingMarkdown",
+    hintKey: "chunkingMarkdownHint",
   },
-  { value: "fixed", label: "Fixed", hint: "A fixed number of characters, structure ignored." },
+  { value: "fixed", labelKey: "chunkingFixed", hintKey: "chunkingFixedHint" },
 ];
 
 /** In the order the ladder climbs, which is the order they belong in a menu. */
@@ -197,41 +212,49 @@ export const INGESTION_FORM_FIELDS: readonly string[] = [
  * so that typing an overlap larger than a chunk is answered where it is typed
  * rather than after a submit that discards the rest of the form.
  */
-export function ingestionProblems(config: IngestionConfig): Readonly<Record<string, string>> {
+export function ingestionProblems(
+  config: IngestionConfig,
+  t: Translate,
+): Readonly<Record<string, string>> {
   const problems: Record<string, string> = {};
   const { chunkSize, chunkOverlap, parseTimeoutSeconds, liteparseDpi, maxPages, prompt } =
     INGESTION_LIMITS;
 
   if (!isWhole(config.chunk_size, chunkSize.min, chunkSize.max)) {
-    problems.chunk_size = `A whole number between ${chunkSize.min} and ${chunkSize.max}.`;
+    problems.chunk_size = t("problemWholeBetween", { min: chunkSize.min, max: chunkSize.max });
   }
   if (!isWhole(config.chunk_overlap, chunkOverlap.min, chunkOverlap.max)) {
-    problems.chunk_overlap = `A whole number between ${chunkOverlap.min} and ${chunkOverlap.max}.`;
+    problems.chunk_overlap = t("problemWholeBetween", {
+      min: chunkOverlap.min,
+      max: chunkOverlap.max,
+    });
   } else if (config.chunk_overlap >= config.chunk_size) {
     // The server's own rule, said in the same breath: an overlap that reaches
     // the end of a chunk means every chunk is the previous one.
-    problems.chunk_overlap = `Must be smaller than the chunk size of ${config.chunk_size}.`;
+    problems.chunk_overlap = t("problemOverlapTooLarge", { size: config.chunk_size });
   }
   if (
     !Number.isFinite(config.parse_timeout_seconds) ||
     config.parse_timeout_seconds <= 0 ||
     config.parse_timeout_seconds > parseTimeoutSeconds.max
   ) {
-    problems.parse_timeout_seconds = `More than 0 and at most ${parseTimeoutSeconds.max} seconds.`;
+    problems.parse_timeout_seconds = t("problemTimeoutRange", { max: parseTimeoutSeconds.max });
   }
   if (!OCR_LANGUAGE_PATTERN.test(config.ocr_language.trim())) {
-    problems.ocr_language =
-      'Tesseract codes are three letters - "eng", not "en". Join several with "+", as in "eng+pol".';
+    problems.ocr_language = t("problemOcrLanguage");
   }
   if (!isWhole(config.liteparse_dpi, liteparseDpi.min, liteparseDpi.max)) {
-    problems.liteparse_dpi = `A whole number between ${liteparseDpi.min} and ${liteparseDpi.max}.`;
+    problems.liteparse_dpi = t("problemWholeBetween", {
+      min: liteparseDpi.min,
+      max: liteparseDpi.max,
+    });
   }
   if (!isWhole(config.max_pages, maxPages.min, maxPages.max)) {
-    problems.max_pages = `A whole number between ${maxPages.min} and ${maxPages.max}.`;
+    problems.max_pages = t("problemWholeBetween", { min: maxPages.min, max: maxPages.max });
   }
   const text = config.image_description.prompt;
   if (text.length === 0 || text.length > prompt.maxLength) {
-    problems.prompt = `Between 1 and ${prompt.maxLength} characters.`;
+    problems.prompt = t("problemPromptLength", { max: prompt.maxLength });
   }
   return problems;
 }
@@ -332,36 +355,22 @@ function ingestionKeys(): (keyof IngestionConfig)[] {
   return Object.keys(DEFAULT_INGESTION_CONFIG) as (keyof IngestionConfig)[];
 }
 
+/** A choice's hint, or nothing for one this build does not know. */
+export function hintOf<T extends string>(
+  choices: readonly Choice<T>[],
+  value: string,
+  t: Translate,
+): string {
+  const key = choices.find((choice) => choice.value === value)?.hintKey;
+  return key === undefined ? "" : t(key);
+}
+
 /** A choice's label, or the raw value for one this build does not know. */
-export function labelOf<T extends string>(choices: readonly Choice<T>[], value: string): string {
-  return choices.find((choice) => choice.value === value)?.label ?? value;
-}
-
-/**
- * A collection's configuration as one line, for a page that has room for one.
- *
- * Parser first because it is the setting that changes what a document *says*;
- * the rest change how it is cut up.
- */
-export function summarizeIngestion(config: IngestionConfig): string {
-  const parts = [labelOf(PDF_PARSERS, config.pdf_parser)];
-  if (config.pdf_parser === "liteparse") {
-    parts.push(labelOf(LITEPARSE_OUTPUT_FORMATS, config.liteparse_output_format).toLowerCase());
-  }
-  if (config.ocr) {
-    // Which pages get OCR'd is the difference between a slow parse and a fast
-    // one, so the summary distinguishes them rather than saying only "OCR".
-    parts.push(config.pdf_parser === "liteparse" && config.auto_ocr ? "OCR when needed" : "OCR");
-  }
-  parts.push(`${config.chunk_size}/${config.chunk_overlap} ${config.chunking_strategy}`);
-  if (config.describe_images) parts.push("images described");
-  return parts.join(" · ");
-}
-
-/**
- * How a collection's embeddings are stated: what it was indexed with, not what
- * it is set to.
- */
-export function summarizeEmbedding(kb: KnowledgeBase): string {
-  return `${kb.embedding_model} · ${kb.embedding_dim.toLocaleString()} dimensions`;
+export function labelOf<T extends string>(
+  choices: readonly Choice<T>[],
+  value: string,
+  t: Translate,
+): string {
+  const key = choices.find((choice) => choice.value === value)?.labelKey;
+  return key === undefined ? value : t(key);
 }

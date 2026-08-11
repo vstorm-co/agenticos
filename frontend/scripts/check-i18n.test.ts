@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   READABLE_ATTRS,
   duplicatedInSource,
+  isSwept,
   isTemplateCopy,
   missingKeys,
   offences,
@@ -41,6 +42,11 @@ function said(source: string): string[] {
 
 function texts(source: string): string[] {
   return said(source).filter((what) => what.startsWith("text "));
+}
+
+/** The same, read as a `.ts` file - no JSX in scope, and the same rules. */
+function saidTs(source: string): string[] {
+  return offences("sample.ts", source).map(({ what }) => what);
 }
 
 describe("a phrase in JSX", () => {
@@ -256,6 +262,21 @@ describe("a readable attribute", () => {
     expect(said('<Fact term="Chunking">{summary}</Fact>\n')).toEqual(['term="Chunking"']);
   });
 
+  it("refuses a ternary between two one-word labels", () => {
+    // The shape neither half saw on its own: the attribute rule read a bare string
+    // literal, and `readString` wants a capital and a space before it calls something a
+    // sentence, so two one-word branches passed both. It is #395's one-word label in a
+    // readable prop, wearing a ternary.
+    const found = said('<Button aria-label={busy ? "Saving" : "Save"} />\n');
+
+    expect(found).toEqual(['aria-label=\'busy ? "Saving" : "Save"\'']);
+  });
+
+  it("passes a ternary between two tokens, which is a value and not a label", () => {
+    // `dir === "asc" ? "desc" : "asc"` is state, not copy, and the same shape.
+    expect(said('<Table aria-label={dir === "asc" ? "desc" : "asc"} />\n')).toEqual([]);
+  });
+
   it("passes the same props read from the catalog", () => {
     // A forward guard, and it passed under the Python rule too: the remedy the refusals
     // above demand must not itself be refused.
@@ -304,6 +325,16 @@ describe("a template literal", () => {
   it("passes a URL and a CSS value", () => {
     expect(isTemplateCopy(`/api/v1/agents/${HOLE}/versions`)).toBe(false);
     expect(isTemplateCopy(`translateY(${HOLE}px)`)).toBe(false);
+  });
+
+  it("passes an auth header, which is the one header with no punctuation in it", () => {
+    // The whitespace rule reads `Bearer ${token}` as a word, a space and a hole, which
+    // is exactly the prose shape - and `[/&=<>#]` cannot help, because an auth header
+    // value holds none of it. `MACHINE_READ` names the two schemes instead. It went
+    // unnoticed while the sweep skipped `.ts`; `lib/platform-proxy.ts` is where it sits.
+    expect(isTemplateCopy(`Bearer ${HOLE}`)).toBe(false);
+    expect(isTemplateCopy(`Basic ${HOLE}`)).toBe(false);
+    expect(said("const h = { Authorization: `Bearer ${accessToken}` };\n")).toEqual([]);
   });
 
   it("passes a number and its unit, which is the fourteenth item in #395", () => {
@@ -434,6 +465,75 @@ describe("an exemption", () => {
   });
 });
 
+describe("a .ts file", () => {
+  // Read by the same rules as a `.tsx` one, which is the parser's doing: every rule the
+  // Python guard had to gate on `path.suffix` was gated because it anchored on a bracket,
+  // and there are no brackets to anchor on any more. #446 is the 381 offences that gate
+  // hid - nineteen `toast.success("…")` in `src/hooks/**` alone.
+
+  it("refuses a hook toast, the shape that sat unread the longest (#446)", () => {
+    expect(saidTs('toast.success("Member removed");\n')).toEqual(["toast 'Member removed'"]);
+  });
+
+  it("refuses a module table of labels", () => {
+    const source = 'export const TABS = [{ id: "profile", label: "Your profile" }];\n';
+
+    expect(saidTs(source)).toEqual(["string 'Your profile'"]);
+  });
+
+  it("refuses a label on an export const, which the keyword skip used to hide", () => {
+    expect(saidTs('export const LABEL = "Provider default";\n')).toEqual([
+      "string 'Provider default'",
+    ]);
+  });
+
+  it("refuses a default parameter on an export function", () => {
+    // `getErrorMessage`'s fallback: the sentence behind most failed requests here.
+    const source =
+      'export function getErrorMessage(e: unknown, fallback = "An unexpected error occurred") {\n' +
+      "  return fallback;\n}\n";
+
+    expect(saidTs(source)).toEqual(["string 'An unexpected error occurred'"]);
+  });
+
+  it("reads a statement between two brackets as a statement, not a text node", () => {
+    // `; return` satisfied `JSX_TEXT`, which is why the glob could not simply be widened.
+    const source = '  switch (kind) {\n    case "stats":\n      return count;\n  }\n';
+
+    expect(saidTs(source)).toEqual([]);
+  });
+
+  it("reads a comparison as a comparison, not a count", () => {
+    // `COUNT` read `>[^A-Za-z<>{}]*{…} word<`, which `a > b` and an object satisfy.
+    expect(saidTs("  const over = used > limit && remaining;\n")).toEqual([]);
+  });
+
+  it("skips the BFF route handlers, and only for the offence sweep (#603)", () => {
+    // Not exempt in itself - a route payload is a string a rule reads perfectly well, and
+    // what excuses it is where it lives. Pinned both ways so a rule change that stopped
+    // reading this shape cannot make the skip look unnecessary.
+    const payload = 'return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });\n';
+
+    expect(saidTs(payload)).toEqual(["string 'Not authenticated'"]);
+    expect(isSwept("app/api/orgs/[id]/route.ts")).toBe(false);
+    expect(isSwept("hooks/use-members.ts")).toBe(true);
+  });
+
+  it("matches that skip below src, so a deeper app/api is not covered by it", () => {
+    expect(isSwept("components/app/api/thing.ts")).toBe(true);
+  });
+
+  it("lets a .ts file claim an exemption, and still asks it for a reason", () => {
+    const source =
+      "// i18n-exempt: a wire payload from a route with no locale in scope.\n" +
+      'const detail = "Not authenticated";\n' +
+      "// i18n-exempt\n" +
+      'const other = "Internal server error";\n';
+
+    expect(saidTs(source)).toEqual(["string 'Internal server error'"]);
+  });
+});
+
 describe("the catalog, read the other way round", () => {
   const source = (path: string, text: string) => [{ path, text }];
 
@@ -519,6 +619,62 @@ describe("the catalog, read the other way round", () => {
     );
 
     expect(found).toEqual([{ line: 2, what: "renamed (in agents)" }]);
+  });
+
+  it("checks a key against its own translator, not the file's other one", () => {
+    // A file holding a scoped translator beside a root one had every key the root one
+    // named checked against the scoped namespace, so a live `tRoot("common.cancel")`
+    // was reported missing - and the only way to satisfy that is to mint
+    // `agents.common.cancel`, a key that must not exist. The #348 trap, arriving
+    // through the guard's own front door.
+    const catalog = { agents: { title: "Agents" }, common: { cancel: "Cancel" } };
+    const source = [
+      'const t = useTranslations("agents");',
+      "const tRoot = useTranslations();",
+      'const a = t("title");',
+      'const b = tRoot("common.cancel");',
+      "",
+    ].join("\n");
+
+    expect(missingKeys("panel.tsx", source, catalog)).toEqual([]);
+  });
+
+  it("resolves `t` to the nearest binding, because one file reuses the name", () => {
+    // A page binds `getTranslations("pages.meta")` inside `generateMetadata` and
+    // `getTranslations("pages.auth")` in the component under it, both called `t`. Keyed
+    // on the name alone the second wins, and 157 live keys across 31 files read as
+    // missing - which is how unioning every namespace came to be load-bearing.
+    const catalog = { pages: { meta: { hi: "Hi" }, auth: { bye: "Bye" } } };
+    const source = [
+      "export async function generateMetadata() {",
+      '  const t = await getTranslations("pages.meta");',
+      '  return { title: t("hi") };',
+      "}",
+      "export default function Page() {",
+      '  const t = useTranslations("pages.auth");',
+      '  return <p>{t("bye")}</p>;',
+      "}",
+      "",
+    ].join("\n");
+
+    expect(missingKeys("page.tsx", source, catalog)).toEqual([]);
+  });
+
+  it("still reports a key its own namespace does not hold", () => {
+    // The half the two above must not buy at the cost of: resolution narrows which
+    // namespace answers, it does not stop anything being answered.
+    const catalog = { pages: { meta: { hi: "Hi" }, auth: { bye: "Bye" } } };
+    const source = [
+      "export default function Page() {",
+      '  const t = useTranslations("pages.auth");',
+      '  return <p>{t("hi")}</p>;',
+      "}",
+      "",
+    ].join("\n");
+
+    expect(missingKeys("page.tsx", source, catalog)).toEqual([
+      { line: 3, what: "hi (in pages.auth)" },
+    ]);
   });
 
   it("reports a message also written out in a hook, which the sweep never reads", () => {

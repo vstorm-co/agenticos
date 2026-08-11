@@ -19,6 +19,7 @@ import type { DashboardWidgetProps } from "./types";
  */
 export function ApprovalsWidget({ title, seeAll }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.approvals");
+  const tTime = useTranslations("time");
   const { approvals, total, isLoading, error, refetch } = useApprovals();
 
   return (
@@ -40,7 +41,7 @@ export function ApprovalsWidget({ title, seeAll }: DashboardWidgetProps) {
                   </span>
                   {approval.created_at ? (
                     <span className="text-muted-foreground block text-xs">
-                      {t("waiting", { ago: timeAgo(approval.created_at) })}
+                      {t("waiting", { ago: timeAgo(approval.created_at, tTime) })}
                     </span>
                   ) : null}
                 </span>

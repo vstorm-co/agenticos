@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { useTranslations } from "next-intl";
 
 import { cn } from "@/lib/utils";
 import { Button } from "./button";
@@ -17,17 +18,6 @@ import { Label } from "./label";
  * what unset looks like, and then the two pages would be saying different things
  * about the same wire format.
  */
-
-import { useTranslations } from "next-intl";
-
-/**
- * How the untouched state of every control reads, in one place - as a key.
- *
- * A module-level constant cannot call a translator, so it holds the key and each
- * component translates at the point of use. Holding the words instead is how
- * `Provider default` reached three call sites and every locale in English.
- */
-export const PROVIDER_DEFAULT_KEY = "providerDefault";
 
 export interface OptionalSettingProps {
   htmlFor: string;
@@ -151,7 +141,7 @@ export function OptionalSlider({
             isSet ? "text-foreground" : "text-muted-foreground",
           )}
         >
-          {isSet ? value.toFixed(2) : t(PROVIDER_DEFAULT_KEY)}
+          {isSet ? value.toFixed(2) : t("providerDefault")}
         </span>
       </div>
     </OptionalSetting>

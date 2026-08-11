@@ -35,7 +35,7 @@ Two things are versioned separately from this file and worth knowing about:
   thresholds are deleted rather than ported; every policy rule carries over.
   Runs from `make lint-frontend` (`bun run check:i18n`) and a new pre-commit hook,
   with `frontend/scripts/check-i18n.test.ts` in place of the five
-  `backend/tests/test_check_i18n_*.py` files. Closes #395 and #141. (#597)
+  `backend/tests/test_check_i18n_*.py` files. Closes #395 and #141. (#610)
 - **131 hardcoded strings answered, and 34 dead keys deleted.** What the parser
   reports on the tree before the sweep, in 66 files: 64 template literals, 62 text
   nodes, 4 strings and a toast. That is the one-word template literals #395
@@ -52,7 +52,7 @@ Two things are versioned separately from this file and worth knowing about:
   unit list for the model picker's badge — so the fourteen of those take a rule
   rather than fourteen exemptions. `PROVIDER_DEFAULT` holds a key now instead of the
   words, per the module-table rule. And `result: ` in `run-python.tsx` keeps an
-  exemption, because `parseResult` beside it matches the string literally. (#597)
+  exemption, because `parseResult` beside it matches the string literally. (#610)
 
 ### Fixed
 
@@ -61,7 +61,120 @@ Two things are versioned separately from this file and worth knowing about:
   `<h1>` whose words are on the third line, because the opening tag carries four
   Tailwind classes — covered the tag and missed the copy. Nothing noticed while a
   text node alone on its line matched no rule at all. A reason worth two lines
-  covers the code under the whole comment block, too. (#597)
+  covers the code under the whole comment block, too. (#610)
+- **The parser reads a `.ts` file, which is what kept #446 closed.** The port
+  landed with the offence sweep narrowed back to `*.tsx`, because the branch was
+  cut before #446 was fixed. Merging it that way would have taken the `.ts` sweep
+  out again — every `toast.success("…")` in `src/hooks/**` invisible, and nothing
+  stopping the 381 strings #446 migrated from coming back. The sweep reads both
+  suffixes now, by the same rules: a parser has no bracket to anchor on, so
+  nothing needs gating on the suffix. `src/app/api/**` keeps its skip, still at
+  the sweep rather than in a rule, because a route payload is a string a rule
+  reads perfectly well and what excuses it is where it lives (#603). Six strings
+  the widened sweep found are in the catalog: `timeAgo`'s three relative-time
+  labels as ICU plurals, the stream-error prefix, `chunk {number}`, and
+  `summarizeEmbedding` — deleted rather than translated, having had no caller but
+  its own test. (#610)
+- **A key was checked against the wrong namespace when a file held two
+  translators.** `missingKeys` unioned every namespace in a file, so a key read
+  through one translator counted as present if any *other* namespace held it. That
+  hid eight keys on the admin conversations page: `archived`, `active`, `all`,
+  `allOwners` and `allAgents` were read through a `useTranslations("admin")` while
+  only `pages.admin` held them, so all eight rendered as their own key strings on
+  screen in every locale. A call now resolves to the nearest enclosing binding of
+  that name — by scope, because one page binds `getTranslations("pages.meta")` in
+  `generateMetadata` and `getTranslations("pages.auth")` below it, both called
+  `t`, and keying on the name alone reports 157 live keys as missing. Where the
+  walk finds no binding it falls back to every namespace that name takes. (#610)
+- **`` `Bearer ${token}` `` was reported as copy.** An auth header value is the one
+  header shape `MACHINE_READ`'s character class cannot see, holding no punctuation
+  at all, so the whitespace rule read it as a word beside an interpolation. Only
+  latent while the sweep skipped `.ts`; both call sites are in `src/lib`. (#610)
+- **A ternary between two one-word labels in a readable prop was read by nothing.**
+  `aria-label={busy ? "Saving" : "Save"}` passed the attribute rule, which read a
+  bare literal, and `readString`, which wants a capital and a space before it calls
+  something a sentence — #395's own defect wearing a ternary. A label is
+  capitalised or holds a space, which keeps `dir === "asc" ? "desc" : "asc"` out.
+  (#610)
+- **A toast holding a sentence was reported twice**, once by each rule that owns
+  it, inflating the count a person works through. The toast rule keeps its
+  argument. (#610)
+## [0.0.103] - 2026-08-11
+
+The Builder says when the agent people are talking to is not the one on screen,
+and Publish says what it will move before it moves it.
+
+### Added
+
+- **Publish says what it will move before it moves it.** The confirmation dialog
+  names the version it creates, the default environment that follows the publish
+  the moment it lands (or, on a first publish, that `production` is created and
+  the agent goes live), and each pinned environment that stays on the version it
+  is pinned to. (#519)
+
+### Fixed
+
+- **The Builder tracked "unsaved" and never "unpublished".** Once the autosave
+  settled the page read as finished, while every channel, widget and API call was
+  still answering with the published version — toggle a tool off in the Toolbox
+  and nothing on screen said a publish was needed. A header badge now compares the
+  *stored* draft against the frozen version spec: "Draft differs from v7", with a
+  title spelling out that published surfaces keep answering with v7 until a
+  publish, or "Up to date with v7". Compared as sorted-keys YAML, the same
+  serialization the version diff reads, so key order cannot read as a change
+  nobody made. (#519)
+- **A publish left the environments panel naming the pin it had just moved.**
+  Publish and rollback invalidated `qk.agents` and not `qk.environments`, so the
+  History tab contradicted the dialog's own sentence seconds after it was read.
+  Pre-existing; included because the new dialog makes it visible. (#519)
+
+## [0.0.102] - 2026-08-11
+
+The copy guard reads a `.ts` file, and the 381 English strings it had never been
+pointed at are in the catalog.
+
+### Fixed
+
+- **`check_i18n.py` never read a `.ts` file, so every hook toast was invisible to
+  it.** The offence sweep walked `frontend/src/**/*.tsx` and nothing else, which
+  left 381 offences across 90 files unread since the guard was written: nineteen
+  `toast.success("…")` in `src/hooks/**` alone, plus the module tables of labels in
+  `lib/tool-catalog.ts`, `lib/ingestion-config.ts` and `lib/mcp-servers.ts`.
+  Widening the glob was not the fix — in a `.ts` file `; return` is a text node and
+  `a > b` is a count — so `JSX_TEXT`, `MIXED`, `COUNT` and `LEAD` are gated on the
+  suffix and the rest now read a string literal wherever it sits. All 381 are
+  migrated: 233 messages added to `messages/en.json`, and the module tables hold
+  keys with the copy resolved where it renders, pure helpers taking the caller's
+  translator (`toolStep`, `toolCaption`, `ingestionProblems`,
+  `mergeWithUserCommands`). (#446)
+- **The `import`/`export` line-skip keyed on the keyword rather than the module
+  specifier**, which in a `.ts` file hid every `export const LABEL = "…"` and every
+  default parameter on an `export function` — `getErrorMessage`'s
+  `"An unexpected error occurred"`, the sentence behind most failed requests here,
+  and `PROVIDER_DEFAULT` beside a `useTranslations` import somebody had already
+  added and never used. (#446)
+- **The MCP add-server dialog rendered a catalog key as its hint.** `AUTH_CHOICES`
+  held `hint: "authTokenHint"` and the paragraph below the radio group printed it
+  verbatim, in every locale — neither a hardcoded string nor a missing key, so no
+  guard could see it. Found by the duplication rule once the catalog held the
+  sentence. (#446)
+- **The test translator was rebuilt on every call**, where the real
+  `useTranslations` is a `useMemo` over stable inputs. A hook putting `t` in a
+  `useCallback`'s dependencies then handed a new function to every render, and an
+  effect keyed on that callback re-fired forever: the admin conversations screen
+  loaded in a loop and never left its spinner. `vitest.setup.ts` caches one
+  translator per namespace. (#446)
+
+### Removed
+
+- **A superseded MCP catalog and two dead helpers.** `lib/mcp-catalog.ts` held a
+  curated table of fourteen servers with their own descriptions, examples and
+  category headings; nothing rendered it — the catalog the product shows is served
+  by the backend from `app/core/catalog/mcp_servers.json`, is fifty-nine entries
+  deep, and has its own categories. Its copy was dead English, so it was deleted
+  rather than translated, along with `MCP_CATEGORIES`' four unrendered headings and
+  `summarizeIngestion`, which only its own test called. `gen-mcp-logos.ts` now
+  takes its domains from the backend catalog. (#446)
 
 ## [0.0.101] - 2026-08-11
 

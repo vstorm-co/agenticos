@@ -14,11 +14,11 @@ import { Perm } from "@/types/permissions";
 /**
  * That the KB pages say nothing they wrote themselves.
  *
- * `scripts/check_i18n.py` cannot see any of the strings pinned here - a
- * one-word label, a template literal, a text node alone on its line, copy
- * behind an `&&` - so `make lint` was clean while the scope labels, the status
- * badges, the drop overlay and the table footer all rendered in English under
- * every locale.
+ * The guard could not see any of the strings pinned here - a one-word label, a
+ * template literal, a text node alone on its line, copy behind an `&&` - so
+ * `make lint` was clean while the scope labels, the status badges, the drop overlay
+ * and the table footer all rendered in English under every locale. #395 reads all
+ * four shapes now, which makes this file the second lock rather than the only one.
  *
  * Asserting the English words would prove nothing: a hardcoded "Personal"
  * renders "Personal" too. So this file replaces the global `next-intl` mock

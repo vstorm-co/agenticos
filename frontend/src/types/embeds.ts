@@ -67,11 +67,19 @@ export interface NewEmbed {
 
 export type EmbedEdit = Partial<Omit<NewEmbed, "agent_id">> & { is_active?: boolean };
 
-/** The look a new widget starts with - the same defaults the backend applies. */
+/**
+ * The look a new widget starts with - the same defaults the backend applies.
+ *
+ * i18n-exempt: seed values for a form, not copy on this surface. What a widget says
+ * is read by the operator's *visitors* and edited per widget, so it must not follow
+ * the operator's own dashboard locale - and the backend seeds the same English.
+ */
 export const DEFAULT_EMBED_THEME: EmbedTheme = {
+  // i18n-exempt: seed values, not copy on this surface - see above.
   title: "Ask us anything",
   subtitle: "",
   greeting: "Hi - what can I help you with?",
+  // i18n-exempt: seed values, not copy on this surface - see above.
   placeholder: "Type your message…",
   accent: "#4f46e5",
   position: "right",

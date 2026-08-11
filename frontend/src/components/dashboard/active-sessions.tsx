@@ -47,6 +47,7 @@ function DeviceIcon({ type }: { type?: string | null }) {
 export function ActiveSessions() {
   const t = useTranslations("dashboard");
   const tc = useTranslations("common");
+  const tTime = useTranslations("time");
   const [page, setPage] = useState(0);
   const queryClient = useQueryClient();
 
@@ -179,7 +180,7 @@ export function ActiveSessions() {
                     </p>
                     <p className="text-muted-foreground truncate text-xs">
                       {session.ip_address && `${session.ip_address} · `}
-                      {t("lastActive", { when: timeAgo(session.last_used_at) })}
+                      {t("lastActive", { when: timeAgo(session.last_used_at, tTime) })}
                     </p>
                   </div>
                 </div>

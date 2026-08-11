@@ -15,7 +15,13 @@ import { defaultLocale, locales } from "@/i18n";
 
 export const SITE = {
   name: APP_NAME,
-  /** Tagline used in title templates + OG defaults. */
+  /**
+   * Tagline used in title templates + OG defaults.
+   *
+   * Read by the root layout and the OG image route, both of which sit above the
+   * `[locale]` segment and so have no locale to translate against.
+   */
+  // i18n-exempt: see above.
   tagline: "The operating system for your company's AI agents",
   /** One-paragraph default description (≤160 chars for SERP truncation). */
   description:

@@ -35,6 +35,7 @@ function duration(log: RAGSyncLog): string {
 
 function LogRow({ log }: { log: RAGSyncLog }) {
   const t = useTranslations("rag");
+  const tTime = useTranslations("time");
   return (
     <div className="border-foreground/8 flex items-start gap-3 border-b py-2.5 last:border-0">
       <div className="mt-0.5 shrink-0">{statusIcon(log.status)}</div>
@@ -45,7 +46,7 @@ function LogRow({ log }: { log: RAGSyncLog }) {
             {log.mode}
           </span>
           {log.started_at && (
-            <span className="text-foreground/45 text-[10px]">{timeAgo(log.started_at)}</span>
+            <span className="text-foreground/45 text-[10px]">{timeAgo(log.started_at, tTime)}</span>
           )}
           <span className="text-foreground/45 text-[10px]">{duration(log)}</span>
         </div>

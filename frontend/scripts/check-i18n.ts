@@ -42,10 +42,15 @@
  * * `src/app/[locale]/(dashboard)/dev/**`, a playground for looking at components
  *   that is not part of the product;
  * * anything a person never reads - `className`, `href`, `data-*`, `id`, `type`;
- * * **a `.ts` file**, for the offence sweep only. A parser reads one by construction,
- *   which is what #446 needs and #446 is 406 offences across 91 files: a copy
- *   migration of its own size. The two catalog rules below already read every `.ts`
- *   file, because a hook's toast is copy.
+ * * `src/app/api/**` for the offence sweep alone - a route handler sits outside the
+ *   `[locale]` segment, so what it writes is a wire payload and there is no translator
+ *   in scope to write it any other way (#603). The catalog rules still read those files,
+ *   which is how a `detail` duplicating a message is found.
+ *
+ * A `.ts` file is read like a `.tsx` one, by the same rules: there is no bracket to
+ * anchor on, so nothing needs gating on the suffix, and a file with no JSX in it simply
+ * yields no phrases. That is what #446 needed - nineteen `toast.success("…")` in
+ * `src/hooks/**` and the module tables of labels had never been read at all.
  *
  * False positives get an inline `{/* i18n-exempt: why *␀/}` or a trailing
  * `// i18n-exempt: why`. The comment is required to carry a reason, because "this one
@@ -99,9 +104,11 @@ const SKIPPED_NAMES = [".test.tsx", ".test.ts", ".spec.ts", ".stories.tsx", ".ge
  * A parser could read every prop's value instead of trusting its name, and that is
  * not the same rule: `variant="destructive"`, `side="bottom"` and `type="submit"` are
  * string-valued props nobody reads, so the widening would trade this list for a list
- * of exclusions the same length. What the parser does buy is the *value*: a template
- * literal or a ternary in a readable prop is read here, where `ATTR` matched a
- * double-quoted literal alone.
+ * of exclusions the same length. What the parser does buy is the *value*, where `ATTR`
+ * matched a double-quoted literal alone: a template literal in a readable prop is read
+ * by the template rule, and a ternary between two labels is read here -
+ * `aria-label={busy ? "Saving" : "Save"}` is two one-word branches, so neither the
+ * attribute rule nor `readString`'s capital-and-a-space test saw it on its own.
  */
 export const READABLE_ATTRS = [
   "placeholder",
@@ -144,8 +151,13 @@ const ENTITY = /&(?:[a-zA-Z]+|#\d+);/g;
  * `` `Disconnect "${connection.name}"?` `` is a confirm dialog, not a query string, and
  * it sat behind the character that was standing in for one. A question mark only says
  * "machine" next to an `=`, which `[=]` already catches on its own.
+ *
+ * `Bearer` and `Basic` are here because an auth header value is the one header shape
+ * the character class cannot see - `` `Bearer ${token}` `` holds no punctuation at all,
+ * so it reads as a word, a space and an interpolation, which is exactly the prose shape
+ * `isTemplateCopy` looks for.
  */
-const MACHINE_READ = /[/&=<>#]|\b(?:px|rem|deg|vh|vw|attachment)\b/;
+const MACHINE_READ = /[/&=<>#]|\b(?:px|rem|deg|vh|vw|attachment|Bearer|Basic)\b/;
 /**
  * A unit, and the answer to the fourteen number-and-unit formatters #395 left open -
  * `` `${Math.round(bytes / 1024)} KiB` ``,
@@ -156,6 +168,10 @@ const MACHINE_READ = /[/&=<>#]|\b(?:px|rem|deg|vh|vw|attachment)\b/;
  * it hands a translator a symbol they must not touch. A phrase whose every word is a
  * unit or an all-caps token is a formatter; one word beside a unit makes it a sentence
  * again, so `` `${n} files left` `` is still refused.
+ *
+ * Every entry is two characters or more, and has to be: `words()` matches
+ * `[A-Za-z]{2,}`, so a single-character unit is never a word and never looked up here.
+ * `` `${n} s` `` passes on `isCopy`'s length test instead, before this is reached.
  */
 const UNITS = new Set([
   "px",
@@ -165,12 +181,8 @@ const UNITS = new Set([
   "vw",
   "deg",
   "ms",
-  "s",
   "min",
-  "h",
   "hr",
-  "d",
-  "B",
   "kB",
   "KB",
   "MB",
@@ -552,6 +564,12 @@ export function offences(fileName: string, text: string): Offence[] {
 
   const readString = (node: ts.StringLiteralLike): void => {
     if (isMarkup(node)) return;
+    // The toast rule owns its own argument. Both rules earn their place - a one-word
+    // `toast.success("Saved")` is below the sentence test, and a sentence in an array is
+    // past the toast rule - but a toast holding a sentence satisfies both, and reporting
+    // one line twice inflates the count a person is working through.
+    const call = node.parent;
+    if (call && isToastCall(call) && call.arguments[0] === node) return;
     const value = node.text;
     if (!isCopy(value)) return;
     const sentence = /^[A-Z][^\n]*\s/.test(value) && !NOT_A_SENTENCE.test(value);
@@ -571,6 +589,15 @@ export function offences(fileName: string, text: string): Offence[] {
       const value = node.initializer;
       if (value && ts.isStringLiteral(value) && isCopy(value.text)) {
         report(node, value.getStart(file), `${attributeName(node)}="${value.text}"`);
+      }
+      const choice =
+        value && ts.isJsxExpression(value) && value.expression && labelChoice(value.expression);
+      if (choice) {
+        report(
+          node,
+          choice.getStart(file),
+          `${attributeName(node)}=${quote(choice.getText(file))}`,
+        );
       }
     }
     if (ts.isTemplateExpression(node) && !inAClassCall(node)) {
@@ -604,6 +631,32 @@ export function offences(fileName: string, text: string): Offence[] {
 
   visit(file);
   return found.sort((left, right) => left.line - right.line || left.what.localeCompare(right.what));
+}
+
+/**
+ * A ternary picking between two labels, if that is what this expression is.
+ *
+ * The shape `readString` cannot see and the attribute rule did not look at:
+ * `aria-label={busy ? "Saving" : "Save"}`. `readString` wants a capital and a space
+ * before it calls a literal a sentence, so two one-word branches passed both rules -
+ * which is #395's defect (a one-word label in a readable prop) wearing a ternary.
+ * One branch being a label is enough; the remedy is one message per state either way.
+ *
+ * A label is capitalised or holds a space, which is what separates it from the value a
+ * prop is just as likely to be handed: `dir === "asc" ? "desc" : "asc"` is state and
+ * `busy ? "Saving" : "Save"` is copy, and `isCopy` alone says yes to both.
+ */
+function labelChoice(node: ts.Expression): ts.ConditionalExpression | undefined {
+  if (!ts.isConditionalExpression(node)) return undefined;
+  const branches = [node.whenTrue, node.whenFalse].filter((branch) =>
+    ts.isStringLiteralLike(branch),
+  );
+  if (branches.length !== 2) return undefined;
+  const label = branches.some((branch) => {
+    const value = branch.text.trim();
+    return isCopy(value) && (/^[A-Z]/.test(value) || /\s/.test(value));
+  });
+  return label ? node : undefined;
 }
 
 function isToastCall(node: ts.Node): node is ts.CallExpression {
@@ -640,19 +693,53 @@ function quote(value: string): string {
  *
  * The *name* matters because it is not always `t` - `tc`, `ts` and `tAgents` are all in
  * this tree, and a rule reading only `t(` would call every key those three name dead.
- * Namespaces are unioned across the file rather than tracked per binding: one file
- * holds up to seven components with a `t` each, and over-reading is the safe direction
- * - it reports fewer dead keys, never a live one.
+ *
+ * A call resolves to the *nearest enclosing* binding of that name, rather than to the
+ * union of every namespace the file mentions. Unioning is harmless for `unreadKeys`,
+ * which only ever over-reads, and wrong for `missingKeys`: a file holding
+ * `useTranslations("agents")` beside a root `useTranslations()` had every key the root
+ * one named checked against `agents.`, so `tRoot("common.cancel")` was reported missing
+ * and the only way to satisfy it was to mint `agents.common.cancel` - a key that must
+ * not exist, which is the #348 trap arriving through the guard's own front door.
+ *
+ * Resolution is by scope and not by name alone, because **one file reuses `t`**: a page
+ * binds `getTranslations("pages.meta")` in `generateMetadata` and `getTranslations(
+ * "pages.auth")` in the component below it, both called `t`. Keyed on the name, the
+ * second declaration wins and 157 live keys across 31 files read as missing - which is
+ * how the union came to be load-bearing in the first place. Where the walk finds no
+ * enclosing binding, every namespace that name takes is returned and the key has to be
+ * absent from all of them: unresolved falls back to the safe direction rather than to a
+ * guess.
  */
 interface Reads {
-  /** Namespaces every translator in the file is bound to. */
-  namespaces: Set<string>;
-  /** Keys named outright, with the file's namespaces already applied. */
+  /** Keys named outright, under every namespace their call could have resolved to. */
   named: Set<string>;
   /** Key names a `` t(`${x}Label`) `` call could build. */
   built: RegExp[];
-  /** Key names read as a literal, with the line each was read on. */
-  calls: { key: string; line: number }[];
+  /** Key names read as a literal: the key, the namespaces in scope, and the line. */
+  calls: { key: string; namespaces: string[]; line: number }[];
+}
+
+/** A translator binding: what it is called, what it is scoped to, and where it lives. */
+interface Binding {
+  name: string;
+  namespace: string;
+  /** The function or file the declaration sits directly in. */
+  scope: ts.Node;
+}
+
+/** The function-like node, or the file, a declaration belongs to. */
+function scopeOf(node: ts.Node): ts.Node {
+  for (let scan: ts.Node | undefined = node.parent; scan; scan = scan.parent) {
+    const encloses =
+      ts.isFunctionDeclaration(scan) ||
+      ts.isFunctionExpression(scan) ||
+      ts.isArrowFunction(scan) ||
+      ts.isMethodDeclaration(scan) ||
+      ts.isSourceFile(scan);
+    if (encloses) return scan;
+  }
+  return node.getSourceFile();
 }
 
 const TRANSLATOR_FACTORIES = ["useTranslations", "getTranslations"];
@@ -672,27 +759,40 @@ function translatorFactory(node: ts.Expression): ts.CallExpression | undefined {
 
 function keyReads(fileName: string, text: string): Reads {
   const file = parse(fileName, text);
-  const namespaces = new Set<string>();
-  const bound = new Set<string>();
+  const bound: Binding[] = [];
 
   const bindings = (node: ts.Node): void => {
     if (ts.isVariableDeclaration(node) && node.initializer && ts.isIdentifier(node.name)) {
       const factory = translatorFactory(node.initializer);
       if (factory) {
-        bound.add(node.name.text);
         const argument = factory.arguments[0];
-        namespaces.add(argument && ts.isStringLiteralLike(argument) ? argument.text : "");
+        bound.push({
+          name: node.name.text,
+          namespace: argument && ts.isStringLiteralLike(argument) ? argument.text : "",
+          scope: scopeOf(node),
+        });
       }
     }
     ts.forEachChild(node, bindings);
   };
   bindings(file);
 
+  /** The namespaces a call on `name` could be reading, innermost binding first. */
+  const inScope = (call: ts.Node, name: string): string[] => {
+    const candidates = bound.filter((binding) => binding.name === name);
+    if (!candidates.length) return [];
+    for (let scan: ts.Node | undefined = call; scan; scan = scan.parent) {
+      const inner = candidates.find((binding) => binding.scope === scan);
+      if (inner) return [inner.namespace];
+    }
+    return candidates.map((binding) => binding.namespace);
+  };
+
   const named = new Set<string>();
   const built: RegExp[] = [];
-  const calls: { key: string; line: number }[] = [];
-  const dotted = (key: string): string[] =>
-    [...namespaces].map((namespace) => (namespace ? `${namespace}.${key}` : key));
+  const calls: { key: string; namespaces: string[]; line: number }[] = [];
+  const dotted = (namespace: string, key: string): string =>
+    namespace ? `${namespace}.${key}` : key;
 
   const reads = (node: ts.Node): void => {
     if (ts.isCallExpression(node)) {
@@ -704,13 +804,19 @@ function keyReads(fileName: string, text: string): Reads {
             TRANSLATOR_METHODS.includes(called.name.text)
           ? called.expression.text
           : "";
+      const namespaces = name ? inScope(node, name) : [];
       const argument = node.arguments[0];
-      if (bound.has(name) && argument) {
+      if (namespaces.length && argument) {
         if (ts.isStringLiteralLike(argument)) {
-          for (const key of dotted(argument.text)) named.add(key);
-          calls.push({ key: argument.text, line: lineOf(file, argument.getStart(file)) });
+          for (const namespace of namespaces) named.add(dotted(namespace, argument.text));
+          calls.push({
+            key: argument.text,
+            namespaces,
+            line: lineOf(file, argument.getStart(file)),
+          });
         } else if (ts.isTemplateExpression(argument)) {
-          for (const key of dotted(templateBody(argument))) {
+          for (const namespace of namespaces) {
+            const key = dotted(namespace, templateBody(argument));
             built.push(new RegExp(`^${key.split(HOLE).map(escaped).join("\\w*")}$`));
           }
         }
@@ -718,9 +824,9 @@ function keyReads(fileName: string, text: string): Reads {
     }
     ts.forEachChild(node, reads);
   };
-  if (bound.size) reads(file);
+  if (bound.length) reads(file);
 
-  return { namespaces, named, built, calls };
+  return { named, built, calls };
 }
 
 /**
@@ -733,12 +839,15 @@ function keyReads(fileName: string, text: string): Reads {
  * until a person opens that page.
  */
 export function missingKeys(fileName: string, text: string, catalog: unknown): Offence[] {
-  const { namespaces, calls } = keyReads(fileName, text);
-  const scoped = [...namespaces].filter(Boolean);
-  if (!scoped.length) return [];
-  return calls
-    .filter(({ key }) => !scoped.some((namespace) => holds(catalog, `${namespace}.${key}`)))
-    .map(({ key, line }) => ({ line, what: `${key} (in ${scoped.join(", ")})` }));
+  return keyReads(fileName, text)
+    .calls.filter(
+      ({ key, namespaces }) =>
+        !namespaces.some((namespace) => holds(catalog, namespace ? `${namespace}.${key}` : key)),
+    )
+    .map(({ key, namespaces, line }) => {
+      const scoped = namespaces.filter(Boolean);
+      return { line, what: scoped.length ? `${key} (in ${scoped.join(", ")})` : key };
+    });
 }
 
 /** Every spelling of `key` a module-level table could hold, whole key first. */
@@ -905,6 +1014,23 @@ function holds(catalog: unknown, dotted: string): boolean {
   return typeof node === "string";
 }
 
+/**
+ * Whether the offence sweep reads a file, given its path relative to `src`.
+ *
+ * The BFF route handlers are the only thing it skips beyond the playground, and the skip
+ * belongs here rather than inside a rule: `{ detail: "Not authenticated" }` is a string a
+ * rule can read perfectly well, and what excuses it is where it lives. A handler sits
+ * outside the `[locale]` segment, so there is no translator in scope and what it writes
+ * is a wire payload (#603). The catalog rules still read them, which is how a `detail`
+ * duplicating a message is caught.
+ *
+ * Matched below `src` and not on an absolute path, so `components/app/api/thing.ts` is
+ * not covered by it.
+ */
+export function isSwept(fromSrc: string): boolean {
+  return !fromSrc.startsWith("app/api/");
+}
+
 function sourceFiles(directory: string): string[] {
   const found: string[] = [];
   for (const entry of readdirSync(directory).sort()) {
@@ -940,18 +1066,20 @@ function main(argv: string[]): number {
   const catalog: unknown = JSON.parse(readFileSync(CATALOG, "utf8"));
 
   // Three file sets, and the difference between them is what each rule can honestly
-  // say. `sources` is everything: the catalog rules read a `.ts` file because a
-  // hook's toast is copy, and read the `dev/` playground because a key it reads is
-  // not dead. `product` drops the playground, whose copy is nobody's to translate.
-  // `sweep` is `.tsx` alone - the offence rules are JSX rules, and the 406 offences a
-  // `.ts` file holds are #446 rather than part of this. Tests are out of all three: a
-  // test names its copy.
+  // say. `sources` is everything: both halves read a `.ts` file because a hook's toast
+  // is copy, and the `dev/` playground because a key it reads is not dead. `product`
+  // drops the playground, whose copy is nobody's to translate. `sweep` drops the BFF
+  // route handlers on top of that - not because they hold no copy, but because nothing
+  // there can translate one: a handler sits outside the `[locale]` segment, so what it
+  // writes is a wire payload (#603). The catalog rules keep reading them, which is how
+  // a `detail` duplicating a message is still found. Tests are out of all three: a test
+  // names its copy.
   const sources: Source[] = sourceFiles(SRC).map((path) => ({
     path,
     text: readFileSync(path, "utf8"),
   }));
   const product = sources.filter(({ path }) => !SKIPPED_DIRS.some((dir) => path.includes(dir)));
-  const sweep = product.filter(({ path }) => path.endsWith(".tsx"));
+  const sweep = product.filter(({ path }) => isSwept(relative(SRC, path)));
 
   const failures: string[] = [];
   const absent: string[] = [];

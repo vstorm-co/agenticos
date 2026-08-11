@@ -272,8 +272,8 @@ export default function AdminConversationsPage() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="active">{t("active2")}</SelectItem>
-            <SelectItem value="archived">{t("archived2")}</SelectItem>
+            <SelectItem value="active">{t("active")}</SelectItem>
+            <SelectItem value="archived">{t("archived")}</SelectItem>
             <SelectItem value="all">{t("all")}</SelectItem>
           </SelectContent>
         </Select>
@@ -286,7 +286,7 @@ export default function AdminConversationsPage() {
             <SelectValue placeholder={t("allOwners")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">{t("allOwners2")}</SelectItem>
+            <SelectItem value="all">{t("allOwners")}</SelectItem>
             {userOptions.map((u) => (
               <SelectItem key={u.id} value={u.id}>
                 <span className="flex items-center gap-2">
@@ -310,7 +310,7 @@ export default function AdminConversationsPage() {
             <SelectValue placeholder={t("allAgents")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">{t("allAgents2")}</SelectItem>
+            <SelectItem value="all">{t("allAgents")}</SelectItem>
             {agents.map((agent) => (
               <SelectItem key={agent.id} value={agent.id}>
                 <span className="flex items-center gap-2">

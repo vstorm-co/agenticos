@@ -131,10 +131,9 @@ describe("mergeServers", () => {
       [personal({ id: "p9", name: "crm", url: "https://crm/mcp" })],
     );
 
-    expect(rows.map((row) => row.description)).toEqual([
-      "Added by this organization, not from the catalog.",
-      "Added by you, not from the catalog.",
-    ]);
+    // The key, not the sentence: a custom row's description is this app's own copy and
+    // the component translates it, where a catalog row carries the backend's text.
+    expect(rows.map((row) => row.descriptionKey)).toEqual(["customAddedByOrg", "customAddedByYou"]);
     expect(rows[0]?.organization?.id).toBe("o9");
     expect(rows[0]?.personal).toBeNull();
   });

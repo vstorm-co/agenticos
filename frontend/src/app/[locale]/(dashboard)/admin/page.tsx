@@ -43,6 +43,7 @@ const EVENT_ICON: Record<RecentEvent["type"], LucideIcon> = {
 
 export default function AdminOverviewPage() {
   const t = useTranslations("pages.admin");
+  const tTime = useTranslations("time");
   const statsQuery = useQuery({
     queryKey: ["admin", "stats"],
     queryFn: async (): Promise<AdminStats> => {
@@ -256,7 +257,7 @@ export default function AdminOverviewPage() {
                     <p className="text-muted-foreground truncate text-xs">
                       {e.description}
                       {e.description && " · "}
-                      {timeAgo(e.timestamp)}
+                      {timeAgo(e.timestamp, tTime)}
                     </p>
                   </div>
                 </li>

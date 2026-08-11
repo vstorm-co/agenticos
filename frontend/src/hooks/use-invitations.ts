@@ -125,11 +125,11 @@ export function useInvitations(orgId: string) {
         writeCache((prev) => [invitation, ...prev]);
         return `${window.location.origin}/invitations/${token}`;
       } catch {
-        toast.error("Failed to create the link");
+        toast.error(t("failedCreateLink"));
         return null;
       }
     },
-    [orgId, writeCache],
+    [orgId, writeCache, t],
   );
 
   return {

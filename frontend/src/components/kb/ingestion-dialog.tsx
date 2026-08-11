@@ -62,7 +62,7 @@ export function IngestionDialog({
     }
   }
 
-  const problems = ingestionProblems(draft);
+  const problems = ingestionProblems(draft, t);
   const changed = !sameIngestion(draft, config);
   const canSave = changed && Object.keys(problems).length === 0;
 

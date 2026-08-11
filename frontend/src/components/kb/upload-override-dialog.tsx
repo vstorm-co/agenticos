@@ -61,7 +61,7 @@ export function UploadOverrideDialog({
     if (open) setDraft(applied(config, override));
   }
 
-  const problems = ingestionProblems(draft);
+  const problems = ingestionProblems(draft, t);
   const pending = ingestionOverride(config, draft);
   const count = overrideSize(pending);
   const canApply = Object.keys(problems).length === 0;

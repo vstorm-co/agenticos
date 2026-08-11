@@ -1,3 +1,4 @@
+import { createTranslator } from "next-intl";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -7,11 +8,18 @@ import {
   ingestionProblems,
   overrideSize,
   sameIngestion,
-  summarizeEmbedding,
-  summarizeIngestion,
   toNumber,
 } from "./ingestion-config";
+import type { Translate } from "@/lib/agent-step-captions";
 import type { IngestionConfig } from "@/types";
+import messages from "../../messages/en.json";
+
+/**
+ * The real `kb` messages, so a refusal is asserted as the sentence it renders as. Cast
+ * because `createTranslator` types its key against the message tree while `Translate`
+ * takes the string a module holds.
+ */
+const t = createTranslator({ locale: "en", messages, namespace: "kb" }) as Translate;
 
 /** The defaults with something moved, without restating the other nine fields. */
 function config(changes: Partial<IngestionConfig> = {}): IngestionConfig {
@@ -22,14 +30,14 @@ describe("ingestionProblems", () => {
   it("accepts the configuration nothing has been done to", () => {
     // The starting point of every form here. If this ever fails, every dialog
     // opens already refusing to submit.
-    expect(ingestionProblems(DEFAULT_INGESTION_CONFIG)).toEqual({});
+    expect(ingestionProblems(DEFAULT_INGESTION_CONFIG, t)).toEqual({});
   });
 
   it("refuses an overlap that does not fit inside a chunk, under the overlap", () => {
     // The server's own cross-field rule. It reaches the browser attributed to
     // `ingestion_config` rather than to a field, so answering it locally is the
     // only way it lands on an input somebody can act on.
-    const problems = ingestionProblems(config({ chunk_size: 256, chunk_overlap: 300 }));
+    const problems = ingestionProblems(config({ chunk_size: 256, chunk_overlap: 300 }), t);
 
     expect(problems.chunk_overlap).toContain("256");
     expect(problems.chunk_size).toBeUndefined();
@@ -37,7 +45,7 @@ describe("ingestionProblems", () => {
 
   it("refuses an overlap equal to the chunk, which is every chunk repeated whole", () => {
     // The boundary the server draws with `>=`, not `>`.
-    expect(ingestionProblems(config({ chunk_size: 512, chunk_overlap: 512 }))).toHaveProperty(
+    expect(ingestionProblems(config({ chunk_size: 512, chunk_overlap: 512 }), t)).toHaveProperty(
       "chunk_overlap",
     );
   });
@@ -53,7 +61,7 @@ describe("ingestionProblems", () => {
     ["max_pages", config({ max_pages: 0 })],
     ["max_pages", config({ max_pages: 10001 })],
   ])("refuses a %s outside the bounds the API enforces", (field, value) => {
-    expect(ingestionProblems(value)).toHaveProperty(field);
+    expect(ingestionProblems(value, t)).toHaveProperty(field);
   });
 
   it.each(["en", "pl", "english", "eng+", "ENG", "eng pol", ""])(
@@ -62,23 +70,24 @@ describe("ingestionProblems", () => {
       // The trap is that "pl" looks like the right answer - it is the code used
       // everywhere else in this product for a UI locale. Tesseract has no pack
       // under that name, so the parse would succeed and return nothing.
-      expect(ingestionProblems(config({ ocr_language: code }))).toHaveProperty("ocr_language");
+      expect(ingestionProblems(config({ ocr_language: code }), t)).toHaveProperty("ocr_language");
     },
   );
 
   it.each(["eng", "pol", "eng+pol", "deu+fra+spa"])("accepts %p", (code) => {
-    expect(ingestionProblems(config({ ocr_language: code }))).not.toHaveProperty("ocr_language");
+    expect(ingestionProblems(config({ ocr_language: code }), t)).not.toHaveProperty("ocr_language");
   });
 
   it("treats an emptied number box as unfinished rather than as zero", () => {
     // `Number("")` is 0, which for a chunk size is a plausible-looking value the
     // API refuses. The box says what it is: nothing typed yet.
-    expect(ingestionProblems(config({ chunk_size: toNumber("") }))).toHaveProperty("chunk_size");
+    expect(ingestionProblems(config({ chunk_size: toNumber("") }), t)).toHaveProperty("chunk_size");
   });
 
   it("refuses an empty image prompt", () => {
     const problems = ingestionProblems(
       config({ image_description: { ...DEFAULT_INGESTION_CONFIG.image_description, prompt: "" } }),
+      t,
     );
 
     expect(problems).toHaveProperty("prompt");
@@ -88,7 +97,7 @@ describe("ingestionProblems", () => {
     // Whether a profile resolves to a usable key is not knowable here, and a
     // guess would either block a working configuration or promise one that is
     // about to be refused.
-    expect(ingestionProblems(config({ describe_images: true }))).toEqual({});
+    expect(ingestionProblems(config({ describe_images: true }), t)).toEqual({});
   });
 });
 
@@ -195,49 +204,5 @@ describe("sameIngestion", () => {
     });
 
     expect(sameIngestion(DEFAULT_INGESTION_CONFIG, zero)).toBe(false);
-  });
-});
-
-describe("summarizeIngestion", () => {
-  it("leads with the parser, which is what changes what a document says", () => {
-    expect(summarizeIngestion(DEFAULT_INGESTION_CONFIG)).toBe("PyMuPDF · 512/50 recursive");
-  });
-
-  it("mentions only the things that are switched on", () => {
-    expect(summarizeIngestion(config({ ocr: true, describe_images: true }))).toBe(
-      "PyMuPDF · OCR · 512/50 recursive · images described",
-    );
-  });
-});
-
-describe("summarizeIngestion, for the parser that has its own options", () => {
-  it("names LitParse's output format, which decides what a table becomes", () => {
-    expect(
-      summarizeIngestion(config({ pdf_parser: "liteparse", liteparse_output_format: "markdown" })),
-    ).toContain("markdown");
-  });
-
-  it("distinguishes OCR on every page from OCR where it is needed", () => {
-    // The difference between a slow parse and a fast one, so a summary that said
-    // only "OCR" would hide the setting somebody is looking for.
-    expect(
-      summarizeIngestion(config({ pdf_parser: "liteparse", ocr: true, auto_ocr: true })),
-    ).toContain("OCR when needed");
-    expect(
-      summarizeIngestion(config({ pdf_parser: "liteparse", ocr: true, auto_ocr: false })),
-    ).toContain("· OCR ·");
-  });
-});
-
-describe("summarizeEmbedding", () => {
-  it("states what a collection was indexed with, not what it is set to", () => {
-    // Frozen at creation: two collections on different models are not peers, and
-    // this is the line that says which one this is.
-    expect(
-      summarizeEmbedding({
-        embedding_model: "text-embedding-3-large",
-        embedding_dim: 3072,
-      } as Parameters<typeof summarizeEmbedding>[0]),
-    ).toBe("text-embedding-3-large · 3,072 dimensions");
   });
 });

@@ -15,17 +15,28 @@ vi.mock("@/lib/api-client", () => ({
   ApiError: class ApiError extends Error {},
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-// Key-returning translator: the refresh-failure assertions name message keys. The
-// rest of this page is not on next-intl, so its literals below are the real copy.
+// Key-returning translator: the refresh-failure assertions name message keys, rather
+// than the sentences `messages/en.json` holds for them.
 //
-// `rich` as well as the call itself, because a component under this tree reads a
-// message with a tag in it. A mock that models only half of `t` fails as a
+// One function per namespace, cached, because the real `useTranslations` is a `useMemo`
+// over stable inputs. `useKBDetail` puts `t` in `refresh`'s dependencies and the page
+// runs `useEffect(() => refresh(), [refresh])`, so a translator rebuilt per call made
+// that effect re-fire forever and every test here timed out (#446).
+//
+// `rich` hangs off the same function, because a component under this tree reads a
+// message with a tag in it. A mock modelling only half of `t` fails as
 // `t.rich is not a function` inside a render, several files from the assertion.
+const translators = new Map<string, (key: string) => string>();
 vi.mock("next-intl", () => ({
-  useTranslations: (ns: string) =>
-    Object.assign((key: string): string => `${ns}.${key}`, {
+  useTranslations: (ns: string) => {
+    const cached = translators.get(ns);
+    if (cached !== undefined) return cached;
+    const translate = Object.assign((key: string): string => `${ns}.${key}`, {
       rich: (key: string): string => `${ns}.${key}`,
-    }),
+    });
+    translators.set(ns, translate);
+    return translate;
+  },
 }));
 
 const perms = new Set<string>(["collections:view"]);

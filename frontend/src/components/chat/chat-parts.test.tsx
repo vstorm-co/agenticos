@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { createTranslator } from "next-intl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatEmptyState } from "./chat-empty-state";
@@ -8,7 +9,21 @@ import { PendingMessages } from "./pending-messages";
 import { SlashCommandPalette } from "./slash-command-palette";
 import { ChartMessage, parseChartResult } from "./chart-message";
 import { MarkdownContent } from "./markdown-content";
-import { BUILTIN_COMMANDS } from "./slash-commands";
+import { BUILTIN_COMMANDS, resolveBuiltin } from "./slash-commands";
+import type { Translate } from "@/lib/agent-step-captions";
+import messages from "../../../messages/en.json";
+
+/**
+ * The built-ins as the palette receives them: `BUILTIN_COMMANDS` holds keys, and the
+ * copy is resolved where it is rendered. Cast because `createTranslator` types its key
+ * against the message tree while `Translate` takes the string a table holds.
+ */
+const commands = BUILTIN_COMMANDS.map((command) =>
+  resolveBuiltin(
+    command,
+    createTranslator({ locale: "en", messages, namespace: "chat.commands" }) as Translate,
+  ),
+);
 
 const auth = vi.hoisted(() => ({
   user: null as { full_name?: string | null; email?: string } | null,
@@ -143,7 +158,7 @@ describe("the slash command palette", () => {
   it("lists each command by name and description", () => {
     render(
       <SlashCommandPalette
-        commands={BUILTIN_COMMANDS}
+        commands={commands}
         selectedIndex={0}
         onSelectIndex={vi.fn()}
         onPick={vi.fn()}
@@ -151,13 +166,13 @@ describe("the slash command palette", () => {
     );
 
     expect(screen.getByText("/clear")).toBeInTheDocument();
-    expect(screen.getByText(BUILTIN_COMMANDS[0]!.description)).toBeInTheDocument();
+    expect(screen.getByText(commands[0]!.description)).toBeInTheDocument();
   });
 
   it("shows the first alias, which is the other word people type", () => {
     render(
       <SlashCommandPalette
-        commands={BUILTIN_COMMANDS}
+        commands={commands}
         selectedIndex={0}
         onSelectIndex={vi.fn()}
         onPick={vi.fn()}
@@ -170,7 +185,7 @@ describe("the slash command palette", () => {
   it("marks which row is about to run", () => {
     const { container } = render(
       <SlashCommandPalette
-        commands={BUILTIN_COMMANDS}
+        commands={commands}
         selectedIndex={1}
         onSelectIndex={vi.fn()}
         onPick={vi.fn()}
@@ -186,7 +201,7 @@ describe("the slash command palette", () => {
     const onSelectIndex = vi.fn();
     render(
       <SlashCommandPalette
-        commands={BUILTIN_COMMANDS}
+        commands={commands}
         selectedIndex={0}
         onSelectIndex={onSelectIndex}
         onPick={vi.fn()}
@@ -204,7 +219,7 @@ describe("the slash command palette", () => {
     const onPick = vi.fn();
     render(
       <SlashCommandPalette
-        commands={BUILTIN_COMMANDS}
+        commands={commands}
         selectedIndex={0}
         onSelectIndex={vi.fn()}
         onPick={onPick}
@@ -213,7 +228,7 @@ describe("the slash command palette", () => {
 
     const event = fireEvent.mouseDown(screen.getByText("/clear").closest("li")!);
 
-    expect(onPick).toHaveBeenCalledWith(BUILTIN_COMMANDS[0]);
+    expect(onPick).toHaveBeenCalledWith(commands[0]);
     // `fireEvent` returns false when a handler prevented the default.
     expect(event).toBe(false);
   });
@@ -239,7 +254,7 @@ describe("the slash command palette", () => {
 
     const { rerender } = render(
       <SlashCommandPalette
-        commands={BUILTIN_COMMANDS}
+        commands={commands}
         selectedIndex={0}
         onSelectIndex={vi.fn()}
         onPick={vi.fn()}
@@ -247,7 +262,7 @@ describe("the slash command palette", () => {
     );
     rerender(
       <SlashCommandPalette
-        commands={BUILTIN_COMMANDS}
+        commands={commands}
         selectedIndex={4}
         onSelectIndex={vi.fn()}
         onPick={vi.fn()}
