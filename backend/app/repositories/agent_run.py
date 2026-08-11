@@ -186,12 +186,19 @@ async def latest_run_for_conversation(
     :meth:`app.services.agent_trigger.AgentTriggerService.fire` recovers the run a
     provider error recorded but never handed back: `_run` commits the failed row
     and re-raises, so `execute` returns nothing to stamp `last_run_id` against.
+
+    Top-level runs only. A delegated child is recorded with its parent's
+    `conversation_id` in the same transaction, so it shares the parent's
+    `created_at` - the Postgres transaction timestamp - and could win the
+    `created_at DESC` tie. The fire is always a top-level run, so `parent_run_id
+    IS NULL` keeps `last_run_id` off a delegation.
     """
     result = await db.execute(
         select(AgentRun)
         .where(
             AgentRun.conversation_id == conversation_id,
             AgentRun.organization_id == organization_id,
+            AgentRun.parent_run_id.is_(None),
         )
         .order_by(AgentRun.created_at.desc())
         .limit(1)

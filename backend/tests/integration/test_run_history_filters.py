@@ -604,6 +604,29 @@ class TestTheLatestRunInAConversation:
 
         assert await latest_run_for_conversation(db, convo.id, organization_id=org.id) is None
 
+    async def test_it_skips_a_delegated_child_that_shares_the_conversation(self, db) -> None:
+        """A delegated child is recorded with the parent's conversation_id in the same
+        transaction, so it ties the fire's created_at. The fire is the top-level run,
+        so a tie must hand back the fire, never the delegation - or `last_run_id` would
+        point at a child run."""
+        org, _user = await _org(db)
+        agent = await _agent(db, org)
+        convo = await _conversation(db, org)
+        fire = await _run(db, org, agent, conversation_id=convo.id, created_at=_NOW)
+        await _run(
+            db,
+            org,
+            agent,
+            conversation_id=convo.id,
+            created_at=_NOW,
+            parent_run_id=fire.id,
+        )
+
+        found = await latest_run_for_conversation(db, convo.id, organization_id=org.id)
+
+        assert found is not None
+        assert found.id == fire.id
+
 
 class TestFiltersAndTheTenantBoundary:
     async def test_a_filter_can_only_shrink_what_a_caller_sees(self, db) -> None:

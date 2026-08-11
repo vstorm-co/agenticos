@@ -778,6 +778,36 @@ class TestFiring:
         assert trigger.last_run_id is None
         assert trigger.is_active is True
 
+    async def test_a_fire_whose_run_never_reached_terminal_is_settled_before_stamping(self):
+        """The error struck after the row was flushed `running` but before the runner
+        recorded it terminal - a workspace backend down, a delegate pin gone. The
+        recovered run is non-terminal, and a `running` `last_run_id` would wedge
+        `claim_due` for ever, so fire settles the orphan `failed` before stamping."""
+        agent = _agent()
+        service = _service(agent)
+        trigger = _trigger(agent_id=agent.id, conversation_id=uuid.uuid4())
+        orphan = MagicMock(id=uuid.uuid4(), status=RunStatus.RUNNING.value)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.member_repo") as members,
+            patch("app.services.agent_trigger.conversation_repo"),
+            patch("app.services.agent_trigger.agent_run_repo") as runs,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            runs.latest_run_for_conversation = AsyncMock(return_value=orphan)
+            runner = runner_cls.return_value
+            runner.execute = AsyncMock(side_effect=RuntimeError("workspace backend down"))
+            await service.fire(trigger.id)  # must not raise
+
+        assert orphan.status == RunStatus.FAILED.value
+        assert orphan.ended_at is not None
+        assert orphan.error == "fire failed before the runner could record the run"
+        assert trigger.last_run_id == orphan.id
+        assert trigger.is_active is True
+
 
 class TestCreatingAnEventTrigger:
     async def test_an_event_trigger_seals_its_secret_and_has_no_next_fire(self):

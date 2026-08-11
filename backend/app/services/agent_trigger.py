@@ -40,7 +40,7 @@ from app.core.audit import record_audit
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.core.vault import VaultScope, seal, unseal
-from app.db.models.agent_run import RunSurface
+from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.agent_trigger import AgentTrigger, ScheduleKind, TriggerType
 from app.repositories import (
     agent_environment_repo,
@@ -607,6 +607,20 @@ class AgentTriggerService:
                 # builds, a model profile deleted since publish. Nothing to stamp;
                 # the next interval tries again once the cause is fixed.
                 return
+            if run.status == RunStatus.RUNNING.value:
+                # The error struck after `create_run` flushed the row `running` but
+                # before `_run` could record it terminal - `workspaces.open`,
+                # `build_agent` and delegation setup all run after the row exists, and
+                # an error from any of them escapes `_run`'s `finally`. Nothing else
+                # will ever finish this run, and a non-terminal `last_run_id` makes
+                # `claim_due`'s no-overlap guard skip the trigger on every tick for
+                # ever. It can only be this fire's own orphan - `claim_due` proved the
+                # previous run terminal at claim time, and an in-flight run's row is
+                # invisible to other transactions until its own commit lands - so
+                # settle it before stamping.
+                run.status = RunStatus.FAILED.value
+                run.ended_at = datetime.now(UTC)
+                run.error = "fire failed before the runner could record the run"
 
         trigger.last_run_id = run.id
         await self.db.flush()
