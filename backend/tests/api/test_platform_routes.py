@@ -1224,6 +1224,11 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # not sign bodies, so the handler compares the shared token the
         # integration was created with, and refuses when none is configured.
         ("POST", f"{V1}/mattermost/{{bot_id}}/webhook"),
+        # An event trigger's inbound webhook. Same arrangement as Slack: GitHub
+        # and the email relay sign the body with the trigger's own secret, and the
+        # service verifies that HMAC against the trigger named in the path. A
+        # session here would mean the integration could never deliver.
+        ("POST", f"{V1}/webhooks/triggers/{{source}}/{{trigger_id}}"),
         # The public face of an embedded agent. There is no session to have:
         # these are reached from a stranger's browser on somebody else's site.
         # What authorises them is the widget's key plus the `Origin` the browser

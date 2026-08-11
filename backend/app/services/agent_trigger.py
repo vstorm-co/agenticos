@@ -24,7 +24,10 @@ retrying a refusal for ever.
 
 from __future__ import annotations
 
+import json
 import logging
+from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 from uuid import UUID
@@ -33,10 +36,11 @@ from croniter import croniter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
-from app.core.exceptions import AuthorizationError, NotFoundError
+from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
+from app.core.vault import VaultScope, seal, unseal
 from app.db.models.agent_run import RunSurface
-from app.db.models.agent_trigger import AgentTrigger, ScheduleKind
+from app.db.models.agent_trigger import AgentTrigger, ScheduleKind, TriggerType
 from app.repositories import (
     agent_environment_repo,
     agent_trigger_repo,
@@ -44,10 +48,26 @@ from app.repositories import (
     member_repo,
 )
 from app.schemas.agent_trigger import TriggerCreate, TriggerRead, TriggerUpdate
+from app.services import trigger_events
 from app.services.access import AGENT, visible_resource_ids
 from app.services.agent_registry import AgentRegistryService
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class EventFireDecision:
+    """A verified, matched delivery that should fire - the route dispatches it.
+
+    Returned by :meth:`AgentTriggerService.prepare_event_fire` rather than firing
+    inline, because the fire runs an agent and a provider (GitHub's 10s) would time
+    the webhook out. The route hands this to a background task that calls
+    :meth:`AgentTriggerService.fire` with the `event_context` off its own session,
+    exactly as a channel mention is processed after its webhook returns.
+    """
+
+    trigger_id: UUID
+    event_context: str
 
 
 def _cron_next(expression: str, *, now: datetime) -> datetime:
@@ -97,6 +117,22 @@ def _update_action(changes: dict[str, Any]) -> str:
     if changes.get("is_active") is False:
         return "agent.trigger_paused"
     return "agent.trigger_updated"
+
+
+def _parse_json(body: bytes) -> dict[str, Any]:
+    """The delivery body as a JSON object, or a 400 the webhook route surfaces.
+
+    A verified delivery whose body is not a JSON object cannot be matched or
+    rendered, so it is refused here rather than reaching the match code with the
+    wrong type.
+    """
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError as exc:
+        raise BadRequestError(message="Webhook body is not valid JSON") from exc
+    if not isinstance(payload, dict):
+        raise BadRequestError(message="Webhook body must be a JSON object")
+    return payload
 
 
 class AgentTriggerService:
@@ -153,7 +189,13 @@ class AgentTriggerService:
         return triggers, total
 
     async def create(self, ctx: AuthContext, agent_id: UUID, data: TriggerCreate) -> AgentTrigger:
-        """Schedule the agent to run itself, on an interval or a cron expression.
+        """Schedule the agent to run itself, or fire it on an incoming event.
+
+        A schedule is given its next fire, never an immediate one - creating a
+        schedule is not a request to run right now. An event trigger is given no
+        next fire (nothing is due until a delivery arrives) and its signing secret,
+        sealed for this organization through the one vault so no plaintext secret
+        is ever stored.
 
         Raises:
             NotFoundError: If the agent is not runnable by this caller. Reported
@@ -165,28 +207,47 @@ class AgentTriggerService:
             await self._environment_of(ctx, agent.id, data.environment_id)
 
         now = datetime.now(UTC)
+        if data.trigger_type == TriggerType.EVENT.value:
+            sealed = seal(
+                cast(str, data.event_secret),
+                scope=VaultScope.organization(ctx.organization_id),
+            )
+            event_source = data.event_source
+            event_config = data.event_config or {}
+            event_secret_encrypted: str | None = sealed.ciphertext
+            secret_key_version: int | None = sealed.key_version
+            next_fire_at: datetime | None = None
+        else:
+            event_source = None
+            event_config = {}
+            event_secret_encrypted = None
+            secret_key_version = None
+            next_fire_at = _next_fire(
+                schedule_kind=data.schedule_kind,
+                interval_seconds=data.interval_seconds,
+                cron_expression=data.cron_expression,
+                now=now,
+            )
+
         trigger = await agent_trigger_repo.create(
             self.db,
             organization_id=ctx.organization_id,
             agent_id=agent.id,
             created_by_user_id=ctx.subject_id,
             prompt=data.prompt,
+            trigger_type=data.trigger_type,
             schedule_kind=data.schedule_kind,
             interval_seconds=data.interval_seconds,
             cron_expression=data.cron_expression,
+            event_source=event_source,
+            event_config=event_config,
+            event_secret_encrypted=event_secret_encrypted,
+            secret_key_version=secret_key_version,
             environment_id=data.environment_id,
-            # The schedule's next occurrence, never immediate: creating a schedule
-            # is not a request to run right now, and an immediate fire would make a
-            # mistyped trigger spend before it could be deleted.
-            next_fire_at=_next_fire(
-                schedule_kind=data.schedule_kind,
-                interval_seconds=data.interval_seconds,
-                cron_expression=data.cron_expression,
-                now=now,
-            ),
+            next_fire_at=next_fire_at,
         )
         # Open the run-log conversation now, not on the first fire, so a new
-        # schedule is a clickable item in the sidebar the moment it exists - empty
+        # trigger is a clickable item in the sidebar the moment it exists - empty
         # until a fire appends to it. `_run_log` stays the idempotent fallback for
         # a conversation later deleted, whose SET NULL reopens a fresh one.
         await self._run_log(trigger, agent_name=agent.name)
@@ -197,11 +258,15 @@ class AgentTriggerService:
             action="agent.trigger_created",
             target_type="agent",
             target_id=str(agent.id),
+            # The sealed secret is never audited - only that a trigger of this
+            # shape was created.
             details={
                 "trigger_id": str(trigger.id),
+                "trigger_type": trigger.trigger_type,
                 "schedule_kind": trigger.schedule_kind,
                 "interval_seconds": trigger.interval_seconds,
                 "cron_expression": trigger.cron_expression,
+                "event_source": trigger.event_source,
             },
         )
         return trigger
@@ -216,6 +281,17 @@ class AgentTriggerService:
         """
         trigger = await self._owned(ctx, agent_id, trigger_id)
         changes = data.model_dump(exclude_unset=True)
+        if "interval_seconds" in changes and (
+            trigger.trigger_type != TriggerType.SCHEDULE.value
+            or trigger.schedule_kind != ScheduleKind.INTERVAL.value
+        ):
+            # Retiming only means something for an interval schedule; on a cron
+            # schedule or an event trigger the column is null by the shape CHECK,
+            # so setting it here would be a 500 IntegrityError, not a 422.
+            raise BadRequestError(
+                message="interval_seconds can only be set on an interval schedule",
+                details={"trigger_id": str(trigger.id)},
+            )
         if changes.get("environment_id") is not None:
             await self._environment_of(ctx, agent_id, changes["environment_id"])
         updated = await agent_trigger_repo.update(self.db, trigger=trigger, update_data=changes)
@@ -262,6 +338,62 @@ class AgentTriggerService:
         await self.fire(trigger.id)
         return trigger
 
+    async def prepare_event_fire(
+        self, source: str, trigger_id: UUID, *, body: bytes, headers: Mapping[str, str]
+    ) -> EventFireDecision | None:
+        """Authenticate and match an inbound delivery, returning what to fire.
+
+        Called by the webhook route with no auth context - the delivery is
+        authenticated by its HMAC signature against the trigger's own secret, not
+        a session, and the fire runs as the trigger's creator like every other
+        fire. Returns the decision to fire, or `None` when the delivery is
+        authentic but there is nothing to do: an unknown trigger, one that is not
+        an active event trigger of this source, or one whose filter the payload
+        does not match. All of those answer the same way, so a caller cannot use
+        the response to tell an existing trigger from a missing one.
+
+        Raises:
+            AuthorizationError: The signature did not verify. The one case that is
+                not silent, because a misconfigured secret is the integrator's to
+                fix and a 403 is how a provider surfaces it.
+            BadRequestError: The body is not a JSON object.
+        """
+        trigger = await agent_trigger_repo.get_by_id(self.db, trigger_id)
+        if (
+            trigger is None
+            or trigger.trigger_type != TriggerType.EVENT.value
+            or trigger.event_source != source
+            or not trigger.is_active
+        ):
+            return None
+        secret = self._unseal_event_secret(trigger)
+        if not trigger_events.verify_signature(source, secret=secret, body=body, headers=headers):
+            raise AuthorizationError(
+                message="Webhook signature did not verify",
+                details={"trigger_id": str(trigger_id)},
+            )
+        payload = _parse_json(body)
+        if not trigger_events.event_matches(
+            source, headers=headers, payload=payload, config=trigger.event_config
+        ):
+            return None
+        context = trigger_events.render_context(source, payload=payload)
+        return EventFireDecision(trigger_id=trigger.id, event_context=context)
+
+    def _unseal_event_secret(self, trigger: AgentTrigger) -> str:
+        """The trigger's signing secret, unsealed for its organization.
+
+        The shape CHECK guarantees an event trigger's secret and its key version
+        are both present, so the casts cannot be reached with a null - a guard
+        here would be an untestable branch under the 100% gate, the same reason
+        `_next_fire` casts rather than checks.
+        """
+        return unseal(
+            cast(str, trigger.event_secret_encrypted),
+            scope=VaultScope.organization(trigger.organization_id),
+            key_version=cast(int, trigger.secret_key_version),
+        )
+
     async def claim_and_advance(self, *, now: datetime, limit: int = 100) -> list[AgentTrigger]:
         """Claim the triggers due now, advancing each so no later tick re-fires it.
 
@@ -278,12 +410,16 @@ class AgentTriggerService:
         await self.db.flush()
         return triggers
 
-    async def fire(self, trigger_id: UUID) -> None:
-        """Run the agent this trigger schedules, as the member who created it.
+    async def fire(self, trigger_id: UUID, *, event_context: str | None = None) -> None:
+        """Run the agent this trigger fires, as the member who created it.
 
-        Called by the worker with a bare id, so it re-loads everything and trusts
-        nothing from the claim: a trigger deleted or disabled between claim and
-        fire simply does nothing. The run goes through `AgentRunnerService.execute`,
+        Called by the worker with a bare id (a scheduled fire) or by the webhook's
+        background task with the delivered `event_context` (an event fire), so it
+        re-loads everything and trusts nothing from the caller: a trigger deleted
+        or disabled between claim and fire simply does nothing. An event fire
+        appends its context to the trigger's prompt, so the agent sees which issue
+        or email set it off; a scheduled fire has none and sends the prompt as-is.
+        The run goes through `AgentRunnerService.execute`,
         so a budget it cannot afford ends the run `BUDGET_EXCEEDED` and returns
         here normally - never raising, so the flow is not retried into spending
         the same organization's money again.
@@ -322,12 +458,15 @@ class AgentTriggerService:
 
         from app.services.agent_runner import AgentRunnerService
 
+        message = (
+            trigger.prompt if event_context is None else f"{trigger.prompt}\n\n{event_context}"
+        )
         runner = AgentRunnerService(self.db)
         try:
             _answer, run = await runner.execute(
                 ctx,
                 trigger.agent_id,
-                trigger.prompt,
+                message,
                 surface=RunSurface.SCHEDULE,
                 conversation_id=conversation_id,
                 environment_id=trigger.environment_id,
@@ -380,11 +519,12 @@ class AgentTriggerService:
         """
         if trigger.conversation_id is not None:
             return trigger.conversation_id
+        suffix = "triggered" if trigger.trigger_type == TriggerType.EVENT.value else "scheduled"
         conversation = await conversation_repo.create_conversation(
             self.db,
             organization_id=trigger.organization_id,
             user_id=None,
-            title=f"{agent_name} - scheduled",
+            title=f"{agent_name} - {suffix}",
         )
         trigger.conversation_id = conversation.id
         await self.db.flush()

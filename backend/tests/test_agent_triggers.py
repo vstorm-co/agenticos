@@ -18,15 +18,18 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pydantic import ValidationError as PydanticValidationError
 
-from app.core.exceptions import AuthorizationError, NotFoundError
+from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.schemas.agent_trigger import TriggerCreate, TriggerRead, TriggerUpdate
 from app.services.agent_trigger import (
     AgentTriggerService,
+    EventFireDecision,
     _next_fire_from,
     _update_action,
 )
+
+_SIGNING_SECRET = "a-signing-secret-16-plus"
 
 pytestmark = pytest.mark.anyio
 
@@ -65,9 +68,14 @@ def _trigger(**overrides: object) -> MagicMock:
         "created_by_user_id": _CALLER,
         "is_active": True,
         "environment_id": None,
+        "trigger_type": "schedule",
         "schedule_kind": "interval",
         "interval_seconds": 300,
         "cron_expression": None,
+        "event_source": None,
+        "event_config": {},
+        "event_secret_encrypted": None,
+        "secret_key_version": None,
         "prompt": "summarise the day",
         "next_fire_at": datetime(2026, 1, 1, tzinfo=UTC),
         "last_fired_at": None,
@@ -86,6 +94,30 @@ def _interval(
         schedule_kind="interval",
         interval_seconds=interval_seconds,
         environment_id=environment_id,
+    )
+
+
+def _github_event(**overrides: object) -> TriggerCreate:
+    fields: dict[str, object] = {
+        "prompt": "triage the issue",
+        "trigger_type": "event",
+        "event_source": "github",
+        "event_secret": _SIGNING_SECRET,
+    }
+    fields.update(overrides)
+    return TriggerCreate(**fields)
+
+
+def _event_trigger(**overrides: object) -> MagicMock:
+    return _trigger(
+        trigger_type="event",
+        event_source="github",
+        event_config={"actions": ["opened"]},
+        event_secret_encrypted="sealed-ciphertext",
+        secret_key_version=1,
+        interval_seconds=None,
+        next_fire_at=None,
+        **overrides,
     )
 
 
@@ -238,6 +270,7 @@ def _read() -> TriggerRead:
         id=uuid.uuid4(),
         agent_id=uuid.uuid4(),
         is_active=True,
+        trigger_type="schedule",
         schedule_kind="interval",
         interval_seconds=300,
         prompt="run",
@@ -633,3 +666,333 @@ class TestFiring:
             runner.execute = AsyncMock(side_effect=AuthorizationError(message="withdrawn"))
             await service.fire(trigger.id)  # must not raise
         assert trigger.is_active is False
+
+
+class TestCreatingAnEventTrigger:
+    async def test_an_event_trigger_seals_its_secret_and_has_no_next_fire(self):
+        agent = _agent()
+        service = _service(agent)
+        sealed = MagicMock(ciphertext="CIPHERTEXT", key_version=3)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.seal", return_value=sealed) as seal_fn,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            repo.create = AsyncMock(
+                return_value=_event_trigger(agent_id=agent.id, conversation_id=uuid.uuid4())
+            )
+            await service.create(_ctx(), agent.id, _github_event())
+        # The plaintext secret is sealed; only the ciphertext travels onward.
+        assert seal_fn.call_args.args[0] == _SIGNING_SECRET
+        assert repo.create.call_args.kwargs["event_secret_encrypted"] == "CIPHERTEXT"
+        assert repo.create.call_args.kwargs["secret_key_version"] == 3
+        assert repo.create.call_args.kwargs["trigger_type"] == "event"
+        assert repo.create.call_args.kwargs["event_source"] == "github"
+        # An event trigger is never due on the clock.
+        assert repo.create.call_args.kwargs["next_fire_at"] is None
+
+    async def test_creating_an_event_trigger_never_audits_its_secret(self):
+        agent = _agent()
+        service = _service(agent)
+        audit = AsyncMock()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch(
+                "app.services.agent_trigger.seal",
+                return_value=MagicMock(ciphertext="CT", key_version=1),
+            ),
+            patch("app.services.agent_trigger.record_audit", new=audit),
+        ):
+            repo.create = AsyncMock(
+                return_value=_event_trigger(agent_id=agent.id, conversation_id=uuid.uuid4())
+            )
+            await service.create(_ctx(), agent.id, _github_event())
+        details = audit.call_args.kwargs["details"]
+        assert details["trigger_type"] == "event"
+        assert details["event_source"] == "github"
+        # Neither the plaintext secret nor its ciphertext reaches the trail.
+        assert _SIGNING_SECRET not in str(details)
+        assert "CT" not in str(details)
+
+    async def test_creating_an_event_trigger_opens_a_triggered_run_log(self):
+        agent = _agent(name="Nightly")
+        service = _service(agent)
+        trigger = _event_trigger(agent_id=agent.id, conversation_id=None)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch(
+                "app.services.agent_trigger.seal",
+                return_value=MagicMock(ciphertext="CT", key_version=1),
+            ),
+            patch("app.services.agent_trigger.conversation_repo") as conversations,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            repo.create = AsyncMock(return_value=trigger)
+            conversations.create_conversation = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
+            await service.create(_ctx(), agent.id, _github_event())
+        # An event trigger's run log is "triggered", not "scheduled".
+        assert conversations.create_conversation.call_args.kwargs["title"] == "Nightly - triggered"
+
+
+class TestEventTriggerSchema:
+    def test_an_event_trigger_requires_a_source(self):
+        with pytest.raises(PydanticValidationError, match="event_source is required"):
+            TriggerCreate(prompt="x", trigger_type="event", event_secret=_SIGNING_SECRET)
+
+    def test_an_event_trigger_requires_a_secret(self):
+        with pytest.raises(PydanticValidationError, match="event_secret is required"):
+            TriggerCreate(prompt="x", trigger_type="event", event_source="github")
+
+    def test_an_event_trigger_rejects_an_interval(self):
+        with pytest.raises(PydanticValidationError, match="interval_seconds is not valid"):
+            TriggerCreate(
+                prompt="x",
+                trigger_type="event",
+                event_source="github",
+                event_secret=_SIGNING_SECRET,
+                interval_seconds=300,
+            )
+
+    def test_an_event_trigger_rejects_a_cron_expression(self):
+        with pytest.raises(
+            PydanticValidationError, match="cron_expression is not valid for an event"
+        ):
+            TriggerCreate(
+                prompt="x",
+                trigger_type="event",
+                event_source="github",
+                event_secret=_SIGNING_SECRET,
+                cron_expression="0 9 * * *",
+            )
+
+    def test_a_schedule_rejects_an_event_source(self):
+        with pytest.raises(PydanticValidationError, match="event_source is not valid"):
+            TriggerCreate(prompt="x", interval_seconds=300, event_source="github")
+
+    def test_a_schedule_rejects_a_secret(self):
+        with pytest.raises(PydanticValidationError, match="event_secret is not valid"):
+            TriggerCreate(prompt="x", interval_seconds=300, event_secret=_SIGNING_SECRET)
+
+    def test_a_schedule_rejects_an_event_config(self):
+        with pytest.raises(PydanticValidationError, match="event_config is not valid"):
+            TriggerCreate(prompt="x", interval_seconds=300, event_config={})
+
+    def test_a_github_config_defaults_to_issue_creation(self):
+        trigger = _github_event()
+        assert trigger.event_config == {"actions": ["opened"]}
+
+    def test_an_unknown_config_key_is_refused(self):
+        with pytest.raises(PydanticValidationError):
+            TriggerCreate(
+                prompt="x",
+                trigger_type="event",
+                event_source="github",
+                event_secret=_SIGNING_SECRET,
+                event_config={"unknown_filter": 1},
+            )
+
+    def test_a_secret_below_the_floor_is_refused(self):
+        with pytest.raises(PydanticValidationError):
+            TriggerCreate(
+                prompt="x", trigger_type="event", event_source="email", event_secret="short"
+            )
+
+    def test_an_email_config_is_normalised_with_both_filters(self):
+        trigger = TriggerCreate(
+            prompt="x",
+            trigger_type="event",
+            event_source="email",
+            event_secret=_SIGNING_SECRET,
+            event_config={"subject_contains": "urgent"},
+        )
+        assert trigger.event_config == {"subject_contains": "urgent", "sender_contains": None}
+
+    def test_an_event_read_exposes_its_webhook_path(self):
+        read = TriggerRead(
+            id=uuid.uuid4(),
+            agent_id=uuid.uuid4(),
+            is_active=True,
+            trigger_type="event",
+            schedule_kind="interval",
+            event_source="github",
+            prompt="x",
+            created_at=datetime(2026, 1, 1, tzinfo=UTC),
+        )
+        assert read.webhook_path == f"/api/v1/webhooks/triggers/github/{read.id}"
+
+    def test_a_schedule_read_has_no_webhook_path(self):
+        assert _read().webhook_path is None
+
+
+class TestPreparingAnEventFire:
+    """`prepare_event_fire` orchestrates the verifiers; the crypto itself is proven
+    in `test_trigger_events.py`, so here `trigger_events` is mocked and what is
+    asserted is the branching - what is ignored, what is a 403, what fires."""
+
+    async def test_an_unknown_trigger_is_ignored(self):
+        service = _service()
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.get_by_id = AsyncMock(return_value=None)
+            decision = await service.prepare_event_fire(
+                "github", uuid.uuid4(), body=b"{}", headers={}
+            )
+        assert decision is None
+
+    async def test_a_schedule_trigger_at_this_url_is_ignored(self):
+        service = _service()
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.get_by_id = AsyncMock(return_value=_trigger())
+            decision = await service.prepare_event_fire(
+                "github", uuid.uuid4(), body=b"{}", headers={}
+            )
+        assert decision is None
+
+    async def test_a_delivery_to_the_wrong_source_is_ignored(self):
+        service = _service()
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.get_by_id = AsyncMock(return_value=_event_trigger())  # source is github
+            decision = await service.prepare_event_fire(
+                "email", uuid.uuid4(), body=b"{}", headers={}
+            )
+        assert decision is None
+
+    async def test_an_inactive_event_trigger_is_ignored(self):
+        service = _service()
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.get_by_id = AsyncMock(return_value=_event_trigger(is_active=False))
+            decision = await service.prepare_event_fire(
+                "github", uuid.uuid4(), body=b"{}", headers={}
+            )
+        assert decision is None
+
+    async def test_a_signature_that_does_not_verify_is_a_403(self):
+        service = _service()
+        trigger = _event_trigger()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.unseal", return_value="secret"),
+            patch("app.services.agent_trigger.trigger_events") as events,
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            events.verify_signature = MagicMock(return_value=False)
+            with pytest.raises(AuthorizationError):
+                await service.prepare_event_fire("github", trigger.id, body=b"{}", headers={})
+
+    async def test_a_payload_the_filter_rejects_is_ignored(self):
+        service = _service()
+        trigger = _event_trigger()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.unseal", return_value="secret"),
+            patch("app.services.agent_trigger.trigger_events") as events,
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            events.verify_signature = MagicMock(return_value=True)
+            events.event_matches = MagicMock(return_value=False)
+            decision = await service.prepare_event_fire(
+                "github", trigger.id, body=b'{"action": "closed"}', headers={}
+            )
+        assert decision is None
+
+    async def test_a_verified_matching_delivery_returns_a_fire_decision(self):
+        service = _service()
+        trigger = _event_trigger()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.unseal", return_value="secret"),
+            patch("app.services.agent_trigger.trigger_events") as events,
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            events.verify_signature = MagicMock(return_value=True)
+            events.event_matches = MagicMock(return_value=True)
+            events.render_context = MagicMock(return_value="ISSUE #7 opened")
+            decision = await service.prepare_event_fire(
+                "github", trigger.id, body=b'{"action": "opened"}', headers={}
+            )
+        assert decision == EventFireDecision(trigger_id=trigger.id, event_context="ISSUE #7 opened")
+
+    async def test_a_body_that_is_not_json_is_a_400(self):
+        service = _service()
+        trigger = _event_trigger()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.unseal", return_value="secret"),
+            patch("app.services.agent_trigger.trigger_events") as events,
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            events.verify_signature = MagicMock(return_value=True)
+            with pytest.raises(BadRequestError):
+                await service.prepare_event_fire("github", trigger.id, body=b"not json", headers={})
+
+    async def test_a_body_that_is_a_json_array_is_a_400(self):
+        service = _service()
+        trigger = _event_trigger()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.unseal", return_value="secret"),
+            patch("app.services.agent_trigger.trigger_events") as events,
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            events.verify_signature = MagicMock(return_value=True)
+            with pytest.raises(BadRequestError, match="JSON object"):
+                await service.prepare_event_fire("github", trigger.id, body=b"[]", headers={})
+
+
+class TestFiringAnEvent:
+    async def test_an_event_fire_appends_its_context_to_the_prompt(self):
+        """A scheduled fire sends the prompt as-is; an event fire appends the
+        rendered payload, so the agent sees which issue or email set it off."""
+        agent = _agent()
+        service = _service(agent)
+        trigger = _event_trigger(
+            agent_id=agent.id, prompt="Triage it", conversation_id=uuid.uuid4()
+        )
+        run = MagicMock(id=uuid.uuid4(), status=RunStatus.COMPLETED.value)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.member_repo") as members,
+            patch("app.services.agent_trigger.conversation_repo"),
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            runner = runner_cls.return_value
+            runner.execute = AsyncMock(return_value=("done", run))
+            await service.fire(trigger.id, event_context="A GitHub issue #7 was opened")
+        assert runner.execute.call_args.args[2] == "Triage it\n\nA GitHub issue #7 was opened"
+
+
+class TestEventTriggerRestrictions:
+    async def test_retiming_an_event_trigger_is_refused(self):
+        """`interval_seconds` is meaningless on an event trigger, and setting it
+        would trip the shape CHECK as a 500 - so the service refuses it as a 400."""
+        agent = _agent()
+        service = _service(agent)
+        trigger = _event_trigger(agent_id=agent.id)
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.get = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock()
+            with pytest.raises(BadRequestError, match="interval schedule"):
+                await service.update(
+                    _ctx(), agent.id, trigger.id, TriggerUpdate(interval_seconds=600)
+                )
+            repo.update.assert_not_called()
+
+    async def test_retiming_a_cron_schedule_is_refused(self):
+        agent = _agent()
+        service = _service(agent)
+        trigger = _trigger(
+            agent_id=agent.id,
+            schedule_kind="cron",
+            interval_seconds=None,
+            cron_expression="0 9 * * *",
+        )
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.get = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock()
+            with pytest.raises(BadRequestError, match="interval schedule"):
+                await service.update(
+                    _ctx(), agent.id, trigger.id, TriggerUpdate(interval_seconds=600)
+                )
+            repo.update.assert_not_called()

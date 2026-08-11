@@ -21,6 +21,7 @@ from app.api.routes.v1 import audit
 from app.api.routes.v1 import sharing
 from app.api.routes.v1 import agent_embeds
 from app.api.routes.v1 import agent_environments, agent_exposures, agent_triggers
+from app.api.routes.v1 import trigger_webhooks
 from app.api.routes.v1 import agents as agent_registry
 from app.api.routes.v1 import model_providers
 from app.api.routes.v1 import secrets
@@ -61,6 +62,7 @@ v1_router.include_router(agent_environments.router, prefix="/agents", tags=["age
 v1_router.include_router(agent_exposures.router, prefix="/agents", tags=["agents:exposures"])
 v1_router.include_router(agent_triggers.router, prefix="/agents", tags=["agents:triggers"])
 v1_router.include_router(agent_triggers.org_router, tags=["agents:triggers"])
+v1_router.include_router(trigger_webhooks.router, prefix="/webhooks", tags=["triggers:webhooks"])
 v1_router.include_router(agent_embeds.router, prefix="/agents", tags=["agents:embeds"])
 v1_router.include_router(embed_widget.router, prefix="/embed", tags=["embed"])
 v1_router.include_router(agent_runs.router, tags=["runs"])

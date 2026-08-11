@@ -80,6 +80,28 @@ def _trigger(org: Organization, agent: Agent, **overrides) -> AgentTrigger:
     return AgentTrigger(**fields)
 
 
+def _event(org: Organization, agent: Agent, **overrides) -> AgentTrigger:
+    fields = {
+        "id": uuid.uuid4(),
+        "organization_id": org.id,
+        "agent_id": agent.id,
+        "created_by_user_id": org.owner_user.id,  # type: ignore[attr-defined]
+        "is_active": True,
+        "trigger_type": "event",
+        "schedule_kind": "interval",
+        "interval_seconds": None,
+        "cron_expression": None,
+        "event_source": "github",
+        "event_config": {},
+        "event_secret_encrypted": "sealed-ciphertext",
+        "secret_key_version": 1,
+        "prompt": "triage the issue",
+        "next_fire_at": None,
+    }
+    fields.update(overrides)
+    return AgentTrigger(**fields)
+
+
 class TestTheConstraintsRejectABadRow:
     async def test_an_interval_below_the_floor_is_refused(self, db):
         org = await _org(db)
@@ -99,6 +121,51 @@ class TestTheConstraintsRejectABadRow:
         org = await _org(db)
         agent = await _agent(db, org)
         db.add(_trigger(org, agent, schedule_kind="weekly"))
+        with pytest.raises(IntegrityError):
+            await db.flush()
+
+    async def test_a_trigger_type_outside_the_vocabulary_is_refused(self, db):
+        org = await _org(db)
+        agent = await _agent(db, org)
+        db.add(_trigger(org, agent, trigger_type="weekly"))
+        with pytest.raises(IntegrityError):
+            await db.flush()
+
+
+class TestTheEventShapeRejectsABadRow:
+    async def test_a_valid_event_trigger_is_accepted(self, db):
+        org = await _org(db)
+        agent = await _agent(db, org)
+        db.add(_event(org, agent))
+        await db.flush()  # the shape CHECK accepts a well-formed event trigger
+
+    async def test_an_event_trigger_with_a_next_fire_is_refused(self, db):
+        """An event is never due on the clock; a next fire is a schedule's field."""
+        org = await _org(db)
+        agent = await _agent(db, org)
+        db.add(_event(org, agent, next_fire_at=datetime.now(UTC)))
+        with pytest.raises(IntegrityError):
+            await db.flush()
+
+    async def test_an_event_trigger_without_a_sealed_secret_is_refused(self, db):
+        """Without a secret there is nothing to verify a delivery against."""
+        org = await _org(db)
+        agent = await _agent(db, org)
+        db.add(_event(org, agent, event_secret_encrypted=None, secret_key_version=None))
+        with pytest.raises(IntegrityError):
+            await db.flush()
+
+    async def test_an_event_trigger_carrying_an_interval_is_refused(self, db):
+        org = await _org(db)
+        agent = await _agent(db, org)
+        db.add(_event(org, agent, interval_seconds=300))
+        with pytest.raises(IntegrityError):
+            await db.flush()
+
+    async def test_an_event_source_outside_the_vocabulary_is_refused(self, db):
+        org = await _org(db)
+        agent = await _agent(db, org)
+        db.add(_event(org, agent, event_source="gitlab"))
         with pytest.raises(IntegrityError):
             await db.flush()
 

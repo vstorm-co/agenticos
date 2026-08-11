@@ -7,7 +7,7 @@ about it comes from conflating two.
 graph LR
     S[Spec] -->|publish freezes| V[Version]
     V -->|an exposure admits a caller| E[Exposure]
-    V -->|a trigger fires on a schedule| T[Trigger]
+    V -->|a trigger fires on a schedule or an event| T[Trigger]
     E -->|one execution| R[Run]
     T -->|one execution| R
     R -->|records| C[cost, tokens, version]
@@ -82,14 +82,24 @@ the same runner: the budget is enforced the same way, an approval parks it the s
 way, the audit trail names it the same way. It is stamped the `schedule` surface, so
 "how is this agent used" can tell an unattended run from a person's; each fire is its
 own run in Activity; and its answers accumulate in one run-log conversation the trigger
-opens once, rather than a new conversation every minute. A heartbeat fires the due ones
-once a minute - so a minute is the finest interval - and a run that outlives its own
-interval finishes before the next fire rather than piling up on itself.
+opens once - eagerly, the moment the trigger is created, so it is a clickable item
+before it has ever fired.
 
-A schedule is either an **interval** ("every N seconds", a minute at the finest) or a
-**cron** expression evaluated in UTC - `0 9 * * *` for 09:00 each day, or any crontab -
-the service computing the next fire for each the same way. Event triggers, which fire on
-an arriving email or a GitHub webhook rather than the clock, are their own later work.
+A trigger fires one of two ways. A **schedule** fires on the clock: an **interval**
+("every N seconds", a minute at the finest, since a heartbeat claims the due ones once
+a minute) or a **cron** expression evaluated in UTC - `0 9 * * *` for 09:00 each day,
+or any crontab - the service computing the next fire for each the same way, and a run
+that outlives its own interval finishing before the next fire rather than piling up on
+itself. An **event** fires on an arrival: a GitHub issue or an inbound email, delivered
+as a signed webhook the platform verifies against a per-trigger secret
+[sealed in the vault](secrets.md) and matched against an optional filter before the
+agent runs with the payload appended to its prompt. An event has no next fire - nothing
+is due until a delivery lands - so the heartbeat never sees it.
+
+Any trigger can also be **run now**: one extra fire on demand that leaves its cadence
+untouched. And every schedule and event in an organization is listed together across
+its agents, each filtered to the ones the caller may run - the same per-resource
+`agents:run` that gates creating one.
 
 ## Run
 

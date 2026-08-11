@@ -10,9 +10,10 @@ role gate, is proven through the real app in `tests/api/test_platform_routes.py`
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -24,8 +25,10 @@ from app.api.routes.v1.agent_triggers import (
     run_trigger_now,
     update_trigger,
 )
+from app.api.routes.v1.trigger_webhooks import ingest_trigger_event
 from app.core.permissions import AuthContext, OrgRoleName
 from app.schemas.agent_trigger import TriggerCreate, TriggerRead, TriggerUpdate
+from app.services.agent_trigger import EventFireDecision
 
 pytestmark = pytest.mark.anyio
 
@@ -37,6 +40,7 @@ def _read() -> TriggerRead:
         id=uuid.uuid4(),
         agent_id=uuid.uuid4(),
         is_active=True,
+        trigger_type="schedule",
         schedule_kind="interval",
         interval_seconds=300,
         prompt="run",
@@ -91,3 +95,46 @@ async def test_removing_a_schedule_answers_with_no_content():
     response = await delete_trigger(agent_id, trigger_id, _CTX, service)
     assert response.status_code == 204
     service.delete.assert_awaited_once_with(_CTX, agent_id, trigger_id)
+
+
+def _request(body: bytes, headers: dict[str, str]) -> MagicMock:
+    request = MagicMock()
+    request.body = AsyncMock(return_value=body)
+    request.headers = headers
+    return request
+
+
+async def test_a_webhook_hands_the_raw_body_and_headers_to_the_service():
+    """The signature covers the exact bytes, so the route must pass the raw body
+    through untouched - not a re-parsed and re-serialized copy."""
+    service = MagicMock(prepare_event_fire=AsyncMock(return_value=None))
+    body = b'{"action": "opened"}'
+    request = _request(body, {"x-hub-signature-256": "sha256=abc"})
+    await ingest_trigger_event("github", uuid.uuid4(), request, service)
+    assert service.prepare_event_fire.call_args.kwargs["body"] == body
+    assert service.prepare_event_fire.call_args.kwargs["headers"] == {
+        "x-hub-signature-256": "sha256=abc"
+    }
+
+
+async def test_a_webhook_with_nothing_to_do_accepts_without_firing():
+    service = MagicMock(prepare_event_fire=AsyncMock(return_value=None))
+    with patch("app.api.routes.v1.trigger_webhooks.process_trigger_event") as processed:
+        response = await ingest_trigger_event("github", uuid.uuid4(), _request(b"{}", {}), service)
+    assert response.status_code == 202
+    processed.assert_not_called()
+
+
+async def test_a_webhook_that_matches_dispatches_the_fire_in_the_background():
+    """The fire runs after the 202 goes back, so a provider's timeout never
+    catches an agent run - the same shape the channel webhooks use."""
+    decision = EventFireDecision(trigger_id=uuid.uuid4(), event_context="ISSUE #7")
+    service = MagicMock(prepare_event_fire=AsyncMock(return_value=decision))
+    processed = AsyncMock()
+    with patch("app.api.routes.v1.trigger_webhooks.process_trigger_event", processed):
+        response = await ingest_trigger_event(
+            "github", decision.trigger_id, _request(b'{"action": "opened"}', {}), service
+        )
+        await asyncio.sleep(0)  # let the created task run
+    assert response.status_code == 202
+    processed.assert_awaited_once_with(decision.trigger_id, "ISSUE #7")
