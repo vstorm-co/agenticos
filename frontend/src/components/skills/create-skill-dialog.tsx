@@ -186,7 +186,7 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
 
         <div className="flex min-h-0 flex-1 flex-col gap-3">
           <div className="flex flex-wrap items-start gap-4 rounded-md border p-3">
-            <div className="w-56 shrink-0 space-y-1.5">
+            <div className="w-56 shrink-0 space-y-1.5" data-tour="skill-dialog-name">
               <Label htmlFor="new-skill-name">{t("name")}</Label>
               <Input
                 id="new-skill-name"
@@ -199,7 +199,10 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
               />
               <FieldNote error={errors.name}>{t("howModelRefersSkill")}</FieldNote>
             </div>
-            <div className="min-w-0 flex-1 basis-72 space-y-1.5">
+            <div
+              className="min-w-0 flex-1 basis-72 space-y-1.5"
+              data-tour="skill-dialog-description"
+            >
               <Label htmlFor="new-skill-description">{t("description")}</Label>
               <Input
                 id="new-skill-description"
@@ -275,7 +278,7 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
               </div>
             </div>
 
-            <div className="flex min-h-0 flex-col">
+            <div className="flex min-h-0 flex-col" data-tour="skill-dialog-editor">
               {adding ? (
                 <NewFileForm
                   busy={false}
@@ -322,6 +325,7 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
             <Button
               onClick={handleCreate}
               disabled={!name.trim() || !description.trim() || create.isPending}
+              data-tour="skill-dialog-create"
             >
               {t("create")}
             </Button>

@@ -2137,7 +2137,7 @@
       },
       "flow-agent-knowledge-create": {
         "title": "Create the knowledge base",
-        "body": "Choose New knowledge base and set it up. We'll move on the moment it's created, then walk you back to your agent."
+        "body": "Choose New knowledge base — the form opens and we'll walk it together, field by field. Afterwards we'll walk you back to your agent."
       },
       "flow-agent-knowledge-return-nav": {
         "title": "Back to your agents",
@@ -2161,7 +2161,7 @@
       },
       "flow-agent-skills-create": {
         "title": "Create the skill",
-        "body": "Give it a name and a short description, then switch to Source to write the skill in Markdown and choose Create. We'll move on the moment it's created, then walk you back to your agent."
+        "body": "Choose New skill — the form opens and we'll walk it together, field by field. Afterwards we'll walk you back to your agent."
       },
       "flow-agent-skills-return-nav": {
         "title": "Back to your agents",
@@ -2188,8 +2188,8 @@
         "body": "An MCP server gives this agent tools from another system, and you haven't connected one yet. Want to connect one now? It's a quick dialog right here — no leaving the builder, and we'll pick up the moment it's connected."
       },
       "flow-agent-mcp-connect": {
-        "title": "Connect a server",
-        "body": "Choose Connect server, pick one from the catalog, and connect it. We'll move on the moment it's connected, and it'll be ready to attach right here."
+        "title": "Open the catalog",
+        "body": "Choose Connect server — the catalog opens right here in the builder, and we'll pick one together."
       },
       "flow-agent-publish": {
         "title": "Publish it",
@@ -2205,15 +2205,55 @@
       },
       "flow-skill-create": {
         "title": "Add your skill",
-        "body": "Choose New skill, give it a name and a short description, then switch to Source to write it in Markdown and create it. We'll move on as soon as it's saved."
+        "body": "Choose New skill — the form opens and we'll walk it together, field by field."
       },
       "flow-kb-create": {
         "title": "Create the knowledge base",
-        "body": "Choose New knowledge base, name it, and create it. You can add documents once it exists. We'll move on as soon as it's created."
+        "body": "Choose New knowledge base — the form opens and we'll walk it together, field by field."
       },
-      "flow-mcp-create": {
-        "title": "Add the connection",
-        "body": "Choose Add custom server, give it a name and URL, and connect. We'll move on as soon as it's added — a connection that signs in through the provider will hand off to their consent screen."
+      "flow-skill-field-name": {
+        "title": "Name it",
+        "body": "Short and specific, like refund-policy — it's how the model refers to this skill, and it can't be changed later. Then choose Next."
+      },
+      "flow-skill-field-description": {
+        "title": "Say when it applies",
+        "body": "This is the only part the model reads when deciding whether to open the skill at all — write when to reach for it, not what's inside. Then choose Next."
+      },
+      "flow-skill-field-source": {
+        "title": "Write the skill",
+        "body": "Switch to Source and write the know-how itself in Markdown — the steps, the rules, the exceptions. You can refine it anytime after. Then choose Next."
+      },
+      "flow-skill-field-create": {
+        "title": "Create it",
+        "body": "Choose Create. We'll move on the moment it's saved."
+      },
+      "flow-kb-field-name": {
+        "title": "Name it",
+        "body": "Name it after what it will hold — Product docs, Support wiki — so anyone attaching it to an agent knows what they're giving it. Then choose Next."
+      },
+      "flow-kb-field-scope": {
+        "title": "Choose who it belongs to",
+        "body": "Personal is yours alone; Organization makes it available to every member and agent. For a base your agents will search, pick Organization. Then choose Next."
+      },
+      "flow-kb-field-embeddings": {
+        "title": "Embeddings (leave the default)",
+        "body": "How documents are indexed for search. It's frozen at creation, but the deployment default is right for almost everyone — expand it only if you know you need a different model. Choose Next."
+      },
+      "flow-kb-field-create": {
+        "title": "Create it",
+        "body": "Choose Create. We'll move on the moment it exists — you'll add documents to it right after."
+      },
+      "flow-mcp-field-pick": {
+        "title": "Pick a server",
+        "body": "This is the catalog of systems your agents can get tools from. Find the one you want and choose Connect on it."
+      },
+      "flow-mcp-field-form": {
+        "title": "Fill in the connection",
+        "body": "Name it — the name prefixes its tool names — keep Organization so your agents can use it, and paste a token if this server asks for one. Then choose Next."
+      },
+      "flow-mcp-field-connect": {
+        "title": "Connect it",
+        "body": "Choose Connect. We check the server answers and move on the moment it's connected — a server that signs in through the provider will hand off to their consent screen instead."
       },
       "flow-org-create": {
         "title": "Create the organization",

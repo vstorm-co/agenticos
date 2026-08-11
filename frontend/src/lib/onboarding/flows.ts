@@ -49,19 +49,26 @@ export type FlowResource = "agent" | "model" | "skill" | "kb" | "orgMcp" | "org"
  * the whole point is that the reader performs the move — so it names no `page`
  * of its own and points at the control that makes the move.
  *
- * The last three carry the run past building an agent into using it, and all
- * key off the agent this flow built (`flowAgentId`) or the chat stores rather
- * than a list count. `published` is that agent gaining a version to run — the
- * step advances when Publish actually succeeds, not when the button is clicked,
- * so a draft that fails validation does not walk on. `selected` is that agent
- * being the one the chat will address. `sent` is the reader sending their first
- * message — the end of the whole walkthrough, and the one place it asks for a
- * (charged) model call, because a first agent nobody has run is a tour that
- * stopped one step short of the point.
+ * `opened` is a modal dialog opening — the signal for a step that points at the
+ * control which opens one, so the guidance moves into the dialog the moment the
+ * reader does. It is settled by the coach rather than the hook (dialogs are
+ * DOM), against the count of open dialogs when the step began, so a dialog
+ * opened on top of another still reads as an opening.
+ *
+ * The remaining three carry the run past building an agent into using it, and
+ * all key off the agent this flow built (`flowAgentId`) or the chat stores
+ * rather than a list count. `published` is that agent gaining a version to run
+ * — the step advances when Publish actually succeeds, not when the button is
+ * clicked, so a draft that fails validation does not walk on. `selected` is
+ * that agent being the one the chat will address. `sent` is the reader sending
+ * their first message — the end of the whole walkthrough, and the one place it
+ * asks for a (charged) model call, because a first agent nobody has run is a
+ * tour that stopped one step short of the point.
  */
 export type FlowSignal =
   | { kind: "created"; resource: FlowResource }
   | { kind: "arrived"; page: string }
+  | { kind: "opened" }
   | { kind: "published" }
   | { kind: "selected" }
   | { kind: "sent" };
@@ -141,6 +148,14 @@ export interface FlowStep {
    * builder — not the first card in a gallery that may hold many.
    */
   dynamicTarget?: "createdAgentEdit";
+  /**
+   * The target lives inside an open dialog. The freeze normally lifts whole
+   * while one is open; a step marked so keeps guiding *into* it — the ring
+   * renders over the dialog and frames the field the step is about, so the
+   * walkthrough teaches what to put in each field rather than stopping at the
+   * button that opened the form.
+   */
+  inOverlay?: boolean;
 }
 
 /**
@@ -159,12 +174,15 @@ export interface CreationFlow {
 /**
  * The flows.
  *
- * The per-section ones are a single step pointing at the section's create trigger
- * — the reader is already on the page when the "?" walk that offered it ends — and
- * complete when the resource is created. MCP carries a caveat the coach handles,
- * not the registry: a connection added over OAuth redirects to the provider's
- * consent screen rather than resolving in place, so that path has no in-page
- * `created` signal to wait on.
+ * The per-section ones open at the section's create trigger — the reader is
+ * already on the page when the "?" walk that offered it ends — then follow the
+ * reader *into* the dialog, framing each field in turn with what to put in it,
+ * and complete when the resource is created (the shared `*DialogSteps`
+ * fragments, which the create-agent detours splice in too). `create-org` stays a
+ * single step: its dialog is one name field, and walking that would be padding.
+ * MCP carries a caveat the coach handles, not the registry: a connection added
+ * over OAuth redirects to the provider's consent screen rather than resolving in
+ * place, so that path has no in-page `created` signal to wait on.
  *
  * `create-agent` is the adaptive one. It creates the agent (which opens the
  * builder), walks its instructions and model, guides the knowledge, skills and MCP
@@ -201,6 +219,112 @@ export interface CreationFlow {
  * so they carry the `AGENT_BUILDER` identity and rely on an earlier step having
  * navigated there; the coach does not navigate to a pseudo-page.
  */
+/**
+ * The guided walk through one create dialog, field by field — shared between a
+ * section's own flow and the create-agent detour into it, which is why each is
+ * a function of `page` (the route the dialog opens over) and the fork whose
+ * "yes" brought it in. The step ids are shared too, so the copy is written
+ * once. Every step but the last advances on Next (typing has no signal); the
+ * last points at the dialog's own Create and advances when the resource lands.
+ */
+function skillDialogSteps(page: string, requires?: string): FlowStep[] {
+  return [
+    {
+      id: "flow-skill-field-name",
+      page,
+      target: "skill-dialog-name",
+      permission: Perm.skillsEdit,
+      inOverlay: true,
+      requires,
+    },
+    {
+      id: "flow-skill-field-description",
+      page,
+      target: "skill-dialog-description",
+      permission: Perm.skillsEdit,
+      inOverlay: true,
+      requires,
+    },
+    {
+      id: "flow-skill-field-source",
+      page,
+      target: "skill-dialog-editor",
+      permission: Perm.skillsEdit,
+      inOverlay: true,
+      requires,
+    },
+    {
+      id: "flow-skill-field-create",
+      page,
+      target: "skill-dialog-create",
+      permission: Perm.skillsEdit,
+      inOverlay: true,
+      signal: { kind: "created", resource: "skill" },
+      requires,
+    },
+  ];
+}
+
+function kbDialogSteps(page: string, requires?: string): FlowStep[] {
+  return [
+    {
+      id: "flow-kb-field-name",
+      page,
+      target: "kb-dialog-name",
+      permission: Perm.collectionsEdit,
+      inOverlay: true,
+      requires,
+    },
+    {
+      id: "flow-kb-field-scope",
+      page,
+      target: "kb-dialog-scope",
+      permission: Perm.collectionsEdit,
+      inOverlay: true,
+      requires,
+    },
+    {
+      id: "flow-kb-field-embeddings",
+      page,
+      target: "kb-dialog-embeddings",
+      permission: Perm.collectionsEdit,
+      inOverlay: true,
+      requires,
+    },
+    {
+      id: "flow-kb-field-create",
+      page,
+      target: "kb-dialog-create",
+      permission: Perm.collectionsEdit,
+      inOverlay: true,
+      signal: { kind: "created", resource: "kb" },
+      requires,
+    },
+  ];
+}
+
+function mcpDialogSteps(page: string, requires?: string): FlowStep[] {
+  return [
+    {
+      id: "flow-mcp-field-form",
+      page,
+      target: "mcp-dialog-form",
+      permission: Perm.connectionsManage,
+      inOverlay: true,
+      requires,
+    },
+    {
+      id: "flow-mcp-field-connect",
+      page,
+      target: "mcp-dialog-connect",
+      permission: Perm.connectionsManage,
+      inOverlay: true,
+      signal: { kind: "created", resource: "orgMcp" },
+      requires,
+    },
+  ];
+}
+
 export const FLOWS: Record<FlowId, CreationFlow> = {
   "create-agent": {
     id: "create-agent",
@@ -289,9 +413,10 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         page: ROUTES.RAG,
         target: "knowledge-new",
         permission: Perm.collectionsEdit,
-        signal: { kind: "created", resource: "kb" },
+        signal: { kind: "opened" },
         requires: "flow-agent-knowledge-ask",
       },
+      ...kbDialogSteps(ROUTES.RAG, "flow-agent-knowledge-ask"),
       {
         id: "flow-agent-knowledge-return-nav",
         target: "nav-agents",
@@ -338,9 +463,10 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         page: ROUTES.SKILLS,
         target: "skills-new",
         permission: Perm.skillsEdit,
-        signal: { kind: "created", resource: "skill" },
+        signal: { kind: "opened" },
         requires: "flow-agent-skills-ask",
       },
+      ...skillDialogSteps(ROUTES.SKILLS, "flow-agent-skills-ask"),
       {
         id: "flow-agent-skills-return-nav",
         target: "nav-agents",
@@ -401,9 +527,22 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         target: "agent-mcp-connect",
         activate: "agent-tab-toolbox",
         permission: Perm.connectionsManage,
-        signal: { kind: "created", resource: "orgMcp" },
+        signal: { kind: "opened" },
         requires: "flow-agent-mcp-ask",
       },
+      // The builder's dialog holds the same catalog as the MCP page, so picking a
+      // server opens the connect form as a second dialog — which the `opened`
+      // signal reads as an opening because it counts dialogs, not just presence.
+      {
+        id: "flow-mcp-field-pick",
+        page: AGENT_BUILDER,
+        target: "mcp-connect",
+        permission: Perm.connectionsManage,
+        inOverlay: true,
+        signal: { kind: "opened" },
+        requires: "flow-agent-mcp-ask",
+      },
+      ...mcpDialogSteps(AGENT_BUILDER, "flow-agent-mcp-ask"),
       {
         id: "flow-agent-publish",
         page: AGENT_BUILDER,
@@ -445,8 +584,9 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         page: ROUTES.SKILLS,
         target: "skills-new",
         permission: Perm.skillsEdit,
-        signal: { kind: "created", resource: "skill" },
+        signal: { kind: "opened" },
       },
+      ...skillDialogSteps(ROUTES.SKILLS),
     ],
   },
   "create-kb": {
@@ -458,21 +598,25 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         page: ROUTES.RAG,
         target: "knowledge-new",
         permission: Perm.collectionsEdit,
-        signal: { kind: "created", resource: "kb" },
+        signal: { kind: "opened" },
       },
+      ...kbDialogSteps(ROUTES.RAG),
     ],
   },
   "create-mcp": {
     id: "create-mcp",
     permission: Perm.connectionsManage,
     steps: [
+      // The catalog is on the page itself, so the walk opens by picking a server
+      // — its Connect is what opens the connect form.
       {
-        id: "flow-mcp-create",
+        id: "flow-mcp-field-pick",
         page: ROUTES.MCP_SERVERS,
-        target: "mcp-add",
+        target: "mcp-connect",
         permission: Perm.connectionsManage,
-        signal: { kind: "created", resource: "orgMcp" },
+        signal: { kind: "opened" },
       },
+      ...mcpDialogSteps(ROUTES.MCP_SERVERS),
     ],
   },
   "create-org": {

@@ -33,9 +33,13 @@ Knowledge, skills and MCP servers are where it does the most. With one already,
 the flow just points at where it attaches. With none, it crosses to that
 section's own screen first and *asks there* - "no knowledge base yet, create
 one?" - so the question lands where the answer happens. A yes guides the
-creation on the spot, then walks the reader back by pointing at **Agents** in
-the sidebar, the edit pencil on the very agent just built, and the Knowledge tab
-where the new base attaches. The return leg is taught by pointing and waiting
+creation on the spot - and not just to the button: the walk follows the reader
+into the dialog itself, framing each field in turn with what to put in it (a
+skill's name the model calls it by, the description that decides when it is
+read, the switch to Source where the know-how is written), and moves on when
+the thing is actually created. Then it walks the reader back by pointing at
+**Agents** in the sidebar, the edit pencil on the very agent just built, and
+the Knowledge tab where the new base attaches. The return leg is taught by pointing and waiting
 for the click, not by navigating for the reader, so it teaches the path through
 the app rather than performing it; a skip returns to the builder on its own.
 Skills work the same way. MCP forks the same way but stays in the builder: a

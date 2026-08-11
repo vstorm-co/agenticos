@@ -54,6 +54,15 @@ interface Rect extends Box {
 const OPEN_OVERLAY =
   '[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"], [data-radix-popper-content-wrapper]';
 
+/**
+ * Modal dialogs alone — what an `opened` signal counts. A popper is excluded on
+ * purpose: opening a select while on a "now open the form" step must not read
+ * as the form opening. Counted rather than tested for presence, so a dialog
+ * stacked on an already-open one (the builder's catalog opening the connect
+ * form) still reads as an opening.
+ */
+const OPEN_DIALOG = '[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]';
+
 /** A small dot centred in the viewport — where the ring starts each flow before it travels. */
 function centerDot(): Box {
   return {
@@ -92,7 +101,12 @@ function ringBoxFor(box: Box): Box {
  * either would only fight its stacking and re-dim it, the trap that kept the coach
  * driver-less and the one a reader hit opening a picker mid-step. While a layer is
  * up the reader works against Radix's own stacking, and the step advances when its
- * resource appears.
+ * resource appears. Guidance does not stop at the dialog's edge, though: a step
+ * marked `inOverlay` points at a field *inside* one — the ring renders over the
+ * dialog and frames it — and a step with an `opened` signal advances the moment a
+ * dialog opens on top of however many were open when it began (`OPEN_DIALOG` is
+ * counted, not tested for presence, so the builder's catalog dialog opening the
+ * connect form still reads as an opening).
  *
  * The highlight is a ring that travels and grows from the centre of the screen
  * onto the first control, then from one control to the next — a fixed element so
@@ -145,6 +159,7 @@ export function OnboardingCoach() {
   const [ringRect, setRingRect] = useState<Box | null>(null);
   const [ringAnchor, setRingAnchor] = useState<string | null>(null);
   const [overlayOpen, setOverlayOpen] = useState(false);
+  const [dialogCount, setDialogCount] = useState(0);
 
   const stepId = step?.id;
 
@@ -168,7 +183,10 @@ export function OnboardingCoach() {
   // does.
   useEffect(() => {
     if (!isActive) return;
-    const check = () => setOverlayOpen(document.querySelector(OPEN_OVERLAY) !== null);
+    const check = () => {
+      setOverlayOpen(document.querySelector(OPEN_OVERLAY) !== null);
+      setDialogCount(document.querySelectorAll(OPEN_DIALOG).length);
+    };
     check();
     const observer = new MutationObserver(check);
     observer.observe(document.body, {
@@ -179,6 +197,23 @@ export function OnboardingCoach() {
     });
     return () => observer.disconnect();
   }, [isActive]);
+
+  // An `opened` step is met when a dialog opens on top of however many were open
+  // as the step began — the baseline, captured the same render-adjusted way the
+  // ring anchor is, so a step that starts with the catalog dialog already up
+  // waits for the connect form rather than crediting the dialog it arrived in.
+  const [dialogBase, setDialogBase] = useState<{ id: string; count: number } | null>(null);
+  if (stepId && step?.signal?.kind === "opened" && dialogBase?.id !== stepId) {
+    setDialogBase({ id: stepId, count: dialogCount });
+  }
+  const openedMet =
+    step?.signal?.kind === "opened" &&
+    dialogBase !== null &&
+    dialogBase.id === stepId &&
+    dialogCount > dialogBase.count;
+  useEffect(() => {
+    if (isActive && openedMet) next();
+  }, [isActive, openedMet, next]);
 
   // The agent a create-agent flow builds opens in the builder; capture its id the
   // first time the coach sees a builder route, so a detour's return leg can point
@@ -267,13 +302,18 @@ export function OnboardingCoach() {
   // A fork freezes the page whole and shows no ring; a pointer step cuts a hole
   // over its control and rings it. The tag on `rect` is what clears a stale hole
   // between steps: a rect measured for the previous step stops matching `stepId`.
+  // An in-overlay step inverts the freeze rule: it never freezes (the dialog's
+  // own modal overlay dims the page) and rings only while the dialog is up, so
+  // closing the dialog mid-walk leaves the page usable to reopen it rather than
+  // ringing where a field used to be.
   const isQuestion = !!step.question;
+  const inOverlay = !!step.inOverlay;
   const current = isQuestion ? null : rect?.stepId === stepId ? rect : null;
 
   return (
     <>
-      {!overlayOpen && <FreezeLayer rect={current} />}
-      {!overlayOpen && !isQuestion && ringRect && (
+      {!overlayOpen && !inOverlay && <FreezeLayer rect={current} />}
+      {(inOverlay ? overlayOpen : !overlayOpen) && !isQuestion && ringRect && (
         <div
           aria-hidden
           data-coach-ring

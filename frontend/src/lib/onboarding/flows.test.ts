@@ -38,23 +38,39 @@ const STOCKED: OrgState = {
 const NO_CHOICES: Record<string, "yes" | "skip"> = {};
 
 describe("FLOWS", () => {
-  it("gives each per-section flow one step that points at its create trigger", () => {
-    const targets: Partial<Record<FlowId, string>> = {
-      "create-skill": "skills-new",
-      "create-kb": "knowledge-new",
-      "create-mcp": "mcp-add",
-      "create-org": "orgs-new",
+  it("walks each per-section flow into its dialog and ends on the resource landing", () => {
+    // Each opens at the section's create trigger, follows the reader into the
+    // dialog field by field (in-overlay, Next-advanced), and completes when the
+    // resource is created — on the dialog's own Create, not the trigger.
+    const shape: Partial<Record<FlowId, { opensAt: string; creates: string }>> = {
+      "create-skill": { opensAt: "skills-new", creates: "skill" },
+      "create-kb": { opensAt: "knowledge-new", creates: "kb" },
+      "create-mcp": { opensAt: "mcp-connect", creates: "orgMcp" },
     };
-    for (const [id, target] of Object.entries(targets)) {
+    for (const [id, expected] of Object.entries(shape)) {
       const flow = FLOWS[id as FlowId];
-      expect(flow.steps).toHaveLength(1);
-      const step = flow.steps[0];
-      expect(step?.target).toBe(target);
-      expect(step?.signal?.kind).toBe("created");
+      const first = flow.steps[0];
+      const last = flow.steps[flow.steps.length - 1];
+      expect(first?.target).toBe(expected?.opensAt);
+      expect(first?.signal).toEqual({ kind: "opened" });
+      expect(last?.inOverlay).toBe(true);
+      expect(last?.signal).toEqual({ kind: "created", resource: expected?.creates });
+      // Everything between guides a field: inside the dialog, no signal — a Next.
+      for (const step of flow.steps.slice(1, -1)) {
+        expect(step.inOverlay).toBe(true);
+        if (step.id !== "flow-mcp-field-pick") expect(step.signal).toBeUndefined();
+      }
     }
   });
 
-  it("walks the agent flow from create to publish, with a fork and detour per section", () => {
+  it("keeps create-org a single step — its dialog is one name field", () => {
+    const flow = FLOWS["create-org"];
+    expect(flow.steps).toHaveLength(1);
+    expect(flow.steps[0]?.target).toBe("orgs-new");
+    expect(flow.steps[0]?.signal).toEqual({ kind: "created", resource: "org" });
+  });
+
+  it("walks the agent flow from create to a first message, with a fork and detour per section", () => {
     const ids = FLOWS["create-agent"].steps.map((step) => step.id);
     expect(ids).toEqual([
       "flow-agent-create",
@@ -65,12 +81,20 @@ describe("FLOWS", () => {
       "flow-agent-knowledge",
       "flow-agent-knowledge-ask",
       "flow-agent-knowledge-create",
+      "flow-kb-field-name",
+      "flow-kb-field-scope",
+      "flow-kb-field-embeddings",
+      "flow-kb-field-create",
       "flow-agent-knowledge-return-nav",
       "flow-agent-knowledge-return-edit",
       "flow-agent-knowledge-attach",
       "flow-agent-skills",
       "flow-agent-skills-ask",
       "flow-agent-skills-create",
+      "flow-skill-field-name",
+      "flow-skill-field-description",
+      "flow-skill-field-source",
+      "flow-skill-field-create",
       "flow-agent-skills-return-nav",
       "flow-agent-skills-return-edit",
       "flow-agent-skills-attach",
@@ -78,6 +102,9 @@ describe("FLOWS", () => {
       "flow-agent-mcp",
       "flow-agent-mcp-ask",
       "flow-agent-mcp-connect",
+      "flow-mcp-field-pick",
+      "flow-mcp-field-form",
+      "flow-mcp-field-connect",
       "flow-agent-publish",
       "flow-agent-run-pick",
       "flow-agent-run-send",
@@ -203,11 +230,13 @@ describe("explore-chat", () => {
 });
 
 describe("stepsForFlow", () => {
-  it("keeps a step whose permission the caller holds", () => {
-    expect(stepsForFlow(FLOWS["create-skill"], EMPTY, allow, NO_CHOICES)).toHaveLength(1);
+  it("keeps the steps whose permission the caller holds", () => {
+    expect(stepsForFlow(FLOWS["create-skill"], EMPTY, allow, NO_CHOICES)).toHaveLength(
+      FLOWS["create-skill"].steps.length,
+    );
   });
 
-  it("drops a step whose permission the caller lacks", () => {
+  it("drops every step whose permission the caller lacks", () => {
     expect(stepsForFlow(FLOWS["create-skill"], EMPTY, deny, NO_CHOICES)).toHaveLength(0);
   });
 
@@ -314,6 +343,10 @@ describe("stepsForFlow", () => {
   it("opens the knowledge detour only once the fork is answered yes", () => {
     const detour = [
       "flow-agent-knowledge-create",
+      "flow-kb-field-name",
+      "flow-kb-field-scope",
+      "flow-kb-field-embeddings",
+      "flow-kb-field-create",
       "flow-agent-knowledge-return-nav",
       "flow-agent-knowledge-return-edit",
       "flow-agent-knowledge-attach",
@@ -367,25 +400,31 @@ describe("stepsForFlow", () => {
     expect(ids).not.toContain("flow-agent-mcp");
   });
 
-  it("opens the MCP connect step only once the fork is answered yes, and it stays in the builder", () => {
+  it("opens the MCP detour only once the fork is answered yes, and it stays in the builder", () => {
+    const detour = [
+      "flow-agent-mcp-connect",
+      "flow-mcp-field-pick",
+      "flow-mcp-field-form",
+      "flow-mcp-field-connect",
+    ];
     const unasked = stepsForFlow(FLOWS["create-agent"], EMPTY, allow, NO_CHOICES).map((s) => s.id);
-    expect(unasked).not.toContain("flow-agent-mcp-connect");
+    for (const id of detour) expect(unasked).not.toContain(id);
 
     const skipped = stepsForFlow(FLOWS["create-agent"], EMPTY, allow, {
       "flow-agent-mcp-ask": "skip",
     }).map((s) => s.id);
-    expect(skipped).not.toContain("flow-agent-mcp-connect");
+    for (const id of detour) expect(skipped).not.toContain(id);
 
     const yes = stepsForFlow(FLOWS["create-agent"], EMPTY, allow, { "flow-agent-mcp-ask": "yes" });
     const ids = yes.map((s) => s.id);
-    // The connect step appears immediately after the fork it answers.
+    // The detour appears, in order, immediately after the fork it answers.
     const ask = ids.indexOf("flow-agent-mcp-ask");
-    expect(ids[ask + 1]).toBe("flow-agent-mcp-connect");
-    // Inline, so it carries no `arrived` return leg — it names a builder page and a
-    // `created` signal, and the reader never leaves to make the connection.
-    const connect = yes.find((s) => s.id === "flow-agent-mcp-connect");
-    expect(connect?.signal).toEqual({ kind: "created", resource: "orgMcp" });
-    expect(connect?.page).toBe(AGENT_BUILDER);
+    expect(ids.slice(ask + 1, ask + 1 + detour.length)).toEqual(detour);
+    // Inline, so it carries no `arrived` return leg — every step names the builder
+    // page, and the last advances on the connection landing.
+    const steps = yes.filter((s) => detour.includes(s.id));
+    for (const step of steps) expect(step.page).toBe(AGENT_BUILDER);
+    expect(steps[steps.length - 1]?.signal).toEqual({ kind: "created", resource: "orgMcp" });
   });
 });
 

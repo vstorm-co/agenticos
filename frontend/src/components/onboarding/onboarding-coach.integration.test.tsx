@@ -157,6 +157,38 @@ describe("OnboardingCoach", () => {
     await waitFor(() => expect(document.querySelector("[data-coach-ring]")).toBeInTheDocument());
   });
 
+  it("keeps guiding inside an open dialog for an in-overlay step", async () => {
+    // A field step points into the dialog: the freeze stays down (the dialog's
+    // own overlay dims the page) but the ring still renders, framing the field.
+    const dialog = document.createElement("div");
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("data-state", "open");
+    document.body.appendChild(dialog);
+
+    const field = step({ id: "flow-skill-field-name", inOverlay: true, signal: undefined });
+    flow.state = makeState({ step: field, steps: [field] });
+    render(<OnboardingCoach />);
+    await screen.findByText("Name it");
+    await waitFor(() => expect(document.querySelector("[data-coach-ring]")).toBeInTheDocument());
+    expect(document.querySelector("[data-coach-freeze]")).toBeNull();
+  });
+
+  it("advances an opened step the moment a dialog opens on top of the count it began with", async () => {
+    const next = vi.fn();
+    const opener = step({ id: "flow-skill-create", signal: { kind: "opened" } });
+    flow.state = makeState({ step: opener, steps: [opener], next });
+    render(<OnboardingCoach />);
+    await screen.findByText("Add your skill");
+    expect(next).not.toHaveBeenCalled();
+
+    // The reader clicks the trigger and the create dialog mounts.
+    const dialog = document.createElement("div");
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("data-state", "open");
+    document.body.appendChild(dialog);
+    await waitFor(() => expect(next).toHaveBeenCalled());
+  });
+
   it("lifts the freeze while a Radix popper is open, so a picker can be used", async () => {
     // A popover/dropdown/select portals a wrapper the coach must step aside for,
     // or its ring and dim would sit over the picker the step points at.

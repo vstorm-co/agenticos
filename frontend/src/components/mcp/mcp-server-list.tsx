@@ -551,6 +551,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                       <Button
                         size="sm"
                         variant="outline"
+                        data-tour="mcp-connect"
                         onClick={() =>
                           openDraft(defaultScope(row, canManageOrganization), row, null)
                         }
@@ -617,7 +618,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                   : `Connect ${draft.row.name} for ${draft.scope === "organization" ? t("organization") : "yourself"}`}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-4" data-tour="mcp-dialog-form">
             <div>
               <Label htmlFor="mcp-name">{t("name")}</Label>
               <Input
@@ -778,7 +779,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
             <Button variant="ghost" onClick={() => setDraft(null)} disabled={submitting}>
               {t("cancel")}
             </Button>
-            <Button onClick={handleSubmit} disabled={submitting}>
+            <Button onClick={handleSubmit} disabled={submitting} data-tour="mcp-dialog-connect">
               {submitting ? t("saving") : draft?.existing ? t("save") : t("connectCheck")}
             </Button>
           </DialogFooter>

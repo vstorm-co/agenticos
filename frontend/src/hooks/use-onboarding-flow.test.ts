@@ -115,9 +115,10 @@ describe("useOnboardingFlow", () => {
     act(() => useOnboardingStore.getState().openFlow("create-skill"));
     expect(result.current.isActive).toBe(true);
     expect(result.current.flowId).toBe("create-skill");
-    expect(result.current.steps).toHaveLength(1);
+    // The opener plus the walk through the dialog's fields.
+    expect(result.current.steps.length).toBeGreaterThan(1);
     expect(result.current.step?.target).toBe("skills-new");
-    expect(result.current.isLast).toBe(true);
+    expect(result.current.isLast).toBe(false);
   });
 
   it("is inactive when permissions filter every step away", () => {
@@ -132,6 +133,9 @@ describe("useOnboardingFlow", () => {
     rig.skillTotal = 3; // three skills already exist
     const { result, rerender } = renderHook(() => useOnboardingFlow());
     act(() => useOnboardingStore.getState().openFlow("create-skill"));
+    // The `created` signal lives on the dialog's own Create step.
+    const createAt = result.current.steps.findIndex((s) => s.id === "flow-skill-field-create");
+    act(() => useOnboardingStore.getState().setIndex(createAt));
     expect(result.current.signalMet).toBe(false);
 
     rig.skillTotal = 4; // the reader created one
@@ -143,6 +147,8 @@ describe("useOnboardingFlow", () => {
     rig.skillLoading = true; // count unknown on the first frame
     const { result, rerender } = renderHook(() => useOnboardingFlow());
     act(() => useOnboardingStore.getState().openFlow("create-skill"));
+    const createAt = result.current.steps.findIndex((s) => s.id === "flow-skill-field-create");
+    act(() => useOnboardingStore.getState().setIndex(createAt));
     expect(result.current.signalMet).toBe(false);
 
     rig.skillLoading = false;
@@ -363,7 +369,9 @@ describe("useOnboardingFlow", () => {
     act(() => result.current.answer("flow-agent-knowledge-ask", "yes"));
     expect(result.current.step?.id).toBe("flow-agent-knowledge-create");
 
-    act(() => result.current.next());
+    // Skip past the in-dialog walk to the taught return leg.
+    const navAt = result.current.steps.findIndex((s) => s.id === "flow-agent-knowledge-return-nav");
+    act(() => useOnboardingStore.getState().setIndex(navAt));
     expect(result.current.step?.id).toBe("flow-agent-knowledge-return-nav");
     // On /rag still, so the "click Agents" step is not yet satisfied.
     expect(result.current.signalMet).toBe(false);
