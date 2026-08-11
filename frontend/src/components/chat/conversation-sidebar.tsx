@@ -6,14 +6,23 @@ import { useTranslations } from "next-intl";
 import { useConversations } from "@/hooks";
 import { Button, Skeleton } from "@/components/ui";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui";
 import { useDebounced } from "@/components/ui/list-controls";
 import { ConversationAgents } from "@/components/agents/conversation-agents";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
+import { SidebarTriggers } from "@/components/chat/sidebar-triggers";
+import { TriggerFormDialog } from "@/components/triggers/trigger-form-dialog";
 import { cn, setUrlParam } from "@/lib/utils";
 import { useChatSidebarStore } from "@/stores";
 import {
   Archive,
   ArchiveRestore,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   MessageSquare,
@@ -26,6 +35,7 @@ import {
   Trash2,
 } from "lucide-react";
 import type { Conversation } from "@/types";
+import type { TriggerType } from "@/types/triggers";
 import {
   ConversationFilters,
   DEFAULT_SORT,
@@ -250,7 +260,9 @@ function ConversationList({
 }: ConversationListProps) {
   const t = useTranslations("chat");
   const ts = useTranslations("chat.sidebar");
+  const tt = useTranslations("triggers");
   const [shareConversationId, setShareConversationId] = useState<string | null>(null);
+  const [creatingTrigger, setCreatingTrigger] = useState<TriggerType | null>(null);
 
   const handleSelect = (id: string) => {
     onSelect(id);
@@ -266,16 +278,40 @@ function ConversationList({
 
   return (
     <>
-      <div className="px-3 pt-3 pb-2">
+      {/* A split button: the wide half is New Chat exactly as before, and the
+          chevron opens the two unattended kinds - a schedule, an event trigger -
+          which are "new conversations nobody types into" and so belong here. */}
+      <div className="flex items-center gap-1 px-3 pt-3 pb-2">
         <button
           type="button"
           onClick={handleNewChat}
-          className="text-muted-foreground hover:text-foreground hover:bg-secondary flex h-9 w-full items-center gap-2 rounded-lg px-3 text-sm font-medium transition-colors"
+          className="text-muted-foreground hover:text-foreground hover:bg-secondary flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg px-3 text-sm font-medium transition-colors"
         >
           <SquarePen className="h-4 w-4 shrink-0" />
           {t("newChat")}
         </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label={tt("newMenu")}
+              className="text-muted-foreground hover:text-foreground hover:bg-secondary flex h-9 w-8 shrink-0 items-center justify-center rounded-lg transition-colors"
+            >
+              <ChevronDown className="h-4 w-4" aria-hidden />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => setCreatingTrigger("schedule")}>
+              {tt("newSchedule")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setCreatingTrigger("event")}>
+              {tt("newTrigger")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
+
+      <SidebarTriggers onOpenConversation={handleSelect} />
 
       {filters}
 
@@ -380,6 +416,16 @@ function ConversationList({
           onOpenChange={(open) => {
             if (!open) setShareConversationId(null);
           }}
+        />
+      )}
+      {creatingTrigger && (
+        <TriggerFormDialog
+          // No agent in context here - the dialog offers its picker, seeded
+          // with the user's default agent.
+          agentId={null}
+          open
+          initialType={creatingTrigger}
+          onOpenChange={(next) => !next && setCreatingTrigger(null)}
         />
       )}
     </>

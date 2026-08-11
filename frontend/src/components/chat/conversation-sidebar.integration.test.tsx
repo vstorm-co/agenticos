@@ -307,3 +307,40 @@ describe("the collapsed rail", () => {
     expect(within(list()).getByRole("textbox", { name: "Search conversations" })).not.toHaveFocus();
   });
 });
+
+describe("the New Chat split button", () => {
+  it("keeps New Chat itself starting a chat, not opening a menu", async () => {
+    mount();
+    await screen.findAllByText("Quarterly numbers");
+
+    await userEvent.click(within(list()).getByRole("button", { name: "New Chat" }));
+
+    // No dialog and no menu: the wide half of the split button is exactly the
+    // button it always was.
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("opens the schedule dialog from the chevron menu", async () => {
+    mount();
+    await screen.findAllByText("Quarterly numbers");
+
+    await userEvent.click(within(list()).getByRole("button", { name: "New schedule or trigger" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "New schedule" }));
+
+    const dialog = await screen.findByRole("dialog");
+    // No agent is in context here, so the form asks whom to schedule.
+    expect(within(dialog).getByRole("combobox", { name: "Agent" })).toBeVisible();
+  });
+
+  it("opens the event-trigger dialog from the chevron menu", async () => {
+    mount();
+    await screen.findAllByText("Quarterly numbers");
+
+    await userEvent.click(within(list()).getByRole("button", { name: "New schedule or trigger" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "New trigger" }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByLabelText("Signing secret")).toBeVisible();
+  });
+});

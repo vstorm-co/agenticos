@@ -3191,6 +3191,14 @@
     "activityTitle": "Schedules & triggers",
     "activityDescription": "Every agent running itself across the organization - on a schedule or an event.",
     "activityEmptyTitle": "Nothing scheduled yet",
-    "activityEmptyDescription": "When an agent is set to run itself, it shows here."
+    "activityEmptyDescription": "When an agent is set to run itself, it shows here.",
+    "agent": "Agent",
+    "chooseAgent": "Choose an agent",
+    "sectionTitle": "Schedules & triggers",
+    "sectionEmpty": "Nothing scheduled yet.",
+    "sectionError": "Could not load the list.",
+    "newMenu": "New schedule or trigger",
+    "openItem": "Open {agent} trigger",
+    "itemActions": "Actions for {agent} trigger"
   }
 }

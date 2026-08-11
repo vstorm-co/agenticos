@@ -740,6 +740,14 @@
     "activityTitle": "Harmonogramy i wyzwalacze",
     "activityDescription": "Każdy agent uruchamiający się sam w organizacji - według harmonogramu lub zdarzenia.",
     "activityEmptyTitle": "Nic jeszcze nie zaplanowano",
-    "activityEmptyDescription": "Gdy agent zostanie ustawiony, by uruchamiał się sam, pojawi się tutaj."
+    "activityEmptyDescription": "Gdy agent zostanie ustawiony, by uruchamiał się sam, pojawi się tutaj.",
+    "agent": "Agent",
+    "chooseAgent": "Wybierz agenta",
+    "sectionTitle": "Harmonogramy i wyzwalacze",
+    "sectionEmpty": "Nic jeszcze nie zaplanowano.",
+    "sectionError": "Nie udało się wczytać listy.",
+    "newMenu": "Nowy harmonogram lub wyzwalacz",
+    "openItem": "Otwórz wyzwalacz agenta {agent}",
+    "itemActions": "Akcje wyzwalacza agenta {agent}"
   }
 }

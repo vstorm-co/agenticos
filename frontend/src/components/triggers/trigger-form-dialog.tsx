@@ -24,8 +24,9 @@ import {
   TabsTrigger,
   Textarea,
 } from "@/components/ui";
-import { useAgentEnvironments } from "@/hooks";
+import { useAgentEnvironments, useAgents } from "@/hooks";
 import { useTriggers } from "@/hooks/use-triggers";
+import { useAgentSelectionStore } from "@/stores";
 import { type IntervalUnit, intervalToUnit, unitToSeconds } from "@/lib/trigger-format";
 import type {
   EventSource,
@@ -49,7 +50,12 @@ function generateSecret(): string {
 }
 
 interface TriggerFormDialogProps {
-  agentId: string;
+  /**
+   * The agent the trigger belongs to, or null when the surface has no agent in
+   * context - the chat sidebar's New schedule/trigger - in which case the form
+   * offers a picker over the published agents, seeded with the user's default.
+   */
+  agentId: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** The trigger to edit, or null/undefined to create a new one. */
@@ -76,10 +82,24 @@ export function TriggerFormDialog({
   initialType = "schedule",
 }: TriggerFormDialogProps) {
   const t = useTranslations("triggers");
-  const { create, update, runNow } = useTriggers(agentId);
-  const { environments } = useAgentEnvironments(agentId);
-  const namedEnvironments = environments.filter((environment) => !environment.is_default);
   const editing = trigger !== null;
+
+  // The registry list backs the picker when the caller brought no agent. It is
+  // the same cached query every agent surface reads, so on the surfaces that
+  // already know whom they are scheduling this costs nothing new.
+  const { agents } = useAgents();
+  const defaultAgentId = useAgentSelectionStore((state) => state.defaultAgentId);
+  const runnable = agents.filter((agent) => agent.status === "published");
+  const [pickedAgentId, setPickedAgentId] = useState("");
+  // The user's starred default, or the first published agent, the moment the
+  // list arrives - the same resolution the chat's own picker makes.
+  const seededAgentId =
+    pickedAgentId || (runnable.find((agent) => agent.id === defaultAgentId) ?? runnable[0])?.id;
+  const effectiveAgentId = agentId ?? seededAgentId ?? null;
+
+  const { create, update, runNow } = useTriggers(effectiveAgentId);
+  const { environments } = useAgentEnvironments(effectiveAgentId);
+  const namedEnvironments = environments.filter((environment) => !environment.is_default);
 
   const [type, setType] = useState<TriggerType>(trigger?.trigger_type ?? initialType);
   const [prompt, setPrompt] = useState(trigger?.prompt ?? "");
@@ -154,7 +174,7 @@ export function TriggerFormDialog({
         ? cron.trim().length > 0
         : Number(intervalCount) > 0
       : secret.length >= MIN_SECRET;
-  const canSubmit = prompt.trim().length > 0 && shapeValid && !pending;
+  const canSubmit = prompt.trim().length > 0 && shapeValid && effectiveAgentId !== null && !pending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -176,6 +196,31 @@ export function TriggerFormDialog({
                 <TabsTrigger value="event">{t("typeEvent")}</TabsTrigger>
               </TabsList>
             </Tabs>
+          )}
+
+          {agentId === null && !editing && (
+            <FormField label={t("agent")} htmlFor="trigger-agent">
+              <Select
+                value={effectiveAgentId ?? ""}
+                onValueChange={(next) => {
+                  setPickedAgentId(next);
+                  // A named environment belongs to one agent; carrying the
+                  // previous agent's choice across would be refused on create.
+                  setEnvironmentId(DEFAULT_ENV);
+                }}
+              >
+                <SelectTrigger id="trigger-agent">
+                  <SelectValue placeholder={t("chooseAgent")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {runnable.map((agent) => (
+                    <SelectItem key={agent.id} value={agent.id}>
+                      {agent.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
           )}
 
           <FormField label={t("prompt")} htmlFor="trigger-prompt" description={t("promptHelp")}>
