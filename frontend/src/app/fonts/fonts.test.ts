@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, statSync } from "fs";
+import { readdirSync, readFileSync, statSync } from "fs";
 import { join } from "path";
 
 import { describe, expect, it } from "vitest";
@@ -13,9 +13,10 @@ import { describe, expect, it } from "vitest";
  * reachable; every green build until then was luck of the CDN (#572).
  *
  * A build input has to be in the tree, so this asserts both halves: that no
- * module reaches for the helper again, and that every file the local
- * declarations name is actually vendored - a path typo in `layout.tsx` is the
- * one way to reintroduce a build that fails for want of a font.
+ * module reaches for the helper again, and that the files on disk and the files
+ * `layout.tsx` names are the same set - a path typo is the one remaining way to
+ * fail a build for want of a font, and a file nobody declares is a family that
+ * was swapped out with its licence obligation left behind.
  */
 
 const SRC = join(__dirname, "..", "..");
@@ -24,7 +25,7 @@ const FONTS = __dirname;
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
     const path = join(dir, entry);
-    if (statSync(path).isDirectory()) return entry === "node_modules" ? [] : sourceFiles(path);
+    if (statSync(path).isDirectory()) return sourceFiles(path);
     return /\.tsx?$/.test(entry) ? [path] : [];
   });
 }
@@ -44,25 +45,15 @@ describe("vendored fonts", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("every font the layout declares is vendored", () => {
+  it("the layout declares exactly the files that are vendored", () => {
     const layout = readFileSync(join(SRC, "app", "layout.tsx"), "utf8");
     // `slice(1)` rather than destructuring the one group: a match always has it,
     // and TypeScript types it optional either way.
     const declared = [...layout.matchAll(/src:\s*"\.\/fonts\/([^"]+)"/g)].flatMap((match) =>
       match.slice(1),
     );
+    const vendored = readdirSync(FONTS).filter((entry) => entry.endsWith(".woff2"));
 
-    expect(declared.length).toBeGreaterThan(0);
-    for (const file of declared) {
-      expect(existsSync(join(FONTS, file)), `${file} is declared but not vendored`).toBe(true);
-    }
-  });
-
-  it("the licence names every vendored family", () => {
-    const licence = readFileSync(join(FONTS, "OFL.txt"), "utf8");
-
-    for (const family of ["Inter", "Bricolage Grotesque", "Geist"]) {
-      expect(licence).toContain(family);
-    }
+    expect(declared.toSorted()).toEqual(vendored.toSorted());
   });
 });
