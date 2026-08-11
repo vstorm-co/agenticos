@@ -56,6 +56,14 @@ job always has one.
 
 Traps, each of which has cost a red job here:
 
+- **The order is shuffled every run** (`pytest-randomly`, on by default since #571), so
+  a test that passed yesterday and fails today may have been depending on what ran
+  before it. The header prints `Using --randomly-seed=<n>`; replay that seed to get the
+  same order back, and `-p no:randomly` to pin collection order while bisecting. The
+  seed fixes the order, not which worker runs what - `--dist load` decides that on
+  timing - so a failure that depended on what shared a worker only reproduces without
+  `-n`. The plugin also reseeds `random` identically before every test: anything using
+  it for uniqueness is unique within a test and repeats across them.
 - **`bun run test:run` measures no coverage.** The frontend gate is a separate command
   and CI runs it (`bun run test:coverage`); 168 green files still failed the job.
 - **Frontend commands run from `frontend/`.** At the repository root vitest finds no

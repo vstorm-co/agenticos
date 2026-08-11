@@ -33,7 +33,6 @@ from app.api.deps import DBSession
 from app.api.exception_handlers import register_exception_handlers
 from app.core.exceptions import NotFoundError
 from app.core.middleware import RequestIDMiddleware
-from app.db.session import engine as app_engine
 
 pytestmark = pytest.mark.anyio
 
@@ -62,12 +61,6 @@ async def probe_table(engine: AsyncEngine) -> AsyncGenerator[AsyncEngine, None]:
     yield engine
     async with engine.begin() as connection:
         await connection.execute(text(_DROP))
-    # The routes below go through the real `get_db_session`, which draws from
-    # the module-level engine's pool. anyio gives each test its own event loop,
-    # so a connection left in that pool by this test is one the next test finds
-    # attached to a loop that no longer exists ("got Future attached to a
-    # different loop"). Returned here, on the loop that opened them.
-    await app_engine.dispose()
 
 
 def _app() -> FastAPI:
