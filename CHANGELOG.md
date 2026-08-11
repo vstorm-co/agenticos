@@ -17,6 +17,35 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.101] - 2026-08-11
+
+Three static guards against the code getting worse, and the slop they target
+swept out of the tree.
+
+### Added
+
+- **Guards that enforce standards `CLAUDE.md` only stated.** `scripts/check_routes.py`
+  keeps an endpoint module to routers — a helper moves to a service or a
+  `_`-prefixed module, or carries a reasoned `# routes-helper` marker;
+  `scripts/check_comments.py` rejects ASCII banner comments; and `vulture` gates
+  unused variables and parameters in `make lint`. The noisier function-level scan
+  and the frontend `knip` live in `make dead-code` as an advisory report, because
+  a blocking function gate on a registry-driven codebase is false positives all
+  the way down. (#595)
+
+### Changed
+
+- **Route helpers moved out of the endpoint modules.** The runs status parser
+  became `RunStatus.parse_csv`, on the enum that owns the values and shared by the
+  list and export routes; the sharing loaders moved to `_sharing_loaders.py`.
+- **Comment slop removed, ~140 lines across the backend and frontend** — section
+  labels, restatements, and mechanism-narration. The load-bearing
+  `#issue`/footgun/invariant comments and the docstrings stay, and `CLAUDE.md` and
+  `code-style.md` now state the bar: the default is no comment.
+- **Two dead items the previous sweep missed**, caught by the new `vulture` gate:
+  `sanitize_filename`, orphaned when its only caller was removed in #579, and a
+  dead `project_id` argument on `channel_session.create`. Closes #521. (#595)
+
 ## [0.0.100] - 2026-08-10
 
 Dead weight removed across the backend and frontend, and one dead method turned
