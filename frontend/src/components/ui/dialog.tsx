@@ -29,7 +29,7 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 const DialogContent = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, onInteractOutside, ...props }, ref) => {
+>(({ className, children, onInteractOutside, onEscapeKeyDown, ...props }, ref) => {
   const t = useTranslations("common");
   return (
     <DialogPortal>
@@ -38,12 +38,20 @@ const DialogContent = React.forwardRef<
         ref={ref}
         onInteractOutside={(event) => {
           onInteractOutside?.(event);
-          // The onboarding coach's card sits outside the dialog it is guiding, so
-          // pressing its Next reads as a pointer/focus interaction outside — which
-          // would dismiss the dialog under the reader mid-walk. Keep it open; the
-          // coach steps its fields with that card. A no-op when no coach is active.
-          const target = event.detail.originalEvent.target as Element | null;
-          if (target?.closest("[data-coach-card]")) event.preventDefault();
+          // While the onboarding coach is guiding this dialog, its freeze is the whole
+          // point — the reader operates only the field being pointed at. Radix would
+          // dismiss on any outside interaction (the backdrop, or the coach's own card,
+          // which sits outside the dialog), stranding the walk on a step whose dialog
+          // is gone. Keep it open; the coach's close button ends the walk, and the
+          // dialog's own Cancel still closes it. A no-op when no coach is active
+          // (`[data-coach-card]` renders only while a flow runs).
+          if (document.querySelector("[data-coach-card]")) event.preventDefault();
+        }}
+        onEscapeKeyDown={(event) => {
+          onEscapeKeyDown?.(event);
+          // Escape strands the coach the same way an outside click does — block it too
+          // while a flow is guiding this dialog.
+          if (document.querySelector("[data-coach-card]")) event.preventDefault();
         }}
         className={cn(
           "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 shadow-float fixed top-[50%] left-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border p-6 duration-200 sm:rounded-2xl",
