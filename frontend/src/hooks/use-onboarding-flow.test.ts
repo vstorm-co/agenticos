@@ -16,12 +16,14 @@ const rig = vi.hoisted(() => ({
   agentTotal: 0,
   agentsLoading: false,
   agentsList: [] as { id?: string; status: string }[],
+  agentDetail: null as { status: string; draft_spec: { model_profile_id: string | null } } | null,
   profiles: [] as { secret_id: string | null; base_url?: string | null }[],
   modelsLoading: false,
   skillTotal: 0,
   skillLoading: false,
   kbs: [] as unknown[],
   connections: [] as unknown[],
+  personalConnections: [] as unknown[],
   mcpLoading: false,
   orgs: [] as unknown[] | undefined,
   can: (_permission: Permission): boolean => true,
@@ -33,6 +35,8 @@ vi.mock("@/hooks/use-agents", () => ({
     total: rig.agentTotal,
     isLoading: rig.agentsLoading,
   }),
+  // Disabled when no id is captured, mirroring `enabled: !!agentId` in the real hook.
+  useAgent: (id: string | null) => ({ agent: id ? rig.agentDetail : undefined }),
 }));
 vi.mock("@/hooks/use-model-providers", () => ({
   useModelProviders: () => ({ profiles: rig.profiles, isLoading: rig.modelsLoading }),
@@ -45,6 +49,9 @@ vi.mock("@/hooks/use-knowledge-bases", () => ({
 }));
 vi.mock("@/hooks/use-org-mcp-connections", () => ({
   useOrgMcpConnections: () => ({ connections: rig.connections, isLoading: rig.mcpLoading }),
+}));
+vi.mock("@/hooks/use-mcp-connections", () => ({
+  useMcpConnections: () => ({ connections: rig.personalConnections, isLoading: false }),
 }));
 vi.mock("@/hooks/use-organizations", () => ({
   useOrganizationList: () => ({ data: rig.orgs, isLoading: false }),
@@ -78,12 +85,14 @@ beforeEach(() => {
   rig.agentTotal = 0;
   rig.agentsLoading = false;
   rig.agentsList = [];
+  rig.agentDetail = null;
   rig.profiles = [];
   rig.modelsLoading = false;
   rig.skillTotal = 0;
   rig.skillLoading = false;
   rig.kbs = [];
   rig.connections = [];
+  rig.personalConnections = [];
   rig.mcpLoading = false;
   rig.orgs = [];
   rig.can = () => true;
@@ -200,6 +209,21 @@ describe("useOnboardingFlow", () => {
     expect(result.current.signalMet).toBe(true);
   });
 
+  it("ends the MCP connect step on a connection in either scope", () => {
+    // "Connect" defaults to personal for a server the org already holds, so a walk
+    // that only counted org connections would hang there. A personal one ends it.
+    const { result, rerender } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-mcp"));
+    const connectAt = result.current.steps.findIndex((s) => s.id === "flow-mcp-field-connect");
+    act(() => useOnboardingStore.getState().setIndex(connectAt));
+    expect(result.current.step?.id).toBe("flow-mcp-field-connect");
+    expect(result.current.signalMet).toBe(false);
+
+    rig.personalConnections = [{}];
+    rerender();
+    expect(result.current.signalMet).toBe(true);
+  });
+
   it("teaches adding a model when the org has none", () => {
     rig.profiles = [{ secret_id: null, base_url: null }]; // a profile with no usable key
     const { result } = renderHook(() => useOnboardingFlow());
@@ -298,21 +322,40 @@ describe("useOnboardingFlow", () => {
     expect(result.current.flowId).toBe("create-agent");
   });
 
-  it("meets the publish signal only when the flow's own agent gains a version", () => {
-    rig.agentsList = [{ id: "a-other", status: "published" }]; // someone else's
+  it("gates the model step on the built agent's draft gaining a model", () => {
+    rig.profiles = [{ secret_id: "s-1" }]; // org has a runnable model, so pick (not add) shows
+    rig.agentDetail = { status: "draft", draft_spec: { model_profile_id: null } };
     const { result, rerender } = renderHook(() => useOnboardingFlow());
     act(() => useOnboardingStore.getState().openFlow("create-agent"));
-    act(() => useOnboardingStore.getState().setFlowAgentId("a-mine"));
-    const publishAt = result.current.steps.findIndex((s) => s.id === "flow-agent-publish");
-    act(() => useOnboardingStore.getState().setIndex(publishAt));
-    // Another agent being published is not this one going live.
-    expect(result.current.step?.id).toBe("flow-agent-publish");
+    // No id captured yet: the draft cannot be read, so the gate holds shut.
+    const modelAt = result.current.steps.findIndex((s) => s.id === "flow-agent-model-pick");
+    act(() => useOnboardingStore.getState().setIndex(modelAt));
+    expect(result.current.step?.id).toBe("flow-agent-model-pick");
     expect(result.current.signalMet).toBe(false);
 
-    rig.agentsList = [
-      { id: "a-other", status: "published" },
-      { id: "a-mine", status: "published" },
-    ];
+    act(() => useOnboardingStore.getState().setFlowAgentId("a-mine"));
+    rerender();
+    expect(result.current.signalMet).toBe(false); // captured, but the draft has no model
+
+    rig.agentDetail = { status: "draft", draft_spec: { model_profile_id: "m-1" } };
+    rerender();
+    expect(result.current.signalMet).toBe(true);
+  });
+
+  it("gates publish on the built agent gaining a published version", () => {
+    rig.agentDetail = { status: "draft", draft_spec: { model_profile_id: "m-1" } };
+    const { result, rerender } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-agent"));
+    const publishAt = result.current.steps.findIndex((s) => s.id === "flow-agent-publish");
+    act(() => useOnboardingStore.getState().setIndex(publishAt));
+    expect(result.current.step?.id).toBe("flow-agent-publish");
+    expect(result.current.signalMet).toBe(false); // no agent captured yet
+
+    act(() => useOnboardingStore.getState().setFlowAgentId("a-mine"));
+    rerender();
+    expect(result.current.signalMet).toBe(false); // captured, but still a draft
+
+    rig.agentDetail = { status: "published", draft_spec: { model_profile_id: "m-1" } };
     rerender();
     expect(result.current.signalMet).toBe(true);
   });

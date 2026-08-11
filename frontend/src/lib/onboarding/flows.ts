@@ -27,11 +27,15 @@ export type FlowId =
  * A resource whose *appearance* ends a step. It is the react-query list the coach
  * watches: when its count crosses the baseline captured as the step began, the
  * reader has created the thing and the step is done. The names track the hooks —
- * `orgMcp` is the organization's MCP connections (`useOrgMcpConnections`), not the
- * personal `/me` list and not the read-only catalog; `model` is a model profile
- * (`useModelProviders`), the resource a new agent needs before it can run.
+ * `mcp` is a connection in *either* scope (`useOrgMcpConnections` and the personal
+ * `useMcpConnections`), because the flow teaches the connect mechanic, which is the
+ * same whichever scope the reader picks; a walk that only counted org connections
+ * hung when "Connect" defaulted to personal for a server the org already had. The
+ * fork that branches on whether an agent has one to bind reads `hasOrgMcp`, which
+ * stays org-only. `model` is a model profile (`useModelProviders`), the resource a
+ * new agent needs before it can run.
  */
-export type FlowResource = "agent" | "model" | "skill" | "kb" | "orgMcp" | "org";
+export type FlowResource = "agent" | "model" | "skill" | "kb" | "mcp" | "org";
 
 /**
  * How a step knows it is finished. Five shapes.
@@ -55,20 +59,24 @@ export type FlowResource = "agent" | "model" | "skill" | "kb" | "orgMcp" | "org"
  * DOM), against the count of open dialogs when the step began, so a dialog
  * opened on top of another still reads as an opening.
  *
- * The remaining three carry the run past building an agent into using it, and
- * all key off the agent this flow built (`flowAgentId`) or the chat stores
- * rather than a list count. `published` is that agent gaining a version to run
- * — the step advances when Publish actually succeeds, not when the button is
- * clicked, so a draft that fails validation does not walk on. `selected` is
- * that agent being the one the chat will address. `sent` is the reader sending
- * their first message — the end of the whole walkthrough, and the one place it
- * asks for a (charged) model call, because a first agent nobody has run is a
- * tour that stopped one step short of the point.
+ * The remaining four read the agent this flow built (`flowAgentId`) or the chat
+ * stores rather than a list count, carrying the run from a bare draft to a first
+ * message sent — and each is a gate, not a Next the reader could press past.
+ * `modelSet` is that agent's draft gaining a model, the one thing publish refuses
+ * a spec without, so the walk cannot leave the model step model-less. `published`
+ * is that agent gaining a published version — publish no-ops on an invalid spec,
+ * so keying off the version keeps a broken or unpublished agent from ever
+ * reaching the chat. `selected` is that agent being the one the chat will
+ * address. `sent` is the reader sending their first message — the end of the
+ * whole walkthrough, and the one place it asks for a (charged) model call,
+ * because a first agent nobody has run is a tour that stopped one step short of
+ * the point.
  */
 export type FlowSignal =
   | { kind: "created"; resource: FlowResource }
   | { kind: "arrived"; page: string }
   | { kind: "opened" }
+  | { kind: "modelSet" }
   | { kind: "published" }
   | { kind: "selected" }
   | { kind: "sent" };
@@ -156,6 +164,23 @@ export interface FlowStep {
    * button that opened the form.
    */
   inOverlay?: boolean;
+  /**
+   * The reader chooses one of many, not a single named control — the server
+   * catalog, where the step's whole point is that they pick whichever they want.
+   * So the coach neither freezes nor rings: a spotlight on one card would both
+   * hide the rest and contradict "find the one you want". It only shows the card
+   * and waits for its signal (a connect dialog opening on whatever they picked).
+   */
+  roam?: boolean;
+  /**
+   * A control — by `data-tour` — the coach keeps click-blocked while this step
+   * shows, lifted once the walk reaches the step that points at it. The create
+   * dialogs enable their submit the moment a name is typed, so without this a
+   * reader could submit from the first field and skip the walk through the rest;
+   * the field steps name their dialog's submit here so it cannot be pressed until
+   * the walk arrives on it. Leaves every other control, dropdowns included, live.
+   */
+  blockSubmit?: string;
 }
 
 /**
@@ -235,6 +260,7 @@ function skillDialogSteps(page: string, requires?: string): FlowStep[] {
       target: "skill-dialog-name",
       permission: Perm.skillsEdit,
       inOverlay: true,
+      blockSubmit: "skill-dialog-create",
       requires,
     },
     {
@@ -243,6 +269,7 @@ function skillDialogSteps(page: string, requires?: string): FlowStep[] {
       target: "skill-dialog-description",
       permission: Perm.skillsEdit,
       inOverlay: true,
+      blockSubmit: "skill-dialog-create",
       requires,
     },
     {
@@ -251,6 +278,7 @@ function skillDialogSteps(page: string, requires?: string): FlowStep[] {
       target: "skill-dialog-editor",
       permission: Perm.skillsEdit,
       inOverlay: true,
+      blockSubmit: "skill-dialog-create",
       requires,
     },
     {
@@ -273,6 +301,7 @@ function kbDialogSteps(page: string, requires?: string): FlowStep[] {
       target: "kb-dialog-name",
       permission: Perm.collectionsEdit,
       inOverlay: true,
+      blockSubmit: "kb-dialog-create",
       requires,
     },
     {
@@ -281,6 +310,7 @@ function kbDialogSteps(page: string, requires?: string): FlowStep[] {
       target: "kb-dialog-scope",
       permission: Perm.collectionsEdit,
       inOverlay: true,
+      blockSubmit: "kb-dialog-create",
       requires,
     },
     {
@@ -289,6 +319,7 @@ function kbDialogSteps(page: string, requires?: string): FlowStep[] {
       target: "kb-dialog-embeddings",
       permission: Perm.collectionsEdit,
       inOverlay: true,
+      blockSubmit: "kb-dialog-create",
       requires,
     },
     {
@@ -311,6 +342,7 @@ function mcpDialogSteps(page: string, requires?: string): FlowStep[] {
       target: "mcp-dialog-form",
       permission: Perm.connectionsManage,
       inOverlay: true,
+      blockSubmit: "mcp-dialog-connect",
       requires,
     },
     {
@@ -319,7 +351,7 @@ function mcpDialogSteps(page: string, requires?: string): FlowStep[] {
       target: "mcp-dialog-connect",
       permission: Perm.connectionsManage,
       inOverlay: true,
-      signal: { kind: "created", resource: "orgMcp" },
+      signal: { kind: "created", resource: "mcp" },
       requires,
     },
   ];
@@ -369,6 +401,10 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         // `connections:manage`.
         permission: Perm.agentsView,
         include: (state) => state.hasRunnableModel,
+        // The step will not pass until a model is on the draft: an agent with none
+        // cannot be published, so letting the reader skip here is the leak that
+        // walks them to a Publish that refuses them.
+        signal: { kind: "modelSet" },
       },
       // The dead end the other two leave: no runnable model, and no
       // `connections:manage` to add one. Neither add (dropped by permission) nor
@@ -536,9 +572,11 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       {
         id: "flow-mcp-field-pick",
         page: AGENT_BUILDER,
-        target: "mcp-connect",
         permission: Perm.connectionsManage,
-        inOverlay: true,
+        // Any of the catalog's servers, the reader's to choose — no spotlight on
+        // one. Picking one opens the connect form as a second dialog, which the
+        // `opened` signal reads as an opening because it counts dialogs.
+        roam: true,
         signal: { kind: "opened" },
         requires: "flow-agent-mcp-ask",
       },
@@ -558,9 +596,12 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         page: AGENT_BUILDER,
         target: "agent-publish",
         permission: Perm.agentsPublish,
-        // Wait for the publish to land, not just the click: publish no-ops on a
-        // spec that fails validation, and the chat steps that follow need a
-        // published version to address.
+        // Advance on the publish landing, not the click: publish refuses a spec
+        // that fails validation (a missing model, most often), so keying off the
+        // agent gaining a published version keeps a broken or unpublished agent
+        // from ever reaching the chat steps that follow. Read per-agent from the
+        // flow's own `flowAgentId`, which is captured past the create step so it
+        // is the draft just built, never a published agent the flow passed through.
         signal: { kind: "published" },
       },
       // Building an agent is not the point; running it is. So the walk does not end
@@ -622,8 +663,11 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       {
         id: "flow-mcp-field-pick",
         page: ROUTES.MCP_SERVERS,
-        target: "mcp-connect",
         permission: Perm.connectionsManage,
+        // The catalog is the whole page here; the reader picks any server, and its
+        // Connect opens the form. No spotlight — a hole over one card would lock
+        // the choice the copy says is theirs to make.
+        roam: true,
         signal: { kind: "opened" },
       },
       ...mcpDialogSteps(ROUTES.MCP_SERVERS),

@@ -39,13 +39,13 @@ const NO_CHOICES: Record<string, "yes" | "skip"> = {};
 
 describe("FLOWS", () => {
   it("walks each per-section flow into its dialog and ends on the resource landing", () => {
-    // Each opens at the section's create trigger, follows the reader into the
-    // dialog field by field (in-overlay, Next-advanced), and completes when the
-    // resource is created — on the dialog's own Create, not the trigger.
-    const shape: Partial<Record<FlowId, { opensAt: string; creates: string }>> = {
-      "create-skill": { opensAt: "skills-new", creates: "skill" },
-      "create-kb": { opensAt: "knowledge-new", creates: "kb" },
-      "create-mcp": { opensAt: "mcp-connect", creates: "orgMcp" },
+    // Skill and knowledge open at the section's create trigger, follow the reader
+    // into the dialog field by field (in-overlay, Next-advanced), and complete on
+    // the dialog's own Create. Each field step guards that Create until the walk
+    // reaches it, so a name alone cannot submit and skip the rest.
+    const shape: Partial<Record<FlowId, { opensAt: string; creates: string; submit: string }>> = {
+      "create-skill": { opensAt: "skills-new", creates: "skill", submit: "skill-dialog-create" },
+      "create-kb": { opensAt: "knowledge-new", creates: "kb", submit: "kb-dialog-create" },
     };
     for (const [id, expected] of Object.entries(shape)) {
       const flow = FLOWS[id as FlowId];
@@ -55,12 +55,30 @@ describe("FLOWS", () => {
       expect(first?.signal).toEqual({ kind: "opened" });
       expect(last?.inOverlay).toBe(true);
       expect(last?.signal).toEqual({ kind: "created", resource: expected?.creates });
-      // Everything between guides a field: inside the dialog, no signal — a Next.
+      // Everything between guides a field: inside the dialog, no signal — a Next —
+      // and holding the dialog's submit shut until this last step points at it.
       for (const step of flow.steps.slice(1, -1)) {
         expect(step.inOverlay).toBe(true);
-        if (step.id !== "flow-mcp-field-pick") expect(step.signal).toBeUndefined();
+        expect(step.signal).toBeUndefined();
+        expect(step.blockSubmit).toBe(expected?.submit);
       }
+      expect(last?.blockSubmit).toBeUndefined();
     }
+  });
+
+  it("opens the MCP flow by roaming the catalog, not spotlighting one server", () => {
+    // The catalog is a choice among many, so the first step neither freezes nor
+    // rings — a hole over one server would lock the pick the copy calls the
+    // reader's. The form step then guards Connect until the walk lands on it.
+    const flow = FLOWS["create-mcp"];
+    const first = flow.steps[0];
+    const last = flow.steps[flow.steps.length - 1];
+    expect(first?.roam).toBe(true);
+    expect(first?.target).toBeUndefined();
+    expect(first?.signal).toEqual({ kind: "opened" });
+    expect(flow.steps[1]?.blockSubmit).toBe("mcp-dialog-connect");
+    expect(last?.signal).toEqual({ kind: "created", resource: "mcp" });
+    expect(last?.inOverlay).toBe(true);
   });
 
   it("keeps create-org a single step — its dialog is one name field", () => {
@@ -112,10 +130,13 @@ describe("FLOWS", () => {
     ]);
   });
 
-  it("carries the run into chat: publish waits, then pick the built agent and send", () => {
+  it("gates the run into chat: model set, publish landed, then pick and send", () => {
     const byId = new Map(FLOWS["create-agent"].steps.map((step) => [step.id, step]));
-    // Publish advances on the publish landing, not the click, so the chat steps
-    // that follow have a published version to address.
+    // Each advances on the agent reaching a state, never a Next the reader could
+    // press past: a model on the draft, a published version, the built agent
+    // selected, a message sent. That is what keeps the walk from ending on an
+    // agent that cannot run.
+    expect(byId.get("flow-agent-model-pick")?.signal).toEqual({ kind: "modelSet" });
     expect(byId.get("flow-agent-publish")?.signal).toEqual({ kind: "published" });
     const pick = byId.get("flow-agent-run-pick");
     expect(pick?.page).toBe(ROUTES.CHAT);
@@ -425,7 +446,7 @@ describe("stepsForFlow", () => {
     // page, and the last advances on the connection landing.
     const steps = yes.filter((s) => detour.includes(s.id));
     for (const step of steps) expect(step.page).toBe(AGENT_BUILDER);
-    expect(steps[steps.length - 1]?.signal).toEqual({ kind: "created", resource: "orgMcp" });
+    expect(steps[steps.length - 1]?.signal).toEqual({ kind: "created", resource: "mcp" });
   });
 });
 

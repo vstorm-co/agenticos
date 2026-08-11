@@ -160,8 +160,10 @@ export function OnboardingCoach() {
   const [ringAnchor, setRingAnchor] = useState<string | null>(null);
   const [overlayOpen, setOverlayOpen] = useState(false);
   const [dialogCount, setDialogCount] = useState(0);
+  const [blockRect, setBlockRect] = useState<Rect | null>(null);
 
   const stepId = step?.id;
+  const blockSubmit = step?.blockSubmit;
 
   // The ring re-centres at the start of a flow and again at each fork, so its
   // first move is a travel out from the middle rather than a jump from nowhere.
@@ -215,18 +217,23 @@ export function OnboardingCoach() {
     if (isActive && openedMet) next();
   }, [isActive, openedMet, next]);
 
-  // The agent a create-agent flow builds opens in the builder; capture its id the
-  // first time the coach sees a builder route, so a detour's return leg can point
-  // back at that agent's card rather than the first in the gallery. Once only —
-  // the first `/agents/<id>` a create-agent flow reaches is the one it just made.
+  // The agent a create-agent flow builds opens in the builder; capture its id so
+  // the model and publish gates can read its draft, and a detour's return leg can
+  // point back at that agent's card rather than the first in the gallery. Not
+  // while the create step is still showing, though: the flow can start on another
+  // agent's `/agents/<id>` — an offer taken from a builder — and capturing there
+  // would pin the walk to that agent, a published one sailing straight through the
+  // publish gate. Past the create step the only `/agents/<id>` in reach is the
+  // draft just made. Once only.
   useEffect(() => {
     if (!isActive || flowId !== "create-agent" || flowAgentId) return;
+    if (stepId === "flow-agent-create") return;
     const prefix = `${ROUTES.AGENTS}/`;
     const here = stripLocale(pathname);
     if (!here.startsWith(prefix)) return;
     const id = here.slice(prefix.length).split("/")[0];
     if (id) setFlowAgentId(id);
-  }, [isActive, flowId, flowAgentId, pathname, setFlowAgentId]);
+  }, [isActive, flowId, flowAgentId, stepId, pathname, setFlowAgentId]);
 
   // Get to the page, reveal the tab that holds the control, find it, scroll it
   // into view, and measure it — for both the freeze cut-out and the ring. The
@@ -303,6 +310,39 @@ export function OnboardingCoach() {
     return () => controller.abort();
   }, [isActive, step, stepId, pathname, router, flowAgentId]);
 
+  // Track the control this step keeps click-blocked (`blockSubmit`), so the guard
+  // over it follows the dialog as it reflows. Its own box, not the target's: the
+  // step points at a field while blocking the submit button somewhere else in the
+  // dialog. Tagged with the step it was measured for, the same way `rect` is, so a
+  // step that names none — the one that finally points at the submit — stops
+  // matching and the guard lifts without an effect clearing state.
+  useEffect(() => {
+    if (!isActive || !blockSubmit || !stepId) return;
+    const sid = stepId;
+    const controller = new AbortController();
+    const { signal } = controller;
+    void (async () => {
+      const el = await waitForElement(`[data-tour="${blockSubmit}"]`, signal);
+      if (signal.aborted || !(el instanceof HTMLElement)) return;
+      const place = () => {
+        const b = el.getBoundingClientRect();
+        setBlockRect({ stepId: sid, top: b.top, left: b.left, width: b.width, height: b.height });
+      };
+      place();
+      const observer = new ResizeObserver(place);
+      observer.observe(el);
+      observer.observe(document.body);
+      window.addEventListener("scroll", place, true);
+      window.addEventListener("resize", place);
+      signal.addEventListener("abort", () => {
+        observer.disconnect();
+        window.removeEventListener("scroll", place, true);
+        window.removeEventListener("resize", place);
+      });
+    })();
+    return () => controller.abort();
+  }, [isActive, blockSubmit, stepId]);
+
   // The resource appeared — the reader did the thing. Advance, or end the flow if
   // this was the last step.
   useEffect(() => {
@@ -312,20 +352,23 @@ export function OnboardingCoach() {
   if (!isActive || !step) return null;
 
   // A fork freezes the page whole and shows no ring; a pointer step cuts a hole
-  // over its control and rings it. The tag on `rect` is what clears a stale hole
-  // between steps: a rect measured for the previous step stops matching `stepId`.
-  // An in-overlay step inverts the freeze rule: it never freezes (the dialog's
-  // own modal overlay dims the page) and rings only while the dialog is up, so
-  // closing the dialog mid-walk leaves the page usable to reopen it rather than
-  // ringing where a field used to be.
+  // over its control and rings it; a `roam` step does neither, because the reader
+  // is choosing one of many and a hole over one would lock the choice. The tag on
+  // `rect` clears a stale hole between steps: a rect measured for the previous step
+  // stops matching `stepId`. An in-overlay step never freezes (the dialog's own
+  // modal overlay dims the page) and rings only while the dialog is up, so closing
+  // it mid-walk leaves the page usable to reopen it rather than ringing where a
+  // field used to be — and it can still hold a `blockSubmit` guard over the
+  // dialog's own submit until the walk reaches it.
   const isQuestion = !!step.question;
   const inOverlay = !!step.inOverlay;
+  const roam = !!step.roam;
   const current = isQuestion ? null : rect?.stepId === stepId ? rect : null;
 
   return (
     <>
-      {!overlayOpen && !inOverlay && <FreezeLayer rect={current} />}
-      {(inOverlay ? overlayOpen : !overlayOpen) && !isQuestion && ringRect && (
+      {!roam && !overlayOpen && !inOverlay && <FreezeLayer rect={current} />}
+      {!roam && (inOverlay ? overlayOpen : !overlayOpen) && !isQuestion && ringRect && (
         <div
           aria-hidden
           data-coach-ring
@@ -338,11 +381,34 @@ export function OnboardingCoach() {
           }}
         />
       )}
+      {/* Sits over the dialog's submit while an earlier field step shows, swallowing
+          the click that would create before the walk reaches the last field. It needs
+          pointer events of its own — a modal dialog turns the body's off. Lifts on the
+          step that points at the submit, which names no `blockSubmit`. */}
+      {blockSubmit && blockRect && blockRect.stepId === stepId && (
+        <div
+          aria-hidden
+          data-coach-submit-guard
+          className="pointer-events-auto fixed z-[1000000001]"
+          style={{
+            top: blockRect.top,
+            left: blockRect.left,
+            width: blockRect.width,
+            height: blockRect.height,
+            cursor: "not-allowed",
+          }}
+        />
+      )}
+      {/* A modal Radix dialog sets pointer-events:none on the body while it is open,
+          and this card sits outside that dialog — so it re-enables them for itself, or
+          its own Next and close inherit none and go inert while guiding a field inside a
+          create dialog. `onInteractOutside` on DialogContent keeps the click from also
+          dismissing that dialog. */}
       <div
         data-coach-card
         role="dialog"
         aria-label={t(`steps.${step.id}.title`)}
-        className="bg-popover text-popover-foreground fixed bottom-6 left-1/2 z-[1000000002] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border p-4 shadow-lg"
+        className="bg-popover text-popover-foreground pointer-events-auto fixed bottom-6 left-1/2 z-[1000000002] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border p-4 shadow-lg"
       >
         <IconButton
           aria-label={t("coachClose")}

@@ -2121,7 +2121,7 @@
       },
       "flow-agent-model-pick": {
         "title": "Choose its model",
-        "body": "Pick the model this agent should run on from the list, then choose Next."
+        "body": "Pick the model this agent should run on from the list — an agent needs one to run, so we'll move on once it's set."
       },
       "flow-agent-model-none": {
         "title": "No model in this organization yet",
@@ -2197,11 +2197,11 @@
       },
       "flow-agent-publish": {
         "title": "Publish it",
-        "body": "Publishing makes this version the one that runs everywhere the agent is used. Choose Publish when you're ready — we'll move on the moment it's live."
+        "body": "An agent has to be published before you can chat with it — a draft can't take messages. Click Publish to make this version live; we'll move on the moment it's published."
       },
       "flow-agent-run-pick": {
         "title": "Pick your agent",
-        "body": "You're in the chat now. Open the picker and choose the agent you just built, so your first message goes to it."
+        "body": "You're in the chat now. Open the picker and choose the agent you just published, so your first message goes to it."
       },
       "flow-agent-run-send": {
         "title": "Send it a message",

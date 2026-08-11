@@ -3,8 +3,9 @@
 import { useCallback, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 
-import { useAgents } from "@/hooks/use-agents";
+import { useAgent, useAgents } from "@/hooks/use-agents";
 import { useKnowledgeBases } from "@/hooks/use-knowledge-bases";
+import { useMcpConnections } from "@/hooks/use-mcp-connections";
 import { useModelProviders } from "@/hooks/use-model-providers";
 import { useOrgMcpConnections } from "@/hooks/use-org-mcp-connections";
 import { useOrganizationList } from "@/hooks/use-organizations";
@@ -89,24 +90,34 @@ function settled(loading: boolean, count: number): MaybeCount {
 function useOrgSnapshot(): {
   counts: Record<FlowResource, MaybeCount>;
   liveState: OrgState | null;
-  /** The ids of agents with a published version — what a `published` signal checks. */
-  publishedIds: ReadonlySet<string>;
 } {
   const agents = useAgents();
   const models = useModelProviders();
   const skills = useSkills();
   const kb = useKnowledgeBases();
   const mcp = useOrgMcpConnections();
+  const personalMcp = useMcpConnections();
   const orgs = useOrganizationList();
   const stateSettled =
-    !agents.isLoading && !models.isLoading && !kb.isLoading && !skills.isLoading && !mcp.isLoading;
+    !agents.isLoading &&
+    !models.isLoading &&
+    !kb.isLoading &&
+    !skills.isLoading &&
+    !mcp.isLoading &&
+    !personalMcp.isLoading;
   return {
     counts: {
       agent: settled(agents.isLoading, agents.total),
       model: settled(models.isLoading, models.profiles.length),
       skill: settled(skills.isLoading, skills.total),
       kb: settled(kb.isLoading, kb.kbs.length),
-      orgMcp: settled(mcp.isLoading, mcp.connections.length),
+      // Either scope: the connect step ends when the reader connects one, org or
+      // personal. `hasOrgMcp` below stays org-only — that is the fork for an agent
+      // binding a server, and an agent binds the organization's.
+      mcp: settled(
+        mcp.isLoading || personalMcp.isLoading,
+        mcp.connections.length + personalMcp.connections.length,
+      ),
       org: settled(orgs.isLoading, orgs.data?.length ?? 0),
     },
     // A profile is runnable when it is keyed by a vault secret, or self-hosted at
@@ -127,9 +138,6 @@ function useOrgSnapshot(): {
           hasPublishedAgent: agents.agents.some((agent) => agent.status === "published"),
         }
       : null,
-    publishedIds: new Set(
-      agents.agents.filter((agent) => agent.status === "published").map((agent) => agent.id),
-    ),
   };
 }
 
@@ -166,7 +174,13 @@ export function useOnboardingFlow(): OnboardingFlowState {
   const flowAgentId = useOnboardingStore((state) => state.flowAgentId);
   const setFlowAgentId = useOnboardingStore((state) => state.setFlowAgentId);
   const { can } = usePermissions();
-  const { counts, liveState, publishedIds } = useOrgSnapshot();
+  const { counts, liveState } = useOrgSnapshot();
+  // The live draft of the agent this flow built, for the steps that gate on its
+  // state rather than a list: the model step waits for its draft to gain a model,
+  // the publish step for it to gain a published version. Disabled until an id is
+  // captured (`flowAgentId` null), and it shares the builder's own query key, so
+  // the builder's autosave and publish invalidations refresh it here too.
+  const agentDetail = useAgent(flowAgentId);
   const here = pageKey(stripLocale(usePathname()));
   // The chat run's tail keys off the chat stores rather than a list: which agent
   // is selected, and how many messages the open conversation holds — sending
@@ -221,18 +235,23 @@ export function useOnboardingFlow(): OnboardingFlowState {
     setBaseline({ key: stepKey, count });
   }
   // How each signal settles. `created` and `sent` grow their count past the
-  // step's baseline; `arrived` reaches the page it names; `published` and
-  // `selected` read the agent this flow built (`flowAgentId`) — the former met
-  // once that agent has a version to run, the latter once it is the agent the
+  // step's baseline; `arrived` reaches the page it names; `modelSet`, `published`
+  // and `selected` read the agent this flow built (`flowAgentId`) — its draft
+  // gaining a model, its gaining a published version, and its being the agent the
   // chat will address. Each step carries at most one, so they never contend.
   const signalMet =
     signal?.kind === "arrived"
       ? here === signal.page
-      : signal?.kind === "published"
-        ? flowAgentId !== null && publishedIds.has(flowAgentId)
-        : signal?.kind === "selected"
-          ? flowAgentId !== null && selectedAgentId === flowAgentId
-          : needsBaseline && count !== null && baseline?.key === stepKey && count > baseline.count;
+      : signal?.kind === "modelSet"
+        ? agentDetail.agent?.draft_spec.model_profile_id != null
+        : signal?.kind === "published"
+          ? agentDetail.agent?.status === "published"
+          : signal?.kind === "selected"
+            ? flowAgentId !== null && selectedAgentId === flowAgentId
+            : needsBaseline &&
+              count !== null &&
+              baseline?.key === stepKey &&
+              count > baseline.count;
 
   const next = useCallback(() => {
     if (clamped >= steps.length - 1) close();
