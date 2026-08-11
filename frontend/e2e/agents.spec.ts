@@ -596,8 +596,11 @@ test.describe("Agents", () => {
 
     // The refusal this whole change was blocked on. Publishing a spec that
     // named an org server used to be impossible because no org server could
-    // exist; if it is still impossible, the problems panel says so.
+    // exist; if it is still impossible, the problems panel says so. The
+    // confirmation dialog opening *is* the validation passing - it is only
+    // offered to a draft the API accepted (#519).
     await page.getByRole("button", { name: "Publish" }).click();
     await expect(page.getByText("This agent cannot be published yet")).toBeHidden();
+    await expect(page.getByRole("dialog").getByRole("button", { name: "Publish" })).toBeVisible();
   });
 });

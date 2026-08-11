@@ -61,6 +61,7 @@ vi.mock("@/hooks", () => ({
     unarchive: { mutateAsync: vi.fn() },
     remove: { mutateAsync: vi.fn() },
   }),
+  useAgentVersion: () => ({ version: undefined, isLoading: false }),
   useAgentVersions: () => ({ versions: [] }),
   useCapabilityCatalog: () => ({ capabilities: [] }),
   useExposures: () => ({ exposures: [] }),
