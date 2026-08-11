@@ -17,6 +17,49 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- **The i18n guard parses instead of grepping, and the copy it found is in the
+  catalog.** `scripts/check_i18n.py` had been patched for a new shape four times
+  (#199, #246, #249, #314) and each fix was correct: the pattern was the problem.
+  Reading a `.tsx` file as text means deciding per candidate whether you are looking
+  at TypeScript or JSX, so every rule carried a threshold standing in for a parse
+  and the next shape fell between two of them. The last one was one word wide —
+  `` aria-label={`Remove ${source.name}`} `` sat below a two-word threshold that
+  existed to keep `` `audience${key}Hint` `` out. It is now
+  `frontend/scripts/check-i18n.ts`, walking `JsxText`, `JsxExpression`,
+  `StringLiteral` and `TemplateExpression` through `ts.createSourceFile`: a node the
+  formatter broke over three lines is one node, a type argument list is not JsxText
+  at all, and a comment is invisible rather than blanked. `MIXED`, `COUNT`, `LEAD`,
+  `JSX_TEXT`, `mask_generics`, `readable`, `NOT_PROSE` and both word-count
+  thresholds are deleted rather than ported; every policy rule carries over.
+  Runs from `make lint-frontend` (`bun run check:i18n`) and a new pre-commit hook,
+  with `frontend/scripts/check-i18n.test.ts` in place of the five
+  `backend/tests/test_check_i18n_*.py` files. Closes #395 and #141. (#597)
+- **137 hardcoded strings moved into `messages/en.json`, and 34 dead keys deleted.**
+  What the parser found on the pre-fix tree: the one-word template literals #395
+  measured (`aria-label`s and toasts — `Open ${org.name}`, `${name} updated.`), the
+  multi-line text nodes #141 measured (the 404 page, `global-error.tsx`, the
+  magic-link step, four legal paragraphs), and eight confirm-dialog titles a bare
+  `?` on the machine-read list had been exempting. A sentence split across an
+  element is now one `t.rich` message rather than a head, a `<span>` and a tail,
+  which is what made the 34 fragment keys dead — the guard's own `unreadKeys` named
+  every one. Three decisions worth recording. A number and its unit is a formatter
+  rather than a message — `` `${bytes} KiB` `` is the shape, and `ctx` joined the
+  unit list for the model picker's badge — so the fourteen of those take a rule
+  rather than fourteen exemptions. `PROVIDER_DEFAULT` holds a key now instead of the
+  words, per the module-table rule. And `result: ` in `run-python.tsx` keeps an
+  exemption, because `parseResult` beside it matches the string literally. (#597)
+
+### Fixed
+
+- **An `i18n-exempt` now covers the element it opens.** It applied to its own line
+  and the next, so the three exemptions in `app/not-found.tsx` — written above an
+  `<h1>` whose words are on the third line, because the opening tag carries four
+  Tailwind classes — covered the tag and missed the copy. Nothing noticed while a
+  text node alone on its line matched no rule at all. A reason worth two lines
+  covers the code under the whole comment block, too. (#597)
+
 ## [0.0.101] - 2026-08-11
 
 Three static guards against the code getting worse, and the slop they target
