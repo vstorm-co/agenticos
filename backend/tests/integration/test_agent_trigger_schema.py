@@ -23,7 +23,7 @@ from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.repositories import agent_trigger_repo
-from app.schemas.agent_trigger import TriggerCreate, TriggerRead
+from app.schemas.agent_trigger import TriggerCreate, TriggerRead, TriggerUpdate
 from app.services.agent_trigger import AgentTriggerService
 
 pytestmark = pytest.mark.anyio
@@ -271,3 +271,31 @@ class TestACreatedTriggerSerializes:
         assert read.updated_at is not None
         # And the eager run-log conversation is what made updated_at stale.
         assert read.conversation_id is not None
+
+
+class TestResumingASchedule:
+    async def test_a_resume_recomputes_next_fire_and_survives_the_audit(self, db):
+        """Resuming a schedule recomputes its next fire - a datetime that then lands
+        in the audit's JSONB `details`. That column's default `json.dumps` cannot
+        encode a datetime, so the audit flush raised and the resume 500'd where a
+        pause (a bool only) did not. This drives the real service and audit against a
+        real session: it fails without the encoder fix and passes with it.
+        """
+        org = await _org(db)
+        agent = await _agent(db, org)
+        ctx = AuthContext(
+            user_id=org.owner_user.id,  # type: ignore[attr-defined]
+            organization_id=org.id,
+            role=OrgRoleName.OWNER.value,
+        )
+        service = AgentTriggerService(db)
+        trigger = await service.create(
+            ctx, agent.id, TriggerCreate(prompt="summarise", interval_seconds=900)
+        )
+        await service.update(ctx, agent.id, trigger.id, TriggerUpdate(is_active=False))
+        resumed = await service.update(ctx, agent.id, trigger.id, TriggerUpdate(is_active=True))
+
+        assert resumed.is_active is True
+        assert resumed.next_fire_at is not None
+        # The serialization that 500'd on the session the failed audit flush poisoned.
+        assert TriggerRead.model_validate(resumed).is_active is True

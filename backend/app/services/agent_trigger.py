@@ -33,6 +33,7 @@ from typing import Any, cast
 from uuid import UUID
 
 from croniter import croniter
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
@@ -108,6 +109,18 @@ def _next_fire_from(trigger: AgentTrigger, *, now: datetime) -> datetime:
         cron_expression=trigger.cron_expression,
         now=now,
     )
+
+
+def _audit_changes(changes: dict[str, Any]) -> dict[str, Any]:
+    """The applied changes, JSON-safe for the audit's JSONB `details`.
+
+    A resume or a retime puts a recomputed `next_fire_at` datetime in `changes`,
+    and the details column's default `json.dumps` cannot encode a datetime - the
+    flush that stored it raised, which is why resuming a schedule 500'd where
+    pausing (a `bool` only) did not. `jsonable_encoder` turns it into the ISO string
+    the column stores, the same encoder the error responses use.
+    """
+    return cast(dict[str, Any], jsonable_encoder(changes))
 
 
 def _update_action(changes: dict[str, Any]) -> str:
@@ -331,7 +344,7 @@ class AgentTriggerService:
             action=_update_action(changes),
             target_type="agent",
             target_id=str(agent_id),
-            details={"trigger_id": str(trigger.id), "changes": changes},
+            details={"trigger_id": str(trigger.id), "changes": _audit_changes(changes)},
         )
         return updated
 
