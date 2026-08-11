@@ -55,9 +55,10 @@ export interface OrgState {
  * coach gets the reader to `page`, optionally reveals `activate`, and points at
  * `[data-tour="<target>"]`. What a flow step adds is `signal`, the app event that
  * advances it — a step with one auto-advances when its resource appears, a step
- * without one carries a Next. `optional` renders a Skip. `include` makes a step
- * adaptive: it runs only when the organization's state calls for it, so a flow
- * teaches "add a model" only to an organization that has none.
+ * without one carries a Next (which is also how the reader moves past an optional
+ * enrichment step without doing it). `include` makes a step adaptive: it runs
+ * only when the organization's state calls for it, so a flow teaches "add a
+ * model" only to an organization that has none.
  */
 export interface FlowStep {
   id: string;
@@ -66,8 +67,6 @@ export interface FlowStep {
   /** A `[data-tour="…"]` to reveal before pointing at the target — a tab. */
   activate?: string;
   permission?: Permission;
-  /** Renders a Skip — a step the flow can do without. */
-  optional?: boolean;
   signal?: FlowSignal;
   /** Run this step only when the organization's state calls for it. */
   include?: (state: OrgState) => boolean;
@@ -97,13 +96,16 @@ export interface CreationFlow {
  * `created` signal to wait on.
  *
  * `create-agent` is the adaptive one. It creates the agent (which opens the
- * builder), walks its instructions and model, and ends at Publish. The model step
- * is two mutually exclusive halves: an organization with no runnable model is
- * taught to add one inline (`AddModel` stores the key and the profile in a single
- * submit), one that already has a model is only shown where to pick it. Its later
- * steps live on the builder, a detail view with no route of its own, so they
- * carry the `AGENT_BUILDER` identity and rely on the create step having navigated
- * there; the coach does not try to navigate to a pseudo-page.
+ * builder), walks its instructions and model, points out the knowledge, skills
+ * and tools it can be given, and ends at Publish. The model step is two mutually
+ * exclusive halves: an organization with no runnable model is taught to add one
+ * inline (`AddModel` stores the key and the profile in a single submit), one that
+ * already has a model is only shown where to pick it. The knowledge/skills/tools
+ * steps carry no signal — they are "attach one, or move on with Next", because a
+ * first agent needs none of them; a reader who wants to create one has each
+ * section's own "?" flow. Its later steps live on the builder, a detail view with
+ * no route of its own, so they carry the `AGENT_BUILDER` identity and rely on the
+ * create step having navigated there; the coach does not navigate to a pseudo-page.
  */
 export const FLOWS: Record<FlowId, CreationFlow> = {
   "create-agent": {
@@ -127,19 +129,49 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       {
         id: "flow-agent-model-add",
         page: AGENT_BUILDER,
-        target: "agent-model",
+        // The model *picker*, in the Build tab's Instructions card — not the
+        // Model settings card (`agent-model`), which is temperature and thinking.
+        target: "agent-model-picker",
         activate: "agent-tab-build",
-        permission: Perm.agentsView,
+        // Adding a model writes a `/providers/model-profiles`, which is
+        // `connections:manage`, not `agents:view` — the same gate the picker's
+        // "add" control carries. A caller with `agents:edit` but not that would
+        // otherwise be walked to a control the server hides from them.
+        permission: Perm.connectionsManage,
         signal: { kind: "created", resource: "model" },
         include: (state) => !state.hasRunnableModel,
       },
       {
         id: "flow-agent-model-pick",
         page: AGENT_BUILDER,
-        target: "agent-model",
+        target: "agent-model-picker",
         activate: "agent-tab-build",
+        // Selecting an existing model is part of editing the agent, which the
+        // flow's own `agents:edit` gate already implies; it needs no
+        // `connections:manage`.
         permission: Perm.agentsView,
         include: (state) => state.hasRunnableModel,
+      },
+      {
+        id: "flow-agent-knowledge",
+        page: AGENT_BUILDER,
+        target: "agent-collections",
+        activate: "agent-tab-knowledge",
+        permission: Perm.agentsView,
+      },
+      {
+        id: "flow-agent-skills",
+        page: AGENT_BUILDER,
+        target: "agent-skills",
+        activate: "agent-tab-skills",
+        permission: Perm.agentsView,
+      },
+      {
+        id: "flow-agent-tools",
+        page: AGENT_BUILDER,
+        target: "agent-capabilities",
+        activate: "agent-tab-toolbox",
+        permission: Perm.agentsView,
       },
       {
         id: "flow-agent-publish",

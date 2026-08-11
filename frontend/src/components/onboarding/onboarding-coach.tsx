@@ -36,13 +36,14 @@ interface Rect {
  * an instruction card pinned to the bottom. The real control, and the real
  * dialog it opens, are the reader's to operate.
  *
- * Advancement is the app's, not a button's: an interactive step ends when its
+ * Advancement is the app's, not a button's: a step with a signal ends when its
  * resource appears (`signalMet` from `useOnboardingFlow`), so the reader is never
- * told "now click Next" after doing the thing the step asked for. A step with no
- * signal (a "read this" stop) carries a Next; an optional one carries a Skip; and
- * the close button always ends the flow, because a walkthrough is never worth
- * trapping someone in. Mounted only while a flow runs, so the resource-count
- * queries its hook fires live only then.
+ * told "now click Next" after doing the thing the step asked for, and carries no
+ * button — the doing is the advance. A step with no signal (write instructions,
+ * or an optional "attach one or move on") carries a Next. The close button always
+ * ends the flow, because a walkthrough is never worth trapping someone in.
+ * Mounted only while a flow runs, so the resource-count queries its hook fires
+ * live only then.
  */
 export function OnboardingCoach() {
   const t = useTranslations("onboarding");
@@ -145,13 +146,7 @@ export function OnboardingCoach() {
           ) : (
             <span />
           )}
-          {step.signal ? (
-            step.optional && (
-              <Button size="sm" variant="ghost" onClick={next}>
-                {t("skip")}
-              </Button>
-            )
-          ) : (
+          {!step.signal && (
             <Button size="sm" onClick={next}>
               {isLast ? t("finish") : t("next")}
             </Button>

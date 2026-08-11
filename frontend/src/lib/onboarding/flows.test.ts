@@ -41,6 +41,9 @@ describe("FLOWS", () => {
       "flow-agent-instructions",
       "flow-agent-model-add",
       "flow-agent-model-pick",
+      "flow-agent-knowledge",
+      "flow-agent-skills",
+      "flow-agent-tools",
       "flow-agent-publish",
     ]);
   });
@@ -98,6 +101,16 @@ describe("stepsForFlow", () => {
   it("only shows where to pick a model when the organization has one", () => {
     const ids = stepsForFlow(FLOWS["create-agent"], HAS_MODEL, allow).map((step) => step.id);
     expect(ids).toContain("flow-agent-model-pick");
+    expect(ids).not.toContain("flow-agent-model-add");
+  });
+
+  it("does not walk a caller who cannot manage connections to add a model", () => {
+    // Adding a model is connections:manage; a builder without it would be led to
+    // a control the server hides. The step drops rather than dead-ending them.
+    const canButNotConnections = (permission: Permission) => permission !== Perm.connectionsManage;
+    const ids = stepsForFlow(FLOWS["create-agent"], NO_MODEL, canButNotConnections).map(
+      (step) => step.id,
+    );
     expect(ids).not.toContain("flow-agent-model-add");
   });
 

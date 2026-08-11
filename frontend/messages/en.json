@@ -2074,7 +2074,6 @@
     "finish": "Finish",
     "progress": "Step {current} of {total}",
     "saveFailed": "We couldn't save that you've seen the walkthrough, so it may show again next time.",
-    "skip": "Skip",
     "coachClose": "Close",
     "offer": {
       "accept": "Yes, guide me",
@@ -2116,6 +2115,18 @@
       "flow-agent-model-pick": {
         "title": "Choose its model",
         "body": "Pick the model this agent should run on from the list, then choose Next."
+      },
+      "flow-agent-knowledge": {
+        "title": "Give it documents to read (optional)",
+        "body": "Attach a knowledge base and the agent can search those documents and cite them. You can skip this and add one anytime — choose Next to move on."
+      },
+      "flow-agent-skills": {
+        "title": "Give it skills (optional)",
+        "body": "A skill is written know-how the agent loads when it's relevant — a refund policy, a house style. Attach any, or choose Next to move on."
+      },
+      "flow-agent-tools": {
+        "title": "Give it tools (optional)",
+        "body": "Capabilities let the agent do things — search the web, run code, call another system. Switch on what it needs, or choose Next to move on."
       },
       "flow-agent-publish": {
         "title": "Publish it",

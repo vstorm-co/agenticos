@@ -697,7 +697,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 disabled={!canEdit}
                 placeholder={t("youAreSupportCopilot")}
               />
-              <div className="space-y-2">
+              <div className="space-y-2" data-tour="agent-model-picker">
                 <Label>{t("model")}</Label>
                 <ModelProfilePicker
                   // A model profile is `connections:manage`, which somebody who

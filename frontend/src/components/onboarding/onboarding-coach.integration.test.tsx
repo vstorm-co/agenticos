@@ -93,15 +93,6 @@ describe("OnboardingCoach", () => {
     expect(next).toHaveBeenCalled();
   });
 
-  it("lets the reader skip an optional step", async () => {
-    const next = vi.fn();
-    const optional = step({ optional: true });
-    flow.state = makeState({ step: optional, steps: [optional], next });
-    render(<OnboardingCoach />);
-    await userEvent.click(screen.getByRole("button", { name: "Skip" }));
-    expect(next).toHaveBeenCalled();
-  });
-
   it("navigates to the step's page when the reader is elsewhere", async () => {
     nav.pathname = "/dashboard";
     render(<OnboardingCoach />);
