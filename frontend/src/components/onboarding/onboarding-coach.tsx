@@ -10,32 +10,58 @@ import { Button, IconButton } from "@/components/ui";
 import { useOnboardingFlow } from "@/hooks/use-onboarding-flow";
 import { stripLocale } from "@/lib/active-route";
 
-/** The class that outlines the spotlighted control; drawn and pulsed in `globals.css`. */
-const HIGHLIGHT_CLASS = "onboarding-coach-target";
-
-/** Space between the control and the freeze layer's cut-out, so the pulse plays inside it. */
+/** Space between the control and the freeze layer's cut-out, so the ring plays inside it. */
 const HOLE_PADDING = 10;
 const HOLE_RADIUS = 12;
+
+/** Space between the control and the highlight ring, so the ring frames rather than traces it. */
+const RING_PAD = 6;
+
+/** The side of the dot the ring starts as, before it grows onto the first control. */
+const DOT = 12;
 
 /** The dim the freeze layer paints over the frozen page. */
 const DIM = "rgba(10, 10, 10, 0.5)";
 
-/**
- * The target's box in viewport coordinates, tagged with the step it was measured
- * for. The tag is what lets a step change clear the cut-out without a reset call:
- * a rect from the previous step stops matching `stepId` and stops rendering until
- * the new target is found.
- */
-interface Rect {
-  stepId: string;
+/** A box in viewport coordinates. */
+interface Box {
   top: number;
   left: number;
   width: number;
   height: number;
 }
 
+/**
+ * The target's box tagged with the step it was measured for. The tag is what lets
+ * a step change clear the cut-out without a reset call: a rect from the previous
+ * step stops matching `stepId` and stops rendering until the new target is found.
+ */
+interface Rect extends Box {
+  stepId: string;
+}
+
 /** An open modal dialog, ours excepted — Radix marks its content `data-state`, the coach card does not. */
 const OPEN_DIALOG = '[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]';
+
+/** A small dot centred in the viewport — where the ring starts each flow before it travels. */
+function centerDot(): Box {
+  return {
+    top: window.innerHeight / 2 - DOT / 2,
+    left: window.innerWidth / 2 - DOT / 2,
+    width: DOT,
+    height: DOT,
+  };
+}
+
+/** The ring's box for a control: the control's box, grown by `RING_PAD` on every side. */
+function ringBoxFor(box: Box): Box {
+  return {
+    top: box.top - RING_PAD,
+    left: box.left - RING_PAD,
+    width: box.width + RING_PAD * 2,
+    height: box.height + RING_PAD * 2,
+  };
+}
 
 /**
  * The interactive coach: it walks the reader through actually creating
@@ -55,10 +81,13 @@ const OPEN_DIALOG = '[role="dialog"][data-state="open"], [role="alertdialog"][da
  * coach driver-less. While the dialog is up the reader fills it against Radix's
  * own overlay, and the step advances when its resource appears.
  *
- * The control itself is marked with `HIGHLIGHT_CLASS`, so the outline is on the
- * element and tracks it on scroll with no JS to lag behind — and it is scrolled
- * into view first, because the freeze eats wheel events and the reader cannot
- * bring it into view themselves.
+ * The highlight is a ring that travels and grows from the centre of the screen
+ * onto the first control, then from one control to the next — a fixed element so
+ * it can animate its own position and size, which the freeze makes safe (nothing
+ * scrolls under it, and the control is scrolled into view first). Its size and
+ * position are `ringRect`; the CSS transition on those is the travel, and it is
+ * kept from a step's own tag so it holds on the previous control until the next
+ * is found rather than snapping back to the centre between steps.
  *
  * Advancement is the app's, not a button's: a step with a signal ends when its
  * resource appears (`signalMet` from `useOnboardingFlow`), so the reader is never
@@ -73,11 +102,25 @@ export function OnboardingCoach() {
   const t = useTranslations("onboarding");
   const router = useRouter();
   const pathname = usePathname();
-  const { isActive, step, index, steps, isLast, signalMet, next, finish } = useOnboardingFlow();
+  const { isActive, flowId, step, index, steps, isLast, signalMet, next, finish } =
+    useOnboardingFlow();
   const [rect, setRect] = useState<Rect | null>(null);
+  const [ringRect, setRingRect] = useState<Box | null>(null);
+  const [ringFlow, setRingFlow] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const stepId = step?.id;
+
+  // Each flow starts the ring as a dot in the centre, so its first move is a
+  // travel out to the first control rather than a jump from nowhere. Adjusted
+  // during render, guarded on the flow changing — React's supported reset-on-prop
+  // pattern — because an effect that set state here would fire a frame late and
+  // trip `react-hooks/set-state-in-effect`. Keyed on the flow, not the step, so
+  // mid-flow steps travel control-to-control instead of snapping back to centre.
+  if (isActive && flowId && flowId !== ringFlow && typeof window !== "undefined") {
+    setRingFlow(flowId);
+    setRingRect(centerDot());
+  }
 
   // The freeze must yield to a modal dialog the moment one opens and take back
   // over when it closes — watched here rather than polled, so the handover is a
@@ -97,8 +140,9 @@ export function OnboardingCoach() {
   }, [isActive]);
 
   // Get to the page, reveal the tab that holds the control, find it, scroll it
-  // into view, and mark it. The outline rides the element on scroll; the cut-out
-  // is repositioned on scroll and resize until the step changes or the flow ends.
+  // into view, and measure it — for both the freeze cut-out and the ring. The
+  // cut-out is repositioned on scroll and resize until the step changes or the
+  // flow ends.
   useEffect(() => {
     if (!isActive || !step) return;
     const controller = new AbortController();
@@ -125,22 +169,16 @@ export function OnboardingCoach() {
       if (signal.aborted || !(target instanceof HTMLElement)) return;
 
       target.scrollIntoView({ block: "center", inline: "center" });
-      target.classList.add(HIGHLIGHT_CLASS);
       const place = () => {
-        const box = target.getBoundingClientRect();
-        setRect({
-          stepId: sid,
-          top: box.top,
-          left: box.left,
-          width: box.width,
-          height: box.height,
-        });
+        const b = target.getBoundingClientRect();
+        const box = { top: b.top, left: b.left, width: b.width, height: b.height };
+        setRect({ stepId: sid, ...box });
+        setRingRect(ringBoxFor(box));
       };
       place();
       window.addEventListener("scroll", place, true);
       window.addEventListener("resize", place);
       signal.addEventListener("abort", () => {
-        target.classList.remove(HIGHLIGHT_CLASS);
         window.removeEventListener("scroll", place, true);
         window.removeEventListener("resize", place);
       });
@@ -162,10 +200,23 @@ export function OnboardingCoach() {
   return (
     <>
       {!dialogOpen && <FreezeLayer rect={current} />}
+      {!dialogOpen && ringRect && (
+        <div
+          aria-hidden
+          data-coach-ring
+          className="onboarding-coach-ring"
+          style={{
+            top: ringRect.top,
+            left: ringRect.left,
+            width: ringRect.width,
+            height: ringRect.height,
+          }}
+        />
+      )}
       <div
         role="dialog"
         aria-label={t(`steps.${step.id}.title`)}
-        className="bg-popover text-popover-foreground fixed bottom-6 left-1/2 z-[1000000001] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border p-4 shadow-lg"
+        className="bg-popover text-popover-foreground fixed bottom-6 left-1/2 z-[1000000002] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border p-4 shadow-lg"
       >
         <IconButton
           aria-label={t("coachClose")}

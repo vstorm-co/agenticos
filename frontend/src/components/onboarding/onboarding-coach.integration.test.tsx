@@ -132,10 +132,8 @@ describe("OnboardingCoach", () => {
     await waitFor(() => expect(document.querySelector("[data-coach-freeze]")).toBeNull());
   });
 
-  it("outlines the control it points at, on the element so the ring tracks scroll", async () => {
-    const target = document.createElement("button");
-    vi.mocked(waitForElement).mockResolvedValue(target);
+  it("draws the travelling highlight ring while a step is showing", async () => {
     render(<OnboardingCoach />);
-    await waitFor(() => expect(target.classList.contains("onboarding-coach-target")).toBe(true));
+    await waitFor(() => expect(document.querySelector("[data-coach-ring]")).toBeInTheDocument());
   });
 });

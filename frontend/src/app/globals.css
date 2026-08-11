@@ -918,8 +918,16 @@
  * spotlight cut-out moves. driver.js positions the popover inline against the
  * highlighted element, so the pin has to win with `!important`, and the arrow
  * (which would point at nothing from a fixed spot) is hidden.
+ *
+ * `display: block !important` is what keeps the caption from blinking as the
+ * spotlight glides. With `animate` on, driver hides the popover at the start of
+ * every transition (an inline `display: none`) and only rebuilds it at the
+ * halfway point, so a pinned caption would vanish for ~200ms each step. The
+ * `!important` overrides that inline hide, so the old caption holds until the
+ * rebuilt one replaces it in the same frame — an invisible swap, no blink.
  */
 .driver-popover.tour-popover {
+  display: block !important;
   position: fixed !important;
   bottom: 1.5rem !important;
   top: auto !important;
@@ -935,12 +943,10 @@
 }
 
 /*
- * Let the spotlight glide but keep the caption still. driver.js recreates the
- * popover on every step, and with `animate` on it inserts the fresh one while
- * the body still carries `driver-fade`, so the popover's fade-in keyframe
- * replays each step. Against a caption pinned to one spot that reads as a flash
- * of the text, so this one keyframe is suppressed. The overlay is a different
- * element animated by its cut-out path, not this keyframe, so the light still
+ * The other half of keeping the caption still: driver rebuilds the popover each
+ * step while the body carries `driver-fade`, so its fade-in keyframe would replay
+ * and flash the pinned text. Suppressed here. The overlay is a different element,
+ * animated by its cut-out path rather than this keyframe, so the light still
  * glides smoothly from one control to the next.
  */
 .driver-fade .driver-popover.tour-popover {
@@ -948,34 +954,44 @@
 }
 
 /*
- * The interactive coach outlines the exact control the reader should use, on the
- * element itself and in the brand accent — so the ring tracks the control on
- * scroll with no JS to lag behind it, and reads at a glance against the coach's
- * dimmed surroundings. The expanding halo makes it hard to miss; a reader who
- * asks for reduced motion keeps the outline but drops the pulse. `--color-brand`
- * is the accent the rest of the product highlights with; the earlier ring used
- * `--color-primary`, which is near-black here and read as barely-there.
+ * The interactive coach's highlight: a ring in the brand accent that travels and
+ * grows from one control to the next rather than snapping there, so the eye
+ * follows it across the screen. It is a fixed element, not an outline on the
+ * control — the coach freezes the page and scrolls the control into view, so
+ * there is no scrolling for a fixed ring to lag behind, and a fixed element can
+ * animate its own position and size where an outline cannot. The size/position
+ * transition is the travel; the opacity keyframe is a slow, full blink — the ring
+ * fades out completely and back — so it is impossible to miss. A reader who asks
+ * for reduced motion gets a steady ring: no travel, no blink.
  */
-@keyframes onboarding-coach-pulse {
-  0% {
-    box-shadow: 0 0 0 0 var(--color-brand);
-  }
-  70% {
-    box-shadow: 0 0 0 10px transparent;
-  }
-  100% {
-    box-shadow: 0 0 0 0 transparent;
-  }
+.onboarding-coach-ring {
+  position: fixed;
+  z-index: 1000000001;
+  pointer-events: none;
+  border: 3px solid var(--color-brand);
+  border-radius: 12px;
+  box-shadow: 0 0 16px 1px var(--color-brand);
+  transition:
+    top 0.45s ease,
+    left 0.45s ease,
+    width 0.45s ease,
+    height 0.45s ease;
+  animation: onboarding-coach-blink 1.5s ease-in-out infinite;
 }
 
-.onboarding-coach-target {
-  outline: 3px solid var(--color-brand) !important;
-  outline-offset: 3px !important;
-  animation: onboarding-coach-pulse 1.35s ease-in-out infinite;
+@keyframes onboarding-coach-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .onboarding-coach-target {
+  .onboarding-coach-ring {
+    transition: none;
     animation: none;
   }
 }
