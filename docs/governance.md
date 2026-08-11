@@ -324,10 +324,26 @@ this page's rule throughout:
 | `cost_usd` | Its share of the window, **top-level runs only**, so the column sums to the total above it |
 | `month_to_date_usd` | Its **own** calendar month, delegated rows **included** — the spend its `monthly_cap_usd` is a cap on. It does not sum to the organization's month and is not drawn as if it did |
 
-`partial_run_count` says how much of any of it is a fact: how many runs in the
-window had a model with no price, so the cost is a floor by exactly that many.
-*"3 of 40 runs could not be priced"* is something a reader can act on; a figure
-wearing a plus sign is not.
+`partial_run_count` says how much of any of it is a fact: how many **top-level
+runs** in the window could not be fully priced, so the cost is a floor by exactly
+that many. *"3 of 40 runs could not be priced"* is something a reader can act on;
+a figure wearing a plus sign is not.
+
+A run counts when any model in its tree had no price, **its delegates' included** —
+the tree shares one spend ledger, so an unpriced delegate makes the parent's row a
+floor as well. That is what lets one figure govern all three breakdowns: By
+provider and By key sum every row's own spend, delegated rows included, and a floor
+in either of them is marked by a count that never looked at the row causing it. It
+**measures** By agent, which counts the same top-level rows, and only **marks** the
+other two — it counts trees, so one parent with three unpriced delegates reads `1`
+while three figures below it are a floor.
+
+A tree that **straddles the start of the window** is the one case the marker misses:
+the delegate's row is inside the window and its parent's row is not, so By provider
+and By key are a floor and the count above them reads `0`. Rare — it needs a
+delegation that outlives the window's edge — and it is the only remaining way this
+page shows a floor with nothing over it saying so
+([#620](https://github.com/vstorm-co/agenticos/issues/620)).
 
 A row is **one per agent**, with `agent_name` on it. It used to be one per agent
 *and model*, carrying only `model_label` — so the tab listed model names where a

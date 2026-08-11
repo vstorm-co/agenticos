@@ -100,6 +100,62 @@ Two things are versioned separately from this file and worth knowing about:
   it, inflating the count a person works through. The toast rule keeps its
   argument. (#610)
 
+## [0.0.111] - 2026-08-12
+
+The pricing caveat on the cost screen says which breakdown it measures and which
+it only marks.
+
+### Fixed
+
+- **One caveat, three breakdowns, and three places claiming it measured all
+  three.** "Some runs could not be priced" counts top-level runs — one per run
+  tree, the same rows *By agent* groups — so it measures that breakdown and only
+  *marks* By provider and By key, which sum every row's own spend, delegated rows
+  included. One parent with three unpriced delegates therefore reads `1` while
+  three figures below it are a floor. The two schema descriptions, the route
+  comment, the rendering side and `docs/governance.md` now say that instead of
+  claiming the figure and "its breakdown" cannot disagree. Descriptions, comments
+  and tests only — no behaviour change. (#597)
+- **The invariant behind it was untested end to end**: no breakdown is a floor
+  without a figure on the same page saying so. Two integration tests now pin it —
+  a priced parent with an unpriced delegate reads `1` above a provider split that
+  is the delegate's own spend, and one parent with two unpriced delegates still
+  reads `1`, with the delegate's own row counted nowhere. (#597)
+
+Checked and not changed: the marker itself is sound. The reported sequence — an
+unpriced delegate leaving the count at `0` — is not reachable, because a run tree
+shares one spend ledger and the top-level row is written from it.
+
+## [0.0.110] - 2026-08-12
+
+A turn that stopped for an approval no longer says so in the agent's own voice,
+in a transcript that keeps it forever.
+
+### Fixed
+
+- **The approval notice was stored as the agent's words.** A chat turn that
+  parked on an approval wrote *"This run needs approval before it can go further
+  — it is waiting in the approvals queue."* into the assistant message's
+  `content`. The moment somebody approved, that sentence was false, and it stayed
+  in the transcript attributed to the agent, in the middle of a turn that plainly
+  did go further — visible between two steps that both ran, since a run's segments
+  are drawn as one turn. It was never the model's text; it was UI state written
+  into the one field that keeps things forever. A parked run now records no answer
+  of its own, which is what every surface that does not stream already did — web
+  chat was the one place inventing a sentence. That a run is parked is still said
+  by the two things that stop saying it once the decision is made: the step it
+  stopped on, and the approval panel. (#509)
+- **A model that explained itself before asking for a gated call had that
+  explanation overwritten.** A parked turn now persists what was streamed before
+  it stopped, the same route a turn that failed, was stopped or lost its socket
+  already takes. Usually empty; not always. (#509)
+
+Known, and no longer covered for: a still-parked run says nothing about waiting
+once the page is reloaded — the stored tool-call row keeps `status="running"` and
+renders as a finished step, and the approval panel is only ever raised by a live
+socket frame. Every non-streaming surface has always looked like this; the notice
+was accidentally hiding it here. (#601)
+
 ## [0.0.109] - 2026-08-12
 
 The suite reaches no Prefect server on a laptop either, so what a developer runs

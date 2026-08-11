@@ -63,10 +63,10 @@ export function SpendTab() {
   return (
     <div className="space-y-4">
       {/* The one caveat that governs every figure below: how many of the
-          window's runs ran on a model with no price. The breakdowns are a floor
-          by exactly that many, and saying so once at the top is what stops a
-          reader treating the totals as exact. Summed server-side from the same
-          rows, so the caveat and the breakdown cannot disagree about the count. */}
+          window's top-level runs could not be fully priced. Saying it once at
+          the top is what stops a reader treating the totals as exact. It marks
+          By provider and By key without measuring them, and measures By agent -
+          see `CostSummary.partial_run_count` for which is which. */}
       {spend != null && spend.partial_run_count > 0 && (
         <p className="text-muted-foreground text-sm" role="note">
           {t("someRunsCouldNotBePriced", { count: spend.partial_run_count })}
