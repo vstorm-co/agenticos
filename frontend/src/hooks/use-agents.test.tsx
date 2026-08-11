@@ -11,6 +11,7 @@ import {
   useAgents,
   useCapabilityCatalog,
 } from "./use-agents";
+import { useAgentEnvironments } from "./use-agent-environments";
 import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
 import type { AgentSpec } from "@/types/agents";
@@ -417,6 +418,31 @@ describe("useAgent mutations", () => {
 
     expect(apiClient.post).toHaveBeenCalledWith("/agents/a1/publish", { note: "A note" });
     expect(toast.success).toHaveBeenCalledWith("Published v4");
+  });
+
+  it("refetches the environments after a publish, because the default one moved", async () => {
+    // The environments cache is not under `qk.agents`, so the shared
+    // invalidation never reaches it - and a panel still naming the old pin
+    // right after publishing is the publish dialog's sentence contradicted.
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const shared = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(apiClient.post).mockResolvedValue({ version: 4 });
+    const { result } = renderHook(
+      () => ({ agent: useAgent("a1"), environments: useAgentEnvironments("a1") }),
+      { wrapper: shared },
+    );
+    await waitFor(() => expect(result.current.environments.isLoading).toBe(false));
+    const fetches = () =>
+      vi.mocked(apiClient.get).mock.calls.filter(([path]) => path === "/agents/a1/environments")
+        .length;
+    const before = fetches();
+
+    await result.current.agent.publish.mutateAsync(null);
+
+    await waitFor(() => expect(fetches()).toBeGreaterThan(before));
   });
 
   it("reports a refused publish", async () => {
