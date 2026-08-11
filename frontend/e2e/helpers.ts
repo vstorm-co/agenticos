@@ -397,3 +397,33 @@ export async function scopeInMatrix(
   }
   return null;
 }
+
+/** The disclosure listing the organization's existing model profiles. */
+export function savedModels(page: Page): Locator {
+  return page.getByRole("radiogroup", { name: "Model" });
+}
+
+/**
+ * Point the agent at a profile that already exists.
+ *
+ * Behind a disclosure on purpose — the panel leads with the form, because
+ * choosing a model *is* choosing a provider, a model id and a key, and a list of
+ * profiles somebody else created is not where that decision starts. `<details>`
+ * has no ARIA role to aim at, so the summary is clicked by its own text, and
+ * only when it is still shut: clicking it twice closes it again.
+ *
+ * Shared rather than private to `models.spec.ts` because a model is what a spec
+ * needs before it can publish anything at all: the seeded draft is created with
+ * a name and nothing else, so `No model selected` is the first problem publish
+ * reports (#519).
+ */
+export async function selectSavedModel(page: Page, label: string): Promise<void> {
+  const list = savedModels(page);
+  const radio = list.getByRole("radio", { name: label, exact: true });
+  if (!(await radio.isVisible())) {
+    await page.getByText(/^Use a saved model \(\d+\)$/).click();
+  }
+  await expect(radio).toBeVisible();
+  if ((await radio.getAttribute("aria-checked")) !== "true") await radio.click();
+  await expect(radio).toHaveAttribute("aria-checked", "true");
+}

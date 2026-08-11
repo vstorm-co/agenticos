@@ -17,6 +17,30 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Publish says what it will move before it moves it.** The confirmation dialog
+  names the version it creates, the default environment that follows the publish
+  the moment it lands (or, on a first publish, that `production` is created and
+  the agent goes live), and each pinned environment that stays on the version it
+  is pinned to. (#519)
+
+### Fixed
+
+- **The Builder tracked "unsaved" and never "unpublished".** Once the autosave
+  settled the page read as finished, while every channel, widget and API call was
+  still answering with the published version — toggle a tool off in the Toolbox
+  and nothing on screen said a publish was needed. A header badge now compares the
+  *stored* draft against the frozen version spec: "Draft differs from v7", with a
+  title spelling out that published surfaces keep answering with v7 until a
+  publish, or "Up to date with v7". Compared as sorted-keys YAML, the same
+  serialization the version diff reads, so key order cannot read as a change
+  nobody made. (#519)
+- **A publish left the environments panel naming the pin it had just moved.**
+  Publish and rollback invalidated `qk.agents` and not `qk.environments`, so the
+  History tab contradicted the dialog's own sentence seconds after it was read.
+  Pre-existing; included because the new dialog makes it visible. (#519)
+
 ## [0.0.102] - 2026-08-11
 
 The copy guard reads a `.ts` file, and the 381 English strings it had never been

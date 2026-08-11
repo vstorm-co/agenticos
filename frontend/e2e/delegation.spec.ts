@@ -339,6 +339,9 @@ async function expectModel(page: Page, label: string): Promise<void> {
 async function publish(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Publish" }).click();
   await expect(page.getByText("This agent cannot be published yet")).toHaveCount(0);
+  // Publish says what it moves before it does it (#519) - the dialog's own
+  // Publish is the one that actually publishes.
+  await page.getByRole("dialog").getByRole("button", { name: "Publish" }).click();
   await expect(pageHeading(page)).toContainText("published", { timeout: 30_000 });
 }
 
