@@ -2470,6 +2470,14 @@
       "finish": {
         "title": "You're all set",
         "body": "That's the tour. Replay any page's tips anytime from the help button at the top — head to your dashboard whenever you're ready to start building."
+      },
+      "workspaces-detail": {
+        "title": "Inside a workspace",
+        "body": "The files from one workspace. Browse the folders, preview a file, or download whatever an agent produced for you."
+      },
+      "settings-tabs": {
+        "title": "Your settings",
+        "body": "Your profile, sign-in and security, notifications, and slash-commands all live behind these tabs — switch between them here."
       }
     }
   },

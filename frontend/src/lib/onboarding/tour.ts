@@ -23,6 +23,22 @@ export const ORG_MEMBERS = "org-members-detail";
 export const ORG_ROLES = "org-roles-detail";
 
 /**
+ * The Settings section, `/settings/*`. Its four pages — profile, account,
+ * notifications, slash-commands — share one tabbed layout, so one identity stands
+ * in for all of them and a single "?" stop points at the tabs on whichever page
+ * the reader opened it from.
+ */
+export const SETTINGS_DETAIL = "settings-detail";
+
+/**
+ * A workspace's file browser, `/workspaces/<id>`, collapsed the same way. Unlike a
+ * seeded agent or collection there is no example to open from the list — a
+ * workspace is one person's own agent output — so its stop is "?"-only help shown
+ * in place, once the reader has opened one of their own.
+ */
+export const WORKSPACE_DETAIL = "workspace-detail";
+
+/**
  * One stop on the guided tour.
  *
  * The engine (`components/onboarding`) gets the reader to `page`, optionally
@@ -304,6 +320,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
   },
 
   { id: "workspaces-browser", page: ROUTES.WORKSPACES, target: "workspaces-browser" },
+  // The detail a workspace opens onto — the file tree. "?"-only and shown in
+  // place: the reader is already on one of their own workspaces, so the walk
+  // spotlights the browser rather than opening an example there is none of.
+  { id: "workspaces-detail", page: WORKSPACE_DETAIL, target: "workspace-files" },
+
+  // Settings — the tabbed personal section. One "?" stop on the tabs, which live
+  // in the shared layout, so it lands on whichever of the four pages the reader
+  // opened help from. Ungated: everyone has their own settings.
+  { id: "settings-tabs", page: SETTINGS_DETAIL, target: "settings-tabs" },
 
   { id: "finish", inTour: true },
 ];
@@ -327,6 +352,8 @@ export function pageKey(path: string): string {
   if (path.startsWith(`${ROUTES.AGENTS}/`)) return AGENT_BUILDER;
   if (path.startsWith(`${ROUTES.RAG}/`)) return KB_DETAIL;
   if (path.startsWith(`${ROUTES.ORGS}/`)) return path.endsWith("/roles") ? ORG_ROLES : ORG_MEMBERS;
+  if (path.startsWith(`${ROUTES.SETTINGS}/`)) return SETTINGS_DETAIL;
+  if (path.startsWith(`${ROUTES.WORKSPACES}/`)) return WORKSPACE_DETAIL;
   return path;
 }
 

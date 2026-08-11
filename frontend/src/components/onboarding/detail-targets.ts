@@ -5,7 +5,14 @@ import { useQuery } from "@tanstack/react-query";
 
 import { apiClient } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
-import { AGENT_BUILDER, KB_DETAIL, ORG_MEMBERS, ORG_ROLES } from "@/lib/onboarding/tour";
+import {
+  AGENT_BUILDER,
+  KB_DETAIL,
+  ORG_MEMBERS,
+  ORG_ROLES,
+  SETTINGS_DETAIL,
+  WORKSPACE_DETAIL,
+} from "@/lib/onboarding/tour";
 import { qk } from "@/lib/query-keys";
 import { useOrgStore } from "@/stores";
 import type { AgentList } from "@/types/agents";
@@ -87,6 +94,14 @@ export function useDetailTargets(enabled: boolean): Record<string, ResolvedDetai
         pending: orgPending,
         href: orgId ? ROUTES.ORG_ROLES(orgId) : null,
       },
+      // Two "?"-only sections with nothing to fetch. Settings resolves to its own
+      // first page for the rare navigation into it, but its stop is really shown in
+      // place on whichever settings page the reader opened help from. A workspace
+      // has no seeded example to open — it is a person's own agent output — so it
+      // never resolves an href and is not walked into from the list; the entry
+      // exists only so the engine treats it as a detail it need not navigate to.
+      [SETTINGS_DETAIL]: { pending: false, href: ROUTES.SETTINGS_PROFILE },
+      [WORKSPACE_DETAIL]: { pending: false, href: null },
     }),
     [enabled, agents.isPending, agentId, kbs.isPending, kbId, orgPending, orgId],
   );

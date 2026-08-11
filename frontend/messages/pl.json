@@ -1081,6 +1081,14 @@
       "finish": {
         "title": "Wszystko gotowe",
         "body": "To koniec przewodnika. Wskazówki każdej strony odtworzysz w każdej chwili przyciskiem pomocy na górze — przejdź na pulpit, gdy będziesz gotów zacząć budować."
+      },
+      "workspaces-detail": {
+        "title": "Wnętrze przestrzeni",
+        "body": "Pliki z jednej przestrzeni. Przeglądaj foldery, podejrzyj plik albo pobierz to, co agent dla Ciebie wytworzył."
+      },
+      "settings-tabs": {
+        "title": "Twoje ustawienia",
+        "body": "Twój profil, logowanie i bezpieczeństwo, powiadomienia oraz komendy ze slashem — wszystko kryje się za tymi zakładkami; przełączaj się między nimi tutaj."
       }
     }
   }

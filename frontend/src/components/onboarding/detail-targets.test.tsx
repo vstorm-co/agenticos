@@ -4,7 +4,14 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useDetailTargets } from "./detail-targets";
-import { AGENT_BUILDER, KB_DETAIL, ORG_MEMBERS, ORG_ROLES } from "@/lib/onboarding/tour";
+import {
+  AGENT_BUILDER,
+  KB_DETAIL,
+  ORG_MEMBERS,
+  ORG_ROLES,
+  SETTINGS_DETAIL,
+  WORKSPACE_DETAIL,
+} from "@/lib/onboarding/tour";
 import { qk } from "@/lib/query-keys";
 import { useOrgStore } from "@/stores";
 
@@ -55,6 +62,10 @@ describe("useDetailTargets", () => {
     expect(result.current[KB_DETAIL]?.href).toBe("/rag/kb-1");
     expect(result.current[ORG_MEMBERS]?.href).toBe("/orgs/org-1/members");
     expect(result.current[ORG_ROLES]?.href).toBe("/orgs/org-1/roles");
+    // The two "?"-only sections need no fetch: settings resolves to its first
+    // page, a workspace to nothing to open, and neither is ever pending.
+    expect(result.current[SETTINGS_DETAIL]).toEqual({ pending: false, href: "/settings/profile" });
+    expect(result.current[WORKSPACE_DETAIL]).toEqual({ pending: false, href: null });
   });
 
   it("prefers the seeded getting-started agent and default collection over the first row", () => {

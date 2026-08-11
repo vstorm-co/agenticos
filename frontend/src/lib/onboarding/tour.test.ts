@@ -6,9 +6,11 @@ import {
   ORG_MEMBERS,
   ORG_ROLES,
   pageKey,
+  SETTINGS_DETAIL,
   stepsForPage,
   TOUR_STEPS,
   visibleTourSteps,
+  WORKSPACE_DETAIL,
 } from "./tour";
 import { ROUTES } from "@/lib/constants";
 import { Perm, type Permission } from "@/types/permissions";
@@ -62,6 +64,12 @@ describe("pageKey", () => {
   it("splits the two organization detail routes onto their own identities", () => {
     expect(pageKey("/orgs/abc-123/members")).toBe(ORG_MEMBERS);
     expect(pageKey("/orgs/abc-123/roles")).toBe(ORG_ROLES);
+  });
+
+  it("collapses each settings tab and each workspace onto one identity", () => {
+    expect(pageKey(ROUTES.SETTINGS_PROFILE)).toBe(SETTINGS_DETAIL);
+    expect(pageKey(ROUTES.SETTINGS_SLASH_COMMANDS)).toBe(SETTINGS_DETAIL);
+    expect(pageKey("/workspaces/abc-123")).toBe(WORKSPACE_DETAIL);
   });
 
   it("leaves the list routes and other pages as their own route", () => {
@@ -163,6 +171,17 @@ describe("stepsForPage", () => {
     expect(stepsForPage("/agents/some-id", () => true).map((step) => step.id)).toEqual(
       BUILDER_STEPS,
     );
+  });
+
+  it("gives Settings and a workspace their own '?' stop, from any of their routes", () => {
+    // Settings collapses its four tabs onto one identity, so help opened on any of
+    // them lands the same stop; a workspace detail has its own.
+    expect(stepsForPage(ROUTES.SETTINGS_NOTIFICATIONS, () => true).map((s) => s.id)).toEqual([
+      "settings-tabs",
+    ]);
+    expect(stepsForPage("/workspaces/some-id", () => true).map((s) => s.id)).toEqual([
+      "workspaces-detail",
+    ]);
   });
 
   it("is richer than the launch pass for the same section", () => {
