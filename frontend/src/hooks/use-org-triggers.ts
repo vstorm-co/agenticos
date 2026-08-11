@@ -17,7 +17,7 @@ import type { TriggerList } from "@/types/triggers";
  * not fetch the list until its section is expanded.
  */
 export function useOrgTriggers(enabled = true) {
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: qk.triggers.orgList(),
     queryFn: () => apiClient.get<TriggerList>("/triggers"),
     enabled,
@@ -28,5 +28,7 @@ export function useOrgTriggers(enabled = true) {
     total: data?.total ?? 0,
     isLoading,
     isError,
+    error,
+    refetch,
   };
 }

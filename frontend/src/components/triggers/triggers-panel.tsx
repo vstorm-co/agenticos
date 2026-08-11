@@ -1,23 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Pause, Pencil, Play, Plus, Trash2, Zap } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { TriggerFormDialog } from "@/components/triggers/trigger-form-dialog";
-import { TriggerSummary } from "@/components/triggers/trigger-summary";
+import { TriggerRow } from "@/components/triggers/trigger-row";
 import { LoadingState } from "@/components/states";
-import {
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui";
+import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
 import { useTriggers } from "@/hooks/use-triggers";
-import type { Trigger, TriggerType } from "@/types/triggers";
+import type { TriggerType } from "@/types/triggers";
 
 interface TriggersPanelProps {
   agentId: string;
@@ -36,14 +28,15 @@ interface TriggersPanelProps {
  *
  * The empty state says what the absence means: an agent with no triggers is not
  * misconfigured, it simply answers only when someone messages it, which is the
- * default. Every row action is hidden, not just disabled, for a caller who may
- * not manage them - the same rule the rest of the Builder follows.
+ * default. The rows are the shared `TriggerRow`, so a pause here behaves exactly
+ * as it does in the sidebar and the Activity tab; this panel adds only the
+ * create buttons, which are hidden - not merely disabled - for a caller who may
+ * not manage them.
  */
 export function TriggersPanel({ agentId, canManage }: TriggersPanelProps) {
   const t = useTranslations("triggers");
-  const { triggers, isLoading, setActive, runNow, remove } = useTriggers(agentId);
+  const { triggers, isLoading } = useTriggers(agentId);
   const [creating, setCreating] = useState<TriggerType | null>(null);
-  const [editing, setEditing] = useState<Trigger | null>(null);
 
   if (isLoading) return <LoadingState variant="skeleton-panel" rows={2} />;
 
@@ -57,56 +50,7 @@ export function TriggersPanel({ agentId, canManage }: TriggersPanelProps) {
         {triggers.length === 0 && <p className="text-muted-foreground text-sm">{t("empty")}</p>}
 
         {triggers.map((trigger) => (
-          <div key={trigger.id} className="flex items-center gap-3 rounded-md border p-3">
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm">
-                <TriggerSummary trigger={trigger} />
-              </p>
-              <p className="text-muted-foreground truncate text-xs">{trigger.prompt}</p>
-            </div>
-            {!trigger.is_active && <Badge variant="secondary">{t("paused")}</Badge>}
-            {canManage && (
-              <>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  aria-label={t("runNow")}
-                  disabled={!trigger.is_active || runNow.isPending}
-                  onClick={() => runNow.mutate(trigger.id)}
-                >
-                  <Zap className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  aria-label={t("edit")}
-                  onClick={() => setEditing(trigger)}
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  aria-label={trigger.is_active ? t("pause") : t("resume")}
-                  disabled={setActive.isPending}
-                  onClick={() =>
-                    setActive.mutate({ triggerId: trigger.id, isActive: !trigger.is_active })
-                  }
-                >
-                  {trigger.is_active ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  aria-label={t("delete")}
-                  disabled={remove.isPending}
-                  onClick={() => remove.mutate(trigger.id)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </>
-            )}
-          </div>
+          <TriggerRow key={trigger.id} trigger={trigger} canManage={canManage} />
         ))}
 
         {canManage && (
@@ -129,14 +73,6 @@ export function TriggersPanel({ agentId, canManage }: TriggersPanelProps) {
           open
           initialType={creating}
           onOpenChange={(next) => !next && setCreating(null)}
-        />
-      )}
-      {editing && (
-        <TriggerFormDialog
-          agentId={agentId}
-          open
-          trigger={editing}
-          onOpenChange={(next) => !next && setEditing(null)}
         />
       )}
     </Card>

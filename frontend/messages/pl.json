@@ -292,6 +292,9 @@
       "syncSourcesFailedDescription": "Żądanie o źródła synchronizacji tej bazy nie powiodło się, więc nie wiadomo, czy jakieś ma.",
       "connectorsFailedTitle": "Nie udało się wczytać konektorów",
       "connectorsFailedDescription": "Żądanie listy konektorów nie powiodło się, więc nie wiadomo, czy któryś jest włączony."
+    },
+    "runs": {
+      "scheduled": "Zaplanowane"
     }
   },
   "rag": {
@@ -733,6 +736,10 @@
     "pause": "Wstrzymaj",
     "resume": "Wznów",
     "delete": "Usuń",
-    "unit": "Jednostka"
+    "unit": "Jednostka",
+    "activityTitle": "Harmonogramy i wyzwalacze",
+    "activityDescription": "Każdy agent uruchamiający się sam w organizacji - według harmonogramu lub zdarzenia.",
+    "activityEmptyTitle": "Nic jeszcze nie zaplanowano",
+    "activityEmptyDescription": "Gdy agent zostanie ustawiony, by uruchamiał się sam, pojawi się tutaj."
   }
 }

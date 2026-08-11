@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { ActivityFigures } from "@/components/runs/activity-figures";
 import { ApprovalsTab } from "@/components/runs/approvals-tab";
 import { RunHistoryTab } from "@/components/runs/run-history-tab";
+import { ScheduledTab } from "@/components/runs/scheduled-tab";
 import { SpendTab } from "@/components/runs/spend-tab";
 import { LoadingState } from "@/components/states";
 import { Badge, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
@@ -77,6 +78,7 @@ export default function RunsPage() {
               </TabsTrigger>
             )}
             <TabsTrigger value="runs">{t("runs2")}</TabsTrigger>
+            <TabsTrigger value="scheduled">{t("scheduled")}</TabsTrigger>
             <TabsTrigger value="spend">{t("spend")}</TabsTrigger>
           </TabsList>
 
@@ -88,6 +90,10 @@ export default function RunsPage() {
 
           <TabsContent value="runs">
             <RunHistoryTab agentId={agentId} focusedRunId={focusedRunId} />
+          </TabsContent>
+
+          <TabsContent value="scheduled">
+            <ScheduledTab />
           </TabsContent>
 
           <TabsContent value="spend">

@@ -2431,7 +2431,8 @@
       "waitingPerson": "Waiting on a person",
       "whatEachVendorWas": "What each vendor was paid - this is the number an invoice is checked against.",
       "whatYourAgentsDid2": "What your agents did, what it cost, and what is waiting on a person.",
-      "whichStoredCredentialWas": "Which stored credential it was spent through. A key you do not recognise here is one to rotate."
+      "whichStoredCredentialWas": "Which stored credential it was spent through. A key you do not recognise here is one to rotate.",
+      "scheduled": "Scheduled"
     },
     "sandboxes": {
       "addConnection": "Add connection",
@@ -3186,6 +3187,10 @@
     "pause": "Pause",
     "resume": "Resume",
     "delete": "Delete",
-    "unit": "Unit"
+    "unit": "Unit",
+    "activityTitle": "Schedules & triggers",
+    "activityDescription": "Every agent running itself across the organization - on a schedule or an event.",
+    "activityEmptyTitle": "Nothing scheduled yet",
+    "activityEmptyDescription": "When an agent is set to run itself, it shows here."
   }
 }
