@@ -23,6 +23,12 @@
     "displayName": "Display name",
     "email": "Email",
     "export": "Export",
+    "failedDeleteUser": "Failed to delete user",
+    "failedImpersonateUser": "Failed to impersonate user",
+    "failedLoadConversation": "Failed to load conversation",
+    "failedLoadConversations": "Failed to load conversations",
+    "failedLoadUsers": "Failed to load users",
+    "failedUpdateUser": "Failed to update user",
     "generalAssistant": "General assistant",
     "impersonate": "Impersonate",
     "impersonationTokenCopiedValid": "Impersonation token copied (valid 1h)",
@@ -51,8 +57,10 @@
     "totalRatings": "Total Ratings",
     "untitled": "Untitled",
     "user": "User",
+    "userDeleted": "User deleted",
     "userId": "User ID",
     "userIdCopied": "User ID copied",
+    "userUpdated": "User updated",
     "users": "Users",
     "view": "View",
     "withCommentsOnly": "With comments only"
@@ -94,6 +102,7 @@
     "approvalHintRequired": "A person approves every call before it runs.",
     "approvalNever": "Never ask",
     "archive": "Archive",
+    "archived": "Agent archived. Its history and runs are kept.",
     "askingService": "Asking the service…",
     "atLeast16Characters": "At least 16 characters",
     "audienceAdmins": "Admins",
@@ -106,6 +115,7 @@
     "audienceOwnerHint": "The person who would fix this agent's configuration.",
     "audienceRemove": "{alert}: remove {name}",
     "avatarUpdated": "Avatar updated",
+    "backAsDraft": "{name} is back as a draft - publish it to run it",
     "backendServiceDetail": "Files and a shell, on a sandbox connection your operator registered.",
     "backendServiceLabel": "Container",
     "backendStateDetail": "Files but no shell, stored here. Works on every deployment.",
@@ -149,6 +159,8 @@
     "costReportingHint": "Whether a reply says what the turn cost. It is recorded either way - 'the bot went quiet' is a question somebody asks days later.",
     "create": "Create",
     "createOne": "Create one",
+    "created": "Created {name}",
+    "createdDraft": "Created {name} - a draft, nothing published yet",
     "currentModel": "Current model",
     "default": "default",
     "default2": "default",
@@ -178,6 +190,7 @@
     "delegationPolicyHeading": "Policy",
     "delegationPolicyNoSchema": "This deployment's delegation capability publishes no configuration schema, so there is nothing to set here. Depth, fan-out and mode arrive with it.",
     "deletePermanently": "Delete permanently",
+    "deleted": "Agent deleted",
     "deploymentSOwnShortlist": "This deployment's own shortlist - the provider could not be asked. Any id it accepts still works.",
     "deploymentSProject": "The deployment's project",
     "description": "Description",
@@ -195,7 +208,14 @@
     "everyRunAlreadyTraced": "Every run is already traced into the Logfire project this deployment is configured with. Pick a write token to send this agent's runs to a project of its own instead - an agent built for a client traces into the client's project, with their retention and their alerting.",
     "everyoneWhoTalksAgent": "Everyone who talks to this agent reads and writes the same files. A file one person uploads is visible to the rest of the organization. Publishing this is recorded in the audit log.",
     "everythingBelowAppliesAgent": "Everything below applies to this agent alone.",
+    "exposureLive": "Now available on {bot}",
+    "exposurePaused": "Paused on {bot}",
+    "exposureResumed": "Answering again on {bot}",
+    "exposureRevoked": "No longer available there",
     "failed": "Failed",
+    "failedCreateEnvironment": "Failed to create environment",
+    "failedPromote": "Failed to promote",
+    "failedRemoveEnvironment": "Failed to remove environment",
     "filesWorkspaceHasNo": "The Files workspace has no shell — pair it with Run Python to compute.",
     "followCapabilityAlwaysAsk": "Follow the capability - always ask",
     "followCapabilityNeverAsk": "Follow the capability - never ask",
@@ -216,6 +236,7 @@
     "leaveEmptyProviderS": "Leave empty for the provider's own API",
     "listedByProviderJust": "Listed by the provider just now.",
     "live": "live",
+    "liveAgain": "{name} is live again",
     "logfireTokenName": "Logfire write token",
     "longestAnswerModelMay": "The longest answer the model may generate.",
     "manageCollections": "Manage collections",
@@ -310,11 +331,13 @@
     "promote": "Promote to…",
     "promoteSpecialist": "Promote to a draft agent",
     "promoteSpecialistDetail": "Creates a draft agent from this specialist. It is not published, not pinned as a delegate, and this specialist stays where it is.",
+    "promoted": "Promoted",
     "provider": "Provider",
     "providerPublishesNoList": "This provider publishes no list here. Type the model id as the provider names it.",
     "publishAgentAsChat": "Publish this agent as a chat widget for a site you do not control - one script tag, no build step. The key in that tag is public, so what actually protects the agent is the list of sites it may be opened from. An empty list allows nothing.",
     "publishAsWidget": "Publish as widget",
     "publishWidget": "Publish widget",
+    "publishedVersion": "Published v{version}",
     "readHereFirstSettings": "Read it here first - the settings below are what switching it on configures.",
     "readingCatalog": "Reading the catalog…",
     "readingVault": "Reading the vault…",
@@ -333,6 +356,7 @@
     "restore2": "Restore",
     "resume": "Resume",
     "resumeOn": "Resume on {bot}",
+    "rolledBack": "Rolled back - now running v{version}",
     "runAwaitingApproval": "waiting for approval",
     "runBudgetExceeded": "stopped by budget",
     "runCancelled": "cancelled",
@@ -450,6 +474,9 @@
     "whoCanUse": "Who can use it",
     "whoHearsAbout": "Who hears about it",
     "whoSharesByDefault": "Who shares it by default",
+    "widgetPublished": "Widget published. Copy the snippet into your site.",
+    "widgetRemoved": "Widget removed. Every page carrying its key has stopped working.",
+    "widgetSaved": "Saved",
     "with": "with",
     "workspace": "Workspace",
     "writeOne": "Write one",
@@ -482,6 +509,7 @@
     "getStarted": "Let's set you up",
     "hasAccount": "Already have an account?",
     "linkSentHeading": "Link sent. <em>On its way.</em>",
+    "loggedOut": "Logged out",
     "loggingIn": "Logging in...",
     "login": "Login",
     "loginFailedPleaseTry": "Login failed. Please try again.",
@@ -573,13 +601,24 @@
     },
     "aiCanMakeMistakes": "AI can make mistakes. Verify important information.",
     "analyzeFiles": "Analyze the attached file(s)",
+    "approve": "Approve",
     "archive": "Archive",
+    "archivedToast": "Conversation archived",
     "attachedFile": "Attached file",
     "backAgentAposS": "Back to the agent's own model",
     "cancel": "Cancel",
     "close": "Close",
     "closePreview": "Close preview",
     "closeSourcesPanel": "Close sources panel",
+    "commands": {
+      "clearDescription": "Clear the current chat (does not delete the conversation).",
+      "explainDescription": "Ask the agent to explain its last response in simpler terms.",
+      "explainPrompt": "Explain your last response again, in simpler terms - assume I don't have technical background.",
+      "regenDescription": "Regenerate the last assistant response.",
+      "settingsDescription": "Open chat settings (model, temperature, thinking).",
+      "summarizeDescription": "Ask the agent to summarize the conversation so far.",
+      "summarizePrompt": "Please give me a concise summary of our conversation so far - key topics, decisions, and any open questions."
+    },
     "controls": {
       "backAgentAposS": "Back to the agent's own model",
       "controls": "Controls",
@@ -610,6 +649,9 @@
       "whichModelRunsHere": "Which model this conversation runs on. Everything else about the agent stays as it is."
     },
     "conversationArchived": "This conversation is archived",
+    "conversationDeleted": "Conversation deleted",
+    "conversationRenamed": "Conversation renamed",
+    "conversationRestored": "Conversation restored",
     "conversationShared": "Conversation shared",
     "conversations": "Conversations",
     "copied": "Copied!",
@@ -621,6 +663,7 @@
     },
     "copyLink": "Link copied to clipboard",
     "copyShareLink": "Copy share link",
+    "decidingNeedsPermission": "Approving or refusing this needs a permission you do not hold. The run waits until somebody who can decide approvals does.",
     "delegation": {
       "awaiting": "waiting for approval",
       "background": "Background",
@@ -634,7 +677,6 @@
       "tokens": "{input, number} input · {output, number} output tokens",
       "working": "working…"
     },
-    "decidingNeedsPermission": "Approving or refusing this needs a permission you do not hold. The run waits until somebody who can decide approvals does.",
     "delete": "Delete",
     "describeIssue": "Describe the issue... (optional)",
     "download": "Download",
@@ -661,7 +703,14 @@
     "enter8": "Enter",
     "escape3": "Escape",
     "escape4": "Escape",
+    "failedArchiveConversation": "Failed to archive conversation",
+    "failedCreateConversation": "Failed to create conversation",
+    "failedDeleteConversation": "Failed to delete conversation",
+    "failedFetchMessages": "Failed to fetch messages",
+    "failedLoadCommands": "Failed to load commands",
     "failedRemoveRating": "Failed to remove rating",
+    "failedRenameConversation": "Failed to rename conversation",
+    "failedRestoreConversation": "Failed to restore conversation",
     "failedSubmitRating": "Failed to submit rating",
     "failedToGenerateLink": "Failed to generate link",
     "failedToRevoke": "Failed to revoke access",
@@ -736,6 +785,7 @@
     "ratingFailed": "Failed to submit rating",
     "ratingRemoved": "Rating removed",
     "regenerate": "Regenerate response",
+    "reject": "Reject",
     "removeFromQueue": "Remove from queue",
     "rename": "Rename",
     "resizeFilePreview": "Resize file preview",
@@ -796,23 +846,81 @@
     "tokensDetail": "{input, number} input · {output, number} output tokens",
     "toolApprovalRequired": "Tool approval required",
     "tools": {
+      "activeTasks": "Active Tasks",
+      "answerDelegate": "Answer Delegate",
+      "answeringDelegate": "Answering a delegate",
       "arguments": "Arguments",
+      "askingDelegateStop": "Asking a delegate to stop",
+      "availableSkills": "Available Skills",
+      "cancelTask": "Cancel Task",
+      "cancellingDelegate": "Cancelling a delegate",
+      "channelHistory": "Channel History",
+      "channelInfo": "Channel Info",
+      "channelMembers": "Channel Members",
+      "channelSearch": "Channel Search",
+      "chart": "Chart",
+      "checkingDelegate": "Checking on a delegate",
       "chunkCount": "{count, plural, =1 {1 chunk} other {# chunks}}",
       "chunkNumber": "chunk {number}",
+      "createSpecialist": "Create Specialist",
+      "creating": "Creating",
+      "creatingChart": "Creating a chart",
+      "creatingSpecialist": "Creating a specialist",
+      "delegating": "Delegating",
+      "edited": "{named, select, no {Edited…} other {Edited {subject}}}",
+      "editing": "{named, select, no {Editing…} other {Editing {subject}}}",
+      "executed": "{named, select, no {Ran…} other {Ran {subject}}}",
+      "executing": "{named, select, no {Running…} other {Running {subject}}}",
       "failedToLoadSkill": "Failed to load skill.",
+      "fetchingData": "Fetching data",
+      "generatingChart": "Generating a chart",
+      "handingWork": "Handing work to a delegate",
+      "knowledgeBaseSearch": "Knowledge Base Search",
+      "listed": "{named, select, no {Listed…} other {Listed {subject}}}",
+      "listing": "{named, select, no {Listing…} other {Listing {subject}}}",
+      "loadSkill": "Load Skill",
       "loading": "Loading…",
+      "loadingSkill": "Loading a skill",
+      "lookedFor": "{named, select, no {Looked for…} other {Looked for {subject}}}",
+      "lookingAtChannel": "Looking at the channel",
+      "lookingAtChannelMembers": "Looking at who is in the channel",
+      "lookingAtRunning": "Looking at what is still running",
+      "lookingFor": "{named, select, no {Looking for…} other {Looking for {subject}}}",
+      "lookingForChannel": "Looking for a channel",
+      "lookingThatUp": "Looking that up",
+      "lookingThroughSkills": "Looking through the skills",
+      "messageDelegate": "Message Delegate",
       "moreEntries": "and {count, plural, =1 {1 more} other {# more}} — open the raw view for all of them",
       "noArguments": "No arguments",
       "noRelevantDocuments": "No relevant documents found",
       "noWebResults": "No web results found",
       "output": "Output",
+      "read": "{named, select, no {Read…} other {Read {subject}}}",
+      "reading": "{named, select, no {Reading…} other {Reading {subject}}}",
+      "readingChannel": "Reading the channel",
+      "readingSkillFiles": "Reading a skill's files",
       "result": "Result",
+      "runPython": "Run Python",
       "running": "Running…",
+      "runningCalculations": "Running calculations",
+      "runningNamed": "Running {name}",
+      "searchedFor": "{named, select, no {Searched for…} other {Searched for {subject}}}",
+      "searching": "Searching",
+      "searchingDocuments": "Searching the documents",
+      "searchingFor": "{named, select, no {Searching for…} other {Searching for {subject}}}",
+      "searchingWeb": "Searching the web",
       "showFormatted": "Show the formatted view",
       "showRaw": "Show arguments and raw output",
+      "skillResource": "Skill Resource",
       "sourceCount": "{count, plural, =1 {1 source} other {# sources}}",
+      "steeringDelegate": "Steering a delegate",
+      "stopTask": "Stop Task",
       "toolFailed": "Tool failed.",
-      "webResultCount": "{count, plural, =1 {1 web result} other {# web results}}"
+      "waitingDelegates": "Waiting for the delegates",
+      "webResultCount": "{count, plural, =1 {1 web result} other {# web results}}",
+      "webSearch": "Web Search",
+      "writing": "{named, select, no {Writing…} other {Writing {subject}}}",
+      "wrote": "{named, select, no {Wrote…} other {Wrote {subject}}}"
     },
     "unknownError": "Unknown error",
     "usage": {
@@ -827,9 +935,7 @@
     },
     "view": "View",
     "web": "Web",
-    "whatWentWrong": "What went wrong?",
-    "approve": "Approve",
-    "reject": "Reject"
+    "whatWentWrong": "What went wrong?"
   },
   "common": {
     "back": "Back",
@@ -857,6 +963,12 @@
     "yes": "Yes"
   },
   "dashboard": {
+    "actions": {
+      "createAgent": "Create an agent",
+      "invite": "Invite a teammate",
+      "newChat": "New chat",
+      "reviewApprovals": "Review approvals"
+    },
     "activeSessions": "Active sessions",
     "allOtherSessionsRevoked": "All other sessions revoked",
     "breadcrumb": "Breadcrumb",
@@ -864,468 +976,464 @@
     "couldnTLoadYour": "Couldn't load your sessions",
     "current": "Current",
     "devicesCurrentlySignedYour": "Devices currently signed in to your account.",
+    "errors": {
+      "description": "The request failed. The rest of the page is unaffected - every card fails alone.",
+      "retry": "Retry",
+      "title": "Couldn't load this"
+    },
     "everyDeviceSignedYour": "Every device signed in to your account will be signed out, except this one.",
     "failedRevokeSession": "Failed to revoke session",
     "failedRevokeSessions": "Failed to revoke sessions",
     "lastActive": "Last active {when}",
     "nextPage": "Next page",
     "noSessionDataAvailable": "No session data available.",
+    "orgDivider": {
+      "label": "Organization",
+      "note": "Everything below is this organization"
+    },
+    "period": {
+      "1d": "Today",
+      "30d": "Last 30 days",
+      "7d": "Last 7 days",
+      "90d": "Last 90 days",
+      "custom": "Custom range",
+      "label": "Period",
+      "lm": "Last month",
+      "tm": "This month"
+    },
     "previousPage": "Previous page",
     "revokeAll": "Revoke all",
     "revokeAllOtherSessions": "Revoke all other sessions?",
     "revokeAllOthers": "Revoke all others",
     "revokeSession": "Revoke session",
     "revokeSession2": "Revoke session",
-    "sessionRevoked": "Session revoked",
-    "title": "Dashboard",
-    "seeAll": "See all",
-    "subtitles": {
-      "app_admin": "The whole deployment first, then your organization - same page, more answers.",
-      "steward": "Adoption, cost, and what needs a decision.",
-      "builder": "Are the agents you build actually used - and are they healthy?",
-      "operator": "Is everything running, and what is waiting on you?",
-      "member": "Pick up where you left off.",
-      "viewer": "What has been shared with you."
-    },
-    "period": {
-      "label": "Period",
-      "1d": "Today",
-      "7d": "Last 7 days",
-      "30d": "Last 30 days",
-      "90d": "Last 90 days",
-      "tm": "This month",
-      "lm": "Last month",
-      "custom": "Custom range"
+    "sections": {
+      "adoption": "How your builds behave",
+      "attention": "Needs attention",
+      "build": "Your agents",
+      "deployment": "Deployment",
+      "health": "Health",
+      "people": "People & quality",
+      "sandboxes": "Where agents run code",
+      "usage": "Usage & cost",
+      "workspace": "Your workspace"
     },
     "sectionsFilter": {
-      "label": "Sections",
-      "all": "All sections"
+      "all": "All sections",
+      "label": "Sections"
     },
-    "sections": {
-      "deployment": "Deployment",
-      "attention": "Needs attention",
-      "usage": "Usage & cost",
-      "people": "People & quality",
-      "workspace": "Your workspace",
-      "build": "Your agents",
-      "adoption": "How your builds behave",
-      "health": "Health",
-      "sandboxes": "Where agents run code"
-    },
-    "actions": {
-      "newChat": "New chat",
-      "createAgent": "Create an agent",
-      "reviewApprovals": "Review approvals",
-      "invite": "Invite a teammate"
-    },
-    "orgDivider": {
-      "label": "Organization",
-      "note": "Everything below is this organization"
-    },
+    "seeAll": "See all",
+    "sessionRevoked": "Session revoked",
     "states": {
       "loading": "Loading"
     },
-    "errors": {
-      "title": "Couldn't load this",
-      "description": "The request failed. The rest of the page is unaffected - every card fails alone.",
-      "retry": "Retry"
+    "subtitles": {
+      "app_admin": "The whole deployment first, then your organization - same page, more answers.",
+      "builder": "Are the agents you build actually used - and are they healthy?",
+      "member": "Pick up where you left off.",
+      "operator": "Is everything running, and what is waiting on you?",
+      "steward": "Adoption, cost, and what needs a decision.",
+      "viewer": "What has been shared with you."
     },
+    "title": "Dashboard",
     "widgets": {
-      "platform": {
-        "title": "Platform at a glance",
-        "organizations": "Organizations",
-        "users": "Users",
-        "agents": "Agents",
-        "conversations": "Conversations",
-        "active24h": "{count} active in 24 h",
-        "empty": {
-          "title": "Nothing here yet",
-          "description": "A fresh deployment: no organizations beyond bootstrap, no runs."
-        }
-      },
-      "health": {
-        "title": "Service health",
-        "status": {
-          "healthy": "ok",
-          "unhealthy": "down",
-          "unconfigured": "unconfigured",
-          "not_checked": "not checked"
-        },
-        "empty": {
-          "title": "No services report",
-          "description": "The health probe has not answered yet."
-        }
-      },
-      "top-orgs": {
-        "title": "Top organizations",
-        "organization": "Organization",
-        "members": "Members",
-        "agents": "Agents",
-        "empty": {
-          "title": "No organizations yet",
-          "description": "Only the bootstrap organization exists."
-        }
-      },
-      "platform-ratings": {
-        "title": "Answer quality, deployment-wide",
-        "subline": "rated positive - {count} ratings across all organizations",
-        "empty": {
-          "title": "No ratings yet",
-          "description": "Nobody has rated an answer anywhere on the deployment."
-        }
-      },
-      "runs": {
-        "title": "Runs over time",
-        "unit": "runs",
-        "delta": "vs the previous period",
-        "empty": {
-          "title": "No runs in this period",
-          "description": "Publish an agent and give it a surface - adoption shows up here."
-        }
-      },
-      "outcomes": {
-        "title": "Outcomes",
-        "completed": "completed",
-        "attention": "1 in {n} runs needed attention this period",
-        "status": {
-          "completed": "Completed",
-          "failed": "Failed",
-          "budget_exceeded": "Budget exceeded",
-          "awaiting_approval": "Awaiting approval",
-          "other": "Running or cancelled"
-        },
-        "empty": {
-          "title": "No runs in this period",
-          "description": "Outcome split appears with the first run."
-        }
-      },
-      "surfaces": {
-        "title": "Where runs come from",
-        "names": {
-          "playground": "Playground",
-          "web": "Web chat",
-          "embed": "Widget",
-          "api": "HTTP API",
-          "slack": "Slack",
-          "telegram": "Telegram",
-          "mattermost": "Mattermost",
-          "schedule": "Schedule"
-        },
-        "empty": {
-          "title": "No runs in this period",
-          "description": "Playground, web chat, API, Slack, Telegram, Mattermost and the embedded widget land here."
-        }
-      },
-      "agents": {
-        "title": "Agents: adopted and forgotten",
-        "idle": "Published but idle this period:",
-        "empty": {
-          "title": "No published agents",
-          "description": "Nothing has been published in this organization yet."
-        }
-      },
-      "latency": {
-        "title": "Latency",
-        "p50": "Median (p50)",
-        "p95": "Slowest 5% (p95)",
-        "viewSlowest": "Open these runs, slowest first",
-        "subline": "Started to finished, over every run in the period.",
-        "empty": {
-          "title": "No completed runs",
-          "description": "Latency needs at least one finished run."
-        }
-      },
       "active-users": {
-        "title": "Active people",
+        "empty": {
+          "description": "Adoption starts with the first person's first run.",
+          "title": "Nobody has run anything"
+        },
         "headline": "{active} of {total} members",
         "subline": "ran an agent in this period - the headline; the names are in the table below",
-        "empty": {
-          "title": "Nobody has run anything",
-          "description": "Adoption starts with the first person's first run."
-        }
+        "title": "Active people"
       },
-      "top-people": {
-        "title": "Who is using it",
-        "columns": {
-          "person": "Person",
-          "runs": "Runs",
-          "cost": "Cost",
-          "lastRun": "Last run"
+      "agents": {
+        "empty": {
+          "description": "Nothing has been published in this organization yet.",
+          "title": "No published agents"
         },
-        "others": "{count, plural, =1 {1 more person ran at least one agent} other {# more people ran at least one agent}}",
-        "disclosure": "Everyone holding runs:view sees this - builders and operators as well as owners and admins.",
-        "empty": {
-          "title": "Nobody has run anything",
-          "description": "The first person's first run puts a name here."
-        }
-      },
-      "spend": {
-        "title": "Spend",
-        "unit": "in this period",
-        "delta": "vs the previous period",
-        "notRecorded": "not recorded",
-        "monthToDate": "This month so far: {amount} - calendar month, reconciles with the invoice; deliberately not scoped by the period filter.",
-        "empty": {
-          "title": "Nothing spent yet",
-          "description": "Model cost lands here run by run."
-        }
-      },
-      "model-mix": {
-        "title": "Models behind the runs",
-        "notRecorded": "not recorded",
-        "subline": "As recorded on each run (model_label).",
-        "empty": {
-          "title": "No runs in this period",
-          "description": "The model mix appears with the first run."
-        }
-      },
-      "version-compare": {
-        "title": "Version to version",
-        "subline": "{agent} - {current} (current) vs {previous}, only runs that executed each version",
-        "metric": {
-          "runs": "Runs",
-          "completed": "Success rate",
-          "p95": "p95 latency",
-          "cost": "Cost per run",
-          "ratings": "Positive ratings"
-        },
-        "empty": {
-          "title": "Only one version has run",
-          "description": "Publish a new version - the comparison appears once both have runs in the period."
-        }
+        "idle": "Published but idle this period:",
+        "title": "Agents: adopted and forgotten"
       },
       "approvals": {
-        "title": "Waiting on a decision",
-        "wants": "wants to call {tool}",
-        "waiting": "waiting {ago}",
-        "review": "Review",
+        "empty": {
+          "description": "Every approval has been decided. This card earns its place by being empty.",
+          "title": "Nothing waiting"
+        },
         "more": "{count} more in the queue",
-        "empty": {
-          "title": "Nothing waiting",
-          "description": "Every approval has been decided. This card earns its place by being empty."
-        }
-      },
-      "recent-failures": {
-        "title": "Recent failures",
-        "unknownAgent": "Unknown agent",
-        "budgetExceeded": "budget exceeded mid-run",
-        "failed": "failed",
-        "open": "Open runs",
-        "empty": {
-          "title": "No failures",
-          "description": "Every run in this period finished cleanly."
-        }
+        "review": "Review",
+        "title": "Waiting on a decision",
+        "waiting": "waiting {ago}",
+        "wants": "wants to call {tool}"
       },
       "budget-headroom": {
-        "title": "Budget headroom",
-        "headline": "of the {cap} monthly cap - {left} left",
         "cause": "Agents with their own caps - the donut's budget_exceeded is the symptom; this is the cause.",
         "empty": {
-          "title": "No monthly cap set",
-          "description": "Set one on the organization - headroom shows here before budget_exceeded does."
-        }
-      },
-      "mcp-health": {
-        "title": "Integrations",
-        "downSince": "down since {ago}",
-        "down": "down",
-        "checked": "checked {ago}",
-        "unchecked": "not probed yet",
-        "subline": "A server that stops answering quietly takes its tools from every agent using it.",
-        "empty": {
-          "title": "No MCP servers connected",
-          "description": "Connect one from the catalog - its health lands here."
-        }
-      },
-      "knowledge-freshness": {
-        "title": "Knowledge sync",
-        "synced": "synced {ago}",
-        "neverSynced": "never synced",
-        "failing": "failing",
-        "fresh": "fresh",
-        "empty": {
-          "title": "No sync sources",
-          "description": "Collections synced from Drive or S3 report their freshness here."
-        }
-      },
-      "members": {
-        "title": "Members",
-        "view": "View members",
-        "roles": {
-          "owner": "Owner",
-          "admin": "Admin",
-          "builder": "Builder",
-          "operator": "Operator",
-          "member": "Member",
-          "viewer": "Viewer"
+          "description": "Set one on the organization - headroom shows here before budget_exceeded does.",
+          "title": "No monthly cap set"
         },
-        "empty": {
-          "title": "Just you",
-          "description": "Invite somebody - adoption needs people."
-        }
-      },
-      "org-ratings": {
-        "title": "Answer quality",
-        "subline": "of {count} rated answers were positive this period",
-        "empty": {
-          "title": "No ratings yet",
-          "description": "Thumbs on answers land here."
-        }
-      },
-      "my-agents": {
-        "title": "Your agents",
-        "sharedTitle": "Agents shared with you",
-        "yours": "yours",
-        "shared": "shared",
-        "runs": "{count} runs",
-        "openChat": "Open chat",
-        "empty": {
-          "title": "No agents yet",
-          "description": "Nothing is shared with you yet - ask a builder, or create your own."
-        }
+        "headline": "of the {cap} monthly cap - {left} left",
+        "title": "Budget headroom"
       },
       "conversations": {
-        "title": "Continue where you left off",
-        "untitled": "Untitled conversation",
         "continue": "Continue",
         "empty": {
-          "title": "No conversations yet",
-          "description": "Start one from an agent card - it will be waiting here."
-        }
+          "description": "Start one from an agent card - it will be waiting here.",
+          "title": "No conversations yet"
+        },
+        "title": "Continue where you left off",
+        "untitled": "Untitled conversation"
+      },
+      "health": {
+        "empty": {
+          "description": "The health probe has not answered yet.",
+          "title": "No services report"
+        },
+        "status": {
+          "healthy": "ok",
+          "not_checked": "not checked",
+          "unconfigured": "unconfigured",
+          "unhealthy": "down"
+        },
+        "title": "Service health"
+      },
+      "knowledge-freshness": {
+        "empty": {
+          "description": "Collections synced from Drive or S3 report their freshness here.",
+          "title": "No sync sources"
+        },
+        "failing": "failing",
+        "fresh": "fresh",
+        "neverSynced": "never synced",
+        "synced": "synced {ago}",
+        "title": "Knowledge sync"
+      },
+      "latency": {
+        "empty": {
+          "description": "Latency needs at least one finished run.",
+          "title": "No completed runs"
+        },
+        "p50": "Median (p50)",
+        "p95": "Slowest 5% (p95)",
+        "subline": "Started to finished, over every run in the period.",
+        "title": "Latency",
+        "viewSlowest": "Open these runs, slowest first"
+      },
+      "mcp-health": {
+        "checked": "checked {ago}",
+        "down": "down",
+        "downSince": "down since {ago}",
+        "empty": {
+          "description": "Connect one from the catalog - its health lands here.",
+          "title": "No MCP servers connected"
+        },
+        "subline": "A server that stops answering quietly takes its tools from every agent using it.",
+        "title": "Integrations",
+        "unchecked": "not probed yet"
+      },
+      "members": {
+        "empty": {
+          "description": "Invite somebody - adoption needs people.",
+          "title": "Just you"
+        },
+        "roles": {
+          "admin": "Admin",
+          "builder": "Builder",
+          "member": "Member",
+          "operator": "Operator",
+          "owner": "Owner",
+          "viewer": "Viewer"
+        },
+        "title": "Members",
+        "view": "View members"
+      },
+      "model-mix": {
+        "empty": {
+          "description": "The model mix appears with the first run.",
+          "title": "No runs in this period"
+        },
+        "notRecorded": "not recorded",
+        "subline": "As recorded on each run (model_label).",
+        "title": "Models behind the runs"
       },
       "my-activity": {
-        "title": "Your activity",
-        "unit": "runs by you in this period",
+        "empty": {
+          "description": "Run any agent - your own history shows here, and only to you.",
+          "title": "No runs of yours yet"
+        },
         "pending": "{count} of your runs are waiting on someone's decision",
-        "empty": {
-          "title": "No runs of yours yet",
-          "description": "Run any agent - your own history shows here, and only to you."
-        }
+        "title": "Your activity",
+        "unit": "runs by you in this period"
       },
-      "my-top-agents": {
-        "title": "Agents you use most",
-        "subline": "Your own runs in this period - nobody else's.",
+      "my-agents": {
         "empty": {
-          "title": "No runs of yours yet",
-          "description": "Run any agent - your favourites show up here."
-        }
+          "description": "Nothing is shared with you yet - ask a builder, or create your own.",
+          "title": "No agents yet"
+        },
+        "openChat": "Open chat",
+        "runs": "{count} runs",
+        "shared": "shared",
+        "sharedTitle": "Agents shared with you",
+        "title": "Your agents",
+        "yours": "yours"
       },
       "my-quality": {
-        "title": "Answer quality in your chats",
+        "empty": {
+          "description": "Rate answers with a thumbs up or down - your own trend lands here.",
+          "title": "No rated answers yet"
+        },
         "subline": "of {count} rated answers in your conversations",
-        "empty": {
-          "title": "No rated answers yet",
-          "description": "Rate answers with a thumbs up or down - your own trend lands here."
-        }
+        "title": "Answer quality in your chats"
       },
-      "shared-with-you": {
-        "title": "Shared with you",
-        "agents": "Agents",
-        "collections": "Collections",
-        "skills": "Skills",
-        "subline": "Everything somebody shared with you - browse it from the sidebar.",
+      "my-top-agents": {
         "empty": {
-          "title": "Nothing shared yet",
-          "description": "When somebody shares an agent, a collection or a skill, it counts here."
-        }
+          "description": "Run any agent - your favourites show up here.",
+          "title": "No runs of yours yet"
+        },
+        "subline": "Your own runs in this period - nobody else's.",
+        "title": "Agents you use most"
+      },
+      "org-ratings": {
+        "empty": {
+          "description": "Thumbs on answers land here.",
+          "title": "No ratings yet"
+        },
+        "subline": "of {count} rated answers were positive this period",
+        "title": "Answer quality"
+      },
+      "outcomes": {
+        "attention": "1 in {n} runs needed attention this period",
+        "completed": "completed",
+        "empty": {
+          "description": "Outcome split appears with the first run.",
+          "title": "No runs in this period"
+        },
+        "status": {
+          "awaiting_approval": "Awaiting approval",
+          "budget_exceeded": "Budget exceeded",
+          "completed": "Completed",
+          "failed": "Failed",
+          "other": "Running or cancelled"
+        },
+        "title": "Outcomes"
+      },
+      "platform": {
+        "active24h": "{count} active in 24 h",
+        "agents": "Agents",
+        "conversations": "Conversations",
+        "empty": {
+          "description": "A fresh deployment: no organizations beyond bootstrap, no runs.",
+          "title": "Nothing here yet"
+        },
+        "organizations": "Organizations",
+        "title": "Platform at a glance",
+        "users": "Users"
+      },
+      "platform-ratings": {
+        "empty": {
+          "description": "Nobody has rated an answer anywhere on the deployment.",
+          "title": "No ratings yet"
+        },
+        "subline": "rated positive - {count} ratings across all organizations",
+        "title": "Answer quality, deployment-wide"
+      },
+      "recent-failures": {
+        "budgetExceeded": "budget exceeded mid-run",
+        "empty": {
+          "description": "Every run in this period finished cleanly.",
+          "title": "No failures"
+        },
+        "failed": "failed",
+        "open": "Open runs",
+        "title": "Recent failures",
+        "unknownAgent": "Unknown agent"
+      },
+      "runs": {
+        "delta": "vs the previous period",
+        "empty": {
+          "description": "Publish an agent and give it a surface - adoption shows up here.",
+          "title": "No runs in this period"
+        },
+        "title": "Runs over time",
+        "unit": "runs"
       },
       "sandbox-capacity": {
-        "title": "Sandbox capacity",
+        "elsewhere": "Runs on Daytona - those sandboxes are counted in that account, not here.",
+        "empty": {
+          "description": "Register one and the room left for agents to run code lands here.",
+          "title": "No sandbox host registered"
+        },
+        "hostUncounted": "How full a host itself is cannot be shown here. Its own two ceilings are shared with every organization on it and no count of them is published, so this is the only figure that divides. Being refused a sandbox while this one is short of its ceiling means somebody else filled the host.",
         "openOfTenantLimit": "{used} of {limit}",
         "openUncapped": "{count, plural, =1 {1 open} other {# open}}",
-        "elsewhere": "Runs on Daytona - those sandboxes are counted in that account, not here.",
         "subline": "Open sandboxes against the ceiling that applies to this organization - the number a 429 comes from.",
-        "hostUncounted": "How full a host itself is cannot be shown here. Its own two ceilings are shared with every organization on it and no count of them is published, so this is the only figure that divides. Being refused a sandbox while this one is short of its ceiling means somebody else filled the host.",
-        "empty": {
-          "title": "No sandbox host registered",
-          "description": "Register one and the room left for agents to run code lands here."
-        }
-      },
-      "sandbox-sessions": {
-        "title": "Open sandboxes",
-        "runningOn": "on {name}",
-        "sampleUsage": "Memory",
-        "sampleUsageHint": "Sample memory and CPU - one round trip to the host per sandbox",
-        "nothingRunning": "Nothing is running. A sandbox opens the first time an agent runs code.",
-        "unattributed": "No agent recorded",
-        "memoryOfLimit": "{used} of {limit}",
-        "activityOf": "Show what was done in sandbox {id}",
-        "showActivity": "Activity",
-        "hideActivity": "Hide",
-        "noActivity": "Nothing recorded for this sandbox yet.",
-        "tookMs": "{ms}ms",
-        "scope": {
-          "run": "one run only",
-          "agent": "shared across the whole agent",
-          "conversation": "shared in one conversation",
-          "channel": "shared in one channel",
-          "user": "shared by one person",
-          "unknown": "a scope this version does not recognise"
-        },
-        "idle": {
-          "seconds": "{count}s idle",
-          "minutes": "{count}m idle",
-          "hours": "{count}h idle"
-        },
-        "empty": {
-          "title": "No sandbox host registered",
-          "description": "Register one and the sandboxes your agents open land here."
-        },
-        "elsewhere": {
-          "title": "Sandboxes run on Daytona",
-          "description": "Sessions opened there appear in that account's own dashboard, not here."
-        }
+        "title": "Sandbox capacity"
       },
       "sandbox-policy": {
-        "title": "Sandbox runtimes",
         "ceilings": {
-          "perOrganization": "This organization",
+          "hostOpen": "Open, host-wide",
           "hostResident": "Resident, host-wide",
-          "hostOpen": "Open, host-wide"
+          "perOrganization": "This organization"
         },
         "default": "default",
+        "elsewhere": {
+          "description": "Daytona publishes no allowlist of its own - what it permits is a setting on that account.",
+          "title": "Sandboxes run on Daytona"
+        },
+        "empty": {
+          "description": "Register one and the runtimes it allows land here.",
+          "title": "No sandbox host registered"
+        },
         "noMemoryCeiling": "no ceiling",
         "noRuntime": "This service allows no runtime, so no agent can run code on it.",
         "subline": "Ceilings, not counts. The host-wide two are shared with every organization on it and nothing publishes how many are in use, so only the per-organization figure can be drawn as a fraction. All of this is the service's own environment, set where it starts.",
-        "empty": {
-          "title": "No sandbox host registered",
-          "description": "Register one and the runtimes it allows land here."
-        },
+        "title": "Sandbox runtimes"
+      },
+      "sandbox-sessions": {
+        "activityOf": "Show what was done in sandbox {id}",
         "elsewhere": {
-          "title": "Sandboxes run on Daytona",
-          "description": "Daytona publishes no allowlist of its own - what it permits is a setting on that account."
-        }
+          "description": "Sessions opened there appear in that account's own dashboard, not here.",
+          "title": "Sandboxes run on Daytona"
+        },
+        "empty": {
+          "description": "Register one and the sandboxes your agents open land here.",
+          "title": "No sandbox host registered"
+        },
+        "hideActivity": "Hide",
+        "idle": {
+          "hours": "{count}h idle",
+          "minutes": "{count}m idle",
+          "seconds": "{count}s idle"
+        },
+        "memoryOfLimit": "{used} of {limit}",
+        "noActivity": "Nothing recorded for this sandbox yet.",
+        "nothingRunning": "Nothing is running. A sandbox opens the first time an agent runs code.",
+        "runningOn": "on {name}",
+        "sampleUsage": "Memory",
+        "sampleUsageHint": "Sample memory and CPU - one round trip to the host per sandbox",
+        "scope": {
+          "agent": "shared across the whole agent",
+          "channel": "shared in one channel",
+          "conversation": "shared in one conversation",
+          "run": "one run only",
+          "unknown": "a scope this version does not recognise",
+          "user": "shared by one person"
+        },
+        "showActivity": "Activity",
+        "title": "Open sandboxes",
+        "tookMs": "{ms}ms",
+        "unattributed": "No agent recorded"
+      },
+      "shared-with-you": {
+        "agents": "Agents",
+        "collections": "Collections",
+        "empty": {
+          "description": "When somebody shares an agent, a collection or a skill, it counts here.",
+          "title": "Nothing shared yet"
+        },
+        "skills": "Skills",
+        "subline": "Everything somebody shared with you - browse it from the sidebar.",
+        "title": "Shared with you"
+      },
+      "spend": {
+        "delta": "vs the previous period",
+        "empty": {
+          "description": "Model cost lands here run by run.",
+          "title": "Nothing spent yet"
+        },
+        "monthToDate": "This month so far: {amount} - calendar month, reconciles with the invoice; deliberately not scoped by the period filter.",
+        "notRecorded": "not recorded",
+        "title": "Spend",
+        "unit": "in this period"
+      },
+      "surfaces": {
+        "empty": {
+          "description": "Playground, web chat, API, Slack, Telegram, Mattermost and the embedded widget land here.",
+          "title": "No runs in this period"
+        },
+        "names": {
+          "api": "HTTP API",
+          "embed": "Widget",
+          "mattermost": "Mattermost",
+          "playground": "Playground",
+          "schedule": "Schedule",
+          "slack": "Slack",
+          "telegram": "Telegram",
+          "web": "Web chat"
+        },
+        "title": "Where runs come from"
+      },
+      "top-orgs": {
+        "agents": "Agents",
+        "empty": {
+          "description": "Only the bootstrap organization exists.",
+          "title": "No organizations yet"
+        },
+        "members": "Members",
+        "organization": "Organization",
+        "title": "Top organizations"
+      },
+      "top-people": {
+        "columns": {
+          "cost": "Cost",
+          "lastRun": "Last run",
+          "person": "Person",
+          "runs": "Runs"
+        },
+        "disclosure": "Everyone holding runs:view sees this - builders and operators as well as owners and admins.",
+        "empty": {
+          "description": "The first person's first run puts a name here.",
+          "title": "Nobody has run anything"
+        },
+        "others": "{count, plural, =1 {1 more person ran at least one agent} other {# more people ran at least one agent}}",
+        "title": "Who is using it"
+      },
+      "version-compare": {
+        "empty": {
+          "description": "Publish a new version - the comparison appears once both have runs in the period.",
+          "title": "Only one version has run"
+        },
+        "metric": {
+          "completed": "Success rate",
+          "cost": "Cost per run",
+          "p95": "p95 latency",
+          "ratings": "Positive ratings",
+          "runs": "Runs"
+        },
+        "subline": "{agent} - {current} (current) vs {previous}, only runs that executed each version",
+        "title": "Version to version"
       }
     }
   },
   "files": {
-    "preview": "Preview",
-    "source": "Source",
+    "couldNotBeFetched": "That file could not be fetched",
+    "couldNotBeRead": "That file could not be read",
     "download": "Download",
     "emptyFile": "This file is empty.",
+    "kinds": {
+      "archive": "Archive",
+      "audio": "Audio",
+      "code": "Code",
+      "csv": "Table",
+      "document": "Document",
+      "html": "Page",
+      "image": "Image",
+      "json": "JSON",
+      "markdown": "Markdown",
+      "pdf": "PDF",
+      "spreadsheet": "Spreadsheet",
+      "text": "Text",
+      "unknown": "File",
+      "video": "Video"
+    },
+    "modified": "modified {when}",
+    "openFile": "Open {name}",
+    "preview": "Preview",
+    "removeFile": "Remove {name}",
     "renderedPage": "{name}, rendered",
     "servedAsFile": "This one cannot be shown here — the server serves it as a file.",
     "shortened": "This has been shortened. The agent reads the whole file.",
-    "modified": "modified {when}",
+    "source": "Source",
     "truncatedRows": "Showing {shown, number} of {total, plural, =1 {1 row} other {# rows}} · download to see all",
-    "kinds": {
-      "image": "Image",
-      "pdf": "PDF",
-      "video": "Video",
-      "audio": "Audio",
-      "markdown": "Markdown",
-      "html": "Page",
-      "csv": "Table",
-      "json": "JSON",
-      "code": "Code",
-      "text": "Text",
-      "spreadsheet": "Spreadsheet",
-      "document": "Document",
-      "archive": "Archive",
-      "unknown": "File"
-    },
-    "openFile": "Open {name}",
-    "removeFile": "Remove {name}",
     "uploading": "Uploading · {size}"
   },
   "invitations": {
@@ -1351,6 +1459,12 @@
     "charactersPerEmbeddedPiece": "Characters per embedded piece. Smaller pieces match a question more precisely; larger ones carry more of the surrounding argument.",
     "chunkSize": "Chunk size",
     "chunking": "Chunking",
+    "chunkingFixed": "Fixed",
+    "chunkingFixedHint": "A fixed number of characters, structure ignored.",
+    "chunkingMarkdown": "Markdown",
+    "chunkingMarkdownHint": "Split on headings, so a chunk stays inside one section.",
+    "chunkingRecursive": "Recursive",
+    "chunkingRecursiveHint": "Split on paragraphs, then sentences, then words - whatever fits.",
     "chunkingSummary": "{size, plural, =1 {1 character} other {# characters}}, {overlap, number} overlapping · {strategy}",
     "configuredOnceUsedAs": "Configured once, used in as many knowledge bases as you like. Each copy syncs on its own schedule.",
     "create": "Create",
@@ -1371,6 +1485,14 @@
     "eng": "eng",
     "everyPageCameBack": "Every page came back as empty scaffolding, which is what an unreadable scan looks like. If this file is a scan or a photo, turn on reading scanned pages in the parse options and upload it again.",
     "failedLoadParsedContent": "Failed to load parsed content",
+    "failedLoadReusableIntegrations": "Failed to load reusable integrations",
+    "failedRemoveIntegration": "Failed to remove integration",
+    "failedSaveIntegration": "Failed to save integration",
+    "failedUseIntegration": "Failed to use this integration",
+    "formatMarkdown": "Markdown",
+    "formatMarkdownHint": "Rebuilds headings, tables and lists - what the Markdown chunking strategy splits on.",
+    "formatText": "Layout text",
+    "formatTextHint": "Keeps the page's spatial grid, so a table stays aligned but carries no structure.",
     "frozenAtCreationCollection": "Frozen at creation: the collection's vectors are produced by this model and cannot be re-indexed under another one later. The key decides whose account pays for embedding.",
     "howDocumentsAreParsed": "How documents are parsed",
     "howDocumentsAreRead": "How documents are read",
@@ -1381,6 +1503,9 @@
     "images": "Images",
     "ingestionRecordedNote": "What this collection was indexed with, recorded when it was created. It cannot be changed - vectors written by two different models are not comparable, so a collection that needs another one is a new collection.",
     "ingestionSettings": "Ingestion settings",
+    "integrationAddedTo": "Added to {name}",
+    "integrationRemoved": "Integration removed",
+    "integrationSaved": "Integration saved - use it in a knowledge base to start syncing",
     "itsCredentialsAreCopied": "Its credentials are copied into an independent source. The original stays here for the next knowledge base that needs it.",
     "key": "Key",
     "keyHereBillsEmbeddings": "A key here bills embeddings to this organization instead of using the deployment's.",
@@ -1421,9 +1546,20 @@
     "parseTimeoutSeconds": "Parse timeout (seconds)",
     "parsed": "Parsed",
     "parsedWith": "parsed with {parser}",
+    "parserLiteparse": "LiteParse",
+    "parserLiteparseHint": "Local, with its own OCR. Also reads spreadsheets, slide decks and images.",
+    "parserLlamaparse": "LlamaParse",
+    "parserLlamaparseHint": "A hosted service that reconstructs layout, tables and columns. Billed per page.",
+    "parserPymupdf": "PyMuPDF",
+    "parserPymupdfHint": "Local and fast. Reads the text a PDF already carries.",
     "parsing": "Parsing",
     "pdfParser": "PDF parser",
     "personalOnlyYou": "Personal - only you",
+    "problemOcrLanguage": "Tesseract codes are three letters - \"eng\", not \"en\". Join several with \"+\", as in \"eng+pol\".",
+    "problemOverlapTooLarge": "Must be smaller than the chunk size of {size}.",
+    "problemPromptLength": "Between 1 and {max} characters.",
+    "problemTimeoutRange": "More than 0 and at most {max} seconds.",
+    "problemWholeBetween": "A whole number between {min} and {max}.",
     "productDocs": "Product docs",
     "prompt": "Prompt",
     "readAsImages": "Read as images",
@@ -1440,6 +1576,14 @@
     "sendPicturesInsideDocument": "Send the pictures inside a document to a model and index what it says about them. Needs a model profile with a working key, which is checked when this is saved.",
     "strategy": "Strategy",
     "temperature": "Temperature",
+    "tierAgentic": "Agentic",
+    "tierAgenticHint": "Reads structure the way a person would.",
+    "tierAgenticPlus": "Agentic plus",
+    "tierAgenticPlusHint": "The most thorough, and the dearest.",
+    "tierCostEffective": "Cost effective",
+    "tierCostEffectiveHint": "A middle setting.",
+    "tierFast": "Fast",
+    "tierFastHint": "Cheapest, and the least faithful to layout.",
     "use": "Use in…",
     "useSourceInCollection": "Use “{name}” in a knowledge base",
     "useStandardPrompt": "Use the standard prompt",
@@ -1454,14 +1598,29 @@
     "created": "Knowledge base created",
     "deleted": "Knowledge base deleted",
     "description": "Manage your document collections used for AI retrieval.",
+    "documentRemoved": "Document removed",
+    "failedCloneIntegration": "Failed to clone integration",
+    "failedCreateSyncSource": "Failed to create sync source",
+    "failedDelete": "Failed to delete knowledge base",
+    "failedDeleteDocument": "Failed to delete document",
+    "failedLoad": "Failed to load knowledge base",
+    "failedLoadMoreDocuments": "Failed to load more documents",
+    "failedRemoveSyncSource": "Failed to remove sync source",
     "failedTriggerSync": "Failed to trigger sync",
+    "failedUpdate": "Failed to update knowledge base",
     "inactive": "Inactive",
+    "ingestionSaved": "Ingestion settings saved",
+    "integrationCloned": "Integration cloned to this knowledge base",
     "namePlaceholder": "Product docs",
     "scopeApp": "App-wide",
     "scopePersonal": "Personal - only you",
+    "syncSourceConnected": "Sync source connected",
+    "syncSourceRemoved": "Sync source removed",
+    "syncStarted": "Sync started - documents will appear as they ingest",
     "title": "Knowledge Bases",
     "updated": "Knowledge base updated",
-    "uploadFailed": "Upload failed"
+    "uploadFailed": "Upload failed",
+    "uploaded": "Uploaded {name}"
   },
   "layout": {
     "breadcrumb": "Breadcrumb",
@@ -1493,6 +1652,7 @@
     "categories": "Categories",
     "close": "Close",
     "contact": "Contact",
+    "contactQuestions": "Questions? Email <mail>legal@example.com</mail>. We respond within five business days for legal correspondence.",
     "cookieConsent": "cookie.consent",
     "cookiePolicy": "cookie policy",
     "cookiePolicy2": "Cookie Policy",
@@ -1556,6 +1716,125 @@
     "pageviewFeatureUsageCounters": "- pageview and feature-usage counters.",
     "paidPlansRenewAutomatically": "Paid plans renew automatically until canceled. Fees are non-refundable except where required by law. You can cancel anytime - your plan stays active until the end of the current billing period.",
     "period": "Period.",
+    "pl": {
+      "amaPrawoLubNarusza": "łamać prawo lub naruszać praw osób trzecich;",
+      "analityczne": "Analityczne",
+      "analyticsSession2": "analytics.session",
+      "authSession2": "auth.session",
+      "byJeZrealizowaOdpowiadamy": "by je zrealizować. Odpowiadamy w ciągu 30 dni.",
+      "byObsUgiwaUtrzymywa": "by obsługiwać, utrzymywać i ulepszać Usługę;",
+      "byOdpowiadaNaZg": "by odpowiadać na zgłoszenia wsparcia;",
+      "byPrzetwarzaSubskrypcjeI": "by przetwarzać subskrypcje i zapobiegać oszustwom;",
+      "byWykrywaNaduYcia": "by wykrywać nadużycia i egzekwować nasz Regulamin.",
+      "byWysyEmaileTransakcyjne": "by wysyłać emaile transakcyjne (konto, płatności, alerty bezpieczeństwa);",
+      "cieKiRequestW": "- ścieżki requestów, czasy odpowiedzi, użycie funkcji, stack traces błędów.",
+      "contactQuestions": "Pytania? Napisz na <mail>legal@example.com</mail>. Odpowiadamy w ciągu pięciu dni roboczych dla korespondencji prawnej.",
+      "cookieConsent2": "cookie.consent",
+      "cookies2": "Cookies",
+      "cookiesStronTrzecich": "Cookies stron trzecich",
+      "czymJestPlikCookie": "Czym jest plik cookie?",
+      "daneDoPAtno": "Dane do płatności",
+      "daneKlienta": "Dane Klienta",
+      "daneKonta": "Dane konta",
+      "daneUYcia": "Dane użycia",
+      "daneUrzDzenia": "Dane urządzenia",
+      "funkcjonalne": "Funkcjonalne",
+      "gdyDoNasPiszesz": "- gdy do nas piszesz.",
+      "gdyKorzystaszZFunkcji": "Gdy korzystasz z funkcji AI, Twoje prompty i odpowiedni kontekst są wysyłane do skonfigurowanych dostawców modeli (np. OpenAI, Anthropic, Google) w celu przetwarzania. Wybieramy dostawców, którzy umownie zgadzają się nie używać Twoich danych do treningu.",
+      "generowaTreCiNielegalnych": "generować treści nielegalnych, szkodliwych dla nieletnich, oszukańczych lub wprowadzających w błąd;",
+      "hostujemyGWnieW": "Hostujemy głównie w UE. Tam, gdzie dane są przetwarzane poza Twoim krajem, opieramy się na standardowych klauzulach umownych lub równoważnych zabezpieczeniach.",
+      "imiEmailZhashowaneHas": "- imię, email, zhashowane hasło, opcjonalny avatar.",
+      "informacjeKtRePodajesz": "Informacje, które podajesz",
+      "informacjeZbieraneAutomatycznie": "Informacje zbierane automatycznie",
+      "jeLiKorzystaszZ": "Jeśli korzystasz z Usługi w imieniu organizacji, akceptujesz Regulamin w jej imieniu i potwierdzasz, że masz do tego upoważnienie.",
+      "jeLiPodejrzewaszE": "jeśli podejrzewasz, że konto zostało skompromitowane.",
+      "jeLiWymagaTego": "jeśli wymaga tego prawo, ale walczymy gdzie możemy i powiadamiamy dotkniętych użytkowników gdzie jest to prawnie dozwolone.",
+      "jesteWCicielemTego": "Jesteś właścicielem tego, co wprowadzasz - promptów, dokumentów, treści rozmów („Dane Klienta”). Udzielasz nam ograniczonej licencji na hostowanie, przetwarzanie i wyświetlanie Danych Klienta wyłącznie w celu obsługi Usługi dla Ciebie.",
+      "kategorie": "Kategorie",
+      "kontakt": "Kontakt",
+      "korespondencjaZeWsparciem": "Korespondencja ze wsparciem",
+      "kredytyWygasajNaKo": "Kredyty wygasają na końcu każdego cyklu rozliczeniowego. Top-upy pay-as-you-go nie wygasają. Podatki są naliczane gdzie ma to zastosowanie.",
+      "kropka": "Kropka.",
+      "licznikWyWietleI": "- licznik wyświetleń i użycia funkcji.",
+      "locale2": "locale",
+      "maYPlikKt": "Mały plik, który Twoja przeglądarka przechowuje na urządzeniu gdy odwiedzasz stronę. Cookies pozwalają nam utrzymywać Cię zalogowanego, pamiętać preferencje i rozumieć jak używane są funkcje.",
+      "medycznePrawneFinansoweBez": "(medyczne, prawne, finansowe) bez niezależnej weryfikacji.",
+      "moEmyAktualizowaTen": "Możemy aktualizować ten Regulamin gdy Usługa ewoluuje. Materialne zmiany ogłosimy emailem lub w aplikacji co najmniej 30 dni przed wejściem w życie. Dalsze korzystanie po dacie wejścia w życie oznacza akceptację.",
+      "moEszPrzestaKorzysta": "Możesz przestać korzystać z Usługi w każdej chwili. Możemy zawiesić lub zakończyć Twój dostęp jeśli naruszysz Regulamin lub z powodów bezpieczeństwa. Sekcje, które powinny przetrwać wypowiedzenie (IP, wyłączenia odpowiedzialności, ograniczenia odpowiedzialności, rozstrzyganie sporów) przetrwają.",
+      "moEszTeBlokowa": "Możesz też blokować cookies w ustawieniach przeglądarki. Uwaga: blokowanie niezbędnych cookies zepsuje części Usługi (np. nie pozostaniesz zalogowany).",
+      "moEszZaakceptowaOdrzuci": "Możesz zaakceptować, odrzucić lub dostosować kategorie z bannera cookies pokazywanego przy pierwszej wizycie. Możesz zmienić wybór w każdej chwili z linku w stopce.",
+      "n10OgraniczenieOdpowiedzialnoCi": "10. Ograniczenie odpowiedzialności",
+      "n10Zmiany": "10. Zmiany",
+      "n11Kontakt": "11. Kontakt",
+      "n11ZmianyRegulaminu": "11. Zmiany Regulaminu",
+      "n12PrawoWCiwe": "12. Prawo właściwe",
+      "n13Kontakt": "13. Kontakt",
+      "n1CoZbieramy": "1. Co zbieramy",
+      "n1UsUga": "1. Usługa",
+      "n2PoCoTego": "2. Po co tego używamy",
+      "n2TwojeKonto": "2. Twoje konto",
+      "n3AkceptowalneUYcie": "3. Akceptowalne użycie",
+      "n3PrzetwarzanieAi": "3. Przetwarzanie AI",
+      "n4TwojeTreCi": "4. Twoje treści",
+      "n4UdostPnianieDanych": "4. Udostępnianie danych",
+      "n5Retencja": "5. Retencja",
+      "n5SubskrypcjeIP": "5. Subskrypcje i płatności",
+      "n6TwojePrawa": "6. Twoje prawa",
+      "n6UsUgiStron": "6. Usługi stron trzecich",
+      "n7TransferyMiDzynarodowe": "7. Transfery międzynarodowe",
+      "n7WAsnoIntelektualna": "7. Własność intelektualna",
+      "n8BezpieczeStwo": "8. Bezpieczeństwo",
+      "n8Wypowiedzenie": "8. Wypowiedzenie",
+      "n9Dzieci": "9. Dzieci",
+      "n9WyCzeniaOdpowiedzialno": "9. Wyłączenia odpowiedzialności",
+      "nabywcy": "Nabywcy",
+      "nieBDzieszKorzysta": "Nie będziesz korzystał z Usługi by:",
+      "niePolegajNaUs": "Nie polegaj na Usłudze dla porad w dziedzinach, gdzie błędy mają realne konsekwencje",
+      "nieTrenujemyAdnegoZ": "Nie trenujemy żadnego z naszych modeli na Twoich danych.",
+      "nieTrenujemyNaTwoich": "Nie trenujemy na Twoich Danych Klienta.",
+      "nieUstawiamyReklamowychCookies": "Nie ustawiamy reklamowych cookies. Niektóre osadzone treści (wideo, widgety płatności) mogą ustawiać cookies - podlegają one politykom swoich dostawców.",
+      "niezbDne": "Niezbędne",
+      "niniejszyRegulaminPodlegaPrawu": "Niniejszy Regulamin podlega prawu jurysdykcji, w której zarejestrowana jest jednostka operacyjna, z wyłączeniem norm kolizyjnych. Spory rozstrzygają sądy tej jurysdykcji, chyba że bezwzględnie obowiązujące prawo stanowi inaczej.",
+      "obsUgiwanePrzezNaszego": "- obsługiwane przez naszego processora płatności (Stripe). Nigdy nie widzimy numeru Twojej karty.",
+      "organom": "Organom",
+      "pamiTajTwojeWybory": "Pamiętają Twoje wybory by Usługa nie była powtarzalna. Opcjonalne.",
+      "planyPAtneOdnawiaj": "Plany płatne odnawiają się automatycznie do momentu anulowania. Opłaty są bezzwrotne, z wyjątkiem przypadków wymaganych prawem. Możesz anulować w każdej chwili - Twój plan pozostaje aktywny do końca bieżącego okresu rozliczeniowego.",
+      "politykCookies": "Politykę Cookies",
+      "pomagajNamZrozumieJak": "Pomagają nam zrozumieć jak używana jest Usługa, żebyśmy mogli ją ulepszać. Anonimizujemy adresy IP i nie udostępniamy ich stronom trzecim do reklamy.",
+      "powiadomimyCiWAplikacji": "Powiadomimy Cię w aplikacji lub mailem przed wejściem w życie jakichkolwiek istotnych zmian. Dalsze korzystanie po dacie wejścia w życie oznacza akceptację.",
+      "preferencjaJasnyCiemny": "- preferencja jasny/ciemny.",
+      "privacyExampleCom2": "privacy@example.com",
+      "privacyExampleCom5": "privacy@example.com",
+      "privacyExampleCom6": "privacy@example.com",
+      "privacyIntro": "Niniejsza Polityka Prywatności wyjaśnia, jak {appName} („my”, „nas”) zbiera, używa, udostępnia i chroni informacje gdy korzystasz z Usługi.",
+      "promptyWgrywaneDokumentyRozmowy": "- prompty, wgrywane dokumenty, rozmowy z czatu, zawartość baz wiedzy.",
+      "przechowujemyDaneKlientaTak": "Przechowujemy Dane Klienta tak długo jak konto jest aktywne. Po usunięciu konta backupy są usuwane w ciągu 30 dni. Logi i metryki są przechowywane do 90 dni dla bezpieczeństwa i analizy operacyjnej.",
+      "przeglDarkaOsAdres": "- przeglądarka, OS, adres IP (do bezpieczeństwa i rate limitingu).",
+      "pytania": "Pytania:",
+      "pytaniaLubDania": "Pytania lub żądania:",
+      "reverseEngineerowaUsUgi": "reverse-engineerować Usługi w celu konkurowania z nami;",
+      "securityExampleCom2": "security@example.com",
+      "sondowaSkanowaLubTestowa": "sondować, skanować lub testować podatności Usługi bez wcześniejszej pisemnej zgody;",
+      "subProcessorom": "Sub-processorom",
+      "termsIntro": "Niniejszy Regulamin („Regulamin”) określa zasady dostępu i korzystania z {appName} („Usługa”). Zakładając konto, uzyskując dostęp do Usługi lub klikając „Zgadzam się”, akceptujesz ten Regulamin.",
+      "theme2": "theme",
+      "twojaOdpowiedNaBanner": "- Twoja odpowiedź na banner cookies.",
+      "twojaUwierzytelnionaSesjaHttponly": "- Twoja uwierzytelniona sesja (httpOnly).",
+      "twojeWybory": "Twoje wybory",
+      "uYwamyPlikW": "Używamy plików cookie i podobnych technologii (zbiorczo „cookies”) do obsługi Usługi i jej ulepszania. Ta strona wyjaśnia, czego używamy i jak to kontrolować.",
+      "uYwamyTlsTransit": "Używamy TLS in transit, AES-256 in rest, role-based access control oraz audit-logged akcji administracyjnych.",
+      "uYwanymDoObs": "używanym do obsługi Usługi (hosting, dostawcy modeli, processor płatności, dostawa email, monitoring błędów). Aktualna lista dostępna na życzenie.",
+      "udostPniamyDaneTylko": "Udostępniamy dane tylko:",
+      "usUgaJestDostarczana": "Usługa jest dostarczana „tak jak jest”. W maksymalnym zakresie dozwolonym prawem wyłączamy wszelkie gwarancje - wyrażone, dorozumiane, ustawowe - w tym merkantylność, przydatność do określonego celu i nienaruszalność.",
+      "usUgaNieJest": "Usługa nie jest skierowana do dzieci poniżej 16 roku życia. Świadomie nie zbieramy od nich informacji.",
+      "usUgaPolegaNa": "Usługa polega na dostawcach zewnętrznych (np. API modeli, procesorzy płatności). Korzystanie z tych funkcji podlega też regulaminom tych dostawców. Nie kontrolujemy ich i nie odpowiadamy za ich działania.",
+      "wPrzypadkuFuzjiLub": "w przypadku fuzji lub sprzedaży, z zachowaniem zobowiązań tej Polityki.",
+      "wZakresieDozwolonymPrawem": "W zakresie dozwolonym prawem nasza łączna odpowiedzialność za jakiekolwiek roszczenie wynikające lub związane z Usługą nie przekroczy większej z (a) kwoty, którą nam zapłaciłeś w ciągu 12 miesięcy przed roszczeniem lub (b) 100 USD. Żadna ze stron nie odpowiada za szkody pośrednie, przypadkowe, wynikowe lub karne.",
+      "wybranyJZyk": "- wybrany język.",
+      "wymaganeDoDziaAnia": "Wymagane do działania Usługi. Nie można ich wyłączyć. Przykłady: token sesji, token CSRF, preferowany motyw.",
+      "zachowujemyWszystkiePrawaDo": "Zachowujemy wszystkie prawa do Usługi, w tym oprogramowania, designu i znaków towarowych. Ty zachowujesz wszystkie prawa do swoich Danych Klienta i do output'u, który generujesz za pomocą Usługi, z zastrzeżeniem regulaminów dostawców modeli.",
+      "zakCaKorzystaniaZ": "zakłócać korzystania z Usługi przez innych klientów."
+    },
     "preferences": "Preferences",
     "privacy": {
       "summary": "What we collect, why, and what you can do about it. We don't train on your data - ever.",
@@ -1590,11 +1869,11 @@
     "smallFileYourBrowser": "A small file your browser stores on your device when you visit a website. Cookies let us keep you logged in, remember preferences, and understand how features are used.",
     "subProcessors": "Sub-processors",
     "supportCorrespondence": "Support correspondence",
-    "termsIntro": "These Terms of Service (“Terms”) govern your access to and use of {appName} (the “Service”). By creating an account, accessing the Service, or clicking “I agree,” you accept these Terms.",
     "terms": {
       "summary": "The legal agreement between you and {appName}. Plain language where we can; precise where we must.",
       "title": "Terms of Service"
     },
+    "termsIntro": "These Terms of Service (“Terms”) govern your access to and use of {appName} (the “Service”). By creating an account, accessing the Service, or clicking “I agree,” you accept these Terms.",
     "theme": "theme",
     "theseTermsAreGoverned": "These Terms are governed by the laws of the jurisdiction in which the operating entity is registered, excluding conflict-of-law rules. Disputes go to the courts of that jurisdiction unless required otherwise by mandatory law.",
     "thirdPartyCookies": "Third-party cookies",
@@ -1623,134 +1902,18 @@
     "yourAuthenticatedSessionHttponly": "- your authenticated session (httpOnly).",
     "yourChoices": "Your choices",
     "yourResponseCookieBanner": "- your response to the cookie banner.",
-    "yourSelectedLanguage": "- your selected language.",
-    "pl": {
-      "kredytyWygasajNaKo": "Kredyty wygasają na końcu każdego cyklu rozliczeniowego. Top-upy pay-as-you-go nie wygasają. Podatki są naliczane gdzie ma to zastosowanie.",
-      "n13Kontakt": "13. Kontakt",
-      "n2TwojeKonto": "2. Twoje konto",
-      "generowaTreCiNielegalnych": "generować treści nielegalnych, szkodliwych dla nieletnich, oszukańczych lub wprowadzających w błąd;",
-      "nieBDzieszKorzysta": "Nie będziesz korzystał z Usługi by:",
-      "usUgaJestDostarczana": "Usługa jest dostarczana „tak jak jest”. W maksymalnym zakresie dozwolonym prawem wyłączamy wszelkie gwarancje - wyrażone, dorozumiane, ustawowe - w tym merkantylność, przydatność do określonego celu i nienaruszalność.",
-      "jesteWCicielemTego": "Jesteś właścicielem tego, co wprowadzasz - promptów, dokumentów, treści rozmów („Dane Klienta”). Udzielasz nam ograniczonej licencji na hostowanie, przetwarzanie i wyświetlanie Danych Klienta wyłącznie w celu obsługi Usługi dla Ciebie.",
-      "medycznePrawneFinansoweBez": "(medyczne, prawne, finansowe) bez niezależnej weryfikacji.",
-      "moEmyAktualizowaTen": "Możemy aktualizować ten Regulamin gdy Usługa ewoluuje. Materialne zmiany ogłosimy emailem lub w aplikacji co najmniej 30 dni przed wejściem w życie. Dalsze korzystanie po dacie wejścia w życie oznacza akceptację.",
-      "wZakresieDozwolonymPrawem": "W zakresie dozwolonym prawem nasza łączna odpowiedzialność za jakiekolwiek roszczenie wynikające lub związane z Usługą nie przekroczy większej z (a) kwoty, którą nam zapłaciłeś w ciągu 12 miesięcy przed roszczeniem lub (b) 100 USD. Żadna ze stron nie odpowiada za szkody pośrednie, przypadkowe, wynikowe lub karne.",
-      "usUgaPolegaNa": "Usługa polega na dostawcach zewnętrznych (np. API modeli, procesorzy płatności). Korzystanie z tych funkcji podlega też regulaminom tych dostawców. Nie kontrolujemy ich i nie odpowiadamy za ich działania.",
-      "zachowujemyWszystkiePrawaDo": "Zachowujemy wszystkie prawa do Usługi, w tym oprogramowania, designu i znaków towarowych. Ty zachowujesz wszystkie prawa do swoich Danych Klienta i do output'u, który generujesz za pomocą Usługi, z zastrzeżeniem regulaminów dostawców modeli.",
-      "moEszPrzestaKorzysta": "Możesz przestać korzystać z Usługi w każdej chwili. Możemy zawiesić lub zakończyć Twój dostęp jeśli naruszysz Regulamin lub z powodów bezpieczeństwa. Sekcje, które powinny przetrwać wypowiedzenie (IP, wyłączenia odpowiedzialności, ograniczenia odpowiedzialności, rozstrzyganie sporów) przetrwają.",
-      "n5SubskrypcjeIP": "5. Subskrypcje i płatności",
-      "kropka": "Kropka.",
-      "n11ZmianyRegulaminu": "11. Zmiany Regulaminu",
-      "niePolegajNaUs": "Nie polegaj na Usłudze dla porad w dziedzinach, gdzie błędy mają realne konsekwencje",
-      "n1UsUga": "1. Usługa",
-      "n9WyCzeniaOdpowiedzialno": "9. Wyłączenia odpowiedzialności",
-      "n10OgraniczenieOdpowiedzialnoCi": "10. Ograniczenie odpowiedzialności",
-      "n3AkceptowalneUYcie": "3. Akceptowalne użycie",
-      "planyPAtneOdnawiaj": "Plany płatne odnawiają się automatycznie do momentu anulowania. Opłaty są bezzwrotne, z wyjątkiem przypadków wymaganych prawem. Możesz anulować w każdej chwili - Twój plan pozostaje aktywny do końca bieżącego okresu rozliczeniowego.",
-      "niniejszyRegulaminPodlegaPrawu": "Niniejszy Regulamin podlega prawu jurysdykcji, w której zarejestrowana jest jednostka operacyjna, z wyłączeniem norm kolizyjnych. Spory rozstrzygają sądy tej jurysdykcji, chyba że bezwzględnie obowiązujące prawo stanowi inaczej.",
-      "sondowaSkanowaLubTestowa": "sondować, skanować lub testować podatności Usługi bez wcześniejszej pisemnej zgody;",
-      "jeLiPodejrzewaszE": "jeśli podejrzewasz, że konto zostało skompromitowane.",
-      "n7WAsnoIntelektualna": "7. Własność intelektualna",
-      "securityExampleCom2": "security@example.com",
-      "n12PrawoWCiwe": "12. Prawo właściwe",
-      "n4TwojeTreCi": "4. Twoje treści",
-      "jeLiKorzystaszZ": "Jeśli korzystasz z Usługi w imieniu organizacji, akceptujesz Regulamin w jej imieniu i potwierdzasz, że masz do tego upoważnienie.",
-      "zakCaKorzystaniaZ": "zakłócać korzystania z Usługi przez innych klientów.",
-      "n6UsUgiStron": "6. Usługi stron trzecich",
-      "reverseEngineerowaUsUgi": "reverse-engineerować Usługi w celu konkurowania z nami;",
-      "nieTrenujemyNaTwoich": "Nie trenujemy na Twoich Danych Klienta.",
-      "n8Wypowiedzenie": "8. Wypowiedzenie",
-      "n4UdostPnianieDanych": "4. Udostępnianie danych",
-      "n11Kontakt": "11. Kontakt",
-      "informacjeKtRePodajesz": "Informacje, które podajesz",
-      "byObsUgiwaUtrzymywa": "by obsługiwać, utrzymywać i ulepszać Usługę;",
-      "cieKiRequestW": "- ścieżki requestów, czasy odpowiedzi, użycie funkcji, stack traces błędów.",
-      "n5Retencja": "5. Retencja",
-      "politykCookies": "Politykę Cookies",
-      "przeglDarkaOsAdres": "- przeglądarka, OS, adres IP (do bezpieczeństwa i rate limitingu).",
-      "n9Dzieci": "9. Dzieci",
-      "usUgaNieJest": "Usługa nie jest skierowana do dzieci poniżej 16 roku życia. Świadomie nie zbieramy od nich informacji.",
-      "n6TwojePrawa": "6. Twoje prawa",
-      "informacjeZbieraneAutomatycznie": "Informacje zbierane automatycznie",
-      "promptyWgrywaneDokumentyRozmowy": "- prompty, wgrywane dokumenty, rozmowy z czatu, zawartość baz wiedzy.",
-      "n2PoCoTego": "2. Po co tego używamy",
-      "powiadomimyCiWAplikacji": "Powiadomimy Cię w aplikacji lub mailem przed wejściem w życie jakichkolwiek istotnych zmian. Dalsze korzystanie po dacie wejścia w życie oznacza akceptację.",
-      "daneKonta": "Dane konta",
-      "privacyExampleCom6": "privacy@example.com",
-      "daneDoPAtno": "Dane do płatności",
-      "byWysyEmaileTransakcyjne": "by wysyłać emaile transakcyjne (konto, płatności, alerty bezpieczeństwa);",
-      "obsUgiwanePrzezNaszego": "- obsługiwane przez naszego processora płatności (Stripe). Nigdy nie widzimy numeru Twojej karty.",
-      "daneUYcia": "Dane użycia",
-      "subProcessorom": "Sub-processorom",
-      "hostujemyGWnieW": "Hostujemy głównie w UE. Tam, gdzie dane są przetwarzane poza Twoim krajem, opieramy się na standardowych klauzulach umownych lub równoważnych zabezpieczeniach.",
-      "gdyDoNasPiszesz": "- gdy do nas piszesz.",
-      "byWykrywaNaduYcia": "by wykrywać nadużycia i egzekwować nasz Regulamin.",
-      "daneUrzDzenia": "Dane urządzenia",
-      "n1CoZbieramy": "1. Co zbieramy",
-      "nabywcy": "Nabywcy",
-      "nieTrenujemyAdnegoZ": "Nie trenujemy żadnego z naszych modeli na Twoich danych.",
-      "n7TransferyMiDzynarodowe": "7. Transfery międzynarodowe",
-      "byPrzetwarzaSubskrypcjeI": "by przetwarzać subskrypcje i zapobiegać oszustwom;",
-      "byOdpowiadaNaZg": "by odpowiadać na zgłoszenia wsparcia;",
-      "uYwamyTlsTransit": "Używamy TLS in transit, AES-256 in rest, role-based access control oraz audit-logged akcji administracyjnych.",
-      "cookies2": "Cookies",
-      "wPrzypadkuFuzjiLub": "w przypadku fuzji lub sprzedaży, z zachowaniem zobowiązań tej Polityki.",
-      "korespondencjaZeWsparciem": "Korespondencja ze wsparciem",
-      "uYwanymDoObs": "używanym do obsługi Usługi (hosting, dostawcy modeli, processor płatności, dostawa email, monitoring błędów). Aktualna lista dostępna na życzenie.",
-      "n3PrzetwarzanieAi": "3. Przetwarzanie AI",
-      "daneKlienta": "Dane Klienta",
-      "n8BezpieczeStwo": "8. Bezpieczeństwo",
-      "privacyExampleCom5": "privacy@example.com",
-      "przechowujemyDaneKlientaTak": "Przechowujemy Dane Klienta tak długo jak konto jest aktywne. Po usunięciu konta backupy są usuwane w ciągu 30 dni. Logi i metryki są przechowywane do 90 dni dla bezpieczeństwa i analizy operacyjnej.",
-      "imiEmailZhashowaneHas": "- imię, email, zhashowane hasło, opcjonalny avatar.",
-      "organom": "Organom",
-      "gdyKorzystaszZFunkcji": "Gdy korzystasz z funkcji AI, Twoje prompty i odpowiedni kontekst są wysyłane do skonfigurowanych dostawców modeli (np. OpenAI, Anthropic, Google) w celu przetwarzania. Wybieramy dostawców, którzy umownie zgadzają się nie używać Twoich danych do treningu.",
-      "jeLiWymagaTego": "jeśli wymaga tego prawo, ale walczymy gdzie możemy i powiadamiamy dotkniętych użytkowników gdzie jest to prawnie dozwolone.",
-      "n10Zmiany": "10. Zmiany",
-      "udostPniamyDaneTylko": "Udostępniamy dane tylko:",
-      "byJeZrealizowaOdpowiadamy": "by je zrealizować. Odpowiadamy w ciągu 30 dni.",
-      "cookieConsent2": "cookie.consent",
-      "analyticsSession2": "analytics.session",
-      "twojeWybory": "Twoje wybory",
-      "moEszTeBlokowa": "Możesz też blokować cookies w ustawieniach przeglądarki. Uwaga: blokowanie niezbędnych cookies zepsuje części Usługi (np. nie pozostaniesz zalogowany).",
-      "twojaUwierzytelnionaSesjaHttponly": "- Twoja uwierzytelniona sesja (httpOnly).",
-      "kategorie": "Kategorie",
-      "uYwamyPlikW": "Używamy plików cookie i podobnych technologii (zbiorczo „cookies”) do obsługi Usługi i jej ulepszania. Ta strona wyjaśnia, czego używamy i jak to kontrolować.",
-      "funkcjonalne": "Funkcjonalne",
-      "wybranyJZyk": "- wybrany język.",
-      "preferencjaJasnyCiemny": "- preferencja jasny/ciemny.",
-      "moEszZaakceptowaOdrzuci": "Możesz zaakceptować, odrzucić lub dostosować kategorie z bannera cookies pokazywanego przy pierwszej wizycie. Możesz zmienić wybór w każdej chwili z linku w stopce.",
-      "privacyExampleCom2": "privacy@example.com",
-      "pomagajNamZrozumieJak": "Pomagają nam zrozumieć jak używana jest Usługa, żebyśmy mogli ją ulepszać. Anonimizujemy adresy IP i nie udostępniamy ich stronom trzecim do reklamy.",
-      "niezbDne": "Niezbędne",
-      "authSession2": "auth.session",
-      "locale2": "locale",
-      "analityczne": "Analityczne",
-      "cookiesStronTrzecich": "Cookies stron trzecich",
-      "kontakt": "Kontakt",
-      "licznikWyWietleI": "- licznik wyświetleń i użycia funkcji.",
-      "wymaganeDoDziaAnia": "Wymagane do działania Usługi. Nie można ich wyłączyć. Przykłady: token sesji, token CSRF, preferowany motyw.",
-      "maYPlikKt": "Mały plik, który Twoja przeglądarka przechowuje na urządzeniu gdy odwiedzasz stronę. Cookies pozwalają nam utrzymywać Cię zalogowanego, pamiętać preferencje i rozumieć jak używane są funkcje.",
-      "theme2": "theme",
-      "czymJestPlikCookie": "Czym jest plik cookie?",
-      "nieUstawiamyReklamowychCookies": "Nie ustawiamy reklamowych cookies. Niektóre osadzone treści (wideo, widgety płatności) mogą ustawiać cookies - podlegają one politykom swoich dostawców.",
-      "twojaOdpowiedNaBanner": "- Twoja odpowiedź na banner cookies.",
-      "pamiTajTwojeWybory": "Pamiętają Twoje wybory by Usługa nie była powtarzalna. Opcjonalne.",
-      "amaPrawoLubNarusza": "łamać prawo lub naruszać praw osób trzecich;",
-      "privacyIntro": "Niniejsza Polityka Prywatności wyjaśnia, jak {appName} („my”, „nas”) zbiera, używa, udostępnia i chroni informacje gdy korzystasz z Usługi.",
-      "termsIntro": "Niniejszy Regulamin („Regulamin”) określa zasady dostępu i korzystania z {appName} („Usługa”). Zakładając konto, uzyskując dostęp do Usługi lub klikając „Zgadzam się”, akceptujesz ten Regulamin.",
-      "pytaniaLubDania": "Pytania lub żądania:",
-      "contactQuestions": "Pytania? Napisz na <mail>legal@example.com</mail>. Odpowiadamy w ciągu pięciu dni roboczych dla korespondencji prawnej.",
-      "pytania": "Pytania:"
-    },
-    "contactQuestions": "Questions? Email <mail>legal@example.com</mail>. We respond within five business days for legal correspondence."
+    "yourSelectedLanguage": "- your selected language."
   },
   "mcp": {
     "accessToken": "Access token",
     "addCustomServer": "Add a custom server",
     "allCategories": "All categories",
     "anyState": "Any state",
+    "authApiToken": "API token",
+    "authChoiceNone": "None",
+    "authNoCredentials": "No credentials",
     "authNoneHint": "The server is open, or it is on a network only you can reach.",
+    "authOauth": "OAuth",
     "authOauthHint": "Sign in at the provider. Discovered from the server's own metadata - nothing to configure here.",
     "authTokenHint": "A static credential, sent as `Authorization: Bearer`.",
     "authentication": "Authentication",
@@ -1772,11 +1935,15 @@
     "couldNotSaveServer": "Could not save the server",
     "couldNotSaveTool": "Could not save the tool selection",
     "couldNotStartSign": "Could not start sign-in",
+    "customAddedByOrg": "Added by this organization, not from the catalog.",
+    "customAddedByYou": "Added by you, not from the catalog.",
     "customServer": "Custom server",
     "disconnect": "Disconnect",
     "documentation": "Documentation",
     "everyAgentCanReach": "Every agent can reach it. An agent spec can only bind the organization's servers.",
     "existingConnectionCannotChange": "An existing connection cannot change owner.",
+    "failedLoadConnections": "Failed to load connections",
+    "failedLoadOrgServers": "Failed to load the organization's MCP servers",
     "finishSign": "Finish sign-in",
     "github": "github",
     "name": "Name",
@@ -1812,6 +1979,7 @@
   },
   "members": {
     "emailPlaceholder": "colleague@example.com",
+    "failedCreateLink": "Failed to create the link",
     "failedInvite": "Failed to send invitation",
     "failedRemove": "Failed to remove member",
     "failedRevoke": "Failed to revoke invitation",
@@ -1891,10 +2059,14 @@
     "settings": "Settings"
   },
   "organizations": {
+    "accessLost": "You no longer have access to that organization.",
+    "accessLostSwitched": "You no longer have access to that organization. Switched to {name}.",
     "created": "Organization created",
     "creating": "Creating...",
     "deleted": "Organization deleted",
     "description": "Manage your organizations and switch between them.",
+    "failedDelete": "Failed to delete organization",
+    "failedUpdate": "Failed to update organization",
     "namePlaceholder": "My Team",
     "personal": "Personal",
     "title": "Organizations",
@@ -2130,27 +2302,27 @@
       "magicLink": "Magic link",
       "missingExpiredLink": "Missing or expired link",
       "pageExpectsTokenFrom": "This page expects a token from your reset email. Request a new link to continue.",
+      "pitchAgents": "Agents built in a UI, versioned on publish",
+      "pitchGovernance": "Budgets, approvals and an audit trail on every run",
+      "pitchKnowledge": "Knowledge, skills and tools switched on per agent",
       "requestNewLink": "Request a new link",
       "resetPassword": "Reset password",
       "returnSign": "return to sign in",
       "selfHostedOpenSource": "Self-hosted, open source",
       "tryAgain": "try again",
-      "yourCompanyAposS": "your company's",
-      "pitchAgents": "Agents built in a UI, versioned on publish",
-      "pitchKnowledge": "Knowledge, skills and tools switched on per agent",
-      "pitchGovernance": "Budgets, approvals and an audit trail on every run"
+      "yourCompanyAposS": "your company's"
     },
     "channelLink": {
-      "connectYourChatAccount": "Connect your chat account",
-      "theAgentWillRunAsYou": "The bot needs to know who you are before it will answer you.",
       "connectThisAccount": "Connect this account",
+      "connectYourChatAccount": "Connect your chat account",
       "connected": "Connected",
+      "disconnectAnyTime": "You can disconnect it at any time from your profile.",
       "goBackToTheChat": "This chat account is now yours.",
       "nowSaySomething": "Go back to the chat and ask the agent something.",
-      "thatAccount": "That chat account",
       "runsWithYourPermissions": "The agent answers as you - your permissions, your budget, your name on the audit trail.",
-      "disconnectAnyTime": "You can disconnect it at any time from your profile.",
-      "seeConnectedAccounts": "See your connected accounts"
+      "seeConnectedAccounts": "See your connected accounts",
+      "thatAccount": "That chat account",
+      "theAgentWillRunAsYou": "The bot needs to know who you are before it will answer you."
     },
     "channels": {
       "addChannel": "Add channel",
@@ -2159,6 +2331,10 @@
       "addOneBecomesBindable": "Register one and agents can be made available on it from their Availability tab.",
       "appLevelToken": "App-level token",
       "appLevelTokenHint": "The xapp- token, for Socket Mode in development. Optional.",
+      "botActivated": "{bot} activated",
+      "botDeactivated": "{bot} deactivated",
+      "botRegistered": "{bot} registered - agents can now be exposed on it",
+      "botRemoved": "Bot removed",
       "botToken": "Bot token",
       "botTokenHintMattermost": "The bot account's access token",
       "botTokenHintSlack": "The bot user OAuth token (xoxb-...) from your Slack app",
@@ -2216,6 +2392,8 @@
       "configureConnectorsAtWorkspace": "Configure connectors at the workspace level to start syncing from external sources.",
       "connect": "Connect",
       "connectSource": "Connect source",
+      "connectorsFailedDescription": "The connector list request failed, so whether any are enabled is unknown.",
+      "connectorsFailedTitle": "Couldn't load the connectors",
       "createKnowledgeBase": "Create knowledge base",
       "createOneGiveYour": "Create one to give your assistant access to documents from your collections.",
       "default": "Default",
@@ -2241,6 +2419,8 @@
       "imagesDescribedBy": "Images described by {model}",
       "knowledgeBases": "Knowledge bases",
       "lastSyncAt": "Last sync · {when}",
+      "listFailedDescription": "The knowledge base list request failed.",
+      "listFailedTitle": "Couldn't load the knowledge bases",
       "loadMore": "Load more",
       "loading": "Loading…",
       "moreActions": "More actions",
@@ -2263,6 +2443,8 @@
       "previewFile2": "Preview file",
       "processing": "Processing…",
       "refresh": "Refresh",
+      "refreshFailedDescription": "What you see below is the last answer that loaded, and may be out of date.",
+      "refreshFailedTitle": "Couldn't refresh this knowledge base",
       "remove": "Remove",
       "removeDocument": "Remove document",
       "removeDocument2": "Remove document",
@@ -2270,16 +2452,20 @@
       "removeDocumentWarning": "The file and everything indexed from it are removed from this knowledge base.",
       "removeSource": "Remove source",
       "removeSource2": "Remove source",
+      "retry": "Try again",
       "review": "Review",
       "scopeApp": "App-wide",
       "scopeOrg": "Organization",
       "scopePersonal": "Personal",
+      "search": "Search",
       "showAllSources": "Show all {count} sources",
       "showLess": "Show less",
       "showingOfTotal": "Showing {loaded} of {total, plural, =1 {1 document} other {# documents}}",
       "status2": "Status",
       "storedCount": "{count, plural, =1 {1 knowledge base} other {# knowledge bases}}",
       "syncSources": "Sync sources",
+      "syncSourcesFailedDescription": "The request for this base's sync sources failed, so whether it has any is unknown.",
+      "syncSourcesFailedTitle": "Couldn't load the sync sources",
       "triggerSyncNow": "Trigger sync now",
       "triggerSyncNow2": "Trigger sync now",
       "typeSize": "Type / size",
@@ -2287,17 +2473,7 @@
       "uploading": "Uploading…",
       "uploading2": "Uploading…",
       "vectorCount": "{count, plural, =1 {1 vector} other {# vectors}}",
-      "vectorCountLoaded": "{count, plural, =1 {1 vector} other {# vectors}} in the documents loaded",
-      "search": "Search",
-      "retry": "Try again",
-      "listFailedTitle": "Couldn't load the knowledge bases",
-      "listFailedDescription": "The knowledge base list request failed.",
-      "refreshFailedTitle": "Couldn't refresh this knowledge base",
-      "refreshFailedDescription": "What you see below is the last answer that loaded, and may be out of date.",
-      "syncSourcesFailedTitle": "Couldn't load the sync sources",
-      "syncSourcesFailedDescription": "The request for this base's sync sources failed, so whether it has any is unknown.",
-      "connectorsFailedTitle": "Couldn't load the connectors",
-      "connectorsFailedDescription": "The connector list request failed, so whether any are enabled is unknown."
+      "vectorCountLoaded": "{count, plural, =1 {1 vector} other {# vectors}} in the documents loaded"
     },
     "mcp-servers": {
       "catalogCompiledIntoBackend": "The catalog is compiled into the backend, and nobody has added a server of their own. An empty list here means this deployment ships none.",
@@ -2436,6 +2612,7 @@
       "activity": "Activity",
       "activity2": "Activity",
       "agentsAreRunningWithout": "Agents are running without needing you.",
+      "allRuns": "All runs",
       "approvals": "Approvals",
       "approve": "Approve",
       "argumentsAreShownFull": "The arguments are shown in full. Approving a tool name without seeing what it will do is a rubber stamp, not approval.",
@@ -2446,6 +2623,7 @@
       "calendarMonthSoReconciles": "Calendar month, so it reconciles against an invoice.",
       "cost": "Cost",
       "couldNotBePriced": "{count, plural, =1 {1 unpriced} other {# unpriced}}",
+      "currentVersion": "Current",
       "delegated": "Delegated",
       "delegatedCostIsAlreadyIn": "A delegated run's cost is already inside the run it was delegated from, so these do not add up down the column.",
       "delegatedTask": "Delegated · {taskId}",
@@ -2453,6 +2631,7 @@
       "delegationsCountedInTheir": "This calendar month, like the spend beside it. Delegations are counted in the run they came from.",
       "deletedAgent": "Deleted agent",
       "deletedKey": "Deleted key",
+      "deletedVersion": "Deleted version",
       "executedSoWhatHappened": "it executed, so what happened last week stays answerable after the agent has been rewritten.",
       "exportCsv": "Export CSV",
       "exportFailed": "The export could not be produced.",
@@ -2482,6 +2661,9 @@
       "openTheRunItCame": "Open the run it came from",
       "othersRanAgents": "{count, plural, =1 {1 more person ran at least one agent} other {# more people ran at least one agent}}",
       "perPersonDisclosure": "Everyone holding runs:view sees this - builders and operators as well as owners and admins.",
+      "perVersionCompleted": "completed",
+      "perVersionCostPerRun": "per run",
+      "perVersionLatency": "p95",
       "queueCouldNotBeRead": "The approvals queue could not be read",
       "ratedDown": "Rated down",
       "ratedDownNoComment": "Rated down, with no comment.",
@@ -2495,6 +2677,7 @@
       "showEveryAgent": "Show every agent",
       "showEveryRun": "Show every run",
       "showingTheOldestOf": "{shown, plural, =1 {Showing the oldest of {total} waiting} other {Showing the oldest # of {total} waiting}}. The queue drains from the top, so deciding these brings up the next.",
+      "slowRuns": "Slow runs",
       "someRunsCouldNotBePriced": "{count, plural, =1 {1 run in this window could not be priced, so the figures below are a floor} other {# runs in this window could not be priced, so the figures below are a floor}}",
       "specialistHasNoAgent": "Defined inside its parent's agent rather than published on its own, so there is no agent page to open.",
       "spend": "Spend",
@@ -2510,17 +2693,10 @@
       "theRunNamedIn": "The run named in this link is not in this organization, or has been deleted.",
       "theseRunsHappenedThe": "The runs happened either way. This is the list failing, not the record.",
       "thisRunWasDelegated": "This run was delegated from another one, and its cost was charged there.",
-      "allRuns": "All runs",
-      "slowRuns": "Slow runs",
-      "took": "Took",
       "tokens": "Tokens",
+      "took": "Took",
       "tryAgain": "Try again",
       "version": "version",
-      "currentVersion": "Current",
-      "deletedVersion": "Deleted version",
-      "perVersionCompleted": "completed",
-      "perVersionCostPerRun": "per run",
-      "perVersionLatency": "p95",
       "versionStripCouldNot": "The per-version summary could not be read",
       "versionsCaption": "The last 30 days, so a version can show fewer runs than the whole history in the table below. Completed counts every status - nothing excluded, so it reads the same as the dashboard's Outcomes donut. Runs include what this version did as a delegate.",
       "versionsTitle": "By version",
@@ -2557,11 +2733,11 @@
       "cancel2": "Cancel",
       "changePassword": "Change password",
       "changingEmailMayRequire": "Changing email may require re-verification depending on your auth setup.",
+      "chatAccountAnswersAs": "Answers as",
+      "chatAccountNoAgentsHere": "No agent you can see answers on this bot.",
+      "chatAccountNotUsedYet": "Not used anywhere yet. Send one of your organization's bots a message.",
       "chatAccounts": "Chat accounts",
       "chatAccountsDescription": "Slack, Telegram and Mattermost accounts connected to you. An agent reached from one of these answers as you, with your permissions and your budget.",
-      "chatAccountAnswersAs": "Answers as",
-      "chatAccountNotUsedYet": "Not used anywhere yet. Send one of your organization's bots a message.",
-      "chatAccountNoAgentsHere": "No agent you can see answers on this bot.",
       "confirmNewPassword": "Confirm new password",
       "currentPassword": "Current password",
       "customizeCommandPaletteChat": "Customize the /command palette in chat - disable built-ins, or define your own quick prompts.",
@@ -2684,10 +2860,12 @@
       "whoCanBindKey": "Who can bind this key to an agent, and who can rotate or delete it. A key nobody can reach is a capability nobody can configure."
     },
     "workspaces": {
+      "failedLoadWorkspaces": "Failed to load workspaces",
+      "pageDescription": "The files agents are keeping for you. A workspace is scratch space — it is deleted with the conversation it belongs to, and is not a place to store anything durable.",
       "whatOneAgentKeeping": "What one agent is keeping, folder by folder. Search covers every folder, not just the one on screen.",
       "workspace": "Workspace",
-      "workspaces": "Workspaces",
-      "pageDescription": "The files agents are keeping for you. A workspace is scratch space — it is deleted with the conversation it belongs to, and is not a place to store anything durable."
+      "workspaceUnreadable": "That workspace could not be read",
+      "workspaces": "Workspaces"
     }
   },
   "profile": {
@@ -2703,11 +2881,14 @@
   "rag": {
     "addSyncSource": "Add sync source",
     "back": "Back",
+    "cadenceDaily": "Daily",
+    "cadenceManual": "Manual",
     "cancel": "Cancel",
     "cloning": "Cloning…",
     "configureNoneNeeded": "No additional configuration needed for <emphasis>{name}</emphasis>.",
     "configureRequiredFields": "Configure {name}. Required fields are marked with <required>*</required>.",
     "connector": "Connector",
+    "connectorLoadFailed": "The connector list could not be loaded. Close the dialog and try again.",
     "continue": "Continue",
     "createNew": "Create new",
     "createSource": "Create source",
@@ -2731,44 +2912,42 @@
     "noConnectorsEnabled": "No connectors enabled.",
     "noSyncRunsYet": "No sync runs yet.",
     "orgIntegrations": "Org integrations",
+    "orgIntegrationsLoadFailed": "Existing workspace integrations could not be loaded; you can still create a new source.",
     "pickExistingOrgIntegration": "Pick an existing org integration to use in this knowledge base. Its credentials are copied independently — you can adjust the schedule separately.",
     "schedule": "Schedule",
+    "search": {
+      "allBases": "All knowledge bases",
+      "button": "Search",
+      "failedDescription": "The search request failed, so whether anything matches is unknown.",
+      "failedTitle": "Couldn't run the search",
+      "noBases": "Nothing to search yet - create a knowledge base and upload a document first.",
+      "noResults": "No results found",
+      "noResultsHint": "Try a different query or another knowledge base",
+      "page": "p.{page}",
+      "placeholder": "Search across your knowledge bases...",
+      "resultCount": "{count, plural, =0 {No results} =1 {1 result} other {# results}} · {ms} ms",
+      "retry": "Try again",
+      "scopeLabel": "Search scope",
+      "searching": "Searching..."
+    },
     "sourceName": "Source name",
+    "stepConfigure": "Configure",
+    "stepSchedule": "Schedule",
     "stepSource": "Pick source",
     "syncMode": "Sync mode",
     "targetCollection": "Target collection",
     "useExisting": "Use existing",
-    "useIntegration": "Use this integration",
-    "stepConfigure": "Configure",
-    "stepSchedule": "Schedule",
-    "cadenceManual": "Manual",
-    "cadenceDaily": "Daily",
-    "orgIntegrationsLoadFailed": "Existing workspace integrations could not be loaded; you can still create a new source.",
-    "connectorLoadFailed": "The connector list could not be loaded. Close the dialog and try again.",
-    "search": {
-      "placeholder": "Search across your knowledge bases...",
-      "scopeLabel": "Search scope",
-      "allBases": "All knowledge bases",
-      "button": "Search",
-      "searching": "Searching...",
-      "noBases": "Nothing to search yet - create a knowledge base and upload a document first.",
-      "noResults": "No results found",
-      "noResultsHint": "Try a different query or another knowledge base",
-      "failedTitle": "Couldn't run the search",
-      "failedDescription": "The search request failed, so whether anything matches is unknown.",
-      "retry": "Try again",
-      "page": "p.{page}",
-      "resultCount": "{count, plural, =0 {No results} =1 {1 result} other {# results}} · {ms} ms"
-    }
+    "useIntegration": "Use this integration"
   },
   "ragStatus": {
-    "processing": "Processing",
-    "running": "Running",
+    "cancelled": "Cancelled",
     "done": "Done",
     "error": "Failed",
-    "cancelled": "Cancelled"
+    "processing": "Processing",
+    "running": "Running"
   },
   "sandboxes": {
+    "activityLogUnreadable": "That activity log could not be read",
     "agentsNameNoConnection": "Agents that name no connection run here. Only one can hold this.",
     "allFiles": "All files",
     "allFiles2": "All files",
@@ -2812,6 +2991,7 @@
     "default": "Default",
     "defaultRuntime": "Default runtime",
     "download2": "Download",
+    "failedLoadConnections": "Failed to load sandbox connections",
     "imageAliasAgentGets": "The image alias an agent gets when its own spec names none. Leave empty to take whatever the service defaults to.",
     "makeSandboxToken": "make sandbox-token",
     "noAgentHoldingFile": "No agent is holding a file yet.",
@@ -2864,6 +3044,7 @@
     "sandboxdPersistContainers": "SANDBOXD_PERSIST_CONTAINERS",
     "serviceAllowsNoRuntime": "This service allows no runtime, so no sandbox can start on it. Its allowlist is empty.",
     "serviceSOwn": "the service's own",
+    "serviceSilent": "The sandbox service did not answer",
     "serviceYourComposeFile": "service in your compose file. There is deliberately no endpoint to write them: an application that could reconfigure the process holding the Docker socket would own the host.",
     "sessions": {
       "activity": "Activity",
@@ -2911,8 +3092,8 @@
       "allFiles": "All files",
       "allFiles2": "All files",
       "backend": "Backend",
-      "bytesStored": "· {size} stored",
       "byWorkspace": "By workspace",
+      "bytesStored": "· {size} stored",
       "conversation": "Conversation",
       "files": "Files",
       "filesOf": "Files of {agent}",
@@ -2941,6 +3122,7 @@
     "builtCommands": "Built-in commands",
     "cancel": "Cancel",
     "chatSendsStoredPrompt": "in chat sends the stored prompt.",
+    "commandNamePlaceholder": "name",
     "create3": "Create",
     "createOneSendLong": "Create one to send a long prompt with a few keystrokes.",
     "delete": "Delete",
@@ -2955,6 +3137,8 @@
     "failedToggle2": "Failed to toggle",
     "local": "local",
     "lowercaseLettersDigitsHyphens": "Lowercase letters, digits, hyphens. Max 32 chars.",
+    "modelAdded": "Added {label}",
+    "modelRemoved": "Model removed",
     "name": "Name",
     "nameMustBeLowercase": "Name must be lowercase letters, digits, and hyphens (max 32 chars).",
     "newCommand": "New command",
@@ -2965,20 +3149,23 @@
     "retry": "Retry",
     "save2": "Save",
     "saving4": "Saving…",
+    "sentAsRegularUserMessage": "Sent as a regular user message when you type <cmd>/{name}</cmd>.",
+    "slashShortcutsLead": "Slash shortcuts for prompts you type often. Typing /name",
     "summarizeConversationAsChecklist": "Summarize the conversation as a checklist of action items.",
     "todo": "todo",
-    "yourCustomCommands": "Your custom commands",
-    "slashShortcutsLead": "Slash shortcuts for prompts you type often. Typing /name",
-    "sentAsRegularUserMessage": "Sent as a regular user message when you type <cmd>/{name}</cmd>.",
-    "commandNamePlaceholder": "name"
+    "yourCustomCommands": "Your custom commands"
   },
   "sharing": {
     "access": "Access",
     "accessFor": "Access for {name}",
+    "accessRemoved": "Access removed",
     "addSomeone": "Add someone",
     "chooseMember": "Choose a member",
     "collectionRuntimeNote": "Sharing controls who can pick this collection in the Builder and who can change it. An agent connected to it searches it for everyone who can run that agent, including people who cannot open the collection themselves.",
     "everyoneAlreadyHasAccess": "Everyone already has access",
+    "failedLoadShares": "Failed to load shares",
+    "failedRevoke": "Failed to revoke",
+    "failedShare": "Failed to share",
     "levelEdit": "Can edit",
     "levelRead": "Can view",
     "levelUse": "Can use",
@@ -2988,6 +3175,7 @@
     "peopleReaches": "A share lifts one person's access to this {resource, select, agent {agent} skill {skill} collection {collection} other {secret}} without changing their role anywhere else. Can view sees the configuration, can use also runs it, can edit also changes it.",
     "secretRuntimeNote": "Sharing controls who can bind this key to an agent and who can rotate it - not who benefits from it. Once an agent uses this key, it runs with it for everyone who can run that agent, including people who cannot see the key here.",
     "share": "Share",
+    "sharingUpdated": "Sharing updated",
     "visibility": "Visibility",
     "visibilityOrg": "Organization",
     "visibilityOrgReaches": "Everyone in the organization who can view {resource, select, agent {agents} skill {skills} collection {collections} other {secrets}} at all.",
@@ -2995,7 +3183,8 @@
     "visibilityPrivateReaches": "Only you and the people listed below. Nobody else finds this {resource, select, agent {agent} skill {skill} collection {collection} other {secret}} in their list - and if it has no owner yet, it becomes yours.",
     "visibilityReaches": "Who reaches this {resource, select, agent {agent} skill {skill} collection {collection} other {secret}} without being named. Sharing adds people on top of this; it never takes access away.",
     "visibilityTeam": "Team (no longer offered)",
-    "visibilityTeamReaches": "Anyone whose role reaches team {resource, select, agent {agents} skill {skills} collection {collections} other {secrets}}. This organization has no teams - pick one of the two above."
+    "visibilityTeamReaches": "Anyone whose role reaches team {resource, select, agent {agents} skill {skills} collection {collections} other {secrets}}. This organization has no teams - pick one of the two above.",
+    "visibilityUpdated": "Visibility updated"
   },
   "skills": {
     "addFile": "Add file",
@@ -3006,10 +3195,14 @@
     "cancel2": "Cancel",
     "category": "Category",
     "category2": "Category",
+    "changeApplied": "Applied to {name}",
+    "changeDiscarded": "Discarded the change to {name}",
     "changesAgentProposed": "Changes an agent proposed",
     "changesWaitingDetail": "{count, plural, =1 {1 change is waiting} other {# changes are waiting}}. Accepting one rewrites the skill, which reaches every agent bound to it on its next run.",
     "close": "Close",
     "create": "Create",
+    "created": "Created {name}",
+    "deleted": "Skill deleted",
     "description": "Description",
     "description2": "Description",
     "description3": "Description",
@@ -3021,12 +3214,17 @@
     "enabled": "Enabled",
     "enter": "Enter",
     "escape": "Escape",
+    "failedLoadProposedChanges": "Failed to load proposed skill changes",
+    "fileAdded": "File added",
     "fileBody": "The file body",
     "fileContents": "File contents",
     "fileCount": "{count, plural, =0 {No files} =1 {1 file} other {# files}}",
+    "fileRemoved": "File removed",
+    "fileSaved": "File saved",
     "files": "Files",
     "files2": "Files",
     "files3": "Files",
+    "filesUploaded": "{count, plural, =1 {1 file uploaded} other {# files uploaded}}",
     "folder": "Folder",
     "folder2": "Folder",
     "folderMadeByNaming": "A folder is made by naming a file inside it - there is nothing else to create.",
@@ -3035,6 +3233,7 @@
     "howModelRefersSkill": "How the model refers to this skill. It cannot be changed later.",
     "howRefundsTheirExceptions": "How refunds and their exceptions are handled.",
     "install": "Install",
+    "installed": "{name} installed - it is yours to edit now",
     "loading": "Loading…",
     "markdownLoadedOnlyAfter": "Markdown. Loaded only after the description convinced the model to, so length costs nothing until it is needed.",
     "markdownYouCanFill": "Markdown. You can fill this in later - it is loaded only after the description convinced the model to.",
@@ -3059,6 +3258,7 @@
     "review": "Review",
     "save": "Save",
     "saveFile": "Save file",
+    "savedAgentsCurrent": "Saved. Every agent using this skill is now current.",
     "savingReachesEveryAgent": "Saving reaches every agent bound to this skill on its next run. There is no draft and no publish step.",
     "searchLibrary": "Search library…",
     "showWhatChangedIn": "Show what changed in {name}",
@@ -3162,6 +3362,7 @@
     "preview": "Preview",
     "previousMonths": "Previous months",
     "previousPage": "Previous page",
+    "providerDefault": "Provider default",
     "questionFromAssistant": "Question from the assistant",
     "questionStep": "Question {step} of {total}",
     "skip": "Skip",
@@ -3215,6 +3416,9 @@
     "rotate": "Rotate",
     "rotateNamed": "Rotate {name}",
     "saveKey": "Save key",
+    "secretDeleted": "Secret deleted. Any agent using it fails at its next run.",
+    "secretRotated": "Rotated {name}. It now ends {hint}; the old value is gone.",
+    "secretStored": "Stored {name} (…{hint})",
     "service": "Service",
     "sharedAccountAnyoneHere": "A shared account. Anyone here can bind it to an agent.",
     "sharedWithPeople": "shared with {count, plural, =1 {1 person} other {# people}}",

@@ -94,7 +94,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
   // operator may have set to something other than the platform's. Posting the
   // form's starting values would quietly overrule that.
   const chosen = !sameIngestion(ingestion, DEFAULT_INGESTION_CONFIG);
-  const localProblems = chosen ? ingestionProblems(ingestion) : {};
+  const localProblems = chosen ? ingestionProblems(ingestion, t) : {};
   const canSubmit = name.trim().length > 0 && Object.keys(localProblems).length === 0;
 
   const reset = () => {

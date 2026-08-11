@@ -21,6 +21,7 @@ import { ProviderRow } from "@/components/vault/provider-row";
 import { useModelProviders, usePermissions, useSecrets } from "@/hooks";
 import {
   CHUNKING_STRATEGIES,
+  hintOf,
   DEFAULT_IMAGE_PROMPT,
   INGESTION_LIMITS,
   LITEPARSE_OUTPUT_FORMATS,
@@ -114,7 +115,7 @@ export function IngestionSettings({
           <OptionalSetting
             htmlFor={id("parser")}
             label={t("pdfParser")}
-            description={`${parser?.hint ?? ""} ${t("builtInReadersRegardless")}`}
+            description={`${parser === undefined ? "" : t(parser.hintKey)} ${t("builtInReadersRegardless")}`}
             error={errors.pdf_parser}
             disabled={disabled}
           >
@@ -129,7 +130,7 @@ export function IngestionSettings({
               <SelectContent>
                 {PDF_PARSERS.map((choice) => (
                   <SelectItem key={choice.value} value={choice.value}>
-                    {choice.label}
+                    {t(choice.labelKey)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -140,9 +141,7 @@ export function IngestionSettings({
             <OptionalSetting
               htmlFor={id("tier")}
               label={t("llamaparseTier")}
-              description={
-                LLAMAPARSE_TIERS.find((t) => t.value === value.llamaparse_tier)?.hint ?? ""
-              }
+              description={hintOf(LLAMAPARSE_TIERS, value.llamaparse_tier, t)}
               disabled={disabled}
             >
               <Select
@@ -156,7 +155,7 @@ export function IngestionSettings({
                 <SelectContent>
                   {LLAMAPARSE_TIERS.map((choice) => (
                     <SelectItem key={choice.value} value={choice.value}>
-                      {choice.label}
+                      {t(choice.labelKey)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -237,10 +236,7 @@ export function IngestionSettings({
             <OptionalSetting
               htmlFor={id("output-format")}
               label={t("output")}
-              description={
-                LITEPARSE_OUTPUT_FORMATS.find((f) => f.value === value.liteparse_output_format)
-                  ?.hint ?? ""
-              }
+              description={hintOf(LITEPARSE_OUTPUT_FORMATS, value.liteparse_output_format, t)}
               disabled={disabled}
             >
               <Select
@@ -256,7 +252,7 @@ export function IngestionSettings({
                 <SelectContent>
                   {LITEPARSE_OUTPUT_FORMATS.map((choice) => (
                     <SelectItem key={choice.value} value={choice.value}>
-                      {choice.label}
+                      {t(choice.labelKey)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -402,9 +398,7 @@ export function IngestionSettings({
           <OptionalSetting
             htmlFor={id("strategy")}
             label={t("strategy")}
-            description={
-              CHUNKING_STRATEGIES.find((c) => c.value === value.chunking_strategy)?.hint ?? ""
-            }
+            description={hintOf(CHUNKING_STRATEGIES, value.chunking_strategy, t)}
             disabled={disabled}
           >
             <Select
@@ -418,7 +412,7 @@ export function IngestionSettings({
               <SelectContent>
                 {CHUNKING_STRATEGIES.map((choice) => (
                   <SelectItem key={choice.value} value={choice.value}>
-                    {choice.label}
+                    {t(choice.labelKey)}
                   </SelectItem>
                 ))}
               </SelectContent>

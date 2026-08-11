@@ -121,7 +121,7 @@ export function ToolCallCard({ toolCall, conversationId, startOpen = false }: To
   // The servers are what turn `linear_create_issue` into "Linear · Create issue".
   // Nothing on a tool call says where it came from, so the prefix is matched against
   // the connections this caller has - see `useMcpToolServers`.
-  const step = toolStep(toolCall.name, toolCall.args, !isRunning && !isParked, mcpServers);
+  const step = toolStep(toolCall.name, toolCall.args, !isRunning && !isParked, t, mcpServers);
 
   // Whether this call finished *while mounted*, which is what "somebody watched it
   // happen" means. Not `useChanged`, which reports the mount pass too - and the mount

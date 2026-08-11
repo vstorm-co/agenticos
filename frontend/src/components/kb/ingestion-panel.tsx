@@ -55,9 +55,9 @@ export function IngestionPanel({ kb, onEdit }: IngestionPanelProps) {
 
       <dl className="divide-border divide-y">
         <Fact term={t("pdfParser")}>
-          {labelOf(PDF_PARSERS, config.pdf_parser)}
+          {labelOf(PDF_PARSERS, config.pdf_parser, t)}
           {config.pdf_parser === "llamaparse" &&
-            ` · ${labelOf(LLAMAPARSE_TIERS, config.llamaparse_tier)}`}
+            ` · ${labelOf(LLAMAPARSE_TIERS, config.llamaparse_tier, t)}`}
           {config.pdf_parser === "liteparse" && ` · ${config.ocr_language.trim()}`}
         </Fact>
 
@@ -67,7 +67,7 @@ export function IngestionPanel({ kb, onEdit }: IngestionPanelProps) {
           {t("chunkingSummary", {
             size: config.chunk_size,
             overlap: config.chunk_overlap,
-            strategy: labelOf(CHUNKING_STRATEGIES, config.chunking_strategy),
+            strategy: labelOf(CHUNKING_STRATEGIES, config.chunking_strategy, t),
           })}
         </Fact>
 

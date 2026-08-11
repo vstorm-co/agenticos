@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 
 import { qk } from "@/lib/query-keys";
 import {
@@ -45,6 +46,8 @@ interface UseSlashCommandsResult {
  * show a toast - they're never swallowed.
  */
 export function useSlashCommands(): UseSlashCommandsResult {
+  const t = useTranslations("chat");
+  const tCommands = useTranslations("chat.commands");
   const queryClient = useQueryClient();
 
   const {
@@ -58,11 +61,7 @@ export function useSlashCommands(): UseSlashCommandsResult {
   });
 
   const error =
-    queryError instanceof Error
-      ? queryError.message
-      : queryError
-        ? "Failed to load commands"
-        : null;
+    queryError instanceof Error ? queryError.message : queryError ? t("failedLoadCommands") : null;
 
   const writeCache = useCallback(
     (updater: (prev: UserSlashCommandRecord[]) => UserSlashCommandRecord[]) =>
@@ -120,7 +119,7 @@ export function useSlashCommands(): UseSlashCommandsResult {
     [writeCache],
   );
 
-  const commands = useMemo(() => mergeWithUserCommands(records), [records]);
+  const commands = useMemo(() => mergeWithUserCommands(records, tCommands), [records, tCommands]);
 
   return {
     records,

@@ -12,6 +12,7 @@ export class BackendApiError extends Error {
     public statusText: string,
     public data?: unknown,
   ) {
+    // i18n-exempt: an Error message for a log, never rendered.
     super(`Backend API error: ${status} ${statusText}`);
     this.name = "BackendApiError";
   }

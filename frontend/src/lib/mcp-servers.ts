@@ -28,11 +28,17 @@ import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 import type { McpAuthKind, McpCatalogEntry, McpConnectionState } from "@/types/mcp";
 
-/** What a server asks for, said the way the person connecting it would say it. */
+/**
+ * What a server asks for, as a key in the `mcp` namespace.
+ *
+ * Keys rather than words, for the reason `MCP_STATE_LABEL` gives below: a module
+ * cannot call a translator, so the component translates at the point of use. It held
+ * the English until the offence sweep learned to read a `.ts` file (#446).
+ */
 export const MCP_AUTH_LABEL: Record<McpAuthKind, string> = {
-  none: "No credentials",
-  token: "API token",
-  oauth: "OAuth",
+  none: "authNoCredentials",
+  token: "authApiToken",
+  oauth: "authOauth",
 };
 
 /**
@@ -44,9 +50,6 @@ export const MCP_AUTH_LABEL: Record<McpAuthKind, string> = {
  * them - the state on every row of the MCP list and of the builder's picker was
  * English under every locale (#425).
  *
- * `MCP_AUTH_LABEL` above is still a word rather than a key, as is `SCOPE_LABEL`
- * in `mcp-server-list.tsx`: no catalog message holds either, so they are part of
- * the copy the guard has never read at all rather than part of this defect.
  */
 export const MCP_STATE_LABEL: Record<McpConnectionState, string> = {
   "not-connected": "notConnected",
@@ -125,7 +128,15 @@ export interface McpServerRow {
   /** Stable across renders: the catalog key, or the connection this row is. */
   key: string;
   name: string;
-  description: string;
+  /**
+   * The row's sentence, and where it came from decides which field holds it.
+   *
+   * A catalog row's is the backend's own - `app/core/catalog/mcp_servers.json` writes
+   * it, so it is API data rather than this app's copy and there is no key for it. A
+   * custom row's is one of two of ours, which is a key under `mcp` (#446).
+   */
+  description: string | null;
+  descriptionKey: string | null;
   category: string;
   auth: McpAuthKind;
   url: string | null;
@@ -165,6 +176,7 @@ export function mergeServers(
       key: entry.key,
       name: entry.name,
       description: entry.description,
+      descriptionKey: null,
       category: entry.category,
       auth: entry.auth,
       url: entry.url,
@@ -179,9 +191,8 @@ export function mergeServers(
   const custom = (connection: McpConnectionRecord, isOrg: boolean): McpServerRow => ({
     key: connection.id,
     name: connection.name,
-    description: isOrg
-      ? "Added by this organization, not from the catalog."
-      : "Added by you, not from the catalog.",
+    description: null,
+    descriptionKey: isOrg ? "customAddedByOrg" : "customAddedByYou",
     category: CUSTOM_CATEGORY,
     auth: connection.auth_type === "oauth" ? "oauth" : connection.has_auth_token ? "token" : "none",
     url: connection.url,
