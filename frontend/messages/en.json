@@ -2079,6 +2079,10 @@
     "offer": {
       "accept": "Yes, guide me",
       "decline": "Not now",
+      "create-agent": {
+        "title": "Create your first agent?",
+        "body": "An agent is instructions, a model and a set of tools. Want to build your first one together? We'll check what your workspace already has and only stop where you need to."
+      },
       "create-skill": {
         "title": "Create a skill?",
         "body": "Skills are reusable instructions you can attach to any agent. Want to make your first one now? We'll walk you through it."
@@ -2097,6 +2101,26 @@
       }
     },
     "steps": {
+      "flow-agent-create": {
+        "title": "Name your agent",
+        "body": "Choose New agent, give it a name and a short description, and create it. That opens the builder, where the rest of this happens. We'll move on as soon as it's created."
+      },
+      "flow-agent-instructions": {
+        "title": "Write its instructions",
+        "body": "Tell the agent who it is and what it should do — this is its system prompt. Write a line or two, then choose Next."
+      },
+      "flow-agent-model-add": {
+        "title": "Add a model",
+        "body": "Your workspace has no model yet. Pick a provider, name a model, and paste a key — it's stored in the vault and the model is ready. We'll move on once it's added."
+      },
+      "flow-agent-model-pick": {
+        "title": "Choose its model",
+        "body": "Pick the model this agent should run on from the list, then choose Next."
+      },
+      "flow-agent-publish": {
+        "title": "Publish it",
+        "body": "Publishing makes this version the one that runs everywhere the agent is used. Choose Publish when you're ready, then finish here."
+      },
       "flow-skill-create": {
         "title": "Add your skill",
         "body": "Choose New skill, give it a name and a short description, write what it should do, and create it. We'll move on as soon as it's saved."

@@ -35,7 +35,6 @@ function step(overrides: Partial<FlowStep> = {}): FlowStep {
     id: "flow-skill-create",
     page: "/skills",
     target: "skills-new",
-    interactive: true,
     signal: { kind: "created", resource: "skill" },
     ...overrides,
   };

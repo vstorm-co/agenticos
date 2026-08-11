@@ -109,7 +109,12 @@ export function OnboardingTour() {
     // the permission.
     const completeWalk = () => {
       closeWalk();
-      if (mode === "page") {
+      if (mode === "tour") {
+        // The first-run tour finished — offer to build the first agent together.
+        // Declining guides nobody; the reader can still start it later from the
+        // Agents "?" walk, whose end offers the same flow.
+        openOffer("create-agent");
+      } else if (mode === "page") {
         const flow = flowForPage(pageKey(here));
         if (flow) openOffer(flow);
       }

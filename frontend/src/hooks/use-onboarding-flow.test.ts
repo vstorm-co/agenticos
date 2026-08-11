@@ -7,6 +7,10 @@ import type { Permission } from "@/types/permissions";
 
 // Mutable state the mocked hooks read, so a test can grow a list between renders.
 const rig = vi.hoisted(() => ({
+  agentTotal: 0,
+  agentsLoading: false,
+  profiles: [] as { secret_id: string | null; base_url?: string | null }[],
+  modelsLoading: false,
   skillTotal: 0,
   skillLoading: false,
   kbs: [] as unknown[],
@@ -15,6 +19,12 @@ const rig = vi.hoisted(() => ({
   can: (_permission: Permission): boolean => true,
 }));
 
+vi.mock("@/hooks/use-agents", () => ({
+  useAgents: () => ({ total: rig.agentTotal, isLoading: rig.agentsLoading }),
+}));
+vi.mock("@/hooks/use-model-providers", () => ({
+  useModelProviders: () => ({ profiles: rig.profiles, isLoading: rig.modelsLoading }),
+}));
 vi.mock("@/hooks/use-skills", () => ({
   useSkills: () => ({ total: rig.skillTotal, isLoading: rig.skillLoading }),
 }));
@@ -32,8 +42,8 @@ vi.mock("@/hooks/use-permissions", () => ({
 }));
 
 // One flow given a second, signal-less step so the advance-not-finish branch and
-// the no-signal branch are both reachable — the real per-section flows are all a
-// single step. The registry itself is covered by `flows.test.ts`.
+// the no-signal branch are both reachable — the per-section flows are a single
+// step. The registry itself is covered by `flows.test.ts`.
 vi.mock("@/lib/onboarding/flows", async () => {
   const actual =
     await vi.importActual<typeof import("@/lib/onboarding/flows")>("@/lib/onboarding/flows");
@@ -44,12 +54,7 @@ vi.mock("@/lib/onboarding/flows", async () => {
       "create-kb": {
         id: "create-kb",
         steps: [
-          {
-            id: "kb-a",
-            target: "knowledge-new",
-            interactive: true,
-            signal: { kind: "created", resource: "kb" },
-          },
+          { id: "kb-a", target: "knowledge-new", signal: { kind: "created", resource: "kb" } },
           { id: "kb-b", target: "knowledge-attach" },
         ],
       },
@@ -58,6 +63,10 @@ vi.mock("@/lib/onboarding/flows", async () => {
 });
 
 beforeEach(() => {
+  rig.agentTotal = 0;
+  rig.agentsLoading = false;
+  rig.profiles = [];
+  rig.modelsLoading = false;
   rig.skillTotal = 0;
   rig.skillLoading = false;
   rig.kbs = [];
@@ -146,5 +155,65 @@ describe("useOnboardingFlow", () => {
     expect(result.current.signalMet).toBe(false);
     act(() => result.current.finish());
     expect(useOnboardingStore.getState().isOpen).toBe(false);
+  });
+
+  it("advances the agent flow when an agent is created", () => {
+    rig.agentTotal = 0;
+    const { result, rerender } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-agent"));
+    expect(result.current.step?.id).toBe("flow-agent-create");
+    expect(result.current.signalMet).toBe(false);
+
+    rig.agentTotal = 1;
+    rerender();
+    expect(result.current.signalMet).toBe(true);
+  });
+
+  it("teaches adding a model when the org has none", () => {
+    rig.profiles = [{ secret_id: null, base_url: null }]; // a profile with no usable key
+    const { result } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-agent"));
+    const ids = result.current.steps.map((step) => step.id);
+    expect(ids).toContain("flow-agent-model-add");
+    expect(ids).not.toContain("flow-agent-model-pick");
+  });
+
+  it("points at the model picker when a keyed model already exists", () => {
+    rig.profiles = [{ secret_id: "sec-1" }];
+    const { result } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-agent"));
+    const ids = result.current.steps.map((step) => step.id);
+    expect(ids).toContain("flow-agent-model-pick");
+    expect(ids).not.toContain("flow-agent-model-add");
+  });
+
+  it("counts a self-hosted model with a base URL as runnable", () => {
+    rig.profiles = [{ secret_id: null, base_url: "http://localhost:11434/v1" }];
+    const { result } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-agent"));
+    expect(result.current.steps.map((step) => step.id)).toContain("flow-agent-model-pick");
+  });
+
+  it("assumes no model while the model list is still loading", () => {
+    rig.modelsLoading = true;
+    const { result } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-agent"));
+    // Nothing frozen yet, so the flow defaults to teaching how to add one.
+    expect(result.current.steps.map((step) => step.id)).toContain("flow-agent-model-add");
+  });
+
+  it("does not let the add-model step morph once the reader adds a model", () => {
+    rig.profiles = []; // no models to start
+    const { result, rerender } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-agent"));
+    act(() => useOnboardingStore.getState().setIndex(2)); // the model step
+    expect(result.current.step?.id).toBe("flow-agent-model-add");
+
+    rig.profiles = [{ secret_id: "sec-1" }]; // AddModel creates a new profile mid-flow
+    rerender();
+    // Frozen: still the add step, and its signal now fires rather than the step
+    // turning into "pick a model" with nothing to advance it.
+    expect(result.current.step?.id).toBe("flow-agent-model-add");
+    expect(result.current.signalMet).toBe(true);
   });
 });

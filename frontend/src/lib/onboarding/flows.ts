@@ -1,5 +1,5 @@
 import { ROUTES } from "@/lib/constants";
-import { KB_DETAIL, ORG_MEMBERS, ORG_ROLES } from "@/lib/onboarding/tour";
+import { AGENT_BUILDER, KB_DETAIL, ORG_MEMBERS, ORG_ROLES } from "@/lib/onboarding/tour";
 import { Perm, type Permission } from "@/types/permissions";
 
 /**
@@ -17,16 +17,17 @@ import { Perm, type Permission } from "@/types/permissions";
  * its spotlight, so it would leave a create dialog dimmed and unusable. The coach
  * that runs a flow draws no blocking overlay for exactly that reason.
  */
-export type FlowId = "create-skill" | "create-kb" | "create-mcp" | "create-org";
+export type FlowId = "create-agent" | "create-skill" | "create-kb" | "create-mcp" | "create-org";
 
 /**
  * A resource whose *appearance* ends a step. It is the react-query list the coach
  * watches: when its count crosses the baseline captured as the step began, the
  * reader has created the thing and the step is done. The names track the hooks —
  * `orgMcp` is the organization's MCP connections (`useOrgMcpConnections`), not the
- * personal `/me` list and not the read-only catalog.
+ * personal `/me` list and not the read-only catalog; `model` is a model profile
+ * (`useModelProviders`), the resource a new agent needs before it can run.
  */
-export type FlowResource = "skill" | "kb" | "orgMcp" | "org";
+export type FlowResource = "agent" | "model" | "skill" | "kb" | "orgMcp" | "org";
 
 /**
  * How a step knows it is finished. Today the only signal is a resource being
@@ -37,14 +38,26 @@ export type FlowResource = "skill" | "kb" | "orgMcp" | "org";
 export type FlowSignal = { kind: "created"; resource: FlowResource };
 
 /**
+ * What an organization already has, read from the resource hooks, so an adaptive
+ * flow can teach only what is missing. Just `hasRunnableModel` today — the one
+ * prerequisite a new agent cannot run without — because a stored key with no
+ * profile pointing at it is not runnable, and a profile whose key was deleted is
+ * not either. A flow grows this as it grows the branches that read it.
+ */
+export interface OrgState {
+  hasRunnableModel: boolean;
+}
+
+/**
  * One stop in a creation flow.
  *
  * `page`/`target`/`activate`/`permission` mean what they do in `TourStep`: the
  * coach gets the reader to `page`, optionally reveals `activate`, and points at
- * `[data-tour="<target>"]`. What a flow step adds is `interactive` — the coach
- * enables pointer events on the target and does *not* perform the action itself,
- * so the reader operates the real control — and `signal`, the app event that
- * advances the step. `optional` renders a Skip.
+ * `[data-tour="<target>"]`. What a flow step adds is `signal`, the app event that
+ * advances it — a step with one auto-advances when its resource appears, a step
+ * without one carries a Next. `optional` renders a Skip. `include` makes a step
+ * adaptive: it runs only when the organization's state calls for it, so a flow
+ * teaches "add a model" only to an organization that has none.
  */
 export interface FlowStep {
   id: string;
@@ -53,11 +66,11 @@ export interface FlowStep {
   /** A `[data-tour="…"]` to reveal before pointing at the target — a tab. */
   activate?: string;
   permission?: Permission;
-  /** The reader acts on the real control; the coach waits rather than clicking. */
-  interactive?: boolean;
   /** Renders a Skip — a step the flow can do without. */
   optional?: boolean;
   signal?: FlowSignal;
+  /** Run this step only when the organization's state calls for it. */
+  include?: (state: OrgState) => boolean;
 }
 
 /**
@@ -74,15 +87,68 @@ export interface CreationFlow {
 }
 
 /**
- * The per-section flows. Each is a single interactive step pointing at the
- * section's create trigger — the reader is already on the page when the "?" walk
- * that offered it ends — and completes when the resource is created.
+ * The flows.
  *
- * MCP is the one with a caveat the coach carries, not the registry: a connection
- * added over OAuth redirects to the provider's consent screen instead of
- * resolving in place, so that path has no in-page `created` signal to wait on.
+ * The per-section ones are a single step pointing at the section's create trigger
+ * — the reader is already on the page when the "?" walk that offered it ends — and
+ * complete when the resource is created. MCP carries a caveat the coach handles,
+ * not the registry: a connection added over OAuth redirects to the provider's
+ * consent screen rather than resolving in place, so that path has no in-page
+ * `created` signal to wait on.
+ *
+ * `create-agent` is the adaptive one. It creates the agent (which opens the
+ * builder), walks its instructions and model, and ends at Publish. The model step
+ * is two mutually exclusive halves: an organization with no runnable model is
+ * taught to add one inline (`AddModel` stores the key and the profile in a single
+ * submit), one that already has a model is only shown where to pick it. Its later
+ * steps live on the builder, a detail view with no route of its own, so they
+ * carry the `AGENT_BUILDER` identity and rely on the create step having navigated
+ * there; the coach does not try to navigate to a pseudo-page.
  */
 export const FLOWS: Record<FlowId, CreationFlow> = {
+  "create-agent": {
+    id: "create-agent",
+    permission: Perm.agentsEdit,
+    steps: [
+      {
+        id: "flow-agent-create",
+        page: ROUTES.AGENTS,
+        target: "agents-new",
+        permission: Perm.agentsEdit,
+        signal: { kind: "created", resource: "agent" },
+      },
+      {
+        id: "flow-agent-instructions",
+        page: AGENT_BUILDER,
+        target: "agent-instructions",
+        activate: "agent-tab-build",
+        permission: Perm.agentsView,
+      },
+      {
+        id: "flow-agent-model-add",
+        page: AGENT_BUILDER,
+        target: "agent-model",
+        activate: "agent-tab-build",
+        permission: Perm.agentsView,
+        signal: { kind: "created", resource: "model" },
+        include: (state) => !state.hasRunnableModel,
+      },
+      {
+        id: "flow-agent-model-pick",
+        page: AGENT_BUILDER,
+        target: "agent-model",
+        activate: "agent-tab-build",
+        permission: Perm.agentsView,
+        include: (state) => state.hasRunnableModel,
+      },
+      {
+        id: "flow-agent-publish",
+        page: AGENT_BUILDER,
+        target: "agent-publish",
+        permission: Perm.agentsPublish,
+      },
+    ],
+  },
   "create-skill": {
     id: "create-skill",
     permission: Perm.skillsEdit,
@@ -92,7 +158,6 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         page: ROUTES.SKILLS,
         target: "skills-new",
         permission: Perm.skillsEdit,
-        interactive: true,
         signal: { kind: "created", resource: "skill" },
       },
     ],
@@ -106,7 +171,6 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         page: ROUTES.RAG,
         target: "knowledge-new",
         permission: Perm.collectionsEdit,
-        interactive: true,
         signal: { kind: "created", resource: "kb" },
       },
     ],
@@ -120,7 +184,6 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         page: ROUTES.MCP_SERVERS,
         target: "mcp-add",
         permission: Perm.connectionsManage,
-        interactive: true,
         signal: { kind: "created", resource: "orgMcp" },
       },
     ],
@@ -132,7 +195,6 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         id: "flow-org-create",
         page: ROUTES.ORGS,
         target: "orgs-new",
-        interactive: true,
         signal: { kind: "created", resource: "org" },
       },
     ],
@@ -143,14 +205,14 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
  * The flow offered at the end of a section's "?" walk, or `null` for a page with
  * nothing to create. Detail routes collapse onto their section the way `pageKey`
  * collapses them, so the builder offers the same flow as the Agents list and a
- * collection the same as the Knowledge list.
- *
- * Agents has no entry yet — its guided flow (adaptive, multi-step, ending in a
- * publish) is added with the flow itself; until then the Agents "?" ends without
- * an offer rather than with a broken one.
+ * collection the same as the Knowledge list — which is why an Agents "?" that
+ * walked into the builder still offers `create-agent`.
  */
 export function flowForPage(pageId: string): FlowId | null {
   switch (pageId) {
+    case ROUTES.AGENTS:
+    case AGENT_BUILDER:
+      return "create-agent";
     case ROUTES.SKILLS:
       return "create-skill";
     case ROUTES.RAG:
@@ -168,16 +230,22 @@ export function flowForPage(pageId: string): FlowId | null {
 }
 
 /**
- * The steps of `flow` this caller can run, permission-filtered the way the tour
- * is: a step whose control the server would hide is dropped rather than left for
- * the coach to hunt. The flow-level permission gates whether the offer is made at
+ * The steps of `flow` this caller runs against `state`: permission-filtered the
+ * way the tour is — a step whose control the server would hide is dropped rather
+ * than left for the coach to hunt — and adaptively filtered, so a step that only
+ * makes sense for a missing prerequisite (add a model) drops out for an
+ * organization that already has it, and its complement (pick the model you have)
+ * takes its place. The flow-level permission gates whether the offer is made at
  * all; this gates the steps within one that is.
  */
 export function stepsForFlow(
   flow: CreationFlow,
+  state: OrgState,
   can: (permission: Permission) => boolean,
 ): readonly FlowStep[] {
-  return flow.steps.filter((step) => !step.permission || can(step.permission));
+  return flow.steps.filter(
+    (step) => (!step.permission || can(step.permission)) && (!step.include || step.include(state)),
+  );
 }
 
 /**

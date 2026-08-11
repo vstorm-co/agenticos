@@ -63,7 +63,11 @@ export function OnboardingCoach() {
     const sid = step.id;
 
     void (async () => {
-      if (step.page && here !== step.page) {
+      // Only real routes are navigable. A detail view's pseudo-identity (the
+      // builder's `AGENT_BUILDER`) is reached by the step before it — creating the
+      // agent opens the builder — so the coach never pushes one; it just proceeds
+      // to find the target on the page it was left on.
+      if (step.page?.startsWith("/") && here !== step.page) {
         router.push(step.page);
         return; // this effect re-runs once the navigation lands
       }

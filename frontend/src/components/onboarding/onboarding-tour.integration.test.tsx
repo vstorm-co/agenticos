@@ -173,6 +173,18 @@ describe("OnboardingTour", () => {
     await waitFor(() => expect(router.push).toHaveBeenCalledWith(ROUTES.DASHBOARD));
   });
 
+  it("offers to build the first agent when the first-run tour is finished", async () => {
+    // The headline of Phase 2: finishing onboarding asks whether to create the
+    // first agent together. Declining is silent; the Agents "?" re-offers it.
+    servePermissions(OWNER);
+    useOnboardingStore.setState({ isOpen: true, index: 999, mode: "tour" });
+    render(<OnboardingTour />, { wrapper });
+    await waitFor(() => expect(spotlight.highlight).toHaveBeenCalled());
+
+    act(() => shownStep().popover?.onNextClick?.(undefined, {} as DriveStep, {} as never));
+    expect(useOnboardingStore.getState().offer).toBe("create-agent");
+  });
+
   it("offers the section's create flow when a '?' walk runs to its end", async () => {
     // Every section's "?" ends by asking whether to make the thing the section
     // is for — the re-entry into the interactive flows.
