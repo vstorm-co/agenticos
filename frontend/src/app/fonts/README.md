@@ -11,9 +11,6 @@ return the same bytes. The range in `layout.tsx` is a declaration about which we
 face may serve, not a property of the file — a weight outside it is clamped, not
 synthesized. Widening one is a one-line edit to `layout.tsx`, with nothing to re-download.
 
-So the Weights column below is what we declare; the axis column is what the file actually
-holds.
-
 | File | Family | Declared | Axis in the file | Google Fonts version |
 | --- | --- | --- | --- | --- |
 | `bricolage-grotesque-latin.woff2` | Bricolage Grotesque | 700–800 | 200–800 | v9 |
