@@ -17,6 +17,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.102] - 2026-08-11
+
+The copy guard reads a `.ts` file, and the 381 English strings it had never been
+pointed at are in the catalog.
+
 ### Fixed
 
 - **`check_i18n.py` never read a `.ts` file, so every hook toast was invisible to
