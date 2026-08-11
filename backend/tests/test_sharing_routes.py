@@ -14,11 +14,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.api.routes.v1._sharing_loaders import (
+    load_agent,
+    load_collection,
+    load_secret,
+    load_skill,
+)
 from app.api.routes.v1.sharing import (
-    _load_agent,
-    _load_collection,
-    _load_secret,
-    _load_skill,
     agent_sharing_router,
     collection_sharing_router,
     secret_sharing_router,
@@ -35,10 +37,10 @@ ROUTERS = (
 )
 
 LOADERS = (
-    ("agent", _load_agent, "Agent not found", "agent_id"),
-    ("collection", _load_collection, "Collection not found", "kb_id"),
-    ("skill", _load_skill, "Skill not found", "skill_id"),
-    ("secret", _load_secret, "Secret not found", "secret_id"),
+    ("agent", load_agent, "Agent not found", "agent_id"),
+    ("collection", load_collection, "Collection not found", "kb_id"),
+    ("skill", load_skill, "Skill not found", "skill_id"),
+    ("secret", load_secret, "Secret not found", "secret_id"),
 )
 
 

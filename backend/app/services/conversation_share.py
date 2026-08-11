@@ -107,7 +107,6 @@ class ConversationShareService:
         if not share:
             raise NotFoundError(message="Share not found", details={"share_id": str(share_id)})
 
-        # Owner or the recipient can revoke
         if share.shared_by != user_id and share.shared_with != user_id:
             raise AuthorizationError(message="Not authorized to revoke this share")
 

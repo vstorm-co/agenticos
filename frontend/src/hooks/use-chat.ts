@@ -160,12 +160,10 @@ export function useChat(options: UseChatOptions = {}) {
 
       switch (wsEvent.type) {
         case "conversation_created": {
-          // Handle new conversation created by backend
           const { conversation_id } = wsEvent.data as { conversation_id: string };
           setCurrentConversationId(conversation_id);
           // Reflect the new ID in the URL so the page is refreshable + shareable.
           setUrlParam("id", conversation_id);
-          // Update all messages that don't have a conversationId yet
           const { updateMessagesWhere } = useChatStore.getState();
           updateMessagesWhere(
             (msg) => !msg.conversationId,
@@ -176,10 +174,8 @@ export function useChat(options: UseChatOptions = {}) {
         }
 
         case "message_saved": {
-          // Assistant message was saved to database, update local ID to real database ID
           const { message_id } = wsEvent.data as { message_id: string };
           if (currentMessageIdRef.current) {
-            // Update the current streaming message's ID to the real database ID
             updateMessage(currentMessageIdRef.current, (msg) => ({
               ...msg,
               id: message_id,
@@ -192,7 +188,6 @@ export function useChat(options: UseChatOptions = {}) {
             // to nothing, so it appeared only after a reload fetched it from the row.
             setCurrentMessageId(message_id);
           } else {
-            // Fallback: find the last assistant message with a temp ID
             // This handles cases where currentMessageId was already cleared
             const messages = useChatStore.getState().messages;
             const lastTemp = [...messages]
@@ -258,7 +253,6 @@ export function useChat(options: UseChatOptions = {}) {
         }
 
         case "tool_call": {
-          // Add tool call to current message
           if (currentMessageIdRef.current) {
             const { tool_name, args, tool_call_id } = wsEvent.data as {
               tool_name: string;
@@ -277,7 +271,6 @@ export function useChat(options: UseChatOptions = {}) {
         }
 
         case "tool_result": {
-          // Update tool call with result
           if (currentMessageIdRef.current) {
             const { tool_call_id, content } = wsEvent.data as {
               tool_call_id: string;
@@ -292,7 +285,6 @@ export function useChat(options: UseChatOptions = {}) {
         }
 
         case "final_result": {
-          // Finalize message
           if (currentMessageIdRef.current) {
             const { output } = wsEvent.data as { output: string };
             // If the model returned text only via final_result (no streamed
@@ -330,7 +322,6 @@ export function useChat(options: UseChatOptions = {}) {
         }
 
         case "error": {
-          // Handle error
           if (currentMessageIdRef.current) {
             const id = currentMessageIdRef.current;
             const { message } = wsEvent.data as { message: string };
@@ -945,7 +936,6 @@ export function useChat(options: UseChatOptions = {}) {
     setThinkingEffort: (effort: "low" | "medium" | "high" | null) => {
       thinkingEffortRef.current = effort;
     },
-    // Human-in-the-Loop support
     pendingApproval,
     sendResumeDecisions,
     pendingQuestions,

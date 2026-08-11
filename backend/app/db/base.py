@@ -5,8 +5,6 @@ from datetime import datetime
 from sqlalchemy import DateTime, MetaData, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-# Naming convention for database constraints and indexes
-# This ensures consistent naming across all migrations
 NAMING_CONVENTION = {
     "ix": "%(column_0_label)s_idx",
     "uq": "%(table_name)s_%(column_0_name)s_key",

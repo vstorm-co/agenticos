@@ -390,10 +390,6 @@ class ChannelBotService:
             if value is not None and hasattr(value, "model_dump"):
                 update_data[field] = value.model_dump()
         updated = await channel_bot_repo.update(self.db, db_bot=bot, update_data=update_data)
-        # Unconditionally, rather than on the fields a stream reads. A token, a
-        # server address and the delivery mode all change what the connection
-        # is, and a rule listing them is a rule the next column forgets - while
-        # reopening a stream nobody changed costs one reconnect.
         self._reopen_stream(updated)
         return updated
 

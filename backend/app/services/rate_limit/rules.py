@@ -41,7 +41,6 @@ class RateLimitCategory:
     WEBHOOK = "webhook"
 
 
-# Default fallback limits (used when plan features don't define limits)
 DEFAULT_RATE_LIMITS: dict[str, RateLimitRule] = {
     RateLimitCategory.AGENT_INVOCATION: RateLimitRule(per_user=10, period_seconds=86400),
     RateLimitCategory.RAG_UPLOAD: RateLimitRule(per_user=5, period_seconds=86400),

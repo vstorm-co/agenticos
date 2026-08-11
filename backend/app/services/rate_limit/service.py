@@ -60,7 +60,6 @@ async def check_rate_limit(
     storage = _get_storage()
     ip = request.client.host if request.client else "unknown"
 
-    # Resolve rule: plan features > defaults
     rule: RateLimitRule | None = None
     if plan_features:
         rl = plan_features.get("rate_limits", {})
@@ -131,7 +130,6 @@ def make_rate_limit_dep(category: str):
 
     async def _dep(request: Request, user: CurrentUser, active_org: ActiveOrg) -> None:
         plan_features: dict | None = None
-        # Try to load plan features from org subscription (best-effort)
         try:
             if hasattr(active_org, "subscription") and active_org.subscription:
                 sub = active_org.subscription

@@ -589,8 +589,6 @@ class McpConnectionService:
             )
         return db_connection
 
-    # -- organization-scoped connections --------------------------------
-
     async def list_for_org(self, ctx: AuthContext) -> tuple[list[McpConnection], int]:
         return await mcp_connection_repo.list_org_scoped(
             self.db, organization_id=ctx.organization_id
