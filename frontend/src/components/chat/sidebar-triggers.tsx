@@ -24,11 +24,12 @@ import type { Trigger } from "@/types/triggers";
  * The chat sidebar's schedules-and-triggers section, above the conversation list.
  *
  * Collapsed by default and fetched only when expanded, so the sidebar's first
- * paint costs no extra request. Clicking an item follows what the item *has*: a
- * trigger that has never fired opens its editor (there is nothing to read yet,
- * and the editor is where Run now lives), one with runs opens its run-log
- * conversation - the same list every fire appends to. The row menu carries the
- * rest: edit, pause or resume, run now, delete.
+ * paint costs no extra request. Clicking an item opens its run-log conversation -
+ * the one list every fire appends to, opened eagerly on create - so a trigger
+ * that has never fired opens it empty rather than on a config form; that is what
+ * a user expects clicking it. Only a trigger with no conversation at all (an
+ * older row, or one whose log was deleted) falls back to the editor. The row menu
+ * carries the rest: edit, pause or resume, run now, delete.
  */
 export function SidebarTriggers({
   onOpenConversation,
@@ -46,12 +47,14 @@ export function SidebarTriggers({
   const [editing, setEditing] = useState<Trigger | null>(null);
 
   function openItem(trigger: Trigger) {
-    if (trigger.last_run_id !== null && trigger.conversation_id !== null) {
+    if (trigger.conversation_id !== null) {
+      // Open its run-log conversation whether or not it has fired: a run-less
+      // trigger opens it empty, which is what clicking the item should show.
       onOpenConversation(trigger.conversation_id);
     } else if (canManage) {
-      // Never fired (or its log was deleted): there is nothing to read, so the
-      // item opens on what can be acted on - the editor, which a viewer may not
-      // use, so for them the item is informational only.
+      // No conversation to show (an older trigger, or its log was deleted): fall
+      // back to the editor, which a viewer may not use, so for them the item is
+      // informational only.
       setEditing(trigger);
     }
   }

@@ -99,7 +99,7 @@ describe("SidebarTriggers", () => {
     expect(await screen.findByText("Could not load the list.")).toBeVisible();
   });
 
-  it("opens the editor for a trigger that has never fired", async () => {
+  it("opens the empty conversation for a trigger that has never fired", async () => {
     const user = userEvent.setup();
     const onOpenConversation = vi.fn();
     serve([trigger({ last_run_id: null, conversation_id: "c1" })]);
@@ -108,7 +108,21 @@ describe("SidebarTriggers", () => {
     await user.click(screen.getByRole("button", { name: "Schedules & triggers" }));
     await user.click(await screen.findByRole("button", { name: "Open Nightly trigger" }));
 
-    // Nothing to read yet, so the item opens on what can be acted on.
+    // A run-less trigger opens its eager, empty conversation - not a config form.
+    expect(onOpenConversation).toHaveBeenCalledWith("c1");
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("opens the editor for a trigger with no conversation to show", async () => {
+    const user = userEvent.setup();
+    const onOpenConversation = vi.fn();
+    serve([trigger({ last_run_id: null, conversation_id: null })]);
+    render(<SidebarTriggers onOpenConversation={onOpenConversation} canManage />, { wrapper });
+
+    await user.click(screen.getByRole("button", { name: "Schedules & triggers" }));
+    await user.click(await screen.findByRole("button", { name: "Open Nightly trigger" }));
+
+    // Nothing to read and nothing to open: fall back to what can be acted on.
     expect(await screen.findByRole("dialog")).toBeVisible();
     expect(onOpenConversation).not.toHaveBeenCalled();
   });
@@ -219,11 +233,11 @@ describe("SidebarTriggers", () => {
     await user.click(screen.getByRole("button", { name: "Schedules & triggers" }));
     // The list is visible - viewing is `agents:view`.
     expect(await screen.findByText("Nightly")).toBeVisible();
-    // But no manage controls, and a run-less item opens no editor a viewer
-    // could not save anyway.
+    // No manage controls, but the run-log conversation is a read: a viewer
+    // opens it (empty here) and still gets no editor they could not save.
     expect(screen.queryByRole("button", { name: "Actions for Nightly trigger" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "Open Nightly trigger" }));
     expect(screen.queryByRole("dialog")).toBeNull();
-    expect(onOpenConversation).not.toHaveBeenCalled();
+    expect(onOpenConversation).toHaveBeenCalledWith("c1");
   });
 });
