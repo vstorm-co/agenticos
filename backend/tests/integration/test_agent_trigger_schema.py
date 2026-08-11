@@ -16,12 +16,15 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.repositories import agent_trigger_repo
+from app.schemas.agent_trigger import TriggerCreate, TriggerRead
+from app.services.agent_trigger import AgentTriggerService
 
 pytestmark = pytest.mark.anyio
 
@@ -238,3 +241,33 @@ class TestTwoHeartbeatsDoNotDoubleFire:
             async with factory() as second:
                 also = await agent_trigger_repo.claim_due(second, now=datetime.now(UTC))
             assert also == []  # the second heartbeat is handed nothing, not a duplicate
+
+
+class TestACreatedTriggerSerializes:
+    async def test_a_created_trigger_survives_response_serialization(self, db):
+        """Creating a trigger opens its run-log conversation, and that flush fires
+        the row's `onupdate` for `updated_at`, expiring it on the instance. The
+        route then serializes the row to `TriggerRead`, reading every attribute in
+        a sync context - so without a final refresh the expired `updated_at` lazy
+        -loads into a `MissingGreenlet` and the create is a 500.
+
+        A mocked-service API test cannot see this: it never serializes a live row.
+        This drives the real service against a real session and then serializes,
+        which is exactly the path that failed. It reproduces the 500 without the
+        fix and passes with it.
+        """
+        org = await _org(db)
+        agent = await _agent(db, org)
+        ctx = AuthContext(
+            user_id=org.owner_user.id,  # type: ignore[attr-defined]
+            organization_id=org.id,
+            role=OrgRoleName.OWNER.value,
+        )
+        trigger = await AgentTriggerService(db).create(
+            ctx, agent.id, TriggerCreate(prompt="summarise", interval_seconds=900)
+        )
+        # The line that 500s without the refresh: Pydantic reads updated_at.
+        read = TriggerRead.model_validate(trigger)
+        assert read.updated_at is not None
+        # And the eager run-log conversation is what made updated_at stale.
+        assert read.conversation_id is not None

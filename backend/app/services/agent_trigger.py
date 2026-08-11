@@ -276,6 +276,13 @@ class AgentTriggerService:
                 "event_source": trigger.event_source,
             },
         )
+        # Reload before returning: opening the run-log conversation flushed a
+        # `conversation_id` update, and the server-side `updated_at` (onupdate) it
+        # triggered is now expired on the instance. Serializing the response reads
+        # every attribute in a sync context, where a lazy reload of that one would
+        # be a `MissingGreenlet` 500 - the exact failure a mocked service test
+        # cannot see, since it never serializes a live row.
+        await self.db.refresh(trigger)
         return trigger
 
     async def update(
@@ -372,6 +379,10 @@ class AgentTriggerService:
             details={"trigger_id": str(trigger.id)},
         )
         await self.fire(trigger.id)
+        # Reload for the same reason `create` does: the fire flushed a
+        # `last_run_id` update whose server-side `updated_at` is now expired, and
+        # the response serialization would lazy-load it into a `MissingGreenlet`.
+        await self.db.refresh(trigger)
         return trigger
 
     async def prepare_event_fire(

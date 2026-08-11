@@ -56,6 +56,9 @@ def _agent(*, agent_id: uuid.UUID | None = None, name: str = "Nightly") -> Magic
 def _service(agent: MagicMock | None = None) -> AgentTriggerService:
     service = AgentTriggerService(MagicMock())
     service.db.flush = AsyncMock()
+    # `create` and `run_now` refresh the row before returning it, so it serializes
+    # without a MissingGreenlet on a live session; the mock must await.
+    service.db.refresh = AsyncMock()
     service.agents = MagicMock()
     service.agents.get = AsyncMock(return_value=agent or _agent())
     return service
