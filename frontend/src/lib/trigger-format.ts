@@ -1,4 +1,4 @@
-import type { Trigger } from "@/types/triggers";
+import type { EventSource, Trigger } from "@/types/triggers";
 
 const MINUTE = 60;
 const HOUR = 3600;
@@ -17,7 +17,7 @@ export type IntervalUnit = "minutes" | "hours" | "days";
 export type TriggerSummary =
   | { kind: "interval"; unit: IntervalUnit; count: number }
   | { kind: "cron"; expression: string }
-  | { kind: "event"; source: "github" | "email" };
+  | { kind: "event"; source: EventSource };
 
 /**
  * The largest whole unit an interval divides into, so 3600s reads "every hour"

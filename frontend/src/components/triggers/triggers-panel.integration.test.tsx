@@ -45,7 +45,7 @@ function trigger(overrides: Partial<Trigger> = {}): Trigger {
     last_fired_at: null,
     last_run_id: null,
     conversation_id: null,
-    webhook_path: null,
+    webhook_url: null,
     created_at: null,
     updated_at: null,
     ...overrides,
@@ -135,15 +135,21 @@ describe("TriggersPanel", () => {
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers/t1/run`, {});
   });
 
-  it("removes a trigger through its row action", async () => {
+  it("removes a trigger, but only after the delete is confirmed", async () => {
     const user = userEvent.setup();
     serve([trigger()]);
     vi.mocked(apiClient.delete).mockResolvedValue(undefined);
     await mount();
 
     await user.click(await screen.findByRole("button", { name: "Delete" }));
+    // A destructive one-click delete is a trap; the row asks first.
+    expect(apiClient.delete).not.toHaveBeenCalled();
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Delete" }));
 
-    expect(apiClient.delete).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers/t1`);
+    await waitFor(() =>
+      expect(apiClient.delete).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers/t1`),
+    );
   });
 
   it("creates an interval schedule from the new-schedule dialog", async () => {
@@ -196,6 +202,94 @@ describe("TriggersPanel", () => {
     });
   });
 
+  it("reveals the webhook url to paste after creating an event trigger", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    serve([]);
+    vi.mocked(apiClient.post).mockResolvedValue(
+      trigger({
+        trigger_type: "event",
+        event_source: "github",
+        interval_seconds: null,
+        webhook_url: "https://api.example.com/api/v1/webhooks/triggers/github/t1",
+      }),
+    );
+    await mount();
+
+    await user.click(await screen.findByRole("button", { name: "New trigger" }));
+    let dialog = await screen.findByRole("dialog");
+    await user.type(within(dialog).getByLabelText("Message"), "Triage");
+    await user.type(within(dialog).getByLabelText("Signing secret"), "a-strong-shared-secret");
+    await user.click(within(dialog).getByRole("button", { name: "Create" }));
+
+    // The dialog does not just close: an event trigger needs its URL pasted into
+    // the provider, so it stays open on that URL with a way to copy it.
+    dialog = await screen.findByRole("dialog");
+    const url = within(dialog).getByLabelText<HTMLInputElement>("Webhook URL");
+    expect(url.value).toBe("https://api.example.com/api/v1/webhooks/triggers/github/t1");
+    await user.click(within(dialog).getByRole("button", { name: "Copy" }));
+    expect(writeText).toHaveBeenCalledWith(url.value);
+
+    await user.click(within(dialog).getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("creates a LinkedIn event trigger with its author and text filters", async () => {
+    const user = userEvent.setup();
+    serve([]);
+    vi.mocked(apiClient.post).mockResolvedValue(
+      trigger({ trigger_type: "event", event_source: "linkedin", interval_seconds: null }),
+    );
+    await mount();
+
+    await user.click(await screen.findByRole("button", { name: "New trigger" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.type(within(dialog).getByLabelText("Message"), "Draft a reply");
+    await user.click(within(dialog).getByRole("combobox", { name: "Fires on" }));
+    await user.click(await screen.findByRole("option", { name: "A LinkedIn post" }));
+    await user.type(within(dialog).getByLabelText("Signing secret"), "a-strong-shared-secret");
+    await user.type(within(dialog).getByLabelText("Author contains"), "Jane");
+    await user.click(within(dialog).getByRole("button", { name: "Create" }));
+
+    expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
+      prompt: "Draft a reply",
+      trigger_type: "event",
+      environment_id: null,
+      event_source: "linkedin",
+      event_secret: "a-strong-shared-secret",
+      event_config: { author_contains: "Jane" },
+    });
+  });
+
+  it("creates a generic webhook trigger, which takes no filters", async () => {
+    const user = userEvent.setup();
+    serve([]);
+    vi.mocked(apiClient.post).mockResolvedValue(
+      trigger({ trigger_type: "event", event_source: "webhook", interval_seconds: null }),
+    );
+    await mount();
+
+    await user.click(await screen.findByRole("button", { name: "New trigger" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.type(within(dialog).getByLabelText("Message"), "Handle it");
+    await user.click(within(dialog).getByRole("combobox", { name: "Fires on" }));
+    await user.click(await screen.findByRole("option", { name: "Any webhook" }));
+    await user.type(within(dialog).getByLabelText("Signing secret"), "a-strong-shared-secret");
+    // No filter inputs for the generic webhook - filtering is the sender's job.
+    expect(within(dialog).queryByLabelText("Subject contains")).toBeNull();
+    await user.click(within(dialog).getByRole("button", { name: "Create" }));
+
+    expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
+      prompt: "Handle it",
+      trigger_type: "event",
+      environment_id: null,
+      event_source: "webhook",
+      event_secret: "a-strong-shared-secret",
+      event_config: undefined,
+    });
+  });
+
   it("fills the signing secret with a generated one", async () => {
     const user = userEvent.setup();
     serve([]);
@@ -223,9 +317,10 @@ describe("TriggersPanel", () => {
     await user.type(message, "Reworded");
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
 
+    // Only the field that changed: the environment was not touched, so it is not
+    // echoed back (which would overwrite a concurrent rebind).
     expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers/t1`, {
       prompt: "Reworded",
-      environment_id: null,
     });
   });
 
@@ -288,7 +383,7 @@ describe("TriggersPanel", () => {
         trigger_type: "event",
         event_source: "github",
         interval_seconds: null,
-        webhook_path: "/api/v1/webhooks/triggers/github/t1",
+        webhook_url: "/api/v1/webhooks/triggers/github/t1",
       }),
     ]);
     await mount();

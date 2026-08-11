@@ -23,7 +23,7 @@ function trigger(overrides: Partial<Trigger> = {}): Trigger {
     last_fired_at: null,
     last_run_id: null,
     conversation_id: null,
-    webhook_path: null,
+    webhook_url: null,
     created_at: null,
     updated_at: null,
     ...overrides,
@@ -75,5 +75,31 @@ describe("TriggerSummary", () => {
       />,
     );
     expect(screen.getByText("On inbound email")).toBeInTheDocument();
+  });
+
+  it("names a LinkedIn event trigger", () => {
+    render(
+      <TriggerSummary
+        trigger={trigger({
+          trigger_type: "event",
+          event_source: "linkedin",
+          interval_seconds: null,
+        })}
+      />,
+    );
+    expect(screen.getByText("On new LinkedIn posts")).toBeInTheDocument();
+  });
+
+  it("names a generic webhook event trigger", () => {
+    render(
+      <TriggerSummary
+        trigger={trigger({
+          trigger_type: "event",
+          event_source: "webhook",
+          interval_seconds: null,
+        })}
+      />,
+    );
+    expect(screen.getByText("On a webhook delivery")).toBeInTheDocument();
   });
 });

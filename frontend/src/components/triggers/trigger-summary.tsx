@@ -26,6 +26,15 @@ export function TriggerSummary({ trigger }: { trigger: Trigger }) {
     case "cron":
       return <>{t("cadence.cron", { expression: summary.expression })}</>;
     case "event":
-      return <>{summary.source === "github" ? t("event.github") : t("event.email")}</>;
+      switch (summary.source) {
+        case "github":
+          return <>{t("event.github")}</>;
+        case "email":
+          return <>{t("event.email")}</>;
+        case "linkedin":
+          return <>{t("event.linkedin")}</>;
+        case "webhook":
+          return <>{t("event.webhook")}</>;
+      }
   }
 }

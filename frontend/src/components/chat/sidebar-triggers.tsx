@@ -8,6 +8,7 @@ import { TriggerFormDialog } from "@/components/triggers/trigger-form-dialog";
 import { TriggerSummary } from "@/components/triggers/trigger-summary";
 import {
   Button,
+  ConfirmDialog,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -31,9 +32,13 @@ import type { Trigger } from "@/types/triggers";
  */
 export function SidebarTriggers({
   onOpenConversation,
+  canManage,
 }: {
   /** Opens a conversation in the chat - the sidebar's own selection handler. */
   onOpenConversation: (conversationId: string) => void;
+  /** Whether the caller may manage triggers (`agents:run`). A viewer still sees
+   *  the list but gets no row menu and no editor. */
+  canManage: boolean;
 }) {
   const t = useTranslations("triggers");
   const [expanded, setExpanded] = useState(false);
@@ -43,9 +48,10 @@ export function SidebarTriggers({
   function openItem(trigger: Trigger) {
     if (trigger.last_run_id !== null && trigger.conversation_id !== null) {
       onOpenConversation(trigger.conversation_id);
-    } else {
+    } else if (canManage) {
       // Never fired (or its log was deleted): there is nothing to read, so the
-      // item opens on what can be acted on.
+      // item opens on what can be acted on - the editor, which a viewer may not
+      // use, so for them the item is informational only.
       setEditing(trigger);
     }
   }
@@ -84,6 +90,7 @@ export function SidebarTriggers({
               <SidebarTriggerItem
                 key={trigger.id}
                 trigger={trigger}
+                canManage={canManage}
                 onOpen={() => openItem(trigger)}
                 onEdit={() => setEditing(trigger)}
               />
@@ -106,15 +113,18 @@ export function SidebarTriggers({
 
 function SidebarTriggerItem({
   trigger,
+  canManage,
   onOpen,
   onEdit,
 }: {
   trigger: Trigger;
+  canManage: boolean;
   onOpen: () => void;
   onEdit: () => void;
 }) {
   const t = useTranslations("triggers");
   const { setActive, runNow, remove } = useTriggers(trigger.agent_id);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   return (
     <div className="group hover:bg-secondary flex items-center rounded-md transition-colors">
@@ -136,42 +146,53 @@ function SidebarTriggerItem({
           <TriggerSummary trigger={trigger} />
         </span>
       </button>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 w-7 shrink-0 p-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
-            aria-label={t("itemActions", { agent: trigger.agent_name ?? "" })}
-          >
-            <MoreHorizontal className="h-3.5 w-3.5" aria-hidden />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onSelect={onEdit}>{t("edit")}</DropdownMenuItem>
-          <DropdownMenuItem
-            disabled={!trigger.is_active || runNow.isPending}
-            onSelect={() => runNow.mutate(trigger.id)}
-          >
-            {t("runNow")}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            disabled={setActive.isPending}
-            onSelect={() =>
-              setActive.mutate({ triggerId: trigger.id, isActive: !trigger.is_active })
-            }
-          >
-            {trigger.is_active ? t("pause") : t("resume")}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            className="text-destructive focus:text-destructive"
-            disabled={remove.isPending}
-            onSelect={() => remove.mutate(trigger.id)}
-          >
-            {t("delete")}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {canManage && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 shrink-0 p-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
+              aria-label={t("itemActions", { agent: trigger.agent_name ?? "" })}
+            >
+              <MoreHorizontal className="h-3.5 w-3.5" aria-hidden />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={onEdit}>{t("edit")}</DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={!trigger.is_active || runNow.isPending}
+              onSelect={() => runNow.mutate(trigger.id)}
+            >
+              {t("runNow")}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={setActive.isPending}
+              onSelect={() =>
+                setActive.mutate({ triggerId: trigger.id, isActive: !trigger.is_active })
+              }
+            >
+              {trigger.is_active ? t("pause") : t("resume")}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              disabled={remove.isPending}
+              onSelect={() => setConfirmingDelete(true)}
+            >
+              {t("delete")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+      <ConfirmDialog
+        open={confirmingDelete}
+        onOpenChange={setConfirmingDelete}
+        title={t("deleteTitle")}
+        description={t("deleteConfirm")}
+        confirmLabel={t("delete")}
+        destructive
+        onConfirm={() => remove.mutate(trigger.id)}
+      />
     </div>
   );
 }

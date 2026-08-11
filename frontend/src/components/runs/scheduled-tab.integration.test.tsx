@@ -48,7 +48,7 @@ function trigger(overrides: Partial<Trigger> = {}): Trigger {
     last_fired_at: null,
     last_run_id: null,
     conversation_id: null,
-    webhook_path: null,
+    webhook_url: null,
     created_at: null,
     updated_at: null,
     ...overrides,

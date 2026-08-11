@@ -15,7 +15,7 @@ export type TriggerType = "schedule" | "event";
 export type ScheduleKind = "interval" | "cron";
 
 /** Where an event trigger's fire comes from. Mirrors the backend's `EventSource`. */
-export type EventSource = "github" | "email";
+export type EventSource = "github" | "email" | "linkedin" | "webhook";
 
 export interface Trigger {
   id: string;
@@ -45,7 +45,7 @@ export interface Trigger {
    * schedule. Derived server-side from the source and id - the secret that
    * authenticates a delivery is never part of it.
    */
-  webhook_path: string | null;
+  webhook_url: string | null;
   created_at: string | null;
   updated_at: string | null;
 }

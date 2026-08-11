@@ -34,6 +34,7 @@ import type {
   Trigger,
   TriggerCreate,
   TriggerType,
+  TriggerUpdate,
 } from "@/types/triggers";
 
 /** Sentinel for "the default environment" - a Select item may not be empty. */
@@ -47,6 +48,31 @@ function generateSecret(): string {
   const bytes = new Uint8Array(24);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+/** The two config keys each source's filters map onto, or none. */
+const FILTER_KEYS: Partial<Record<EventSource, readonly [string, string]>> = {
+  email: ["subject_contains", "sender_contains"],
+  linkedin: ["author_contains", "text_contains"],
+};
+
+/**
+ * The `event_config` a source's two substring filters produce, or undefined when
+ * the source takes none (GitHub fires on its default action, the generic webhook
+ * on any signed delivery). Only non-empty filters are sent, so the server stores
+ * exactly what narrows the trigger and nothing that means "match anything".
+ */
+function eventFilterConfig(
+  source: EventSource,
+  filterA: string,
+  filterB: string,
+): Record<string, string> | undefined {
+  const keys = FILTER_KEYS[source];
+  if (!keys) return undefined;
+  const config: Record<string, string> = {};
+  if (filterA) config[keys[0]] = filterA;
+  if (filterB) config[keys[1]] = filterB;
+  return Object.keys(config).length ? config : undefined;
 }
 
 interface TriggerFormDialogProps {
@@ -117,8 +143,15 @@ export function TriggerFormDialog({
 
   const [eventSource, setEventSource] = useState<EventSource>(trigger?.event_source ?? "github");
   const [secret, setSecret] = useState("");
-  const [subjectContains, setSubjectContains] = useState("");
-  const [senderContains, setSenderContains] = useState("");
+  // Two generic substring filters; what they mean is the source's business - a
+  // subject and sender for email, an author and text for LinkedIn - so the keys
+  // are mapped in `buildCreate` and the labels in `EventFields`.
+  const [filterA, setFilterA] = useState("");
+  const [filterB, setFilterB] = useState("");
+  // The event trigger just created, held so the dialog can show its webhook URL
+  // to paste into the provider before it closes - the one thing an event trigger
+  // needs that a schedule does not.
+  const [created, setCreated] = useState<Trigger | null>(null);
 
   const pending = create.isPending || update.isPending;
 
@@ -137,30 +170,34 @@ export function TriggerFormDialog({
             interval_seconds: unitToSeconds(intervalUnit, Math.max(1, Number(intervalCount) || 1)),
           };
     }
-    const config: Record<string, string> = {};
-    if (eventSource === "email" && subjectContains.trim())
-      config.subject_contains = subjectContains.trim();
-    if (eventSource === "email" && senderContains.trim())
-      config.sender_contains = senderContains.trim();
     return {
       ...base,
       event_source: eventSource,
       event_secret: secret,
-      event_config: Object.keys(config).length ? config : undefined,
+      event_config: eventFilterConfig(eventSource, filterA.trim(), filterB.trim()),
     };
   }
 
   async function submit() {
     try {
       if (editing) {
-        await update.mutateAsync({
-          triggerId: trigger.id,
-          patch: { prompt, environment_id: environmentId === DEFAULT_ENV ? null : environmentId },
-        });
+        // Only the fields that actually changed: the server applies exactly what
+        // it is sent, so echoing `environment_id` back on a prompt-only edit
+        // would overwrite an environment somebody rebound in between.
+        const patch: TriggerUpdate = {};
+        if (prompt !== trigger.prompt) patch.prompt = prompt;
+        const env = environmentId === DEFAULT_ENV ? null : environmentId;
+        if (env !== (trigger.environment_id ?? null)) patch.environment_id = env;
+        await update.mutateAsync({ triggerId: trigger.id, patch });
+        onOpenChange(false);
       } else {
-        await create.mutateAsync(buildCreate());
+        const result = await create.mutateAsync(buildCreate());
+        // A new event trigger stays open on its webhook URL - the caller has to
+        // paste it into the provider or nothing will ever fire it. A schedule
+        // has nothing more to do, so it closes.
+        if (result.trigger_type === "event") setCreated(result);
+        else onOpenChange(false);
       }
-      onOpenChange(false);
     } catch {
       // The hook toasts the server's refusal; the dialog stays open so nothing
       // typed is lost - the usual reason to be here is a value one edit away.
@@ -175,6 +212,23 @@ export function TriggerFormDialog({
         : Number(intervalCount) > 0
       : secret.length >= MIN_SECRET;
   const canSubmit = prompt.trim().length > 0 && shapeValid && effectiveAgentId !== null && !pending;
+
+  if (created !== null) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("createdTitle")}</DialogTitle>
+            <DialogDescription>{t("createdDescription")}</DialogDescription>
+          </DialogHeader>
+          {created.webhook_url && <WebhookField url={created.webhook_url} />}
+          <DialogFooter>
+            <Button onClick={() => onOpenChange(false)}>{t("done")}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -253,15 +307,15 @@ export function TriggerFormDialog({
               onEventSource={setEventSource}
               secret={secret}
               onSecret={setSecret}
-              subjectContains={subjectContains}
-              onSubjectContains={setSubjectContains}
-              senderContains={senderContains}
-              onSenderContains={setSenderContains}
+              filterA={filterA}
+              onFilterA={setFilterA}
+              filterB={filterB}
+              onFilterB={setFilterB}
             />
           )}
 
-          {editing && trigger.trigger_type === "event" && trigger.webhook_path && (
-            <WebhookField path={trigger.webhook_path} />
+          {editing && trigger.trigger_type === "event" && trigger.webhook_url && (
+            <WebhookField url={trigger.webhook_url} />
           )}
 
           {namedEnvironments.length > 0 && (
@@ -384,10 +438,33 @@ interface EventFieldsProps {
   onEventSource: (source: EventSource) => void;
   secret: string;
   onSecret: (value: string) => void;
-  subjectContains: string;
-  onSubjectContains: (value: string) => void;
-  senderContains: string;
-  onSenderContains: (value: string) => void;
+  filterA: string;
+  onFilterA: (value: string) => void;
+  filterB: string;
+  onFilterB: (value: string) => void;
+}
+
+// Which two optional substring filters each source offers, by translation key,
+// or none. Kept beside the backend's per-source config so the form only asks for
+// filters the server will actually apply.
+const SOURCE_FILTERS: Partial<Record<EventSource, readonly [string, string]>> = {
+  email: ["subjectContains", "senderContains"],
+  linkedin: ["authorContains", "textContains"],
+};
+
+/** Where each source's delivery comes from - a static key per source so the
+ *  catalog check can see them, rather than one interpolated key it cannot. */
+function sourceHelp(t: ReturnType<typeof useTranslations>, source: EventSource): string {
+  switch (source) {
+    case "github":
+      return t("sourceHelpGithub");
+    case "email":
+      return t("sourceHelpEmail");
+    case "linkedin":
+      return t("sourceHelpLinkedin");
+    case "webhook":
+      return t("sourceHelpWebhook");
+  }
 }
 
 function EventFields({
@@ -395,15 +472,20 @@ function EventFields({
   onEventSource,
   secret,
   onSecret,
-  subjectContains,
-  onSubjectContains,
-  senderContains,
-  onSenderContains,
+  filterA,
+  onFilterA,
+  filterB,
+  onFilterB,
 }: EventFieldsProps) {
   const t = useTranslations("triggers");
+  const filters = SOURCE_FILTERS[eventSource];
   return (
     <div className="space-y-3">
-      <FormField label={t("eventSource")} htmlFor="trigger-source">
+      <FormField
+        label={t("eventSource")}
+        htmlFor="trigger-source"
+        description={sourceHelp(t, eventSource)}
+      >
         <Select value={eventSource} onValueChange={(next) => onEventSource(next as EventSource)}>
           <SelectTrigger id="trigger-source">
             <SelectValue />
@@ -411,6 +493,8 @@ function EventFields({
           <SelectContent>
             <SelectItem value="github">{t("sourceGithub")}</SelectItem>
             <SelectItem value="email">{t("sourceEmail")}</SelectItem>
+            <SelectItem value="linkedin">{t("sourceLinkedin")}</SelectItem>
+            <SelectItem value="webhook">{t("sourceWebhook")}</SelectItem>
           </SelectContent>
         </Select>
       </FormField>
@@ -430,21 +514,21 @@ function EventFields({
         </div>
         <p className="text-muted-foreground text-xs">{t("secretHelp")}</p>
       </div>
-      {eventSource === "email" && (
+      {filters && (
         <>
-          <FormField label={t("subjectContains")} htmlFor="trigger-subject">
+          <FormField label={t(filters[0])} htmlFor="trigger-filter-a">
             <Input
-              id="trigger-subject"
-              value={subjectContains}
-              onChange={(event) => onSubjectContains(event.target.value)}
+              id="trigger-filter-a"
+              value={filterA}
+              onChange={(event) => onFilterA(event.target.value)}
               placeholder={t("filterOptional")}
             />
           </FormField>
-          <FormField label={t("senderContains")} htmlFor="trigger-sender">
+          <FormField label={t(filters[1])} htmlFor="trigger-filter-b">
             <Input
-              id="trigger-sender"
-              value={senderContains}
-              onChange={(event) => onSenderContains(event.target.value)}
+              id="trigger-filter-b"
+              value={filterB}
+              onChange={(event) => onFilterB(event.target.value)}
               placeholder={t("filterOptional")}
             />
           </FormField>
@@ -454,17 +538,25 @@ function EventFields({
   );
 }
 
-function WebhookField({ path }: { path: string }) {
+function WebhookField({ url }: { url: string }) {
   const t = useTranslations("triggers");
-  const origin = typeof window === "undefined" ? "" : window.location.origin;
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    await navigator.clipboard.writeText(url);
+    setCopied(true);
+  }
+
   return (
-    <FormField label={t("webhookUrl")} htmlFor="trigger-webhook" description={t("webhookHelp")}>
-      <Input
-        id="trigger-webhook"
-        value={`${origin}${path}`}
-        readOnly
-        className="font-mono text-xs"
-      />
-    </FormField>
+    <div className="space-y-1">
+      <Label htmlFor="trigger-webhook">{t("webhookUrl")}</Label>
+      <div className="flex gap-2">
+        <Input id="trigger-webhook" value={url} readOnly className="flex-1 font-mono text-xs" />
+        <Button type="button" variant="outline" onClick={copy}>
+          {copied ? t("copied") : t("copy")}
+        </Button>
+      </div>
+      <p className="text-muted-foreground text-xs">{t("webhookHelp")}</p>
+    </div>
   );
 }

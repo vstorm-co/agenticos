@@ -3,7 +3,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useConversations } from "@/hooks";
+import { useConversations, usePermissions } from "@/hooks";
+import { Perm } from "@/types/permissions";
 import { Button, Skeleton } from "@/components/ui";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui";
 import {
@@ -261,6 +262,12 @@ function ConversationList({
   const t = useTranslations("chat");
   const ts = useTranslations("chat.sidebar");
   const tt = useTranslations("triggers");
+  const { can } = usePermissions();
+  // Managing a trigger is `agents:run`, resolved per row server-side; the section
+  // still shows to a viewer (viewing an agent's schedule is `agents:view`), but
+  // the create menu and the row actions are a manager's, so they are not rendered
+  // for anyone else rather than rendered and then 403'd.
+  const canManageTriggers = can(Perm.agentsRun);
   const [shareConversationId, setShareConversationId] = useState<string | null>(null);
   const [creatingTrigger, setCreatingTrigger] = useState<TriggerType | null>(null);
 
@@ -290,28 +297,30 @@ function ConversationList({
           <SquarePen className="h-4 w-4 shrink-0" />
           {t("newChat")}
         </button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              aria-label={tt("newMenu")}
-              className="text-muted-foreground hover:text-foreground hover:bg-secondary flex h-9 w-8 shrink-0 items-center justify-center rounded-lg transition-colors"
-            >
-              <ChevronDown className="h-4 w-4" aria-hidden />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={() => setCreatingTrigger("schedule")}>
-              {tt("newSchedule")}
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setCreatingTrigger("event")}>
-              {tt("newTrigger")}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {canManageTriggers && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label={tt("newMenu")}
+                className="text-muted-foreground hover:text-foreground hover:bg-secondary flex h-9 w-8 shrink-0 items-center justify-center rounded-lg transition-colors"
+              >
+                <ChevronDown className="h-4 w-4" aria-hidden />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => setCreatingTrigger("schedule")}>
+                {tt("newSchedule")}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setCreatingTrigger("event")}>
+                {tt("newTrigger")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
 
-      <SidebarTriggers onOpenConversation={handleSelect} />
+      <SidebarTriggers onOpenConversation={handleSelect} canManage={canManageTriggers} />
 
       {filters}
 

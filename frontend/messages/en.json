@@ -3140,7 +3140,9 @@
     },
     "event": {
       "github": "On new GitHub issues",
-      "email": "On inbound email"
+      "email": "On inbound email",
+      "linkedin": "On new LinkedIn posts",
+      "webhook": "On a webhook delivery"
     },
     "panelTitle": "Schedules & triggers",
     "panelDescription": "When this agent runs itself - on a schedule, or when an event arrives.",
@@ -3199,6 +3201,21 @@
     "sectionError": "Could not load the list.",
     "newMenu": "New schedule or trigger",
     "openItem": "Open {agent} trigger",
-    "itemActions": "Actions for {agent} trigger"
+    "itemActions": "Actions for {agent} trigger",
+    "sourceLinkedin": "A LinkedIn post",
+    "sourceWebhook": "Any webhook",
+    "sourceHelpGithub": "Add this webhook to a repository's settings; it fires on the issue actions you choose.",
+    "sourceHelpEmail": "Point an inbound-mail parser at this webhook; it fires on a message that matches.",
+    "sourceHelpLinkedin": "Have a relay (Zapier, Make, a script) post here when it sees a matching post.",
+    "sourceHelpWebhook": "Any service that can POST signed JSON fires it - filtering is the sender's job.",
+    "authorContains": "Author contains",
+    "textContains": "Text contains",
+    "copy": "Copy",
+    "copied": "Copied",
+    "createdTitle": "One more step",
+    "createdDescription": "Add this webhook URL to your provider, signed with the secret you set. Nothing fires until it delivers.",
+    "done": "Done",
+    "deleteTitle": "Delete this trigger?",
+    "deleteConfirm": "The agent stops running itself. This cannot be undone."
   }
 }

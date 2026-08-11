@@ -25,7 +25,12 @@ vi.mock("@/lib/api-client", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/hooks/use-agents", () => ({
-  useAgents: () => ({ agents: [{ id: "a-1", name: "Analyst" }] }),
+  useAgents: () => ({ agents: [{ id: "a-1", name: "Analyst", status: "published" }] }),
+}));
+// A manager, so the trigger split button and section render; a viewer variant is
+// covered in the section's own suite.
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({ can: () => true, isLoading: false }),
 }));
 vi.mock("@/components/agents/agent-avatar", () => ({
   AgentAvatar: ({ name }: { name: string }) => <span>{name}</span>,

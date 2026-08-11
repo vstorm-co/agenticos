@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 
 import { TriggerFormDialog } from "@/components/triggers/trigger-form-dialog";
 import { TriggerSummary } from "@/components/triggers/trigger-summary";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, ConfirmDialog } from "@/components/ui";
 import { useTriggers } from "@/hooks/use-triggers";
 import type { Trigger } from "@/types/triggers";
 
@@ -34,6 +34,7 @@ export function TriggerRow({ trigger, canManage, showAgent = false }: TriggerRow
   const t = useTranslations("triggers");
   const { setActive, runNow, remove } = useTriggers(trigger.agent_id);
   const [editing, setEditing] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   return (
     <div className="flex items-center gap-3 rounded-md border p-3">
@@ -77,7 +78,7 @@ export function TriggerRow({ trigger, canManage, showAgent = false }: TriggerRow
             size="sm"
             aria-label={t("delete")}
             disabled={remove.isPending}
-            onClick={() => remove.mutate(trigger.id)}
+            onClick={() => setConfirmingDelete(true)}
           >
             <Trash2 className="h-4 w-4" />
           </Button>
@@ -91,6 +92,15 @@ export function TriggerRow({ trigger, canManage, showAgent = false }: TriggerRow
           onOpenChange={(next) => !next && setEditing(false)}
         />
       )}
+      <ConfirmDialog
+        open={confirmingDelete}
+        onOpenChange={setConfirmingDelete}
+        title={t("deleteTitle")}
+        description={t("deleteConfirm")}
+        confirmLabel={t("delete")}
+        destructive
+        onConfirm={() => remove.mutate(trigger.id)}
+      />
     </div>
   );
 }

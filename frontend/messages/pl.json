@@ -689,7 +689,9 @@
     },
     "event": {
       "github": "Przy nowym zgłoszeniu GitHub",
-      "email": "Przy przychodzącym e-mailu"
+      "email": "Przy przychodzącym e-mailu",
+      "linkedin": "Przy nowym poście LinkedIn",
+      "webhook": "Przy żądaniu webhooka"
     },
     "panelTitle": "Harmonogramy i wyzwalacze",
     "panelDescription": "Kiedy ten agent uruchamia się sam - według harmonogramu lub gdy nadejdzie zdarzenie.",
@@ -748,6 +750,21 @@
     "sectionError": "Nie udało się wczytać listy.",
     "newMenu": "Nowy harmonogram lub wyzwalacz",
     "openItem": "Otwórz wyzwalacz agenta {agent}",
-    "itemActions": "Akcje wyzwalacza agenta {agent}"
+    "itemActions": "Akcje wyzwalacza agenta {agent}",
+    "sourceLinkedin": "Post LinkedIn",
+    "sourceWebhook": "Dowolny webhook",
+    "sourceHelpGithub": "Dodaj ten webhook w ustawieniach repozytorium; uruchamia się przy wybranych akcjach zgłoszeń.",
+    "sourceHelpEmail": "Skieruj parser poczty przychodzącej na ten webhook; uruchamia się przy pasującej wiadomości.",
+    "sourceHelpLinkedin": "Niech przekaźnik (Zapier, Make, skrypt) wyśle tu żądanie, gdy zobaczy pasujący post.",
+    "sourceHelpWebhook": "Dowolna usługa, która potrafi wysłać podpisany JSON, go uruchamia - filtrowanie należy do nadawcy.",
+    "authorContains": "Autor zawiera",
+    "textContains": "Treść zawiera",
+    "copy": "Kopiuj",
+    "copied": "Skopiowano",
+    "createdTitle": "Jeszcze jeden krok",
+    "createdDescription": "Dodaj ten adres webhooka u swojego dostawcy, podpisany ustawionym sekretem. Nic się nie uruchomi, dopóki nie nadejdzie żądanie.",
+    "done": "Gotowe",
+    "deleteTitle": "Usunąć ten wyzwalacz?",
+    "deleteConfirm": "Agent przestanie uruchamiać się sam. Tej operacji nie można cofnąć."
   }
 }
