@@ -19,7 +19,7 @@ from sqlalchemy.dialects import postgresql
 
 from app.db.models.dashboard_layout import DashboardLayout
 from app.repositories import dashboard_layout_repo
-from app.schemas.dashboard_layout import DashboardLayoutUpdate
+from app.schemas.dashboard_layout import DashboardLayoutUpdate, SectionDivider, WidgetPlacement
 from app.services.dashboard_layout import DashboardLayoutService
 
 pytestmark = pytest.mark.anyio
@@ -61,9 +61,6 @@ def _filters(session: _RecordingSession) -> dict[str, object]:
     return session.statements[-1].compile(dialect=postgresql.dialect()).params
 
 
-# --- repository -----------------------------------------------------------
-
-
 async def test_get_filters_on_both_the_user_and_the_organization() -> None:
     user_id, org_id = uuid4(), uuid4()
     session = _RecordingSession(_result(None))
@@ -76,37 +73,24 @@ async def test_get_filters_on_both_the_user_and_the_organization() -> None:
     assert org_id in values
 
 
-async def test_upsert_creates_a_row_when_none_exists() -> None:
+async def test_upsert_is_a_single_atomic_on_conflict_statement() -> None:
+    # Not a read-then-insert: two first saves in flight together would both read
+    # no row and the second insert would 500 on the unique constraint. One
+    # `INSERT ... ON CONFLICT DO UPDATE` on that constraint cannot race itself.
     user_id, org_id = uuid4(), uuid4()
-    session = _RecordingSession(_result(None))
-    entries = [{"widget": "runs", "span": "s8"}]
+    stored = DashboardLayout(user_id=user_id, organization_id=org_id, entries=[])
+    result = MagicMock()
+    result.scalar_one.return_value = stored
+    session = _RecordingSession(result)
 
-    created = await dashboard_layout_repo.upsert(
-        session, user_id=user_id, organization_id=org_id, entries=entries
+    returned = await dashboard_layout_repo.upsert(
+        session, user_id=user_id, organization_id=org_id, entries=[{"widget": "runs", "span": "s8"}]
     )
 
-    assert session.added == [created]
-    assert created.user_id == user_id
-    assert created.organization_id == org_id
-    assert created.entries == entries
-
-
-async def test_upsert_replaces_the_entries_on_an_existing_row() -> None:
-    user_id, org_id = uuid4(), uuid4()
-    existing = DashboardLayout(
-        user_id=user_id, organization_id=org_id, entries=[{"widget": "spend", "span": "s6"}]
-    )
-    session = _RecordingSession(_result(existing))
-    new_entries = [{"widget": "runs", "span": "s12"}]
-
-    updated = await dashboard_layout_repo.upsert(
-        session, user_id=user_id, organization_id=org_id, entries=new_entries
-    )
-
-    # Replaced in place, not inserted a second time.
-    assert updated is existing
-    assert session.added == []
-    assert existing.entries == new_entries
+    assert returned is stored
+    assert session.added == []  # no ORM read-then-add; the database resolves the conflict
+    compiled = str(session.statements[-1].compile(dialect=postgresql.dialect()))
+    assert "ON CONFLICT ON CONSTRAINT uq_dashboard_layout_user_org DO UPDATE" in compiled
 
 
 async def test_delete_removes_the_row() -> None:
@@ -116,9 +100,6 @@ async def test_delete_removes_the_row() -> None:
     await dashboard_layout_repo.delete(session, db_layout=layout)
 
     assert session.deleted == [layout]
-
-
-# --- service --------------------------------------------------------------
 
 
 async def test_get_for_user_returns_none_when_nothing_saved(monkeypatch) -> None:
@@ -167,11 +148,9 @@ async def test_reset_is_a_no_op_when_nothing_is_saved(monkeypatch) -> None:
     delete.assert_not_called()
 
 
-# --- write schema ---------------------------------------------------------
-
-
 def test_a_valid_arrangement_is_accepted() -> None:
     data = DashboardLayoutUpdate(entries=[{"widget": "runs", "span": "s8"}])
+    assert isinstance(data.entries[0], WidgetPlacement)
     assert data.entries[0].widget == "runs"
 
 
@@ -211,3 +190,29 @@ def test_a_read_returns_a_retired_widget_verbatim() -> None:
         )
     )
     assert read.entries[0].widget == "retired-widget"
+
+
+def test_a_section_divider_is_accepted_alongside_widgets() -> None:
+    # The discriminator routes `kind: "section"` to the divider member, so a
+    # heading validates beside the cards rather than 422-ing as a bad widget.
+    data = DashboardLayoutUpdate(
+        entries=[
+            {"kind": "section", "label": "Attention", "accent": "amber"},
+            {"widget": "runs", "span": "s8"},
+        ]
+    )
+    divider, widget = data.entries
+    assert isinstance(divider, SectionDivider)
+    assert (divider.label, divider.accent, divider.collapsed) == ("Attention", "amber", False)
+    assert isinstance(widget, WidgetPlacement)
+
+
+def test_a_divider_hex_accent_is_lowercased_and_a_bad_accent_is_refused() -> None:
+    lowered = DashboardLayoutUpdate(entries=[{"kind": "section", "accent": "#AABBCC"}])
+    assert isinstance(lowered.entries[0], SectionDivider)
+    assert lowered.entries[0].accent == "#aabbcc"
+
+    # A string that is neither "neutral", a named preset, nor a #rrggbb hex would
+    # render as no colour and read as a bug, so it is refused at the boundary.
+    with pytest.raises(ValidationError):
+        DashboardLayoutUpdate(entries=[{"kind": "section", "accent": "chartreuse"}])

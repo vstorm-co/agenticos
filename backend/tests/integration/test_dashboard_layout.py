@@ -70,6 +70,37 @@ async def test_the_same_person_gets_a_different_layout_in_each_organization(db) 
     assert in_b is not None and in_b.entries == [{"widget": "spend", "span": "s6"}]
 
 
+async def test_a_second_save_replaces_the_row_rather_than_conflicting(db) -> None:
+    # The write is `INSERT ... ON CONFLICT DO UPDATE`, so a second save for a
+    # `(user, org)` that already has a row updates it in place. A read-then-insert
+    # raced against itself here — two first saves both seeing no row, the second
+    # hitting `uq_dashboard_layout_user_org` as an untranslated 500.
+    person = await _user(db)
+    org = await _org(db, owner=person)
+
+    await dashboard_layout_repo.upsert(
+        db, user_id=person.id, organization_id=org.id, entries=[{"widget": "runs", "span": "s8"}]
+    )
+    await dashboard_layout_repo.upsert(
+        db, user_id=person.id, organization_id=org.id, entries=[{"widget": "spend", "span": "s6"}]
+    )
+
+    rows = (
+        (
+            await db.execute(
+                select(DashboardLayout).where(
+                    DashboardLayout.user_id == person.id,
+                    DashboardLayout.organization_id == org.id,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(rows) == 1
+    assert rows[0].entries == [{"widget": "spend", "span": "s6"}]
+
+
 async def test_a_layout_saved_in_one_org_is_invisible_in_another_even_to_its_owner(db) -> None:
     person = await _user(db)
     org_a = await _org(db, owner=person)

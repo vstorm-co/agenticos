@@ -202,9 +202,6 @@ async def test_a_placement_height_travels_through_a_save() -> None:
     ]
 
 
-# --- presets ----------------------------------------------------------------
-
-
 async def test_listing_presets_returns_them_with_a_total() -> None:
     presets = _preset_service()
     presets.list_for_user = AsyncMock(

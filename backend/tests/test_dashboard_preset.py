@@ -63,9 +63,6 @@ def _filters(session: _RecordingSession) -> set[object]:
     return set(session.statements[-1].compile(dialect=postgresql.dialect()).params.values())
 
 
-# --- repository -----------------------------------------------------------
-
-
 async def test_list_filters_on_both_the_user_and_the_organization() -> None:
     user_id, org_id = uuid4(), uuid4()
     scalars = MagicMock()
@@ -140,9 +137,6 @@ async def test_delete_removes_the_row() -> None:
     await dashboard_preset_repo.delete(session, db_preset=preset)
 
     assert session.deleted == [preset]
-
-
-# --- service --------------------------------------------------------------
 
 
 def _create_data(name: str = "Monday review") -> DashboardPresetCreate:
@@ -248,9 +242,6 @@ async def test_deleting_an_owned_preset_removes_it(monkeypatch) -> None:
     await service.delete(user_id=uuid4(), organization_id=uuid4(), preset_id=uuid4())
 
     assert delete.call_args.kwargs["db_preset"] is preset
-
-
-# --- write schema ---------------------------------------------------------
 
 
 def test_a_placement_height_outside_the_closed_set_is_refused() -> None:
