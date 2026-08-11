@@ -94,7 +94,6 @@ async def create(
     platform_chat_id: str,
     chat_type: str = "private",
     conversation_id: UUID | None = None,
-    project_id: UUID | None = None,
 ) -> ChannelSession:
     """Create a new channel session."""
     session = ChannelSession(

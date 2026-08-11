@@ -143,3 +143,25 @@ Rules:
 - Use `status_code=status.HTTP_201_CREATED` for POST, `HTTP_204_NO_CONTENT` for DELETE
 - DELETE endpoints: `response_model=None`
 - Pagination: `skip: int = Query(0, ge=0)`, `limit: int = Query(50, ge=1, le=100)`
+
+### A route module holds routers, not helpers
+
+The HTTP layer validates, delegates and returns; the logic it delegates to lives
+in a service, and the dependencies it needs live in `api/deps.py`. A plain helper
+that lands in a route file — a loader, a parser, a formatter — is business logic in
+the one place the architecture says holds none, and it arrives quietly because
+nothing complains.
+
+`scripts/check_routes.py` is that complaint, run by `make lint`. In an **endpoint
+module**, a top-level function must be a route handler (`@router.get(...)` &c.) or a
+router factory (annotated `-> APIRouter`, like `build_sharing_router`). Anything
+else is reported, and the fix is to **move it**: a parser or loader to the service
+that owns the domain (`RunStatus.parse_csv` left `runs.py` this way), a dependency
+to `deps.py`, and anything genuinely route-adjacent to a `_`-prefixed helper module
+beside the endpoints — `_workspace_bytes.py`, `_sharing_loaders.py`. Those `_*.py`
+modules are skipped by the guard; they are the sanctioned home for route-adjacent
+code that is not an endpoint.
+
+There is a last resort — `# routes-helper: <reason>` on or above the `def`, the same
+bargain as `i18n-exempt` — but it is for a helper that genuinely cannot move, not
+for dodging the move. Reach for it last; the default is to move the code out.

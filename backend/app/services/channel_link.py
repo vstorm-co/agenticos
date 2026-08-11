@@ -187,8 +187,6 @@ class ChannelLinkService:
         by_identity = await channel_session_repo.bots_by_identity(
             self.db, identity_ids=[identity.id for identity in identities]
         )
-        # One membership lookup per organization rather than per bot: a person
-        # with six bots in one organization is one query, not six.
         contexts: dict[UUID, AuthContext | None] = {}
         places: dict[UUID, list[LinkedPlace]] = {}
         for identity_id, bots in by_identity.items():

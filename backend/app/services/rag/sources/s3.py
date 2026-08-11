@@ -57,7 +57,7 @@ class S3Source(BaseDocumentSource):
             for obj in page.get("Contents", []):
                 key = obj["Key"]
                 if key.endswith("/"):
-                    continue  # skip directories
+                    continue
 
                 name = Path(key).name
                 ext = Path(name).suffix.lower()

@@ -83,7 +83,6 @@ class SlackAdapter(ChannelAdapter):
 
         client = AsyncWebClient(token=bot_token)
 
-        # If platform_chat_id contains ":" it includes a thread_ts
         channel, _, thread_ts = msg.platform_chat_id.partition(":")
 
         kwargs: dict[str, Any] = {
@@ -125,7 +124,6 @@ class SlackAdapter(ChannelAdapter):
 
         await client.chat_postMessage(**kwargs)
 
-    # --- what the agent may ask about the channel --------------------------
     #
     # `channels:read`, `groups:read` and `channels:history` on the Slack app -
     # scopes an admin grants when they install it. The bot sees what the app was
@@ -404,7 +402,6 @@ class SlackAdapter(ChannelAdapter):
         if event_type != "message" and event_type != "app_mention":
             return None
 
-        # Ignore bot messages and edits
         if event.get("bot_id") or event.get("subtype"):
             return None
 
@@ -433,7 +430,7 @@ class SlackAdapter(ChannelAdapter):
             chat_type=chat_type,
             text=text,
             raw=raw_payload,
-            platform_username=None,  # resolved later if needed
+            platform_username=None,
             platform_display_name=None,
             message_id=message_ts,
             attachments=attachments,

@@ -276,7 +276,7 @@ deps-upgrade-all:
 # change can run `lint-backend` and skip a minute of eslint.
 #
 # The frontend half was missing entirely until #143: `make lint` ran ruff, ty and
-# the two guard scripts, while CI additionally ran eslint, prettier and tsc - so
+# the guard scripts, while CI additionally ran eslint, prettier and tsc - so
 # `make lint` passed on a branch with a type error in a `.tsx`, and CLAUDE.md's
 # "ruff + ty + eslint + tsc" described a command that ran half of that.
 lint: lint-backend lint-frontend lint-spelling
@@ -291,8 +291,28 @@ lint-backend:
 	uv run --directory backend ruff check . ../scripts
 	uv run --directory backend ruff format . ../scripts --check
 	uv run --directory backend ty check
+	uv run --directory backend vulture
 	python3 scripts/check_backticks.py
 	python3 scripts/check_i18n.py
+	python3 scripts/check_routes.py
+	python3 scripts/check_comments.py
+
+# Unused functions and methods, reported rather than gated. `make lint` runs
+# vulture at a confidence high enough to be a gate (unused variables and
+# parameters, near-zero false positives); this lowers it to reach unused
+# functions too, which on a registry-driven codebase come with false positives -
+# a CLI command, a capability hook, a route handler - that a human reads before
+# deleting. The same role dependency-freshness plays for dependencies. See
+# [tool.vulture] in backend/pyproject.toml.
+#
+# The frontend half is knip, also a report rather than a gate: on a
+# design-system codebase it flags the whole UI-primitive barrel and every
+# exported type it cannot trace a use for, so `frontend/knip.json` narrows it to
+# what is worth reading and the rest is read by eye. `bunx` fetches knip on
+# demand - it is not a project dependency, because nothing gating runs it.
+dead-code:
+	uv run --directory backend vulture --min-confidence 60
+	cd frontend && bunx knip@5 --no-progress
 
 lint-frontend:
 	cd frontend && bun run lint

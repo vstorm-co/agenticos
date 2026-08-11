@@ -93,7 +93,6 @@ class ConversationService:
             and conversation.user_id is not None
             and str(conversation.user_id) != str(user_id)
         ):
-            # Not the owner - check if user has a share granting access
             share = await conversation_share_repo.get_share(self.db, conversation_id, user_id)
             if not share:
                 raise NotFoundError(

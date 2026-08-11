@@ -1,4 +1,3 @@
-# TODO refactor it
 """RAG tool for agent knowledge base search."""
 
 import contextvars

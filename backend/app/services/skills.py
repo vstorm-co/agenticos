@@ -436,8 +436,6 @@ class SkillService:
         )
         return skill
 
-    # -- resources -------------------------------------------------------
-
     async def add_resource(
         self,
         ctx: AuthContext,

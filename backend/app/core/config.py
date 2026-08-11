@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     TIMEZONE: str = "UTC"  # IANA timezone (e.g. "UTC", "Europe/Warsaw", "America/New_York")
     MODELS_CACHE_DIR: Path = Path("./models_cache")
     MEDIA_DIR: Path = Path("./media")
-    MAX_UPLOAD_SIZE_MB: int = 50  # Max file upload size in MB
+    MAX_UPLOAD_SIZE_MB: int = 50
     STORAGE_SOFT_LIMIT_BYTES: int = 5 * 1024 * 1024 * 1024
 
     # Seconds the event loop may stop turning before the worker kills itself so
@@ -107,7 +107,7 @@ class Settings(BaseSettings):
             )
         return v
 
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30  # 30 minutes
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
     # How long a parked tool call waits before the sweep denies it by timeout.
     # Three days spans a weekend, which is the gap an approval most often falls
@@ -155,7 +155,7 @@ class Settings(BaseSettings):
         return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
 
     RATE_LIMIT_REQUESTS: int = 100
-    RATE_LIMIT_PERIOD: int = 60  # seconds
+    RATE_LIMIT_PERIOD: int = 60
 
     PREFECT_API_URL: str = "http://localhost:4200/api"
     PREFECT_API_KEY: str | None = None

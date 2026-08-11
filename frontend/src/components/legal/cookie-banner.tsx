@@ -11,7 +11,7 @@ import { useTranslations } from "next-intl";
 const STORAGE_KEY = "cookie.consent";
 
 interface CookieConsent {
-  essential: true; // always required
+  essential: true;
   analytics: boolean;
   functional: boolean;
   decided_at: string;

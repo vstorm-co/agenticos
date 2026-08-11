@@ -69,6 +69,5 @@ class PiiRedactionFilter(logging.Filter):
 def setup_logging() -> None:
     """Configure root logger with PII redaction filter."""
     root_logger = logging.getLogger()
-    # Avoid adding duplicate filters
     if not any(isinstance(f, PiiRedactionFilter) for f in root_logger.filters):
         root_logger.addFilter(PiiRedactionFilter())

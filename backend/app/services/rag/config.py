@@ -62,7 +62,6 @@ LITEPARSE_IMAGE_FORMATS: set[str] = {
 # Mirrors OFFICE_EXTENSIONS + PRESENTATION_EXTENSIONS + SPREADSHEET_EXTENSIONS
 # in liteparse's `conversion.rs`. Kept in that order so the two can be diffed.
 LITEPARSE_OFFICE_FORMATS: set[str] = {
-    # Word processing
     ".doc",
     ".docx",
     ".docm",
@@ -73,7 +72,6 @@ LITEPARSE_OFFICE_FORMATS: set[str] = {
     ".ott",
     ".rtf",
     ".pages",
-    # Presentations
     ".ppt",
     ".pptx",
     ".pptm",
@@ -83,7 +81,6 @@ LITEPARSE_OFFICE_FORMATS: set[str] = {
     ".odp",
     ".otp",
     ".key",
-    # Spreadsheets
     ".xls",
     ".xlsx",
     ".xlsm",
@@ -140,8 +137,6 @@ def get_supported_formats(parser_name: str = "pymupdf") -> set[str]:
     return PARSER_FORMATS.get(parser_name, PYMUPDF_FORMATS)
 
 
-# Known embedding models and their output dimensions.
-# Used to auto-set vector store dimension from model name.
 EMBEDDING_DIMENSIONS: dict[str, int] = {
     "text-embedding-3-small": 1536,
     "text-embedding-3-large": 3072,
