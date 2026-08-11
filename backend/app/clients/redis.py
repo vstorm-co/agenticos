@@ -48,11 +48,18 @@ class RedisClient:
         key: str,
         value: str,
         ttl: int | None = None,
-    ) -> None:
-        """Set a value with optional TTL (in seconds)."""
+        nx: bool = False,
+    ) -> bool:
+        """Set a value with optional TTL (in seconds).
+
+        With `nx=True` the write happens only when the key does not already
+        exist - Redis `SET NX`, one atomic claim - and the return value says
+        whether this call was the one that wrote it. Redis answers a refused
+        NX write with a nil reply, which the driver surfaces as `None`.
+        """
         if not self.client:
             raise RuntimeError("Redis client not connected")
-        await self.client.set(key, value, ex=ttl)
+        return bool(await self.client.set(key, value, ex=ttl, nx=nx))
 
     async def delete(self, key: str) -> int:
         """Delete a key. Returns number of keys deleted."""
