@@ -20,20 +20,30 @@ import { driver, type Driver } from "driver.js";
  * the popover to a fixed spot at the bottom (see `globals.css`): the text and its
  * Next button hold still for the whole walk, and only the spotlight moves.
  *
- * `animate: false` is what keeps that spotlight move from reading as a blink.
- * With driver's animation on, each transition adds a `driver-fade` that fades the
- * popover and overlay back in, and rebuilds the overlay SVG on every frame of the
- * slide; against a pinned, unchanging caption that whole scene flashes on every
- * step — and a step that reveals a control and then lands on its target flashes
- * twice. Off, driver updates the overlay cut-out in place and the cut-out jumps
- * straight to the next control: the caption never moves, nothing fades, and the
- * only thing that changes is where the light is.
+ * `animate: true` glides the spotlight from one control to the next instead of
+ * snapping it there, so a transition reads as a movement the eye can follow
+ * rather than a jump. driver.js drives that glide by interpolating the overlay's
+ * cut-out path over `duration`, reusing the one overlay element across steps — so
+ * the backdrop itself never fades or flashes. The popover is the exception:
+ * driver.js destroys and recreates it every step, and because the fresh one is
+ * inserted while the body still carries `driver-fade`, its fade-in keyframe
+ * replays each time — against a caption pinned to one spot that reads as a flash
+ * of the text. `globals.css` suppresses that single keyframe for `.tour-popover`,
+ * so the caption holds still while only the light moves.
+ *
+ * A reader who asks for reduced motion gets `animate: false` — the cut-out snaps
+ * rather than glides — matching the click flourish, which the same media query
+ * turns off in `globals.css`.
  *
  * Lives under `components/onboarding`, not in a hook: it is DOM and third-party
  * overlay work, and the hook layer is held to a 100% line-coverage gate this
  * could only meet by asserting on driver.js's internals.
  */
 export function createTourDriver(): Driver {
+  const reducedMotion =
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   return driver({
     allowClose: false,
     overlayColor: "#0a0a0a",
@@ -41,7 +51,7 @@ export function createTourDriver(): Driver {
     stagePadding: 8,
     stageRadius: 10,
     disableActiveInteraction: true,
-    animate: false,
+    animate: !reducedMotion,
     popoverClass: "tour-popover",
   });
 }
