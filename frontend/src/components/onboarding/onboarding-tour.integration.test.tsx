@@ -116,7 +116,7 @@ function shownStep(): DriveStep {
 beforeEach(() => {
   vi.clearAllMocks();
   nav.pathname = "/dashboard";
-  useOnboardingStore.setState({ isOpen: false, index: 0, mode: "tour" });
+  useOnboardingStore.setState({ isOpen: false, index: 0, mode: "tour", flowId: null, offer: null });
   useAuthStore.setState({ user: user(), isAuthenticated: true });
 });
 
@@ -171,6 +171,31 @@ describe("OnboardingTour", () => {
 
     act(() => shownStep().popover?.onCloseClick?.(undefined, {} as DriveStep, {} as never));
     await waitFor(() => expect(router.push).toHaveBeenCalledWith(ROUTES.DASHBOARD));
+  });
+
+  it("offers the section's create flow when a '?' walk runs to its end", async () => {
+    // Every section's "?" ends by asking whether to make the thing the section
+    // is for — the re-entry into the interactive flows.
+    servePermissions(OWNER);
+    nav.pathname = "/skills";
+    useOnboardingStore.setState({ isOpen: true, index: 99, mode: "page" });
+    render(<OnboardingTour />, { wrapper });
+    await waitFor(() => expect(spotlight.highlight).toHaveBeenCalled());
+
+    act(() => shownStep().popover?.onNextClick?.(undefined, {} as DriveStep, {} as never));
+    expect(useOnboardingStore.getState().offer).toBe("create-skill");
+  });
+
+  it("a '?' walk closed early makes no create offer", async () => {
+    // Leaving is not finishing, so an early close asks nothing.
+    servePermissions(OWNER);
+    nav.pathname = "/skills";
+    useOnboardingStore.setState({ isOpen: true, index: 0, mode: "page" });
+    render(<OnboardingTour />, { wrapper });
+    await waitFor(() => expect(spotlight.highlight).toHaveBeenCalled());
+
+    act(() => shownStep().popover?.onCloseClick?.(undefined, {} as DriveStep, {} as never));
+    expect(useOnboardingStore.getState().offer).toBeNull();
   });
 
   it("leaves a '?' replay where it was opened, not on the dashboard", async () => {

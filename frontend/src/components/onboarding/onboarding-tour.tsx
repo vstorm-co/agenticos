@@ -17,6 +17,7 @@ import {
 import { useOnboardingTour } from "@/hooks";
 import { stripLocale } from "@/lib/active-route";
 import { ROUTES } from "@/lib/constants";
+import { flowForPage } from "@/lib/onboarding/flows";
 import { pageKey } from "@/lib/onboarding/tour";
 import { useOnboardingStore } from "@/stores";
 
@@ -59,7 +60,11 @@ const LOCKED_BUTTONS: AllowedButtons[] = ["next", "previous"];
  * permission-filtered, and whether closing persists completion, all come from
  * `useOnboardingTour`. Ending the first-run tour returns the reader to the
  * dashboard rather than leaving them on its last page; the "?" replay leaves
- * them where they opened it. Mounted once in the dashboard layout.
+ * them where they opened it. A "?" walk that runs to its end offers the
+ * interactive flow that creates the section's resource (`flowForPage` →
+ * `CreationOffer`); an early close does not. While a flow runs the passive
+ * overlay stays down so the coach can own the screen. Mounted once in the
+ * dashboard layout.
  */
 export function OnboardingTour() {
   const t = useTranslations("onboarding");
@@ -67,6 +72,7 @@ export function OnboardingTour() {
   const pathname = usePathname();
   const { isOpen, steps, step, index, isFirst, isLast, next, back, dismiss } = useOnboardingTour();
   const mode = useOnboardingStore((state) => state.mode);
+  const openOffer = useOnboardingStore((state) => state.openOffer);
   const detailTargets = useDetailTargets(isOpen);
   const driverRef = useRef<Driver | null>(null);
 
@@ -74,7 +80,9 @@ export function OnboardingTour() {
     driverRef.current ??= createTourDriver();
     const tour = driverRef.current;
 
-    if (!isOpen || !step) {
+    // While an interactive flow runs, the coach owns the screen — the passive
+    // driver.js overlay must stay down so it does not sit over the create dialog.
+    if (!isOpen || !step || mode === "flow") {
       tour.destroy();
       return;
     }
@@ -82,14 +90,29 @@ export function OnboardingTour() {
     const here = stripLocale(pathname);
     const detail = step.page ? detailTargets[step.page] : undefined;
 
-    // End the walk, then land on the dashboard — but only the first-run tour,
+    // Close the walk, then land on the dashboard — but only the first-run tour,
     // which walks the whole product and would otherwise strand a new user on its
     // last page (mcp-servers) rather than the home they started on. A "?" replay
     // is help on one page, so closing it leaves the reader exactly where it was
-    // opened.
-    const finish = () => {
+    // opened. This is the early exit — the X, or Escape — and it makes no offer.
+    const closeWalk = () => {
       dismiss();
       if (mode === "tour") router.push(ROUTES.DASHBOARD);
+    };
+
+    // Reaching the end — Next on the last step. Everything closeWalk does, and
+    // then the offer: a "?" walk that ran to its end asks whether to create the
+    // thing its section is for (the interactive Phase-2 flow). Only a completed
+    // walk asks; someone who left early was not finishing, and a section with
+    // nothing to create — or one whose create the caller may not perform — makes
+    // no offer, because `flowForPage` returns null and `CreationOffer` re-checks
+    // the permission.
+    const completeWalk = () => {
+      closeWalk();
+      if (mode === "page") {
+        const flow = flowForPage(pageKey(here));
+        if (flow) openOffer(flow);
+      }
     };
 
     const buttons: AllowedButtons[] = isFirst ? ["next", "close"] : ["previous", "next", "close"];
@@ -105,9 +128,9 @@ export function OnboardingTour() {
           progressText: t("progress", { current: index + 1, total: steps.length }),
           nextBtnText: isLast ? t("finish") : t("next"),
           prevBtnText: t("back"),
-          onNextClick: () => (isLast ? finish() : next()),
+          onNextClick: () => (isLast ? completeWalk() : next()),
           onPrevClick: () => back(),
-          onCloseClick: () => finish(),
+          onCloseClick: () => closeWalk(),
         },
       };
       tour.highlight(driveStep);
@@ -184,6 +207,7 @@ export function OnboardingTour() {
     back,
     dismiss,
     mode,
+    openOffer,
     t,
     detailTargets,
   ]);

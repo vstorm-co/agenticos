@@ -2074,7 +2074,45 @@
     "finish": "Finish",
     "progress": "Step {current} of {total}",
     "saveFailed": "We couldn't save that you've seen the walkthrough, so it may show again next time.",
+    "skip": "Skip",
+    "coachClose": "Close",
+    "offer": {
+      "accept": "Yes, guide me",
+      "decline": "Not now",
+      "create-skill": {
+        "title": "Create a skill?",
+        "body": "Skills are reusable instructions you can attach to any agent. Want to make your first one now? We'll walk you through it."
+      },
+      "create-kb": {
+        "title": "Create a knowledge base?",
+        "body": "A knowledge base lets your agents search your documents. Want to set one up now? We'll walk you through it."
+      },
+      "create-mcp": {
+        "title": "Connect an MCP server?",
+        "body": "MCP servers give agents tools from other systems. Want to add a connection now? We'll walk you through it."
+      },
+      "create-org": {
+        "title": "Create a workspace?",
+        "body": "A workspace is a separate space with its own agents, members and settings. Want to create one now? We'll walk you through it."
+      }
+    },
     "steps": {
+      "flow-skill-create": {
+        "title": "Add your skill",
+        "body": "Choose New skill, give it a name and a short description, write what it should do, and create it. We'll move on as soon as it's saved."
+      },
+      "flow-kb-create": {
+        "title": "Create the knowledge base",
+        "body": "Choose New knowledge base, name it, and create it. You can add documents once it exists. We'll move on as soon as it's created."
+      },
+      "flow-mcp-create": {
+        "title": "Add the connection",
+        "body": "Choose Add server, give it a name and URL, and connect. We'll move on as soon as it's added — a connection that signs in through the provider will hand off to their consent screen."
+      },
+      "flow-org-create": {
+        "title": "Create the workspace",
+        "body": "Choose New workspace, give it a name, and create it. We'll move on as soon as it exists."
+      },
       "welcome": {
         "title": "Welcome to AgenticOS",
         "body": "This is where your team builds, runs and governs its AI agents. We'll step through each section and point out what's worth noticing — about a minute, and you can close it whenever you like."
