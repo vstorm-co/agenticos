@@ -17,6 +17,44 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.104] - 2026-08-11
+
+A channel message the platform delivers twice is answered once, and the decision
+is the Redis claim rather than a retry header that cannot know.
+
+### Fixed
+
+- **A redelivered channel message became a second full agent run.** Another model
+  call, another spend record, another answer in the thread. The fast 200 the
+  webhook routes return only prevents the slow-handler retry; a 200 lost on the
+  wire — a proxy drop, a pod rotation — was never received, and the redelivery
+  that follows is valid, signed and brand-new. The first delivery now claims the
+  message with one atomic `SET NX` against the shared Redis, so the claim holds
+  across API workers, and it lives fifteen minutes — longer than every platform's
+  retry window. Taken in `ChannelMessageRouter.route` rather than the worker shim,
+  because the three polling paths call the router directly and a claim in the shim
+  would have covered three inbound paths of six; keyed with the chat id, because
+  Telegram numbers messages per chat and Slack's `ts` is per channel. (#167)
+- **A run that did not finish swallowed every redelivery for fifteen minutes.**
+  The claim is taken on receipt, not on completion, so it is given back when the
+  run under it dies — under `BaseException`, so a task cancelled while the pod
+  drains counts as one. Harmless on the webhook paths, where the 200 has already
+  gone out, but the pollers re-read what the process died on: aiogram re-fetches
+  an unconfirmed `getUpdates` batch and Socket Mode redelivers an unacknowledged
+  envelope. (#167)
+- **Nothing is refused on a retry header alone.** A Slack request carrying
+  `x-slack-retry-num` is logged and then processed like any other. The header says
+  Slack is redelivering; it does not say the first attempt did any work, and
+  `reason=http_error` means it explicitly did not — the route raised before
+  `spawn`, so nothing was scheduled and no claim was taken. A transient database
+  error in `find_active` was enough to lose a message that way: 500, redelivery,
+  200, and a log line reading like a success. (#167)
+
+The guarantee degrades open, never shut, and always with a log line: a message
+with no id, an unconfigured module and an unreachable Redis are all processed
+rather than dropped. A duplicated answer is the rarer, cheaper failure than a
+dropped question.
+
 ## [0.0.103] - 2026-08-11
 
 The Builder says when the agent people are talking to is not the one on screen,
