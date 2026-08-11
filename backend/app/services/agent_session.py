@@ -259,21 +259,20 @@ class AgentSession:
                     model_profile_id=requested_model_profile_id(data),
                     environment_id=requested_environment_id(data),
                 )
-            # What the model actually wrote. `turn.output` is what the run ended
-            # with, and a turn that parked on an approval ended with nothing - so
-            # what it said before it stopped is on the timeline, exactly as it is
-            # for a turn that failed. The notice that used to stand in for the
-            # answer was stored as the agent's words and stayed there after the
-            # decision, saying a turn was waiting inside a turn that went on
-            # (#509); the step and the approval panel say it instead, and stop.
+            # `turn.output` is what the run *ended* with; a turn that parked ended
+            # with nothing, so its words are on the timeline (#509).
             output = turn.output or timeline.text
             model_label = turn.model_label
             agent_version_id = turn.agent_version_id
 
             self.conversation_history.append({"role": "user", "content": user_message})
-            # Only when there was something to say. A parked turn is the ordinary
-            # way to reach this with nothing, and an empty assistant turn in the
-            # history is a `TextPart` with no content on the next request.
+            # Only when there was something to say - tidiness, not a broken
+            # request being fixed. Skipping the assistant entry can leave two
+            # `user` entries in a row (park with no text, decide, type again),
+            # and `_agent_graph._clean_message_history` merges those into one
+            # `ModelRequest` before every model call; the empty `TextPart` this
+            # avoids was harmless too, dropped by the Anthropic adapter and sent
+            # as `content: ""` by the OpenAI one.
             if output:
                 self.conversation_history.append({"role": "assistant", "content": output})
             assistant_msg_id: str | None = None

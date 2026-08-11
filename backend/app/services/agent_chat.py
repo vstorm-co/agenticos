@@ -371,8 +371,8 @@ class ChatAgentRunner:
                 )
                 status = RunStatus.AWAITING_APPROVAL
             else:
+                output = result.output
                 status = RunStatus.COMPLETED
-            output = display_output(result.output)
         except asyncio.CancelledError:
             # The user pressed stop, or the socket went away mid-run. Cancelled
             # is not failed, and the tokens spent up to here were still spent.
