@@ -36,12 +36,15 @@ Two things are versioned separately from this file and worth knowing about:
   Runs from `make lint-frontend` (`bun run check:i18n`) and a new pre-commit hook,
   with `frontend/scripts/check-i18n.test.ts` in place of the five
   `backend/tests/test_check_i18n_*.py` files. Closes #395 and #141. (#597)
-- **137 hardcoded strings moved into `messages/en.json`, and 34 dead keys deleted.**
-  What the parser found on the pre-fix tree: the one-word template literals #395
+- **131 hardcoded strings answered, and 34 dead keys deleted.** What the parser
+  reports on the tree before the sweep, in 66 files: 64 template literals, 62 text
+  nodes, 4 strings and a toast. That is the one-word template literals #395
   measured (`aria-label`s and toasts — `Open ${org.name}`, `${name} updated.`), the
   multi-line text nodes #141 measured (the 404 page, `global-error.tsx`, the
   magic-link step, four legal paragraphs), and eight confirm-dialog titles a bare
-  `?` on the machine-read list had been exempting. A sentence split across an
+  `?` on the machine-read list had been exempting. 128 became messages; three took a
+  reasoned `i18n-exempt` — two on the error boundary that renders above
+  `NextIntlClientProvider`, one on a capability's wire format. A sentence split across an
   element is now one `t.rich` message rather than a head, a `<span>` and a tail,
   which is what made the 34 fragment keys dead — the guard's own `unreadKeys` named
   every one. Three decisions worth recording. A number and its unit is a formatter
