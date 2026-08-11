@@ -9,7 +9,13 @@ import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
 import { useOrgStore } from "@/stores";
 
-vi.mock("next/navigation", () => ({ usePathname: () => "/dashboard" }));
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/dashboard",
+  // Wrapped at module scope by the language switcher's locale-aware navigation,
+  // which this tree imports; without them the file fails to import at all.
+  redirect: vi.fn(),
+  permanentRedirect: vi.fn(),
+}));
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/lib/api-client", async () => {
