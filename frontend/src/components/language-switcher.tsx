@@ -2,7 +2,6 @@
 
 import { Check, Globe } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
-import { useRouter, usePathname } from "next/navigation";
 
 import {
   DropdownMenu,
@@ -10,25 +9,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { locales, defaultLocale, type Locale, getLocaleLabel, getLocaleFlag } from "@/i18n";
+import { locales, type Locale, getLocaleLabel, getLocaleFlag } from "@/i18n";
+import { usePathname, useRouter } from "@/lib/locale-navigation";
 import { cn } from "@/lib/utils";
-
-/**
- * Build a path for the given locale, preserving the rest of the route.
- * Handles `localePrefix: "as-needed"` - default locale has no prefix.
- */
-function buildLocalizedPath(pathname: string, newLocale: Locale): string {
-  const segments = pathname.split("/").filter(Boolean);
-  const first = segments[0];
-  if (first && (locales as readonly string[]).includes(first)) {
-    segments.shift();
-  }
-  const rest = segments.join("/");
-  if (newLocale === defaultLocale) {
-    return rest ? `/${rest}` : "/";
-  }
-  return rest ? `/${newLocale}/${rest}` : `/${newLocale}`;
-}
 
 /**
  * Icon-button language switcher - globe icon trigger + Radix dropdown.
@@ -44,7 +27,7 @@ export function LanguageSwitcherIcon() {
   const pathname = usePathname();
 
   const handleChange = (newLocale: Locale) => {
-    router.push(buildLocalizedPath(pathname, newLocale));
+    router.push(pathname, { locale: newLocale });
   };
 
   return (
