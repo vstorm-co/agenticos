@@ -309,6 +309,7 @@
     "organizationHasNoChannel": "No bot is free to bind. A bot answers as one agent, so one already serving another agent is not offered here - register another under Channels.",
     "organizationHasNoCollections": "This organization has no collections yet. An agent with none searches nothing.",
     "organizationHasNoModels": "This organization has no models yet. An agent cannot run without one.",
+    "noModelAskAdmin": "Adding one needs the Connections permission you don't have — ask an admin to add a model, and this agent can be published once it has one.",
     "organizationHasRegisteredNo": "This organization has registered no sandbox connection, so this agent cannot be published with a container. An operator adds one under Sandboxes.",
     "organizationHasWrittenNo": "This organization has written no skills yet.",
     "orphanedCollections": "This agent also references {count, plural, =1 {1 collection} other {# collections}} this organization no longer has. Publishing is refused until they are cleared:",

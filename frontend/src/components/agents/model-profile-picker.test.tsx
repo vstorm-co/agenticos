@@ -111,10 +111,13 @@ describe("ModelProfilePicker", () => {
     expect(screen.getByText("openai · gpt-4.1")).toBeInTheDocument();
   });
 
-  it("tells an empty organization what is wrong without offering the fix it cannot give", () => {
+  it("tells an empty organization what is wrong and where the fix it cannot give is", () => {
     mount({ profiles: [] });
 
     expect(screen.getByText(/no models yet/)).toBeInTheDocument();
+    // The path out, rather than only the problem: it points at the permission and
+    // the admin who holds it, so the reader is not left to find it at publish.
+    expect(screen.getByText(/ask an admin to add a model/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add a model" })).toBeNull();
   });
 
