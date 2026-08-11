@@ -14,9 +14,27 @@ import { Perm, type Permission } from "@/types/permissions";
 
 const allow = () => true;
 const deny = () => false;
-const EMPTY: OrgState = { hasRunnableModel: false, hasKnowledgeBase: false, hasSkill: false };
-const HAS_MODEL: OrgState = { hasRunnableModel: true, hasKnowledgeBase: false, hasSkill: false };
-const STOCKED: OrgState = { hasRunnableModel: true, hasKnowledgeBase: true, hasSkill: true };
+const EMPTY: OrgState = {
+  hasRunnableModel: false,
+  hasKnowledgeBase: false,
+  hasSkill: false,
+  hasOrgMcp: false,
+  hasPublishedAgent: false,
+};
+const HAS_MODEL: OrgState = {
+  hasRunnableModel: true,
+  hasKnowledgeBase: false,
+  hasSkill: false,
+  hasOrgMcp: false,
+  hasPublishedAgent: false,
+};
+const STOCKED: OrgState = {
+  hasRunnableModel: true,
+  hasKnowledgeBase: true,
+  hasSkill: true,
+  hasOrgMcp: true,
+  hasPublishedAgent: true,
+};
 const NO_CHOICES: Record<string, "yes" | "skip"> = {};
 
 describe("FLOWS", () => {
@@ -43,6 +61,7 @@ describe("FLOWS", () => {
       "flow-agent-instructions",
       "flow-agent-model-add",
       "flow-agent-model-pick",
+      "flow-agent-model-none",
       "flow-agent-knowledge",
       "flow-agent-knowledge-ask",
       "flow-agent-knowledge-create",
@@ -56,6 +75,9 @@ describe("FLOWS", () => {
       "flow-agent-skills-return-edit",
       "flow-agent-skills-attach",
       "flow-agent-tools",
+      "flow-agent-mcp",
+      "flow-agent-mcp-ask",
+      "flow-agent-mcp-connect",
       "flow-agent-publish",
     ]);
   });
@@ -107,21 +129,46 @@ describe("flowForPage", () => {
 });
 
 describe("explore-chat", () => {
-  it("is a signal-less, permission-free run of the chat controls", () => {
+  it("opens with a build-an-agent fork, then a signal-less run of the chat controls", () => {
     const flow = FLOWS["explore-chat"];
-    // Anyone signed in can chat, so the offer is never gated.
+    // The offer itself is ungated — anyone signed in can chat.
     expect(flow.permission).toBeUndefined();
     expect(flow.steps.map((step) => step.id)).toEqual([
+      "flow-chat-needs-agent",
       "flow-chat-start",
       "flow-chat-agent",
       "flow-chat-controls",
       "flow-chat-composer",
     ]);
-    // Nothing is created, so every step advances on Next rather than a signal.
+    // Nothing is created here, so every step lives on the chat page and advances on
+    // a click rather than a resource appearing.
     for (const step of flow.steps) {
       expect(step.signal).toBeUndefined();
       expect(step.page).toBe(ROUTES.CHAT);
     }
+  });
+
+  it("asks to build an agent first when none is published, and hands off to create-agent", () => {
+    const fork = FLOWS["explore-chat"].steps[0];
+    expect(fork?.question).toBe(true);
+    // Yes starts the create-agent flow rather than revealing a detour in this one.
+    expect(fork?.opensFlow).toBe("create-agent");
+    // Gated on the permission that create needs, and shown only when there is no
+    // published agent to chat with.
+    expect(fork?.permission).toBe(Perm.agentsEdit);
+    expect(fork?.include?.({ ...EMPTY, hasPublishedAgent: true }, allow)).toBe(false);
+    expect(fork?.include?.({ ...EMPTY, hasPublishedAgent: false }, allow)).toBe(true);
+  });
+
+  it("drops the build-an-agent fork for a reader who cannot create one", () => {
+    // No `agents:edit`, so the fork that would open create-agent is not offered —
+    // the reader gets the descriptive tour, not a flow they could not run.
+    const canButNotAgentsEdit = (permission: Permission) => permission !== Perm.agentsEdit;
+    const ids = stepsForFlow(FLOWS["explore-chat"], EMPTY, canButNotAgentsEdit, NO_CHOICES).map(
+      (s) => s.id,
+    );
+    expect(ids).not.toContain("flow-chat-needs-agent");
+    expect(ids[0]).toBe("flow-chat-start");
   });
 });
 
@@ -164,6 +211,38 @@ describe("stepsForFlow", () => {
       (step) => step.id,
     );
     expect(ids).not.toContain("flow-agent-model-add");
+  });
+
+  it("shows the model dead-end step only when the org has none and the caller cannot add one", () => {
+    // No model and no connections:manage: neither add (permission) nor pick (state)
+    // would show, so a bare walk would reach Publish with no model. The
+    // informational step stands in, rather than the reader being led there in
+    // silence.
+    const canButNotConnections = (permission: Permission) => permission !== Perm.connectionsManage;
+    const stranded = stepsForFlow(
+      FLOWS["create-agent"],
+      EMPTY,
+      canButNotConnections,
+      NO_CHOICES,
+    ).map((s) => s.id);
+    expect(stranded).toContain("flow-agent-model-none");
+    expect(stranded).not.toContain("flow-agent-model-add");
+    expect(stranded).not.toContain("flow-agent-model-pick");
+
+    // A caller who can add one is taught to, never told to wait.
+    const canAdd = stepsForFlow(FLOWS["create-agent"], EMPTY, allow, NO_CHOICES).map((s) => s.id);
+    expect(canAdd).toContain("flow-agent-model-add");
+    expect(canAdd).not.toContain("flow-agent-model-none");
+
+    // With a model already, neither the add nor the dead-end shows — just the pick.
+    const stocked = stepsForFlow(
+      FLOWS["create-agent"],
+      STOCKED,
+      canButNotConnections,
+      NO_CHOICES,
+    ).map((s) => s.id);
+    expect(stocked).toContain("flow-agent-model-pick");
+    expect(stocked).not.toContain("flow-agent-model-none");
   });
 
   it("drops publish for a caller who may build but not publish", () => {
@@ -229,6 +308,50 @@ describe("stepsForFlow", () => {
     expect(yes).toContain("flow-agent-skills-create");
     // Answering the skills fork does not conjure the knowledge detour.
     expect(yes).not.toContain("flow-agent-knowledge-create");
+  });
+
+  it("asks to connect an MCP server when the org has none, and only points at it when it has one", () => {
+    const empty = stepsForFlow(FLOWS["create-agent"], EMPTY, allow, NO_CHOICES).map((s) => s.id);
+    expect(empty).toContain("flow-agent-mcp-ask");
+    expect(empty).not.toContain("flow-agent-mcp");
+
+    const stocked = stepsForFlow(FLOWS["create-agent"], STOCKED, allow, NO_CHOICES).map(
+      (s) => s.id,
+    );
+    expect(stocked).toContain("flow-agent-mcp");
+    expect(stocked).not.toContain("flow-agent-mcp-ask");
+  });
+
+  it("hides the MCP fork from a caller who cannot manage connections", () => {
+    // No `connections:manage` and no connection to attach, so the whole section
+    // drops rather than asking about a connect the server would refuse.
+    const canButNotConnections = (permission: Permission) => permission !== Perm.connectionsManage;
+    const ids = stepsForFlow(FLOWS["create-agent"], EMPTY, canButNotConnections, NO_CHOICES).map(
+      (s) => s.id,
+    );
+    expect(ids).not.toContain("flow-agent-mcp-ask");
+    expect(ids).not.toContain("flow-agent-mcp");
+  });
+
+  it("opens the MCP connect step only once the fork is answered yes, and it stays in the builder", () => {
+    const unasked = stepsForFlow(FLOWS["create-agent"], EMPTY, allow, NO_CHOICES).map((s) => s.id);
+    expect(unasked).not.toContain("flow-agent-mcp-connect");
+
+    const skipped = stepsForFlow(FLOWS["create-agent"], EMPTY, allow, {
+      "flow-agent-mcp-ask": "skip",
+    }).map((s) => s.id);
+    expect(skipped).not.toContain("flow-agent-mcp-connect");
+
+    const yes = stepsForFlow(FLOWS["create-agent"], EMPTY, allow, { "flow-agent-mcp-ask": "yes" });
+    const ids = yes.map((s) => s.id);
+    // The connect step appears immediately after the fork it answers.
+    const ask = ids.indexOf("flow-agent-mcp-ask");
+    expect(ids[ask + 1]).toBe("flow-agent-mcp-connect");
+    // Inline, so it carries no `arrived` return leg — it names a builder page and a
+    // `created` signal, and the reader never leaves to make the connection.
+    const connect = yes.find((s) => s.id === "flow-agent-mcp-connect");
+    expect(connect?.signal).toEqual({ kind: "created", resource: "orgMcp" });
+    expect(connect?.page).toBe(AGENT_BUILDER);
   });
 });
 

@@ -45,6 +45,8 @@ export interface OnboardingFlowState {
   finish: () => void;
   /** Answer a fork step: records the choice and steps onto whatever it opens. */
   answer: (questionId: string, value: ChoiceValue) => void;
+  /** Hand off to another flow — a fork whose `"yes"` starts a different one. */
+  openFlow: (flowId: FlowId) => void;
   /** The agent this flow created, for a detour's return leg; `null` until captured. */
   flowAgentId: string | null;
   /** Remember the agent the flow just created — the coach reads it from the builder URL. */
@@ -59,6 +61,8 @@ const DEFAULT_STATE: OrgState = {
   hasRunnableModel: false,
   hasKnowledgeBase: false,
   hasSkill: false,
+  hasOrgMcp: false,
+  hasPublishedAgent: false,
 };
 
 /** A list's count, or `null` while it is still loading — the one gate every resource passes through. */
@@ -90,7 +94,8 @@ function useOrgSnapshot(): {
   const kb = useKnowledgeBases();
   const mcp = useOrgMcpConnections();
   const orgs = useOrganizationList();
-  const stateSettled = !models.isLoading && !kb.isLoading && !skills.isLoading;
+  const stateSettled =
+    !agents.isLoading && !models.isLoading && !kb.isLoading && !skills.isLoading && !mcp.isLoading;
   return {
     counts: {
       agent: settled(agents.isLoading, agents.total),
@@ -103,8 +108,10 @@ function useOrgSnapshot(): {
     // A profile is runnable when it is keyed by a vault secret, or self-hosted at
     // a `base_url` with no key — the same rule the model resolver enforces. A key
     // stored with no profile, or a profile whose key was deleted, is not. The
-    // knowledge and skill flags are simply whether the organization holds one, the
-    // fork each section's step branches on.
+    // knowledge, skill and MCP flags are simply whether the organization holds one,
+    // the fork each section's step branches on. A published agent is the one the
+    // chat can address — a draft has no version to run — the same `status` check
+    // the chat's own picker makes.
     liveState: stateSettled
       ? {
           hasRunnableModel: models.profiles.some(
@@ -112,6 +119,8 @@ function useOrgSnapshot(): {
           ),
           hasKnowledgeBase: kb.kbs.length > 0,
           hasSkill: skills.total > 0,
+          hasOrgMcp: mcp.connections.length > 0,
+          hasPublishedAgent: agents.agents.some((agent) => agent.status === "published"),
         }
       : null,
   };
@@ -146,6 +155,7 @@ export function useOnboardingFlow(): OnboardingFlowState {
   const close = useOnboardingStore((state) => state.close);
   const choices = useOnboardingStore((state) => state.choices);
   const answer = useOnboardingStore((state) => state.answer);
+  const openFlow = useOnboardingStore((state) => state.openFlow);
   const flowAgentId = useOnboardingStore((state) => state.flowAgentId);
   const setFlowAgentId = useOnboardingStore((state) => state.setFlowAgentId);
   const { can } = usePermissions();
@@ -217,6 +227,7 @@ export function useOnboardingFlow(): OnboardingFlowState {
     next,
     finish,
     answer,
+    openFlow,
     flowAgentId,
     setFlowAgentId,
   };

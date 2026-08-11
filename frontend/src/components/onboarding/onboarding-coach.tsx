@@ -103,7 +103,10 @@ function ringBoxFor(box: Box): Box {
  *
  * A `question` step is a fork rather than a control: the page freezes whole (no
  * cut-out) and the card offers Yes/Skip, `answer` recording the choice and
- * widening the flow to its detour or stepping over it. A detour's return leg is
+ * widening the flow to its detour or stepping over it. A fork can instead hand off
+ * to another flow — the chat run's "build an agent first?" opens `create-agent`
+ * on yes (`opensFlow`) rather than revealing a detour within this one. A detour's
+ * return leg is
  * *taught*: its steps point at the sidebar and the agent's own card and wait for
  * the reader's click to land (`signalMet` on an `arrived` signal), the pencil
  * resolved from the id the flow captured so a full gallery still returns to the
@@ -133,6 +136,7 @@ export function OnboardingCoach() {
     next,
     finish,
     answer,
+    openFlow,
     flowAgentId,
     setFlowAgentId,
   } = useOnboardingFlow();
@@ -293,7 +297,10 @@ export function OnboardingCoach() {
             <Button size="sm" variant="ghost" onClick={() => answer(step.id, "skip")}>
               {t("coachSkip")}
             </Button>
-            <Button size="sm" onClick={() => answer(step.id, "yes")}>
+            <Button
+              size="sm"
+              onClick={() => (step.opensFlow ? openFlow(step.opensFlow) : answer(step.id, "yes"))}
+            >
               {t("coachYes")}
             </Button>
           </div>

@@ -2122,6 +2122,10 @@
         "title": "Choose its model",
         "body": "Pick the model this agent should run on from the list, then choose Next."
       },
+      "flow-agent-model-none": {
+        "title": "No model in this organization yet",
+        "body": "An agent needs a model to run, and this organization has none. Adding one needs the connections permission you don't have — ask an admin to add a model, then this agent can use it. Choose Next to look at the rest for now."
+      },
       "flow-agent-knowledge": {
         "title": "Give it documents to read (optional)",
         "body": "Attach a knowledge base and the agent can search those documents and cite them. You can skip this and add one anytime — choose Next to move on."
@@ -2174,6 +2178,18 @@
         "title": "Give it tools (optional)",
         "body": "Capabilities let the agent do things — search the web, run code, call another system. Switch on what it needs, or choose Next to move on."
       },
+      "flow-agent-mcp": {
+        "title": "Add MCP servers (optional)",
+        "body": "MCP servers give the agent tools from other systems you've connected. Attach any here, or choose Next to move on."
+      },
+      "flow-agent-mcp-ask": {
+        "title": "No MCP server connected — connect one?",
+        "body": "An MCP server gives this agent tools from another system, and you haven't connected one yet. Want to connect one now? It's a quick dialog right here — no leaving the builder, and we'll pick up the moment it's connected."
+      },
+      "flow-agent-mcp-connect": {
+        "title": "Connect a server",
+        "body": "Choose Connect server, pick one from the catalog, and connect it. We'll move on the moment it's connected, and it'll be ready to attach right here."
+      },
       "flow-agent-publish": {
         "title": "Publish it",
         "body": "Publishing makes this version the one that runs everywhere the agent is used. Choose Publish when you're ready, then finish here."
@@ -2193,6 +2209,10 @@
       "flow-org-create": {
         "title": "Create the organization",
         "body": "Choose New organization, give it a name, and create it. We'll move on as soon as it exists."
+      },
+      "flow-chat-needs-agent": {
+        "title": "No published agent to chat with yet",
+        "body": "Chat talks to a published agent, and you don't have one yet. Want to build one first? We'll guide you through it and you can come back to chat after. Or skip to look around chat for now."
       },
       "flow-chat-start": {
         "title": "Start a conversation",

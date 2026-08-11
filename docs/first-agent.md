@@ -24,24 +24,32 @@ guided step on the wrong page; the freeze steps aside on its own whenever a dial
 or a picker opens, so the control the step points at is always usable. It is
 adaptive - it walks the path below, checks what the organization already has, and
 only stops where something is missing, teaching a workspace with no model how to
-add one and skipping straight past a prerequisite already in place.
+add one - or, for a builder who lacks the permission to add one, saying so rather
+than walking them in silence to a publish that will refuse an agent with no model
+- and skipping straight past a prerequisite already in place.
 
-Knowledge and skills are where it does the most. With one already, the flow just
-points at where it attaches. With none, it *asks* - "no knowledge base yet, create
-one?" - and if the answer is yes it runs the whole round trip: across into the
-Knowledge section, through creating the base, then back again by pointing at
-**Agents** in the sidebar, the edit pencil on the very agent just built, and the
-Knowledge tab where the new base attaches. The return leg is taught by pointing
-and waiting for the click, not by navigating for the reader, so it teaches the
-path through the app rather than performing it. Skills work the same way.
+Knowledge, skills and MCP servers are where it does the most. With one already,
+the flow just points at where it attaches. With none, it *asks* - "no knowledge
+base yet, create one?" - and if the answer is yes it runs the whole round trip:
+across into the Knowledge section, through creating the base, then back again by
+pointing at **Agents** in the sidebar, the edit pencil on the very agent just
+built, and the Knowledge tab where the new base attaches. The return leg is taught
+by pointing and waiting for the click, not by navigating for the reader, so it
+teaches the path through the app rather than performing it. Skills work the same
+way. MCP forks the same way but stays in the builder: a server connects with an
+inline dialog right there in the Toolbox, so a "yes" points at that button and
+the flow picks up the moment the connection lands - no trip to another page, and
+none back.
 
 Declining guides nobody; the offer returns at the end of the Agents **?** walk.
 Every other section's **?** ends the same way, offering to create that section's
 resource - a skill, a knowledge base, an MCP connection, a workspace - and the
 Chat **?** offers a guided run through the chat surface itself: starting a
 conversation, switching which agent answers, and changing the model or thinking
-effort for a single chat. That one creates nothing, so it advances on Next rather
-than on anything appearing.
+effort for a single chat. Chat can only talk to a *published* agent, so if there
+is none it opens by offering to build one first - a yes hands straight over to the
+agent flow. Past that it creates nothing, so it advances on Next rather than on
+anything appearing.
 
 ## 1. Store a provider key
 

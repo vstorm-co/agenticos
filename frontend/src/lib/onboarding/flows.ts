@@ -56,13 +56,18 @@ export type FlowSignal =
  * What an organization already has, read from the resource hooks, so an adaptive
  * flow can teach only what is missing, and ask to create what it lacks. A stored
  * key with no profile pointing at it is not a runnable model, and a profile whose
- * key was deleted is not either; a knowledge base or a skill is simply one the
- * organization holds. A flow grows this as it grows the branches that read it.
+ * key was deleted is not either; a knowledge base, a skill or an MCP connection is
+ * simply one the organization holds. `hasPublishedAgent` is the one the chat needs
+ * — only a published agent has a version to run, so a draft does not count — which
+ * is why the chat run asks to build one when there is none. A flow grows this as it
+ * grows the branches that read it.
  */
 export interface OrgState {
   hasRunnableModel: boolean;
   hasKnowledgeBase: boolean;
   hasSkill: boolean;
+  hasOrgMcp: boolean;
+  hasPublishedAgent: boolean;
 }
 
 /**
@@ -85,8 +90,14 @@ export interface FlowStep {
   activate?: string;
   permission?: Permission;
   signal?: FlowSignal;
-  /** Run this step only when the organization's state calls for it. */
-  include?: (state: OrgState) => boolean;
+  /**
+   * Run this step only when the organization's state calls for it. It is handed
+   * `can` as well as the state, for the rare step that turns on a permission the
+   * caller *lacks* — the model dead-end step, shown only to a builder who has no
+   * model and cannot add one, where a `permission` field (which drops a step the
+   * caller lacks) says the opposite of what is meant.
+   */
+  include?: (state: OrgState, can: (permission: Permission) => boolean) => boolean;
   /**
    * A fork rather than a control: the card asks a yes/no question instead of
    * pointing at anything, and the page freezes whole behind it. Answering `"yes"`
@@ -95,6 +106,14 @@ export interface FlowStep {
    * once the reader decides, as "no knowledge base yet — create one?" does.
    */
   question?: boolean;
+  /**
+   * A fork whose `"yes"` opens *another* flow rather than a detour within this
+   * one. The chat run asks a reader with no published agent to build one first,
+   * and yes hands off to `create-agent` whole — there is nothing to teach about
+   * chat until an agent exists to address. `"skip"` still steps over it. Only a
+   * `question` step reads this.
+   */
+  opensFlow?: FlowId;
   /**
    * Run this step only when the question with this id was answered `"yes"`. It is
    * the detour a fork opens: the guided creation and the round-trip back, present
@@ -134,11 +153,14 @@ export interface CreationFlow {
  * `created` signal to wait on.
  *
  * `create-agent` is the adaptive one. It creates the agent (which opens the
- * builder), walks its instructions and model, guides the knowledge and skills it
- * can be given, points out its tools, and ends at Publish. The model step is two
- * mutually exclusive halves: an organization with no runnable model is taught to
- * add one inline (`AddModel` stores the key and the profile in a single submit),
- * one that already has a model is only shown where to pick it.
+ * builder), walks its instructions and model, guides the knowledge, skills and MCP
+ * servers it can be given, points out its tools, and ends at Publish. The model
+ * step is three mutually exclusive branches on what the organization and the
+ * caller have: no runnable model and the permission to add one → taught to add it
+ * inline (`AddModel` stores the key and the profile in a single submit); a model
+ * already → only shown where to pick it; no model and no permission to add one →
+ * told the organization has none and an admin must, rather than walked in silence
+ * to a Publish that refuses a spec with no model.
  *
  * Knowledge and skills each branch the same way, on what the organization has.
  * With one already, the step just points at where it attaches and carries a Next.
@@ -151,6 +173,13 @@ export interface CreationFlow {
  * waits for the reader's click to land rather than navigating for them. The
  * pencil it points at is resolved from the id this flow captured (`dynamicTarget`),
  * so a gallery of many agents still returns to the right one.
+ *
+ * MCP forks the same way but stays put. The Toolbox binds a server with an inline
+ * dialog rather than sending the reader to another page — the trip a knowledge base
+ * or a skill has no choice but to make — so a reader with no connection is asked
+ * and, on yes, pointed at that button; the connection it creates lands in the
+ * picker's own cache and the step advances in place, no detour to walk and none to
+ * return from.
  *
  * The steps from the builder on live on a detail view with no route of its own,
  * so they carry the `AGENT_BUILDER` identity and rely on an earlier step having
@@ -200,6 +229,21 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         // `connections:manage`.
         permission: Perm.agentsView,
         include: (state) => state.hasRunnableModel,
+      },
+      // The dead end the other two leave: no runnable model, and no
+      // `connections:manage` to add one. Neither add (dropped by permission) nor
+      // pick (dropped by `include`) would show, and the reader would be walked in
+      // silence to a Publish that refuses a spec with no model. This step breaks
+      // that silence — it points at the picker, says the organization has no model
+      // and an admin must add one, and carries a Next rather than a signal, because
+      // there is nothing here this reader can create.
+      {
+        id: "flow-agent-model-none",
+        page: AGENT_BUILDER,
+        target: "agent-model-picker",
+        activate: "agent-tab-build",
+        permission: Perm.agentsView,
+        include: (state, can) => !state.hasRunnableModel && !can(Perm.connectionsManage),
       },
       // Knowledge, with a knowledge base already: just show where it attaches.
       {
@@ -305,6 +349,35 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         activate: "agent-tab-toolbox",
         permission: Perm.agentsView,
       },
+      // MCP servers, the same fork as knowledge and skills, without the detour: the
+      // Toolbox binds a server with an inline "Connect server" dialog, so a reader
+      // who has one is only shown where it attaches, and one who has none is asked —
+      // and on yes pointed at that button, gated on the `connections:manage` the
+      // button itself carries. The connection lands in the picker's own cache and
+      // the step advances in place, no trip to another page to make or return from.
+      {
+        id: "flow-agent-mcp",
+        page: AGENT_BUILDER,
+        target: "agent-mcp",
+        activate: "agent-tab-toolbox",
+        permission: Perm.agentsView,
+        include: (state) => state.hasOrgMcp,
+      },
+      {
+        id: "flow-agent-mcp-ask",
+        permission: Perm.connectionsManage,
+        include: (state) => !state.hasOrgMcp,
+        question: true,
+      },
+      {
+        id: "flow-agent-mcp-connect",
+        page: AGENT_BUILDER,
+        target: "agent-mcp-connect",
+        activate: "agent-tab-toolbox",
+        permission: Perm.connectionsManage,
+        signal: { kind: "created", resource: "orgMcp" },
+        requires: "flow-agent-mcp-ask",
+      },
       {
         id: "flow-agent-publish",
         page: AGENT_BUILDER,
@@ -363,15 +436,31 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       },
     ],
   },
-  // The one flow that creates nothing: a guided run of the chat surface, freezing
-  // it a control at a time to show how a conversation is set up. Every step is
-  // descriptive — it points, explains, and advances on Next — because there is no
-  // resource whose appearance could end it, and forcing the reader to send a
-  // (charged) message would be the wrong thing to teach with. It needs no
-  // permission: anyone signed in can chat.
+  // A guided run of the chat surface, freezing it a control at a time to show how
+  // a conversation is set up. The tour itself creates nothing — every step points,
+  // explains, and advances on Next, because no resource's appearance could end it
+  // and forcing the reader to send a (charged) message would teach the wrong
+  // thing. It opens with one fork, though: the chat can only address a published
+  // agent, so a reader with none is asked to build one first and yes hands off to
+  // `create-agent`. That fork aside, anyone signed in can chat, so no step past it
+  // carries a permission.
   "explore-chat": {
     id: "explore-chat",
     steps: [
+      // The chat can only address a published agent, so a run with none to show
+      // starts by asking to build one — and yes hands off to `create-agent` whole
+      // (`opensFlow`) rather than touring an empty picker and a disabled composer.
+      // Gated on the permission that create needs: a reader who cannot build an
+      // agent is not offered the flow they could not run, and simply gets the
+      // descriptive tour. Skip takes anyone straight into it.
+      {
+        id: "flow-chat-needs-agent",
+        page: ROUTES.CHAT,
+        permission: Perm.agentsEdit,
+        include: (state) => !state.hasPublishedAgent,
+        question: true,
+        opensFlow: "create-agent",
+      },
       { id: "flow-chat-start", page: ROUTES.CHAT, target: "chat-start" },
       { id: "flow-chat-agent", page: ROUTES.CHAT, target: "chat-agent-picker" },
       { id: "flow-chat-controls", page: ROUTES.CHAT, target: "chat-model-picker" },
@@ -418,10 +507,12 @@ export function flowForPage(pageId: string): FlowId | null {
  *
  * Three filters, all in the dropping direction. Permission-filtered the way the
  * tour is — a step whose control the server would hide is dropped rather than
- * left for the coach to hunt. Adaptively filtered on `state`, so a step that only
- * makes sense for a missing prerequisite (add a model, ask about a knowledge
- * base) drops out for an organization that already has it, and its complement
- * (pick the model, attach the base) takes its place. And fork-filtered on
+ * left for the coach to hunt. Adaptively filtered on `state` (and `can`, which the
+ * predicate is handed for the one step that turns on a permission the caller
+ * *lacks*), so a step that only makes sense for a missing prerequisite (add a
+ * model, ask about a knowledge base) drops out for an organization that already
+ * has it, and its complement (pick the model, attach the base) takes its place.
+ * And fork-filtered on
  * `choices`, so a detour step runs only once its question was answered `"yes"` —
  * which is what lets recording an answer widen the step list, the question
  * sitting immediately before the steps it gates so the index after it lands on
@@ -437,7 +528,7 @@ export function stepsForFlow(
   return flow.steps.filter(
     (step) =>
       (!step.permission || can(step.permission)) &&
-      (!step.include || step.include(state)) &&
+      (!step.include || step.include(state, can)) &&
       (!step.requires || choices[step.requires] === "yes"),
   );
 }

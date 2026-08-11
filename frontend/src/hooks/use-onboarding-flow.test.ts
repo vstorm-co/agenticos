@@ -13,18 +13,24 @@ vi.mock("next/navigation", () => ({ usePathname: () => nav.pathname }));
 const rig = vi.hoisted(() => ({
   agentTotal: 0,
   agentsLoading: false,
+  agentsList: [] as { status: string }[],
   profiles: [] as { secret_id: string | null; base_url?: string | null }[],
   modelsLoading: false,
   skillTotal: 0,
   skillLoading: false,
   kbs: [] as unknown[],
   connections: [] as unknown[],
+  mcpLoading: false,
   orgs: [] as unknown[] | undefined,
   can: (_permission: Permission): boolean => true,
 }));
 
 vi.mock("@/hooks/use-agents", () => ({
-  useAgents: () => ({ total: rig.agentTotal, isLoading: rig.agentsLoading }),
+  useAgents: () => ({
+    agents: rig.agentsList,
+    total: rig.agentTotal,
+    isLoading: rig.agentsLoading,
+  }),
 }));
 vi.mock("@/hooks/use-model-providers", () => ({
   useModelProviders: () => ({ profiles: rig.profiles, isLoading: rig.modelsLoading }),
@@ -36,7 +42,7 @@ vi.mock("@/hooks/use-knowledge-bases", () => ({
   useKnowledgeBases: () => ({ kbs: rig.kbs, isLoading: false }),
 }));
 vi.mock("@/hooks/use-org-mcp-connections", () => ({
-  useOrgMcpConnections: () => ({ connections: rig.connections, isLoading: false }),
+  useOrgMcpConnections: () => ({ connections: rig.connections, isLoading: rig.mcpLoading }),
 }));
 vi.mock("@/hooks/use-organizations", () => ({
   useOrganizationList: () => ({ data: rig.orgs, isLoading: false }),
@@ -69,12 +75,14 @@ vi.mock("@/lib/onboarding/flows", async () => {
 beforeEach(() => {
   rig.agentTotal = 0;
   rig.agentsLoading = false;
+  rig.agentsList = [];
   rig.profiles = [];
   rig.modelsLoading = false;
   rig.skillTotal = 0;
   rig.skillLoading = false;
   rig.kbs = [];
   rig.connections = [];
+  rig.mcpLoading = false;
   rig.orgs = [];
   rig.can = () => true;
   nav.pathname = "/dashboard";
@@ -213,6 +221,71 @@ describe("useOnboardingFlow", () => {
     act(() => useOnboardingStore.getState().openFlow("create-agent"));
     // Nothing frozen yet, so the flow defaults to teaching how to add one.
     expect(result.current.steps.map((step) => step.id)).toContain("flow-agent-model-add");
+  });
+
+  it("points at where MCP servers attach when the org has a connection", () => {
+    rig.connections = [{}]; // one connected server
+    const { result } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-agent"));
+    const ids = result.current.steps.map((step) => step.id);
+    expect(ids).toContain("flow-agent-mcp");
+    expect(ids).not.toContain("flow-agent-mcp-ask");
+  });
+
+  it("asks to connect an MCP server, and assumes none while its list is still loading", () => {
+    rig.mcpLoading = true; // count unknown, so the state has not settled
+    const { result, rerender } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-agent"));
+    // Nothing frozen yet, so the flow defaults to asking to connect one.
+    expect(result.current.steps.map((step) => step.id)).toContain("flow-agent-mcp-ask");
+
+    // Once the list settles empty the fork stands: still asking, never pointing.
+    rig.mcpLoading = false;
+    rerender();
+    const ids = result.current.steps.map((step) => step.id);
+    expect(ids).toContain("flow-agent-mcp-ask");
+    expect(ids).not.toContain("flow-agent-mcp");
+  });
+
+  it("tells a builder who cannot add a model that the org has none", () => {
+    rig.profiles = []; // no runnable model
+    rig.can = (permission) => permission !== "connections:manage";
+    const { result } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-agent"));
+    const ids = result.current.steps.map((step) => step.id);
+    expect(ids).toContain("flow-agent-model-none");
+    expect(ids).not.toContain("flow-agent-model-add");
+    expect(ids).not.toContain("flow-agent-model-pick");
+  });
+
+  it("asks the chat run to build an agent when only a draft exists", () => {
+    // A draft agent has no version to run, so the chat cannot address it — the run
+    // still opens with the build-one fork.
+    rig.agentsList = [{ status: "draft" }];
+    const { result } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("explore-chat"));
+    expect(result.current.step?.id).toBe("flow-chat-needs-agent");
+  });
+
+  it("goes straight into the chat tour when an agent is already published", () => {
+    rig.agentsList = [{ status: "published" }];
+    const { result } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("explore-chat"));
+    expect(result.current.step?.id).toBe("flow-chat-start");
+  });
+
+  it("assumes no published agent while the agent list is still loading", () => {
+    rig.agentsLoading = true; // not settled, so the run assumes none and asks
+    const { result } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("explore-chat"));
+    expect(result.current.step?.id).toBe("flow-chat-needs-agent");
+  });
+
+  it("exposes openFlow, for a fork that hands off to another flow", () => {
+    const { result } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("explore-chat"));
+    act(() => result.current.openFlow("create-agent"));
+    expect(result.current.flowId).toBe("create-agent");
   });
 
   it("opens the knowledge detour on yes and meets its arrived signals by page", () => {

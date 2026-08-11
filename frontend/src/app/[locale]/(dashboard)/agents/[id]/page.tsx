@@ -789,7 +789,12 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     of refusals, and the connection it creates lands in the same
                     cache this picker reads. */}
                 {can(Perm.connectionsManage) && (
-                  <Button variant="outline" size="sm" onClick={() => setConnectingMcp(true)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    data-tour="agent-mcp-connect"
+                    onClick={() => setConnectingMcp(true)}
+                  >
                     <Plug className="h-3.5 w-3.5" />
                     {t("connectServer")}
                   </Button>

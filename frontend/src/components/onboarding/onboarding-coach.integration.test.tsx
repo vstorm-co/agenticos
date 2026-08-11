@@ -59,6 +59,7 @@ function makeState(overrides: Partial<OnboardingFlowState> = {}): OnboardingFlow
     next: vi.fn(),
     finish: vi.fn(),
     answer: vi.fn(),
+    openFlow: vi.fn(),
     flowAgentId: null,
     setFlowAgentId: vi.fn(),
     ...overrides,
@@ -171,5 +172,30 @@ describe("OnboardingCoach", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Skip" }));
     expect(answer).toHaveBeenCalledWith("flow-agent-knowledge-ask", "skip");
+  });
+
+  it("hands a fork's Yes off to another flow when it opensFlow", async () => {
+    // The chat run's "build an agent first?" fork opens create-agent rather than
+    // revealing a detour, so Yes calls openFlow, not answer.
+    const openFlow = vi.fn();
+    const answer = vi.fn();
+    const fork = step({
+      id: "flow-chat-needs-agent",
+      question: true,
+      opensFlow: "create-agent",
+      signal: undefined,
+      target: undefined,
+      page: undefined,
+    });
+    flow.state = makeState({ flowId: "explore-chat", step: fork, steps: [fork], openFlow, answer });
+    render(<OnboardingCoach />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Yes, let's do it" }));
+    expect(openFlow).toHaveBeenCalledWith("create-agent");
+    expect(answer).not.toHaveBeenCalled();
+
+    // Skip still steps over it within this flow rather than handing off.
+    await userEvent.click(screen.getByRole("button", { name: "Skip" }));
+    expect(answer).toHaveBeenCalledWith("flow-chat-needs-agent", "skip");
   });
 });
