@@ -17,6 +17,7 @@ import pytest
 
 from app.agents.capabilities.charts._spec import ChartSpec
 from app.core.permissions import OrgRoleName
+from app.services.channels.base import OutgoingAttachment
 from app.services.channels.chart_png import render_chart_png
 from app.services.channels.mentions import ChannelAgentRouter, drawn_chart
 from app.services.transcript import RecordedToolCall
@@ -177,18 +178,24 @@ class TestChoosingWhatToSend:
 
 
 def _runner_that_draws() -> AsyncMock:
-    """A runner whose turn calls `create_chart`.
+    """A runner whose turn draws a chart, writes a file, and drops one.
 
-    It fills the list it was handed the way `AgentRunnerService.execute` does,
-    and takes `tool_calls` as a required keyword: a router that stops passing
+    It fills all three lists it was handed the way `AgentRunnerService.execute`
+    does, and takes all three as required keywords: a router that stops passing
     one fails here with a `TypeError` rather than quietly replying without the
-    picture.
+    picture, without the file, or without saying a file was dropped.
     """
 
     async def execute(
-        *_args: Any, tool_calls: list[RecordedToolCall], **_kwargs: Any
+        *_args: Any,
+        tool_calls: list[RecordedToolCall],
+        outbound: list[OutgoingAttachment],
+        outbound_refused: list[str],
+        **_kwargs: Any,
     ) -> tuple[str, MagicMock]:
         tool_calls.append(_call(_spec().model_dump_json()))
+        outbound.append(OutgoingAttachment(filename="revenue.csv", content=b"x,revenue\n"))
+        outbound_refused.append("/too-big.csv")
         return "here is the chart", MagicMock()
 
     return AsyncMock(side_effect=execute)
@@ -203,6 +210,13 @@ class TestTheReplyAChannelTurnBuilds:
     either call site leaves the suite green, the coverage gate at 100%, and Slack
     back to "here is the chart" with no chart - which is the #157 shape this
     module exists to keep dead (#515).
+
+    `outbound` and `outbound_refused` are the same seam under different names -
+    a list the router builds, hands to `execute` and reads back into
+    `AnsweredTurn` - and each was equally undefended: deleting either from
+    `answer` left the whole suite green (4381 passed), so a reply could say
+    "here is your file" and carry none. All three are asserted here for that
+    reason, rather than the one the issue happened to name.
     """
 
     @pytest.mark.anyio
@@ -228,11 +242,13 @@ class TestTheReplyAChannelTurnBuilds:
 
         assert answered.image_png is not None
         assert answered.image_png.startswith(b"\x89PNG")
+        assert [a.filename for a in answered.attachments] == ["revenue.csv"]
+        assert answered.refused == ["/too-big.csv"]
 
     @pytest.mark.anyio
     async def test_a_message_naming_no_handle_answers_with_the_picture_too(self):
         """`answer_default` is the ordinary path on a direct-message bot, and it
-        passes its own list - a fix applied to `answer` alone leaves it out."""
+        passes its own lists - a fix applied to `answer` alone leaves it out."""
         with (
             patch("app.services.channels.mentions.member_repo") as members,
             patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
@@ -254,3 +270,5 @@ class TestTheReplyAChannelTurnBuilds:
 
         assert answered.image_png is not None
         assert answered.image_png.startswith(b"\x89PNG")
+        assert [a.filename for a in answered.attachments] == ["revenue.csv"]
+        assert answered.refused == ["/too-big.csv"]
