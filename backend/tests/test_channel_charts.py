@@ -9,13 +9,17 @@ for a chart on a channel answered "here is the chart" with no chart, which is th
 worst shape a bug can take: the sentence is confident and the evidence is absent.
 """
 
-from unittest.mock import patch
+import uuid
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from app.agents.capabilities.charts._spec import ChartSpec
+from app.core.permissions import OrgRoleName
+from app.services.channels.base import OutgoingAttachment
 from app.services.channels.chart_png import render_chart_png
-from app.services.channels.mentions import drawn_chart
+from app.services.channels.mentions import ChannelAgentRouter, drawn_chart
 from app.services.transcript import RecordedToolCall
 
 ROWS = [{"x": "Jan", "revenue": 120}, {"x": "Feb", "revenue": 150}, {"x": "Mar", "revenue": 90}]
@@ -171,3 +175,100 @@ class TestChoosingWhatToSend:
             "app.services.channels.mentions.render_chart_png", side_effect=RuntimeError("boom")
         ):
             assert drawn_chart([_call(_spec().model_dump_json())]) is None
+
+
+def _runner_that_draws() -> AsyncMock:
+    """A runner whose turn draws a chart, writes a file, and drops one.
+
+    It fills all three lists it was handed the way `AgentRunnerService.execute`
+    does, and takes all three as required keywords: a router that stops passing
+    one fails here with a `TypeError` rather than quietly replying without the
+    picture, without the file, or without saying a file was dropped.
+    """
+
+    async def execute(
+        *_args: Any,
+        tool_calls: list[RecordedToolCall],
+        outbound: list[OutgoingAttachment],
+        outbound_refused: list[str],
+        **_kwargs: Any,
+    ) -> tuple[str, MagicMock]:
+        tool_calls.append(_call(_spec().model_dump_json()))
+        outbound.append(OutgoingAttachment(filename="revenue.csv", content=b"x,revenue\n"))
+        outbound_refused.append("/too-big.csv")
+        return "here is the chart", MagicMock()
+
+    return AsyncMock(side_effect=execute)
+
+
+class TestTheReplyAChannelTurnBuilds:
+    """The seam between the two halves above: `drawn_chart` reads what the run
+    called, and the run only has somewhere to put it because the router passes a
+    list into `execute` (#205).
+
+    Both halves are covered on their own, so deleting `tool_calls=called` from
+    either call site leaves the suite green, the coverage gate at 100%, and Slack
+    back to "here is the chart" with no chart - which is the #157 shape this
+    module exists to keep dead (#515).
+
+    `outbound` and `outbound_refused` are the same seam under different names -
+    a list the router builds, hands to `execute` and reads back into
+    `AnsweredTurn` - and each was equally undefended: deleting either from
+    `answer` left the whole suite green (4381 passed), so a reply could say
+    "here is your file" and carry none. All three are asserted here for that
+    reason, rather than the one the issue happened to name.
+    """
+
+    @pytest.mark.anyio
+    async def test_a_mention_that_drew_a_chart_answers_with_the_picture(self):
+        with (
+            patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.channels.mentions.agent_repo") as agents,
+            patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
+            patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
+        ):
+            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.MEMBER))
+            agents.get_by_slug = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
+            exposures.get_for_bot = AsyncMock(return_value=MagicMock(is_active=True))
+            runner_cls.return_value.execute = _runner_that_draws()
+
+            answered = await ChannelAgentRouter(MagicMock()).answer(
+                "@support chart my revenue",
+                platform="slack",
+                organization_id=uuid.uuid4(),
+                bot_id=uuid.uuid4(),
+                user_id=uuid.uuid4(),
+            )
+
+        assert answered.image_png is not None
+        assert answered.image_png.startswith(b"\x89PNG")
+        assert [a.filename for a in answered.attachments] == ["revenue.csv"]
+        assert answered.refused == ["/too-big.csv"]
+
+    @pytest.mark.anyio
+    async def test_a_message_naming_no_handle_answers_with_the_picture_too(self):
+        """`answer_default` is the ordinary path on a direct-message bot, and it
+        passes its own lists - a fix applied to `answer` alone leaves it out."""
+        with (
+            patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
+            patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
+        ):
+            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.MEMBER))
+            exposures.list_active_for_bot = AsyncMock(
+                return_value=[(MagicMock(), MagicMock(id=uuid.uuid4(), slug="support"))]
+            )
+            runner_cls.return_value.execute = _runner_that_draws()
+
+            answered = await ChannelAgentRouter(MagicMock()).answer_default(
+                "chart my revenue",
+                platform="slack",
+                organization_id=uuid.uuid4(),
+                bot_id=uuid.uuid4(),
+                user_id=uuid.uuid4(),
+            )
+
+        assert answered.image_png is not None
+        assert answered.image_png.startswith(b"\x89PNG")
+        assert [a.filename for a in answered.attachments] == ["revenue.csv"]
+        assert answered.refused == ["/too-big.csv"]

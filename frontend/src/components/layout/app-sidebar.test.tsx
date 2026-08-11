@@ -7,7 +7,12 @@ const can = vi.fn<(permission: string) => boolean>();
 const currentPath = vi.fn<() => string>(() => "/dashboard");
 const currentUser = vi.fn<() => { is_app_admin?: boolean } | null>(() => ({}));
 
-vi.mock("next/navigation", () => ({ usePathname: () => currentPath() }));
+vi.mock("next/navigation", () => ({
+  usePathname: () => currentPath(),
+  // next-intl's createNavigation wraps these at module scope; see `vitest.setup.ts`.
+  redirect: vi.fn(),
+  permanentRedirect: vi.fn(),
+}));
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
 vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can }) }));
 vi.mock("@/stores", () => ({ useAuthStore: () => ({ user: currentUser() }) }));

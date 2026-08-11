@@ -117,6 +117,16 @@ There is no `(marketing)` route group.
   renders English instead of the key. A module-level table of labels cannot call a
   translator, so it holds *keys* and the component translates at the point of use;
   a pure helper either answers with a key or takes `t`.
+- **The locale lives in a cookie, and a switch goes through `@/lib/locale-navigation`.**
+  `localePrefix: "as-needed"` means an unprefixed path *is* English, and 49 files import
+  a plain `next/link` - so a switch that only rewrites the URL survives exactly one
+  navigation (#285). `useRouter().push(pathname, { locale })` from
+  `@/lib/locale-navigation` writes `NEXT_LOCALE` as well as prefixing the path, and
+  `src/middleware.ts` restores that prefix from the cookie on the way in - and records
+  the cookie for a path that names a locale, which next-intl does only when
+  `accept-language` disagrees. Never switch locale through `next/navigation`, and keep
+  prefix parsing in `src/lib/locale-routing.ts`: next-intl matches a prefix
+  case-insensitively, and a second parser that does not turns `/PL/agents` into a 404.
 - Keep components under ~100 lines; extract when they grow.
 - **A response with no `Cache-Control` is not a response nobody caches.**
   `platform-proxy.ts` stamps `no-store` on anything the backend left unmarked: every

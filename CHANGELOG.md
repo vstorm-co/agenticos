@@ -99,6 +99,191 @@ Two things are versioned separately from this file and worth knowing about:
 - **A toast holding a sentence was reported twice**, once by each rule that owns
   it, inflating the count a person works through. The toast rule keeps its
   argument. (#610)
+
+## [0.0.109] - 2026-08-12
+
+The suite reaches no Prefect server on a laptop either, so what a developer runs
+is what CI runs.
+
+### Fixed
+
+- **A test that called a flow needed a Prefect server listening on
+  `localhost:4200`.** Prefect resolves its own settings from `backend/.env` — its
+  settings model carries `env_file=".env"` — so the `PREFECT_API_URL` line
+  `make dev` needs was also the address a test's flow call tried to reach, and it
+  failed as `Failed to reach API at …` out of a test that patches every
+  collaborator it has. CI never saw it: with no `.env` there is no URL, so what a
+  laptop ran was never what CI ran. The URL is now assigned *empty* before Prefect
+  is imported — deleting it would leave the dotenv source to answer, and an empty
+  assignment outranks that source because Prefect's model carries
+  `env_ignore_empty=False` — and Prefect reads an empty URL as no URL, running the
+  flow against a temporary server of its own, which is what CI has always done.
+  Unconditionally, so a developer with `make dev` up gets the same run rather than
+  a different code path. (#536)
+- **That temporary server wrote into a developer's own Prefect database.**
+  Its state is a SQLite file under `PREFECT_HOME`, which is `~/.prefect` unless
+  something says otherwise — the same file a locally run `prefect server` has
+  open. It now points at a directory of the tests' own, for the same reason the
+  test database name does. (#536)
+- **And starting it inside Prefect's own 20-second allowance failed on a first
+  run.** The server migrates its database before it answers: about 75 seconds cold
+  against a `PREFECT_HOME` nothing has written, about seven warm. Trading a
+  deterministic failure for a first-run one is not a fix, so the allowance is 90
+  seconds, and ephemeral mode is named rather than inherited — with it off a flow
+  call does not fail fast, it retries for 75 seconds and then fails. (#536)
+
+## [0.0.108] - 2026-08-12
+
+The backend suite runs in a random order, and the first shuffle found a
+connection-pool defect that had been hiding behind collection order.
+
+### Added
+
+- **`pytest-randomly`, and the documentation that described it is now true.**
+  Two pages said the shuffle was on by default while the plugin was in neither
+  `pyproject.toml` nor the lockfile: the suite ran in collection order, the
+  documented `-p no:randomly` was a silent no-op, and the order-independence
+  those pages called verified had never been exercised by that mechanism. The
+  seed is printed in the header and reaches every xdist worker through
+  `workerinput`, so `-n auto` collects one order rather than four. A guard test
+  asserts the *declaration*, so removing the dependency fails a test rather than
+  silently un-shuffling the suite. (#571)
+
+### Fixed
+
+- **A closed event loop's connection was left in the app engine's pool.**
+  `app.db.session.engine` is a module-level object, so its pool outlives the test
+  that filled it, while anyio gives every test its own event loop — and a
+  connection created on a loop that has since closed answers
+  `cannot perform operation: another operation is in progress` for the next
+  statement issued through it, in whichever test checked it out. The two files
+  driving the real `get_db_session` each disposed the engine on the way *out*,
+  which covers only the pair of them; anything else sharing the xdist worker
+  could leave a connection there. The `engine` fixture now disposes on the way
+  *in*, and the two per-file disposes are gone. Pre-existing — which tests share
+  a worker was already decided at run time by `--dist load`; the shuffle only
+  changed the adjacencies and made it surface, red on run 6 of 8. (#571)
+
+## [0.0.107] - 2026-08-12
+
+Picking Polish now survives the next click.
+
+### Fixed
+
+- **The language switcher redrew the current page and nothing more.** The
+  locale's entire persistence was the `/pl` URL prefix, and under
+  `localePrefix: "as-needed"` a path without a prefix *is* the default locale —
+  so every ordinary `<Link href="/agents">` and `router.push("/orgs")` in the app
+  dropped the prefix and the language with it, and a reload never brought Polish
+  back either. next-intl reads a `NEXT_LOCALE` cookie itself, but only under
+  `localeDetection`, which also turns on `accept-language` sniffing — and this
+  deployment serves English at the root whatever the browser asks for. So nothing
+  wrote the cookie and nothing read it. One routing config now backs both the
+  middleware and the navigation APIs: the switcher writes the cookie with a
+  year's `maxAge`, making the choice a preference rather than a session, and the
+  middleware redirects an unprefixed path to the picked locale while still
+  ignoring `accept-language`. A path that names a locale always wins, so a shared
+  `/pl/...` URL still means what it says. (#285)
+
+## [0.0.106] - 2026-08-11
+
+The seam that puts a chart in a Slack reply is covered, so the line holding it
+there can no longer be deleted with a green suite.
+
+### Fixed
+
+- **A chart could stop reaching a channel reply without a single test
+  noticing.** `drawn_chart` was covered on its own and the runner's hand-back of
+  the tool calls a turn made was covered on its own; nothing joined them. Every
+  test of `ChannelAgentRouter.answer` mocks the runner, so the list of calls
+  stays empty and `image_png` is always `None` — which means `tool_calls=called`
+  could be deleted from either call site in `channels/mentions.py` with a green
+  suite and a 100% coverage gate, and a Slack user would be back to reading
+  "here is the chart" under no chart. Both reply paths now run against a stub
+  runner that fills the list the way the real one does, and assert on the PNG
+  rather than on a mock call; the stub takes the tool calls as a *required*
+  keyword, so a router that stops passing them fails loudly. (#515)
+
+Two things the issue behind this asserted did not survive checking, recorded
+here rather than left open: the line it named was already covered by the pull
+request that exposed it, and CI was never green while the local gate was red —
+the same 99.98% failure was red there for seven runs, so this was not a
+`make check` / CI divergence.
+
+## [0.0.105] - 2026-08-11
+
+`next build` no longer touches the network, so a CDN nobody in this repository
+controls can no longer fail a frontend build.
+
+### Fixed
+
+- **Every green frontend build so far was luck of the CDN.**
+  `next/font/google` resolves a family against `fonts.gstatic.com` at build
+  time, and when gstatic 404s the `.woff2` Turbopack surfaces it as
+  `Module not found: Can't resolve
+  '@vercel/turbopack-next/internal/font/google/font'` and exits non-zero — which
+  is `test-frontend`'s `Build` step and `e2e`'s `Build the frontend` step. On
+  2026-08-10 it took out two pull requests inside one push window (#570,
+  Bricolage, six errors; #544, Inter, twenty-eight) while a third built fine.
+  Bricolage Grotesque, Inter and Geist Mono are now vendored under
+  `frontend/src/app/fonts/` and read by `next/font/local` — the latin subset of
+  each, range-limited to the weights in use, 113 KB across the three, with SIL
+  OFL 1.1 and all three copyright notices beside them. A regression test asserts
+  no module imports the Google helper and that the set of `.woff2` on disk is
+  exactly the set `layout.tsx` declares, compared in both directions. (#572)
+
+- **The coverage gate failed at random, on branches with no Python in them.**
+  Exactly 99.98%, twice tonight: on a frontend-only change and on a commit that
+  bumped three version strings. The missed line was the `continue` in
+  `catalog.custom_icon`, reachable only when `glob` yields a non-matching mark
+  first — `scandir` order, which on the runners' ext4 volumes is hash order, not
+  alphabetical. A test that asks for a name matching no mark in a directory
+  holding two now reaches it whatever the order. A red `test` job at 99.98% on a
+  diff that touched no Python is this, and reading it as the branch's fault cost
+  an hour. (#625)
+
+Known, unchanged: the vendored subsets are `latin` only — exactly what
+`subsets: ["latin"]` asked for before — so Polish diacritics on the `pl` locale
+still fall through to the system font.
+
+## [0.0.104] - 2026-08-11
+
+A channel message the platform delivers twice is answered once, and the decision
+is the Redis claim rather than a retry header that cannot know.
+
+### Fixed
+
+- **A redelivered channel message became a second full agent run.** Another model
+  call, another spend record, another answer in the thread. The fast 200 the
+  webhook routes return only prevents the slow-handler retry; a 200 lost on the
+  wire — a proxy drop, a pod rotation — was never received, and the redelivery
+  that follows is valid, signed and brand-new. The first delivery now claims the
+  message with one atomic `SET NX` against the shared Redis, so the claim holds
+  across API workers, and it lives fifteen minutes — longer than every platform's
+  retry window. Taken in `ChannelMessageRouter.route` rather than the worker shim,
+  because the three polling paths call the router directly and a claim in the shim
+  would have covered three inbound paths of six; keyed with the chat id, because
+  Telegram numbers messages per chat and Slack's `ts` is per channel. (#167)
+- **A run that did not finish swallowed every redelivery for fifteen minutes.**
+  The claim is taken on receipt, not on completion, so it is given back when the
+  run under it dies — under `BaseException`, so a task cancelled while the pod
+  drains counts as one. Harmless on the webhook paths, where the 200 has already
+  gone out, but the pollers re-read what the process died on: aiogram re-fetches
+  an unconfirmed `getUpdates` batch and Socket Mode redelivers an unacknowledged
+  envelope. (#167)
+- **Nothing is refused on a retry header alone.** A Slack request carrying
+  `x-slack-retry-num` is logged and then processed like any other. The header says
+  Slack is redelivering; it does not say the first attempt did any work, and
+  `reason=http_error` means it explicitly did not — the route raised before
+  `spawn`, so nothing was scheduled and no claim was taken. A transient database
+  error in `find_active` was enough to lose a message that way: 500, redelivery,
+  200, and a log line reading like a success. (#167)
+
+The guarantee degrades open, never shut, and always with a log line: a message
+with no id, an unconfigured module and an unreachable Redis are all processed
+rather than dropped. A duplicated answer is the rarer, cheaper failure than a
+dropped question.
+
 ## [0.0.103] - 2026-08-11
 
 The Builder says when the agent people are talking to is not the one on screen,

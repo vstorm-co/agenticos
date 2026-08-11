@@ -224,7 +224,7 @@ get the same fix, and each needs its own tests on all three.
       (`services/channels/mentions.py:80`). **Taken first in this phase**, because
       until it lands half of what manual testing tries comes back as *"Link your
       account first"* and reads like a broken Mattermost
-- [ ] **S11** — dedupe on `message_id` (#167). A retried delivery is a second run
+- [x] **S11** — dedupe on `message_id` (#167). A retried delivery is a second run
       with a second bill. Mattermost retries a slow webhook and our route answers
       200 before doing the work, so this surfaces here sooner than elsewhere
 - [ ] **S12** — a channel run records its messages (#205). Today it has a cost and
