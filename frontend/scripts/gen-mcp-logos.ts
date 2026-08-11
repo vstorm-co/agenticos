@@ -6,14 +6,42 @@
  * self-contained HTML export with no network — the badge falls back to the live
  * favicon service only for domains not baked here. Run with: bun run gen:mcp-logos
  */
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
-import { MCP_CATALOG } from "../src/lib/mcp-catalog";
-
 const here = dirname(fileURLToPath(import.meta.url));
 const OUT = join(here, "..", "src", "lib", "mcp-logos.generated.ts");
+/**
+ * The catalog, which is the backend's.
+ *
+ * This used to read a table of its own in `src/lib/mcp-catalog.ts` - fourteen servers
+ * with hand-written brand domains. Nothing rendered that table and it was deleted, so
+ * the domains come from the only catalog the product serves (#446).
+ *
+ * Keyed on each entry's **URL host**, because that is what `logoDataUri` is looked up
+ * with: `tool-steps.ts` derives a step's `logoDomain` from the connection's URL. The
+ * deleted table held brand domains instead - `linear.app` where the lookup asks for
+ * `mcp.linear.app` - so most baked logos were never found and the badge fell through to
+ * the live favicon service. The committed `mcp-logos.generated.ts` still holds those
+ * brand-domain keys; re-running this is what replaces them.
+ */
+const CATALOG = join(here, "..", "..", "backend", "app", "core", "catalog", "mcp_servers.json");
+
+interface CatalogEntry {
+  key: string;
+  url: string | null;
+}
+
+/** The host a server is reached on, or null for one with no URL of its own. */
+function hostOf(url: string | null): string | null {
+  if (url === null || url === "") return null;
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return null;
+  }
+}
 
 /** Google's favicon service — follows redirects to the actual PNG. */
 function faviconUrl(domain: string): string {
@@ -32,7 +60,9 @@ async function fetchDataUri(domain: string): Promise<string | null> {
   }
 }
 
-const domains = [...new Set(MCP_CATALOG.map((e) => e.domain))].sort();
+const entries = JSON.parse(await readFile(CATALOG, "utf8")) as CatalogEntry[];
+const hosts = entries.map((entry) => hostOf(entry.url)).filter((host) => host !== null);
+const domains = [...new Set(hosts)].sort();
 const logos: Record<string, string> = {};
 const failed: string[] = [];
 for (const domain of domains) {

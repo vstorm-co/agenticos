@@ -46,6 +46,7 @@ export function ToolApprovalDialog({
   disabled = false,
 }: ToolApprovalDialogProps) {
   const t = useTranslations("chat");
+  const tTools = useTranslations("chat.tools");
   const { can } = usePermissions();
   const mayDecide = can(Perm.approvalsDecide);
 
@@ -66,7 +67,11 @@ export function ToolApprovalDialog({
             <li key={action.id} className="border-border space-y-1.5 rounded-lg border p-2.5">
               {/* The catalog's name where it has one - "Run Python" rather than
                   `run_python`, the same words the step above it uses. */}
-              <span className="text-xs font-medium">{entry?.displayName ?? action.tool_name}</span>
+              <span className="text-xs font-medium">
+                {entry?.displayNameKey === undefined
+                  ? action.tool_name
+                  : tTools(entry.displayNameKey)}
+              </span>
               {/* Read-only, and scrolling rather than wrapping: a shell command is
                   read by its structure, and a 300-character one reflowed to the left
                   margin is unreadable in exactly the moment somebody has to judge it. */}

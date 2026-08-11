@@ -11,6 +11,21 @@ import {
 } from "./tool-steps";
 import { isWorkspaceTool } from "./tool-catalog";
 
+import { createTranslator } from "next-intl";
+
+import type { Translate } from "./agent-step-captions";
+import messages from "../../messages/en.json";
+
+/**
+ * The real `chat.tools` messages: a step's wording is what these tests are about, and
+ * resolving them here also proves every key the catalog table names exists.
+ *
+ * Cast because `createTranslator` types its key against the message tree while
+ * `Translate` takes the string a module table holds - the looseness #395's parser
+ * would remove.
+ */
+const t = createTranslator({ locale: "en", messages, namespace: "chat.tools" }) as Translate;
+
 /**
  * The words a step is made of.
  *
@@ -23,63 +38,63 @@ describe("the line for one tool call", () => {
   it("writes a workspace call in the tense it is true in", () => {
     const args = { path: "/workspace/notes/test1.md", content: "hej" };
 
-    expect(toolStep("write_file", args, false).label).toBe("Writing test1.md");
-    expect(toolStep("write_file", args, true).label).toBe("Wrote test1.md");
+    expect(toolStep("write_file", args, false, t).label).toBe("Writing test1.md");
+    expect(toolStep("write_file", args, true, t).label).toBe("Wrote test1.md");
   });
 
   it("names the file rather than its whole path", () => {
     // A step is a line in a narration, and `/workspace/skills/review/SKILL.md` is not
     // a line. The whole path is in the detail it opens.
-    expect(toolStep("read_file", { path: "/workspace/skills/review/SKILL.md" }, true).label).toBe(
-      "Read SKILL.md",
-    );
+    expect(
+      toolStep("read_file", { path: "/workspace/skills/review/SKILL.md" }, true, t).label,
+    ).toBe("Read SKILL.md");
   });
 
   it("keeps the whole path for a directory listing, which is what was listed", () => {
-    expect(toolStep("ls", { path: "/workspace/out" }, true).label).toBe("Listed /workspace/out");
+    expect(toolStep("ls", { path: "/workspace/out" }, true, t).label).toBe("Listed /workspace/out");
   });
 
   it("says what a search was looking for and where", () => {
-    expect(toolStep("grep", { pattern: "TODO", path: "/src/app.py" }, true).label).toBe(
+    expect(toolStep("grep", { pattern: "TODO", path: "/src/app.py" }, true, t).label).toBe(
       "Searched for TODO in app.py",
     );
-    expect(toolStep("glob", { pattern: "**/*.py" }, false).label).toBe("Looking for **/*.py");
+    expect(toolStep("glob", { pattern: "**/*.py" }, false, t).label).toBe("Looking for **/*.py");
   });
 
   it("says which command ran", () => {
-    expect(toolStep("execute", { command: "pytest -q" }, true).label).toBe("Ran pytest -q");
+    expect(toolStep("execute", { command: "pytest -q" }, true, t).label).toBe("Ran pytest -q");
   });
 
   it("still reads as a sentence when the arguments carried no subject", () => {
     // A malformed call, or one whose arguments have not streamed in yet.
-    expect(toolStep("write_file", {}, false).label).toBe("Writing…");
-    expect(toolStep("write_file", undefined, true).label).toBe("Wrote…");
+    expect(toolStep("write_file", {}, false, t).label).toBe("Writing…");
+    expect(toolStep("write_file", undefined, true, t).label).toBe("Wrote…");
   });
 
   it("keeps the captions the other tools had", () => {
-    expect(toolStep("search_documents", {}, false).label).toBe("Searching the documents");
-    expect(toolStep("search_documents", {}, true).label).toBe("Knowledge Base Search");
+    expect(toolStep("search_documents", {}, false, t).label).toBe("Searching the documents");
+    expect(toolStep("search_documents", {}, true, t).label).toBe("Knowledge Base Search");
   });
 
   it("says what happened rather than naming the tool, where the two differ", () => {
     // Which skill it was is the whole content of the step.
-    expect(toolStep("load_skill", { skill_name: "refund_policy" }, true).label).toBe(
+    expect(toolStep("load_skill", { skill_name: "refund_policy" }, true, t).label).toBe(
       "Refund Policy",
     );
-    expect(toolStep("load_skill", {}, true).label).toBe("Load Skill");
+    expect(toolStep("load_skill", {}, true, t).label).toBe("Load Skill");
   });
 
   it("carries the query or the URL as the detail beside a finished call", () => {
-    expect(toolStep("web_search", { query: "refund law" }, true).detail).toBe("refund law");
-    expect(toolStep("post_invoice", { invoice_id: 7 }, true).detail).toBeNull();
+    expect(toolStep("web_search", { query: "refund law" }, true, t).detail).toBe("refund law");
+    expect(toolStep("post_invoice", { invoice_id: 7 }, true, t).detail).toBeNull();
   });
 
   it("picks the icon from what the call is about", () => {
-    expect(toolStep("write_file", {}, true).kind).toBe("write");
-    expect(toolStep("grep", {}, true).kind).toBe("search");
-    expect(toolStep("web_search", {}, true).kind).toBe("web");
-    expect(toolStep("create_chart", {}, true).kind).toBe("chart");
-    expect(toolStep("post_invoice", {}, true).kind).toBe("tool");
+    expect(toolStep("write_file", {}, true, t).kind).toBe("write");
+    expect(toolStep("grep", {}, true, t).kind).toBe("search");
+    expect(toolStep("web_search", {}, true, t).kind).toBe("web");
+    expect(toolStep("create_chart", {}, true, t).kind).toBe("chart");
+    expect(toolStep("post_invoice", {}, true, t).kind).toBe("tool");
   });
 });
 
@@ -99,7 +114,7 @@ describe("a call from an MCP server", () => {
   });
 
   it("names the server and what was asked of it", () => {
-    const step = toolStep("linear_create_issue", {}, true, [
+    const step = toolStep("linear_create_issue", {}, true, t, [
       { name: "Linear", url: "https://mcp.linear.app/sse" },
     ]);
 
@@ -135,7 +150,7 @@ describe("a call from an MCP server", () => {
 
   it("leaves the workspace tools alone even when a connection shares their name", () => {
     // A connection called "Execute" would otherwise swallow the shell tool.
-    const step = toolStep("execute", { command: "ls" }, true, [
+    const step = toolStep("execute", { command: "ls" }, true, t, [
       { name: "ls", url: "https://a.example/" },
     ]);
 
@@ -171,21 +186,21 @@ describe("reading a call's arguments", () => {
   it("has no subject for a search with no pattern, and reads a command under either name", () => {
     // A call whose arguments have not streamed in yet, and the shell tool's two
     // spellings of the same thing.
-    expect(toolStep("grep", {}, true).label).toBe("Searched for…");
-    expect(toolStep("execute", { cmd: "ls -la" }, true).label).toBe("Ran ls -la");
+    expect(toolStep("grep", {}, true, t).label).toBe("Searched for…");
+    expect(toolStep("execute", { cmd: "ls -la" }, true, t).label).toBe("Ran ls -la");
   });
 
   it("names a skill only when the call said which", () => {
-    expect(toolStep("load_skill", { skill_name: "  " }, true).label).toBe("Load Skill");
+    expect(toolStep("load_skill", { skill_name: "  " }, true, t).label).toBe("Load Skill");
   });
 
   it("reads a path under any name a tool gives it, and a query when there is none", () => {
-    expect(toolStep("read_file", { file_path: "/a/b.txt" }, true).label).toBe("Read b.txt");
-    expect(toolStep("read_file", { filename: "c.txt" }, true).label).toBe("Read c.txt");
-    expect(toolStep("post_invoice", { url: "https://a.example/" }, true).detail).toBe(
+    expect(toolStep("read_file", { file_path: "/a/b.txt" }, true, t).label).toBe("Read b.txt");
+    expect(toolStep("read_file", { filename: "c.txt" }, true, t).label).toBe("Read c.txt");
+    expect(toolStep("post_invoice", { url: "https://a.example/" }, true, t).detail).toBe(
       "https://a.example/",
     );
-    expect(toolStep("load_skill", { skill_name: "refunds" }, false).detail).toBe("refunds");
+    expect(toolStep("load_skill", { skill_name: "refunds" }, false, t).detail).toBe("refunds");
   });
 
   it("finds a write's body under any of the names a tool uses", () => {

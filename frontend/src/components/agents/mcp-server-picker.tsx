@@ -72,6 +72,7 @@ export function McpServerPicker({
   disabled,
 }: McpServerPickerProps) {
   const t = useTranslations("agents");
+  const tMcp = useTranslations("mcp");
   const [connectedOnly, setConnectedOnly] = useState(false);
   const chosen = new Set(selectedIds);
   const known = new Set(connections.map((connection) => connection.id));
@@ -94,7 +95,7 @@ export function McpServerPicker({
       name: entry.name,
       description: entry.description,
       icon: entry.icon,
-      auth: MCP_AUTH_LABEL[entry.auth],
+      auth: tMcp(MCP_AUTH_LABEL[entry.auth]),
       connection: described.get(entry.key) ?? null,
     })),
     ...custom.map((connection) => ({

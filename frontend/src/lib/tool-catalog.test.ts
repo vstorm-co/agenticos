@@ -26,8 +26,8 @@ describe("the tool catalog", () => {
     // the running step reading "Running Web Search", which is the fallback for a tool
     // this side has never heard of.
     for (const [id, entry] of Object.entries(TOOL_CATALOG)) {
-      expect(entry.caption ?? entry.verbs, id).toBeDefined();
-      expect(entry.caption !== undefined && entry.verbs !== undefined, id).toBe(false);
+      expect(entry.captionKey ?? entry.verbs, id).toBeDefined();
+      expect(entry.captionKey !== undefined && entry.verbs !== undefined, id).toBe(false);
     }
   });
 

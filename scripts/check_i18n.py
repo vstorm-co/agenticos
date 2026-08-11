@@ -8,7 +8,7 @@ and the Polish UI ships half in English. That is what happened here - nine
 hundred strings across a hundred and forty files, in a repository whose own
 `.claude/rules/frontend.md` says never to hardcode copy.
 
-What it looks for, in `frontend/src/**/*.tsx`:
+What it looks for, in `frontend/src/**/*.ts` and `**/*.tsx`:
 
 * a JSX text node holding words - `<p>Nothing yet.</p>`;
 * a word-bearing string in an attribute a person reads: `placeholder`,
@@ -24,22 +24,27 @@ What it looks for, in `frontend/src/**/*.tsx`:
   the formatter breaks a text node across lines whenever it is long enough and every
   rule here anchors on a `>` and a `<` (#314).
 
+`path.suffix` decides which of those run. The four that anchor on a JSX bracket -
+`JSX_TEXT`, `MIXED`, `COUNT` and `LEAD` - read a `.tsx` file only, because in a `.ts`
+file `; return` is a text node and `a > b` is a count: widening the glob alone would
+have reported the syntax rather than the copy. The rest read a string literal wherever
+it sits, which is where a hook's toast and a module table of labels are, and where 381
+offences across 90 files sat unread for as long as the sweep walked `*.tsx` alone
+(#446).
+
 What it deliberately does not look at:
 
 * tests, which assert the copy and must name it;
 * `src/app/[locale]/(dashboard)/dev/**`, a playground for looking at components
   that is not part of the product;
+* `src/app/api/**`, the BFF route handlers - see `UNTRANSLATABLE`;
 * anything a person never reads - `className`, `href`, `data-*`, `id`, `type`;
 * a *plain* text node broken across lines - `<p>` newline `Nothing yet.` newline
   `</p>`. `JSX_TEXT` still reads one line at a time. Joining it the way the
   interpolation rules now are reports 70 more nodes across 42 files, 54 of them real
   copy and the rest the `) : cond ? (` a ternary leaves between two elements, which
   wants a discriminator of its own. That is #141, a copy migration of its own size
-  rather than part of closing #314;
-* **any `.ts` file at all.** Every rule above anchors on a JSX bracket, so a hook or a
-  module table is not merely unchecked but uncheckable by them - `; return` would read
-  as a text node. That leaves 406 offences across 91 files, measured: #446, which wants
-  #395's parser first because a parser reads a `.ts` file by construction.
+  rather than part of closing #314.
 
 False positives get an inline `{/* i18n-exempt: why */}` or a trailing
 `// i18n-exempt: why`. The comment is required to carry a reason, because "this
@@ -47,7 +52,7 @@ one is fine" is the sentence that turns a gate into a rubber stamp.
 
 Two more rules read the catalog and ask a question of the source, rather than reading
 the source and asking a question of it - which is why neither needs the parser #395
-wants, and why both reach the `.ts` files the sweep above never opens:
+wants, and why both found the `.ts` copy before the sweep above could:
 
 * `unread_keys` - a key nothing reads. 141 of them, and 82 had a Polish translation
   somebody had written for nobody. The extraction pass sometimes lifted a string into
@@ -80,6 +85,16 @@ CATALOG = ROOT / "frontend" / "messages" / "en.json"
 
 SKIPPED_DIRS = ("/dev/",)
 SKIPPED_NAMES = (".test.tsx", ".test.ts", ".spec.ts", ".stories.tsx", ".generated.ts")
+# Where a string is not copy because nothing there can translate it. A route handler
+# under `src/app/api/` sits outside the `[locale]` segment, so no locale is in scope
+# and `next-intl` has no message to resolve: what it writes is a wire payload.
+# `{"detail": "Not authenticated"}` does reach a toast verbatim - `api-error.ts` reads
+# `body.detail` when the backend envelope is absent - and that is a real defect (#603),
+# but not one fixable where the string is written, because the client is the only side
+# that knows the locale. 110 of the 132 offences here are `Internal server error` and
+# `Not authenticated` repeated across fifty files, so an exemption per line would be
+# fifty files of comment saying what this paragraph says once.
+UNTRANSLATABLE = ("app/api/",)
 
 # Props a component renders for a person to read. A fixed list, which is the
 # whole weakness of the rule: copy passed through a name that is not here is
@@ -365,16 +380,25 @@ def node_offences(probe: str) -> list[tuple[int, str]]:
 
 
 def offences(path: Path) -> list[tuple[int, str]]:
+    """Every hardcoded string in one file, by the rules its suffix admits.
+
+    A `.ts` file holds no JSX, so the four rules that anchor on a bracket are not
+    merely useless there but actively wrong: `; return` is a text node to `JSX_TEXT`
+    and `a > b` is a count to `COUNT`. They are gated rather than the glob widened,
+    which is what lets the remaining rules - the string, the template, the toast,
+    the hand-rolled plural - read the hooks, the module tables and the API clients
+    they had never been pointed at (#446).
+    """
+    jsx = path.suffix == ".tsx"
     found: list[tuple[int, str]] = []
     source = readable(path.read_text().splitlines())
-    probe = mask_generics("\n".join(source))
-    masked = probe.split("\n")
+    probe = mask_generics("\n".join(source)) if jsx else ""
+    masked = probe.split("\n") if jsx else source
     for number, line in enumerate(source, 1):
-        stripped = line.strip()
         for match in ATTR.finditer(line):
             if is_copy(match.group(2)):
                 found.append((number, f'{match.group(1)}="{match.group(2)}"'))
-        for match in JSX_TEXT.finditer(masked[number - 1]):
+        for match in JSX_TEXT.finditer(masked[number - 1]) if jsx else ():
             # `percent >= 80 && "text-amber-600"` reads as a text node to a regex.
             # An operator between the angle brackets means it is an expression.
             if is_copy(match.group(1)) and not re.search(r"&&|\|\||=>", match.group(1)):
@@ -392,14 +416,19 @@ def offences(path: Path) -> list[tuple[int, str]]:
         for match in TOASTS.finditer(line):
             if is_copy(match.group(1)):
                 found.append((number, f"toast {match.group(1)!r}"))
-        # Only where a string literal can reach the screen: an import path or a
-        # `cn(...)` argument holds spaces too, and neither is copy.
-        if not stripped.startswith(("import ", "export ", "from ")) and "className" not in line:
+        # Only where a string literal can reach the screen: a module specifier and a
+        # `cn(...)` argument hold spaces too, and neither is copy. The test used to be
+        # the *keyword* rather than the specifier, which in a `.ts` file skipped every
+        # `export const LABEL = "Provider default"` and every default parameter on an
+        # `export function` - `getErrorMessage`'s fallback, the sentence behind most of
+        # this app's failed requests, sat there.
+        if ' from "' not in line and "className" not in line:
             for match in SENTENCE.finditer(line):
                 value = match.group(1)
                 if is_copy(value) and not NOT_A_SENTENCE.match(value):
                     found.append((number, f"string {value!r}"))
-    found += node_offences(probe)
+    if jsx:
+        found += node_offences(probe)
     return sorted(found)
 
 
@@ -615,18 +644,18 @@ def main() -> int:
     failures: list[str] = []
     absent: list[str] = []
     # Three file sets, and the difference between them is what each rule can honestly say.
-    # `sources` is everything: the catalog rules read a `.ts` file because a hook's toast
-    # is copy, and read the `dev/` playground because a key it reads is not dead. `product`
-    # drops the playground, whose copy is nobody's to translate. `sweep` is `.tsx` alone -
-    # every rule in `offences` anchors on a JSX bracket, and `; return` in a `.ts` file
-    # would read as a text node (#446). Tests are out of all three: a test names its copy.
+    # `sources` is everything: the catalog rules read the `dev/` playground too, because a
+    # key it reads is not a dead key. `product` drops the playground, whose copy is
+    # nobody's to translate. `sweep` drops the BFF routes as well, which hold copy nothing
+    # there can translate. Tests are out of all three: a test names its copy.
     sources = [
         path
         for path in sorted(SRC.rglob("*.ts*"))
         if path.suffix in (".ts", ".tsx") and not path.name.endswith(SKIPPED_NAMES)
     ]
     product = [path for path in sources if not any(part in str(path) for part in SKIPPED_DIRS)]
-    for path in [one for one in product if one.suffix == ".tsx"]:
+    sweep = [path for path in product if not str(path.relative_to(SRC)).startswith(UNTRANSLATABLE)]
+    for path in sweep:
         relative = str(path.relative_to(ROOT))
         for number, what in offences(path):
             failures.append(f"{relative}:{number}: {what}")

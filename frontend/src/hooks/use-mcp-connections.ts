@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 
 import { qk } from "@/lib/query-keys";
 import {
@@ -48,6 +49,7 @@ interface UseMcpConnectionsResult {
  * on the backend. Mutation errors propagate as throws for toast handling.
  */
 export function useMcpConnections(): UseMcpConnectionsResult {
+  const t = useTranslations("mcp");
   const queryClient = useQueryClient();
 
   const {
@@ -64,7 +66,7 @@ export function useMcpConnections(): UseMcpConnectionsResult {
     queryError instanceof Error
       ? queryError.message
       : queryError
-        ? "Failed to load connections"
+        ? t("failedLoadConnections")
         : null;
 
   const writeCache = useCallback(

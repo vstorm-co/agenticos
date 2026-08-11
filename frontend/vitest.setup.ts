@@ -141,20 +141,35 @@ if (inBrowser && !Element.prototype.scrollIntoView) {
  * Global rather than per file, because otherwise moving one component onto `t()`
  * means touching every test that renders it. A file that wants the old
  * key-as-value behaviour still mocks `next-intl` itself, and its own mock wins.
+ *
+ * **One translator per namespace, cached.** The real `useTranslations` is a `useMemo`
+ * over stable inputs, so `t` keeps its identity across renders; a mock that built a
+ * fresh one per call did not, and a hook putting `t` in a `useCallback`'s dependencies
+ * then handed a new function to every render - which an effect keyed on that callback
+ * re-fires forever. The admin conversations screen loaded in a loop and never left its
+ * spinner (#446). The cache is what makes the mock behave like the thing it stands in
+ * for, not a convenience.
  */
 vi.mock("next-intl", async (importOriginal) => {
   const actual = await importOriginal<typeof import("next-intl")>();
   const messages = (await import("./messages/en.json")).default;
+  const translators = new Map<string, ReturnType<typeof actual.createTranslator>>();
   return {
     ...actual,
     useLocale: () => "en",
     useMessages: () => messages,
     useFormatter: () => actual.createFormatter({ locale: "en" }),
-    useTranslations: (namespace?: string) =>
-      actual.createTranslator({
+    useTranslations: (namespace?: string) => {
+      const key = namespace ?? "";
+      const cached = translators.get(key);
+      if (cached !== undefined) return cached;
+      const translator = actual.createTranslator({
         locale: "en",
         messages: messages as Parameters<typeof actual.createTranslator>[0]["messages"],
         namespace: namespace as never,
-      }),
+      });
+      translators.set(key, translator);
+      return translator;
+    },
   };
 });
