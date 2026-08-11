@@ -5,13 +5,16 @@ because Prefect resolves its own settings from `backend/.env` - the file `make d
 needs, pointing at `localhost:4200`. A suite that reads it makes every `@flow` call
 depend on a server nobody started (#536).
 
-Three of these assert the consequence - what Prefect resolved - because a variable set
+Most of these assert the consequence - what Prefect resolved - because a variable set
 too late, or set in a shape the dotenv source outranks, leaves the URL in place while
-looking correct. The fourth pins the shape itself, which is the half nothing else can
-see.
+looking correct. The last pins the shape itself, which is the half nothing else can
+see: on CI there is no `.env`, so every resolved value below is what it would be with
+no seed at all.
 """
 
 import os
+import tempfile
+from pathlib import Path
 
 from prefect.settings import get_current_settings
 
@@ -35,14 +38,29 @@ def test_the_suite_leaves_prefect_a_server_it_can_start_for_itself() -> None:
     assert get_current_settings().server.ephemeral.enabled
 
 
-def test_that_server_is_given_longer_than_prefect_would_allow_it() -> None:
-    """Prefect's own 20 seconds is not enough for the first run on a fresh machine.
+def test_that_server_keeps_its_state_out_of_the_developers_own_prefect_home() -> None:
+    """A flow run here would otherwise be written to `~/.prefect/prefect.db`.
 
-    The ephemeral server migrates a SQLite database before it answers, which took
-    75 seconds on a `PREFECT_HOME` nobody had written yet and 7 on every run after.
-    Twenty is therefore a first run that fails and a second that passes.
+    Which is a developer's own Prefect data, and the file a locally run
+    `prefect server` has open - the same reason the Postgres name in
+    `tests/conftest.py` is a test database rather than whatever `.env` says.
     """
-    assert get_current_settings().server.ephemeral.startup_timeout_seconds > 20
+    home = get_current_settings().home
+
+    assert home != Path.home() / ".prefect"
+    assert home == Path(tempfile.gettempdir()) / "agenticos-prefect-test"
+
+
+def test_that_server_is_given_longer_than_prefect_would_allow_it() -> None:
+    """Its 20 seconds is a cold start with nothing to spare, not headroom.
+
+    The server migrates a SQLite database under `PREFECT_HOME` before it answers,
+    which is about six seconds against a home nothing has written yet and about
+    nine on a CI runner. Asserted against the number `tests/conftest.py` chose
+    rather than against Prefect's default, which would hold for a value that
+    bought nothing.
+    """
+    assert get_current_settings().server.ephemeral.startup_timeout_seconds >= 90
 
 
 def test_the_url_is_emptied_rather_than_removed() -> None:

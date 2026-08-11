@@ -8,6 +8,7 @@ See: https://anyio.readthedocs.io/en/stable/testing.html
 
 import os
 import re
+import tempfile
 from pathlib import Path
 
 # Before anything imports `app.core.config`, and therefore before anything can
@@ -97,23 +98,34 @@ if not _a_password_is_already_configured():
 #
 # Deleting the variable would not do it: an unset variable leaves the dotenv source to
 # answer, and the dotenv source is what holds the URL. An empty *assignment* is what
-# outranks it, and Prefect reads an empty URL as no URL - it then runs the flow against
-# a temporary server of its own, which is what CI has always done. Unconditionally,
-# because the point is that the two agree: a developer with `make dev` up gets the same
-# run CI gets rather than a different code path.
+# outranks it, because Prefect's settings model carries `env_ignore_empty=False` and an
+# empty string is therefore an answer rather than a silence. That is Prefect's rule and
+# not ours: `app/core/config.py` sets it the other way, so the same line against one of
+# *our* settings is discarded and the `.env` answers anyway - which is why the password
+# above is checked for rather than emptied. Prefect reads an empty URL as no URL and
+# runs the flow against a temporary server of its own, which is what CI has always done.
+# Unconditionally, because the point is that the two agree: a developer with `make dev`
+# up gets the same run CI gets rather than a different code path.
+#
+# That server keeps its state in a SQLite database under `PREFECT_HOME`, which is
+# `~/.prefect` unless something says otherwise - a developer's own Prefect data, and the
+# file a locally run `prefect server` has open. Pointed at a directory of the tests' own
+# for the same reason as the database name above: a unit run has no business writing
+# there. One directory rather than one per process, because what costs is creating it.
 #
 # Ephemeral mode is named rather than assumed. It is the default today, but with no URL
 # and no ephemeral server a `@flow` call does not fail - it retries for 75 seconds and
 # then fails, which is a worse version of the bug this removes.
 #
-# The allowance for starting it is raised past Prefect's own 20 seconds, which is not
-# enough for the first run on a given machine: the server migrates a SQLite database
-# under `PREFECT_HOME` before it answers, taking ~75 seconds where nothing has written
-# one yet - a fresh container, or a developer whose Prefect runs in Docker and whose
-# `~/.prefect` is therefore empty - and about seven on every run after. Twenty is
-# therefore `RuntimeError: Timed out while attempting to connect to ephemeral Prefect
-# API server` once, then a pass, which is the same defect wearing a different message.
+# Creating that database is a migration, and the allowance for it is raised past
+# Prefect's own 20 seconds as headroom rather than because 20 has been seen to fail:
+# against a `PREFECT_HOME` nothing had written yet the whole start takes about six
+# seconds here and about nine on a CI runner, which is cold on every run. What 90 buys
+# is that the one step whose cost nothing here bounds - a migration on a contended
+# machine, or a temporary directory that has been swept - waits instead of failing a
+# suite that a second run would pass.
 os.environ["PREFECT_API_URL"] = ""
+os.environ["PREFECT_HOME"] = str(Path(tempfile.gettempdir()) / "agenticos-prefect-test")
 os.environ["PREFECT_SERVER_EPHEMERAL_ENABLED"] = "true"
 os.environ["PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS"] = "90"
 
