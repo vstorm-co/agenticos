@@ -17,6 +17,36 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.110] - 2026-08-12
+
+A turn that stopped for an approval no longer says so in the agent's own voice,
+in a transcript that keeps it forever.
+
+### Fixed
+
+- **The approval notice was stored as the agent's words.** A chat turn that
+  parked on an approval wrote *"This run needs approval before it can go further
+  — it is waiting in the approvals queue."* into the assistant message's
+  `content`. The moment somebody approved, that sentence was false, and it stayed
+  in the transcript attributed to the agent, in the middle of a turn that plainly
+  did go further — visible between two steps that both ran, since a run's segments
+  are drawn as one turn. It was never the model's text; it was UI state written
+  into the one field that keeps things forever. A parked run now records no answer
+  of its own, which is what every surface that does not stream already did — web
+  chat was the one place inventing a sentence. That a run is parked is still said
+  by the two things that stop saying it once the decision is made: the step it
+  stopped on, and the approval panel. (#509)
+- **A model that explained itself before asking for a gated call had that
+  explanation overwritten.** A parked turn now persists what was streamed before
+  it stopped, the same route a turn that failed, was stopped or lost its socket
+  already takes. Usually empty; not always. (#509)
+
+Known, and no longer covered for: a still-parked run says nothing about waiting
+once the page is reloaded — the stored tool-call row keeps `status="running"` and
+renders as a finished step, and the approval panel is only ever raised by a live
+socket frame. Every non-streaming surface has always looked like this; the notice
+was accidentally hiding it here. (#601)
+
 ## [0.0.109] - 2026-08-12
 
 The suite reaches no Prefect server on a laptop either, so what a developer runs
