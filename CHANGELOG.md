@@ -17,6 +17,32 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.111] - 2026-08-12
+
+The pricing caveat on the cost screen says which breakdown it measures and which
+it only marks.
+
+### Fixed
+
+- **One caveat, three breakdowns, and three places claiming it measured all
+  three.** "Some runs could not be priced" counts top-level runs — one per run
+  tree, the same rows *By agent* groups — so it measures that breakdown and only
+  *marks* By provider and By key, which sum every row's own spend, delegated rows
+  included. One parent with three unpriced delegates therefore reads `1` while
+  three figures below it are a floor. The two schema descriptions, the route
+  comment, the rendering side and `docs/governance.md` now say that instead of
+  claiming the figure and "its breakdown" cannot disagree. Descriptions, comments
+  and tests only — no behaviour change. (#597)
+- **The invariant behind it was untested end to end**: no breakdown is a floor
+  without a figure on the same page saying so. Two integration tests now pin it —
+  a priced parent with an unpriced delegate reads `1` above a provider split that
+  is the delegate's own spend, and one parent with two unpriced delegates still
+  reads `1`, with the delegate's own row counted nowhere. (#597)
+
+Checked and not changed: the marker itself is sound. The reported sequence — an
+unpriced delegate leaving the count at `0` — is not reachable, because a run tree
+shares one spend ledger and the top-level row is written from it.
+
 ## [0.0.110] - 2026-08-12
 
 A turn that stopped for an approval no longer says so in the agent's own voice,
