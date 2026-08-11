@@ -8,12 +8,13 @@ import type { SourceItem } from "@/lib/chat-sources";
 import { cn } from "@/lib/utils";
 
 function ScoreDot({ score }: { score: number }) {
+  const t = useTranslations("chat");
   const tone =
     score >= 0.7 ? "bg-foreground" : score >= 0.4 ? "bg-foreground/55" : "bg-foreground/25";
   return (
     <span
       className={cn("h-1.5 w-1.5 shrink-0 rounded-full", tone)}
-      title={`Relevance: ${score.toFixed(2)}`}
+      title={t("relevanceScore", { score: score.toFixed(2) })}
     />
   );
 }
@@ -136,7 +137,7 @@ export function SourcesPanel() {
       {/* Header */}
       <div className="border-foreground/8 flex items-center justify-between border-b px-4 py-3">
         <h2 className="text-foreground text-sm font-semibold">
-          Sources
+          {t("sourcesHeading")}
           <span className="text-foreground/45 ml-2 font-normal">({sources.length})</span>
         </h2>
         <button

@@ -16,6 +16,7 @@ import type { DashboardWidgetProps } from "./types";
  */
 export function McpHealthWidget({ title, seeAll }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.mcp-health");
+  const tTime = useTranslations("time");
   const { connections, isLoading, error, refresh } = useOrgMcpConnections();
 
   return (
@@ -38,10 +39,10 @@ export function McpHealthWidget({ title, seeAll }: DashboardWidgetProps) {
               pill:
                 connection.last_status === "error"
                   ? connection.last_checked_at
-                    ? t("downSince", { ago: timeAgo(connection.last_checked_at) })
+                    ? t("downSince", { ago: timeAgo(connection.last_checked_at, tTime) })
                     : t("down")
                   : connection.last_checked_at
-                    ? t("checked", { ago: timeAgo(connection.last_checked_at) })
+                    ? t("checked", { ago: timeAgo(connection.last_checked_at, tTime) })
                     : t("unchecked"),
               tone:
                 connection.last_status === "error"

@@ -36,39 +36,52 @@ There is no `(marketing)` route group.
 - **Register query keys** in `query-keys.ts` so invalidation stays consistent.
 - **Stores hold UI/ephemeral state only.** Server data lives in the query layer.
 - **Every user-facing string through `next-intl`**, and `make lint` enforces it:
-  `scripts/check_i18n.py` fails on a string a person would read sitting in a
+  `frontend/scripts/check-i18n.ts` fails on a string a person would read sitting in a
   component - a text node, a readable attribute, a toast, a sentence in a ternary -
   and on the reverse, a key a component reads that `messages/en.json` does not hold.
-  A genuine non-string takes `i18n-exempt: <reason>`; the reason is required.
-- **It reads a `.ts` file as well as a `.tsx` one, by fewer rules.** `JSX_TEXT`,
-  `MIXED`, `COUNT` and `LEAD` anchor on a bracket and run on `.tsx` alone - in a `.ts`
-  file `; return` is a text node and `a > b` is a count. What is left reads a string
-  literal wherever it sits, which is where a hook's toast and a module table of labels
-  are: 381 offences across 90 files, unread for as long as the sweep walked `*.tsx`
-  alone (#446). Two directories are skipped rather than exempted line by line -
-  `dev/`, the playground, and `src/app/api/**`, whose route handlers sit outside the
-  `[locale]` segment and so have no translator to reach at all (#603).
+  A genuine non-string takes `i18n-exempt: <reason>`; the reason is required, and it
+  covers the line it is on, the line below, and the element it opens - so a comment
+  above a tag with four Tailwind classes on it still reaches the copy inside.
+  `bun run check:i18n` from `frontend/` runs it alone; `scripts/check-i18n.test.ts`
+  is what holds each rule shut.
+- **The guard parses; it does not grep (#395).** It walks `JsxText`, `JsxExpression`,
+  `StringLiteral` and `TemplateExpression` through `ts.createSourceFile`, which is why
+  there are no thresholds left to fall between: a node the formatter broke over three
+  lines is one node, a type argument list is not JsxText at all, and a comment is
+  invisible rather than blanked. The four shapes patched into the old regexes - #199,
+  #246, #249, #314 - each keep a spec, and so does #141's plain multi-line node.
+- **It reads a `.ts` file as well as a `.tsx` one, and by the same rules.** A parser
+  reads one by construction: there is no bracket to anchor on and so nothing to gate on
+  the suffix, and a file with no JSX in it simply yields no phrases. That matters because
+  a hook's toast and a module table of labels are copy - 381 offences across 90 files,
+  unread for as long as the sweep walked `*.tsx` alone (#446). **`src/app/api/**` is
+  skipped by the offence sweep and read by the catalog rules**, which is not an
+  inconsistency: a route handler sits outside the `[locale]` segment and has no
+  translator to reach, so what it writes is a wire payload (#603) - but a `detail` it
+  writes that duplicates a message is still worth reporting, and `duplicatedInSource` is
+  what reports it. `dev/`, the playground, is skipped by both.
 - **A count is an ICU `plural`, never a ternary.** `{n} file{n === 1 ? "" : "s"}`
   and `count === 1 ? "1 skill" : \`${count} skills\`` are sentences only English
   builds that way, so they are refused too - the message holds
   `{count, plural, =1 {1 skill} other {# skills}}` and the component passes `count`.
   Same for a text node that mixes words with an interpolation: it is one message with
   a named parameter, not English with a hole in it. **A single word counts** — on
-  either side, and whichever way round the guard reads it: `Owned by {email}`,
-  `{n} runs`, and `Rotate {name}` / `chunk {n}` / `· expires {date}` are all refused.
-  A lambda inside the interpolation does not make it something else, so a count summed
-  with `reduce` is refused too. Neither does an inline handler on the same line, nor
-  the formatter breaking the node over two lines: the guard reads the file joined back
-  together, so `{used} of {max} used` is caught with neither `>` nor `<` on its line.
-  A *plain* node broken across lines is still missed - that is #141, and it is 70 more
-  nodes.
+  either side: `Owned by {email}`, `{n} runs`, `Rotate {name}`, `· expires {date}`.
+  So does a single word beside an interpolation in a *template literal* -
+  `` aria-label={`Remove ${source.name}`} `` - where whitespace is the discriminator
+  rather than a word count: a space between a word and the `${` makes it prose, and
+  `` `audience${key}Hint` `` builds a key. **An element ends a phrase**, so
+  `Sign in to <em>{t("x")}</em>` is refused: one message with a tag, read with
+  `t.rich`, never a head and a tail. A number and a unit is not a sentence -
+  `` `${bytes} KiB` `` and the like - and the unit list in the guard is what says so.
 - **A key nothing reads is not a translation, and a sentence is one message.** The
-  guard asks the catalog both questions now: `check_i18n.py` refuses a key no component
+  guard asks the catalog both questions: it refuses a key no component
   reads, and a message whose words are also written out in the source. Both are anchored
   on the catalog rather than on the source, which is how they found the `.ts` copy first:
   the offence sweep walked `*.tsx` alone until #446, so `src/hooks/**` had never been
   read by it at all and nineteen toasts sat there in English beside the keys holding
-  them. 141 keys were unread, 82 of them translated into Polish for nobody (#425).
+  them. Both halves read every `.ts` file now. 141 keys were unread, 82 of them
+  translated into Polish for nobody (#425).
   `messages/catalog.test.ts` adds the third and cheapest: **a value opening on `.`, `,`,
   `:` or `;` is half a sentence** - the other half is still in the JSX. A sentence with
   emphasis or a link in it is *one* message with a tag, read with `t.rich`

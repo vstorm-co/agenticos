@@ -40,8 +40,10 @@ export function PrivacyBodyEn() {
           {t("browserOsIpAddress")}
         </li>
         <li>
-          <strong>{t("cookiesBanner")}</strong> - see our{" "}
-          <Link href={ROUTES.LEGAL_COOKIES}>{t("cookiePolicy2")}</Link>.
+          {t.rich("cookiesSeeOurPolicy", {
+            strong: (chunks) => <strong>{chunks}</strong>,
+            policy: (chunks) => <Link href={ROUTES.LEGAL_COOKIES}>{chunks}</Link>,
+          })}
         </li>
       </ul>
 
@@ -82,10 +84,9 @@ export function PrivacyBodyEn() {
 
       <h2>{t("n6YourRights")}</h2>
       <p>
-        Depending on where you live, you may have rights to access, correct, delete, or export your
-        personal data, and to object to or restrict certain processing. Email{" "}
-        <a href="mailto:privacy@example.com">{t("privacyExampleCom3")}</a>
-        {t("exerciseThemWeRespond")}
+        {t.rich("yourRightsDescription", {
+          mail: (chunks) => <a href="mailto:privacy@example.com">{chunks}</a>,
+        })}
       </p>
 
       <h2>{t("n7InternationalTransfers")}</h2>
@@ -145,8 +146,10 @@ export function PrivacyBodyPl() {
           {t("przeglDarkaOsAdres")}
         </li>
         <li>
-          <strong>{t("cookies2")}</strong> - zobacz naszą{" "}
-          <Link href={ROUTES.LEGAL_COOKIES}>{t("politykCookies")}</Link>.
+          {t.rich("cookiesSeeOurPolicy", {
+            strong: (chunks) => <strong>{chunks}</strong>,
+            policy: (chunks) => <Link href={ROUTES.LEGAL_COOKIES}>{chunks}</Link>,
+          })}
         </li>
       </ul>
 
@@ -187,10 +190,9 @@ export function PrivacyBodyPl() {
 
       <h2>{t("n6TwojePrawa")}</h2>
       <p>
-        W zależności od miejsca zamieszkania, możesz mieć prawo do dostępu, sprostowania, usunięcia
-        lub eksportu swoich danych osobowych, a także do sprzeciwu lub ograniczenia określonego
-        przetwarzania. Napisz na <a href="mailto:privacy@example.com">{t("privacyExampleCom5")}</a>
-        {t("byJeZrealizowaOdpowiadamy")}
+        {t.rich("yourRightsDescription", {
+          mail: (chunks) => <a href="mailto:privacy@example.com">{chunks}</a>,
+        })}
       </p>
 
       <h2>{t("n7TransferyMiDzynarodowe")}</h2>

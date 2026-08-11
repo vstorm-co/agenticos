@@ -12,6 +12,7 @@ import type { DashboardWidgetProps } from "./types";
 /** Sync sources and how fresh their collections are. */
 export function KnowledgeFreshnessWidget({ title, seeAll }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.knowledge-freshness");
+  const tTime = useTranslations("time");
   const { sources, isLoading, error, refetch } = useSyncSources();
 
   return (
@@ -31,7 +32,7 @@ export function KnowledgeFreshnessWidget({ title, seeAll }: DashboardWidgetProps
               sub: failing
                 ? (source.last_error ?? undefined)
                 : source.last_sync_at
-                  ? t("synced", { ago: timeAgo(source.last_sync_at) })
+                  ? t("synced", { ago: timeAgo(source.last_sync_at, tTime) })
                   : t("neverSynced"),
               pill: failing ? t("failing") : t("fresh"),
               tone: failing ? ("err" as const) : ("ok" as const),

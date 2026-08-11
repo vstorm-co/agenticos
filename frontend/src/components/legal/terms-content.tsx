@@ -17,18 +17,13 @@ export function TermsBodyEn() {
       <p>{t("ifYouAposRe")}</p>
 
       <h2>{t("n1Service")}</h2>
-      <p>
-        {APP_NAME} provides AI-assisted productivity software, including chat agents, retrieval
-        augmented generation (RAG), and related developer tools. Features evolve continuously; we
-        may add, change, or remove functionality.
-      </p>
+      <p>{t("serviceDescription", { appName: APP_NAME })}</p>
 
       <h2>{t("n2YourAccount")}</h2>
       <p>
-        You&apos;re responsible for keeping your credentials secure and for activity that happens
-        under your account. Notify us at{" "}
-        <a href="mailto:security@example.com">{t("securityExampleCom")}</a>
-        {t("ifYouSuspectCompromise")}
+        {t.rich("accountResponsibility", {
+          mail: (chunks) => <a href="mailto:security@example.com">{chunks}</a>,
+        })}
       </p>
 
       <h2>{t("n3AcceptableUse")}</h2>
@@ -64,8 +59,9 @@ export function TermsBodyEn() {
       <h2>{t("n9Disclaimers")}</h2>
       <p>{t("serviceProvidedLdquoAs")}</p>
       <p>
-        AI output may contain inaccuracies. <strong>{t("donAposTRely")}</strong>
-        {t("medicalLegalFinancialWithout")}
+        {t.rich("aiOutputDisclaimer", {
+          strong: (chunks) => <strong>{chunks}</strong>,
+        })}
       </p>
 
       <h2>{t("n10LimitationLiability")}</h2>
@@ -95,17 +91,13 @@ export function TermsBodyPl() {
       <p>{t("jeLiKorzystaszZ")}</p>
 
       <h2>{t("n1UsUga")}</h2>
-      <p>
-        {APP_NAME} dostarcza oprogramowanie produktywności wspomagane AI - agentów do chatu,
-        retrieval augmented generation (RAG) oraz powiązane narzędzia developerskie. Funkcje
-        ewoluują na bieżąco; możemy je dodawać, zmieniać lub usuwać.
-      </p>
+      <p>{t("serviceDescription", { appName: APP_NAME })}</p>
 
       <h2>{t("n2TwojeKonto")}</h2>
       <p>
-        Odpowiadasz za bezpieczeństwo swoich danych logowania oraz za działania wykonane na Twoim
-        koncie. Powiadom nas na <a href="mailto:security@example.com">{t("securityExampleCom2")}</a>
-        {t("jeLiPodejrzewaszE")}
+        {t.rich("accountResponsibility", {
+          mail: (chunks) => <a href="mailto:security@example.com">{chunks}</a>,
+        })}
       </p>
 
       <h2>{t("n3AkceptowalneUYcie")}</h2>
@@ -141,8 +133,9 @@ export function TermsBodyPl() {
       <h2>{t("n9WyCzeniaOdpowiedzialno")}</h2>
       <p>{t("usUgaJestDostarczana")}</p>
       <p>
-        Output AI może zawierać nieścisłości. <strong>{t("niePolegajNaUs")}</strong>
-        {t("medycznePrawneFinansoweBez")}
+        {t.rich("aiOutputDisclaimer", {
+          strong: (chunks) => <strong>{chunks}</strong>,
+        })}
       </p>
 
       <h2>{t("n10OgraniczenieOdpowiedzialnoCi")}</h2>

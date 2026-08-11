@@ -1,4 +1,8 @@
+import { createTranslator } from "next-intl";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+import en from "../../messages/en.json";
+import type { Translate } from "@/lib/agent-step-captions";
 import {
   cn,
   EMAIL_RE,
@@ -156,9 +160,12 @@ describe("timeAgo", () => {
 
   afterEach(() => vi.useRealTimers());
 
+  // The real messages, so a broken ICU plural fails here rather than on screen.
+  const t = createTranslator({ locale: "en", messages: en, namespace: "time" }) as Translate;
+
   function at(iso: string): string {
     vi.useFakeTimers({ now: NOW });
-    return timeAgo(iso);
+    return timeAgo(iso, t);
   }
 
   it("reads the last minute as just now", () => {

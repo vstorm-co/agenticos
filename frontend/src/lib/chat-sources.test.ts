@@ -1,7 +1,13 @@
+import { createTranslator } from "next-intl";
 import { describe, expect, it } from "vitest";
 
+import en from "../../messages/en.json";
 import { extractSources } from "./chat-sources";
+import type { Translate } from "@/lib/agent-step-captions";
 import type { ChatMessage, ToolCall } from "@/types";
+
+/** The real `chat` messages, so `chunk {number}` is asserted as it renders. */
+const t = createTranslator({ locale: "en", messages: en, namespace: "chat" }) as Translate;
 
 function toolCall(overrides: Partial<ToolCall> = {}): ToolCall {
   return {
@@ -53,7 +59,7 @@ const WEB_RESULT = JSON.stringify({
  */
 describe("extractSources", () => {
   it("reads the knowledge tool's own result format", () => {
-    const sources = extractSources(message({ toolCalls: [toolCall({ result: RAG_RESULT })] }));
+    const sources = extractSources(message({ toolCalls: [toolCall({ result: RAG_RESULT })] }), t);
 
     expect(sources).toHaveLength(2);
     expect(sources[0]).toMatchObject({
@@ -67,7 +73,7 @@ describe("extractSources", () => {
 
   it("leaves the subtitle off a passage with neither a page nor a chunk", () => {
     // A Markdown file has neither; " · " on its own reads as a missing value.
-    const sources = extractSources(message({ toolCalls: [toolCall({ result: RAG_RESULT })] }));
+    const sources = extractSources(message({ toolCalls: [toolCall({ result: RAG_RESULT })] }), t);
 
     expect(sources[1]).toMatchObject({ title: "policy.md" });
     expect(sources[1]?.subtitle).toBeUndefined();
@@ -76,6 +82,7 @@ describe("extractSources", () => {
   it("reads web hits, naming each by its domain", () => {
     const sources = extractSources(
       message({ toolCalls: [toolCall({ name: "web_search", result: WEB_RESULT })] }),
+      t,
     );
 
     expect(sources[0]).toMatchObject({
@@ -90,6 +97,7 @@ describe("extractSources", () => {
   it("falls back to the domain for a hit with no title", () => {
     const sources = extractSources(
       message({ toolCalls: [toolCall({ name: "web_search", result: WEB_RESULT })] }),
+      t,
     );
 
     expect(sources[1]?.title).toBe("acme.example");
@@ -107,6 +115,7 @@ describe("extractSources", () => {
 
     const sources = extractSources(
       message({ toolCalls: [toolCall({ name: "web_search", result: malformed })] }),
+      t,
     );
 
     expect(sources[0]).toMatchObject({ title: "acme.example/help", subtitle: "acme.example/help" });
@@ -122,6 +131,7 @@ describe("extractSources", () => {
         ],
         toolCalls: [toolCall({ name: "web_search", result: WEB_RESULT })],
       }),
+      t,
     );
 
     expect(sources.every((source) => source.type === "rag")).toBe(true);
@@ -129,17 +139,21 @@ describe("extractSources", () => {
 
   it("skips a tool call that has no result yet", () => {
     // Which is every tool call while it is still running.
-    expect(extractSources(message({ toolCalls: [toolCall({ result: undefined })] }))).toEqual([]);
+    expect(extractSources(message({ toolCalls: [toolCall({ result: undefined })] }), t)).toEqual(
+      [],
+    );
   });
 
   it("skips a tool whose result is not text", () => {
     // A structured result belongs to a renderer, not to the citation list.
-    expect(extractSources(message({ toolCalls: [toolCall({ result: { rows: 3 } })] }))).toEqual([]);
+    expect(extractSources(message({ toolCalls: [toolCall({ result: { rows: 3 } })] }), t)).toEqual(
+      [],
+    );
   });
 
   it("cites nothing for a tool that produces no sources", () => {
     expect(
-      extractSources(message({ toolCalls: [toolCall({ name: "run_python", result: "42" })] })),
+      extractSources(message({ toolCalls: [toolCall({ name: "run_python", result: "42" })] }), t),
     ).toEqual([]);
   });
 
@@ -148,11 +162,12 @@ describe("extractSources", () => {
     expect(
       extractSources(
         message({ toolCalls: [toolCall({ name: "web_search", result: "upstream refused" })] }),
+        t,
       ),
     ).toEqual([]);
   });
 
   it("cites nothing for a message that called no tools at all", () => {
-    expect(extractSources(message())).toEqual([]);
+    expect(extractSources(message(), t)).toEqual([]);
   });
 });

@@ -46,14 +46,16 @@ export default async function ResetPasswordPage({ searchParams }: PageProps) {
           {t("requestNewLink")}
         </Link>
         <p className="text-foreground/55 text-xs">
-          Or{" "}
-          <Link
-            href={ROUTES.LOGIN}
-            className="text-foreground hover:text-foreground/80 underline-offset-4 hover:underline"
-          >
-            {t("returnSign")}
-          </Link>
-          .
+          {t.rich("orReturnToSignIn", {
+            link: (chunks) => (
+              <Link
+                href={ROUTES.LOGIN}
+                className="text-foreground hover:text-foreground/80 underline-offset-4 hover:underline"
+              >
+                {chunks}
+              </Link>
+            ),
+          })}
         </p>
       </div>
     );

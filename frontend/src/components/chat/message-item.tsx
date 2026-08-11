@@ -31,6 +31,7 @@ function ThinkingBlock({
   open: boolean;
   isStreaming: boolean;
 }) {
+  const t = useTranslations("chat");
   return (
     <details className="group" open={open}>
       {/* A line, not a box. The reasoning is an aside on the way to an answer, and a
@@ -38,7 +39,7 @@ function ThinkingBlock({
           itself - which is backwards, and was the loudest thing in every turn. */}
       <summary className="text-muted-foreground hover:text-foreground/80 flex cursor-pointer items-center gap-2 text-[13px] select-none">
         <Sparkles className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
-        Thought about it
+        {t("thoughtAboutIt")}
         {isStreaming && (
           <span className="bg-foreground/40 inline-block h-1 w-1 animate-pulse rounded-full" />
         )}
@@ -268,7 +269,7 @@ export function MessageItem({
   // The turn's cost, which a grouped turn recorded on the segment that parked
   // rather than on the one the footer is drawn under.
   const footerUsage = turnUsage ?? message.usage;
-  const sources = !isUser ? extractSources(message) : [];
+  const sources = !isUser ? extractSources(message, t) : [];
   const hasSources = sources.length > 0 && !message.isStreaming;
   const onCiteClick = hasSources ? (index: number) => openSources(sources, index) : undefined;
 

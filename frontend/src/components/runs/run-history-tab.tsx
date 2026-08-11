@@ -115,8 +115,7 @@ export function RunHistoryTab({
             <div className="space-y-1.5">
               <CardTitle>{t("runHistory2")}</CardTitle>
               <CardDescription>
-                Every run records the agent <em>{t("version")}</em>
-                {t("executedSoWhatHappened")}
+                {t.rich("runHistoryDescription", { em: (chunks) => <em>{chunks}</em> })}
               </CardDescription>
             </div>
             {/* Offered only in list mode and only to a caller who may read runs:

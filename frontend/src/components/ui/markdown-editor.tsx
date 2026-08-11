@@ -94,7 +94,7 @@ export function MarkdownEditor({
           // Named the same as the field it previews, so the two halves of one
           // control are not two unrelated regions to a screen reader.
           role="region"
-          aria-label={`${label} preview`}
+          aria-label={t("labelPreview", { label })}
           className="overflow-auto p-3"
           // Inline, not a class: Tailwind generates utilities by scanning the
           // source, so a class built from a prop at runtime is a class that was

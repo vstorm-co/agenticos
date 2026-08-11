@@ -177,7 +177,7 @@ export function WorkspaceSection({
               </Select>
               <p className="text-muted-foreground text-xs">
                 {t(`${SCOPES.find((option) => option.id === scope)?.words ?? "scopeRun"}Detail`)}{" "}
-                Each channel this agent is published to can override it.
+                {t("channelCanOverrideScope")}
               </p>
             </div>
 

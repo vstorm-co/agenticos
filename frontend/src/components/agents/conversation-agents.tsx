@@ -3,6 +3,7 @@
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { cn } from "@/lib/utils";
 import type { ConversationAgent } from "@/types";
+import { useTranslations } from "next-intl";
 
 /** Beyond this the stack is a smudge; the rest are counted instead. */
 const MAX_SHOWN = 3;
@@ -30,6 +31,7 @@ export function ConversationAgents({
   showName?: boolean;
   className?: string;
 }) {
+  const t = useTranslations("agents");
   if (!agents || agents.length === 0) return null;
 
   const shown = agents.slice(0, MAX_SHOWN);
@@ -54,7 +56,7 @@ export function ConversationAgents({
       </span>
       {showName && (
         <span className="text-muted-foreground min-w-0 truncate text-[11px]">
-          {agents.length === 1 ? agents[0]!.name : `${agents.length} agents`}
+          {agents.length === 1 ? agents[0]!.name : t("agentCount", { count: agents.length })}
         </span>
       )}
       {!showName && extra > 0 && (

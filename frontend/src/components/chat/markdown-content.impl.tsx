@@ -4,6 +4,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import { ExternalLink } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { CollapsibleBlock } from "./collapsible-block";
 import type { MarkdownContentProps } from "./markdown-content";
@@ -64,6 +65,7 @@ function textOf(node: React.ReactNode): string {
 }
 
 export function MarkdownContent({ content, onCiteClick, bareCode }: MarkdownContentProps) {
+  const t = useTranslations("chat");
   const processed = onCiteClick ? preprocessCitations(content) : content;
   return (
     <ReactMarkdown
@@ -128,7 +130,7 @@ export function MarkdownContent({ content, onCiteClick, bareCode }: MarkdownCont
                     onCiteClick(n);
                   }}
                   className="bg-foreground/10 text-foreground/70 hover:bg-foreground/20 mx-0.5 inline-flex h-[1.1em] cursor-pointer items-center rounded px-1 align-middle font-mono text-[0.72em] font-semibold tabular-nums transition-colors"
-                  title={`Source [${n}]`}
+                  title={t("sourceNumber", { marker: `[${n}]` })}
                 >
                   {n}
                 </button>
