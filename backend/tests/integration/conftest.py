@@ -251,8 +251,13 @@ async def engine(schema_url: str) -> AsyncGenerator[AsyncEngine, None]:
     on the way out, which only covers the pair of them; disposing on the way *in*
     covers every test that could be handed one, whatever ran before it in this
     worker. Disposing an empty pool costs nothing, which is the common case.
+
+    `close=False` because those connections belong to loops that are already
+    closed: closing one from the loop running now is an operation that cannot
+    succeed, and SQLAlchemy answers a failing close by logging it at ERROR and
+    carrying on. De-referencing the pool is what is actually meant.
     """
-    await app_engine.dispose()
+    await app_engine.dispose(close=False)
     engine = create_async_engine(schema_url)
     await _reset(engine)
     yield engine
