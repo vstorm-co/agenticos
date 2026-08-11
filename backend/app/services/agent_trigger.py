@@ -160,10 +160,17 @@ class AgentTriggerService:
 
         The org-wide surfaces - the sidebar section, the Activity tab - list
         across agents, so this is a collection read. Access is still per agent,
-        not a role gate: `visible_resource_ids` returns the agents the caller's
-        role and grants reach (`None` meaning all of them), and the listing is
-        filtered to those. A caller who can reach no agent gets an empty list,
-        never another tenant's schedules.
+        not a role gate, and it is exactly the visibility a caller has on the
+        agents themselves: `visible_resource_ids` returns the *extra* agents a
+        grant shares beyond the caller's scope (`None` when the role sees the
+        whole organization), and the repository combines those with the same
+        owned-or-org-visible predicate the agent listing uses. Filtering on the
+        grant ids alone would under-include - the agent's own page would show a
+        trigger the sidebar and Activity tab hid - so the two must, and do, agree.
+
+        Requires `agents:view`, not `agents:run`: seeing that an agent runs itself
+        is part of seeing the agent. Managing a row is `agents:run`, resolved per
+        row by the write path.
 
         Returns `TriggerRead`s, not rows, because each is enriched with its
         agent's name - the one field these surfaces need that a bare trigger does
@@ -172,12 +179,12 @@ class AgentTriggerService:
         visible = await visible_resource_ids(
             self.db, ctx, resource_type=AGENT, perm=Perm.AGENTS_VIEW
         )
-        if visible is not None and not visible:
-            return [], 0
         rows, total = await agent_trigger_repo.list_for_organization(
             self.db,
             organization_id=ctx.organization_id,
-            agent_ids=visible,
+            user_id=ctx.user_id,
+            see_all=visible is None,
+            shared_ids=visible or [],
             skip=skip,
             limit=limit,
         )
@@ -294,6 +301,21 @@ class AgentTriggerService:
             )
         if changes.get("environment_id") is not None:
             await self._environment_of(ctx, agent_id, changes["environment_id"])
+        # A new interval, or a resume, takes effect from now: without this a
+        # schedule shrunk from daily to five-minutely would still wait out the old
+        # day, and a resumed one would keep whatever stale `next_fire_at` it was
+        # paused with. Computed from the *new* interval (the one in `changes`, not
+        # the row's, which the repo has not applied yet), so the field is never
+        # read back stale. A cron schedule takes its next matching instant.
+        if trigger.trigger_type == TriggerType.SCHEDULE.value and (
+            "interval_seconds" in changes or changes.get("is_active") is True
+        ):
+            changes["next_fire_at"] = _next_fire(
+                schedule_kind=trigger.schedule_kind,
+                interval_seconds=changes.get("interval_seconds", trigger.interval_seconds),
+                cron_expression=trigger.cron_expression,
+                now=datetime.now(UTC),
+            )
         updated = await agent_trigger_repo.update(self.db, trigger=trigger, update_data=changes)
         await record_audit(
             self.db,
@@ -330,11 +352,25 @@ class AgentTriggerService:
         now is one extra fire, not a reschedule. A paused schedule is respected -
         `fire` no-ops on an inactive trigger - so this is offered only on a live one.
 
+        The run itself is attributed to the creator, but *who pressed the button*
+        is a separate fact and a spend, so it is audited under the caller: without
+        this, a member with `agents:run` could set off a run recorded entirely
+        under someone else's name.
+
         Returns the trigger with its `last_run_id` advanced: `_owned` and `fire`
         read the same session, so they share one instance and the fire's stamp is
         visible on the row this returns.
         """
         trigger = await self._owned(ctx, agent_id, trigger_id)
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="agent.trigger_run_now",
+            target_type="agent",
+            target_id=str(agent_id),
+            details={"trigger_id": str(trigger.id)},
+        )
         await self.fire(trigger.id)
         return trigger
 

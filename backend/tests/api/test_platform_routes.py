@@ -615,6 +615,11 @@ _PLATFORM_PREFIXES = (
     "/sandbox-connections",
     "/sandbox-workspaces",
     "/skill-changes",
+    # The org-wide trigger listing, which mirrors `/runs`: no `require()`, the
+    # service resolves scope and grants per agent. Without the prefix the sweep
+    # would pass over `GET /triggers` and its "gated or resource-aware" claim
+    # would not actually cover it. (Per-agent triggers live under `/agents`.)
+    "/triggers",
 )
 
 

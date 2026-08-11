@@ -169,6 +169,16 @@ class TestTheEventShapeRejectsABadRow:
         with pytest.raises(IntegrityError):
             await db.flush()
 
+    async def test_every_shipped_event_source_is_in_the_vocabulary(self, db):
+        """The CHECK's list and the EventSource enum drift apart exactly once -
+        when a source is added to the code and not the constraint - so every
+        shipped value is written through it here."""
+        org = await _org(db)
+        agent = await _agent(db, org)
+        for source in ("github", "email", "linkedin", "webhook"):
+            db.add(_event(org, agent, event_source=source))
+        await db.flush()
+
 
 class TestTheClaimReturnsTheRightRows:
     async def test_only_the_due_active_attributable_triggers_are_claimed(self, db):

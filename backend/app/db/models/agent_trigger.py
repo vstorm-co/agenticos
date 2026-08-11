@@ -97,14 +97,20 @@ class EventSource(enum.StrEnum):
     """Where an *event* trigger's fire comes from.
 
     `GITHUB` is a repository webhook (an issue opened, verified by GitHub's
-    `X-Hub-Signature-256` HMAC). `EMAIL` is an inbound message, delivered by a
-    provider-agnostic parse webhook signed with the same per-trigger secret. Both
-    reach the one match-then-fire path; adding a third source is a new value here
-    and a new branch in :mod:`app.services.trigger_events`, nothing on the row.
+    `X-Hub-Signature-256` HMAC). The other three arrive through whatever relay
+    the user already has - an inbound-mail parser, a Zapier/Make step, their own
+    script - as a JSON POST signed with the trigger's secret: `EMAIL` is an
+    inbound message, `LINKEDIN` a post or mention the relay watched, and
+    `WEBHOOK` the catch-all for anything else that can send signed JSON. All
+    four reach the one match-then-fire path; adding a fifth source is a value
+    here, a branch in :mod:`app.services.trigger_events`, and one line in the
+    vocabulary CHECK - nothing else on the row.
     """
 
     GITHUB = "github"
     EMAIL = "email"
+    LINKEDIN = "linkedin"
+    WEBHOOK = "webhook"
 
 
 class AgentTrigger(Base, TimestampMixin):
@@ -223,7 +229,7 @@ class AgentTrigger(Base, TimestampMixin):
         CheckConstraint("trigger_type IN ('schedule', 'event')", name="ck_trigger_type"),
         CheckConstraint("schedule_kind IN ('interval', 'cron')", name="ck_trigger_schedule_kind"),
         CheckConstraint(
-            "event_source IS NULL OR event_source IN ('github', 'email')",
+            "event_source IS NULL OR event_source IN ('github', 'email', 'linkedin', 'webhook')",
             name="ck_trigger_event_source",
         ),
         # The discriminator across both concepts, in one constraint so a row can

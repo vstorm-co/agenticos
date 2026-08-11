@@ -169,3 +169,79 @@ class TestRenderContext:
             "email", payload={"from": "a@b.co", "subject": "Hi", "text": "plain text body"}
         )
         assert "plain text body" in context
+
+
+class TestLinkedinAndWebhook:
+    def test_a_linkedin_delivery_uses_the_relay_signature_header(self):
+        body = b'{"author": "Jane"}'
+        headers = {"x-signature-256": _sign(_SECRET, body)}
+        assert trigger_events.verify_signature(
+            "linkedin", secret=_SECRET, body=body, headers=headers
+        )
+
+    def test_a_linkedin_post_with_no_filter_matches(self):
+        assert trigger_events.event_matches(
+            "linkedin", headers={}, payload={"author": "Jane", "text": "hello"}, config={}
+        )
+
+    def test_a_linkedin_author_filter_is_applied(self):
+        assert not trigger_events.event_matches(
+            "linkedin",
+            headers={},
+            payload={"author": "Someone Else", "text": "hello"},
+            config={"author_contains": "Jane"},
+        )
+        assert trigger_events.event_matches(
+            "linkedin",
+            headers={},
+            payload={"author": "Jane Doe", "text": "hello"},
+            config={"author_contains": "Jane"},
+        )
+
+    def test_a_linkedin_text_filter_falls_back_to_the_body_field(self):
+        assert trigger_events.event_matches(
+            "linkedin",
+            headers={},
+            payload={"author": "Jane", "body": "launch day"},
+            config={"text_contains": "launch"},
+        )
+        assert not trigger_events.event_matches(
+            "linkedin",
+            headers={},
+            payload={"author": "Jane", "body": "quiet day"},
+            config={"text_contains": "launch"},
+        )
+
+    def test_a_linkedin_post_renders_its_author_and_text(self):
+        context = trigger_events.render_context(
+            "linkedin",
+            payload={"author": "Jane", "url": "https://li/x", "text": "We shipped it"},
+        )
+        assert "Author: Jane" in context
+        assert "We shipped it" in context
+
+    def test_a_generic_webhook_always_matches_once_verified(self):
+        # The sender chose to deliver; filtering is its job, not the trigger's.
+        assert trigger_events.event_matches(
+            "webhook", headers={}, payload={"anything": True}, config={}
+        )
+
+    def test_a_generic_webhook_renders_its_payload_as_json(self):
+        context = trigger_events.render_context("webhook", payload={"ticket": 7, "state": "open"})
+        assert "webhook delivery" in context
+        assert '"ticket": 7' in context
+
+    def test_a_huge_webhook_payload_is_truncated_not_pasted_whole(self):
+        context = trigger_events.render_context("webhook", payload={"blob": "x" * 10000})
+        assert len(context) < 3000
+        assert "truncated" in context
+
+
+class TestSignatureVerificationIsRobust:
+    def test_a_non_ascii_signature_header_is_refused_not_a_500(self):
+        # Header values are latin-1; hmac.compare_digest raises TypeError on a
+        # str with a non-ASCII char, so this must be a plain False, not a crash.
+        headers = {"x-hub-signature-256": "sha256=ÿþ"}
+        assert not trigger_events.verify_signature(
+            "github", secret=_SECRET, body=b"{}", headers=headers
+        )

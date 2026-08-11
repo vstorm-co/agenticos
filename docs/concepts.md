@@ -90,11 +90,14 @@ A trigger fires one of two ways. A **schedule** fires on the clock: an **interva
 a minute) or a **cron** expression evaluated in UTC - `0 9 * * *` for 09:00 each day,
 or any crontab - the service computing the next fire for each the same way, and a run
 that outlives its own interval finishing before the next fire rather than piling up on
-itself. An **event** fires on an arrival: a GitHub issue or an inbound email, delivered
-as a signed webhook the platform verifies against a per-trigger secret
-[sealed in the vault](secrets.md) and matched against an optional filter before the
-agent runs with the payload appended to its prompt. An event has no next fire - nothing
-is due until a delivery lands - so the heartbeat never sees it.
+itself. An **event** fires on an arrival: a GitHub issue, an inbound email, a LinkedIn
+post, or the catch-all generic webhook - anything that can POST signed JSON, so a
+Zapier or Make step or a small script covers whatever else a user wants to fire on. It
+is delivered as a signed webhook the platform verifies against a per-trigger secret
+[sealed in the vault](secrets.md) and matched against an optional per-source filter
+before the agent runs with the payload appended to its prompt. An event has no next
+fire - nothing is due until a delivery lands - so the heartbeat never sees it. Adding a
+source is a value in one enum and a branch in one module; it changes nothing on the row.
 
 Any trigger can also be **run now**: one extra fire on demand that leaves its cadence
 untouched. And every schedule and event in an organization is listed together across

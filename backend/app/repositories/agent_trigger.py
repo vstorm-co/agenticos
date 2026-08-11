@@ -6,12 +6,13 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.agent_trigger import AgentTrigger
+from app.db.models.resource_grant import Visibility
 
 # A run in one of these has not finished, so its trigger must not fire again on
 # top of it. Every other status is terminal - the run settled, one way or another.
@@ -57,23 +58,40 @@ async def list_for_organization(
     db: AsyncSession,
     *,
     organization_id: UUID,
-    agent_ids: list[UUID] | None,
+    user_id: UUID | None,
+    see_all: bool,
+    shared_ids: list[UUID],
     skip: int = 0,
     limit: int = 50,
 ) -> tuple[list[tuple[AgentTrigger, str]], int]:
-    """Every trigger in the organization, newest first, each with its agent's name.
+    """Every trigger the caller may see in the organization, each with its agent's name.
 
-    `agent_ids` is the access filter the service computes: `None` means the
-    caller's role reaches every agent, so no filter is applied; a list restricts
-    to those agents (the service short-circuits an empty one rather than passing
-    it here). The join onto `agents` supplies the name each org-wide surface shows
-    beside a row that is displayed away from its agent's page.
+    The visibility predicate is the *same* one agent listings use
+    (`agent_repo.list_visible`), applied to each trigger's agent: a trigger is
+    shown when the caller sees its agent - because they own it, because it is
+    org-visible, or because it was shared with them (`shared_ids`, the grants
+    `visible_resource_ids` returns) - or when `see_all` says the role reaches the
+    whole organization. Filtering on the shared ids alone would under-include:
+    the agent's own page shows a trigger on an org-visible agent, and the org-wide
+    surfaces must not disagree with it. The join onto `agents` also supplies the
+    name each surface shows beside a row displayed away from its agent's page.
     """
     where = [AgentTrigger.organization_id == organization_id]
-    if agent_ids is not None:
-        where.append(AgentTrigger.agent_id.in_(agent_ids))
+    if not see_all:
+        where.append(
+            or_(
+                Agent.owner_user_id == user_id,
+                Agent.visibility == Visibility.ORG.value,
+                AgentTrigger.agent_id.in_(shared_ids) if shared_ids else false(),
+            )
+        )
     total = (
-        await db.execute(select(func.count()).select_from(AgentTrigger).where(*where))
+        await db.execute(
+            select(func.count())
+            .select_from(AgentTrigger)
+            .join(Agent, Agent.id == AgentTrigger.agent_id)
+            .where(*where)
+        )
     ).scalar_one()
     result = await db.execute(
         select(AgentTrigger, Agent.name)

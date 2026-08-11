@@ -18,6 +18,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pydantic import ValidationError as PydanticValidationError
 
+from app.core.config import settings
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import RunStatus, RunSurface
@@ -309,13 +310,17 @@ class TestOrgListing:
         ):
             repo.list_for_organization = AsyncMock(return_value=([(_read(), "Nightly")], 1))
             items, total = await service.list_for_organization(_ctx())
-        assert repo.list_for_organization.call_args.kwargs["agent_ids"] == [reachable]
+        # The grant ids are the *shared* set, combined by the repo with the
+        # owned-or-org-visible predicate - not the whole filter.
+        assert repo.list_for_organization.call_args.kwargs["shared_ids"] == [reachable]
+        assert repo.list_for_organization.call_args.kwargs["see_all"] is False
+        assert repo.list_for_organization.call_args.kwargs["user_id"] == _CALLER
         assert total == 1
         # The row is named with its agent, which a bare trigger does not carry.
         assert items[0].agent_name == "Nightly"
 
-    async def test_a_role_that_reaches_every_agent_applies_no_filter(self):
-        """`visible_resource_ids` returning None means "sees all" - no IN filter."""
+    async def test_a_role_that_reaches_every_agent_asks_for_no_predicate(self):
+        """`visible_resource_ids` returning None means "sees all" - `see_all` True."""
         service = _service()
         with (
             patch(
@@ -326,11 +331,14 @@ class TestOrgListing:
         ):
             repo.list_for_organization = AsyncMock(return_value=([], 0))
             await service.list_for_organization(_ctx())
-        assert repo.list_for_organization.call_args.kwargs["agent_ids"] is None
+        assert repo.list_for_organization.call_args.kwargs["see_all"] is True
+        assert repo.list_for_organization.call_args.kwargs["shared_ids"] == []
 
-    async def test_a_caller_who_can_reach_no_agent_sees_an_empty_list(self):
-        """An empty visible set is not "no filter" - it is "nothing", and the
-        listing must not fall through to every trigger in the organization."""
+    async def test_a_caller_with_no_grants_still_reads_owned_and_org_visible(self):
+        """An empty grant set is not "nothing" - the repo predicate still shows the
+        caller's own and the org-visible agents, so the listing is not
+        short-circuited to empty (that under-included, disagreeing with the agent
+        page)."""
         service = _service()
         with (
             patch(
@@ -339,10 +347,13 @@ class TestOrgListing:
             ),
             patch("app.services.agent_trigger.agent_trigger_repo") as repo,
         ):
-            repo.list_for_organization = AsyncMock()
-            items, total = await service.list_for_organization(_ctx())
-        assert (items, total) == ([], 0)
-        repo.list_for_organization.assert_not_called()
+            repo.list_for_organization = AsyncMock(return_value=([], 0))
+            await service.list_for_organization(_ctx())
+        # The repo is called - not skipped - with an empty shared set and see_all
+        # false, so it applies the owned-or-org-visible predicate.
+        repo.list_for_organization.assert_awaited_once()
+        assert repo.list_for_organization.call_args.kwargs["see_all"] is False
+        assert repo.list_for_organization.call_args.kwargs["shared_ids"] == []
 
 
 class TestChangingASchedule:
@@ -409,7 +420,10 @@ class TestChangingASchedule:
             repo.get = AsyncMock(return_value=trigger)
             repo.update = AsyncMock(return_value=trigger)
             await service.update(_ctx(), agent.id, trigger.id, TriggerUpdate(is_active=is_active))
-        assert repo.update.call_args.kwargs["update_data"] == {"is_active": is_active}
+        changes = repo.update.call_args.kwargs["update_data"]
+        assert changes["is_active"] is is_active
+        # Resuming a schedule advances its next fire from now; pausing leaves it.
+        assert ("next_fire_at" in changes) is is_active
         assert audit.call_args.kwargs["action"] == action
 
     async def test_retiming_validates_a_named_environment(self):
@@ -440,8 +454,29 @@ class TestChangingASchedule:
             repo.get = AsyncMock(return_value=trigger)
             repo.update = AsyncMock(return_value=trigger)
             await service.update(_ctx(), agent.id, trigger.id, TriggerUpdate(interval_seconds=600))
-        assert repo.update.call_args.kwargs["update_data"] == {"interval_seconds": 600}
+        changes = repo.update.call_args.kwargs["update_data"]
+        # The sent field, plus the recomputed next fire; nothing else.
+        assert changes["interval_seconds"] == 600
+        assert "next_fire_at" in changes
+        assert "environment_id" not in changes
         environments.get.assert_not_called()
+
+    async def test_retiming_an_interval_advances_the_next_fire_to_the_new_cadence(self):
+        """Shrinking the interval must not wait out the old one - the next fire is
+        recomputed from the *new* value, from now."""
+        agent = _agent()
+        service = _service(agent)
+        trigger = _trigger(agent_id=agent.id, interval_seconds=86400)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock(return_value=trigger)
+            await service.update(_ctx(), agent.id, trigger.id, TriggerUpdate(interval_seconds=300))
+        next_fire = repo.update.call_args.kwargs["update_data"]["next_fire_at"]
+        # Five minutes out, not a day - computed from the new 300s.
+        assert next_fire < datetime.now(UTC) + timedelta(seconds=360)
 
 
 class TestRunningNow:
@@ -469,6 +504,23 @@ class TestRunningNow:
             result = await service.run_now(_ctx(), agent.id, trigger.id)
         assert trigger.next_fire_at == original_next
         assert result is trigger
+
+    async def test_running_now_is_audited_under_the_caller_not_the_creator(self):
+        """The run runs as the creator, but who pressed the button - and spent the
+        money - is a separate fact, recorded under the caller."""
+        agent = _agent()
+        service = _service(agent)
+        trigger = _trigger(agent_id=agent.id)
+        service.fire = AsyncMock()
+        audit = AsyncMock()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=audit),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            await service.run_now(_ctx(), agent.id, trigger.id)
+        assert audit.call_args.kwargs["action"] == "agent.trigger_run_now"
+        assert audit.call_args.kwargs["actor_user_id"] == _CALLER
 
     async def test_running_now_on_another_agents_trigger_is_not_reachable(self):
         agent = _agent()
@@ -807,7 +859,33 @@ class TestEventTriggerSchema:
         )
         assert trigger.event_config == {"subject_contains": "urgent", "sender_contains": None}
 
-    def test_an_event_read_exposes_its_webhook_path(self):
+    def test_a_linkedin_config_is_normalised_with_both_filters(self):
+        trigger = TriggerCreate(
+            prompt="x",
+            trigger_type="event",
+            event_source="linkedin",
+            event_secret=_SIGNING_SECRET,
+            event_config={"author_contains": "Jane"},
+        )
+        assert trigger.event_config == {"author_contains": "Jane", "text_contains": None}
+
+    def test_the_generic_webhook_takes_no_filter(self):
+        """Filtering is the sender's job; a key here would be stored to mean
+        nothing, so the empty config model refuses it."""
+        trigger = TriggerCreate(
+            prompt="x", trigger_type="event", event_source="webhook", event_secret=_SIGNING_SECRET
+        )
+        assert trigger.event_config == {}
+        with pytest.raises(PydanticValidationError):
+            TriggerCreate(
+                prompt="x",
+                trigger_type="event",
+                event_source="webhook",
+                event_secret=_SIGNING_SECRET,
+                event_config={"path_contains": "x"},
+            )
+
+    def test_an_event_read_exposes_its_webhook_url_on_the_public_api_host(self):
         read = TriggerRead(
             id=uuid.uuid4(),
             agent_id=uuid.uuid4(),
@@ -818,10 +896,25 @@ class TestEventTriggerSchema:
             prompt="x",
             created_at=datetime(2026, 1, 1, tzinfo=UTC),
         )
-        assert read.webhook_path == f"/api/v1/webhooks/triggers/github/{read.id}"
+        # The full URL on the deployment's public base, not a bare path a browser
+        # would resolve against the dashboard origin (a different host).
+        base = settings.PUBLIC_BASE_URL.rstrip("/")
+        assert read.webhook_url == f"{base}/api/v1/webhooks/triggers/github/{read.id}"
 
-    def test_a_schedule_read_has_no_webhook_path(self):
-        assert _read().webhook_path is None
+    def test_a_schedule_read_has_no_webhook_url(self):
+        assert _read().webhook_url is None
+
+    @pytest.mark.parametrize("field", ["prompt", "interval_seconds", "is_active"])
+    def test_an_explicit_null_for_a_not_null_field_is_a_422(self, field):
+        """`{"is_active": null}` maps to a NOT NULL column; caught here it is a 422
+        naming the field, not an IntegrityError 500 the update guard exists to
+        avoid but `exclude_unset` cannot see (a sent null looks omitted)."""
+        with pytest.raises(PydanticValidationError, match="cannot be set to null"):
+            TriggerUpdate.model_validate({field: None})
+
+    def test_environment_id_may_be_set_to_null_to_return_to_the_default(self):
+        """The one field whose null is meaningful, not an error."""
+        assert TriggerUpdate.model_validate({"environment_id": None}).environment_id is None
 
 
 class TestPreparingAnEventFire:

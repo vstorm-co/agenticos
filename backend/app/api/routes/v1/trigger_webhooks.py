@@ -40,11 +40,15 @@ async def ingest_trigger_event(
 ) -> Any:
     """Receive a signed delivery and fire the event trigger it matches.
 
-    A verified delivery with nothing to do - an unknown or inactive trigger, one
-    that is not an event trigger of this source, or a payload the filter does not
-    match - answers 202 all the same, so the response never tells an existing
-    trigger from a missing one. A signature that fails to verify is a 403, and a
-    body that is not a JSON object a 400; both come from the service.
+    Among *verified* deliveries the response gives nothing away: one with nothing
+    to do - an unknown or inactive trigger, one that is not an event trigger of
+    this source, or a payload the filter does not match - answers 202 exactly as a
+    fired one does, so a caller who holds the secret cannot tell an existing
+    trigger from a missing one. A signature that does *not* verify is a 403 (and a
+    body that is not a JSON object a 400) - a deliberate trade for the integrator,
+    whose provider surfaces that failure so a mistyped secret is fixable; the
+    trigger ids are unguessable UUIDs, so the 403 is not a practical oracle. Both
+    come from the service.
     """
     body = await request.body()
     decision = await service.prepare_event_fire(

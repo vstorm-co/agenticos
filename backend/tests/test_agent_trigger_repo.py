@@ -96,38 +96,64 @@ class TestReading:
         )
         assert set(_filters(session).values()) >= {agent_id, organization_id}
 
-    async def test_the_org_listing_scopes_by_org_and_filters_by_agent(self):
-        """The org-wide read joins the agent for its name, restricts to the agents
-        the service says the caller may reach, and never crosses the tenant."""
-        organization_id = uuid.uuid4()
-        agent_ids = [uuid.uuid4(), uuid.uuid4()]
+    async def test_the_org_listing_applies_the_agent_visibility_predicate(self):
+        """The org-wide read joins the agent for its name and, unless the role sees
+        all, restricts to the same owned-or-org-visible-or-shared predicate the
+        agent listing uses - never the shared ids alone, which would under-include
+        an org-visible agent's triggers."""
+        organization_id, user_id = uuid.uuid4(), uuid.uuid4()
+        shared_ids = [uuid.uuid4(), uuid.uuid4()]
         session = _RecordingSession(_count(0), _rows([]))
         await agent_trigger_repo.list_for_organization(
-            session, organization_id=organization_id, agent_ids=agent_ids
+            session,
+            organization_id=organization_id,
+            user_id=user_id,
+            see_all=False,
+            shared_ids=shared_ids,
         )
         sql = _sql(session)  # the last statement is the rows query, not the count
         assert "join agents" in sql
         assert "order by agent_triggers.created_at desc" in sql
-        # `agent_id IN (...)` binds the list as one expanding param, so flatten
-        # before asserting the org scope and the agent filter are both present.
+        # The predicate is owned OR org-visible OR shared - all three legs present.
+        assert "agents.owner_user_id" in sql
+        assert "agents.visibility" in sql
+        assert "agent_triggers.agent_id in" in sql
         flat: set[object] = set()
         for value in _filters(session).values():
             flat.update(value if isinstance(value, list) else [value])
-        assert {organization_id, *agent_ids} <= flat
+        assert {organization_id, user_id, *shared_ids} <= flat
 
-    async def test_the_org_listing_without_a_filter_reads_every_agents_triggers(self):
-        """`agent_ids=None` is the service saying the role reaches every agent."""
+    async def test_the_org_listing_with_see_all_applies_no_visibility_predicate(self):
+        """`see_all` is the service saying the role reaches every agent."""
         session = _RecordingSession(_count(0), _rows([]))
         await agent_trigger_repo.list_for_organization(
-            session, organization_id=uuid.uuid4(), agent_ids=None
+            session, organization_id=uuid.uuid4(), user_id=uuid.uuid4(), see_all=True, shared_ids=[]
         )
-        assert "agent_triggers.agent_id in" not in _sql(session)
+        sql = _sql(session)
+        assert "agents.owner_user_id" not in sql
+        assert "agent_triggers.agent_id in" not in sql
+
+    async def test_the_org_listing_without_shared_ids_still_reads_owned_and_org_visible(self):
+        """An empty shared set is not "nothing": the caller still sees agents they
+        own or that are org-visible, so the predicate stays and the IN leg is a
+        constant false rather than an empty IN."""
+        session = _RecordingSession(_count(0), _rows([]))
+        await agent_trigger_repo.list_for_organization(
+            session,
+            organization_id=uuid.uuid4(),
+            user_id=uuid.uuid4(),
+            see_all=False,
+            shared_ids=[],
+        )
+        sql = _sql(session)
+        assert "agents.owner_user_id" in sql
+        assert "agent_triggers.agent_id in" not in sql
 
     async def test_the_org_listing_returns_the_rows_and_the_total(self):
         trigger = MagicMock()
         session = _RecordingSession(_count(1), _rows([(trigger, "Nightly")]))
         rows, total = await agent_trigger_repo.list_for_organization(
-            session, organization_id=uuid.uuid4(), agent_ids=None
+            session, organization_id=uuid.uuid4(), user_id=uuid.uuid4(), see_all=True, shared_ids=[]
         )
         assert total == 1
         assert rows == [(trigger, "Nightly")]

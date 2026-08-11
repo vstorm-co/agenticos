@@ -9,7 +9,8 @@ adds the second concept behind agenticos#44 - an *event* trigger, fired when
 something arrives rather than when the clock says so - to the same table, told
 apart by a new `trigger_type` discriminator (`schedule` | `event`).
 
-An event trigger carries an `event_source` (`github`, `email`), a per-source
+An event trigger carries an `event_source` (`github`, `email`, `linkedin`, or the
+catch-all `webhook`), a per-source
 `event_config` filter (which repository, which sender), and the secret its inbound
 webhook is verified against - sealed for the organization through the one vault
 (`app/core/vault.py`) and stored inline as `event_secret_encrypted` with the
@@ -110,7 +111,7 @@ def upgrade() -> None:
     op.create_check_constraint(
         op.f("agent_triggers_ck_trigger_event_source_check"),
         "agent_triggers",
-        "event_source IS NULL OR event_source IN ('github', 'email')",
+        "event_source IS NULL OR event_source IN ('github', 'email', 'linkedin', 'webhook')",
     )
     op.create_check_constraint(
         op.f("agent_triggers_ck_trigger_shape_check"),
