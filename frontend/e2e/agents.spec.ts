@@ -20,6 +20,7 @@ import {
   openBuilderTab,
   pageHeading,
   saveDraft,
+  selectSavedModel,
   unsaved,
 } from "./helpers";
 
@@ -594,13 +595,35 @@ test.describe("Agents", () => {
       "true",
     );
 
+    // The seeded draft is created with a name and nothing else, so the first
+    // thing publish refuses it for is having no model - which says nothing about
+    // the MCP binding this test is about. Naming one is what makes the assertion
+    // below a statement about the server rather than about the fixture.
+    await openBuilderTab(page, "Build");
+    await selectSavedModel(page, SEEDED_MODEL_LABEL);
+    await saveDraft(page);
+
     // The refusal this whole change was blocked on. Publishing a spec that
     // named an org server used to be impossible because no org server could
-    // exist; if it is still impossible, the problems panel says so. The
-    // confirmation dialog opening *is* the validation passing - it is only
-    // offered to a draft the API accepted (#519).
+    // exist; if it is still impossible, `/validate` refuses and its body names
+    // which problem. Asserted on the answer rather than on the problems panel
+    // being absent: `toBeHidden()` passes on an element that has not rendered
+    // yet, so the version of this check that ran at click time asserted nothing
+    // at all and hid exactly this failure (#519).
+    const validated = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname.endsWith("/validate") &&
+        response.request().method() === "POST",
+      { timeout: 15_000 },
+    );
     await page.getByRole("button", { name: "Publish" }).click();
-    await expect(page.getByText("This agent cannot be published yet")).toBeHidden();
+
+    const verdict = await validated;
+    const refusal = verdict.ok() ? "" : await verdict.text();
+    expect(verdict.ok(), `POST /validate answered ${verdict.status()}: ${refusal}`).toBe(true);
+
+    // Only a draft the API accepted is offered the dialog, so its opening is the
+    // validation passing (#519).
     await expect(page.getByRole("dialog").getByRole("button", { name: "Publish" })).toBeVisible();
   });
 });
