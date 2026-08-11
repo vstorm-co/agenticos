@@ -63,10 +63,14 @@ export function SpendTab() {
   return (
     <div className="space-y-4">
       {/* The one caveat that governs every figure below: how many of the
-          window's runs ran on a model with no price. The breakdowns are a floor
-          by exactly that many, and saying so once at the top is what stops a
-          reader treating the totals as exact. Summed server-side from the same
-          rows, so the caveat and the breakdown cannot disagree about the count. */}
+          window's top-level runs could not be fully priced. A delegate on a
+          model with no price makes its parent's row a floor too - a tree shares
+          one spend ledger - so this is non-zero whenever By provider or By key
+          is a floor, which is what stops a reader treating the totals as exact.
+          It counts trees rather than the rows those two sum, so it marks them
+          without measuring them; By agent counts the same top-level rows and is
+          summed server-side from them, so the caveat and that breakdown cannot
+          disagree about the count. */}
       {spend != null && spend.partial_run_count > 0 && (
         <p className="text-muted-foreground text-sm" role="note">
           {t("someRunsCouldNotBePriced", { count: spend.partial_run_count })}

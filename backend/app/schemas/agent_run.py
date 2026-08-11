@@ -279,10 +279,11 @@ class CostByAgent(BaseSchema):
     partial_run_count: int = Field(
         default=0,
         description=(
-            "How many of those runs had a model with no price. The cost is a "
-            "floor by exactly that much, and '3 of 40 runs could not be priced' "
-            "is the difference between a figure a reader can act on and one "
-            "they have to take on trust"
+            "How many of those runs could not be fully priced - some model in "
+            "the run had no price, its delegates' included, because a tree "
+            "shares one ledger. The cost is a floor by exactly that many runs, "
+            "and '3 of 40 runs could not be priced' is the difference between a "
+            "figure a reader can act on and one they have to take on trust"
         ),
     )
     month_to_date_usd: Decimal | None = Field(
@@ -350,8 +351,15 @@ class CostSummary(BaseSchema):
     partial_run_count: int = Field(
         default=0,
         description=(
-            "Runs in the window whose cost is a floor because some model in "
-            "them had no price. How much of everything below is a fact"
+            "Top-level runs in the window whose cost is a floor because some "
+            "model in the run had no price - the run's own or any it delegated "
+            "to, which share one spend ledger. How much of everything below is "
+            "a fact: it is never 0 while a figure below it is a floor, because "
+            "an unpriced delegate is in its parent's ledger too. It counts "
+            "*trees* rather than the rows `by_provider` and `by_key` sum, so "
+            "one parent with three unpriced delegates reads 1 - it marks those "
+            "two breakdowns without measuring them, and measures `by_agent`, "
+            "which counts the same top-level rows"
         ),
     )
     by_agent: list[CostByAgent]

@@ -418,8 +418,17 @@ async def get_spend(
         to_date=to_date,
         month_to_date_usd=await service.monthly_spend(ctx),
         # How much of everything below is a fact. Summed from the per-agent rows
-        # rather than queried again, so the figure and its breakdown cannot
-        # disagree about which runs could not be priced.
+        # rather than queried again, so this figure and `by_agent` cannot
+        # disagree about which runs could not be priced - they count the same
+        # top-level rows.
+        #
+        # It marks the two breakdowns underneath as well without measuring them.
+        # Those sum every row's own spend, delegated rows included, so an
+        # unpriced *delegate* makes a vendor and a key a floor while this counts
+        # trees: one parent with three unpriced delegates reads 1. The marker
+        # still fires, because a tree shares one spend ledger and the parent's
+        # row is therefore a floor too - which is why the figure is never 0
+        # while a figure below it is one.
         partial_run_count=sum(row.partial_run_count for row in agents),
         by_agent=[
             CostByAgent(
