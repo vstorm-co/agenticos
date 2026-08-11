@@ -204,7 +204,16 @@ export function OnboardingTour() {
       const element = step.target
         ? await waitForElement(`[data-tour="${step.target}"]`, signal)
         : undefined;
-      if (!signal.aborted) show(element ?? undefined);
+      if (signal.aborted) return;
+      // An optional stop whose target never mounted — the MCP catalog's filter,
+      // add and connect controls when the catalog is empty — is skipped rather
+      // than pinned to the middle of the screen with nothing highlighted.
+      if (step.optional && step.target && !element) {
+        if (isLast) completeWalk();
+        else next();
+        return;
+      }
+      show(element ?? undefined);
     })();
     return () => controller.abort();
   }, [

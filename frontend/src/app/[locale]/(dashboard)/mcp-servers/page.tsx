@@ -62,8 +62,10 @@ export default function McpServersPage() {
       ) : rows.length === 0 ? (
         <ServersCard count={0}>
           {/* Inline rather than an `EmptyState`: that component draws its own
-              bordered box, and inside a card it would frame one message twice. */}
-          <div className="px-6 py-12 text-center">
+              bordered box, and inside a card it would frame one message twice.
+              Carries the catalog's tour anchor so the "?" walk's first stop has
+              something to point at when the list it usually rides on is absent. */}
+          <div className="px-6 py-12 text-center" data-tour="mcp-catalog">
             <div className="bg-muted text-muted-foreground mx-auto flex h-11 w-11 items-center justify-center rounded-xl">
               <Plug className="h-5 w-5" />
             </div>

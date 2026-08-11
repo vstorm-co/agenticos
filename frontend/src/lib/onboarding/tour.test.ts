@@ -71,6 +71,19 @@ describe("pageKey", () => {
     expect(pageKey(ROUTES.SETTINGS_SLASH_COMMANDS)).toBe(SETTINGS_DETAIL);
     expect(pageKey("/workspaces/abc-123")).toBe(WORKSPACE_DETAIL);
   });
+});
+
+describe("MCP catalog stops", () => {
+  it("marks the catalog controls optional so an empty catalog drops them", () => {
+    // filter, custom-add and connect render only inside the list — absent on an
+    // empty catalog — so they must skip rather than strand the walk. The catalog
+    // stop itself is not optional: its target moves onto the empty-state card.
+    const byId = new Map(TOUR_STEPS.map((step) => [step.id, step]));
+    expect(byId.get("mcp-filter")?.optional).toBe(true);
+    expect(byId.get("mcp-add")?.optional).toBe(true);
+    expect(byId.get("mcp-connect")?.optional).toBe(true);
+    expect(byId.get("mcp-catalog")?.optional).toBeUndefined();
+  });
 
   it("leaves the list routes and other pages as their own route", () => {
     expect(pageKey(ROUTES.AGENTS)).toBe(ROUTES.AGENTS);

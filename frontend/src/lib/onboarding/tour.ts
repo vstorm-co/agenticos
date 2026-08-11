@@ -83,6 +83,15 @@ export interface TourStep {
   permission?: Permission;
   /** Part of the curated first-run walkthrough. Omitted means "?"-only. */
   inTour?: boolean;
+  /**
+   * Skip this step when its target never mounts, rather than pinning the caption
+   * to the middle of the screen with nothing highlighted. For a stop whose control
+   * is data-conditional — the MCP catalog's filter, custom-add and connect only
+   * render once the catalog has rows — so an empty catalog drops them from the walk
+   * instead of stranding it. A required stop still shows centred, because a slow
+   * page is not the same as an absent one.
+   */
+  optional?: boolean;
 }
 
 export const TOUR_STEPS: readonly TourStep[] = [
@@ -298,18 +307,31 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.agentsView,
     inTour: true,
   },
-  { id: "mcp-filter", page: ROUTES.MCP_SERVERS, target: "mcp-filter", permission: Perm.agentsView },
+  // The catalog controls — filter, custom-add, connect — render only inside the
+  // list, which the page swaps for an empty-state card when the catalog has no
+  // rows. So they are optional: an empty catalog drops them rather than spotlighting
+  // nothing. The catalog stop above stays, because its target moves onto the
+  // empty-state card, so it always has something to point at.
+  {
+    id: "mcp-filter",
+    page: ROUTES.MCP_SERVERS,
+    target: "mcp-filter",
+    permission: Perm.agentsView,
+    optional: true,
+  },
   {
     id: "mcp-add",
     page: ROUTES.MCP_SERVERS,
     target: "mcp-add",
     permission: Perm.connectionsManage,
+    optional: true,
   },
   {
     id: "mcp-connect",
     page: ROUTES.MCP_SERVERS,
     target: "mcp-connect",
     permission: Perm.agentsView,
+    optional: true,
   },
 
   {
