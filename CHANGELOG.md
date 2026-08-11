@@ -17,6 +17,38 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.109] - 2026-08-12
+
+The suite reaches no Prefect server on a laptop either, so what a developer runs
+is what CI runs.
+
+### Fixed
+
+- **A test that called a flow needed a Prefect server listening on
+  `localhost:4200`.** Prefect resolves its own settings from `backend/.env` — its
+  settings model carries `env_file=".env"` — so the `PREFECT_API_URL` line
+  `make dev` needs was also the address a test's flow call tried to reach, and it
+  failed as `Failed to reach API at …` out of a test that patches every
+  collaborator it has. CI never saw it: with no `.env` there is no URL, so what a
+  laptop ran was never what CI ran. The URL is now assigned *empty* before Prefect
+  is imported — deleting it would leave the dotenv source to answer, and an empty
+  assignment outranks that source because Prefect's model carries
+  `env_ignore_empty=False` — and Prefect reads an empty URL as no URL, running the
+  flow against a temporary server of its own, which is what CI has always done.
+  Unconditionally, so a developer with `make dev` up gets the same run rather than
+  a different code path. (#536)
+- **That temporary server wrote into a developer's own Prefect database.**
+  Its state is a SQLite file under `PREFECT_HOME`, which is `~/.prefect` unless
+  something says otherwise — the same file a locally run `prefect server` has
+  open. It now points at a directory of the tests' own, for the same reason the
+  test database name does. (#536)
+- **And starting it inside Prefect's own 20-second allowance failed on a first
+  run.** The server migrates its database before it answers: about 75 seconds cold
+  against a `PREFECT_HOME` nothing has written, about seven warm. Trading a
+  deterministic failure for a first-run one is not a fix, so the allowance is 90
+  seconds, and ephemeral mode is named rather than inherited — with it off a flow
+  call does not fail fast, it retries for 75 seconds and then fails. (#536)
+
 ## [0.0.108] - 2026-08-12
 
 The backend suite runs in a random order, and the first shuffle found a
