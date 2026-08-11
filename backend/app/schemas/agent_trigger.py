@@ -71,6 +71,10 @@ class TriggerUpdate(BaseSchema):
 class TriggerRead(BaseSchema, TimestampSchema):
     id: UUID
     agent_id: UUID
+    # Set only on the org-wide listing, where a row is shown away from its agent
+    # and needs to name it; the per-agent list leaves it unset (the agent is the
+    # page). The service fills it from the listing query's join onto agents.
+    agent_name: str | None = None
     created_by_user_id: UUID | None = None
     is_active: bool
     environment_id: UUID | None = None

@@ -21,7 +21,7 @@ from pydantic import ValidationError as PydanticValidationError
 from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import RunStatus, RunSurface
-from app.schemas.agent_trigger import TriggerCreate, TriggerUpdate
+from app.schemas.agent_trigger import TriggerCreate, TriggerRead, TriggerUpdate
 from app.services.agent_trigger import (
     AgentTriggerService,
     _next_fire_from,
@@ -233,6 +233,19 @@ class TestCreate:
                 await service.create(_ctx(), agent.id, _interval(environment_id=uuid.uuid4()))
 
 
+def _read() -> TriggerRead:
+    return TriggerRead(
+        id=uuid.uuid4(),
+        agent_id=uuid.uuid4(),
+        is_active=True,
+        schedule_kind="interval",
+        interval_seconds=300,
+        prompt="run",
+        next_fire_at=datetime(2026, 1, 1, tzinfo=UTC),
+        created_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+
+
 class TestReading:
     async def test_a_listing_is_scoped_to_the_callers_organization(self):
         agent = _agent()
@@ -248,6 +261,55 @@ class TestReading:
             repo.list_for_agent = AsyncMock(return_value=[])
             await service.list_for_agent(_ctx(OrgRoleName.VIEWER), uuid.uuid4())
         assert service.agents.get.call_args.kwargs == {}
+
+
+class TestOrgListing:
+    async def test_the_org_listing_is_filtered_to_agents_the_caller_can_reach(self):
+        service = _service()
+        reachable = uuid.uuid4()
+        with (
+            patch(
+                "app.services.agent_trigger.visible_resource_ids",
+                new=AsyncMock(return_value=[reachable]),
+            ),
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+        ):
+            repo.list_for_organization = AsyncMock(return_value=([(_read(), "Nightly")], 1))
+            items, total = await service.list_for_organization(_ctx())
+        assert repo.list_for_organization.call_args.kwargs["agent_ids"] == [reachable]
+        assert total == 1
+        # The row is named with its agent, which a bare trigger does not carry.
+        assert items[0].agent_name == "Nightly"
+
+    async def test_a_role_that_reaches_every_agent_applies_no_filter(self):
+        """`visible_resource_ids` returning None means "sees all" - no IN filter."""
+        service = _service()
+        with (
+            patch(
+                "app.services.agent_trigger.visible_resource_ids",
+                new=AsyncMock(return_value=None),
+            ),
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+        ):
+            repo.list_for_organization = AsyncMock(return_value=([], 0))
+            await service.list_for_organization(_ctx())
+        assert repo.list_for_organization.call_args.kwargs["agent_ids"] is None
+
+    async def test_a_caller_who_can_reach_no_agent_sees_an_empty_list(self):
+        """An empty visible set is not "no filter" - it is "nothing", and the
+        listing must not fall through to every trigger in the organization."""
+        service = _service()
+        with (
+            patch(
+                "app.services.agent_trigger.visible_resource_ids",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+        ):
+            repo.list_for_organization = AsyncMock()
+            items, total = await service.list_for_organization(_ctx())
+        assert (items, total) == ([], 0)
+        repo.list_for_organization.assert_not_called()
 
 
 class TestChangingASchedule:

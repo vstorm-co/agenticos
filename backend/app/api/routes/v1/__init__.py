@@ -60,6 +60,7 @@ v1_router.include_router(agent_registry.router, prefix="/agents", tags=["agents"
 v1_router.include_router(agent_environments.router, prefix="/agents", tags=["agents:environments"])
 v1_router.include_router(agent_exposures.router, prefix="/agents", tags=["agents:exposures"])
 v1_router.include_router(agent_triggers.router, prefix="/agents", tags=["agents:triggers"])
+v1_router.include_router(agent_triggers.org_router, tags=["agents:triggers"])
 v1_router.include_router(agent_embeds.router, prefix="/agents", tags=["agents:embeds"])
 v1_router.include_router(embed_widget.router, prefix="/embed", tags=["embed"])
 v1_router.include_router(agent_runs.router, tags=["runs"])

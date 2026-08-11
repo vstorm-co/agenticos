@@ -43,7 +43,8 @@ from app.repositories import (
     conversation_repo,
     member_repo,
 )
-from app.schemas.agent_trigger import TriggerCreate, TriggerUpdate
+from app.schemas.agent_trigger import TriggerCreate, TriggerRead, TriggerUpdate
+from app.services.access import AGENT, visible_resource_ids
 from app.services.agent_registry import AgentRegistryService
 
 logger = logging.getLogger(__name__)
@@ -115,6 +116,41 @@ class AgentTriggerService:
         return await agent_trigger_repo.list_for_agent(
             self.db, agent_id=agent.id, organization_id=ctx.organization_id
         )
+
+    async def list_for_organization(
+        self, ctx: AuthContext, *, skip: int = 0, limit: int = 50
+    ) -> tuple[list[TriggerRead], int]:
+        """Every schedule and trigger in the organization the caller may see.
+
+        The org-wide surfaces - the sidebar section, the Activity tab - list
+        across agents, so this is a collection read. Access is still per agent,
+        not a role gate: `visible_resource_ids` returns the agents the caller's
+        role and grants reach (`None` meaning all of them), and the listing is
+        filtered to those. A caller who can reach no agent gets an empty list,
+        never another tenant's schedules.
+
+        Returns `TriggerRead`s, not rows, because each is enriched with its
+        agent's name - the one field these surfaces need that a bare trigger does
+        not carry, resolved by the join rather than a query per row.
+        """
+        visible = await visible_resource_ids(
+            self.db, ctx, resource_type=AGENT, perm=Perm.AGENTS_VIEW
+        )
+        if visible is not None and not visible:
+            return [], 0
+        rows, total = await agent_trigger_repo.list_for_organization(
+            self.db,
+            organization_id=ctx.organization_id,
+            agent_ids=visible,
+            skip=skip,
+            limit=limit,
+        )
+        triggers: list[TriggerRead] = []
+        for trigger, agent_name in rows:
+            read = TriggerRead.model_validate(trigger)
+            read.agent_name = agent_name
+            triggers.append(read)
+        return triggers, total
 
     async def create(self, ctx: AuthContext, agent_id: UUID, data: TriggerCreate) -> AgentTrigger:
         """Schedule the agent to run itself, on an interval or a cron expression.

@@ -12,12 +12,31 @@ before `resolve_access` ever widened their access. The decision is handed to
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Response, status
+from fastapi import APIRouter, Query, Response, status
 
 from app.api.deps import AgentTriggerSvc, Auth
 from app.schemas.agent_trigger import TriggerCreate, TriggerList, TriggerRead, TriggerUpdate
 
 router = APIRouter()
+
+# A second router, mounted without the `/agents` prefix, for the one trigger view
+# that is not about a single agent: every schedule and trigger in the
+# organization. It cannot live on `router` - `/agents/triggers` would be shadowed
+# by `/agents/{agent_id}` from the registry, which is registered first - so it is
+# its own top-level `/triggers`, the same shape as the org-wide `/runs` listing.
+org_router = APIRouter()
+
+
+@org_router.get("/triggers", response_model=TriggerList)
+async def list_org_triggers(
+    ctx: Auth,
+    service: AgentTriggerSvc,
+    skip: int = Query(0, ge=0, description="Items to skip"),
+    limit: int = Query(50, ge=1, le=100, description="Max items to return"),
+) -> Any:
+    """Every schedule and trigger in the organization the caller may see."""
+    items, total = await service.list_for_organization(ctx, skip=skip, limit=limit)
+    return TriggerList(items=items, total=total)
 
 
 @router.get("/{agent_id}/triggers", response_model=TriggerList)

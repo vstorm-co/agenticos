@@ -66,6 +66,14 @@ def _scalars(values: list[object]):
     return MagicMock(scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=values))))
 
 
+def _count(total: int):
+    return MagicMock(scalar_one=MagicMock(return_value=total))
+
+
+def _rows(values: list[object]):
+    return MagicMock(all=MagicMock(return_value=values))
+
+
 class TestReading:
     async def test_one_trigger_is_read_inside_its_organization(self):
         trigger_id, organization_id = uuid.uuid4(), uuid.uuid4()
@@ -87,6 +95,42 @@ class TestReading:
             session, agent_id=agent_id, organization_id=organization_id
         )
         assert set(_filters(session).values()) >= {agent_id, organization_id}
+
+    async def test_the_org_listing_scopes_by_org_and_filters_by_agent(self):
+        """The org-wide read joins the agent for its name, restricts to the agents
+        the service says the caller may reach, and never crosses the tenant."""
+        organization_id = uuid.uuid4()
+        agent_ids = [uuid.uuid4(), uuid.uuid4()]
+        session = _RecordingSession(_count(0), _rows([]))
+        await agent_trigger_repo.list_for_organization(
+            session, organization_id=organization_id, agent_ids=agent_ids
+        )
+        sql = _sql(session)  # the last statement is the rows query, not the count
+        assert "join agents" in sql
+        assert "order by agent_triggers.created_at desc" in sql
+        # `agent_id IN (...)` binds the list as one expanding param, so flatten
+        # before asserting the org scope and the agent filter are both present.
+        flat: set[object] = set()
+        for value in _filters(session).values():
+            flat.update(value if isinstance(value, list) else [value])
+        assert {organization_id, *agent_ids} <= flat
+
+    async def test_the_org_listing_without_a_filter_reads_every_agents_triggers(self):
+        """`agent_ids=None` is the service saying the role reaches every agent."""
+        session = _RecordingSession(_count(0), _rows([]))
+        await agent_trigger_repo.list_for_organization(
+            session, organization_id=uuid.uuid4(), agent_ids=None
+        )
+        assert "agent_triggers.agent_id in" not in _sql(session)
+
+    async def test_the_org_listing_returns_the_rows_and_the_total(self):
+        trigger = MagicMock()
+        session = _RecordingSession(_count(1), _rows([(trigger, "Nightly")]))
+        rows, total = await agent_trigger_repo.list_for_organization(
+            session, organization_id=uuid.uuid4(), agent_ids=None
+        )
+        assert total == 1
+        assert rows == [(trigger, "Nightly")]
 
 
 class TestWriting:

@@ -19,6 +19,7 @@ import pytest
 from app.api.routes.v1.agent_triggers import (
     create_trigger,
     delete_trigger,
+    list_org_triggers,
     list_triggers,
     run_trigger_now,
     update_trigger,
@@ -48,6 +49,13 @@ async def test_a_listing_reports_its_own_total():
     service = MagicMock(list_for_agent=AsyncMock(return_value=[_read(), _read()]))
     result = await list_triggers(uuid.uuid4(), _CTX, service)
     assert result.total == 2
+
+
+async def test_the_org_listing_reports_its_own_total():
+    service = MagicMock(list_for_organization=AsyncMock(return_value=([_read(), _read()], 2)))
+    result = await list_org_triggers(_CTX, service, skip=0, limit=50)
+    assert result.total == 2
+    assert len(result.items) == 2
 
 
 async def test_creating_answers_with_what_the_service_returned():
