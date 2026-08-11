@@ -33,9 +33,10 @@ export interface ResolvedDetail {
  *
  * A detail view has no route of its own, so the walkthrough opens a real one: the
  * seeded demo where there is one, otherwise the first row. The list is fetched
- * only while the tour is open, and a null `href` (an empty list) tells the engine
- * to skip that section's steps rather than spotlight a route that would 404. The
- * "?" replayed *from* a detail route never consults this — the reader is already
+ * only while the tour is open, and a null `href` (an empty list) means there is no
+ * example to open — so the engine describes the section where the reader is rather
+ * than navigate to a route that would 404 (`onboarding-tour.tsx`, `show(undefined)`).
+ * The "?" replayed *from* a detail route never consults this — the reader is already
  * on the row they mean, and the engine keeps them there.
  *
  * Each list is read under the same query key its owning page hook uses, so the

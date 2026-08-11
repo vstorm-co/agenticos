@@ -936,6 +936,28 @@
   transform: translateX(-50%) !important;
   margin: 0 !important;
   max-width: min(28rem, calc(100vw - 2rem));
+  /* driver.css hard-codes a white card and near-black text, which reads as a light
+     popover beside the coach's own `bg-popover` card in dark mode. Bring both
+     onboarding surfaces onto the same tokens. */
+  background-color: var(--color-popover);
+  color: var(--color-popover-foreground);
+}
+
+.driver-popover.tour-popover .driver-popover-title,
+.driver-popover.tour-popover .driver-popover-description {
+  color: var(--color-popover-foreground);
+}
+
+.driver-popover.tour-popover .driver-popover-progress-text,
+.driver-popover.tour-popover .driver-popover-close-btn {
+  color: var(--color-muted-foreground);
+}
+
+.driver-popover.tour-popover .driver-popover-footer button {
+  background-color: var(--color-secondary);
+  color: var(--color-secondary-foreground);
+  border: 1px solid var(--color-border);
+  text-shadow: none;
 }
 
 .driver-popover.tour-popover .driver-popover-arrow {

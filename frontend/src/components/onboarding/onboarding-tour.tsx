@@ -29,6 +29,15 @@ const REVEAL_MS = 650;
 const CONTROL_WAIT_MS = 400;
 
 /**
+ * How long an `optional` stop waits for its target before skipping. Far below the
+ * 4s a required target gets, because an optional target that is going to mount is
+ * there as soon as its page is: the long wait only bought a hung-looking pause on
+ * an empty catalog, where three optional MCP stops in a row sat 4s each while the
+ * pinned caption looked stuck.
+ */
+const OPTIONAL_WAIT_MS = 800;
+
+/**
  * The buttons greyed out while a transition is in flight. Next and Back are
  * locked so a reader cannot advance past the control being revealed and desync
  * the walk from the page; close stays live so they can always leave.
@@ -202,7 +211,11 @@ export function OnboardingTour() {
         }
       }
       const element = step.target
-        ? await waitForElement(`[data-tour="${step.target}"]`, signal)
+        ? await waitForElement(
+            `[data-tour="${step.target}"]`,
+            signal,
+            step.optional ? OPTIONAL_WAIT_MS : undefined,
+          )
         : undefined;
       if (signal.aborted) return;
       // An optional stop whose target never mounted — the MCP catalog's filter,

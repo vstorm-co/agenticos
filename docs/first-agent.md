@@ -54,7 +54,7 @@ is a tour that stopped one step short of the point.
 
 Declining guides nobody; the offer returns at the end of the Agents **?** walk.
 Every other section's **?** ends the same way, offering to create that section's
-resource - a skill, a knowledge base, an MCP connection, a workspace - and the
+resource - a skill, a knowledge base, an MCP connection, an organization - and the
 Chat **?** offers a guided run through the chat surface itself: starting a
 conversation, switching which agent answers, and changing the model or thinking
 effort for a single chat. Chat can only talk to a *published* agent, so if there

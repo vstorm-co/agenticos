@@ -551,7 +551,6 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                       <Button
                         size="sm"
                         variant="outline"
-                        data-tour="mcp-connect"
                         onClick={() =>
                           openDraft(defaultScope(row, canManageOrganization), row, null)
                         }

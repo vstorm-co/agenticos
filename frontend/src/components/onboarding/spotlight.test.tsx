@@ -1,7 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { activateTab, pulse, spotlightPath } from "./spotlight";
+import { activateTab, pulse, spotlightPath, waitForElement } from "./spotlight";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
 
 describe("activateTab", () => {
@@ -71,5 +71,27 @@ describe("pulse", () => {
     // A reader who moves on mid-pulse must not leave the class stuck on.
     await pulse(element, controller.signal, 10_000);
     expect(element.classList.contains("tour-click-pulse")).toBe(false);
+  });
+});
+
+describe("waitForElement", () => {
+  it("with no timeout, waits for a target that mounts late rather than giving up", async () => {
+    const controller = new AbortController();
+    const pending = waitForElement('[data-tour="late"]', controller.signal, null);
+
+    const el = document.createElement("div");
+    el.setAttribute("data-tour", "late");
+    document.body.appendChild(el);
+
+    expect(await pending).toBe(el);
+    el.remove();
+  });
+
+  it("with no timeout, still ends when the wait is aborted", async () => {
+    const controller = new AbortController();
+    const pending = waitForElement('[data-tour="never"]', controller.signal, null);
+    controller.abort();
+
+    expect(await pending).toBeNull();
   });
 });

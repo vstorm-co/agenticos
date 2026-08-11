@@ -89,7 +89,7 @@ describe("useDetailTargets", () => {
     expect(result.current[KB_DETAIL]?.href).toBe("/rag/kb-default");
   });
 
-  it("gives a null href for an empty list so the engine skips that walk", () => {
+  it("gives a null href for an empty list, so the engine describes the section in place", () => {
     const wrapper = wrapperWith((client) => {
       client.setQueryData(qk.agents.list(false), { items: [], total: 0 });
       client.setQueryData(qk.kb.list(), []);

@@ -89,6 +89,20 @@ export function useOnboardingTour(): OnboardingTourState {
   const lastIndex = steps.length - 1;
   const clamped = Math.min(index, Math.max(lastIndex, 0));
 
+  // A "?" opened on a page with no walkable steps — one with no highlights, or one
+  // whose highlights a permission filtered to none — must not stay open: the engine
+  // finds no step, tears the popover down, and nothing is left to close the walk, so
+  // `anchor` freezes on that page and every later "?" recomputes the same empty list.
+  // The help button goes dead app-wide until a reload. Closing it here keeps the
+  // anchor clearing and the button live; the first-run tour never reaches this, its
+  // list being permission-filtered but never empty. Not while permissions are still
+  // loading, though: `can` answers false throughout that window, so every page reads
+  // as empty until it settles, and closing then would shut a walk that is about to
+  // have steps.
+  useEffect(() => {
+    if (isOpen && !permissionsLoading && steps.length === 0) close();
+  }, [isOpen, permissionsLoading, steps.length, close]);
+
   const dismiss = useCallback(() => {
     close();
     // A "?" replay is help, not the first run: closing it records nothing.

@@ -162,6 +162,20 @@ describe("useOnboardingTour", () => {
     ]);
   });
 
+  it("closes a page-mode replay opened where nothing is walkable, so the '?' stays live", async () => {
+    // `/channels` renders the header (and its "?") but has no tour steps, so the
+    // walk opens onto an empty list. Left open, the engine tears the popover down
+    // with nothing to close it, `anchor` freezes here, and every later "?" replays
+    // the same empty list — the button dead app-wide. The hook closes it instead.
+    useAuthStore.setState({ user: user({ onboarding_completed_at: "2020-01-01T00:00:00Z" }) });
+    nav.pathname = "/channels";
+    const { result } = renderHook(() => useOnboardingTour(), { wrapper });
+
+    act(() => useOnboardingStore.getState().openPage());
+    await waitFor(() => expect(result.current.isOpen).toBe(false));
+    expect(result.current.steps).toHaveLength(0);
+  });
+
   it("freezes the page a page-mode replay opened on, so stepping into a detail view keeps the list", async () => {
     // A completed user, on the agents list, so opening "?" here anchors on it.
     useAuthStore.setState({ user: user({ onboarding_completed_at: "2020-01-01T00:00:00Z" }) });

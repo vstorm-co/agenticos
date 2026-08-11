@@ -138,6 +138,21 @@ describe("useOnboardingFlow", () => {
     expect(result.current.isActive).toBe(false);
   });
 
+  it("stays inactive until the org snapshot has settled, so no fork morphs", () => {
+    // One input still loading, so `liveState` is null and the state cannot freeze.
+    // The steps below are computed from the empty-org default; activating on them
+    // would flash a fork built for an org that may not be empty and swap it away
+    // the moment the lists land, so `isActive` waits for the snapshot.
+    rig.agentsLoading = true;
+    const { result, rerender } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-agent"));
+    expect(result.current.isActive).toBe(false);
+
+    rig.agentsLoading = false;
+    rerender();
+    expect(result.current.isActive).toBe(true);
+  });
+
   it("meets the signal only once the resource list grows past where it began", () => {
     rig.skillTotal = 3; // three skills already exist
     const { result, rerender } = renderHook(() => useOnboardingFlow());

@@ -111,13 +111,15 @@ describe("ModelProfilePicker", () => {
     expect(screen.getByText("openai · gpt-4.1")).toBeInTheDocument();
   });
 
-  it("tells an empty organization what is wrong and where the fix it cannot give is", () => {
+  it("tells an empty organization what is wrong and where a model comes from", () => {
     mount({ profiles: [] });
 
     expect(screen.getByText(/no models yet/)).toBeInTheDocument();
-    // The path out, rather than only the problem: it points at the permission and
-    // the admin who holds it, so the reader is not left to find it at publish.
-    expect(screen.getByText(/ask an admin to add a model/)).toBeInTheDocument();
+    // The path out, rather than only the problem: it names where models come from —
+    // the Builder, by a member who manages connections — without claiming this
+    // reader lacks a permission, which a picker that only knows `allowAdd` cannot
+    // tell (the delegation picker passes none yet its caller may hold it).
+    expect(screen.getByText(/added in the Builder/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add a model" })).toBeNull();
   });
 

@@ -156,10 +156,17 @@ export function spotlightPath(
   );
 }
 
+/**
+ * Resolve with the first element matching `selector`, or `null` when the wait
+ * ends without one. `timeoutMs` bounds the wait; pass `null` for no timeout, so
+ * only the `signal` aborting (a step change, the flow ending) ends it — what the
+ * coach wants for a target that must appear rather than be skipped, where a fixed
+ * deadline would strand the freeze with no cut-out and no way forward.
+ */
 export function waitForElement(
   selector: string,
   signal: AbortSignal,
-  timeoutMs = 4000,
+  timeoutMs: number | null = 4000,
 ): Promise<Element | null> {
   return new Promise((resolve) => {
     const existing = document.querySelector(selector);
@@ -173,7 +180,7 @@ export function waitForElement(
     }
     const finish = (element: Element | null) => {
       observer.disconnect();
-      clearTimeout(timer);
+      if (timer !== null) clearTimeout(timer);
       signal.removeEventListener("abort", onAbort);
       resolve(element);
     };
@@ -181,7 +188,7 @@ export function waitForElement(
       const found = document.querySelector(selector);
       if (found) finish(found);
     });
-    const timer = setTimeout(() => finish(null), timeoutMs);
+    const timer = timeoutMs === null ? null : setTimeout(() => finish(null), timeoutMs);
     const onAbort = () => finish(null);
     observer.observe(document.body, { childList: true, subtree: true });
     signal.addEventListener("abort", onAbort);

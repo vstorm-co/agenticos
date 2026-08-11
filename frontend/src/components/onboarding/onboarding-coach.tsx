@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { X } from "lucide-react";
@@ -161,6 +161,7 @@ export function OnboardingCoach() {
   const [overlayOpen, setOverlayOpen] = useState(false);
   const [dialogCount, setDialogCount] = useState(0);
   const [blockRect, setBlockRect] = useState<Rect | null>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   const stepId = step?.id;
   const blockSubmit = step?.blockSubmit;
@@ -276,7 +277,11 @@ export function OnboardingCoach() {
         step.dynamicTarget === "createdAgentEdit"
           ? `[data-tour="agent-card-edit"]${flowAgentId ? `[data-agent-id="${flowAgentId}"]` : ""}`
           : `[data-tour="${step.target}"]`;
-      const target = await waitForElement(selector, signal);
+      // No timeout: a coach target must appear, not be skipped. A fixed deadline
+      // that lapsed on a cold query or a slow builder left the freeze full-viewport
+      // with no cut-out and no Next — closing the flow the only way out. The abort
+      // on step change or flow end already bounds this wait.
+      const target = await waitForElement(selector, signal, null);
       if (signal.aborted || !(target instanceof HTMLElement)) return;
 
       target.scrollIntoView({ block: "center", inline: "center" });
@@ -343,6 +348,53 @@ export function OnboardingCoach() {
     return () => controller.abort();
   }, [isActive, blockSubmit, stepId]);
 
+  // The submit guard swallows pointer clicks, but the keyboard walks past it: Enter
+  // in a create dialog's text field submits the form, and Enter on its focused
+  // submit button activates it — either creates the resource steps early, and its
+  // later field steps then baseline after the creation and never advance, leaving
+  // the reader dead-ended. While a `blockSubmit` step shows, cancel that Enter in
+  // the capture phase, before the field or button sees it. A text `<input>` and the
+  // guarded submit are the only two paths blocked: a textarea, the source editor
+  // (`isContentEditable`) and a Radix select keep Enter for newlines and choosing.
+  useEffect(() => {
+    if (!isActive || !blockSubmit) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Enter") return;
+      const el = event.target as HTMLElement | null;
+      if (!el) return;
+      const submitsForm = el instanceof HTMLInputElement;
+      const activatesSubmit = el.closest(`[data-tour="${blockSubmit}"]`) !== null;
+      if (submitsForm || activatesSubmit) event.preventDefault();
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [isActive, blockSubmit]);
+
+  // While the freeze is up the card is the only modal surface, so move focus to it
+  // on each step — a screen reader then announces the new instruction and a keyboard
+  // user starts there rather than wherever focus was stranded on the frozen page. A
+  // dialog or picker open over the page manages its own focus, so this yields to it.
+  useEffect(() => {
+    if (!isActive || !step) return;
+    const frozen = !step.roam && !step.inOverlay && !overlayOpen;
+    if (frozen) cardRef.current?.focus();
+  }, [isActive, step, overlayOpen]);
+
+  // Escape ends the walk when the page is frozen — the keyboard equal of the close
+  // button, the frozen page having nothing else Escape could act on. With a dialog
+  // or picker open, Radix owns Escape (and `dialog.tsx` keeps that dialog from
+  // closing under the coach), so it is left to them.
+  useEffect(() => {
+    if (!isActive) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (document.querySelector(OPEN_OVERLAY)) return;
+      finish();
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [isActive, finish]);
+
   // The resource appeared — the reader did the thing. Advance, or end the flow if
   // this was the last step.
   useEffect(() => {
@@ -363,6 +415,7 @@ export function OnboardingCoach() {
   const isQuestion = !!step.question;
   const inOverlay = !!step.inOverlay;
   const roam = !!step.roam;
+  const frozen = !roam && !inOverlay && !overlayOpen;
   const current = isQuestion ? null : rect?.stepId === stepId ? rect : null;
 
   return (
@@ -405,10 +458,13 @@ export function OnboardingCoach() {
           create dialog. `onInteractOutside` on DialogContent keeps the click from also
           dismissing that dialog. */}
       <div
+        ref={cardRef}
         data-coach-card
         role="dialog"
+        aria-modal={frozen ? true : undefined}
         aria-label={t(`steps.${step.id}.title`)}
-        className="bg-popover text-popover-foreground pointer-events-auto fixed bottom-6 left-1/2 z-[1000000002] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border p-4 shadow-lg"
+        tabIndex={-1}
+        className="bg-popover text-popover-foreground pointer-events-auto fixed bottom-6 left-1/2 z-[1000000002] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border p-4 shadow-lg outline-none"
       >
         <IconButton
           aria-label={t("coachClose")}

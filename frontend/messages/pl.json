@@ -684,7 +684,7 @@
     "next": "Dalej",
     "finish": "Zakończ",
     "progress": "Krok {current} z {total}",
-    "saveFailed": "Nie udało się zapisać, że widziałeś przewodnik, więc może pojawić się ponownie następnym razem.",
+    "saveFailed": "Nie udało się zapisać ukończenia przewodnika, więc może pojawić się ponownie następnym razem.",
     "helpReminder": "Wskazówki każdej strony możesz odtworzyć, kiedy chcesz — wystarczy kliknąć ? w jej nagłówku.",
     "coachClose": "Zamknij",
     "coachYes": "Tak, zróbmy to",
@@ -720,7 +720,7 @@
     "steps": {
       "flow-agent-create": {
         "title": "Nazwij agenta",
-        "body": "Utwórz nowego agenta — nadaj mu nazwę i krótki opis, i utwórz go. Otworzy się kreator, gdzie dzieje się reszta. Przejdziemy dalej, gdy tylko powstanie."
+        "body": "Wybierz New agent — nadaj mu nazwę i krótki opis, i utwórz go. Otworzy się kreator, gdzie dzieje się reszta. Przejdziemy dalej, gdy tylko powstanie."
       },
       "flow-agent-instructions": {
         "title": "Napisz jego instrukcje",
@@ -748,19 +748,19 @@
       },
       "flow-agent-knowledge-create": {
         "title": "Utwórz bazę wiedzy",
-        "body": "Utwórz nową bazę wiedzy — otworzy się formularz, a my przejdziemy go razem, pole po polu. Potem odprowadzimy Cię z powrotem do agenta."
+        "body": "Wybierz New knowledge base — otworzy się formularz, a my przejdziemy go razem, pole po polu. Potem odprowadzimy Cię z powrotem do agenta."
       },
       "flow-agent-knowledge-return-nav": {
         "title": "Wróć do swoich agentów",
-        "body": "Wybierz Agenci na pasku bocznym, żeby wrócić do agenta, którego budowałeś."
+        "body": "Wybierz Agenci na pasku bocznym, żeby wrócić do agenta, którego budujesz."
       },
       "flow-agent-knowledge-return-edit": {
         "title": "Otwórz agenta ponownie",
-        "body": "Kliknij ołówek edycji na agencie, którego właśnie zbudowałeś, żeby ponownie otworzyć jego kreator."
+        "body": "Kliknij ołówek edycji na agencie, którego właśnie zbudowano, żeby ponownie otworzyć jego kreator."
       },
       "flow-agent-knowledge-attach": {
-        "title": "Podepnij to, co utworzyłeś",
-        "body": "Otwórz zakładkę Knowledge i podepnij bazę wiedzy, którą właśnie utworzyłeś, potem wybierz Dalej."
+        "title": "Podepnij nowo utworzoną bazę wiedzy",
+        "body": "Otwórz zakładkę Knowledge i podepnij nowo utworzoną bazę wiedzy, potem wybierz Dalej."
       },
       "flow-agent-skills": {
         "title": "Daj mu umiejętności (opcjonalnie)",
@@ -772,19 +772,19 @@
       },
       "flow-agent-skills-create": {
         "title": "Utwórz umiejętność",
-        "body": "Utwórz nową umiejętność — otworzy się formularz, a my przejdziemy go razem, pole po polu. Potem odprowadzimy Cię z powrotem do agenta."
+        "body": "Wybierz New skill — otworzy się formularz, a my przejdziemy go razem, pole po polu. Potem odprowadzimy Cię z powrotem do agenta."
       },
       "flow-agent-skills-return-nav": {
         "title": "Wróć do swoich agentów",
-        "body": "Wybierz Agenci na pasku bocznym, żeby wrócić do agenta, którego budowałeś."
+        "body": "Wybierz Agenci na pasku bocznym, żeby wrócić do agenta, którego budujesz."
       },
       "flow-agent-skills-return-edit": {
         "title": "Otwórz agenta ponownie",
-        "body": "Kliknij ołówek edycji na agencie, którego właśnie zbudowałeś, żeby ponownie otworzyć jego kreator."
+        "body": "Kliknij ołówek edycji na agencie, którego właśnie zbudowano, żeby ponownie otworzyć jego kreator."
       },
       "flow-agent-skills-attach": {
         "title": "Podepnij swoją umiejętność",
-        "body": "Otwórz zakładkę Skills i podepnij umiejętność, którą właśnie utworzyłeś, potem wybierz Dalej."
+        "body": "Otwórz zakładkę Skills i podepnij nowo utworzoną umiejętność, potem wybierz Dalej."
       },
       "flow-agent-tools": {
         "title": "Daj mu narzędzia (opcjonalnie)",
@@ -792,11 +792,11 @@
       },
       "flow-agent-mcp": {
         "title": "Dodaj serwery MCP (opcjonalnie)",
-        "body": "Serwery MCP dają agentowi narzędzia z innych systemów, które podłączyłeś. Podepnij dowolne albo wybierz Dalej, żeby przejść dalej."
+        "body": "Serwery MCP dają agentowi narzędzia z innych systemów, które są już podłączone. Podepnij dowolne albo wybierz Dalej, żeby przejść dalej."
       },
       "flow-agent-mcp-ask": {
         "title": "Nie podłączono serwera MCP — podłączyć?",
-        "body": "Serwer MCP daje temu agentowi narzędzia z innego systemu, a jeszcze żadnego nie podłączyłeś. Podłączyć jeden teraz? To szybkie okno tutaj — bez wychodzenia z kreatora, i ruszymy dalej w chwili, gdy się połączy."
+        "body": "Serwer MCP daje temu agentowi narzędzia z innego systemu, a jeszcze żadnego nie podłączono. Podłączyć jeden teraz? To szybkie okno tutaj — bez wychodzenia z kreatora, i ruszymy dalej w chwili, gdy się połączy."
       },
       "flow-agent-mcp-connect": {
         "title": "Otwórz katalog",
@@ -804,7 +804,7 @@
       },
       "flow-agent-limits": {
         "title": "Ustaw budżet (opcjonalnie)",
-        "body": "Ogranicz, ile ten agent może wydać w miesiącu i ile kroków może zająć jedno uruchomienie, i wybierz, kto dostaje znać przy limicie. Tak agent, który się zapętli lub wymknie, zatrzymuje sam siebie. Wybierz Dalej, żeby przejść dalej."
+        "body": "Ogranicz, ile ten agent może wydać w miesiącu i z ilu kroków może się składać jedno uruchomienie, i wybierz, kto zostanie powiadomiony przy limicie. Tak agent, który się zapętli albo wymknie spod kontroli, zatrzyma się sam. Wybierz Dalej, żeby przejść dalej."
       },
       "flow-agent-publish": {
         "title": "Opublikuj go",
@@ -812,7 +812,7 @@
       },
       "flow-agent-run-pick": {
         "title": "Wybierz swojego agenta",
-        "body": "Jesteś teraz na czacie. Otwórz przełącznik i wybierz agenta, którego właśnie opublikowałeś, żeby trafiła do niego Twoja pierwsza wiadomość."
+        "body": "Jesteś teraz na czacie. Otwórz przełącznik i wybierz agenta, którego właśnie opublikowano, żeby trafiła do niego Twoja pierwsza wiadomość."
       },
       "flow-agent-run-send": {
         "title": "Wyślij mu wiadomość",
@@ -820,11 +820,11 @@
       },
       "flow-skill-create": {
         "title": "Dodaj swoją umiejętność",
-        "body": "Utwórz nową umiejętność — otworzy się formularz, a my przejdziemy go razem, pole po polu."
+        "body": "Wybierz New skill — otworzy się formularz, a my przejdziemy go razem, pole po polu."
       },
       "flow-kb-create": {
         "title": "Utwórz bazę wiedzy",
-        "body": "Utwórz nową bazę wiedzy — otworzy się formularz, a my przejdziemy go razem, pole po polu."
+        "body": "Wybierz New knowledge base — otworzy się formularz, a my przejdziemy go razem, pole po polu."
       },
       "flow-skill-field-name": {
         "title": "Nazwij ją",
@@ -872,7 +872,7 @@
       },
       "flow-org-create": {
         "title": "Utwórz organizację",
-        "body": "Utwórz nową organizację — nadaj jej nazwę i utwórz. Przejdziemy dalej, gdy tylko powstanie."
+        "body": "Wybierz New organization — nadaj jej nazwę i utwórz. Przejdziemy dalej, gdy tylko powstanie."
       },
       "flow-chat-needs-agent": {
         "title": "Nie ma jeszcze opublikowanego agenta do rozmowy",
@@ -892,7 +892,7 @@
       },
       "flow-chat-composer": {
         "title": "Wpisz i wyślij",
-        "body": "Napisz tu swoją wiadomość i wyślij — to Twoja pierwsza rozmowa. Wybierz Zakończ, gdy będziesz gotowy."
+        "body": "Napisz tu swoją wiadomość i wyślij — to Twoja pierwsza rozmowa. Wybierz Zakończ, gdy zechcesz."
       },
       "welcome": {
         "title": "Witaj w AgenticOS",
@@ -956,7 +956,7 @@
       },
       "agent-limits": {
         "title": "Trzymaj go w ryzach",
-        "body": "Ogranicz miesięczny wydatek i liczbę kroków jednego uruchomienia, i wybierz, kto dostaje znać, gdy agent osiągnie limit albo zawiedzie."
+        "body": "Ogranicz miesięczny wydatek i to, z ilu kroków może się składać jedno uruchomienie, i wybierz, kto zostanie powiadomiony, gdy agent osiągnie limit albo zawiedzie."
       },
       "agent-availability": {
         "title": "Zaprzęgnij go do pracy",
@@ -976,7 +976,7 @@
       },
       "skills-list": {
         "title": "Twoje umiejętności",
-        "body": "Umiejętności, które napisałeś lub zainstalowałeś. Agent wybiera te, których potrzebuje, w swojej zakładce Skills, a ta sama umiejętność może służyć kilku agentom naraz."
+        "body": "Umiejętności, które napisano lub zainstalowano. Agent wybiera te, których potrzebuje, w swojej zakładce Skills, a ta sama umiejętność może służyć kilku agentom naraz."
       },
       "skills-library": {
         "title": "Zacznij od biblioteki",
@@ -1004,7 +1004,7 @@
       },
       "knowledge-tabs": {
         "title": "Przeglądaj lub szukaj",
-        "body": "Dwa widoki tej samej wiedzy: kolekcje, które zbudowałeś, i wyszukiwanie, które przebiega przez wszystkie naraz."
+        "body": "Dwa widoki tej samej wiedzy: kolekcje, które zbudowano, i wyszukiwanie, które przebiega przez wszystkie naraz."
       },
       "knowledge-integrations": {
         "title": "Połączenia wielokrotnego użytku",
@@ -1048,11 +1048,11 @@
       },
       "vault-new": {
         "title": "Sejf",
-        "body": "Klucze API i inne dane logowania żyją tutaj, zaszyfrowane w spoczynku. Agenci używają ich, żeby sięgnąć po potrzebne narzędzia, a zapisanego sekretu nikt już nie zobaczy."
+        "body": "Klucze API i inne poświadczenia żyją tutaj, zaszyfrowane w spoczynku. Agenci używają ich, żeby sięgnąć po potrzebne narzędzia, a zapisanego sekretu nikt już nie zobaczy."
       },
       "vault-keys": {
         "title": "Co jest przechowywane",
-        "body": "Każde dane logowania w tej organizacji, wypisane po nazwie i rodzaju. Agent odwołuje się do klucza po nazwie; samej wartości po zapisaniu nikomu się nie pokazuje."
+        "body": "Wszystkie poświadczenia w tej organizacji, wypisane według nazwy i rodzaju. Agent odwołuje się do klucza po nazwie; samej wartości po zapisaniu nikt już nie zobaczy."
       },
       "mcp-catalog": {
         "title": "Podłącz narzędzia",
@@ -1060,7 +1060,7 @@
       },
       "mcp-filter": {
         "title": "Znajdź serwer",
-        "body": "Przeszukaj katalog albo zawęź go po kategorii i po tym, czy już go podłączyłeś."
+        "body": "Przeszukaj katalog albo zawęź go po kategorii i po tym, czy jest już podłączony."
       },
       "mcp-add": {
         "title": "Dodaj własny",

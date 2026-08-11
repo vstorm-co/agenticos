@@ -205,7 +205,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
     inTour: true,
   },
   { id: "skills-list", page: ROUTES.SKILLS, target: "skills-list", permission: Perm.skillsView },
-  { id: "skills-library", page: ROUTES.SKILLS, target: "skills-library" },
+  // Gated like its sibling `skills-list`: `/skills` refuses the whole page without
+  // `skills:view`, so `SkillLibraryGallery` never mounts and an ungated stop would
+  // wait out its timeout on a control that cannot be there.
+  {
+    id: "skills-library",
+    page: ROUTES.SKILLS,
+    target: "skills-library",
+    permission: Perm.skillsView,
+  },
 
   {
     id: "activity-overview",
@@ -262,11 +270,16 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "knowledge-integrations",
     permission: Perm.connectionsManage,
   },
+  // Optional: the "Add integration" button renders only once the connector catalog
+  // has one to add (`reusable-integrations`), so on an empty or failed catalog its
+  // target never mounts and the engine must skip the stop rather than pin a caption
+  // on nothing — the same reason the MCP catalog controls carry it.
   {
     id: "knowledge-add-integration",
     page: ROUTES.RAG,
     target: "knowledge-add-integration",
     permission: Perm.connectionsManage,
+    optional: true,
   },
 
   // The collection detail, entered from the Knowledge list. Stacked sections

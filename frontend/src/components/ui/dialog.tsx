@@ -44,7 +44,11 @@ const DialogContent = React.forwardRef<
           // which sits outside the dialog), stranding the walk on a step whose dialog
           // is gone. Keep it open; the coach's close button ends the walk, and the
           // dialog's own Cancel still closes it. A no-op when no coach is active
-          // (`[data-coach-card]` renders only while a flow runs).
+          // (`[data-coach-card]` renders only while a flow runs). The check is global
+          // on purpose: while any flow runs — a `roam` step included, where the page
+          // is fully interactive — every dialog in the app ignores Escape and
+          // outside-click, not only the one being guided. Deliberate, and X and Cancel
+          // still close, so nobody is trapped.
           if (document.querySelector("[data-coach-card]")) event.preventDefault();
         }}
         onEscapeKeyDown={(event) => {

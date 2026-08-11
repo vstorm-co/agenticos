@@ -199,6 +199,13 @@ export function useOnboardingFlow(): OnboardingFlowState {
   if (flowId && liveState && frozen?.flowId !== flowId) {
     setFrozen({ flowId, state: liveState });
   }
+  // The snapshot is ready only once it is frozen for *this* flow. Until then the
+  // steps below are computed from DEFAULT_STATE ("the org has nothing"), so
+  // activating the coach on them would flash a fork built for an empty org — "no
+  // published agent, build one?" over an org that has one — and swap it away the
+  // moment the lists settle. `isActive` waits for `stateReady`, so the coach
+  // renders nothing until the state it will freeze on has landed.
+  const stateReady = frozen?.flowId === flowId;
   const orgState = frozen?.flowId === flowId ? frozen.state : DEFAULT_STATE;
 
   const flow = mode === "flow" && flowId ? FLOWS[flowId] : null;
@@ -261,7 +268,7 @@ export function useOnboardingFlow(): OnboardingFlowState {
   const finish = useCallback(() => close(), [close]);
 
   return {
-    isActive: isOpen && flow !== null && steps.length > 0,
+    isActive: isOpen && flow !== null && stateReady && steps.length > 0,
     flowId: flow ? flowId : null,
     steps,
     step,
