@@ -17,6 +17,31 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.106] - 2026-08-11
+
+The seam that puts a chart in a Slack reply is covered, so the line holding it
+there can no longer be deleted with a green suite.
+
+### Fixed
+
+- **A chart could stop reaching a channel reply without a single test
+  noticing.** `drawn_chart` was covered on its own and the runner's hand-back of
+  the tool calls a turn made was covered on its own; nothing joined them. Every
+  test of `ChannelAgentRouter.answer` mocks the runner, so the list of calls
+  stays empty and `image_png` is always `None` — which means `tool_calls=called`
+  could be deleted from either call site in `channels/mentions.py` with a green
+  suite and a 100% coverage gate, and a Slack user would be back to reading
+  "here is the chart" under no chart. Both reply paths now run against a stub
+  runner that fills the list the way the real one does, and assert on the PNG
+  rather than on a mock call; the stub takes the tool calls as a *required*
+  keyword, so a router that stops passing them fails loudly. (#515)
+
+Two things the issue behind this asserted did not survive checking, recorded
+here rather than left open: the line it named was already covered by the pull
+request that exposed it, and CI was never green while the local gate was red —
+the same 99.98% failure was red there for seven runs, so this was not a
+`make check` / CI divergence.
+
 ## [0.0.105] - 2026-08-11
 
 `next build` no longer touches the network, so a CDN nobody in this repository
