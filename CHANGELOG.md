@@ -17,6 +17,42 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.105] - 2026-08-11
+
+`next build` no longer touches the network, so a CDN nobody in this repository
+controls can no longer fail a frontend build.
+
+### Fixed
+
+- **Every green frontend build so far was luck of the CDN.**
+  `next/font/google` resolves a family against `fonts.gstatic.com` at build
+  time, and when gstatic 404s the `.woff2` Turbopack surfaces it as
+  `Module not found: Can't resolve
+  '@vercel/turbopack-next/internal/font/google/font'` and exits non-zero — which
+  is `test-frontend`'s `Build` step and `e2e`'s `Build the frontend` step. On
+  2026-08-10 it took out two pull requests inside one push window (#570,
+  Bricolage, six errors; #544, Inter, twenty-eight) while a third built fine.
+  Bricolage Grotesque, Inter and Geist Mono are now vendored under
+  `frontend/src/app/fonts/` and read by `next/font/local` — the latin subset of
+  each, range-limited to the weights in use, 113 KB across the three, with SIL
+  OFL 1.1 and all three copyright notices beside them. A regression test asserts
+  no module imports the Google helper and that the set of `.woff2` on disk is
+  exactly the set `layout.tsx` declares, compared in both directions. (#572)
+
+- **The coverage gate failed at random, on branches with no Python in them.**
+  Exactly 99.98%, twice tonight: on a frontend-only change and on a commit that
+  bumped three version strings. The missed line was the `continue` in
+  `catalog.custom_icon`, reachable only when `glob` yields a non-matching mark
+  first — `scandir` order, which on the runners' ext4 volumes is hash order, not
+  alphabetical. A test that asks for a name matching no mark in a directory
+  holding two now reaches it whatever the order. A red `test` job at 99.98% on a
+  diff that touched no Python is this, and reading it as the branch's fault cost
+  an hour. (#625)
+
+Known, unchanged: the vendored subsets are `latin` only — exactly what
+`subsets: ["latin"]` asked for before — so Polish diacritics on the `pl` locale
+still fall through to the system font.
+
 ## [0.0.104] - 2026-08-11
 
 A channel message the platform delivers twice is answered once, and the decision
