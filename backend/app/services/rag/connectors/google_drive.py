@@ -150,7 +150,6 @@ class GoogleDriveConnector(BaseSyncConnector):
             for f in response.get("files", []):
                 mime = f.get("mimeType", "")
 
-                # Handle folders - recurse if enabled, otherwise skip
                 if mime == "application/vnd.google-apps.folder":
                     if include_subfolders:
                         files.extend(self._list_folder(service, f["id"], include_subfolders))
@@ -158,7 +157,6 @@ class GoogleDriveConnector(BaseSyncConnector):
 
                 name = f.get("name", "")
 
-                # Map Google Apps MIME types to exportable formats
                 if mime in GOOGLE_DOCS_EXPORT:
                     export_mime, ext = GOOGLE_DOCS_EXPORT[mime]
                     if not name.endswith(ext):

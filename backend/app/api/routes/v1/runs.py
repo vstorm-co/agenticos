@@ -12,7 +12,6 @@ from fastapi import APIRouter, Depends, Query
 
 from app.api.deps import AgentRunnerSvc, ApprovalSvc, Auth, RunExportSvc, require
 from app.api.responses import csv_response
-from app.core.exceptions import ValidationError
 from app.core.permissions import Perm
 from app.db.models.agent_run import (
     ApprovalStatus,
@@ -110,7 +109,7 @@ async def list_runs(
         parent_run_id=parent_run_id,
         include_delegations=include_delegations,
         filters=RunFilters(
-            statuses=_parse_statuses(status),
+            statuses=RunStatus.parse_csv(status),
             surface=None if surface is None else surface.value,
             user_id=user_id,
             started_from=started_from,
@@ -126,9 +125,6 @@ async def list_runs(
         skip=skip,
         limit=limit,
     )
-    # Which of this page's runs earned a 👎, in one query rather than an EXISTS
-    # per row. Skipped when the page is empty - there is nothing to mark, and
-    # nothing to ask the database about.
     down_rated = (
         await service.down_rated_run_ids(ctx, [run.id for run in items]) if items else set()
     )
@@ -139,20 +135,6 @@ async def list_runs(
         ],
         total=total,
     )
-
-
-def _parse_statuses(raw: str | None) -> list[str] | None:
-    if raw is None:
-        return None
-    values = [part.strip() for part in raw.split(",") if part.strip()]
-    known = {member.value for member in RunStatus}
-    unknown = sorted(set(values) - known)
-    if unknown:
-        raise ValidationError(
-            message="Unknown run status",
-            details={"unknown": unknown, "expected": sorted(known)},
-        )
-    return values or None
 
 
 @router.get(
@@ -192,7 +174,7 @@ async def export_runs(
         parent_run_id=parent_run_id,
         include_delegations=include_delegations,
         filters=RunFilters(
-            statuses=_parse_statuses(status),
+            statuses=RunStatus.parse_csv(status),
             surface=None if surface is None else surface.value,
             user_id=user_id,
             started_from=started_from,

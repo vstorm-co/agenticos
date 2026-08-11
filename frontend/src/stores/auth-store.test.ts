@@ -12,7 +12,6 @@ const createMockUser = (overrides?: Partial<User>): User => ({
 
 describe("Auth Store", () => {
   beforeEach(() => {
-    // Reset store before each test
     useAuthStore.setState({
       user: null,
       isAuthenticated: false,
@@ -38,10 +37,8 @@ describe("Auth Store", () => {
   });
 
   it("should clear user on logout", () => {
-    // First set a user
     useAuthStore.getState().setUser(createMockUser());
 
-    // Then logout
     useAuthStore.getState().logout();
 
     const state = useAuthStore.getState();

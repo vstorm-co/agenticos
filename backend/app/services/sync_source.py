@@ -288,7 +288,7 @@ class SyncSourceService:
         Raises:
             NotFoundError: If sync source does not exist.
         """
-        await self.get_source(source_id)  # verify exists
+        await self.get_source(source_id)
         await sync_source_repo.delete(self.db, UUID(source_id))
 
     async def trigger_sync(self, source_id: str) -> object:

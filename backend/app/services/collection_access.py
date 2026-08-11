@@ -114,8 +114,6 @@ class CollectionAccessService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    # -- collections ----------------------------------------------------
-
     async def _first_readable(self, ctx: AuthContext, name: str) -> KnowledgeBase | None:
         """The first knowledge base claiming this name that the caller may read.
 
@@ -227,8 +225,6 @@ class CollectionAccessService:
                     details={"collection": name},
                 )
 
-    # -- documents ------------------------------------------------------
-
     async def _document(self, doc_id: str) -> RAGDocument:
         parsed = _as_uuid(doc_id)
         doc = None if parsed is None else await rag_document_repo.get_by_id(self.db, parsed)
@@ -254,8 +250,6 @@ class CollectionAccessService:
         if await self._first_writable(ctx, doc.collection_name) is None:
             raise _no_document(doc_id)
         return doc
-
-    # -- sync ------------------------------------------------------------
 
     async def sync_source(self, ctx: AuthContext, source_id: str) -> SyncSource:
         """The integration with this id inside the caller's organization.

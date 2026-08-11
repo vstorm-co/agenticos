@@ -26,6 +26,7 @@ cost a second place for every change to sit, so it was removed.
 | No force push, no deletion | Ruleset |
 | No commit made while standing on `main` | `no-commit-to-branch` in `.pre-commit-config.yaml` |
 | Spelling, across every tracked file | codespell — as a hook on the files a commit touches, and as `make lint-spelling` in CI's `lint` job over the whole tree |
+| Routes hold only routers, no banner comments, no dead code | `check_routes.py`, `check_comments.py` and `vulture` — hooks in `.pre-commit-config.yaml` (each scans the whole tree, `pass_filenames: false`) and steps of `make lint-backend` in CI's `lint` job |
 
 A hook only ever reads what a commit touches, which makes it a poor gate on its
 own: a misspelling that merges with its file sits there until somebody edits that

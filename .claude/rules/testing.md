@@ -31,8 +31,8 @@ after an edit it answers the same question ten to fifty times slower.
 Then, once, before the push:
 
 ```bash
-make lint               # ruff, ruff format, ty, eslint, prettier, tsc, the two guards,
-                        # and codespell over every tracked file
+make lint               # ruff, ruff format, ty, vulture, eslint, prettier, tsc, the guard
+                        # scripts, and codespell over every tracked file
 make test               # backend + the 100% gate; runs across workers (-n auto,
                         # capped at 4), pytest-cov combines their data
 make test-frontend-cov  # frontend + its gate: 100% lines/stmts/funcs, 97.5% branches

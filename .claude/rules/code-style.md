@@ -58,6 +58,52 @@ from app.core.exceptions import NotFoundError
 from app.schemas.user import UserCreate, UserRead
 ```
 
+## Comments
+
+Comments are scarce and earn their place. **The default is no comment.** The
+reference docs are generated from docstrings, so what reasoning a piece of code
+needs lives in a docstring, not in a running commentary of `#` lines.
+
+The bar for a comment is one question: **would a competent reader make a mistake,
+or be genuinely misled, without it?** If not, delete it. Clear names and small
+functions carry the meaning; a comment is for the thing the code cannot say.
+
+Delete a comment that:
+
+- **Restates what the code does.** `# increment i`, `# loop over users`.
+- **Labels a section.** `# the owner's side`, `# sending`, `# internals`,
+  `# what the agent may ask` — the class, the method and their names already mark
+  the structure. (ASCII-banner form — `# --- sending ---` — is rejected outright
+  by `scripts/check_comments.py`; the plain-label form is the same slop without
+  the dashes, so it goes too.)
+- **Narrates an optimisation or a mechanism a reader already sees.** "In one
+  query rather than an `EXISTS` per row." "Skipped when the page is empty —
+  nothing to do." "Two queries, deduplicated on ids." The code says this; the
+  comment is a second, staler copy.
+- **Grows into a paragraph.** A multi-line essay is a docstring in the wrong
+  place — move it, or cut it to the single clause that carries the *why*, or drop
+  it. Most drop.
+
+Keep a comment only when it prevents a real mistake: a footgun, a non-obvious
+constraint, a security or correctness invariant that the code cannot express, or
+a decision that looks wrong until you know the reason — ideally with the issue
+number (`# … (#417)`). One tight sentence, not a paragraph.
+
+**No commented-out code.** Git remembers it; delete it.
+
+When in doubt, delete. A comment removed is cheap to bring back; a wall of
+comments is what makes real code hard to find.
+
+## Dead code
+
+- No unused function, parameter, branch or import. `make lint` runs `vulture` as
+  a gate on what it is certain of (unused variables, parameters); `make dead-code`
+  is the deeper, human-read scan for unused functions and methods — noisier,
+  because the codebase is registry-driven, so read each finding before deleting.
+- False positives that are genuinely reachable (a dynamic dispatch vulture cannot
+  follow) go in `ignore_names` under `[tool.vulture]` in `backend/pyproject.toml`,
+  each with a comment saying what uses it.
+
 ## Other Conventions
 
 - `datetime.now(UTC)` not `datetime.utcnow()`

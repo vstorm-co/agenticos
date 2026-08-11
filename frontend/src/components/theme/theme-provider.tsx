@@ -21,7 +21,6 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     root.style.colorScheme = resolvedTheme;
   }, [theme]);
 
-  // Listen for system theme changes when using "system" theme
   useEffect(() => {
     if (theme !== "system") return;
 

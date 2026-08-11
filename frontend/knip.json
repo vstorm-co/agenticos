@@ -1,0 +1,7 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": ["e2e/*.setup.ts", "e2e/stub-model-server.ts", "e2e/screenshot.ts"],
+  "project": ["src/**/*.{ts,tsx}", "e2e/**/*.ts"],
+  "ignore": ["src/components/ui/**"],
+  "ignoreDependencies": ["date-fns", "eslint-config-prettier"]
+}
