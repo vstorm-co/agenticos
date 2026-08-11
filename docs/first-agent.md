@@ -6,6 +6,25 @@ a cent of tokens.
 
 You need a running stack - see [Install](install.md).
 
+## The guided way
+
+The steps below are the manual path, and worth reading once. But a new user does
+not start here: the first time anyone signs in, a walkthrough opens on the
+dashboard and points out each section in turn. It shows **once** - finishing,
+skipping or closing it is remembered against the account, not the browser, so it
+does not return on the next device - and the **?** in any page header replays that
+page's tips whenever they are wanted.
+
+Finishing the walkthrough offers to build the first agent *together*. That is an
+interactive flow, not a spotlight: it points at the real controls, the reader
+operates the real dialogs, and it advances the moment the thing is actually
+created. It is adaptive - it walks the path below, checks what the organization
+already has, and only stops where something is missing, teaching a workspace with
+no model how to add one and skipping straight past a prerequisite already in
+place. Declining guides nobody; the offer returns at the end of the Agents **?**
+walk. Every other section's **?** ends the same way, offering to create that
+section's resource - a skill, a knowledge base, an MCP connection, a workspace.
+
 ## 1. Store a provider key
 
 **Settings → Vault → Add credential.**
