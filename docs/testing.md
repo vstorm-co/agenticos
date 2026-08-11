@@ -30,14 +30,20 @@ red in CI", and a suite that always runs in collection order never asks the ques
 CI asks it in a fresh order every run.
 
 ```bash
-uv run pytest tests/ -q --randomly-seed=1697040112   # reproduce a red run exactly
+uv run pytest tests/ -q --randomly-seed=1697040112   # that order again, serially
 uv run pytest tests/ -q -p no:randomly               # collection order, while bisecting
 ```
 
 The seed is chosen once by the controller and handed to each xdist worker, so `-n auto`
-collects one order rather than four. Until #571 the plugin was documented but not
-installed, `-p no:randomly` was a silent no-op, and nothing had ever exercised the
-claim.
+collects one order rather than four. It does not fix which worker runs what: `make test`
+leaves xdist on its default `--dist load`, which hands each test to whichever worker is
+free. So a failure that depended on what shared a worker — the `InterfaceError` #571
+found is one — comes back by replaying the seed *serially*, as above, and not by
+re-running `make test`. The plugin also reseeds `random` identically before every test,
+so anything using it for uniqueness is unique within a test and repeats across them.
+
+Until #571 the plugin was documented but not installed, `-p no:randomly` was a silent
+no-op, and nothing had ever exercised the claim.
 
 Once, before pushing — `make check` runs all of it, in this order:
 
