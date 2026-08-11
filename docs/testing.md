@@ -320,3 +320,42 @@ indistinguishable in pytest's output.
 touching `alembic/versions/`, but it points at whatever `backend/.env` says, which
 on a laptop is the database with your own work in it. Prefer
 `uv run pytest tests/test_migrations.py`, which cannot reach it.
+
+## Prefect, and why no test reaches a server
+
+**Calling a `@flow` is a network call, and the suite points it at nowhere.** Prefect
+resolves its own settings from `backend/.env` — its settings model carries
+`env_file=".env"` — so `PREFECT_API_URL=http://localhost:4200/api`, the line `make dev`
+needs, was also the address a test's `@flow` call tried to reach. Without a server up
+that is `RuntimeError: Failed to reach API at http://localhost:4200/api/` out of a test
+that mocked every collaborator it has, and CI never saw it: with no `.env` there is no
+URL, so what a laptop ran was never what CI ran
+([#536](https://github.com/vstorm-co/agenticos/issues/536)).
+
+`tests/conftest.py` therefore assigns `PREFECT_API_URL` **empty** before Prefect is
+imported, next to the database name and password above and for the same reason.
+Deleting the variable would not do: an unset variable leaves the dotenv source to
+answer, and the dotenv source is what holds the URL. An empty assignment outranks it
+because Prefect's settings model carries `env_ignore_empty=False` — which is Prefect's
+rule and not ours, `app/core/config.py` setting it the other way, so the same line
+against one of our own settings would be discarded and the `.env` would answer anyway.
+Prefect reads an empty URL as no URL and starts a temporary server of its own for the
+call — which is what CI has always done — so the run no longer depends on whether a
+Prefect server happens to be up, in either direction.
+
+**That server's state is a SQLite database under `PREFECT_HOME`, and the suite gives it
+one of its own.** Left alone it is `~/.prefect`, so a unit run would write its flow runs
+into a developer's Prefect data and, where Prefect runs on the host rather than in
+Docker, into the file a running `prefect server` has open. `tests/conftest.py` points it
+at `agenticos-prefect-test` under the system temporary directory, for the same reason
+the Postgres name above is a test database. One directory rather than one per process:
+what costs is creating it.
+
+Creating it is a migration, and the suite raises Prefect's 20-second allowance for
+starting that server to 90 — **as headroom, not because 20 has been seen to fail.**
+Against a `PREFECT_HOME` nothing has written yet the whole start takes about six seconds
+on a laptop and about nine on a CI container, which is cold on every run and has never
+been red on the default. What the raised allowance buys is that the one step whose cost
+nothing here bounds — a migration on a contended machine, or a temporary directory that
+has been swept — waits rather than failing a suite that a second run would pass.
+`tests/test_prefect_test_environment.py` pins all four properties.
