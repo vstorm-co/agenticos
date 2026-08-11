@@ -49,11 +49,9 @@ logger = logging.getLogger(__name__)
 async def main() -> None:
     """Register all deployments and serve them."""
     deployments = []
-    # On-demand: triggered from API on file upload
     deployments.append(await ingest_document_flow.ato_deployment(name="ingest-document"))
     deployments.append(await sync_single_source_flow.ato_deployment(name="sync-single-source"))
     deployments.append(await sync_collection_flow.ato_deployment(name="sync-collection"))
-    # Scheduled: check connector sources every minute
     deployments.append(
         await check_scheduled_syncs_flow.ato_deployment(
             name="rag-sync-check",

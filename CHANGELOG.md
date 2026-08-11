@@ -17,6 +17,382 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.103] - 2026-08-11
+
+The Builder says when the agent people are talking to is not the one on screen,
+and Publish says what it will move before it moves it.
+
+### Added
+
+- **Publish says what it will move before it moves it.** The confirmation dialog
+  names the version it creates, the default environment that follows the publish
+  the moment it lands (or, on a first publish, that `production` is created and
+  the agent goes live), and each pinned environment that stays on the version it
+  is pinned to. (#519)
+
+### Fixed
+
+- **The Builder tracked "unsaved" and never "unpublished".** Once the autosave
+  settled the page read as finished, while every channel, widget and API call was
+  still answering with the published version — toggle a tool off in the Toolbox
+  and nothing on screen said a publish was needed. A header badge now compares the
+  *stored* draft against the frozen version spec: "Draft differs from v7", with a
+  title spelling out that published surfaces keep answering with v7 until a
+  publish, or "Up to date with v7". Compared as sorted-keys YAML, the same
+  serialization the version diff reads, so key order cannot read as a change
+  nobody made. (#519)
+- **A publish left the environments panel naming the pin it had just moved.**
+  Publish and rollback invalidated `qk.agents` and not `qk.environments`, so the
+  History tab contradicted the dialog's own sentence seconds after it was read.
+  Pre-existing; included because the new dialog makes it visible. (#519)
+
+## [0.0.102] - 2026-08-11
+
+The copy guard reads a `.ts` file, and the 381 English strings it had never been
+pointed at are in the catalog.
+
+### Fixed
+
+- **`check_i18n.py` never read a `.ts` file, so every hook toast was invisible to
+  it.** The offence sweep walked `frontend/src/**/*.tsx` and nothing else, which
+  left 381 offences across 90 files unread since the guard was written: nineteen
+  `toast.success("…")` in `src/hooks/**` alone, plus the module tables of labels in
+  `lib/tool-catalog.ts`, `lib/ingestion-config.ts` and `lib/mcp-servers.ts`.
+  Widening the glob was not the fix — in a `.ts` file `; return` is a text node and
+  `a > b` is a count — so `JSX_TEXT`, `MIXED`, `COUNT` and `LEAD` are gated on the
+  suffix and the rest now read a string literal wherever it sits. All 381 are
+  migrated: 233 messages added to `messages/en.json`, and the module tables hold
+  keys with the copy resolved where it renders, pure helpers taking the caller's
+  translator (`toolStep`, `toolCaption`, `ingestionProblems`,
+  `mergeWithUserCommands`). (#446)
+- **The `import`/`export` line-skip keyed on the keyword rather than the module
+  specifier**, which in a `.ts` file hid every `export const LABEL = "…"` and every
+  default parameter on an `export function` — `getErrorMessage`'s
+  `"An unexpected error occurred"`, the sentence behind most failed requests here,
+  and `PROVIDER_DEFAULT` beside a `useTranslations` import somebody had already
+  added and never used. (#446)
+- **The MCP add-server dialog rendered a catalog key as its hint.** `AUTH_CHOICES`
+  held `hint: "authTokenHint"` and the paragraph below the radio group printed it
+  verbatim, in every locale — neither a hardcoded string nor a missing key, so no
+  guard could see it. Found by the duplication rule once the catalog held the
+  sentence. (#446)
+- **The test translator was rebuilt on every call**, where the real
+  `useTranslations` is a `useMemo` over stable inputs. A hook putting `t` in a
+  `useCallback`'s dependencies then handed a new function to every render, and an
+  effect keyed on that callback re-fired forever: the admin conversations screen
+  loaded in a loop and never left its spinner. `vitest.setup.ts` caches one
+  translator per namespace. (#446)
+
+### Removed
+
+- **A superseded MCP catalog and two dead helpers.** `lib/mcp-catalog.ts` held a
+  curated table of fourteen servers with their own descriptions, examples and
+  category headings; nothing rendered it — the catalog the product shows is served
+  by the backend from `app/core/catalog/mcp_servers.json`, is fifty-nine entries
+  deep, and has its own categories. Its copy was dead English, so it was deleted
+  rather than translated, along with `MCP_CATEGORIES`' four unrendered headings and
+  `summarizeIngestion`, which only its own test called. `gen-mcp-logos.ts` now
+  takes its domains from the backend catalog. (#446)
+
+## [0.0.101] - 2026-08-11
+
+Three static guards against the code getting worse, and the slop they target
+swept out of the tree.
+
+### Added
+
+- **Guards that enforce standards `CLAUDE.md` only stated.** `scripts/check_routes.py`
+  keeps an endpoint module to routers — a helper moves to a service or a
+  `_`-prefixed module, or carries a reasoned `# routes-helper` marker;
+  `scripts/check_comments.py` rejects ASCII banner comments; and `vulture` gates
+  unused variables and parameters in `make lint`. The noisier function-level scan
+  and the frontend `knip` live in `make dead-code` as an advisory report, because
+  a blocking function gate on a registry-driven codebase is false positives all
+  the way down. (#595)
+
+### Changed
+
+- **Route helpers moved out of the endpoint modules.** The runs status parser
+  became `RunStatus.parse_csv`, on the enum that owns the values and shared by the
+  list and export routes; the sharing loaders moved to `_sharing_loaders.py`.
+- **Comment slop removed, ~140 lines across the backend and frontend** — section
+  labels, restatements, and mechanism-narration. The load-bearing
+  `#issue`/footgun/invariant comments and the docstrings stay, and `CLAUDE.md` and
+  `code-style.md` now state the bar: the default is no comment.
+- **Two dead items the previous sweep missed**, caught by the new `vulture` gate:
+  `sanitize_filename`, orphaned when its only caller was removed in #579, and a
+  dead `project_id` argument on `channel_session.create`. Closes #521. (#595)
+
+## [0.0.100] - 2026-08-10
+
+Dead weight removed across the backend and frontend, and one dead method turned
+into a real contract.
+
+### Changed
+
+- **Stripped unreferenced code across the tree.** Repository helpers, service
+  methods, sanitizers and frontend exports with no surviving caller are deleted
+  (each traced first), and four frontend `export`s narrowed to module-internal.
+  Net −892/+53. Not only deletion: the vector store's dead `aclose()` becomes an
+  abstract contract the application lifespan shuts down through, so teardown no
+  longer reaches past the interface into `.engine` behind a `# type: ignore`.
+  (#579)
+
+## [0.0.99] - 2026-08-10
+
+Run history can be filtered by rating, and a down-rated run says so — with the
+comment readable on the run itself.
+
+### Added
+
+- **Filter run history by rating, and flag a down-rated run.** A `rated=down`
+  filter on run history, and a `down_rated_run_ids` marker on list rows —
+  tenant-bound, `distinct`, and the same `rating < 0` definition the filter uses,
+  so a marked row is exactly a row the filter returns. In the run detail, the
+  most recent down rating's comment is read off the transcript
+  (`RunTranscriptMessage.rating_comment`, from
+  `get_down_rating_comments_for_messages`, batched newest-first), so "what people
+  said was wrong" is readable where the run is read rather than only in the
+  app-admin export. Permission-gated on `runs:view`. Completes the run side of
+  #209. (#538)
+
+## [0.0.98] - 2026-08-10
+
+Runs, approvals and spend export as CSV — exactly the rows the list would show.
+
+### Added
+
+- **CSV export for runs, approvals and spend.** `GET /runs/export`,
+  `/approvals/export` and `/spend/export` each serialise exactly the rows their
+  list route would return, gated as their list sibling is (runs and spend on
+  `runs:view`, approvals on `approvals:decide`) with the `Scope.OWN` floor
+  enforced in-query. An unbounded export gets the two rules it needs by design: a
+  mandatory date range and a row cap that refuses rather than truncates above it.
+  Columns survive a spreadsheet sum — `cost_is_partial` on runs,
+  `partial_run_count` on spend, so a wholly unpriced run exports a real `0` beside
+  `cost_is_partial=true`, never a bare `0` — and CSV formula injection is
+  neutralised. Each export writes an `audit_log` entry (window, applied filter
+  names, row count — never the request body or a resolved row). An export menu on
+  the Activity page carries the applied filters, gated on `runs:view`. Closes
+  #211. (#531)
+
+## [0.0.97] - 2026-08-10
+
+Regression coverage that every entry point records a run's transcript.
+
+### Changed
+
+- **Transcript recording is covered for embed, channel and default-agent runs.**
+  `backend/tests/test_surface_transcripts.py` asserts at the repository boundary
+  that a widget run, a channel mention and the default agent each record their
+  turns — role, content, run id, the model and version that actually ran, and
+  tool-call args and results — and that a broken widget run still records what
+  the visitor asked. Closes #205's requirement that the fix ship with a
+  regression test. (#530)
+
+## [0.0.96] - 2026-08-10
+
+The sync-source wizard is decomposed into one component per step — a structural
+refactor, no behaviour change.
+
+### Changed
+
+- **Sync-source wizard split into per-step components.** The 761-line
+  `sync-source-wizard.tsx` becomes a ~320-line shell (cross-step flow, the shared
+  form, the header and step indicator, and the `connectorsFailed` /
+  `orgIntegrationsFailed` flags it hands down) plus one component per step —
+  `sync-source-{connector,configure,schedule,clone}-step.tsx` — following the
+  pattern #221 set in `components/rag/`. A folded-in fix routes the empty-config
+  note through `next-intl`. Closes #461, #540. (#529)
+
+## [0.0.95] - 2026-08-10
+
+The Activity tab's spend view breaks down who spent what.
+
+### Added
+
+- **Per-person spend on the Activity tab.** A `SpendByPerson` card beneath "By
+  agent" on the Spend tab reads `/stats/usage?group_by=user` over the tab's date
+  window, gated on `runs:view` (renders nothing and issues no query without it),
+  with delegated runs excluded. A "+N others" line appears when `active_users`
+  exceeds the rows shown, so a top-N list never reads as the whole organization.
+  Closes #214. (#578, superseding the stacked #527)
+
+## [0.0.94] - 2026-08-10
+
+The Activity tab gains a per-version summary that cannot disagree with the
+dashboard's completed-share figure.
+
+### Added
+
+- **A version strip on the Activity tab.** When narrowed to one agent, a card per
+  version sits above the run table — runs, completed share, cost per run, p95 and
+  the current-version marker. Its "completed share" and the dashboard's Outcomes
+  donut both compute through one shared helper (`src/lib/run-outcomes.ts`), with
+  `cancelled` and `budget_exceeded` in the denominator on both sides, so the two
+  figures cannot drift. Closes #489. (#526)
+
+## [0.0.93] - 2026-08-10
+
+A run's transcript is readable by authorization, not only by whoever owns the
+run.
+
+### Added
+
+- **`GET /api/v1/runs/{run_id}/transcript`** — returns a run's messages
+  (paginated) to any colleague in the same organization holding `runs:view`; a
+  run is read by authorization, not by ownership. A caller from another tenant is
+  refused exactly as a run that does not exist is, so existence never leaks. The
+  response's `conversation_id` is `null` when the run has no transcript, distinct
+  from an empty `items`. `AgentRunnerService.get_run_transcript` resolves the run
+  org-scoped (404 before the permission is read), then checks `runs:view` (403).
+  Closes #490. (#525)
+
+## [0.0.92] - 2026-08-10
+
+The whole-suite test targets run across worker processes, roughly halving them.
+
+### Changed
+
+- **`make test` and the other whole-suite targets run across workers.** `pytest
+  -n auto --maxprocesses 4` on `test`, `test-fast`, `test-integration` and
+  `test-cov`; `pytest-cov` combines the per-worker data so the 100% platform gate
+  is unchanged, and scoped `pytest <file>` runs stay serial (spawning workers for
+  one file costs more than the file). The cap is four because the unit slice is
+  import-bound — every worker imports the app once — and an uncapped `-n auto` on
+  a many-core machine runs *slower* than serial, all of it worker startup. Adds
+  `pytest-xdist` to the dev group. Refs #520. (#570)
+
+## [0.0.91] - 2026-08-10
+
+The integration test suite builds its schema once per process instead of before
+every test, halving it.
+
+### Changed
+
+- **Integration tests build the schema once, not before every test.** The
+  per-test `drop_all` + `create_all` (~0.4s of DDL each, very nearly the whole
+  runtime of a suite whose assertions are microseconds of Postgres work) is
+  replaced by a session-scoped build plus a `TRUNCATE ... RESTART IDENTITY
+  CASCADE` reset between tests. The integration slice drops from ~125s to ~53s,
+  and the per-process `_p<pid>` database isolation is untouched, so two runs on
+  one machine stay safe. `TRUNCATE`, not a rollback: the API-flow tests commit
+  through the real session, so their rows would outlive a rollback. Closes #215.
+  Refs #520. (#535)
+
+## [0.0.90] - 2026-08-10
+
+Importing the application stops dragging in two SDKs it never uses on the
+request path, so every process start and scoped test run is a couple of seconds
+shorter.
+
+### Changed
+
+- **`import app.main` no longer pulls in `aiogram` and `prefect`.** The Telegram,
+  Slack and Mattermost adapters are imported inside `lifespan` (which the test
+  client never runs) and the sync flows inside their dispatcher, so a cold app
+  import drops from ~5.5s to ~2.3s — a cost every scoped `pytest` run and every
+  process start paid for libraries neither the API nor the tests touch. A
+  subprocess guard test keeps them out of `sys.modules`, and a dead
+  `_slack_register` alias went with it. Runtime behaviour is unchanged; startup
+  imports them as before. Refs #520. (#544)
+
+## [0.0.89] - 2026-08-10
+
+Run history gains the duration controls the dashboard's p95 needs rows behind,
+and the contributor guidance has its test-loop numbers corrected.
+
+### Added
+
+- **Sort and filter run history by duration** — a sortable `Took` column, a
+  "slow runs" canned view, and a dashboard p95 deep-link that seeds the sort and
+  the time window. The sort is server-side over the whole narrowed set, not one
+  page; the backend query landed with #202 and is reused unchanged. Closes #210.
+  (#528)
+
+### Changed
+
+- **Contributor guidance** — `CLAUDE.md` now states the scoped-vs-full test rule
+  outright and its runtime figures are corrected against measurement: CI answers
+  in about twelve minutes rather than seven, and a scoped backend file takes a
+  few seconds rather than "under one" (the wait is importing the app, not the
+  run). The same stale CI figure in `docs/testing.md` and three moved
+  `app/core/catalog/` paths in the docs trigger map went with it. Closes #522.
+  (#534)
+
+## [0.0.88] - 2026-08-10
+
+Two grouped dependency updates, nothing else. The lockfile resolves cleanly with
+both applied (`uv lock --check`), and CI is green on the combination.
+
+### Changed
+
+- **Agent-framework dependencies** — `pydantic-ai-slim` to 2.26.0 (including its
+  `mcp` extra), `logfire` to 4.40.0, and `genai-prices` to 0.1.1. (#523)
+- **The rest of the backend** — `uvicorn[standard]` to 0.52.1, `alembic` to
+  1.19.0, `pymupdf` to 1.28.2, `liteparse` to 2.11.1, `google-auth` to 2.56.3,
+  `boto3` to 1.43.66, and the `ty` type checker to 0.0.69. (#524)
+
+## [0.0.87] - 2026-08-10
+
+Mattermost is a channel you can register and talk to, and the gaps that stopped
+any channel from being a complete surface are closed with it. One agent can now
+answer on Mattermost, Slack and Telegram, be watched writing its reply, read the
+channel it is answering in, and be told how to write for that surface — without
+editing the spec every surface shares. Closes eleven issues (#41, #24, #22, #10,
+#205, #157, #152, #208, #26, #153, #514). The delivery-dedup guard a retried
+webhook needs is deliberately not here and stays tracked as #167.
+
+Nine migrations, `0013`–`0021`, add the link-request, exposure-prompt and
+per-binding tool columns and settle the "one agent per bot" rule. `SPEC_VERSION`
+stays at **8**: the channel-tools capability is assembled per run from the
+binding that admitted the message, never stored in a published spec.
+
+### Added
+
+- **A working Mattermost integration.** A bot is registered with its own server
+  URL and an operator-supplied webhook secret, and answers over either an
+  outgoing webhook or an authenticated event stream — the latter the right
+  choice behind a VPN, exposing nothing. Registerable from the exposure panel
+  and from the CLI (`agenticos cmd channel-add-bot`), for a deployment with no
+  browser pointed at it. `api_base_url` is validated on scheme and shape so an internal
+  address passes. (#41, #24)
+- **A reply a chat can watch being written.** A placeholder post appears the
+  moment the question arrives, grows in place — throttled to about one edit a
+  second — and shows what the agent is doing while a tool runs, on Mattermost,
+  Slack and Telegram through one seam. An adapter that cannot edit a message
+  still posts one finished answer. (#514)
+- **A per-channel prompt on the binding.** House style for a surface — how to
+  lay a message out, how long to answer, which language — appended to the spec's
+  instructions at run time and never substituted for them, seeded per platform
+  and editable beside the environment and session-scope controls. It lives on
+  the exposure row, so it never enters a client's exported YAML. (#153)
+- **An agent can read the channel it is answering in** — its info and members —
+  through tools granted by the binding, so "may it read what was said here" has
+  a different answer on an internal server and a customer one.
+- **Account linking and complete channel runs.** `/link` mints a code and
+  `@slug` runs as the person who typed it; a channel run records its messages
+  and the surface it arrived on, renders a chart as an image, and answers a tool
+  approval in the thread that asked for it. (#10, #205, #208, #157, #152)
+
+### Changed
+
+- **`webhook_secret` is sealed at rest** through the vault, beside the three
+  secrets that already were; the Mattermost webhook accepts the token Mattermost
+  generates rather than one minted locally, while Telegram keeps minting the one
+  we hand out. (#22)
+- **A channel webhook hands its work over with `spawn_after_commit`**, so the
+  background run sees the row the request just wrote. (#26)
+- One bot serves one agent; a second binding to the same bot is refused.
+
+### Fixed
+
+- A failed final live-reply edit re-posts the answer whole instead of blanking
+  it; "needs approval" is said only when a run actually parked; a resumed channel
+  run keeps its exposure prompt and channel tools; and the chart renderer sizes a
+  stacked bar to the stack rather than the tallest bar, treats a non-finite value
+  as a gap, and draws in any colour Pillow accepts.
+
 ## [0.0.86] - 2026-08-09
 
 A file dragged into the chat lands wherever it is dropped.

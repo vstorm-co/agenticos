@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { apiClient } from "@/lib/api-client";
@@ -32,6 +33,7 @@ import type {
  * offers.
  */
 export function useSecrets() {
+  const t = useTranslations("vault");
   const queryClient = useQueryClient();
 
   const secrets = useQuery({
@@ -60,7 +62,7 @@ export function useSecrets() {
     mutationFn: (data: NewSecret) => apiClient.post<Secret>("/secrets", data),
     onSuccess: async (secret) => {
       await invalidate();
-      toast.success(`Stored ${secret.name} (…${secret.hint})`);
+      toast.success(t("secretStored", { name: secret.name, hint: secret.hint }));
     },
   });
 
@@ -71,7 +73,7 @@ export function useSecrets() {
       // Said in full because rotation is the one operation here that destroys
       // something: the id survives, so every agent bound to it keeps working,
       // and the value it used a second ago is gone.
-      toast.success(`Rotated ${secret.name}. It now ends ${secret.hint}; the old value is gone.`);
+      toast.success(t("secretRotated", { name: secret.name, hint: secret.hint }));
     },
   });
 
@@ -79,7 +81,7 @@ export function useSecrets() {
     mutationFn: (id: string) => apiClient.delete<void>(`/secrets/${id}`),
     onSuccess: async () => {
       await invalidate();
-      toast.success("Secret deleted. Any agent using it fails at its next run.");
+      toast.success(t("secretDeleted"));
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   });

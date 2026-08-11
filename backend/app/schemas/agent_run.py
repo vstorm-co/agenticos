@@ -8,6 +8,7 @@ from uuid import UUID
 from pydantic import Field, model_validator
 
 from app.schemas.base import BaseSchema
+from app.schemas.conversation import MessageRead
 
 
 class AgentRunRead(BaseSchema):
@@ -48,6 +49,17 @@ class AgentRunRead(BaseSchema):
         ),
     )
     error: str | None = None
+    down_rated: bool = Field(
+        default=False,
+        description=(
+            "Whether an assistant answer this run produced was rated down by "
+            "anybody - the 👎 run history draws on the row, and the same fact "
+            "the `rated=down` filter selects on. A rating hangs off a message "
+            "and a message names its run, so a run older than that stamping "
+            "reads false. Set by the run reads; false on any other surface, "
+            "which does not compute it."
+        ),
+    )
     started_at: datetime | None = None
     ended_at: datetime | None = None
     parent_run_id: UUID | None = Field(
@@ -98,6 +110,68 @@ class AgentRunRead(BaseSchema):
 
 class AgentRunList(BaseSchema):
     items: list[AgentRunRead]
+    total: int
+
+
+class RunTranscriptMessage(MessageRead):
+    """A transcript turn, carrying the ratings people left on it.
+
+    The base is the same row `GET /conversations/{id}/messages` returns; the run
+    detail view needs three things more, so the answers people rated down and the
+    words they left can be read where the dashboard's quality number is explained.
+    All three default to their empty answer, so a turn nobody rated serializes
+    exactly as a plain message does - the fields are additive, and a client that
+    ignores them sees the message it always did.
+
+    Attributes:
+        user_rating: The reading caller's own thumb on this turn - `1`, `-1`, or
+            null. Usually null: a transcript is read by whoever holds `runs:view`,
+            not by whoever the run ran as.
+        rating_count: How the organization rated it, `{"likes": n, "dislikes": n}`,
+            or null when nobody has. The same shape the rating repository counts in.
+        rating_comment: The most recent down rating's comment, or null. An up
+            rating's note is not it - the panel shows what people said was wrong.
+    """
+
+    user_rating: int | None = None
+    rating_count: dict[str, int] | None = None
+    rating_comment: str | None = None
+
+
+class RunTranscript(BaseSchema):
+    """One run's turns, in the order they happened, as the run detail view reads them.
+
+    The messages are the same rows `GET /conversations/{id}/messages` returns, but
+    narrowed to a single run by `messages.run_id` and reached under a different
+    authorization: reading a run is the organization's right, not its owner's, so a
+    colleague holding `runs:view` reads a run somebody else started - which the
+    conversation route deliberately refuses.
+
+    Attributes:
+        run_id: The run these turns belong to.
+        conversation_id: The thread the run ran inside, or `None` when it ran
+            with no conversation - an API call that passed no `conversation_id`.
+            A null here is the answer "this run has no transcript", which a client
+            must tell apart from an empty `items` for a run that *had* a thread and
+            simply produced nothing: the runner never writes a turn for a run with
+            no conversation, so an empty list under a null id is a certainty rather
+            than a coincidence, and reads as "there is nothing to show" rather than
+            "it did nothing".
+        items: The run's messages, oldest first.
+        total: How many turns the run produced, so a paged read still knows the
+            size of what it is paging through.
+    """
+
+    run_id: UUID
+    conversation_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The conversation this run ran inside, or null when it ran with none - "
+            "which is how a client says 'this run has no transcript' rather than "
+            "drawing an empty list that reads as 'it did nothing'."
+        ),
+    )
+    items: list[RunTranscriptMessage]
     total: int
 
 

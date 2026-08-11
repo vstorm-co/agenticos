@@ -12,6 +12,7 @@ export class BackendApiError extends Error {
     public statusText: string,
     public data?: unknown,
   ) {
+    // i18n-exempt: an Error message for a log, never rendered.
     super(`Backend API error: ${status} ${statusText}`);
     this.name = "BackendApiError";
   }
@@ -64,7 +65,6 @@ export async function backendFetch<T>(endpoint: string, options: RequestOptions 
     throw new BackendApiError(response.status, response.statusText, errorData);
   }
 
-  // Handle empty responses
   const text = await response.text();
   if (!text) {
     return null as T;

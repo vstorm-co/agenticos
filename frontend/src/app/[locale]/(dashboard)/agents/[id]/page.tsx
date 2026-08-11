@@ -24,7 +24,6 @@ import { AgentMap, MAP_ICONS, type MapDelegate, type MapNode } from "@/component
 import { AgentStatusBadge } from "@/components/agents/status-badge";
 import { AlertsPanel } from "@/components/agents/alerts-panel";
 import { CapabilityWorkbench } from "@/components/agents/capability-workbench";
-import { ChannelBotsPanel } from "@/components/agents/channel-bots-panel";
 import { CollectionPicker } from "@/components/agents/collection-picker";
 import { EmbedsPanel } from "@/components/agents/embeds-panel";
 import { ExposuresPanel } from "@/components/agents/exposures-panel";
@@ -33,6 +32,8 @@ import { McpServerPicker } from "@/components/agents/mcp-server-picker";
 import { McpServerList } from "@/components/mcp/mcp-server-list";
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { ObservabilityCard } from "@/components/agents/observability-card";
+import { PublishDialog } from "@/components/agents/publish-dialog";
+import { PublishState } from "@/components/agents/publish-state";
 import { RunSummary } from "@/components/agents/run-summary";
 import { ModelSettingsForm } from "@/components/agents/model-settings-form";
 import { SkillGallery } from "@/components/agents/skill-gallery";
@@ -133,6 +134,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const [spec, setSpec] = useState<AgentSpec | null>(null);
   const [problems, setProblems] = useState<string[]>([]);
   const [confirming, setConfirming] = useState<"archive" | "delete" | null>(null);
+  const [publishOpen, setPublishOpen] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [connectingMcp, setConnectingMcp] = useState(false);
   // Bumped after an upload so the <img> src changes; the URL is otherwise
@@ -366,12 +368,22 @@ export default function AgentBuilderPage({ params }: PageProps) {
     }
   }
 
+  /**
+   * Store, validate, and then *ask* - publishing is the one click on this page
+   * that changes what every channel, widget and API call answers with, and the
+   * dialog is where that is said before it happens rather than after.
+   */
   async function handlePublish() {
     if (!(await persist())) return;
     const found = await validate();
     setProblems(found);
-    if (found.length === 0) await publish.mutateAsync(null);
+    if (found.length === 0) setPublishOpen(true);
   }
+
+  // What the next publish will be called. The server owns the number; this
+  // predicts it the only way a sentence shown *before* the publish can - one
+  // past the newest version, or v1 when there is none.
+  const nextVersion = versions.reduce((max, entry) => Math.max(max, entry.version), 0) + 1;
 
   /**
    * Address the chat to this agent, then open it on a fresh thread.
@@ -426,9 +438,19 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </span>
             {agent.name}
             <AgentStatusBadge status={agent.status} />
-            {/* The draft saves itself; this says where that stands. Quiet when
-                everything is stored - "saved" as a permanent label reads as a
-                button. */}
+            {/* Two badges, two different questions. This one: is the stored
+                draft what published surfaces are answering with - computed
+                from the server's copies, so the autosave settling cannot clear
+                it into a page that reads as finished while every channel is
+                still on the old version (#519). */}
+            <PublishState
+              agentId={id}
+              currentVersionId={agent.current_version_id}
+              draftSpec={agent.draft_spec}
+            />
+            {/* And this one: is my edit stored. The draft saves itself; this
+                says where that stands. Quiet when everything is stored -
+                "saved" as a permanent label reads as a button. */}
             {canEdit &&
               (saveDraft.isPending ? (
                 <Badge variant="secondary">{t("saving")}</Badge>
@@ -560,6 +582,23 @@ export default function AgentBuilderPage({ params }: PageProps) {
           <McpServerList canManageOrganization={can(Perm.connectionsManage)} />
         </DialogContent>
       </Dialog>
+
+      <PublishDialog
+        open={publishOpen}
+        onOpenChange={setPublishOpen}
+        version={nextVersion}
+        environments={environments}
+        publishing={publish.isPending}
+        onConfirm={async () => {
+          try {
+            await publish.mutateAsync(null);
+            setPublishOpen(false);
+          } catch {
+            // The hook already toasts the refusal; the dialog stays open so
+            // the retry is one click rather than a re-run of validation.
+          }
+        }}
+      />
 
       {confirming === "archive" && (
         <ConfirmDialog
@@ -871,10 +910,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
           {/* Managing a trigger is the same floor as running the agent, not
               publishing it - the server resolves `agents:run` per row. */}
           <TriggersPanel agentId={id} canManage={can(Perm.agentsRun)} />
-          {/* Bots stay organization resources - one bot serves many agents -
-              but they are registered here, beside the binding they exist for.
-              The panel hides itself from anyone without channels:manage. */}
-          <ChannelBotsPanel canManage={can(Perm.channelsManage)} />
           <EmbedsPanel agentId={id} canManage={canPublish} />
           <SharingPanel resourceType="agent" resourceId={id} canManage={canEdit} />
         </TabsContent>

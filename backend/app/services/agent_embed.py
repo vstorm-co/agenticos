@@ -44,6 +44,7 @@ from app.schemas.agent_embed import (
     EmbedRead,
     EmbedTheme,
     EmbedUpdate,
+    EmbedVariable,
     PublicEmbedConfig,
 )
 from app.services.agent_registry import AgentRegistryService
@@ -82,8 +83,6 @@ class AgentEmbedService:
         self.db = db
         self.agents = AgentRegistryService(db)
 
-    # --- the owner's side --------------------------------------------------
-
     async def list_for_agent(self, ctx: AuthContext, agent_id: UUID) -> list[EmbedRead]:
         """Every widget publishing one agent.
 
@@ -121,6 +120,7 @@ class AgentEmbedService:
             allowed_origins=[_origin_of(str(origin)) for origin in data.allowed_origins],
             theme=data.theme.model_dump(),
             context=data.context,
+            context_variables=[variable.model_dump() for variable in data.context_variables],
             rate_limit_per_minute=data.rate_limit_per_minute,
         )
         created = await agent_embed_repo.create(self.db, embed=embed)
@@ -162,6 +162,14 @@ class AgentEmbedService:
             ]
         if "theme" in changes and changes["theme"] is not None:
             changes["theme"] = EmbedTheme.model_validate(changes["theme"]).model_dump()
+        if "context_variables" in changes:
+            # An explicit null means "declare none", not NULL: the column cannot
+            # hold one, and a widget that declares nothing is the ordinary state
+            # rather than an absence of information about it.
+            changes["context_variables"] = [
+                EmbedVariable.model_validate(variable).model_dump()
+                for variable in (changes["context_variables"] or [])
+            ]
 
         updated = await agent_embed_repo.update(self.db, db_embed=embed, update_data=changes)
         await record_audit(
@@ -193,8 +201,6 @@ class AgentEmbedService:
             target_id=str(embed.agent_id),
             details={"embed_id": str(embed_id)},
         )
-
-    # --- the visitor's side ------------------------------------------------
 
     async def admit(
         self, public_key: str, *, origin: str | None, token: str | None
@@ -248,8 +254,6 @@ class AgentEmbedService:
             requires_token=embed.auth_mode == "jwt",
             agent_name=agent.name if agent else "Assistant",
         )
-
-    # --- internals ---------------------------------------------------------
 
     def _origin_allowed(self, embed: AgentEmbed, origin: str | None) -> bool:
         """Whether the page the widget is on may use it.
@@ -328,6 +332,10 @@ class AgentEmbedService:
             allowed_origins=list(embed.allowed_origins or []),
             theme=EmbedTheme.model_validate(theme),
             context=embed.context,
+            context_variables=[
+                EmbedVariable.model_validate(variable)
+                for variable in (embed.context_variables or [])
+            ],
             is_active=embed.is_active,
             rate_limit_per_minute=embed.rate_limit_per_minute,
             snippet=self.snippet_for(embed),
@@ -337,11 +345,22 @@ class AgentEmbedService:
 
     @staticmethod
     def snippet_for(embed: AgentEmbed) -> str:
-        """The two lines a customer pastes.
+        """The lines a customer pastes.
 
         Assembled here rather than in the browser so the deployment's own URL is
         known in exactly one place - a snippet built client-side would carry
         whatever host the dashboard happened to be opened on.
+
+        A widget that declares variables gets the line that supplies them, with
+        its own keys in it and `…` where the values go. The declaration is
+        otherwise something an integrator has to find in a form and translate
+        into a global by hand, which is a step nobody documents and everybody
+        gets wrong once.
         """
         base = settings.PUBLIC_BASE_URL.rstrip("/")
-        return f'<script src="{base}/api/v1/embed/{embed.public_key}/widget.js" async></script>'
+        tag = f'<script src="{base}/api/v1/embed/{embed.public_key}/widget.js" async></script>'
+        declared = [str(variable.get("name", "")) for variable in (embed.context_variables or [])]
+        if not any(declared):
+            return tag
+        keys = ", ".join(f"{name}: …" for name in declared if name)
+        return f"<script>window.AgenticOSContext = {{ {keys} }};</script>\n{tag}"

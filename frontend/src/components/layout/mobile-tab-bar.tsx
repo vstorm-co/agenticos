@@ -38,7 +38,6 @@ export function MobileTabBar() {
       label: t("search"),
       icon: Search,
       onClick: () => {
-        // Trigger global ⌘K command palette via synthetic keyboard event.
         const event = new KeyboardEvent("keydown", {
           key: "k",
           metaKey: true,

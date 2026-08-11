@@ -1,10 +1,10 @@
 """Event triggers - fire an agent on a GitHub issue or an inbound email
 
-Revision ID: 0014_agent_event_triggers
-Revises: 0013_agent_triggers
+Revision ID: 0023_agent_event_triggers
+Revises: 0022_agent_triggers
 Create Date: 2026-08-11
 
-`0013` gave `agent_triggers` one shape: a clock schedule (interval or cron). This
+`0022` gave `agent_triggers` one shape: a clock schedule (interval or cron). This
 adds the second concept behind agenticos#44 - an *event* trigger, fired when
 something arrives rather than when the clock says so - to the same table, told
 apart by a new `trigger_type` discriminator (`schedule` | `event`).
@@ -26,7 +26,7 @@ machinery. Two narrow CHECKs join it - `ck_trigger_type` for the discriminator's
 vocabulary and `ck_trigger_event_source` for the source's. All three are declared
 on the model too, because the integration tests build the schema from the models.
 
-The downgrade is real but lossy by necessity: the pre-0014 schema has no concept of
+The downgrade is real but lossy by necessity: the pre-0023 schema has no concept of
 an event trigger, so it deletes any event rows before restoring `next_fire_at`'s
 NOT NULL and the schedule-only shape check - there is nothing in the old shape to
 migrate them to.
@@ -37,8 +37,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision = "0014_agent_event_triggers"
-down_revision = "0013_agent_triggers"
+revision = "0023_agent_event_triggers"
+down_revision = "0022_agent_triggers"
 branch_labels = None
 depends_on = None
 

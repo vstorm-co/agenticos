@@ -19,6 +19,15 @@ export interface AgentRun {
   cost_is_partial: boolean;
   logfire_trace_id: string | null;
   error: string | null;
+  /**
+   * Whether an assistant answer this run produced was rated down by anybody -
+   * what run history draws a 👎 on, and the same fact `?rated=down` filters on.
+   *
+   * A rating hangs off a message and a message names its run, so a run older
+   * than that stamping reads `false`. The backend computes it on the run reads;
+   * it is `false` on any surface that does not, never absent.
+   */
+  down_rated: boolean;
   started_at: string | null;
   ended_at: string | null;
   /**
@@ -45,6 +54,41 @@ export interface AgentRun {
 
 export interface AgentRunList {
   items: AgentRun[];
+  total: number;
+}
+
+/**
+ * One turn of a run's transcript, as `GET /runs/{run_id}/transcript` returns it.
+ *
+ * The run-detail surface reads the transcript to show the answers people rated
+ * down and what they said was wrong. `user_rating` is the reader's own thumb
+ * (`1`/`-1`/absent) and `rating_count` the aggregate; `rating_comment` is the
+ * free text left with a thumb down, which is the highest-signal half - a rating
+ * with words is a complaint you can act on.
+ */
+export interface RunTranscriptMessage {
+  id: string;
+  role: string;
+  content: string;
+  /** The current reader's own rating: 1 (up), -1 (down), or absent for none. */
+  user_rating?: number | null;
+  /** Aggregate counts across everyone who rated this answer. */
+  rating_count?: { likes: number; dislikes: number } | null;
+  /** The free-text comment left with a thumb down, when there was one. */
+  rating_comment?: string | null;
+}
+
+/**
+ * A run's recorded turns, newest question first.
+ *
+ * `conversation_id` is null for a run with no conversation behind it - an HTTP
+ * API call, a resumed run - which is what lets the surface say "nothing was
+ * recorded" rather than draw an empty transcript.
+ */
+export interface RunTranscript {
+  run_id: string;
+  conversation_id: string | null;
+  items: RunTranscriptMessage[];
   total: number;
 }
 

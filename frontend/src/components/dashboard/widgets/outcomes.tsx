@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 
+import { completedShare, formatCompletedShare, statusTally } from "@/lib/run-outcomes";
 import { DonutChart } from "../primitives/donut-chart";
 import { WidgetFrame } from "../widget-frame";
 import type { DashboardWidgetProps } from "./types";
@@ -21,17 +22,21 @@ export function OutcomesWidget({ title, period, seeAll }: DashboardWidgetProps) 
     <WidgetFrame title={title} seeAll={seeAll}>
       <UsageBody period={period} emptyKey="outcomes">
         {(usage) => {
-          const counts = new Map((usage.by_status ?? []).map((row) => [row.status, row.runs]));
+          const byStatus = usage.by_status ?? [];
+          const counts = new Map(byStatus.map((row) => [row.status, row.runs]));
           const of = (status: string) => counts.get(status as never) ?? 0;
-          const total = usage.total_runs ?? 0;
-          const completed = of("completed");
+          // The same tally, and the same shared formula, the Activity version
+          // strip reads - so the two never disagree on what "completed" means
+          // over one set of rows (docs/design/activity-plan.md §8a.4).
+          const tally = statusTally(byStatus);
+          const total = tally.total;
           const failed = of("failed");
           const budget = of("budget_exceeded");
           const awaiting = of("awaiting_approval");
           const other = of("running") + of("cancelled");
           const attention = failed + budget;
           const segments = [
-            { name: t("status.completed"), value: completed, color: "var(--color-success)" },
+            { name: t("status.completed"), value: tally.completed, color: "var(--color-success)" },
             { name: t("status.failed"), value: failed, color: "var(--color-destructive)" },
             { name: t("status.budget_exceeded"), value: budget, color: "var(--color-warning)" },
             { name: t("status.awaiting_approval"), value: awaiting, color: "var(--color-chart)" },
@@ -41,7 +46,7 @@ export function OutcomesWidget({ title, period, seeAll }: DashboardWidgetProps) 
             <div className="flex h-full flex-col justify-between gap-2">
               <DonutChart
                 segments={segments}
-                centerLabel={`${total > 0 ? Math.round((completed / total) * 100) : 0}%`}
+                centerLabel={formatCompletedShare(completedShare(tally))}
                 centerSub={t("completed")}
               />
               {attention > 0 ? (

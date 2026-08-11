@@ -26,6 +26,7 @@ const NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
 
 export function SlashCommandsManager() {
   const t = useTranslations("settings");
+  const tCommands = useTranslations("chat.commands");
   const {
     records,
     isLoading,
@@ -154,7 +155,7 @@ export function SlashCommandsManager() {
                       </span>
                     )}
                   </div>
-                  <p className="text-foreground/65 mt-1 text-xs">{cmd.description}</p>
+                  <p className="text-foreground/65 mt-1 text-xs">{tCommands(cmd.descriptionKey)}</p>
                 </div>
                 <Switch
                   checked={enabled}

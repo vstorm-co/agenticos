@@ -14,10 +14,19 @@ uv run pytest tests/api/test_workspace_routes.py -x -v     # stop at the first f
 uv run pytest tests/integration -v --no-cov                # the ones needing a database
 ```
 
+These stay **serial** on purpose: spawning worker processes to run one file costs
+more than the file does. The whole-suite targets — `make test`, `make test-fast`,
+`make test-integration`, `make test-cov` — run across workers (`pytest -n auto --maxprocesses 4`),
+which roughly halves the I/O-bound integration suite; `pytest-cov` combines the
+per-worker data, so the 100% gate is unchanged. The cap is four because the unit
+suite is import-bound — every worker imports the app once — and gains nothing past
+that, while an uncapped `auto` on a many-core laptop is *slower* than serial, all of
+it worker startup (#520).
+
 Once, before pushing — `make check` runs all of it, in this order:
 
 ```bash
-make lint               # ruff, ruff format, ty, eslint, prettier, tsc, and the two guards
+make lint               # ruff, ruff format, ty, vulture, eslint, prettier, tsc, the guards
 make test               # the suite plus the 100% gate on the platform layer
 make db-check           # alembic check — a model change with no migration fails here
 make test-frontend-cov  # the frontend suite plus its own gate
@@ -26,7 +35,8 @@ make docs-build         # mkdocs --strict — a dead link is a failure
 make audit              # the locked dependency set against the advisory database
 ```
 
-About five minutes serial, against CI's seven in parallel. The equality is
+About five minutes serial, against CI's twelve in parallel — the backend `test`
+job the long pole there, which #520 is cutting. The equality is
 maintained rather than asserted: the workflow calls these targets rather than
 repeating their commands, and `tests/test_ci_parity.py` fails if a gating job
 grows a step `make check` does not run. It has drifted four times — see
@@ -226,16 +236,28 @@ Everything under `tests/integration/` is the exception, and it asks for the `db`
 fixture from `tests/integration/conftest.py` rather than building an engine of its
 own — that fixture is what puts the schema in place.
 
+**The schema is built once for the whole process, and the data reset between tests.**
+The `schema_url` fixture runs `create_all` a single time; the function-scoped `engine`
+fixture then hands each test an empty database by `TRUNCATE`-ing every model table
+(and dropping any table a test created outside the models — a runtime
+`rag_<collection>`, an ordering probe) rather than rebuilding the schema. It used to
+`drop_all` + `create_all` before *every* test, ~0.4s of DDL that was very nearly the
+entire runtime of a suite whose assertions are microseconds of Postgres work; building
+it once cut `tests/integration` from ~125s to ~50s
+([#215](https://github.com/vstorm-co/agenticos/issues/215)). `TRUNCATE` rather than a
+transaction rollback because the API-flow tests commit through the real
+`get_db_session`, so their rows outlive a rollback.
+
 **The database it uses belongs to the pytest process that asked for it**:
 `<POSTGRES_DB>_p<pid>`, created when the session starts and dropped when it ends,
 failure included. That is what makes two runs at once safe — two worktrees, or a
 worktree and a `make test`, against the one Postgres container — and it needs nothing
 passed on the command line. The name was constant until [#189](https://github.com/vstorm-co/agenticos/issues/189),
-and since the fixture rebuilds the schema before every test, two runs spent their time
-dropping each other's tables and reporting failures that belonged to neither branch.
-The suite still refuses any database whose name does not contain `test` or `ci`: it
-drops tables unconditionally, so the guard is the only thing between it and a
-development database.
+and because each test dropped and recreated the schema on that shared database, two
+runs spent their time dropping each other's tables and reporting failures that belonged
+to neither branch. The suite still refuses any database whose name does not contain
+`test` or `ci`: it drops tables unconditionally, so the guard is the only thing between
+it and a development database.
 
 **The credential is resolved once, in `tests/conftest.py`, and everything reads it
 back off the settings object.** Two engines reach that database — the fixture's, and

@@ -33,7 +33,6 @@ class Perm(StrEnum):
     recombine the values listed here.
     """
 
-    # Resource permissions - always carry a Scope.
     AGENTS_VIEW = "agents:view"
     AGENTS_EDIT = "agents:edit"
     AGENTS_PUBLISH = "agents:publish"
@@ -49,7 +48,6 @@ class Perm(StrEnum):
     SECRETS_VIEW = "secrets:view"
     SECRETS_EDIT = "secrets:edit"
 
-    # Global permissions - binary, org-wide.
     APPROVALS_DECIDE = "approvals:decide"
     # Watching a host and managing one are separate authorities. Reading a
     # connection's session list, its activity log and the ceilings its service
@@ -368,6 +366,3 @@ class AuthContext:
         :func:`app.services.access.resolve_access`.
         """
         return self.scope_for(perm) is not Scope.NONE
-
-    def has_all(self, *perms: Perm) -> bool:
-        return all(self.has(perm) for perm in perms)

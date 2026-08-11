@@ -72,7 +72,6 @@ class BaseSyncConnector(ABC):
         return True, None
 
 
-# Registry of available connectors - import conditionally to avoid missing deps
 CONNECTOR_REGISTRY: dict[str, type[BaseSyncConnector]] = {}
 from app.services.rag.connectors.google_drive import GoogleDriveConnector
 

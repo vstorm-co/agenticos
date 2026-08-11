@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
@@ -40,6 +41,7 @@ const SHARING_ROOT = {
  * share that was never written.
  */
 export function useSharing(resourceType: SharingResourceType, resourceId: string | null) {
+  const t = useTranslations("sharing");
   const queryClient = useQueryClient();
   const base = `${SHARING_ROOT[resourceType]}/${resourceId}/sharing`;
 
@@ -61,7 +63,7 @@ export function useSharing(resourceType: SharingResourceType, resourceId: string
     mutationFn: (input: ShareInput) => apiClient.put<ResourceGrant>(`${base}/grants`, input),
     onSuccess: async () => {
       await invalidate();
-      toast.success("Sharing updated");
+      toast.success(t("sharingUpdated"));
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   });
@@ -71,7 +73,7 @@ export function useSharing(resourceType: SharingResourceType, resourceId: string
       apiClient.delete<void>(`${base}/grants/${subjectUserId}`),
     onSuccess: async () => {
       await invalidate();
-      toast.success("Access removed");
+      toast.success(t("accessRemoved"));
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   });
@@ -81,7 +83,7 @@ export function useSharing(resourceType: SharingResourceType, resourceId: string
       apiClient.patch<ResourceSharing>(`${base}/visibility`, { visibility }),
     onSuccess: async () => {
       await invalidate();
-      toast.success("Visibility updated");
+      toast.success(t("visibilityUpdated"));
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   });

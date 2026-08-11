@@ -1,7 +1,7 @@
 """Agent trigger name - a human title, shown instead of the agent's name
 
-Revision ID: 0015_agent_trigger_name
-Revises: 0014_agent_event_triggers
+Revision ID: 0024_agent_trigger_name
+Revises: 0023_agent_event_triggers
 Create Date: 2026-08-11
 
 A trigger has always been listed by the agent it fires, so two schedules on one
@@ -16,8 +16,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision = "0015_agent_trigger_name"
-down_revision = "0014_agent_event_triggers"
+revision = "0024_agent_trigger_name"
+down_revision = "0023_agent_event_triggers"
 branch_labels = None
 depends_on = None
 

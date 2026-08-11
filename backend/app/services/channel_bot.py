@@ -16,13 +16,19 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
+from app.core.background import spawn_after_commit
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.vault import SealedSecret, VaultScope, seal, unseal
 from app.db.models.channel_bot import ChannelBot
-from app.repositories import channel_bot_repo, channel_session_repo
-from app.schemas.channel_bot import ChannelBotCreate, ChannelBotUpdate
-from app.services.channels import get_adapter
+from app.repositories import agent_exposure_repo, channel_bot_repo, channel_session_repo
+from app.schemas.channel_bot import (
+    BotAgent,
+    ChannelBotCreate,
+    ChannelBotRead,
+    ChannelBotUpdate,
+)
+from app.services.channels import SECRET_MINTED_BY_US, get_adapter, inbound_webhook_url
+from app.services.channels.supervisor import close_inbound_stream, open_inbound_stream
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +48,25 @@ def unseal_bot_token(bot: ChannelBot) -> str:
     """
     return unseal(
         bot.token_encrypted,
+        scope=VaultScope.organization(bot.organization_id),
+        key_version=bot.secret_key_version,
+    )
+
+
+def unseal_webhook_secret(bot: ChannelBot) -> str | None:
+    """The secret an inbound webhook is authenticated against, or None if unset.
+
+    A module-level function for the same reason :func:`unseal_bot_token` is: the
+    two webhook routes hold the row and no service, and the row carries the
+    organization the envelope is bound to.
+
+    None is the caller's problem to name, and both callers name it the same way -
+    a webhook that cannot be authenticated is refused rather than trusted.
+    """
+    if bot.webhook_secret_encrypted is None:
+        return None
+    return unseal(
+        bot.webhook_secret_encrypted,
         scope=VaultScope.organization(bot.organization_id),
         key_version=bot.secret_key_version,
     )
@@ -97,8 +122,51 @@ class ChannelBotService:
             )
         return self.organization_id
 
+    def _reopen_stream(self, bot: ChannelBot) -> None:
+        """Make this bot's inbound connection match the row it now has.
+
+        One method for every write, because "does this change the stream" is a
+        question with a long and growing answer - the token, the server address,
+        the delivery mode and whether the bot is switched on at all - and a rule
+        listing them is a rule the next column forgets. Reopening a stream
+        nobody changed costs one reconnect.
+
+        Deferred with `spawn_after_commit`, never spawned: a connection opened
+        against a row the transaction then rolls back is one talking to
+        somebody's Mattermost about a bot that does not exist. Every value the
+        deferred coroutine needs is read out here, while the row is still
+        attached to this session - it must hold primitives and nothing else.
+
+        A bot in webhook mode has no stream to open, and neither has a paused
+        one; both are *closed*, which is what makes switching a bot to webhooks
+        or pausing it take effect now rather than at the next restart.
+        """
+        bot_id, platform = str(bot.id), bot.platform
+        if bot.webhook_mode or not bot.is_active:
+            spawn_after_commit(
+                self.db,
+                close_inbound_stream(bot_id=bot_id, platform=platform),
+                name=f"close_channel_stream:{bot_id}",
+            )
+            return
+        spawn_after_commit(
+            self.db,
+            open_inbound_stream(
+                bot_id=bot_id,
+                platform=platform,
+                token=unseal_bot_token(bot),
+                api_base_url=bot.api_base_url,
+                app_token=unseal_slack_app_token(bot),
+            ),
+            name=f"open_channel_stream:{bot_id}",
+        )
+
     async def create(self, data: ChannelBotCreate) -> ChannelBot:
-        """Create a new channel bot with its credentials sealed.
+        """Create a new channel bot with its credentials sealed, and open its stream.
+
+        A polling bot is reached over a connection this process holds, and only
+        the lifespan ever opened one - so registering a bot wrote a row and
+        produced silence until somebody restarted the API.
 
         Raises:
             BadRequestError: If Slack-app credentials arrive on a bot that is
@@ -107,8 +175,8 @@ class ChannelBotService:
         """
         self._check_slack_fields(data.platform, data.slack_signing_secret, data.slack_app_token)
         sealed = seal_bot_token(data.token, organization_id=self._org_id)
-        webhook_secret = secrets.token_urlsafe(32) if data.webhook_mode else None
-        return await channel_bot_repo.create(
+        webhook_secret = self._initial_webhook_secret(data)
+        bot = await channel_bot_repo.create(
             self.db,
             organization_id=self._org_id,
             platform=data.platform,
@@ -117,9 +185,9 @@ class ChannelBotService:
             secret_key_version=sealed.key_version,
             webhook_mode=data.webhook_mode,
             webhook_url=data.webhook_url,
-            webhook_secret=webhook_secret,
+            api_base_url=data.api_base_url,
+            webhook_secret_encrypted=self._seal_at(webhook_secret, key_version=sealed.key_version),
             access_policy=data.access_policy.model_dump(),
-            usage_reporting=data.usage_reporting.model_dump(),
             slack_signing_secret_encrypted=self._seal_at(
                 data.slack_signing_secret, key_version=sealed.key_version
             ),
@@ -127,6 +195,31 @@ class ChannelBotService:
                 data.slack_app_token, key_version=sealed.key_version
             ),
         )
+        self._reopen_stream(bot)
+        return bot
+
+    @staticmethod
+    def _initial_webhook_secret(data: ChannelBotCreate) -> str | None:
+        """The secret this bot's inbound webhook will be authenticated against.
+
+        Supplied wins, because the platform that generated the token is the one
+        that has to recognise it: a Mattermost outgoing webhook is created in its
+        own System Console and *it* mints the token. Minting one here regardless
+        is what made the Mattermost webhook path unusable - the bot looked
+        configured and compared Mattermost's token against a local random string
+        nobody could overwrite.
+
+        Otherwise one is minted only where the deployment is the side that hands
+        it over, which is Telegram's `setWebhook`. A bot in webhook mode on a
+        platform we cannot tell gets none, and refuses inbound calls until an
+        operator pastes the platform's own token - which is the honest state, not
+        a broken one.
+        """
+        if data.webhook_secret is not None:
+            return data.webhook_secret
+        if data.webhook_mode and data.platform in SECRET_MINTED_BY_US:
+            return secrets.token_urlsafe(32)
+        return None
 
     def _seal_at(self, value: str | None, *, key_version: int) -> str | None:
         """Seal an optional credential at the row's key version.
@@ -141,6 +234,35 @@ class ChannelBotService:
         return seal(
             value, scope=VaultScope.organization(self._org_id), key_version=key_version
         ).ciphertext
+
+    @staticmethod
+    def _check_server_url(platform: str, api_base_url: str | None) -> None:
+        """Which platform may carry a server URL, and which may not lose one.
+
+        The create path states this as a schema rule, where it can see the
+        platform and the URL in one object. An update sees only the fields that
+        were sent, so the platform comes from the row - and clearing the URL is
+        the case the schema cannot express at all: a Mattermost bot whose server
+        is set back to null stops being able to reply, open its stream, or fetch
+        an attachment, which is the state every Mattermost bot was in before the
+        field existed.
+        """
+        if platform == "mattermost" and api_base_url is None:
+            raise BadRequestError(
+                message=(
+                    "A Mattermost bot cannot lose its server URL - it is self-hosted, "
+                    "so there is no default address to fall back to"
+                ),
+                details={"field": "api_base_url", "platform": platform},
+            )
+        if platform != "mattermost" and api_base_url is not None:
+            raise BadRequestError(
+                message=(
+                    f"A server URL is for a self-hosted platform - a {platform} bot "
+                    "has one address for everybody"
+                ),
+                details={"field": "api_base_url", "platform": platform},
+            )
 
     @staticmethod
     def _check_slack_fields(
@@ -174,13 +296,37 @@ class ChannelBotService:
             return None
         return bot
 
-    async def list_all(self, *, skip: int = 0, limit: int = 50) -> tuple[list[ChannelBot], int]:
-        """List this organization's bots with total count."""
+    async def list_all(self, *, skip: int = 0, limit: int = 50) -> tuple[list[ChannelBotRead], int]:
+        """This organization's bots, with who answers on each, and the total.
+
+        The agents come back with the rows rather than being fetched per bot by
+        the client: "registered and silent" is the state somebody opens this
+        page to explain, and a listing that named only the bot could not tell it
+        from "working". One grouped query for the page, not one per row.
+        """
         bots = await channel_bot_repo.list_for_org(
             self.db, organization_id=self._org_id, skip=skip, limit=limit
         )
+        answering = await agent_exposure_repo.active_agents_for_bots(
+            self.db, channel_bot_ids=[bot.id for bot in bots]
+        )
         total = await channel_bot_repo.count(self.db, organization_id=self._org_id)
-        return bots, total
+        return [
+            ChannelBotRead.model_validate(bot).model_copy(
+                update={
+                    "agents": [
+                        BotAgent(
+                            id=agent.id,
+                            name=agent.name,
+                            slug=agent.slug,
+                            has_avatar=agent.has_avatar,
+                        )
+                        for agent in answering.get(bot.id, [])
+                    ]
+                }
+            )
+            for bot in bots
+        ], total
 
     async def list_by_platform(self, platform: str | None = None) -> list[ChannelBot]:
         """Return this organization's bots, optionally filtered by platform."""
@@ -195,6 +341,8 @@ class ChannelBotService:
         an explicit null clears a Slack credential, an omission leaves it."""
         bot = await self.get(bot_id)
         update_data = data.model_dump(exclude_unset=True)
+        if "api_base_url" in update_data:
+            self._check_server_url(bot.platform, update_data["api_base_url"])
         if "slack_signing_secret" in update_data or "slack_app_token" in update_data:
             self._check_slack_fields(
                 bot.platform,
@@ -213,30 +361,73 @@ class ChannelBotService:
             sealed = seal_bot_token(update_data.pop("token"), organization_id=self._org_id)
             update_data["token_encrypted"] = sealed.ciphertext
             update_data["secret_key_version"] = sealed.key_version
+        if "webhook_secret" in update_data:
+            update_data["webhook_secret_encrypted"] = self._seal_at(
+                update_data.pop("webhook_secret"), key_version=bot.secret_key_version
+            )
+        # A bot that enters webhook mode here used to get no secret: one was
+        # minted at create time and only when `webhook_mode` was already true,
+        # which is not the schema's default. So every bot switched over
+        # afterwards had a null secret, and the receiver treated that as "skip
+        # verification" - an open endpoint reached by anyone who guessed a bot
+        # id (#4). Minted at the row's existing key version, beside its other
+        # envelopes, and only where we are the side that hands the secret over.
+        if (
+            update_data.get("webhook_mode")
+            and bot.webhook_secret_encrypted is None
+            and "webhook_secret_encrypted" not in update_data
+            and bot.platform in SECRET_MINTED_BY_US
+        ):
+            update_data["webhook_secret_encrypted"] = self._seal_at(
+                secrets.token_urlsafe(32), key_version=bot.secret_key_version
+            )
         # Both policies are stored as JSON, so a submitted model has to become a
         # dict either way - and a `None` means "leave it alone", not "clear it":
-        # clearing `usage_reporting` would silently return a bot to the default
+        # clearing `access_policy` would silently return a bot to the default
         # rather than to nothing.
-        for field in ("access_policy", "usage_reporting"):
+        for field in ("access_policy",):
             value = update_data.get(field)
             if value is not None and hasattr(value, "model_dump"):
                 update_data[field] = value.model_dump()
-        return await channel_bot_repo.update(self.db, db_bot=bot, update_data=update_data)
+        updated = await channel_bot_repo.update(self.db, db_bot=bot, update_data=update_data)
+        self._reopen_stream(updated)
+        return updated
 
     async def delete(self, bot_id: UUID) -> None:
-        """Delete a channel bot."""
-        await self.get(bot_id)
+        """Delete a channel bot, and close the connection it was reached over."""
+        bot = await self.get(bot_id)
+        platform = bot.platform
         await channel_bot_repo.delete(self.db, bot_id, organization_id=self._org_id)
+        # After the commit, and read out first: the row is gone by then, so the
+        # platform has to be a string this coroutine already holds.
+        spawn_after_commit(
+            self.db,
+            close_inbound_stream(bot_id=str(bot_id), platform=platform),
+            name=f"close_channel_stream:{bot_id}",
+        )
 
     async def activate(self, bot_id: UUID) -> ChannelBot:
-        """Set is_active = True."""
+        """Set is_active = True, and open the stream it is reached over."""
         bot = await self.get(bot_id)
-        return await channel_bot_repo.update(self.db, db_bot=bot, update_data={"is_active": True})
+        activated = await channel_bot_repo.update(
+            self.db, db_bot=bot, update_data={"is_active": True}
+        )
+        self._reopen_stream(activated)
+        return activated
 
     async def deactivate(self, bot_id: UUID) -> ChannelBot:
-        """Set is_active = False."""
+        """Set is_active = False, and close the stream, so it stops now.
+
+        The mirror of `activate`, and the worse of the two to get wrong: a bot
+        switched off went on answering until somebody restarted the API, so
+        "stop it" needed a deploy.
+        """
         bot = await self.get(bot_id)
-        return await channel_bot_repo.update(self.db, db_bot=bot, update_data={"is_active": False})
+        deactivated = await channel_bot_repo.update(
+            self.db, db_bot=bot, update_data={"is_active": False}
+        )
+        self._reopen_stream(deactivated)
+        return deactivated
 
     def get_decrypted_token(self, bot: ChannelBot) -> str:
         """Return the bot's token in the clear, for an immediate platform call."""
@@ -267,12 +458,10 @@ class ChannelBotService:
         bot = await self.get(bot_id)
         adapter = get_adapter(bot.platform)
         token = self.get_decrypted_token(bot)
-        # The deployment's one public address - the same one embeds and OAuth
-        # callbacks are built from. A second variable for the same URL is how
-        # the two drift apart.
-        base = settings.PUBLIC_BASE_URL.rstrip("/")
-        webhook_url = f"{base}/api/v1/channels/{bot.platform}/{bot_id}/webhook"
-        success = await adapter.register_webhook(token, url=webhook_url, secret=bot.webhook_secret)
+        webhook_url = inbound_webhook_url(bot.platform, bot_id)
+        success = await adapter.register_webhook(
+            token, url=webhook_url, secret=unseal_webhook_secret(bot)
+        )
         return {"success": success, "webhook_url": webhook_url}
 
     async def delete_webhook(self, bot_id: UUID) -> dict[str, Any]:

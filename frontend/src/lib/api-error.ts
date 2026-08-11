@@ -45,6 +45,10 @@ export type SubmitFailure = {
   readonly toast: string | null;
 };
 
+// The last resort for a body that named no message, in a module with no translator
+// to reach. What renders it decides the locale; #603 covers moving that decision to
+// the caller.
+// i18n-exempt: see above.
 const FALLBACK_MESSAGE = "Request failed";
 const UNKNOWN_CODE = "UNKNOWN";
 

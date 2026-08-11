@@ -60,6 +60,23 @@ class ValidationError(AppException):
     status_code = 422
 
 
+class ExportTooLargeError(AppException):
+    """A bulk export matched more rows than one request may return (413).
+
+    The honest half of a row cap: an export with no ceiling either streams the
+    whole table down a held connection or truncates silently, and a truncated
+    CSV is worse than a refused one because a spreadsheet sums whatever arrives.
+    So the request is refused above the cap rather than trimmed to it, and the
+    message names the ceiling and tells the caller to narrow the date range -
+    the one control that actually shrinks the match. `details` carries the two
+    numbers, never the rows themselves.
+    """
+
+    message = "The export matched too many rows"
+    code = "EXPORT_TOO_LARGE"
+    status_code = 413
+
+
 class AuthenticationError(AppException):
     """Authentication failed (401)."""
 

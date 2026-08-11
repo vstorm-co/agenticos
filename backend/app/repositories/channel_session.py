@@ -6,7 +6,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models.channel_identity import ChannelIdentity
+from app.db.models.channel_bot import ChannelBot
 from app.db.models.channel_session import ChannelSession
 
 
@@ -30,23 +30,60 @@ async def get_by_bot_and_chat(
     return result.scalar_one_or_none()
 
 
-async def get_sessions_for_user(
-    db: AsyncSession,
-    user_id: UUID,
-    *,
-    skip: int = 0,
-    limit: int = 50,
-) -> list[ChannelSession]:
-    """Get all sessions for a user (via their linked channel identities)."""
-    result = await db.execute(
-        select(ChannelSession)
-        .join(ChannelIdentity, ChannelSession.identity_id == ChannelIdentity.id)
-        .where(ChannelIdentity.user_id == user_id)
-        .order_by(ChannelSession.last_message_at.desc())
-        .offset(skip)
-        .limit(limit)
+async def bots_by_identity(
+    db: AsyncSession, *, identity_ids: list[UUID]
+) -> dict[UUID, list[ChannelBot]]:
+    """Which bots each of these chat accounts has actually talked to.
+
+    One grouped query for a whole panel rather than one per row, the same shape
+    as `agent_exposure.active_surfaces_for_agents`. A `ChannelIdentity` is keyed
+    on the platform and the account, never on a bot - so the only record of
+    *where* an account has been used is the sessions hanging off it, and this is
+    that record.
+
+    Identities with no session are simply absent from the result: an account
+    that was linked and never used is a real state, and the panel says so
+    rather than inventing a place for it.
+
+    **Two queries, and the pairs are deduplicated on ids alone.** One chat
+    account has a session per chat, so a person in eight channels of one bot
+    produces eight rows for one place - but `SELECT DISTINCT` over the joined
+    bot row asks Postgres to compare every column of it, and `access_policy`
+    and `usage_reporting` are `json`, which has no equality operator. The whole
+    endpoint answered a 500 on a real database while every unit test passed,
+    because they mock the repository. So the pairs are distinct, and the bots
+    are loaded by id afterwards.
+    """
+    if not identity_ids:
+        return {}
+    pairs = await db.execute(
+        select(ChannelSession.identity_id, ChannelSession.bot_id)
+        .where(ChannelSession.identity_id.in_(identity_ids))
+        .distinct()
     )
-    return list(result.scalars().all())
+    by_identity: dict[UUID, list[UUID]] = {}
+    for identity_id, bot_id in pairs.all():
+        by_identity.setdefault(identity_id, []).append(bot_id)
+    if not by_identity:
+        return {}
+
+    bots = await db.execute(
+        select(ChannelBot)
+        .where(ChannelBot.id.in_({bot_id for ids in by_identity.values() for bot_id in ids}))
+        .order_by(ChannelBot.name)
+    )
+    named = {bot.id: bot for bot in bots.scalars().all()}
+    # Ordered by name here rather than in SQL, and filtered to what the second
+    # query actually returned: a bot deleted between the two takes its sessions
+    # with it, and rendering a place from a row that no longer exists is a 500
+    # on somebody's profile page.
+    found = {
+        identity_id: sorted(
+            (named[bot_id] for bot_id in ids if bot_id in named), key=lambda bot: bot.name
+        )
+        for identity_id, ids in by_identity.items()
+    }
+    return {identity_id: bots for identity_id, bots in found.items() if bots}
 
 
 async def create(
@@ -57,7 +94,6 @@ async def create(
     platform_chat_id: str,
     chat_type: str = "private",
     conversation_id: UUID | None = None,
-    project_id: UUID | None = None,
 ) -> ChannelSession:
     """Create a new channel session."""
     session = ChannelSession(

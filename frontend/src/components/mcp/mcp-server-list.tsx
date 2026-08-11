@@ -70,22 +70,10 @@ type StateFilter = "all" | "connected" | "not-connected";
  */
 type DraftAuth = "none" | "token" | "oauth";
 
-const AUTH_CHOICES: { value: DraftAuth; label: string; hint: string }[] = [
-  {
-    value: "none",
-    label: "None",
-    hint: "authNoneHint",
-  },
-  {
-    value: "token",
-    label: "API token",
-    hint: "authTokenHint",
-  },
-  {
-    value: "oauth",
-    label: "OAuth",
-    hint: "authOauthHint",
-  },
+const AUTH_CHOICES: { value: DraftAuth; labelKey: string; hintKey: string }[] = [
+  { value: "none", labelKey: "authChoiceNone", hintKey: "authNoneHint" },
+  { value: "token", labelKey: "authApiToken", hintKey: "authTokenHint" },
+  { value: "oauth", labelKey: "authOauth", hintKey: "authOauthHint" },
 ];
 
 const SCOPE_LABEL: Record<Scope, string> = {
@@ -102,6 +90,12 @@ const SCOPE_LABEL: Record<Scope, string> = {
  */
 function categoryLabel(category: string): string {
   return category.replace(/-/g, " ");
+}
+
+/** The row's sentence, from whichever side wrote it. */
+function rowDescription(row: McpServerRow, t: (key: string) => string): string {
+  if (row.descriptionKey !== null) return t(row.descriptionKey);
+  return row.description ?? "";
 }
 
 function errorMessage(error: unknown, fallback: string): string {
@@ -204,7 +198,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
     items: narrowed,
     matches: (row, query) =>
       row.name.toLowerCase().includes(query) ||
-      (row.description ?? "").toLowerCase().includes(query) ||
+      rowDescription(row, t).toLowerCase().includes(query) ||
       (row.url ?? "").toLowerCase().includes(query),
   });
 
@@ -216,6 +210,9 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
   // has to be asked, and asking was the gap - the dialog offered a token field
   // and nothing else, so a server behind OAuth could not be added at all.
   const [draftAuth, setDraftAuth] = useState<DraftAuth>("token");
+  // The hint under the radio group. It used to be rendered as the *key* -
+  // `authTokenHint` on screen, in every locale (#446).
+  const hint = AUTH_CHOICES.find((choice) => choice.value === draftAuth)?.hintKey;
   const [clearToken, setClearToken] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -430,7 +427,8 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                 {
                   key: "new",
                   name: t("customServer"),
-                  description: "",
+                  description: null,
+                  descriptionKey: null,
                   category: CUSTOM_CATEGORY,
                   auth: "token",
                   url: null,
@@ -483,7 +481,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                     <div className="flex items-start justify-between gap-2">
                       <span className="truncate text-sm font-medium">{row.name}</span>
                       <Badge variant="outline" className="shrink-0">
-                        {MCP_AUTH_LABEL[row.auth]}
+                        {t(MCP_AUTH_LABEL[row.auth])}
                       </Badge>
                     </div>
                     <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
@@ -491,11 +489,9 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                         ? t("notCatalog")
                         : categoryLabel(row.category)}
                     </p>
-                    {row.description && (
-                      <p className="text-muted-foreground line-clamp-2 text-sm">
-                        {row.description}
-                      </p>
-                    )}
+                    <p className="text-muted-foreground line-clamp-2 text-sm">
+                      {rowDescription(row, t)}
+                    </p>
                     {row.url === null ? (
                       // Prose, so it is set as prose. Monospacing this sentence
                       // and then truncating it produced "Self-hosted - you supply
@@ -709,12 +705,12 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                         : "border-input text-muted-foreground hover:text-foreground",
                     )}
                   >
-                    {choice.label}
+                    {t(choice.labelKey)}
                   </button>
                 ))}
               </div>
               <p className="text-muted-foreground mt-1.5 text-xs">
-                {AUTH_CHOICES.find((choice) => choice.value === draftAuth)?.hint}
+                {hint === undefined ? null : t(hint)}
               </p>
               {draftAuth === "oauth" && draft?.scope === "organization" && (
                 // Said once, where the choice is made. The grant is the

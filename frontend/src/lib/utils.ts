@@ -7,6 +7,9 @@ export function cn(...inputs: ClassValue[]) {
 
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// A module function cannot translate, and 51 callers pass no fallback - every one of
+// them is this sentence in English under `pl`. #603 is that migration.
+// i18n-exempt: see above.
 export function getErrorMessage(err: unknown, fallback = "An unexpected error occurred"): string {
   return err instanceof Error ? err.message : fallback;
 }
@@ -110,6 +113,22 @@ export function formatDateTime(date: Date | string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+/**
+ * How long a run took, human-readable, or "-" when it has not finished.
+ *
+ * `ended_at` is nullable: a running or parked run has no duration yet, which is a
+ * different fact from a run that was fast. The Took column and the duration sort
+ * both rest on that distinction, so an unfinished run reads as unknown here and
+ * never as zero.
+ */
+export function formatRunDuration(startedAt: string | null, endedAt: string | null): string {
+  if (!startedAt || !endedAt) return "-";
+  const ms = new Date(endedAt).getTime() - new Date(startedAt).getTime();
+  if (Number.isNaN(ms) || ms < 0) return "-";
+  if (ms < 1000) return `${Math.round(ms)} ms`;
+  return `${(ms / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })} s`;
 }
 
 export function truncate(str: string, maxLength: number): string {

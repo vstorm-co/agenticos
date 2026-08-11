@@ -1,16 +1,4 @@
 export const APP_NAME = "agenticos";
-export const APP_DESCRIPTION = "OS for your agents.";
-
-export const API_ROUTES = {
-  LOGIN: "/auth/login",
-  REGISTER: "/auth/register",
-  LOGOUT: "/auth/logout",
-  REFRESH: "/auth/refresh",
-  ME: "/auth/me",
-  HEALTH: "/health",
-  USERS: "/users",
-  CHAT: "/chat",
-} as const;
 
 export const ROUTES = {
   HOME: "/",
@@ -26,6 +14,7 @@ export const ROUTES = {
   SETTINGS_NOTIFICATIONS: "/settings/notifications",
   SETTINGS_SLASH_COMMANDS: "/settings/slash-commands",
   MCP_SERVERS: "/mcp-servers",
+  CHANNELS: "/channels",
   RAG: "/rag",
   RAG_DETAIL: (id: string) => `/rag/${id}`,
   RAG_SEARCH: "/rag?tab=search",

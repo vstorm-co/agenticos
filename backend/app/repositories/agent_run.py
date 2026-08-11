@@ -409,6 +409,39 @@ async def list_runs(
     return items, total
 
 
+async def down_rated_run_ids(
+    db: AsyncSession, *, organization_id: UUID, run_ids: Sequence[UUID]
+) -> set[UUID]:
+    """Which of these runs produced an answer somebody rated down.
+
+    The set behind the 👎 on a run history row, and it answers the same
+    question `_was_rated(RunRating.DOWN)` does so a marked row is exactly a row
+    the `rated=down` filter would return: a run matches when *anybody* rated a
+    message it produced below zero. One query for the whole page rather than an
+    `EXISTS` per row, because the marker is wanted for every row at once where
+    the filter is asked of the set.
+
+    `organization_id` bounds the query as defence in depth. The ids come from an
+    already tenant-scoped listing, so this changes no result today; it keeps the
+    marker safe if it is ever handed ids resolved somewhere else, the same
+    boundary every read in this layer carries.
+    """
+    if not run_ids:
+        return set()
+    result = await db.execute(
+        select(Message.run_id)
+        .join(MessageRating, MessageRating.message_id == Message.id)
+        .join(AgentRun, AgentRun.id == Message.run_id)
+        .where(
+            Message.run_id.in_(run_ids),
+            AgentRun.organization_id == organization_id,
+            MessageRating.rating < 0,
+        )
+        .distinct()
+    )
+    return {run_id for (run_id,) in result.all()}
+
+
 async def sum_cost_since(
     db: AsyncSession,
     *,
@@ -549,6 +582,7 @@ async def spend_by_agent(
     since: datetime,
     until: datetime | None = None,
     month_since: datetime,
+    user_id: UUID | None = None,
 ) -> list[AgentSpendRow]:
     """One row per agent for the Spend tab: the window, the month and the cap.
 
@@ -565,6 +599,12 @@ async def spend_by_agent(
     validating the spec. A cap has to render for an agent whose spec has stopped
     building - a deleted secret, a capability dropped in a deploy - and that is
     exactly the agent somebody is looking at the bill for.
+
+    `user_id` narrows every aggregate to one person's runs, which is the whole of
+    a `Scope.OWN` floor: a caller without organization-wide `runs:view` exports
+    their own spend and no one else's, and the narrowing is a `WHERE` here rather
+    than a filter applied after the sums - so both windows and the counts describe
+    the same person's rows.
     """
     window = [AgentRun.started_at >= since]
     if until is not None:
@@ -587,6 +627,7 @@ async def spend_by_agent(
         .outerjoin(AgentVersion, AgentVersion.id == Agent.current_version_id)
         .where(
             Agent.organization_id == organization_id,
+            *([] if user_id is None else [AgentRun.user_id == user_id]),
             # The union of the two windows, so one pass serves both filters. A
             # row outside both contributes to neither aggregate and only costs
             # the scan it would have cost twice otherwise. `and_(*window)` before
@@ -722,8 +763,6 @@ async def spend_by_key(
     return [(row[0], row[1], Decimal(row[2]), row[3]) for row in result.all()]
 
 
-# -- window aggregates, for GET /stats/usage ----------------------------------
-#
 # All of these read the same half-open window [start, end) on `started_at` -
 # the column the org+started index serves and the one the spend queries already
 # filter on. `user_id` narrows to one person's runs, which is the whole of

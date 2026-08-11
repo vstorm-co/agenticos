@@ -21,11 +21,12 @@ Run these from the project root directory.
 | `make run` | Start development server with hot reload |
 | `make run-prod` | Start production server (0.0.0.0:8000) |
 | `make routes` | Show all registered API routes |
-| `make test` | Backend suite plus the 100% gate on the platform layer |
-| `make test-cov` | Run tests with coverage report (HTML + terminal) |
+| `make test` | Backend suite plus the 100% gate on the platform layer. Runs across worker processes (`-n auto --maxprocesses 4`); `pytest-cov` combines their data, so the gate is unchanged |
+| `make test-cov` | Run tests with coverage report (HTML + terminal). Runs across worker processes like `make test` |
 | `make format` | Auto-format code — ruff on the backend, prettier on the frontend |
-| `make lint` | Every static check: ruff, ruff format, ty, eslint, prettier, tsc, the backtick and i18n guards, and codespell over the whole tree |
+| `make lint` | Every static check: ruff, ruff format, ty, vulture, eslint, prettier, tsc, the guard scripts (backtick, i18n, routes, banner comments), and codespell over the whole tree |
 | `make lint-backend` / `make lint-frontend` | One half of the above. CI runs them in two different jobs, so either can be run on its own |
+| `make dead-code` | Unused functions and methods — vulture at a lower confidence than the `lint` gate, plus knip on the frontend. A report to read, not a gate: on a registry-driven codebase it comes with false positives (a CLI command, a capability hook), so read each before deleting. The same role `dependency-freshness` plays for dependencies |
 | `make lint-spelling` | codespell over every tracked file. The pre-commit hook reads only the files a commit touches, so a misspelling that lands with its file waits there to refuse somebody else's unrelated commit |
 | `make build-frontend` | `next build`. Type-checks the route tree and fails on a server component that cannot render — which neither tsc nor vitest sees |
 | `make audit` | Audit the locked dependency set for known vulnerabilities (needs the network) |
@@ -282,16 +283,30 @@ See [Channels](channels.md) for what each platform supports.
 uv run agenticos cmd channel-add-bot \
     --platform telegram --name "Support" --token <token> --mode jwt_linked
 
+# Mattermost is self-hosted, so its bot carries its own server's address.
+# --webhook-secret is the token Mattermost shows when the outgoing webhook is
+# created; omit it to use the event stream and expose nothing.
+uv run agenticos cmd channel-add-bot \
+    --platform mattermost --name "Support" --token <token> \
+    --api-base-url https://mattermost.acme.internal \
+    --webhook-secret <token-from-mattermost>
+
 uv run agenticos cmd channel-list-bots
 uv run agenticos cmd channel-list-bots --platform telegram
 
-# Send a test message through it
+# Send a test message through it - the cheapest proof the token and the
+# address are right. --chat-id is a Telegram chat id or a Mattermost channel id.
 uv run agenticos cmd channel-test-message --bot-id <uuid> --chat-id <chat> --text "ping"
 
-# Webhook delivery, or delete the webhook to fall back to polling
+# Webhook delivery, or delete the webhook to fall back to polling. Telegram is
+# the only platform with an API for this; for Slack and Mattermost the command
+# prints the URL to paste into their own settings.
 uv run agenticos cmd channel-webhook-register --bot-id <uuid>
 uv run agenticos cmd channel-webhook-delete --bot-id <uuid>
 ```
+
+Registering a bot from the CLI is the only way on a deployment with no browser
+pointed at it, which is what a Mattermost server behind a VPN usually is.
 
 Access modes are `open`, `whitelist`, `jwt_linked` and `group_only`. A mention runs
 as the *sender*, never as the bot, and an unlinked identity is refused rather than

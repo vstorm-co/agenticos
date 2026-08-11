@@ -31,6 +31,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.exceptions import ValidationError
 from app.db.base import Base, TimestampMixin
 
 
@@ -50,6 +51,26 @@ class RunStatus(enum.StrEnum):
     CANCELLED = "cancelled"
     AWAITING_APPROVAL = "awaiting_approval"
     BUDGET_EXCEEDED = "budget_exceeded"
+
+    @classmethod
+    def parse_csv(cls, raw: str | None) -> list[str] | None:
+        """A comma-separated status filter, validated against the known values.
+
+        An unknown value is refused by name rather than ignored: a filter that
+        silently matches nothing looks exactly like an organization with nothing
+        wrong.
+        """
+        if raw is None:
+            return None
+        values = [part.strip() for part in raw.split(",") if part.strip()]
+        known = {member.value for member in cls}
+        unknown = sorted(set(values) - known)
+        if unknown:
+            raise ValidationError(
+                message="Unknown run status",
+                details={"unknown": unknown, "expected": sorted(known)},
+            )
+        return values or None
 
 
 class RunSurface(enum.StrEnum):

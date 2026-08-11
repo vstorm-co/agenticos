@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ActivityFigures } from "@/components/runs/activity-figures";
 import { ApprovalsTab } from "@/components/runs/approvals-tab";
+import { ExportMenu } from "@/components/runs/export-menu";
 import { RunHistoryTab } from "@/components/runs/run-history-tab";
 import { ScheduledTab } from "@/components/runs/scheduled-tab";
 import { SpendTab } from "@/components/runs/spend-tab";
@@ -37,6 +38,12 @@ export default function RunsPage() {
   // deliberately not in the top-level list - see `useRuns` - so the only way to
   // reach one is to name it, and `FocusedRun` is what answers.
   const focusedRunId = searchParams.get("run");
+  // The dashboard's p95 figure links here sorted by duration over the same
+  // window - the number and the runs behind it, one click apart. The tab reads
+  // the sort and the window off the URL so the link lands on *those runs*.
+  const sortParam = searchParams.get("sort");
+  const startedFrom = searchParams.get("started_from");
+  const startedTo = searchParams.get("started_to");
   const { can, isLoading: permissionsLoading } = usePermissions();
   // Reading the queue takes the same permission as deciding one - both routes
   // carry `require(Perm.APPROVALS_DECIDE)` - so for a caller without it there is
@@ -65,7 +72,7 @@ export default function RunsPage() {
       {permissionsLoading ? (
         <LoadingState variant="skeleton-table" columns={6} rows={6} />
       ) : (
-        <Tabs defaultValue={canDecide ? "approvals" : "runs"}>
+        <Tabs defaultValue={sortParam ? "runs" : canDecide ? "approvals" : "runs"}>
           <TabsList>
             {canDecide && (
               <TabsTrigger value="approvals">
@@ -84,12 +91,45 @@ export default function RunsPage() {
 
           {canDecide && (
             <TabsContent value="approvals">
+              {/* Export the record for whatever window, gated on the same
+                  permission the tab is - absent, not disabled, without it. */}
+              <div className="mb-3 flex justify-end">
+                <ExportMenu
+                  permission={Perm.approvalsDecide}
+                  endpoint="/approvals/export"
+                  kind="approvals"
+                  rangeParams={{ from: "created_from", to: "created_to" }}
+                />
+              </div>
               <ApprovalsTab />
             </TabsContent>
           )}
 
           <TabsContent value="runs">
-            <RunHistoryTab agentId={agentId} focusedRunId={focusedRunId} />
+            {/* Not on a single-run view: a CSV of one run is a download nobody
+                asked for, and `?run=` is the only shape that has no history. */}
+            {focusedRunId === null && (
+              <div className="mb-3 flex justify-end">
+                <ExportMenu
+                  permission={Perm.runsView}
+                  endpoint="/runs/export"
+                  kind="runs"
+                  params={
+                    agentId === null
+                      ? undefined
+                      : { agent_id: agentId, include_delegations: "true" }
+                  }
+                  rangeParams={{ from: "started_from", to: "started_to" }}
+                />
+              </div>
+            )}
+            <RunHistoryTab
+              agentId={agentId}
+              focusedRunId={focusedRunId}
+              initialDurationSort={sortParam === "duration"}
+              startedFrom={startedFrom}
+              startedTo={startedTo}
+            />
           </TabsContent>
 
           <TabsContent value="scheduled">
@@ -97,6 +137,14 @@ export default function RunsPage() {
           </TabsContent>
 
           <TabsContent value="spend">
+            <div className="mb-3 flex justify-end">
+              <ExportMenu
+                permission={Perm.runsView}
+                endpoint="/spend/export"
+                kind="spend"
+                rangeParams={{ from: "from", to: "to" }}
+              />
+            </div>
             <SpendTab />
           </TabsContent>
         </Tabs>

@@ -1,7 +1,25 @@
+import { createTranslator } from "next-intl";
 import { describe, expect, it, vi } from "vitest";
 
-import { BUILTIN_COMMANDS, mergeWithUserCommands, searchCommands } from "./slash-commands";
+import {
+  BUILTIN_COMMANDS,
+  mergeWithUserCommands,
+  resolveBuiltin,
+  searchCommands,
+} from "./slash-commands";
+import type { Translate } from "@/lib/agent-step-captions";
 import type { UserSlashCommandRecord } from "@/lib/slash-commands-api";
+import messages from "../../../messages/en.json";
+
+/**
+ * The real `chat.commands` messages, which is also what proves every key the registry
+ * names exists. Cast because `createTranslator` types its key against the message tree
+ * while `Translate` takes the string a table holds.
+ */
+const t = createTranslator({ locale: "en", messages, namespace: "chat.commands" }) as Translate;
+
+/** The built-ins as the palette receives them - copy resolved. */
+const resolved = BUILTIN_COMMANDS.map((command) => resolveBuiltin(command, t));
 
 function record(overrides: Partial<UserSlashCommandRecord> = {}): UserSlashCommandRecord {
   return {
@@ -36,8 +54,7 @@ describe("the built-in commands", () => {
   it("gives every one a name, a description and something to do", () => {
     for (const command of BUILTIN_COMMANDS) {
       expect(command.name, command.name).toMatch(/^[a-z]+$/);
-      expect(command.description.length, command.name).toBeGreaterThan(0);
-      expect(command.source, command.name).toBe("builtin");
+      expect(t(command.descriptionKey).length, command.name).toBeGreaterThan(0);
     }
   });
 
@@ -80,31 +97,31 @@ describe("the built-in commands", () => {
     // would send a blank turn.
     for (const command of BUILTIN_COMMANDS) {
       if (command.action.kind !== "send-as-message") continue;
-      expect(command.action.replaceWith.length, command.name).toBeGreaterThan(20);
+      expect(t(command.action.replaceWithKey).length, command.name).toBeGreaterThan(20);
     }
   });
 });
 
 describe("merging in a person's own commands", () => {
   it("is the built-ins alone before the API has answered", () => {
-    expect(mergeWithUserCommands([])).toEqual(BUILTIN_COMMANDS);
+    expect(mergeWithUserCommands([], t)).toEqual(resolved);
   });
 
   it("drops a built-in somebody switched off", () => {
     const first = BUILTIN_COMMANDS[0]!.name;
 
-    expect(names(mergeWithUserCommands([override(first, false)]))).not.toContain(first);
+    expect(names(mergeWithUserCommands([override(first, false)], t))).not.toContain(first);
   });
 
   it("keeps a built-in whose override says it is on", () => {
     // An override row exists for both answers; only `is_enabled` decides.
     const first = BUILTIN_COMMANDS[0]!.name;
 
-    expect(names(mergeWithUserCommands([override(first, true)]))).toContain(first);
+    expect(names(mergeWithUserCommands([override(first, true)], t))).toContain(first);
   });
 
   it("appends a custom command as a prompt to send", () => {
-    const merged = mergeWithUserCommands([record()]);
+    const merged = mergeWithUserCommands([record()], t);
 
     expect(merged.at(-1)).toMatchObject({
       name: "standup",
@@ -114,41 +131,44 @@ describe("merging in a person's own commands", () => {
   });
 
   it("drops a custom command somebody switched off", () => {
-    expect(names(mergeWithUserCommands([record({ is_enabled: false })]))).not.toContain("standup");
+    expect(names(mergeWithUserCommands([record({ is_enabled: false })], t))).not.toContain(
+      "standup",
+    );
   });
 
   it("keeps the built-ins first, so the list does not reorder as commands are added", () => {
-    const merged = mergeWithUserCommands([record()]);
+    const merged = mergeWithUserCommands([record()], t);
 
-    expect(names(merged).slice(0, BUILTIN_COMMANDS.length)).toEqual(names(BUILTIN_COMMANDS));
+    expect(names(merged).slice(0, resolved.length)).toEqual(names(resolved));
   });
 
   it("describes a custom command by its prompt, flattened to one line", () => {
     // The palette row is one line; a prompt with newlines in it would break the
     // layout of every row after it.
-    const merged = mergeWithUserCommands([
-      record({ prompt: "  Summarise\n\n  yesterday's   standup  " }),
-    ]);
+    const merged = mergeWithUserCommands(
+      [record({ prompt: "  Summarise\n\n  yesterday's   standup  " })],
+      t,
+    );
 
     expect(merged.at(-1)?.description).toBe("Summarise yesterday's standup");
   });
 
   it("truncates a long prompt rather than letting it fill the palette", () => {
-    const merged = mergeWithUserCommands([record({ prompt: "x".repeat(200) })]);
+    const merged = mergeWithUserCommands([record({ prompt: "x".repeat(200) })], t);
 
     expect(merged.at(-1)?.description).toHaveLength(78);
     expect(merged.at(-1)?.description.endsWith("…")).toBe(true);
   });
 
   it("leaves a prompt at the limit alone", () => {
-    const merged = mergeWithUserCommands([record({ prompt: "y".repeat(80) })]);
+    const merged = mergeWithUserCommands([record({ prompt: "y".repeat(80) })], t);
 
     expect(merged.at(-1)?.description).toBe("y".repeat(80));
   });
 });
 
 describe("searching the palette", () => {
-  const commands = mergeWithUserCommands([record({ name: "standup" })]);
+  const commands = mergeWithUserCommands([record({ name: "standup" })], t);
 
   it("offers everything before anything is typed", () => {
     expect(searchCommands(commands, "")).toEqual(commands);

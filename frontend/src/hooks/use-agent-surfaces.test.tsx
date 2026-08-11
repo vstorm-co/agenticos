@@ -231,37 +231,6 @@ describe("the organization's channel bots", () => {
     expect(toast.success).toHaveBeenCalledWith("Acme activated");
   });
 
-  it("sends only the reporting mode, so it cannot overwrite who may talk to the bot", async () => {
-    // The server applies exactly what it was sent; reading the access policy back
-    // and returning it alongside would let a change to how noisy a bot is
-    // overwrite a change to who is allowed in.
-    vi.mocked(apiClient.patch).mockResolvedValue({ id: "b-1", name: "Acme" });
-    const { result } = renderHook(() => useChannelBots(true), { wrapper });
-
-    await result.current.setUsageReporting.mutateAsync({
-      botId: "b-1",
-      usageReporting: { mode: "always", near_limit_percent: 80, every_n: 10 },
-    });
-
-    expect(apiClient.patch).toHaveBeenCalledWith("/channels/bots/b-1", {
-      usage_reporting: { mode: "always", near_limit_percent: 80, every_n: 10 },
-    });
-  });
-
-  it("reports a refused reporting change rather than swallowing it", async () => {
-    const refused = new Error("Missing required permission: channels:manage");
-    vi.mocked(apiClient.patch).mockRejectedValue(refused);
-    const { result } = renderHook(() => useChannelBots(true), { wrapper });
-
-    await expect(
-      result.current.setUsageReporting.mutateAsync({
-        botId: "b-1",
-        usageReporting: { mode: "off", near_limit_percent: 80, every_n: 10 },
-      }),
-    ).rejects.toThrow(refused);
-    expect(toast.error).toHaveBeenCalledWith("Missing required permission: channels:manage");
-  });
-
   it("removes a bot", async () => {
     const { result } = renderHook(() => useChannelBots(true), { wrapper });
 

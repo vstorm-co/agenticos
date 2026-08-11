@@ -43,8 +43,6 @@ class SkillProposalService:
         self.db = db
         self.skills = SkillService(db)
 
-    # -- written by a run ------------------------------------------------
-
     async def record(
         self,
         ctx: AuthContext,
@@ -103,8 +101,6 @@ class SkillProposalService:
                 details={"skills": [proposal.name for proposal in recorded]},
             )
         return recorded
-
-    # -- decided by a person ---------------------------------------------
 
     async def list_proposals(
         self, ctx: AuthContext, *, status: str | None = None

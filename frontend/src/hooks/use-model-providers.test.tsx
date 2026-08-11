@@ -3,7 +3,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { providerInfo, useModelProviders, useProviderModels } from "./use-model-providers";
+import { useModelProviders, useProviderModels } from "./use-model-providers";
 import { apiClient } from "@/lib/api-client";
 
 vi.mock("@/lib/api-client", () => ({
@@ -63,28 +63,6 @@ describe("useModelProviders", () => {
 
     await result.current.deleteProfile.mutateAsync("p1");
     expect(apiClient.delete).toHaveBeenCalledWith("/providers/model-profiles/p1");
-  });
-});
-
-describe("providerInfo", () => {
-  const catalog = [
-    {
-      id: "ollama",
-      name: "Ollama",
-      secret_kind: "api_key" as const,
-      supports_base_url: true,
-      keyless: true,
-    },
-  ];
-
-  it("finds the entry a form branches on", () => {
-    expect(providerInfo(catalog, "ollama")?.keyless).toBe(true);
-  });
-
-  it("returns null for a provider this deployment does not offer", () => {
-    // A credential stored before a provider was removed still has to render.
-    // Guessing a shape for it would open a form nobody can save.
-    expect(providerInfo(catalog, "retired")).toBeNull();
   });
 });
 

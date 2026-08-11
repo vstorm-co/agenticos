@@ -53,7 +53,15 @@ export type StepKind =
 export type ToolRenderer =
   "chart" | "web-search" | "rag" | "run-python" | "load-skill" | "workspace" | "generic" | "none";
 
-/** The tense pair for a step that names its own subject: *Writing test1.md*. */
+/**
+ * The tense pair for a step that names its own subject: *Writing test1.md*.
+ *
+ * Two `chat.tools` keys rather than two words, because a verb the sentence around it
+ * has to agree with cannot be a parameter - `{verb} {subject}` reads as translated and is the
+ * defect `messages/catalog.test.ts` refuses under the name `{noun}` (#362). Each
+ * message writes its own whole sentence and selects on `named`, which says whether the
+ * call gave a subject at all: `{named, select, no {Writing…} other {Writing {subject}}}`.
+ */
 export interface ToolVerbs {
   /** While it runs. */
   now: string;
@@ -64,11 +72,20 @@ export interface ToolVerbs {
 export interface ToolEntry {
   kind: StepKind;
   render: ToolRenderer;
-  /** Present tense, while the call runs. Defaults to "Running <Name>". */
-  caption?: string;
-  /** What the finished step is called. Defaults to the humanized id. */
-  displayName?: string;
-  /** Set instead of `caption` when the label is a verb plus the call's subject. */
+  /**
+   * Key under `chat.tools` for the present tense, while the call runs. Defaults to
+   * `runningNamed`.
+   *
+   * A key rather than a sentence: this table is a module constant and cannot reach a
+   * translator, so the copy is resolved where it is rendered (#446).
+   */
+  captionKey?: string;
+  /**
+   * Key under `chat.tools` for what the finished step is called. Defaults to the
+   * humanized id.
+   */
+  displayNameKey?: string;
+  /** Set instead of `captionKey` when the label is a verb plus the call's subject. */
   verbs?: ToolVerbs;
   /**
    * Open this step when it finishes in front of somebody.
@@ -101,45 +118,72 @@ export interface ToolEntry {
  * there.
  */
 export const TOOL_CATALOG: Record<string, ToolEntry> = {
+  // channel_tools - only ever called on a Slack, Telegram or Mattermost run, so these
+  // steps are read back in the run timeline rather than watched live in the dashboard.
+  get_channel_info: {
+    kind: "read",
+    render: "generic",
+    captionKey: "lookingAtChannel",
+    displayNameKey: "channelInfo",
+  },
+  list_channel_members: {
+    kind: "list",
+    render: "generic",
+    captionKey: "lookingAtChannelMembers",
+    displayNameKey: "channelMembers",
+  },
+  search_channels: {
+    kind: "search",
+    render: "generic",
+    captionKey: "lookingForChannel",
+    displayNameKey: "channelSearch",
+  },
+  read_channel_history: {
+    kind: "read",
+    render: "generic",
+    captionKey: "readingChannel",
+    displayNameKey: "channelHistory",
+  },
+
   // charts
   create_chart: {
     kind: "chart",
     render: "chart",
-    caption: "Creating a chart",
-    displayName: "Chart",
+    captionKey: "creatingChart",
+    displayNameKey: "chart",
     opensWhenDone: true,
     opensOnSight: true,
   },
 
   // sandbox - the workspace toolset, whose steps name the file they are about
-  ls: { kind: "list", render: "workspace", verbs: { now: "Listing", done: "Listed" } },
-  read_file: { kind: "read", render: "workspace", verbs: { now: "Reading", done: "Read" } },
-  glob: { kind: "search", render: "workspace", verbs: { now: "Looking for", done: "Looked for" } },
+  ls: { kind: "list", render: "workspace", verbs: { now: "listing", done: "listed" } },
+  read_file: { kind: "read", render: "workspace", verbs: { now: "reading", done: "read" } },
+  glob: { kind: "search", render: "workspace", verbs: { now: "lookingFor", done: "lookedFor" } },
   grep: {
     kind: "search",
     render: "workspace",
-    verbs: { now: "Searching for", done: "Searched for" },
+    verbs: { now: "searchingFor", done: "searchedFor" },
   },
   write_file: {
     kind: "write",
     render: "workspace",
-    verbs: { now: "Writing", done: "Wrote" },
+    verbs: { now: "writing", done: "wrote" },
     opensWhenDone: true,
   },
   edit_file: {
     kind: "edit",
     render: "workspace",
-    verbs: { now: "Editing", done: "Edited" },
+    verbs: { now: "editing", done: "edited" },
     opensWhenDone: true,
   },
-  execute: { kind: "shell", render: "workspace", verbs: { now: "Running", done: "Ran" } },
+  execute: { kind: "shell", render: "workspace", verbs: { now: "executing", done: "executed" } },
 
   // code_execution
   run_python: {
     kind: "code",
     render: "run-python",
-    caption: "Running calculations",
-    displayName: "Run Python",
+    captionKey: "runningCalculations",
+    displayNameKey: "runPython",
     opensWhenDone: true,
   },
 
@@ -147,79 +191,79 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
   search_documents: {
     kind: "knowledge",
     render: "rag",
-    caption: "Searching the documents",
-    displayName: "Knowledge Base Search",
+    captionKey: "searchingDocuments",
+    displayNameKey: "knowledgeBaseSearch",
   },
 
   // skills
   list_skills: {
     kind: "skill",
     render: "none",
-    caption: "Looking through the skills",
-    displayName: "Available Skills",
+    captionKey: "lookingThroughSkills",
+    displayNameKey: "availableSkills",
   },
   load_skill: {
     kind: "skill",
     render: "load-skill",
-    caption: "Loading a skill",
-    displayName: "Load Skill",
+    captionKey: "loadingSkill",
+    displayNameKey: "loadSkill",
   },
   read_skill_resource: {
     kind: "skill",
     render: "generic",
-    caption: "Reading a skill's files",
-    displayName: "Skill Resource",
+    captionKey: "readingSkillFiles",
+    displayNameKey: "skillResource",
   },
 
   // subagents - the parent's half of a delegation. The delegate's own run is a panel
   // of its own, built from `subagent_*` frames rather than from these calls.
-  task: { kind: "delegate", render: "generic", caption: "Handing work to a delegate" },
-  check_task: { kind: "delegate", render: "generic", caption: "Checking on a delegate" },
-  wait_tasks: { kind: "delegate", render: "generic", caption: "Waiting for the delegates" },
+  task: { kind: "delegate", render: "generic", captionKey: "handingWork" },
+  check_task: { kind: "delegate", render: "generic", captionKey: "checkingDelegate" },
+  wait_tasks: { kind: "delegate", render: "generic", captionKey: "waitingDelegates" },
   list_active_tasks: {
     kind: "delegate",
     render: "generic",
-    caption: "Looking at what is still running",
-    displayName: "Active Tasks",
+    captionKey: "lookingAtRunning",
+    displayNameKey: "activeTasks",
   },
   answer_subagent: {
     kind: "delegate",
     render: "generic",
-    caption: "Answering a delegate",
-    displayName: "Answer Delegate",
+    captionKey: "answeringDelegate",
+    displayNameKey: "answerDelegate",
   },
   send_message_to_subagent: {
     kind: "delegate",
     render: "generic",
-    caption: "Steering a delegate",
-    displayName: "Message Delegate",
+    captionKey: "steeringDelegate",
+    displayNameKey: "messageDelegate",
   },
   soft_cancel_task: {
     kind: "delegate",
     render: "generic",
-    caption: "Asking a delegate to stop",
-    displayName: "Stop Task",
+    captionKey: "askingDelegateStop",
+    displayNameKey: "stopTask",
   },
   hard_cancel_task: {
     kind: "delegate",
     render: "generic",
-    caption: "Cancelling a delegate",
-    displayName: "Cancel Task",
+    captionKey: "cancellingDelegate",
+    displayNameKey: "cancelTask",
   },
   create_agent: {
     kind: "delegate",
     render: "generic",
-    caption: "Creating a specialist",
-    displayName: "Create Specialist",
+    captionKey: "creatingSpecialist",
+    displayNameKey: "createSpecialist",
   },
-  delegate: { kind: "delegate", render: "generic", caption: "Delegating" },
+  delegate: { kind: "delegate", render: "generic", captionKey: "delegating" },
 
   // web_research
   web_search: {
     kind: "web",
     render: "web-search",
-    caption: "Searching the web",
-    displayName: "Web Search",
+    captionKey: "searchingWeb",
+    displayNameKey: "webSearch",
   },
 };
 

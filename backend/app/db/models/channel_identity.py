@@ -1,9 +1,8 @@
 """ChannelIdentity model - maps platform user → app user (PostgreSQL async)."""
 
 import uuid
-from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import Boolean, ForeignKey, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -28,10 +27,6 @@ class ChannelIdentity(Base, TimestampMixin):
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
-    )
-    link_code: Mapped[str | None] = mapped_column(String(10), nullable=True)
-    link_code_expires_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 

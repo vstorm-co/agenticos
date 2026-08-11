@@ -99,6 +99,9 @@ export function platformProxy(): ProxyHandlers {
   const forward: Handler = async (request) => {
     const accessToken = request.cookies.get("access_token")?.value;
     if (!accessToken) {
+      // A wire payload. This proxy runs outside the `[locale]` segment, so no locale
+      // is in scope; rendering the refusal is the client's job (#603).
+      // i18n-exempt: see above.
       return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
     }
 

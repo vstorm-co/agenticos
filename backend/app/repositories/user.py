@@ -42,11 +42,6 @@ async def get_multi(
     return list(result.scalars().all())
 
 
-def list_query() -> Any:
-    """Return the SQL Select for listing users (used by paginate)."""
-    return select(User)
-
-
 async def create(
     db: AsyncSession,
     *,

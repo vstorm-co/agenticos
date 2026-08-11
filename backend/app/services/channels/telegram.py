@@ -6,12 +6,13 @@ import hmac
 import logging
 from typing import Any
 
-from aiogram import Bot, Dispatcher, Router
+from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import Message as AiogramMessage
 
+from app.agents.capabilities.channel_tools import ChannelDetails, ChannelMember
 from app.db.session import get_db_context
 from app.services.channels.base import (
     ChannelAdapter,
@@ -22,8 +23,6 @@ from app.services.channels.base import (
 from app.services.channels.router import ChannelMessageRouter
 
 logger = logging.getLogger(__name__)
-
-_telegram_router = Router()
 
 
 # Every field Telegram puts a file in, with a name and a type for the kinds that
@@ -46,6 +45,36 @@ class TelegramAdapter(ChannelAdapter):
 
     def __init__(self) -> None:
         self._polling_tasks: dict[str, asyncio.Task[None]] = {}
+
+    async def begin_reply(self, bot_token: str, msg: OutgoingMessage) -> str | None:
+        """Send the message that will become the answer, and return its id."""
+        bot = Bot(token=bot_token)
+        try:
+            sent = await bot.send_message(
+                chat_id=msg.platform_chat_id,
+                text=msg.text,
+                reply_to_message_id=int(msg.reply_to_message_id)
+                if msg.reply_to_message_id
+                else None,
+            )
+        finally:
+            await bot.session.close()
+        return str(sent.message_id)
+
+    async def update_reply(self, bot_token: str, msg: OutgoingMessage, handle: str) -> None:
+        """Rewrite a message already in the chat.
+
+        No parse mode: half-written Markdown is the normal state of a message
+        being streamed, and Telegram rejects an unclosed `**` with a 400. The
+        final send formats it, once the text is whole.
+        """
+        bot = Bot(token=bot_token)
+        try:
+            await bot.edit_message_text(
+                chat_id=msg.platform_chat_id, message_id=int(handle), text=msg.text
+            )
+        finally:
+            await bot.session.close()
 
     async def send_message(self, bot_token: str, msg: OutgoingMessage) -> None:
         """Send a reply back to Telegram.
@@ -80,7 +109,6 @@ class TelegramAdapter(ChannelAdapter):
                     reply_to_message_id=reply_to,
                 )
             except TelegramBadRequest:
-                # Markdown parsing failed - send as plain text
                 await bot.send_message(
                     chat_id=msg.platform_chat_id,
                     text=msg.text,
@@ -123,6 +151,66 @@ class TelegramAdapter(ChannelAdapter):
                 caption=caption if index == 0 else None,
                 reply_to_message_id=reply_to,
             )
+
+    #
+    # Two of the four, and that is the whole of what Telegram gives a bot.
+    # `search_channels` and `channel_history` are inherited from the base class,
+    # which refuses with a sentence: Telegram has no directory of chats to
+    # search, and a bot receives messages rather than reading them back - there
+    # is no `getChatHistory`, and the closest thing needs a *user* account.
+    # Answering those two with empty lists would read as "there is nothing
+    # there", which is a different and wrong statement.
+
+    async def channel_details(
+        self, bot_token: str, channel_id: str, *, api_base_url: str | None
+    ) -> ChannelDetails:
+        """`getChat` and `getChatMemberCount`.
+
+        A Telegram chat has a `description` and no separate topic, so `purpose`
+        carries it and `topic` stays empty rather than repeating it.
+        """
+        bot = Bot(token=bot_token)
+        try:
+            chat = await bot.get_chat(chat_id=channel_id)
+            count = await bot.get_chat_member_count(chat_id=channel_id)
+        finally:
+            await bot.session.close()
+
+        return ChannelDetails(
+            channel_id=str(chat.id),
+            name=chat.title or chat.username or str(chat.id),
+            purpose=chat.description or None,
+            is_private=chat.type != "channel",
+            member_count=count,
+        )
+
+    async def channel_members(
+        self, bot_token: str, channel_id: str, *, api_base_url: str | None, limit: int
+    ) -> list[ChannelMember]:
+        """`getChatAdministrators` - which is as far as a bot can see.
+
+        Telegram gives a bot no way to enumerate ordinary members of a group,
+        deliberately. So this returns the administrators, and every row says
+        `admin` in its role: a list that quietly stopped at the administrators
+        while reading as "everybody here" would have the model tell somebody
+        their colleague is not in the chat.
+        """
+        bot = Bot(token=bot_token)
+        try:
+            administrators = await bot.get_chat_administrators(chat_id=channel_id)
+        finally:
+            await bot.session.close()
+
+        return [
+            ChannelMember(
+                user_id=str(entry.user.id),
+                username=entry.user.username,
+                display_name=entry.user.full_name,
+                is_bot=entry.user.is_bot,
+                role="admin",
+            )
+            for entry in administrators[:limit]
+        ]
 
     async def start_polling(self, bot_id: str, bot_token: str) -> None:
         """Start a supervised polling loop for this bot."""
@@ -207,7 +295,6 @@ class TelegramAdapter(ChannelAdapter):
         but accepted for interface compatibility with ChannelAdapter.
         """
         received = headers.get("x-telegram-bot-api-secret-token", "")
-        # Use hmac.compare_digest for constant-time comparison
         return hmac.compare_digest(received.encode(), secret.encode())
 
     def parse_incoming(self, raw_payload: dict[str, Any], bot_id: str) -> IncomingMessage | None:

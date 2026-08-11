@@ -843,30 +843,6 @@ class TestConversationServiceToolCalls:
                 await service.get_tool_call(uuid4())
 
     @pytest.mark.anyio
-    async def test_list_tool_calls_returns_list(self, service: ConversationService):
-        """list_tool_calls returns list of tool calls for a message."""
-        msg_id = uuid4()
-        mock_msg = MockMessage(id=msg_id)
-        mock_tool_calls = [MockToolCall(), MockToolCall()]
-
-        with patch("app.services.conversation.conversation_repo") as mock_repo:
-            mock_repo.get_message_by_id = AsyncMock(return_value=mock_msg)
-            mock_repo.get_tool_calls_by_message = AsyncMock(return_value=mock_tool_calls)
-
-            result = await service.list_tool_calls(msg_id)
-
-            assert len(result) == 2
-
-    @pytest.mark.anyio
-    async def test_list_tool_calls_verifies_message_exists(self, service: ConversationService):
-        """list_tool_calls raises NotFoundError when message not found."""
-        with patch("app.services.conversation.conversation_repo") as mock_repo:
-            mock_repo.get_message_by_id = AsyncMock(return_value=None)
-
-            with pytest.raises(NotFoundError):
-                await service.list_tool_calls(uuid4())
-
-    @pytest.mark.anyio
     async def test_start_tool_call_succeeds(self, service: ConversationService):
         """start_tool_call records and returns a new tool call."""
         msg_id = uuid4()

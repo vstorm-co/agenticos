@@ -2,16 +2,12 @@
 
 import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { getErrorMessage } from "@/lib/utils";
-import type {
-  ModelProfile,
-  ModelProfileList,
-  ProviderCatalog,
-  ProviderInfo,
-} from "@/types/providers";
+import type { ModelProfile, ModelProfileList, ProviderCatalog } from "@/types/providers";
 export interface NewModelProfile {
   label: string;
   provider: string;
@@ -44,6 +40,7 @@ export interface NewModelProfile {
  * answered wrongly for the other twenty.
  */
 export function useModelProviders() {
+  const t = useTranslations("settings");
   const queryClient = useQueryClient();
 
   const catalog = useQuery({
@@ -72,7 +69,7 @@ export function useModelProviders() {
       apiClient.post<ModelProfile>("/providers/model-profiles", data),
     onSuccess: async (profile) => {
       await invalidate();
-      toast.success(`Added ${profile.label}`);
+      toast.success(t("modelAdded", { label: profile.label }));
     },
   });
 
@@ -80,7 +77,7 @@ export function useModelProviders() {
     mutationFn: (id: string) => apiClient.delete<void>(`/providers/model-profiles/${id}`),
     onSuccess: async () => {
       await invalidate();
-      toast.success("Model removed");
+      toast.success(t("modelRemoved"));
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   });
@@ -92,14 +89,6 @@ export function useModelProviders() {
     createProfile,
     deleteProfile,
   };
-}
-
-/** One provider's entry, or null for an id the deployment does not offer. */
-export function providerInfo(
-  catalog: readonly ProviderInfo[],
-  provider: string,
-): ProviderInfo | null {
-  return catalog.find((entry) => entry.id === provider) ?? null;
 }
 
 /** One model a provider offers, as a picker needs it. */

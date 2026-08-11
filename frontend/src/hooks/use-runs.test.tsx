@@ -3,7 +3,14 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useApprovals, useDelegatedRuns, useRun, useRuns, useSpend } from "./use-runs";
+import {
+  useApprovals,
+  useDelegatedRuns,
+  useRun,
+  useRuns,
+  useRunTranscript,
+  useSpend,
+} from "./use-runs";
 import { apiClient } from "@/lib/api-client";
 
 vi.mock("@/lib/api-client", () => ({
@@ -39,6 +46,44 @@ describe("useRuns", () => {
     });
   });
 
+  it("leaves the feed's own order unsaid, so the default call stays bodyless", async () => {
+    // `started_at` descending is the server's default. Sending it would only
+    // change the cache key and the request shape for no behaviour, so the
+    // unfiltered, unsorted call carries no params at all.
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    const { result } = renderHook(
+      () => useRuns(undefined, { orderBy: "started_at", descending: true }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith("/runs", undefined);
+  });
+
+  it("sorts by duration and filters the slow runs in SQL, not over a page", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    const { result } = renderHook(
+      () =>
+        useRuns(undefined, {
+          orderBy: "duration",
+          descending: false,
+          tookOverMs: 30_000,
+          startedFrom: "2026-08-01T00:00:00.000Z",
+          startedTo: "2026-08-31T23:59:59.999Z",
+        }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith("/runs", {
+      params: {
+        order_by: "duration",
+        descending: "false",
+        took_over_ms: "30000",
+        started_from: "2026-08-01T00:00:00.000Z",
+        started_to: "2026-08-31T23:59:59.999Z",
+      },
+    });
+  });
+
   it("fetches nothing for a caller that is not ready to ask", () => {
     // The Activity tab mounts before the organization is resolved; a request sent
     // then reads another organization's runs or none at all.
@@ -55,6 +100,42 @@ describe("useRuns", () => {
 
     await waitFor(() => expect(result.current.error).toBeTruthy());
     expect(result.current.runs).toEqual([]);
+  });
+
+  it("narrows to the runs somebody rated down when asked", async () => {
+    // The highest-signal queue here: the answers real people said were wrong.
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    const { result } = renderHook(() => useRuns(undefined, { rated: "down" }), { wrapper });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith("/runs", { params: { rated: "down" } });
+  });
+});
+
+describe("useRunTranscript", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("reads one run's transcript, where the ratings and their comments live", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      run_id: "run-9",
+      conversation_id: "c1",
+      items: [],
+      total: 0,
+    });
+    const { result } = renderHook(() => useRunTranscript("run-9"), { wrapper });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith("/runs/run-9/transcript");
+  });
+
+  it("hands back the failure rather than an empty transcript", async () => {
+    // A run with nothing rated down and a request that failed are the same
+    // absence to the surface, and only one of them is worth an error.
+    vi.mocked(apiClient.get).mockRejectedValue(new Error("boom"));
+    const { result } = renderHook(() => useRunTranscript("run-9"), { wrapper });
+
+    await waitFor(() => expect(result.current.error).toBeTruthy());
+    expect(result.current.transcript).toBeUndefined();
   });
 });
 

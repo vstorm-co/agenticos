@@ -85,17 +85,79 @@ describe("the query key factory", () => {
 
   it("names the whole-organization run list rather than keying it on undefined", () => {
     // `["runs","list",undefined]` and `["runs","list"]` are different keys to
-    // React Query and the same list to a reader. The window is named the same
-    // way, and for the same reason.
-    expect(qk.runs.list()).toEqual(["runs", "list", "all", "all-time"]);
-    expect(qk.runs.list("a1")).toEqual(["runs", "list", "a1", "all-time"]);
+    // React Query and the same list to a reader. The window, the sort and the
+    // minimum-duration filter are named the same way, and for the same reason.
+    expect(qk.runs.list()).toEqual([
+      "runs",
+      "list",
+      "all",
+      "all-time",
+      "no-end",
+      "started_at",
+      true,
+      "no-min",
+      "any-rating",
+    ]);
+    expect(qk.runs.list({ agentId: "a1" })).toEqual([
+      "runs",
+      "list",
+      "a1",
+      "all-time",
+      "no-end",
+      "started_at",
+      true,
+      "no-min",
+      "any-rating",
+    ]);
   });
 
   it("keys a run list by its window as well as its agent", () => {
     // The same agent over two windows is two answers. Caching one as the other
     // is how a figure ends up describing a period nobody asked for - which is
     // the shape of #198, one layer up.
-    expect(qk.runs.list(undefined, "2026-08-01T00:00:00.000Z")).not.toEqual(qk.runs.list());
+    expect(qk.runs.list({ startedFrom: "2026-08-01T00:00:00.000Z" })).not.toEqual(qk.runs.list());
+  });
+
+  it("keys a run list by its sort and its minimum-duration filter", () => {
+    // The slowest runs and the newest runs are two answers over one window; the
+    // dashboard's p95 deep-link asks for the first and the feed for the second,
+    // so they must not share a cache entry.
+    expect(qk.runs.list({ orderBy: "duration" })).not.toEqual(qk.runs.list());
+    expect(qk.runs.list({ descending: false })).not.toEqual(qk.runs.list());
+    expect(qk.runs.list({ startedTo: "2026-08-31T23:59:59.999Z" })).not.toEqual(qk.runs.list());
+    expect(qk.runs.list({ tookOverMs: 30_000 })).toEqual([
+      "runs",
+      "list",
+      "all",
+      "all-time",
+      "no-end",
+      "started_at",
+      true,
+      30_000,
+      "any-rating",
+    ]);
+  });
+
+  it("keys the rated-down list apart from the whole", () => {
+    // "Rated down" is a narrower request over the same rows: it must not answer
+    // for the whole list.
+    expect(qk.runs.list({ rated: "down" })).toEqual([
+      "runs",
+      "list",
+      "all",
+      "all-time",
+      "no-end",
+      "started_at",
+      true,
+      "no-min",
+      "down",
+    ]);
+    expect(qk.runs.list({ rated: "down" })).not.toEqual(qk.runs.list());
+  });
+
+  it("keys a run's transcript apart from the run row it belongs to", () => {
+    expect(qk.runs.transcript("run-1")).toEqual(["runs", "run-1", "transcript"]);
+    expect(qk.runs.transcript("run-1")).not.toEqual(qk.runs.detail("run-1"));
   });
 
   it("keys a paged list by its window", () => {

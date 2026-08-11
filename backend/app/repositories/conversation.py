@@ -10,7 +10,7 @@ from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.db.models.agent import Agent, AgentVersion
+from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.user import User
@@ -141,22 +141,6 @@ async def count_by_agent(
         .group_by(Message.agent_id)
     )
     return {agent_id: count for agent_id, count in result.all() if agent_id is not None}
-
-
-async def version_numbers(db: AsyncSession, version_ids: list[UUID]) -> dict[UUID, int]:
-    """The human-readable number behind each version id.
-
-    A transcript says "v3"; the message stores a UUID, which names nothing to a
-    reader. Resolved in one query for the whole page rather than joined onto the
-    message query, because most messages have no version at all and a join would
-    pay for the column on every row that does not use it.
-    """
-    if not version_ids:
-        return {}
-    result = await db.execute(
-        select(AgentVersion.id, AgentVersion.version).where(AgentVersion.id.in_(version_ids))
-    )
-    return {row[0]: row[1] for row in result.all()}
 
 
 async def get_conversation_by_id(
@@ -478,6 +462,37 @@ async def count_messages(db: AsyncSession, conversation_id: UUID) -> int:
     return result.scalar() or 0
 
 
+async def get_messages_by_run(
+    db: AsyncSession,
+    run_id: UUID,
+    *,
+    skip: int = 0,
+    limit: int = 100,
+    include_tool_calls: bool = False,
+) -> list[Message]:
+    """The turns one run produced, oldest first.
+
+    Narrowed by `messages.run_id` rather than by a time window over the
+    conversation: two runs started in one thread interleave, so windowing by the
+    run's `started_at`/`ended_at` returns the wrong rows for the first and none
+    for a run that never ended.
+    """
+    query = select(Message).where(Message.run_id == run_id)
+    if include_tool_calls:
+        query = query.options(selectinload(Message.tool_calls))
+    query = query.options(selectinload(Message.files))
+    query = query.order_by(Message.created_at.asc()).offset(skip).limit(limit)
+    result = await db.execute(query)
+    return list(result.scalars().all())
+
+
+async def count_messages_by_run(db: AsyncSession, run_id: UUID) -> int:
+    """Count the turns one run produced."""
+    query = select(func.count(Message.id)).where(Message.run_id == run_id)
+    result = await db.execute(query)
+    return result.scalar() or 0
+
+
 async def create_message(
     db: AsyncSession,
     *,
@@ -557,20 +572,6 @@ async def delete_message(db: AsyncSession, message_id: UUID) -> bool:
 async def get_tool_call_by_id(db: AsyncSession, tool_call_id: UUID) -> ToolCall | None:
     """Get tool call by ID."""
     return await db.get(ToolCall, tool_call_id)
-
-
-async def get_tool_calls_by_message(
-    db: AsyncSession,
-    message_id: UUID,
-) -> list[ToolCall]:
-    """Get tool calls for a message."""
-    query = (
-        select(ToolCall)
-        .where(ToolCall.message_id == message_id)
-        .order_by(ToolCall.started_at.asc())
-    )
-    result = await db.execute(query)
-    return list(result.scalars().all())
 
 
 async def get_open_tool_call_in_run(

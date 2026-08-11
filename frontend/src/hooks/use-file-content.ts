@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 
 import { openFileInNewTab, type FileAccess, type FileText } from "@/lib/file-access";
 
@@ -27,6 +28,7 @@ interface UseFileTextResult {
 
 /** One file's characters. */
 export function useFileText(access: FileAccess): UseFileTextResult {
+  const t = useTranslations("files");
   const {
     data: file = null,
     isLoading,
@@ -37,7 +39,7 @@ export function useFileText(access: FileAccess): UseFileTextResult {
     retry: false,
   });
 
-  return { file, isLoading, error: readFailure(error) };
+  return { file, isLoading, error: readFailure(error, t("couldNotBeRead")) };
 }
 
 interface UseFileBytesResult {
@@ -67,6 +69,7 @@ interface UseFileBytesResult {
  * because a blob URL holds the bytes alive until it is.
  */
 export function useFileBytes(access: FileAccess): UseFileBytesResult {
+  const t = useTranslations("files");
   const {
     data: blob = null,
     isLoading,
@@ -90,7 +93,12 @@ export function useFileBytes(access: FileAccess): UseFileBytesResult {
     [url],
   );
 
-  return { url, mediaType: blob?.type ?? null, isLoading, error: readFailure(error) };
+  return {
+    url,
+    mediaType: blob?.type ?? null,
+    isLoading,
+    error: readFailure(error, t("couldNotBeRead")),
+  };
 }
 
 interface UseFileActionsResult {
@@ -113,13 +121,17 @@ interface UseFileActionsResult {
  * fetched - and a second slot would only ever hold the same sentence.
  */
 export function useFileActions(access: FileAccess): UseFileActionsResult {
+  const t = useTranslations("files");
   const [error, setError] = useState<string | null>(null);
-  const run = useCallback((action: () => Promise<void>) => {
-    setError(null);
-    void action().catch((failure: unknown) =>
-      setError(failure instanceof Error ? failure.message : "That file could not be fetched"),
-    );
-  }, []);
+  const run = useCallback(
+    (action: () => Promise<void>) => {
+      setError(null);
+      void action().catch((failure: unknown) =>
+        setError(failure instanceof Error ? failure.message : t("couldNotBeFetched")),
+      );
+    },
+    [t],
+  );
 
   return {
     download: useCallback(() => run(() => access.download()), [run, access]),
@@ -128,7 +140,8 @@ export function useFileActions(access: FileAccess): UseFileActionsResult {
   };
 }
 
-function readFailure(error: unknown): string | null {
+/** `fallback` rather than a message of its own: a module function cannot translate. */
+function readFailure(error: unknown, fallback: string): string | null {
   if (error instanceof Error) return error.message;
-  return error ? "That file could not be read" : null;
+  return error ? fallback : null;
 }

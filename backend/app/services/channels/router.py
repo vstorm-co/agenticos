@@ -3,10 +3,13 @@
 import asyncio
 import json
 import logging
+import re
 import time
 from typing import Any
 
+from app.core.config import settings
 from app.core.exceptions import AppException, AuthorizationError, BadRequestError
+from app.db.models.agent_run import RunStatus
 from app.repositories import (
     channel_bot_repo,
     channel_identity_repo,
@@ -15,22 +18,46 @@ from app.repositories import (
 )
 from app.services.agent import build_message_history
 from app.services.channel_bot import unseal_bot_token
+from app.services.channel_link import ChannelLinkService
 from app.services.channels import get_adapter
 from app.services.channels.attachments import ChannelAttachmentService
 from app.services.channels.base import IncomingMessage, OutgoingAttachment, OutgoingMessage
-from app.services.channels.mentions import ChannelAgentRouter, UnaddressedMessage
+from app.services.channels.directory import BoundChannelDirectory
+from app.services.channels.live_reply import WORKING, LiveReply, channel_stream
+from app.services.channels.mentions import ChannelAgentRouter, UnaddressedMessage, channel_key
 
 logger = logging.getLogger(__name__)
 
 # key format: "{bot_id}:{identity_id}", value = (count, window_start_ts)
 _rate_buckets: dict[str, tuple[int, float]] = {}
 
-_DEFAULT_RPM = 10  # requests per minute
+_DEFAULT_RPM = 10
 
 # In group chats multiple users can message simultaneously. Without a lock the router
 # would race: duplicate ChannelSession creation, interleaved agent calls, rate-limit races.
 # Key = (bot_id, platform_chat_id); 1-on-1 chats also acquire it but contention is negligible.
 _chat_locks: dict[str, asyncio.Lock] = {}
+
+
+_SLASHLESS = re.compile(r"^link$", re.IGNORECASE)
+"""A command a platform would have eaten before we saw it.
+
+Mattermost parses a leading `/` itself: typing `/link` in a Mattermost chat
+answers *"command with a trigger of '/link' not found"* and never delivers
+anything. Since connecting an account is the thing somebody does before any
+channel will answer them, that was the one command that had to survive it.
+
+Only `link`, and only when it is the whole message. "link" is an ordinary word in
+English and in Polish, so anything around it - "link do dokumentu?" - is a
+question for the agent rather than a command.
+"""
+
+
+def _as_command(text: str) -> str:
+    """The message as a command, restoring a slash the platform swallowed."""
+    stripped = text.strip()
+    match = _SLASHLESS.match(stripped)
+    return f"/{stripped}" if match else stripped
 
 
 def _get_chat_lock(bot_id: str, chat_id: str) -> asyncio.Lock:
@@ -39,6 +66,38 @@ def _get_chat_lock(bot_id: str, chat_id: str) -> asyncio.Lock:
     if key not in _chat_locks:
         _chat_locks[key] = asyncio.Lock()
     return _chat_locks[key]
+
+
+def _needs_approval(run_id: Any) -> str:
+    """What to say when the turn parked on a decision instead of answering.
+
+    With the run's own address in it. "Check the approvals queue" asks somebody
+    sitting in a chat window to go and find a page they may never have opened, in
+    a product they reach through a bot - which is most of the way to not telling
+    them at all. `?run=` is the same link a delegation panel hands over with, so
+    it lands on the decision rather than on a list to search.
+    """
+    where = f"{settings.FRONTEND_URL.rstrip('/')}/runs"
+    if run_id is not None:
+        return f"That needs approval before it can run: {where}?run={run_id}"
+    return f"That needs approval before it can run - decide it here: {where}"
+
+
+def _empty_answer(answered: Any) -> str:
+    """What to say when a turn ended with no words, told apart by why.
+
+    An empty answer used to always read as "that needs approval", but the three
+    reasons a turn ends empty are not the same message. A run parked on an
+    approval links to the decision; one stopped at its budget says the assistant
+    is at its ceiling; anything else - a crash caught upstream, a model that
+    produced no text - gets a plain apology rather than being sent to a runs
+    page over a decision that was never raised.
+    """
+    if answered.awaiting_approval_run_id is not None:
+        return _needs_approval(answered.awaiting_approval_run_id)
+    if answered.status == RunStatus.BUDGET_EXCEEDED:
+        return "This assistant has reached its usage limit."
+    return "Sorry, I could not produce an answer to that. Please try again."
 
 
 def _kept_back(paths: list[str]) -> list[str]:
@@ -106,6 +165,10 @@ class ChannelMessageRouter:
             await self._send_reply(bot, incoming, exc.message)
             return
 
+        if identity.user_id is None:
+            await self._send_reply(bot, incoming, await self._invite_to_link(incoming, db))
+            return
+
         session = await self._resolve_session(incoming, bot, identity, db)
 
         try:
@@ -114,7 +177,23 @@ class ChannelMessageRouter:
             await self._send_reply(bot, incoming, exc.message)
             return
 
-        if await self._answer_mention(incoming, bot, identity, session, db):
+        # Opened once, here, and handed to whichever path answers. Opening it
+        # inside `_answer_mention` left one behind on every ordinary message:
+        # that path posts, discovers the message names no agent, returns False -
+        # and the placeholder stays on screen for ever while the default path
+        # posts a second one beside it.
+        live, handle = await self._open_reply(bot, incoming)
+
+        # Built here, once, from the row that admitted the message - so an agent
+        # that asks about the channel asks about *this* channel, with the bot's
+        # own token, and never about one named by the model. Free to build for a
+        # turn that never uses it: nothing here calls the platform until a tool
+        # does.
+        directory = self._channel_directory(bot, incoming)
+
+        if await self._answer_mention(
+            incoming, bot, identity, session, db, live, handle, directory
+        ):
             return
 
         files, file_refusals = await self._receive_files(db, bot, incoming, identity)
@@ -133,14 +212,16 @@ class ChannelMessageRouter:
                 user_id=identity.user_id,
                 conversation_id=session.conversation_id,
                 platform_chat_id=incoming.platform_chat_id,
-                # What this bot says about what a turn cost, and how many turns
-                # this chat has had - `every_n` counts per chat, because "every
-                # tenth message" is a question about this conversation and not
-                # about whichever channel happened to be tenth across the bot.
-                usage_reporting=bot.usage_reporting,
+                channel_directory=directory,
+                # How many turns this chat has had. `every_n` counts per chat,
+                # because "every tenth message" is a question about this
+                # conversation and not about whichever channel happened to be
+                # tenth across the bot. *Whether* to say anything is the
+                # binding's, and the binding is resolved a layer down.
                 turn=session.turn_count,
                 attachments=files,
                 message_history=build_message_history(history),
+                stream=None if live is None else channel_stream(live),
             )
         except AppException as exc:
             # A refusal - no agent exposed, several to choose from, an unlinked
@@ -157,15 +238,69 @@ class ChannelMessageRouter:
         # for Slack - so they belong to the delivery and not to the transcript,
         # which holds what the agent actually said.
         answer = self._with_notes(answered.text, file_refusals, _kept_back(answered.refused))
+        await self._deliver(bot, incoming, answer, answered, handle)
+
+    async def _deliver(
+        self,
+        bot: Any,
+        incoming: IncomingMessage,
+        answer: str,
+        answered: Any,
+        handle: str | None,
+    ) -> None:
+        """Finish the turn in the message the person has been watching.
+
+        A live reply is already on screen, so the answer replaces it rather than
+        arriving underneath it - two messages saying the same thing is worse than
+        the silence this replaced. A chart or a produced file still needs a
+        second post: no platform lets a message gain an attachment by being
+        edited.
+        """
+        text = answer or _empty_answer(answered)
+        if handle is not None:
+            adapter = get_adapter(incoming.platform)
+            try:
+                await adapter.update_reply(
+                    unseal_bot_token(bot),
+                    OutgoingMessage(
+                        platform_chat_id=incoming.platform_chat_id,
+                        text=text,
+                        api_base_url=getattr(bot, "api_base_url", None),
+                    ),
+                    handle,
+                )
+            except Exception:
+                # The edit failed - a rate-limit on the last one, or the
+                # placeholder was deleted so the PATCH 404s. Fall through to
+                # `_send_reply` with the whole answer rather than blanking `text`
+                # and posting nothing: `live_reply` promises the answer arrives
+                # whole at the end whatever happened.
+                logger.warning(
+                    "live reply final edit failed; re-posting the answer whole", exc_info=True
+                )
+            else:
+                if answered.image_png is None and not answered.attachments:
+                    return
+                text = ""
+
         await self._send_reply(
             bot,
             incoming,
-            answer or "That needs approval before it can run - check the approvals queue.",
+            text,
             answered.attachments,
+            image_png=answered.image_png,
         )
 
     async def _answer_mention(
-        self, incoming: IncomingMessage, bot: Any, identity: Any, session: Any, db: Any
+        self,
+        incoming: IncomingMessage,
+        bot: Any,
+        identity: Any,
+        session: Any,
+        db: Any,
+        live: LiveReply | None,
+        handle: str | None,
+        directory: BoundChannelDirectory | None,
     ) -> bool:
         """Answer `@handle …` with that agent, and report whether we did.
 
@@ -189,9 +324,10 @@ class ChannelMessageRouter:
                 user_id=identity.user_id,
                 conversation_id=session.conversation_id,
                 platform_chat_id=incoming.platform_chat_id,
-                usage_reporting=bot.usage_reporting,
+                channel_directory=directory,
                 turn=session.turn_count,
                 attachments=files,
+                stream=None if live is None else channel_stream(live),
             )
         except UnaddressedMessage:
             return False
@@ -200,13 +336,34 @@ class ChannelMessageRouter:
             return True
 
         answer = self._with_notes(answered.text, file_refusals, _kept_back(answered.refused))
-        await self._send_reply(
-            bot,
-            incoming,
-            answer or "That needs approval before it can run - check the approvals queue.",
-            answered.attachments,
-        )
+        await self._deliver(bot, incoming, answer, answered, handle)
         return True
+
+    @staticmethod
+    def _channel_directory(bot: Any, incoming: IncomingMessage) -> BoundChannelDirectory | None:
+        """This channel, bound so an agent can ask about it - or `None`.
+
+        Keyed on `channel_key`, not on `platform_chat_id`: in a thread the raw id
+        is `channel:root`, and asking Mattermost about a post id gets a 404 for
+        every question. The channel is the thing an agent asks about; the thread
+        is where it is answering.
+
+        `None` when the platform has no adapter registered, which is not a state
+        an inbound message can reach - the adapter is what parsed it - but is one
+        a test or a half-configured deployment can. Refusing the whole turn over
+        a capability the agent probably does not have would be the wrong trade.
+        """
+        try:
+            adapter = get_adapter(incoming.platform)
+        except KeyError:
+            logger.warning("No adapter for %s; channel lookup unavailable", incoming.platform)
+            return None
+        return BoundChannelDirectory(
+            adapter=adapter,
+            bot_token=unseal_bot_token(bot),
+            channel_id=channel_key(incoming.platform_chat_id),
+            api_base_url=getattr(bot, "api_base_url", None),
+        )
 
     async def _receive_files(
         self, db: Any, bot: Any, incoming: IncomingMessage, identity: Any
@@ -280,16 +437,40 @@ class ChannelMessageRouter:
                 )
         # "open" and "jwt_linked" pass through here; jwt_linked is enforced at identity resolution
 
+    async def _invite_to_link(self, incoming: IncomingMessage, db: Any) -> str:
+        """What to answer somebody whose chat account is nobody's yet.
+
+        A run belongs to a person - their budget, their permissions, their name
+        on the audit entry - so an unlinked sender is refused whatever the bot's
+        access policy says. The refusal carries the way out rather than
+        describing it: a URL they open while already signed in.
+
+        **Only in a direct message.** The URL is a bearer credential: whoever
+        opens it claims this chat account. In a channel everybody can read it,
+        so a channel gets the instruction and the direct message gets the link.
+        """
+        if incoming.chat_type != "private":
+            return (
+                "Send me a direct message to connect your account - the link is "
+                "personal, so it does not belong in a channel."
+            )
+        url = await ChannelLinkService(db).request(incoming)
+        return (
+            f"Connect your account to start: {url}\n\nThe link is yours alone and expires shortly."
+        )
+
     async def _handle_command(
         self, text: str, incoming: IncomingMessage, bot: Any, db: Any
     ) -> str | None:
         """Handle bot commands. Returns reply text or None if not a command."""
+        text = _as_command(text)
         if not text.startswith("/"):
             return None
 
-        parts = text.split(maxsplit=1)
-        cmd = parts[0].lower().split("@")[0]  # strip @botname suffix
-        arg = parts[1].strip() if len(parts) > 1 else ""
+        # Only the first word: no command takes an argument any more. `/link`
+        # was the one that did, and it took a code somebody copied out of the
+        # dashboard - which is the flow this replaced.
+        cmd = text.split(maxsplit=1)[0].lower().split("@")[0]  # strip @botname suffix
 
         if cmd == "/start":
             return (
@@ -307,7 +488,7 @@ class ChannelMessageRouter:
                 "/start - Show welcome message\n"
                 "/new - Start a new conversation\n"
                 "/help - Show this help\n"
-                "/link <code> - Link your account\n"
+                "/link - Connect your chat account to your account here\n"
                 "/unlink - Unlink your account"
             )
 
@@ -329,42 +510,15 @@ class ChannelMessageRouter:
             return "New conversation started! How can I help you?"
 
         if cmd == "/link":
-            if not arg:
-                return "Usage: /link <code>"
+            # Takes no argument any more: it asks for a fresh link rather than
+            # carrying a code somebody copied. Kept because "how do I connect
+            # this?" is a question people ask in words, and because a URL that
+            # expired needs a way to ask for another.
             try:
-                linked = await channel_identity_repo.get_by_link_code(db, arg)
-                if not linked or not linked.user_id:
-                    return (
-                        "Invalid or expired link code. Please generate a new one from the web app."
-                    )
-                identity = await channel_identity_repo.get_by_platform_user(
-                    db,
-                    platform=incoming.platform,
-                    platform_user_id=incoming.platform_user_id,
-                )
-                if identity:
-                    await channel_identity_repo.update(
-                        db, db_identity=identity, update_data={"user_id": linked.user_id}
-                    )
-                else:
-                    await channel_identity_repo.create(
-                        db,
-                        platform=incoming.platform,
-                        platform_user_id=incoming.platform_user_id,
-                        platform_username=incoming.platform_username,
-                        platform_display_name=incoming.platform_display_name,
-                        user_id=linked.user_id,
-                    )
-                await channel_identity_repo.update(
-                    db,
-                    db_identity=linked,
-                    update_data={"link_code": None, "link_code_expires_at": None},
-                )
+                return await self._invite_to_link(incoming, db)
             except Exception:
                 logger.exception("Unexpected error processing /link command")
                 return "A system error occurred. Please try again later."
-            else:
-                return "Successfully linked your account."
 
         if cmd == "/unlink":
             identity = await channel_identity_repo.get_by_platform_user(
@@ -462,10 +616,56 @@ class ChannelMessageRouter:
                     raise BadRequestError(message="Rate limit exceeded. Please slow down.")
                 _rate_buckets[key] = (count + 1, window_start)
             else:
-                # Window expired - reset
                 _rate_buckets[key] = (1, now)
         else:
             _rate_buckets[key] = (1, now)
+
+    async def _open_reply(
+        self, bot: Any, incoming: IncomingMessage
+    ) -> tuple[LiveReply | None, str | None]:
+        """Put a message on screen now, and return how to keep writing it.
+
+        This is the difference between a bot that is thinking and a bot that has
+        crashed, and from the outside those looked identical: a channel bot
+        posted one finished message and nothing before it, so a question that
+        took twelve seconds and three tool calls bought twelve seconds of
+        silence.
+
+        `(None, None)` when the platform cannot edit what it has sent, or when
+        posting the placeholder failed. Both mean the same thing to the caller -
+        answer the way we always did - which is why a failure here is logged and
+        swallowed rather than costing somebody their answer.
+        """
+        adapter = get_adapter(incoming.platform)
+        token = unseal_bot_token(bot)
+        placeholder = OutgoingMessage(
+            platform_chat_id=incoming.platform_chat_id,
+            text=WORKING,
+            reply_to_message_id=incoming.message_id,
+            api_base_url=getattr(bot, "api_base_url", None),
+        )
+        try:
+            handle = await adapter.begin_reply(token, placeholder)
+        except Exception:
+            logger.warning("Could not open a live reply on %s", incoming.platform, exc_info=True)
+            return None, None
+        if handle is None:
+            return None, None
+
+        await adapter.typing(str(bot.id), placeholder)
+
+        async def push(text: str) -> None:
+            await adapter.update_reply(
+                token,
+                OutgoingMessage(
+                    platform_chat_id=incoming.platform_chat_id,
+                    text=text,
+                    api_base_url=getattr(bot, "api_base_url", None),
+                ),
+                handle,
+            )
+
+        return LiveReply(push), handle
 
     async def _send_reply(
         self,
@@ -473,8 +673,15 @@ class ChannelMessageRouter:
         incoming: IncomingMessage,
         text: str,
         attachments: list[OutgoingAttachment] | None = None,
+        *,
+        image_png: bytes | None = None,
     ) -> None:
-        """Decrypt the bot token and send a reply via the appropriate adapter."""
+        """Decrypt the bot token and send a reply via the appropriate adapter.
+
+        A chart travels as `image_png` rather than as an attachment: every
+        adapter posts it as a picture beside the text, where an attachment is
+        something to download.
+        """
         try:
             adapter = get_adapter(incoming.platform)
             decrypted_token = unseal_bot_token(bot)
@@ -485,6 +692,7 @@ class ChannelMessageRouter:
                 reply_to_message_id=incoming.message_id,
                 api_base_url=getattr(bot, "api_base_url", None),
                 attachments=attachments or [],
+                image_png=image_png,
             )
             await adapter.send_message(decrypted_token, out)
         except Exception:

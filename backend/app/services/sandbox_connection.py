@@ -112,8 +112,6 @@ class SandboxConnectionService:
         self.db = db
         self.secrets = OrganizationSecretService(db)
 
-    # -- operator-facing ------------------------------------------------
-
     async def list_connections(self, ctx: AuthContext) -> list[SandboxConnectionRead]:
         rows = await sandbox_connection_repo.list_for_organization(
             self.db, organization_id=ctx.organization_id
@@ -219,8 +217,6 @@ class SandboxConnectionService:
             target_id=str(connection_id),
             details={"name": row.name},
         )
-
-    # -- what this deployment can already see ---------------------------
 
     @staticmethod
     def runtime_catalog() -> list[dict[str, Any]]:
@@ -414,8 +410,6 @@ class SandboxConnectionService:
                 message="A container connection needs the address its sandbox service answers on",
                 details={"field": "base_url"},
             )
-
-    # -- run-facing ----------------------------------------------------
 
     async def resolve(self, ctx: AuthContext, connection_id: UUID | None) -> ResolvedConnection:
         """The connection an agent should use, with its credential unsealed.

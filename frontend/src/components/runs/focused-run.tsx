@@ -8,6 +8,7 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { useDelegatedRuns, useRun } from "@/hooks";
 import { ApiError } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
+import { RunFeedback } from "./run-feedback";
 import { RunTable } from "./run-table";
 
 /**
@@ -67,6 +68,10 @@ export function FocusedRun({ runId }: { runId: string }) {
           {t("delegationsAlreadyCounted", { count: delegated.length })}
         </p>
       )}
+
+      {/* Where the 👎 on the row above becomes readable: the answers people
+          rated down in this run, and the words they left. */}
+      <RunFeedback runId={runId} />
     </div>
   );
 }

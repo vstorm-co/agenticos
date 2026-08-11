@@ -111,13 +111,3 @@ def all_purposes() -> list[SecretPurpose]:
 def get(purpose_id: str) -> SecretPurpose | None:
     """One purpose, or None for an id this deployment does not offer."""
     return next((entry for entry in all_purposes() if entry.id == purpose_id), None)
-
-
-def is_model_provider(purpose_id: str) -> bool:
-    """Whether a key with this purpose makes a model provider reachable.
-
-    What the model picker is built on: an organization can run on the providers
-    it holds keys for, and nothing else.
-    """
-    entry = get(purpose_id)
-    return entry is not None and entry.category is PurposeCategory.MODEL_PROVIDER

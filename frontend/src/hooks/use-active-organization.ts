@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { usePermissions } from "@/hooks/use-permissions";
@@ -128,6 +129,7 @@ function useTenantCacheReset(activeOrgId: string | null): void {
  * refused for this organization specifically.
  */
 export function useActiveOrganizationRecovery(): void {
+  const t = useTranslations("organizations");
   const queryClient = useQueryClient();
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const refusedOrgIds = useOrgStore((state) => state.refusedOrgIds);
@@ -149,9 +151,7 @@ export function useActiveOrganizationRecovery(): void {
     setActiveOrgId(replacement?.id ?? null);
 
     toast.error(
-      replacement
-        ? `You no longer have access to that organization. Switched to ${replacement.name}.`
-        : "You no longer have access to that organization.",
+      replacement ? t("accessLostSwitched", { name: replacement.name }) : t("accessLost"),
     );
-  }, [error, activeOrgId, orgs, refusedOrgIds, markOrgRefused, setActiveOrgId, queryClient]);
+  }, [error, activeOrgId, orgs, refusedOrgIds, markOrgRefused, setActiveOrgId, queryClient, t]);
 }

@@ -146,6 +146,21 @@ def get_channel_bot_service(db: DBSession) -> ChannelBotService:
 
 ChannelBotSvc = Annotated[ChannelBotService, Depends(get_channel_bot_service)]
 
+
+from app.services.channel_link import ChannelLinkService
+
+
+def get_channel_link_service(db: DBSession) -> ChannelLinkService:
+    """Minting and spending the codes that connect a chat account to a person.
+
+    Not organization-scoped: a code names a *user*, and the same person's chat
+    identity is theirs in every organization they belong to.
+    """
+    return ChannelLinkService(db)
+
+
+ChannelLinkSvc = Annotated[ChannelLinkService, Depends(get_channel_link_service)]
+
 from app.services.message_rating import MessageRatingService
 
 
@@ -267,7 +282,6 @@ async def get_current_user(
     if payload is None:
         raise AuthenticationError(message="Invalid or expired token")
 
-    # Ensure this is an access token, not a refresh token
     if payload.get("type") != "access":
         raise AuthenticationError(message="Invalid token type")
 
@@ -413,6 +427,22 @@ def get_approval_service(db: DBSession) -> ApprovalService:
 
 AgentRunnerSvc = Annotated[AgentRunnerService, Depends(get_agent_runner_service)]
 ApprovalSvc = Annotated[ApprovalService, Depends(get_approval_service)]
+
+from app.services.run_export import RunExportService
+
+
+def get_run_export_service(db: DBSession) -> RunExportService:
+    """Create RunExportService instance with database session.
+
+    The function-scoped session on purpose, not `StreamingDBSession`: the row cap
+    bounds the body so it is built in one pass, and this write - the audit entry -
+    has to commit before the response leaves, which the streaming session resolves
+    too late to promise.
+    """
+    return RunExportService(db)
+
+
+RunExportSvc = Annotated[RunExportService, Depends(get_run_export_service)]
 
 from app.services.stats import StatsService
 

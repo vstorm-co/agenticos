@@ -2,6 +2,14 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from app.agents.capabilities.channel_tools import (
+    ChannelDetails,
+    ChannelDirectoryUnsupported,
+    ChannelMember,
+    ChannelPost,
+    ChannelSummary,
+)
+
 # Surface a conversation is happening on. "web" is the chat UI / API; the
 # others are messaging platforms. Extend this when adding new channels.
 ChannelType = Literal["web", "slack", "telegram", "mattermost"]
@@ -139,6 +147,45 @@ class ChannelAdapter(ABC):
     async def send_message(self, bot_token: str, msg: OutgoingMessage) -> None:
         """Send a reply back to the platform."""
 
+    async def begin_reply(self, bot_token: str, msg: OutgoingMessage) -> str | None:
+        """Post a message that will be rewritten as the answer arrives.
+
+        Returns a handle to pass back to :meth:`update_reply`, or `None` when
+        this platform cannot edit what it has sent. `None` is not a failure: the
+        caller falls back to posting one finished message, which is what every
+        adapter did before this existed.
+
+        Not abstract for that reason - an adapter that cannot stream should not
+        have to say so in a stub, and a new one is correct on the day it is
+        written.
+        """
+        return None
+
+    async def update_reply(self, bot_token: str, msg: OutgoingMessage, handle: str) -> None:
+        """Rewrite the message `handle` names.
+
+        Only ever called with a handle this adapter returned, so an adapter that
+        cannot stream never reaches it.
+        """
+        raise NotImplementedError(f"{self.platform} cannot edit a message it has sent")
+
+    async def typing(self, bot_id: str, msg: OutgoingMessage) -> None:  # noqa: B027
+        """Show that the bot is composing, if the platform has such a thing.
+
+        Keyed on the bot rather than the token because the platforms that offer
+        this offer it over a connection the adapter already holds. Silent by
+        default and never fatal: a missing typing indicator is a smaller problem
+        than the answer it precedes.
+
+        Not abstract, and deliberately a no-op rather than a raise: every caller
+        would otherwise have to ask whether the platform has one, and the answer
+        "it does not" is the same as "nothing happened".
+
+        The `noqa` is that decision: B027 wants an empty method on an abstract
+        base to be abstract, and making it so would force every adapter to write
+        the same stub for a feature only some platforms have.
+        """
+
     async def download_attachment(self, bot_token: str, attachment: IncomingAttachment) -> bytes:
         """Fetch what somebody sent, using this platform's own second request.
 
@@ -152,6 +199,66 @@ class ChannelAdapter(ABC):
                 an attachment looks like a bot that read it.
         """
         raise NotImplementedError(f"{self.platform} attachments cannot be downloaded yet")
+
+    #
+    # The implementation half of `app.agents.capabilities.channel_tools`: the
+    # capability declares one shape for all three platforms so an agent does not
+    # have to know which one it is standing on, and each adapter answers it with
+    # its own API. None of them is abstract, and every one raises by default -
+    # a platform that has no equivalent says so with a sentence somebody in a
+    # chat window can read, rather than every adapter writing four stubs for
+    # questions its platform cannot answer.
+    #
+    # `api_base_url` is here for the same reason it is on `OutgoingMessage`:
+    # Mattermost is self-hosted, so there is no address to assume. Slack and
+    # Telegram ignore it.
+
+    async def channel_details(
+        self, bot_token: str, channel_id: str, *, api_base_url: str | None
+    ) -> ChannelDetails:
+        """Name, purpose, topic and size of one channel.
+
+        Raises:
+            ChannelDirectoryUnsupported: If this platform does not tell a bot.
+        """
+        raise ChannelDirectoryUnsupported(f"{self.platform} cannot describe a channel to a bot.")
+
+    async def channel_members(
+        self, bot_token: str, channel_id: str, *, api_base_url: str | None, limit: int
+    ) -> list[ChannelMember]:
+        """Who is in one channel, up to `limit`.
+
+        Raises:
+            ChannelDirectoryUnsupported: If this platform does not tell a bot.
+        """
+        raise ChannelDirectoryUnsupported(f"{self.platform} cannot list a channel's members.")
+
+    async def search_channels(
+        self, bot_token: str, channel_id: str, *, api_base_url: str | None, query: str, limit: int
+    ) -> list[ChannelSummary]:
+        """Channels matching `query` within the bot's reach.
+
+        `channel_id` is the channel the run is in, not one to search: on
+        Mattermost it is what the team to search is resolved from, because a bot
+        token has no business enumerating a whole server.
+
+        Raises:
+            ChannelDirectoryUnsupported: If this platform has no channel search.
+        """
+        raise ChannelDirectoryUnsupported(f"{self.platform} has no channel search for a bot.")
+
+    async def channel_history(
+        self, bot_token: str, channel_id: str, *, api_base_url: str | None, limit: int
+    ) -> list[ChannelPost]:
+        """The last `limit` messages in one channel, newest last.
+
+        Raises:
+            ChannelDirectoryUnsupported: If this platform does not let a bot read
+                messages it was not sent.
+        """
+        raise ChannelDirectoryUnsupported(
+            f"{self.platform} does not let a bot read a channel's history."
+        )
 
     @abstractmethod
     async def start_polling(self, bot_id: str, bot_token: str) -> None:

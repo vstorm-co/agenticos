@@ -91,17 +91,6 @@ async def create_profile(
     return profile
 
 
-async def update_profile(
-    db: AsyncSession, *, profile: ModelProfile, update_data: dict
-) -> ModelProfile:
-    for field, value in update_data.items():
-        setattr(profile, field, value)
-    db.add(profile)
-    await db.flush()
-    await db.refresh(profile)
-    return profile
-
-
 async def delete_profile(db: AsyncSession, profile_id: UUID, *, organization_id: UUID) -> bool:
     profile = await get_profile(db, profile_id, organization_id=organization_id)
     if profile is None:

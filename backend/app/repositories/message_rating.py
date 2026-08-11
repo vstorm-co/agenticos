@@ -11,7 +11,6 @@ from sqlalchemy.orm import selectinload
 
 from app.db.models.conversation import Conversation, Message
 from app.db.models.message_rating import MessageRating
-from app.db.models.user import User
 
 
 async def get_rating_by_message_and_user(
@@ -74,16 +73,6 @@ async def delete_rating(db: AsyncSession, rating: MessageRating) -> None:
     await db.flush()
 
 
-async def get_ratings_for_message(
-    db: AsyncSession,
-    message_id: UUID,
-) -> list[MessageRating]:
-    """Get all ratings for a message."""
-    query = select(MessageRating).where(MessageRating.message_id == message_id)
-    result = await db.execute(query)
-    return list(result.scalars().all())
-
-
 async def get_user_ratings_for_messages(
     db: AsyncSession,
     *,
@@ -125,21 +114,36 @@ async def get_rating_counts_for_messages(
     }
 
 
-async def get_ratings_with_users_for_messages(
+async def get_down_rating_comments_for_messages(
     db: AsyncSession,
     *,
     message_ids: list[UUID],
-) -> list[tuple[MessageRating, Any]]:
-    """Return ratings joined with users for the given message IDs (admin export)."""
+) -> dict[UUID, str]:
+    """Return mapping of message_id → the most recent down rating's comment.
+
+    Only down ratings (`rating == -1`) that carry a comment, newest first, so a
+    message maps to the latest word left objecting to it. A message nobody
+    down-rated, or down-rated without leaving a comment, is simply absent - the
+    caller reads that as "no comment to show" rather than an empty string.
+    """
     if not message_ids:
-        return []
+        return {}
     query = (
-        select(MessageRating, User)
-        .join(User, MessageRating.user_id == User.id)
-        .where(MessageRating.message_id.in_(message_ids))
+        select(MessageRating.message_id, MessageRating.comment)
+        .where(
+            MessageRating.message_id.in_(message_ids),
+            MessageRating.rating == -1,
+            MessageRating.comment.is_not(None),
+        )
+        .order_by(MessageRating.created_at.desc())
     )
     result = await db.execute(query)
-    return [(rating, user) for rating, user in result.all()]
+    comments: dict[UUID, str] = {}
+    for message_id, comment in result.all():
+        # Newest first, so the first comment seen for a message is its latest.
+        if message_id not in comments and comment:
+            comments[message_id] = comment
+    return comments
 
 
 async def list_ratings(

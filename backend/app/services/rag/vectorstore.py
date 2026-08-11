@@ -32,6 +32,15 @@ logger = logging.getLogger(__name__)
 
 class BaseVectorStore(ABC):
     @abstractmethod
+    async def aclose(self) -> None:
+        """Release any resources held for the process's lifetime.
+
+        Called once on application shutdown. A store that owns nothing to
+        release implements this as a no-op; `PgVectorStore` disposes its
+        connection pool.
+        """
+
+    @abstractmethod
     async def insert_document(self, collection_name: str, document: Document) -> None:
         pass
 
@@ -107,9 +116,6 @@ class BaseVectorStore(ABC):
     def _build_chunk_metadata(
         self, chunk: "DocumentPageChunk", document: Document
     ) -> dict[str, Any]:
-        # `document.metadata.model_dump()` is spread last so it can override per-chunk
-        # defaults. `getattr` with defaults is used for optional image fields that may
-        # not be present on all chunk types.
         return {
             "page_num": chunk.page_num,
             "chunk_num": chunk.chunk_num,
@@ -123,10 +129,6 @@ class BaseVectorStore(ABC):
         return document_id.replace('"', "").replace("\\", "")
 
     def _group_documents(self, results: list[dict[str, Any]]) -> list[DocumentInfo]:
-        # Iterates results twice: first to record the initial occurrence of each
-        # parent_doc_id (capturing filename/filesize/filetype and merging source_path,
-        # content_hash, and any extra dict into additional_info), then to increment
-        # chunk_count for every row belonging to that document.
         doc_map: dict[str, dict[str, Any]] = {}
         for item in results:
             doc_id = item.get("parent_doc_id")

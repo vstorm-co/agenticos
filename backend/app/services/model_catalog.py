@@ -308,9 +308,3 @@ async def models_for(
     async with _lock:
         _cache[provider] = _Entry(models=tuple(models), fetched_at=time.monotonic())
     return models, "live"
-
-
-def clear_cache() -> None:
-    """Forget every cached listing. For tests, and for a deployment that wants
-    a fresh answer without a restart."""
-    _cache.clear()

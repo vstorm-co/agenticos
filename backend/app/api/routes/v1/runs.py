@@ -10,8 +10,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 
-from app.api.deps import AgentRunnerSvc, ApprovalSvc, Auth, require
-from app.core.exceptions import ValidationError
+from app.api.deps import AgentRunnerSvc, ApprovalSvc, Auth, RunExportSvc, require
+from app.api.responses import csv_response
 from app.core.permissions import Perm
 from app.db.models.agent_run import (
     ApprovalStatus,
@@ -32,6 +32,8 @@ from app.schemas.agent_run import (
     CostByKey,
     CostByProvider,
     CostSummary,
+    RunTranscript,
+    RunTranscriptMessage,
 )
 
 router = APIRouter()
@@ -107,7 +109,7 @@ async def list_runs(
         parent_run_id=parent_run_id,
         include_delegations=include_delegations,
         filters=RunFilters(
-            statuses=_parse_statuses(status),
+            statuses=RunStatus.parse_csv(status),
             surface=None if surface is None else surface.value,
             user_id=user_id,
             started_from=started_from,
@@ -123,21 +125,68 @@ async def list_runs(
         skip=skip,
         limit=limit,
     )
-    return AgentRunList(items=items, total=total)
+    down_rated = (
+        await service.down_rated_run_ids(ctx, [run.id for run in items]) if items else set()
+    )
+    return AgentRunList(
+        items=[
+            AgentRunRead.model_validate(run).model_copy(update={"down_rated": run.id in down_rated})
+            for run in items
+        ],
+        total=total,
+    )
 
 
-def _parse_statuses(raw: str | None) -> list[str] | None:
-    if raw is None:
-        return None
-    values = [part.strip() for part in raw.split(",") if part.strip()]
-    known = {member.value for member in RunStatus}
-    unknown = sorted(set(values) - known)
-    if unknown:
-        raise ValidationError(
-            message="Unknown run status",
-            details={"unknown": unknown, "expected": sorted(known)},
-        )
-    return values or None
+@router.get(
+    "/runs/export",
+    response_model=None,
+    dependencies=[Depends(require(Perm.RUNS_VIEW))],
+)
+async def export_runs(
+    service: RunExportSvc,
+    ctx: Auth,
+    started_from: datetime | None = Query(None, description="Window start, inclusive. Required"),
+    started_to: datetime | None = Query(None, description="Window end, inclusive. Required"),
+    agent_id: UUID | None = Query(None),
+    status: str | None = Query(None, description="Comma-separated run statuses"),
+    parent_run_id: UUID | None = Query(None),
+    include_delegations: bool = Query(False),
+    surface: RunSurface | None = Query(None),
+    user_id: UUID | None = Query(None),
+    environment_id: UUID | None = Query(None),
+    exposure_id: UUID | None = Query(None),
+    agent_version_id: UUID | None = Query(None),
+    took_over_ms: int | None = Query(None, ge=0),
+    rated: RunRating | None = Query(None),
+) -> Any:
+    """Run history as CSV, over exactly the rows `GET /runs` would list.
+
+    The same filters as the list route, so the file is what is on screen. Two
+    differences the design demands: the date range is **mandatory** here, and a
+    match over the row cap is **refused** rather than paged - both because an
+    export has no ceiling by nature and so needs one by design. A caller whose
+    `runs:view` reaches less than the whole organization exports only their own
+    rows, enforced in the query.
+    """
+    result = await service.export_runs(
+        ctx,
+        agent_id=agent_id,
+        parent_run_id=parent_run_id,
+        include_delegations=include_delegations,
+        filters=RunFilters(
+            statuses=RunStatus.parse_csv(status),
+            surface=None if surface is None else surface.value,
+            user_id=user_id,
+            started_from=started_from,
+            started_to=started_to,
+            environment_id=environment_id,
+            exposure_id=exposure_id,
+            agent_version_id=agent_version_id,
+            took_over_ms=took_over_ms,
+            rated=rated,
+        ),
+    )
+    return csv_response(result)
 
 
 @router.get(
@@ -151,8 +200,46 @@ async def get_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
     own Logfire project, and fifty rows have no use for fifty trace links.
     """
     run = await service.get_run(ctx, run_id)
+    down_rated = await service.down_rated_run_ids(ctx, [run.id])
     return AgentRunRead.model_validate(run).model_copy(
-        update={"logfire_url": await service.trace_url(ctx, run)}
+        update={
+            "logfire_url": await service.trace_url(ctx, run),
+            "down_rated": run.id in down_rated,
+        }
+    )
+
+
+@router.get("/runs/{run_id}/transcript", response_model=RunTranscript)
+async def get_run_transcript(
+    run_id: UUID,
+    service: AgentRunnerSvc,
+    ctx: Auth,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+) -> Any:
+    """The turns one run produced, for a run detail view to render as steps.
+
+    No `require(...)` gate, on purpose: reading a run is authorized rather than
+    owned, so the decision belongs to the service, which resolves the run against
+    the caller's organization and then checks `runs:view`. A run in another tenant
+    reads as absent - the same 404 an id that never existed answers with - so the
+    response cannot be used to discover that a run exists. The conversation
+    endpoint one route over stays owner-scoped; this does not widen it.
+
+    `conversation_id` is null when the run ran with no conversation, which is how
+    the response says "there is no transcript" rather than answering an empty list
+    that reads as "the run did nothing".
+    """
+    run, messages, total = await service.get_run_transcript(ctx, run_id, skip=skip, limit=limit)
+    ratings = await service.transcript_ratings(ctx, [m.id for m in messages])
+    return RunTranscript(
+        run_id=run.id,
+        conversation_id=run.conversation_id,
+        items=[
+            RunTranscriptMessage.model_validate(m).model_copy(update=ratings[m.id])
+            for m in messages
+        ],
+        total=total,
     )
 
 
@@ -250,6 +337,40 @@ async def list_approvals(
     return ApprovalList(items=items, total=total)
 
 
+@router.get(
+    "/approvals/export",
+    response_model=None,
+    dependencies=[Depends(require(Perm.APPROVALS_DECIDE))],
+)
+async def export_approvals(
+    service: RunExportSvc,
+    ctx: Auth,
+    created_from: datetime | None = Query(None, description="Parked at or after. Required"),
+    created_to: datetime | None = Query(None, description="Parked at or before. Required"),
+    status: Annotated[list[ApprovalStatus] | None, Query()] = None,
+    triggered_by_user_id: UUID | None = Query(None),
+    oldest_first: bool = Query(True),
+) -> Any:
+    """The approvals record as CSV, over exactly the rows `GET /approvals` lists.
+
+    Gated on `approvals:decide` like the list route - organization-wide, so no
+    `Scope.OWN` floor - with the same mandatory-range and row-cap rules the runs
+    export has. Absent `status`, the pending queue; asking for `approved` and
+    `rejected` is the decided record, decider and note included.
+    """
+    result = await service.export_approvals(
+        ctx,
+        filters=ApprovalFilters(
+            statuses=None if not status else [value.value for value in status],
+            triggered_by_user_id=triggered_by_user_id,
+            created_from=created_from,
+            created_to=created_to,
+        ),
+        oldest_first=oldest_first,
+    )
+    return csv_response(result)
+
+
 @router.post(
     "/approvals/{approval_id}",
     response_model=ApprovalRead,
@@ -327,3 +448,28 @@ async def get_spend(
             )
         ],
     )
+
+
+@router.get(
+    "/spend/export",
+    response_model=None,
+    dependencies=[Depends(require(Perm.RUNS_VIEW))],
+)
+async def export_spend(
+    service: RunExportSvc,
+    ctx: Auth,
+    from_date: datetime | None = Query(None, alias="from", description="Window start. Required"),
+    to_date: datetime | None = Query(None, alias="to", description="Window end. Required"),
+) -> Any:
+    """The per-agent spend breakdown as CSV, over the window on the Spend tab.
+
+    One row per agent - its window share (top-level runs only, so the column sums
+    to the bill), the runs behind it and how many could not be priced. The tab's
+    month-to-date and cap columns are left off, so every dollar column in the file
+    shares one time base. The date range is **mandatory**, unlike `GET /spend`
+    where `days` stands in for it, because an export has no default window to fall
+    back to. The `Scope.OWN` floor pins the sums to the caller's own runs when it
+    binds.
+    """
+    result = await service.export_spend(ctx, since=from_date, until=to_date)
+    return csv_response(result)

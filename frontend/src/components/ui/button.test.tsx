@@ -25,7 +25,6 @@ describe("Button component", () => {
   it("should apply size classes", () => {
     render(<Button size="lg">Large Button</Button>);
     const button = screen.getByRole("button");
-    // Check that the button has appropriate size styling
     expect(button).toBeInTheDocument();
   });
 

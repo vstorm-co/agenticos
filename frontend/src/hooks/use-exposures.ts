@@ -2,17 +2,13 @@
 
 import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { getErrorMessage } from "@/lib/utils";
-import type {
-  Exposure,
-  ExposureList,
-  ExposureTarget,
-  ExposureTargetList,
-  SessionScope,
-} from "@/types/exposures";
+import type { UsageReporting } from "@/types/channels";
+import type { Exposure, ExposureList, ExposureTarget, ExposureTargetList } from "@/types/exposures";
 
 /**
  * Where one agent is available, and where it could be.
@@ -26,6 +22,7 @@ import type {
  * guessed it would render a place that does not exist.
  */
 export function useExposures(agentId: string | null) {
+  const t = useTranslations("agents");
   const queryClient = useQueryClient();
   const base = `/agents/${agentId}/exposures`;
 
@@ -51,7 +48,7 @@ export function useExposures(agentId: string | null) {
       apiClient.post<Exposure>(base, { channel_bot_id: channelBotId }),
     onSuccess: async (exposure) => {
       await invalidate();
-      toast.success(`Now available on ${exposure.channel_bot_name}`);
+      toast.success(t("exposureLive", { bot: exposure.channel_bot_name }));
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   });
@@ -66,8 +63,8 @@ export function useExposures(agentId: string | null) {
       await invalidate();
       toast.success(
         exposure.is_active
-          ? `Answering again on ${exposure.channel_bot_name}`
-          : `Paused on ${exposure.channel_bot_name}`,
+          ? t("exposureResumed", { bot: exposure.channel_bot_name })
+          : t("exposurePaused", { bot: exposure.channel_bot_name }),
       );
     },
     onError: (error) => toast.error(getErrorMessage(error)),
@@ -88,19 +85,38 @@ export function useExposures(agentId: string | null) {
     onError: (error) => toast.error(getErrorMessage(error)),
   });
 
-  const setSessionScope = useMutation({
+  const setPrompt = useMutation({
+    mutationFn: ({ exposureId, prompt }: { exposureId: string; prompt: string | null }) =>
+      // Only this field goes, for the reason `setActive` says: the server
+      // applies what it was sent, so reading a value back and returning it would
+      // overwrite whatever somebody changed in between.
+      apiClient.patch<Exposure>(`${base}/${exposureId}`, { prompt }),
+    onSuccess: invalidate,
+    onError: (error) => toast.error(getErrorMessage(error)),
+  });
+
+  const setTools = useMutation({
+    mutationFn: ({ exposureId, tools }: { exposureId: string; tools: string[] }) =>
+      // Only this field, for the reason `setActive` says. The whole list rather
+      // than the box that moved: the server stores what a binding grants, and a
+      // patch describing one checkbox could not express "and nothing else".
+      apiClient.patch<Exposure>(`${base}/${exposureId}`, { tools }),
+    onSuccess: invalidate,
+    onError: (error) => toast.error(getErrorMessage(error)),
+  });
+
+  const setUsageReporting = useMutation({
     mutationFn: ({
       exposureId,
-      sessionScope,
+      usageReporting,
     }: {
       exposureId: string;
-      sessionScope: SessionScope | null;
+      usageReporting: UsageReporting;
     }) =>
-      // Explicit null hands the decision back to the spec. Only this field goes,
-      // for the reason `setActive` says: the server applies what it was sent, so
-      // reading a value back and returning it would overwrite whatever somebody
-      // changed in between.
-      apiClient.patch<Exposure>(`${base}/${exposureId}`, { session_scope: sessionScope }),
+      // Only this field, for the reason `setActive` says: the server applies
+      // what it was sent, so reading a value back and returning it alongside
+      // would overwrite whatever somebody changed in between.
+      apiClient.patch<Exposure>(`${base}/${exposureId}`, { usage_reporting: usageReporting }),
     onSuccess: invalidate,
     onError: (error) => toast.error(getErrorMessage(error)),
   });
@@ -109,7 +125,7 @@ export function useExposures(agentId: string | null) {
     mutationFn: (exposureId: string) => apiClient.delete<void>(`${base}/${exposureId}`),
     onSuccess: async () => {
       await invalidate();
-      toast.success("No longer available there");
+      toast.success(t("exposureRevoked"));
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   });
@@ -131,7 +147,9 @@ export function useExposures(agentId: string | null) {
     expose,
     setActive,
     setEnvironment,
-    setSessionScope,
+    setPrompt,
+    setTools,
+    setUsageReporting,
     revoke,
   };
 }

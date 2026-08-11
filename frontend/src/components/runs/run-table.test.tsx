@@ -1,5 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 
 import { RunTable } from "./run-table";
 import type { AgentRun } from "@/types/runs";
@@ -30,6 +31,7 @@ function run(overrides: Partial<AgentRun> = {}): AgentRun {
     cost_is_partial: false,
     logfire_trace_id: null,
     error: null,
+    down_rated: false,
     started_at: "2026-08-04T09:00:00Z",
     ended_at: "2026-08-04T09:00:30Z",
     parent_run_id: null,
@@ -84,9 +86,67 @@ describe("a run history row", () => {
     expect(within(row()).getByTitle(/had no price/)).toBeVisible();
   });
 
-  it("admits a model it does not know and a run that never started", () => {
+  it("admits a model it does not know, and a run that never started or finished", () => {
+    // Three absences in one row: the model, the start time, and the duration -
+    // a run with no start has no measurable duration either, and each reads "-"
+    // rather than an invented value.
     render(<RunTable runs={[run({ model_label: null, started_at: null })]} />);
 
-    expect(within(row()).getAllByText("-")).toHaveLength(2);
+    expect(within(row()).getAllByText("-")).toHaveLength(3);
+  });
+
+  it("says how long a finished run took", () => {
+    render(
+      <RunTable
+        runs={[run({ started_at: "2026-08-04T09:00:00Z", ended_at: "2026-08-04T09:00:30Z" })]}
+      />,
+    );
+
+    expect(within(row()).getByText("30 s")).toBeVisible();
+  });
+});
+
+describe("a sortable run table", () => {
+  it("has no sort controls when the caller hands it none", () => {
+    // A delegations table and a focused run render rows whose order came from the
+    // one query that asked for them; there is nothing on this page to re-sort.
+    render(<RunTable runs={[run()]} />);
+
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
+  it("sorts by duration when the Took header is used", async () => {
+    const onSort = vi.fn();
+    // Sorted by start time, so the Took header is the inactive one - it reads
+    // "sort by", where the active Started header reads "sorted descending".
+    render(<RunTable runs={[run()]} sort={{ by: "started_at", dir: "desc" }} onSort={onSort} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /sort by/i }));
+
+    expect(onSort).toHaveBeenCalledWith("duration");
+  });
+
+  it("sorts by start time when the Started header is used", async () => {
+    const onSort = vi.fn();
+    render(<RunTable runs={[run()]} sort={{ by: "duration", dir: "desc" }} onSort={onSort} />);
+
+    // The Started header is the one not currently active, so it reads "sort by".
+    await userEvent.click(screen.getByRole("button", { name: /sort by/i }));
+
+    expect(onSort).toHaveBeenCalledWith("started_at");
+  });
+
+  it("marks a run somebody rated down, and says nothing on one nobody did", () => {
+    // The reason to read this list top to bottom: an answer somebody said was
+    // wrong. A marker on the row, with the comment behind the run detail.
+    render(<RunTable runs={[run({ down_rated: true })]} />);
+
+    expect(within(row()).getByRole("img", { name: "Rated down" })).toBeVisible();
+  });
+
+  it("shows no rated-down marker on a run nobody rated down", () => {
+    render(<RunTable runs={[run({ down_rated: false })]} />);
+
+    expect(within(row()).queryByRole("img", { name: "Rated down" })).toBeNull();
   });
 });
