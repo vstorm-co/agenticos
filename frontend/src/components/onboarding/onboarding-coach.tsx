@@ -5,16 +5,26 @@ import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { X } from "lucide-react";
 
-import { activateTab, waitForElement } from "@/components/onboarding/spotlight";
+import { activateTab, spotlightPath, waitForElement } from "@/components/onboarding/spotlight";
 import { Button, IconButton } from "@/components/ui";
 import { useOnboardingFlow } from "@/hooks/use-onboarding-flow";
 import { stripLocale } from "@/lib/active-route";
 
+/** The class that outlines the spotlighted control; drawn and pulsed in `globals.css`. */
+const HIGHLIGHT_CLASS = "onboarding-coach-target";
+
+/** Space between the control and the freeze layer's cut-out, so the pulse plays inside it. */
+const HOLE_PADDING = 10;
+const HOLE_RADIUS = 12;
+
+/** The dim the freeze layer paints over the frozen page. */
+const DIM = "rgba(10, 10, 10, 0.5)";
+
 /**
- * The target's box, in viewport coordinates, for the highlight ring, tagged with
- * the step it was measured for. The tag is what lets a step change clear the ring
- * without a reset call: a rect from the previous step simply stops matching and
- * stops rendering until the new target is found.
+ * The target's box in viewport coordinates, tagged with the step it was measured
+ * for. The tag is what lets a step change clear the cut-out without a reset call:
+ * a rect from the previous step stops matching `stepId` and stops rendering until
+ * the new target is found.
  */
 interface Rect {
   stepId: string;
@@ -24,17 +34,31 @@ interface Rect {
   height: number;
 }
 
+/** An open modal dialog, ours excepted — Radix marks its content `data-state`, the coach card does not. */
+const OPEN_DIALOG = '[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]';
+
 /**
  * The interactive coach: it walks the reader through actually creating
  * something, the Phase-2 counterpart to the passive `OnboardingTour`.
  *
- * It deliberately draws no blocking overlay. driver.js's overlay sits above the
- * whole page and swallows clicks outside its spotlight, so a create dialog would
- * open behind it, dimmed and unusable — which is why a flow is a separate
- * mechanism rather than a driver mode. Here the only chrome is a ring around the
- * control (drawn with `pointer-events: none`, so it never intercepts a click) and
- * an instruction card pinned to the bottom. The real control, and the real
- * dialog it opens, are the reader's to operate.
+ * Unlike the tour it does not hand control to driver.js. driver's overlay sits
+ * above the whole page and swallows clicks outside its spotlight, so the create
+ * dialog the reader has to fill would open behind it, dimmed and unusable. So the
+ * coach draws its own freeze: a full-viewport dim with a cut-out over the one
+ * control the step is about (`spotlightPath`), painted so clicks land only inside
+ * the hole. That is what keeps a guided step guided — the reader cannot wander to
+ * another tab or the sidebar mid-flow, only operate the control being pointed at.
+ *
+ * The freeze steps aside the moment a modal dialog opens (`OPEN_DIALOG`): a Radix
+ * dialog is already modal and dims the page itself, so a second freeze over it
+ * would only fight its stacking and re-dim it — exactly the trap that kept the
+ * coach driver-less. While the dialog is up the reader fills it against Radix's
+ * own overlay, and the step advances when its resource appears.
+ *
+ * The control itself is marked with `HIGHLIGHT_CLASS`, so the outline is on the
+ * element and tracks it on scroll with no JS to lag behind — and it is scrolled
+ * into view first, because the freeze eats wheel events and the reader cannot
+ * bring it into view themselves.
  *
  * Advancement is the app's, not a button's: a step with a signal ends when its
  * resource appears (`signalMet` from `useOnboardingFlow`), so the reader is never
@@ -51,11 +75,30 @@ export function OnboardingCoach() {
   const pathname = usePathname();
   const { isActive, step, index, steps, isLast, signalMet, next, finish } = useOnboardingFlow();
   const [rect, setRect] = useState<Rect | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const stepId = step?.id;
 
-  // Get to the page, reveal the tab that holds the control, find it, ring it.
-  // The ring follows scroll and resize until the step changes or the flow ends.
+  // The freeze must yield to a modal dialog the moment one opens and take back
+  // over when it closes — watched here rather than polled, so the handover is a
+  // frame, not a tick.
+  useEffect(() => {
+    if (!isActive) return;
+    const check = () => setDialogOpen(document.querySelector(OPEN_DIALOG) !== null);
+    check();
+    const observer = new MutationObserver(check);
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["data-state", "role"],
+    });
+    return () => observer.disconnect();
+  }, [isActive]);
+
+  // Get to the page, reveal the tab that holds the control, find it, scroll it
+  // into view, and mark it. The outline rides the element on scroll; the cut-out
+  // is repositioned on scroll and resize until the step changes or the flow ends.
   useEffect(() => {
     if (!isActive || !step) return;
     const controller = new AbortController();
@@ -80,6 +123,9 @@ export function OnboardingCoach() {
       if (!step.target) return;
       const target = await waitForElement(`[data-tour="${step.target}"]`, signal);
       if (signal.aborted || !(target instanceof HTMLElement)) return;
+
+      target.scrollIntoView({ block: "center", inline: "center" });
+      target.classList.add(HIGHLIGHT_CLASS);
       const place = () => {
         const box = target.getBoundingClientRect();
         setRect({
@@ -94,6 +140,7 @@ export function OnboardingCoach() {
       window.addEventListener("scroll", place, true);
       window.addEventListener("resize", place);
       signal.addEventListener("abort", () => {
+        target.classList.remove(HIGHLIGHT_CLASS);
         window.removeEventListener("scroll", place, true);
         window.removeEventListener("resize", place);
       });
@@ -110,24 +157,15 @@ export function OnboardingCoach() {
 
   if (!isActive || !step) return null;
 
+  const current = rect?.stepId === stepId ? rect : null;
+
   return (
     <>
-      {rect && rect.stepId === stepId && (
-        <div
-          aria-hidden
-          className="ring-primary pointer-events-none fixed z-[1000000000] rounded-lg ring-2 ring-offset-2 transition-all"
-          style={{
-            top: rect.top - 4,
-            left: rect.left - 4,
-            width: rect.width + 8,
-            height: rect.height + 8,
-          }}
-        />
-      )}
+      {!dialogOpen && <FreezeLayer rect={current} />}
       <div
         role="dialog"
         aria-label={t(`steps.${step.id}.title`)}
-        className="bg-popover text-popover-foreground fixed bottom-6 left-1/2 z-[1000000000] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border p-4 shadow-lg"
+        className="bg-popover text-popover-foreground fixed bottom-6 left-1/2 z-[1000000001] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border p-4 shadow-lg"
       >
         <IconButton
           aria-label={t("coachClose")}
@@ -154,5 +192,51 @@ export function OnboardingCoach() {
         </div>
       </div>
     </>
+  );
+}
+
+/**
+ * The dim that freezes the page. With a located target it paints everything but a
+ * cut-out over the control (`spotlightPath`), so only that control is clickable;
+ * before one is found — navigating, or waiting for a control to mount — it paints
+ * the whole viewport, so the reader cannot wander off mid-step. The SVG itself
+ * takes no pointer events; only its painted fill does, so clicks in the hole fall
+ * through to the real control while every other click is swallowed.
+ */
+function FreezeLayer({ rect }: { rect: Rect | null }) {
+  if (typeof window === "undefined") return null;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  if (!rect) {
+    return (
+      <div
+        aria-hidden
+        data-coach-freeze
+        className="fixed inset-0 z-[1000000000]"
+        style={{ background: DIM }}
+      />
+    );
+  }
+  const d = spotlightPath(
+    vw,
+    vh,
+    rect.left - HOLE_PADDING,
+    rect.top - HOLE_PADDING,
+    rect.width + HOLE_PADDING * 2,
+    rect.height + HOLE_PADDING * 2,
+    HOLE_RADIUS,
+  );
+  return (
+    <svg
+      aria-hidden
+      data-coach-freeze
+      className="fixed inset-0 z-[1000000000] h-full w-full"
+      width={vw}
+      height={vh}
+      viewBox={`0 0 ${vw} ${vh}`}
+      style={{ pointerEvents: "none" }}
+    >
+      <path d={d} fillRule="evenodd" style={{ fill: DIM, pointerEvents: "auto" }} />
+    </svg>
   );
 }

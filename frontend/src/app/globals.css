@@ -948,6 +948,39 @@
 }
 
 /*
+ * The interactive coach outlines the exact control the reader should use, on the
+ * element itself and in the brand accent — so the ring tracks the control on
+ * scroll with no JS to lag behind it, and reads at a glance against the coach's
+ * dimmed surroundings. The expanding halo makes it hard to miss; a reader who
+ * asks for reduced motion keeps the outline but drops the pulse. `--color-brand`
+ * is the accent the rest of the product highlights with; the earlier ring used
+ * `--color-primary`, which is near-black here and read as barely-there.
+ */
+@keyframes onboarding-coach-pulse {
+  0% {
+    box-shadow: 0 0 0 0 var(--color-brand);
+  }
+  70% {
+    box-shadow: 0 0 0 10px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.onboarding-coach-target {
+  outline: 3px solid var(--color-brand) !important;
+  outline-offset: 3px !important;
+  animation: onboarding-coach-pulse 1.35s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-coach-target {
+    animation: none;
+  }
+}
+
+/*
  * The "clicked" flourish on the control a transition fires from. The spotlight
  * lands on it, it pulses — grows then presses in and settles, the way a tapped
  * control does — and only then does the tour navigate or switch tabs, so the

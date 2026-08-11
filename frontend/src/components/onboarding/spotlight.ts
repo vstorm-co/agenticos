@@ -122,6 +122,40 @@ export function delay(ms: number, signal: AbortSignal): Promise<void> {
   });
 }
 
+/**
+ * An SVG path that fills the whole viewport except a rounded-rect hole over the
+ * spotlighted control, wound so an `evenodd` fill leaves the hole transparent.
+ *
+ * The interactive coach paints this as its freeze layer: the filled area takes
+ * pointer events and blocks the frozen page, while the unfilled hole passes
+ * clicks straight through to the real control beneath it, which shows at full
+ * brightness. It is the same cut-out driver.js draws for the passive tour,
+ * rebuilt here because the coach cannot borrow driver's overlay — driver's sits
+ * above everything and would dim the create dialog the reader has to use.
+ *
+ * `radius` is clamped to half the hole's smaller side, so a control narrower or
+ * shorter than the corner never inverts the arcs into a bow-tie.
+ */
+export function spotlightPath(
+  viewportWidth: number,
+  viewportHeight: number,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+): string {
+  const r = Math.max(0, Math.min(radius, width / 2, height / 2));
+  const across = width - r * 2;
+  const down = height - r * 2;
+  return (
+    `M${viewportWidth},0 L0,0 L0,${viewportHeight} L${viewportWidth},${viewportHeight} L${viewportWidth},0 Z ` +
+    `M${x + r},${y} h${across} a${r},${r} 0 0 1 ${r},${r} v${down} ` +
+    `a${r},${r} 0 0 1 -${r},${r} h-${across} a${r},${r} 0 0 1 -${r},-${r} ` +
+    `v-${down} a${r},${r} 0 0 1 ${r},-${r} z`
+  );
+}
+
 export function waitForElement(
   selector: string,
   signal: AbortSignal,

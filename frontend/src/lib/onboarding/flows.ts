@@ -15,7 +15,9 @@ import { Perm, type Permission } from "@/types/permissions";
  * The passive tour and the flow are deliberately separate mechanisms, not one
  * with a flag: driver.js's overlay sits above the app and swallows clicks outside
  * its spotlight, so it would leave a create dialog dimmed and unusable. The coach
- * that runs a flow draws no blocking overlay for exactly that reason.
+ * draws its own freeze instead — a dim with a cut-out over the one control — and
+ * lifts it while a modal dialog is open, so the reader fills the dialog against
+ * Radix's own overlay rather than a second one fighting it.
  */
 export type FlowId = "create-agent" | "create-skill" | "create-kb" | "create-mcp" | "create-org";
 

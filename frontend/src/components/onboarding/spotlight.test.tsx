@@ -1,7 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { activateTab, pulse } from "./spotlight";
+import { activateTab, pulse, spotlightPath } from "./spotlight";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
 
 describe("activateTab", () => {
@@ -27,6 +27,25 @@ describe("activateTab", () => {
     // activateTab fires what Radix actually listens to, so the panel mounts.
     act(() => activateTab(toolbox));
     expect(screen.getByText("toolbox-panel")).toBeInTheDocument();
+  });
+});
+
+describe("spotlightPath", () => {
+  it("cuts a hole into a full-viewport rectangle", () => {
+    const d = spotlightPath(1000, 800, 100, 100, 200, 50, 12);
+    // The outer subpath is the whole viewport...
+    expect(d.startsWith("M1000,0 L0,0 L0,800 L1000,800 L1000,0 Z")).toBe(true);
+    // ...and the inner subpath opens at the hole's top-left plus the corner radius.
+    expect(d).toContain("M112,100");
+    expect(d.endsWith("z")).toBe(true);
+  });
+
+  it("clamps the corner radius so a control smaller than it never inverts the arcs", () => {
+    // r wants 12 but the hole is 10×10, so it is clamped to half the shorter side.
+    const d = spotlightPath(1000, 800, 0, 0, 10, 10, 12);
+    expect(d).toContain("M5,0");
+    // across = 10 - 2*5 = 0: the straight runs collapse, the arcs meet.
+    expect(d).toContain("h0");
   });
 });
 

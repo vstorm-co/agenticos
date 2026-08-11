@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { OnboardingCoach } from "./onboarding-coach";
+import { waitForElement } from "./spotlight";
 import type { OnboardingFlowState } from "@/hooks/use-onboarding-flow";
 import type { FlowStep } from "@/lib/onboarding/flows";
 
@@ -18,12 +19,17 @@ vi.mock("next/navigation", () => ({
   useRouter: () => router,
 }));
 
-// The DOM/query boundary; stubbed so the coach's orchestration is what is under
-// test, not driver-less element hunting jsdom cannot do.
-vi.mock("@/components/onboarding/spotlight", () => ({
-  waitForElement: vi.fn(async () => document.createElement("div")),
-  activateTab: vi.fn(),
-}));
+// The DOM/query boundary; the element hunt and tab reveal are stubbed so the
+// coach's orchestration is what is under test, not driver-less DOM work jsdom
+// cannot do. `spotlightPath` is kept real — the freeze layer calls it on render.
+vi.mock("@/components/onboarding/spotlight", async (importActual) => {
+  const actual = await importActual<typeof import("./spotlight")>();
+  return {
+    ...actual,
+    waitForElement: vi.fn(async () => document.createElement("div")),
+    activateTab: vi.fn(),
+  };
+});
 
 const flow = vi.hoisted(() => ({ state: null as OnboardingFlowState | null }));
 vi.mock("@/hooks/use-onboarding-flow", () => ({
@@ -58,6 +64,10 @@ function makeState(overrides: Partial<OnboardingFlowState> = {}): OnboardingFlow
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // `clearAllMocks` wipes the default implementation a test may have replaced.
+  vi.mocked(waitForElement).mockImplementation(async () => document.createElement("div"));
+  // A dialog a prior test appended to simulate an open modal would leak forward.
+  document.querySelectorAll('[role="dialog"][data-state]').forEach((node) => node.remove());
   nav.pathname = "/skills";
   flow.state = makeState();
 });
@@ -103,5 +113,29 @@ describe("OnboardingCoach", () => {
     flow.state = makeState({ isActive: false });
     const { container } = render(<OnboardingCoach />);
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("freezes the page while a step is in progress", async () => {
+    render(<OnboardingCoach />);
+    await waitFor(() => expect(document.querySelector("[data-coach-freeze]")).toBeInTheDocument());
+  });
+
+  it("lifts the freeze while a modal dialog is open, so its own overlay owns the screen", async () => {
+    const dialog = document.createElement("div");
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("data-state", "open");
+    document.body.appendChild(dialog);
+
+    render(<OnboardingCoach />);
+    // The card still guides the reader; only the second freeze layer is gone.
+    await screen.findByText("Add your skill");
+    await waitFor(() => expect(document.querySelector("[data-coach-freeze]")).toBeNull());
+  });
+
+  it("outlines the control it points at, on the element so the ring tracks scroll", async () => {
+    const target = document.createElement("button");
+    vi.mocked(waitForElement).mockResolvedValue(target);
+    render(<OnboardingCoach />);
+    await waitFor(() => expect(target.classList.contains("onboarding-coach-target")).toBe(true));
   });
 });
