@@ -23,6 +23,28 @@ suite is import-bound — every worker imports the app once — and gains nothin
 that, while an uncapped `auto` on a many-core laptop is *slower* than serial, all of
 it worker startup (#520).
 
+**Every run is shuffled**, by `pytest-randomly`, and the header says with what:
+`Using --randomly-seed=1697040112`. An order-dependent test — one that passes only
+because something before it left state behind — is the classic "green on my laptop,
+red in CI", and a suite that always runs in collection order never asks the question.
+CI asks it in a fresh order every run.
+
+```bash
+uv run pytest tests/ -q --randomly-seed=1697040112   # that order again, serially
+uv run pytest tests/ -q -p no:randomly               # collection order, while bisecting
+```
+
+The seed is chosen once by the controller and handed to each xdist worker, so `-n auto`
+collects one order rather than four. It does not fix which worker runs what: `make test`
+leaves xdist on its default `--dist load`, which hands each test to whichever worker is
+free. So a failure that depended on what shared a worker — the `InterfaceError` #571
+found is one — comes back by replaying the seed *serially*, as above, and not by
+re-running `make test`. The plugin also reseeds `random` identically before every test,
+so anything using it for uniqueness is unique within a test and repeats across them.
+
+Until #571 the plugin was documented but not installed, `-p no:randomly` was a silent
+no-op, and nothing had ever exercised the claim.
+
 Once, before pushing — `make check` runs all of it, in this order:
 
 ```bash
