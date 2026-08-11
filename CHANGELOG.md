@@ -17,6 +17,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.103] - 2026-08-11
+
+The Builder says when the agent people are talking to is not the one on screen,
+and Publish says what it will move before it moves it.
+
 ### Added
 
 - **Publish says what it will move before it moves it.** The confirmation dialog
