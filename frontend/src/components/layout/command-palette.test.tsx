@@ -17,7 +17,12 @@ const currentUser = vi.fn<() => { is_app_admin?: boolean } | null>(() => ({
 const push = vi.fn();
 
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push }),
+  // next-intl's createNavigation wraps these at module scope; see `vitest.setup.ts`.
+  redirect: vi.fn(),
+  permanentRedirect: vi.fn(),
+}));
 vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can }) }));
 vi.mock("@/hooks", () => ({ useAuth: () => ({ user: currentUser(), logout: vi.fn() }) }));
 vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn() } }));
