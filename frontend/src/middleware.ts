@@ -1,8 +1,13 @@
 import createMiddleware from "next-intl/middleware";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { locales, defaultLocale } from "./i18n";
-import { LOCALE_COOKIE_NAME, localePrefixOf, routing } from "./lib/locale-routing";
+import {
+  LOCALE_COOKIE_MAX_AGE,
+  LOCALE_COOKIE_NAME,
+  localePrefixOf,
+  pickedLocale,
+  routing,
+} from "./lib/locale-routing";
 
 const handleI18nRouting = createMiddleware(routing);
 
@@ -24,18 +29,48 @@ function restorePickedLocale(request: NextRequest): NextResponse | null {
   const { pathname } = request.nextUrl;
   if (localePrefixOf(pathname)) return null;
 
-  const picked = request.cookies.get(LOCALE_COOKIE_NAME)?.value;
-  if (!picked || picked === defaultLocale || !(locales as readonly string[]).includes(picked)) {
-    return null;
-  }
+  const picked = pickedLocale(request.cookies.get(LOCALE_COOKIE_NAME)?.value);
+  if (!picked) return null;
 
   const url = request.nextUrl.clone();
   url.pathname = `/${picked}${pathname === "/" ? "" : pathname}`;
   return NextResponse.redirect(url);
 }
 
+/**
+ * Record the locale a prefixed path names, so it outlives that path.
+ *
+ * next-intl writes the cookie itself only when the request carries none *and*
+ * `accept-language` disagrees with the locale it resolved. So a Polish browser
+ * opening a shared `/pl/agents` persists nothing, and its next ordinary `<Link>`
+ * is English again - #285 arriving by URL rather than by the switcher, for the
+ * visitors most likely to want Polish.
+ *
+ * Document requests only. A background request is how the router revalidates a
+ * route of the locale the visitor has just left, so writing from one would undo
+ * the switch they have just made; next-intl's `syncCookie` reads the same header
+ * for the same reason.
+ */
+function rememberPrefixedLocale(request: NextRequest, response: NextResponse): void {
+  if ((request.headers.get("sec-fetch-dest") ?? "document") !== "document") return;
+
+  const named = localePrefixOf(request.nextUrl.pathname);
+  if (!named || request.cookies.get(LOCALE_COOKIE_NAME)?.value === named) return;
+
+  response.cookies.set(LOCALE_COOKIE_NAME, named, {
+    path: "/",
+    maxAge: LOCALE_COOKIE_MAX_AGE,
+    sameSite: "lax",
+  });
+}
+
 export default function middleware(request: NextRequest): NextResponse {
-  return restorePickedLocale(request) ?? handleI18nRouting(request);
+  const restored = restorePickedLocale(request);
+  if (restored) return restored;
+
+  const response = handleI18nRouting(request);
+  rememberPrefixedLocale(request, response);
+  return response;
 }
 
 export const config = {

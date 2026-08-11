@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { LOCALE_COOKIE_NAME, localePrefixOf, routing } from "@/lib/locale-routing";
+import { LOCALE_COOKIE_NAME, localePrefixOf, pickedLocale, routing } from "@/lib/locale-routing";
 
 describe("localePrefixOf", () => {
   it("names the locale a prefixed path carries", () => {
@@ -18,6 +18,30 @@ describe("localePrefixOf", () => {
   it("does not mistake a route whose first segment merely starts with a locale", () => {
     expect(localePrefixOf("/plans")).toBeNull();
     expect(localePrefixOf("/environments")).toBeNull();
+  });
+
+  it("names it whatever case the path wrote it in", () => {
+    // next-intl matches a prefix case-insensitively, so a path it treats as Polish
+    // must be treated as Polish here too - see `middleware.test.ts` for what a
+    // disagreement costs.
+    expect(localePrefixOf("/PL/agents")).toBe("pl");
+    expect(localePrefixOf("/En")).toBe("en");
+  });
+});
+
+describe("pickedLocale", () => {
+  it("names a locale this deployment serves", () => {
+    expect(pickedLocale("pl")).toBe("pl");
+  });
+
+  it("answers null for the default, which needs no prefix", () => {
+    expect(pickedLocale("en")).toBeNull();
+  });
+
+  it("answers null for nothing, for empty, and for a locale we do not serve", () => {
+    expect(pickedLocale(undefined)).toBeNull();
+    expect(pickedLocale("")).toBeNull();
+    expect(pickedLocale("de")).toBeNull();
   });
 });
 

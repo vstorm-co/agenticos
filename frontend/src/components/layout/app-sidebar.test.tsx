@@ -9,8 +9,7 @@ const currentUser = vi.fn<() => { is_app_admin?: boolean } | null>(() => ({}));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => currentPath(),
-  // Wrapped at module scope by the language switcher's locale-aware navigation,
-  // which this tree imports; without them the file fails to import at all.
+  // next-intl's createNavigation wraps these at module scope; see `vitest.setup.ts`.
   redirect: vi.fn(),
   permanentRedirect: vi.fn(),
 }));

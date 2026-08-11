@@ -19,8 +19,7 @@ const push = vi.fn();
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push }),
-  // Wrapped at module scope by the language switcher's locale-aware navigation,
-  // which this tree imports; without them the file fails to import at all.
+  // next-intl's createNavigation wraps these at module scope; see `vitest.setup.ts`.
   redirect: vi.fn(),
   permanentRedirect: vi.fn(),
 }));
