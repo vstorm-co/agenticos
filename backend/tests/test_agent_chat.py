@@ -329,11 +329,13 @@ class TestWhatTheClientIsShown:
     def test_an_answer_is_shown_as_the_model_wrote_it(self):
         assert display_output("42 days") == "42 days"
 
-    def test_a_parked_run_says_so_instead_of_showing_nothing(self):
-        """A blank turn reads as the agent ignoring you; it is waiting on a person."""
-        shown = display_output(DeferredToolRequests())
-
-        assert "approval" in shown.lower()
+    def test_a_parked_run_produces_no_text_of_its_own(self):
+        """This value is stored as the assistant message's `content`, so a notice
+        about the queue put here is stored as the agent's words - and stays there,
+        false, once somebody approves and the run goes on (#509). Parked is state:
+        the step it stopped on and the approval panel carry it, and stop carrying
+        it when the decision is made."""
+        assert display_output(DeferredToolRequests()) == ""
 
 
 class TestWhoTheRunBelongsTo:
@@ -727,7 +729,9 @@ class TestPausingMidRun:
         finished = runner.finish.call_args.kwargs
         assert finished["status"] is RunStatus.AWAITING_APPROVAL
         assert finished["paused_state"].tool_call_ids == {"approval-1": "call-1"}
-        assert "approval" in turn.output.lower()
+        # And no answer, because it produced none. What it is waiting on is on the
+        # row and in `parked`, not in a sentence stored as the agent's words.
+        assert turn.output == ""
 
 
 class TestAttachmentsAreRoutedHereAndNotBySurfaces:
