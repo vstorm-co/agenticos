@@ -217,6 +217,18 @@ class AgentTrigger(Base, TimestampMixin):
         nullable=True,
     )
 
+    # Set by the claim in the same UPDATE that advances `next_fire_at`, cleared by the
+    # fired run in a `finally`. The no-overlap guard reads `last_run_id`, but that is
+    # written only when `execute` returns - so for the whole time a run executes it
+    # still names the *previous* (terminal) run, and a run slower than its interval
+    # would fire on top of itself. This marker closes that window: a trigger with it
+    # set is in flight and is not re-claimed. Bounded by a lease (`_FIRE_LEASE` in the
+    # repo) so a child that died without clearing it un-wedges rather than parking the
+    # schedule for ever.
+    fire_in_flight_since: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     # The single run-log conversation every fire appends to. Opened on the first
     # fire (a per-fire conversation would be ~1440 rows a day on the interval
     # floor) and reused after. SET NULL so deleting the conversation reopens a

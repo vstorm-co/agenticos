@@ -556,6 +556,17 @@ class TestClaiming:
             claimed = await service.claim_and_advance(now=datetime(2026, 6, 1, tzinfo=UTC))
         assert claimed == []
 
+    async def test_claiming_marks_each_trigger_in_flight(self):
+        """The marker is set in the same flush that advances the schedule, so the next
+        tick does not re-claim a trigger whose run is still executing."""
+        service = _service()
+        now = datetime(2026, 6, 1, tzinfo=UTC)
+        trigger = _trigger(interval_seconds=300, fire_in_flight_since=None)
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.claim_due = AsyncMock(return_value=[trigger])
+            await service.claim_and_advance(now=now)
+        assert trigger.fire_in_flight_since == now
+
 
 class TestFiring:
     def _patches(self):
@@ -807,6 +818,33 @@ class TestFiring:
         assert orphan.error == "fire failed before the runner could record the run"
         assert trigger.last_run_id == orphan.id
         assert trigger.is_active is True
+
+    async def test_a_fire_clears_the_in_flight_marker_when_the_run_completes(self):
+        """The claim set fire_in_flight_since; fire clears it in a finally, so once the
+        run settles the next tick can claim the trigger again."""
+        agent = _agent()
+        service = _service(agent)
+        trigger = _trigger(
+            agent_id=agent.id,
+            conversation_id=uuid.uuid4(),
+            fire_in_flight_since=datetime(2026, 1, 1, tzinfo=UTC),
+        )
+        run = MagicMock(id=uuid.uuid4(), status=RunStatus.COMPLETED.value)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.member_repo") as members,
+            patch("app.services.agent_trigger.conversation_repo"),
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            runner = runner_cls.return_value
+            runner.execute = AsyncMock(return_value=("done", run))
+            await service.fire(trigger.id)
+
+        assert trigger.fire_in_flight_since is None
+        assert trigger.last_run_id == run.id
 
 
 class TestCreatingAnEventTrigger:

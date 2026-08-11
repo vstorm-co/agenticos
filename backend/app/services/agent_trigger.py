@@ -515,6 +515,10 @@ class AgentTriggerService:
         for trigger in triggers:
             trigger.next_fire_at = _next_fire_from(trigger, now=now)
             trigger.last_fired_at = now
+            # Mark the fire in flight in the same committed UPDATE that advances the
+            # schedule, so no window opens in which a slow run's trigger looks
+            # claimable to the next tick. The fired run clears it in its own `finally`.
+            trigger.fire_in_flight_since = now
         await self.db.flush()
         return triggers
 
@@ -546,10 +550,27 @@ class AgentTriggerService:
         Prefect flow and retry the same outage against the same money.
         """
         trigger = await agent_trigger_repo.get_by_id(self.db, trigger_id)
-        if trigger is None or not trigger.is_active:
+        if trigger is None:
             logger.info("trigger_fire_skipped", extra={"trigger_id": str(trigger_id)})
             return
+        try:
+            await self._fire_loaded(trigger, event_context=event_context)
+        finally:
+            # Release the in-flight marker the claim set, however this fire ended - a
+            # completed run, a recorded failure, a disable, or a skip. The next tick's
+            # no-overlap and last_run_id guards still apply; leaving it set would park
+            # the trigger until the lease lapses.
+            trigger.fire_in_flight_since = None
+            await self.db.flush()
 
+    async def _fire_loaded(
+        self, trigger: AgentTrigger, *, event_context: str | None = None
+    ) -> None:
+        """The fire itself, once the row is loaded - split out so `fire` can clear the
+        in-flight marker in a `finally` around every path through it."""
+        if not trigger.is_active:
+            logger.info("trigger_fire_skipped", extra={"trigger_id": str(trigger.id)})
+            return
         ctx = await self._creator_context(trigger)
         if ctx is None:
             # No membership to take a role from - the creator left the

@@ -220,6 +220,26 @@ class TestTheClaimReturnsTheRightRows:
         claimed = await agent_trigger_repo.claim_due(db, now=datetime.now(UTC))
         assert [t.id for t in claimed] == [blocked.id]
 
+    async def test_a_trigger_with_a_fire_in_flight_marker_is_skipped_until_the_lease(self, db):
+        """The claim sets fire_in_flight_since, so a run slower than its interval is
+        not fired on top of itself - the guard `last_run_id` cannot be, since it is
+        only written when the run returns. Once the marker is older than the lease - a
+        child that died without clearing it - the schedule is freed again."""
+        org = await _org(db)
+        agent = await _agent(db, org)
+        now = datetime.now(UTC)
+        in_flight = _trigger(
+            org, agent, next_fire_at=now - timedelta(seconds=1), fire_in_flight_since=now
+        )
+        db.add(in_flight)
+        await db.flush()
+
+        assert await agent_trigger_repo.claim_due(db, now=now) == []
+
+        past_lease = now + timedelta(hours=1, minutes=1)
+        claimed = await agent_trigger_repo.claim_due(db, now=past_lease)
+        assert [t.id for t in claimed] == [in_flight.id]
+
 
 class TestTwoHeartbeatsDoNotDoubleFire:
     async def test_a_row_one_heartbeat_locked_is_skipped_by_the_next(self, db, engine):

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -17,6 +17,12 @@ from app.db.models.resource_grant import Visibility
 # A run in one of these has not finished, so its trigger must not fire again on
 # top of it. Every other status is terminal - the run settled, one way or another.
 _NON_TERMINAL_STATUSES = (RunStatus.RUNNING.value, RunStatus.AWAITING_APPROVAL.value)
+
+# How long a `fire_in_flight_since` marker holds a trigger out of the claim. A run
+# settles in seconds to minutes; past this lease the fired flow is assumed dead - a
+# worker crash that skipped its `finally` - and the schedule is freed rather than
+# parked for ever.
+_FIRE_LEASE = timedelta(hours=1)
 
 
 async def get(db: AsyncSession, trigger_id: UUID, *, organization_id: UUID) -> AgentTrigger | None:
@@ -175,14 +181,22 @@ async def claim_due(db: AsyncSession, *, now: datetime, limit: int = 100) -> lis
     seeing one due trigger. `of=AgentTrigger` keeps the lock off the joined
     `agent_runs` row, which this only reads.
 
-    Two filters decide "due":
+    Three filters decide "due":
 
     * `is_active`, a non-null creator, and `next_fire_at <= now` - the schedule
       says so and it is still attributable to someone.
+    * no fire is in flight: `fire_in_flight_since` is null, or older than
+      `_FIRE_LEASE`. The claim sets this marker in the same UPDATE that advances
+      `next_fire_at`, and the fired run clears it in a `finally` - so a run slower
+      than its interval is not fired on top of itself, and a run that died without
+      clearing un-wedges once the lease lapses. This is the guard `last_run_id`
+      cannot be: `last_run_id` is written only when `execute` returns, so it names
+      the previous run for the whole time the current one executes.
     * the previous run, reached through `last_run_id`, has reached a terminal
-      status (or there is none). This is the no-overlap guard: a run that outlives
-      its own interval must finish before the next fire, or a slow agent would be
-      firing on top of itself. The caller advances `next_fire_at` under the same
+      status (or there is none). This still bites after the marker clears: a run
+      that parks `AWAITING_APPROVAL` returns from `execute` (clearing the marker)
+      yet is not terminal, so it keeps the schedule from piling runs behind an
+      undecided gate. The caller advances `next_fire_at` under the same
       transaction, so the common case never reaches this join.
     """
     result = await db.execute(
@@ -193,6 +207,8 @@ async def claim_due(db: AsyncSession, *, now: datetime, limit: int = 100) -> lis
             AgentTrigger.created_by_user_id.is_not(None),
             AgentTrigger.next_fire_at <= now,
             (AgentTrigger.last_run_id.is_(None)) | (AgentRun.status.not_in(_NON_TERMINAL_STATUSES)),
+            (AgentTrigger.fire_in_flight_since.is_(None))
+            | (AgentTrigger.fire_in_flight_since <= now - _FIRE_LEASE),
         )
         .order_by(AgentTrigger.next_fire_at.asc())
         .limit(limit)
