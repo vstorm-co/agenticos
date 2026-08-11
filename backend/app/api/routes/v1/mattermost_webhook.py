@@ -6,11 +6,10 @@ instead and never exposes anything. Both end up in the same router.
 
 Answers 200 before the work runs, not after: Mattermost retries a webhook it
 judged slow, so acknowledging first stops the agent's own latency from
-provoking a retry. It does not yet drop a redelivery whose 200 was lost in
-transit - that message runs the agent again on the sender's budget. The
-per-chat lock in the router only serialises the two runs, it does not drop one;
-dropping the duplicate needs a persisted `(bot, message_id)` guard and is
-tracked as #167.
+provoking a retry. A redelivery whose 200 was lost in transit is a different
+thing and is dropped in the router, which claims each delivery in Redis before
+it runs anything - the per-chat lock only serialises two runs, it never drops
+one (`app/services/channels/dedupe.py`, #167).
 """
 
 import logging

@@ -1,27 +1,31 @@
 import type { Metadata, Viewport } from "next";
-import { Bricolage_Grotesque, Geist_Mono, Inter } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { defaultLocale } from "@/i18n";
 import { SITE } from "@/lib/seo";
 
-const display = Bricolage_Grotesque({
-  subsets: ["latin"],
+// Vendored, not `next/font/google`: that helper resolves a family against
+// `fonts.gstatic.com` while `next build` runs, so a 404 from the CDN failed the
+// build on branches that never touched the frontend (#572). `src/app/fonts/`
+// says where each file came from and how to refresh it.
+const display = localFont({
+  src: "./fonts/bricolage-grotesque-latin.woff2",
   variable: "--font-display",
-  weight: ["700", "800"],
+  weight: "700 800",
   display: "swap",
 });
 
-const body = Inter({
-  subsets: ["latin"],
+const body = localFont({
+  src: "./fonts/inter-latin.woff2",
   variable: "--font-body",
-  weight: ["400", "500", "600", "700"],
+  weight: "400 700",
   display: "swap",
 });
 
-const mono = Geist_Mono({
-  subsets: ["latin"],
+const mono = localFont({
+  src: "./fonts/geist-mono-latin.woff2",
   variable: "--font-mono",
-  weight: ["400", "500"],
+  weight: "400 500",
   display: "swap",
 });
 

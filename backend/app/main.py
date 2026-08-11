@@ -33,6 +33,7 @@ from app.services.rag.vectorstore import BaseVectorStore
 from app.repositories.channel_bot import get_active_polling_bots
 from app.services.channel_bot import unseal_bot_token, unseal_slack_app_token
 from app.services.channels import register_adapter
+from app.services.channels import dedupe as channel_dedupe
 from app.services.channels.supervisor import open_inbound_stream
 from app.core.rate_limit import limiter
 
@@ -91,6 +92,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     await redis_client.connect()
     state["redis"] = redis_client
     setup_cache(redis_client)
+    # The channel router runs outside any request - webhook background tasks
+    # and the polling loops alike - so the dedupe claim cannot reach Redis
+    # through request.state; it is handed the shared client here instead.
+    channel_dedupe.configure(redis_client)
     embedder: EmbeddingService | None = None
     try:
         embedder = EmbeddingService(settings=settings.rag)
@@ -156,6 +161,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
         await _slack_adapter.stop_polling(_sbid)
     for _mbid in list(_mattermost_adapter._socket_tasks.keys()):
         await _mattermost_adapter.stop_polling(_mbid)
+    channel_dedupe.configure(None)
     if "redis" in state:
         await state["redis"].close()
 
