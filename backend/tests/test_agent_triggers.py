@@ -722,6 +722,62 @@ class TestFiring:
             await service.fire(trigger.id)  # must not raise
         assert trigger.is_active is False
 
+    async def test_a_fired_run_that_errors_on_the_model_is_recorded_and_stamped_not_retried(self):
+        """A provider error is not a refusal. `_run` commits the row as `failed`
+        and re-raises; fire recovers it from the trigger's conversation, stamps
+        `last_run_id`, and returns - so Prefect neither fails the flow nor retries
+        the same outage, and the trigger stays active for its next interval."""
+        agent = _agent()
+        service = _service(agent)
+        conversation_id = uuid.uuid4()
+        trigger = _trigger(agent_id=agent.id, conversation_id=conversation_id)
+        recorded = MagicMock(id=uuid.uuid4(), status=RunStatus.FAILED.value)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.member_repo") as members,
+            patch("app.services.agent_trigger.conversation_repo"),
+            patch("app.services.agent_trigger.agent_run_repo") as runs,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            runs.latest_run_for_conversation = AsyncMock(return_value=recorded)
+            runner = runner_cls.return_value
+            runner.execute = AsyncMock(side_effect=RuntimeError("provider 503"))
+            await service.fire(trigger.id)  # must not raise
+
+        assert runs.latest_run_for_conversation.call_args.args[1] == conversation_id
+        assert runs.latest_run_for_conversation.call_args.kwargs["organization_id"] == _ORG
+        assert trigger.last_run_id == recorded.id
+        assert trigger.is_active is True
+
+    async def test_a_fire_that_errors_before_a_run_row_exists_stamps_nothing(self):
+        """The error struck before the run was created - a spec that no longer
+        builds, a model profile deleted since publish. There is nothing to point
+        `last_run_id` at, and it is still neither a reason to disable nor to raise
+        into a retry."""
+        agent = _agent()
+        service = _service(agent)
+        trigger = _trigger(agent_id=agent.id, conversation_id=uuid.uuid4(), last_run_id=None)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.member_repo") as members,
+            patch("app.services.agent_trigger.conversation_repo"),
+            patch("app.services.agent_trigger.agent_run_repo") as runs,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            runs.latest_run_for_conversation = AsyncMock(return_value=None)
+            runner = runner_cls.return_value
+            runner.execute = AsyncMock(side_effect=RuntimeError("spec failed to build"))
+            await service.fire(trigger.id)  # must not raise
+
+        assert trigger.last_run_id is None
+        assert trigger.is_active is True
+
 
 class TestCreatingAnEventTrigger:
     async def test_an_event_trigger_seals_its_secret_and_has_no_next_fire(self):

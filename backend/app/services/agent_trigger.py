@@ -44,6 +44,7 @@ from app.db.models.agent_run import RunSurface
 from app.db.models.agent_trigger import AgentTrigger, ScheduleKind, TriggerType
 from app.repositories import (
     agent_environment_repo,
+    agent_run_repo,
     agent_trigger_repo,
     conversation_repo,
     member_repo,
@@ -536,6 +537,13 @@ class AgentTriggerService:
         trigger is disabled rather than retried (the "silently retried refusal"
         #44 guards against, reached through the authz door instead of the budget
         one).
+
+        A run that fails on something the runner re-raises rather than records - a
+        provider 5xx, a revoked key, a timeout - is neither a refusal nor a reason
+        to disable. `_run` has already committed the row as `failed`, so the fire
+        is in Activity; `fire` recovers that row from the trigger's conversation to
+        stamp `last_run_id` and returns, rather than letting the error fail the
+        Prefect flow and retry the same outage against the same money.
         """
         trigger = await agent_trigger_repo.get_by_id(self.db, trigger_id)
         if trigger is None or not trigger.is_active:
@@ -583,6 +591,22 @@ class AgentTriggerService:
             # disable, do not raise into a retry.
             await self._disable(trigger, reason="creator_cannot_run_agent")
             return
+        except Exception:
+            # The run failed on something the runner re-raises instead of recording
+            # as a terminal status - a provider 5xx, a revoked key, a timeout. `_run`
+            # commits the row as `failed` before re-raising, so the failure is in
+            # Activity; letting it propagate would only fail the Prefect flow for a
+            # run already accounted for and retry the same outage. Recover the row
+            # from the trigger's own conversation, stamp it, and return.
+            logger.exception("trigger_fire_run_errored", extra={"trigger_id": str(trigger.id)})
+            run = await agent_run_repo.latest_run_for_conversation(
+                self.db, conversation_id, organization_id=ctx.organization_id
+            )
+            if run is None:
+                # The error struck before a run row existed - a spec that no longer
+                # builds, a model profile deleted since publish. Nothing to stamp;
+                # the next interval tries again once the cause is fixed.
+                return
 
         trigger.last_run_id = run.id
         await self.db.flush()

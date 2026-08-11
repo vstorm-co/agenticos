@@ -33,7 +33,11 @@ from app.db.models.conversation import Conversation, Message
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
-from app.repositories.agent_run import RunFilters, down_rated_run_ids
+from app.repositories.agent_run import (
+    RunFilters,
+    down_rated_run_ids,
+    latest_run_for_conversation,
+)
 from app.repositories.message_rating import get_down_rating_comments_for_messages
 from app.services.agent_runner import AgentRunnerService
 
@@ -124,6 +128,13 @@ async def _run(db, org: Organization, agent: Agent, **overrides) -> AgentRun:
     db.add(run)
     await db.flush()
     return run
+
+
+async def _conversation(db, org: Organization) -> Conversation:
+    conversation = Conversation(id=uuid.uuid4(), organization_id=org.id, user_id=None)
+    db.add(conversation)
+    await db.flush()
+    return conversation
 
 
 def _ctx(org: Organization, user: User) -> AuthContext:
@@ -554,6 +565,44 @@ class TestTheDownRatedMarker:
         org, _user = await _org(db)
 
         assert await down_rated_run_ids(db, organization_id=org.id, run_ids=[]) == set()
+
+
+class TestTheLatestRunInAConversation:
+    """`latest_run_for_conversation` is how a fired trigger recovers the run a
+    provider error recorded but never returned - `_run` commits the row as failed
+    and re-raises, so `execute` hands nothing back to stamp `last_run_id` against.
+    A trigger appends every fire to one conversation, so the newest run in it is
+    the fire that just failed.
+    """
+
+    async def test_it_returns_the_most_recently_created_run(self, db) -> None:
+        org, user = await _org(db)
+        agent = await _agent(db, org)
+        convo = await _conversation(db, org)
+        await _run(db, org, agent, conversation_id=convo.id, created_at=_NOW - timedelta(minutes=1))
+        newest = await _run(db, org, agent, conversation_id=convo.id, created_at=_NOW)
+
+        found = await latest_run_for_conversation(db, convo.id, organization_id=org.id)
+
+        assert found is not None
+        assert found.id == newest.id
+
+    async def test_it_will_not_reach_another_organizations_run(self, db) -> None:
+        """The conversation id is a UUID, but the lookup is still tenant-scoped, so a
+        reused or guessed id cannot read across the boundary."""
+        mine, _me = await _org(db)
+        theirs, _them = await _org(db)
+        their_agent = await _agent(db, theirs)
+        convo = await _conversation(db, theirs)
+        await _run(db, theirs, their_agent, conversation_id=convo.id)
+
+        assert await latest_run_for_conversation(db, convo.id, organization_id=mine.id) is None
+
+    async def test_a_conversation_with_no_runs_is_none(self, db) -> None:
+        org, _user = await _org(db)
+        convo = await _conversation(db, org)
+
+        assert await latest_run_for_conversation(db, convo.id, organization_id=org.id) is None
 
 
 class TestFiltersAndTheTenantBoundary:

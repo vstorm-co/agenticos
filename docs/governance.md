@@ -15,10 +15,13 @@ thing "unattended" adds is what happens to a *refusal*: a fired run the budget s
 ends `budget_exceeded` and waits for the trigger's next fire rather than being retried,
 and a fired run the creator may no longer make - they left the organization, or lost
 their grant on the agent - disables the trigger and writes an audit entry saying why.
-A refusal a heartbeat retried every minute would be a bill, or an alert, that never
-stops. An event trigger adds one more refusal at its edge: a webhook whose signature
-does not verify against the trigger's own secret is a 403 that never reaches the runner
-at all.
+A fired run that fails on the model itself - a provider outage, a revoked key - is the
+same: recorded `failed` and left for the next fire rather than failing the heartbeat
+into retrying the same wall, with the trigger's `last_run_id` left pointing at it so its
+history stays honest. A refusal a heartbeat retried every minute would be a bill, or an
+alert, that never stops. An event trigger adds one more refusal at its edge: a webhook
+whose signature does not verify against the trigger's own secret is a 403 that never
+reaches the runner at all.
 
 ## Budgets
 
