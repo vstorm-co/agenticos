@@ -149,6 +149,11 @@ class AgentTriggerService:
                 now=now,
             ),
         )
+        # Open the run-log conversation now, not on the first fire, so a new
+        # schedule is a clickable item in the sidebar the moment it exists - empty
+        # until a fire appends to it. `_run_log` stays the idempotent fallback for
+        # a conversation later deleted, whose SET NULL reopens a fresh one.
+        await self._run_log(trigger, agent_name=agent.name)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -310,11 +315,14 @@ class AgentTriggerService:
         )
 
     async def _run_log(self, trigger: AgentTrigger, *, agent_name: str) -> UUID:
-        """The one conversation this trigger appends every fire to, opening it once.
+        """The one conversation this trigger appends every fire to, opened once.
 
-        Per trigger, not per fire: a trigger on the interval floor would otherwise
-        mint ~1440 conversations a day. A null id means either the first fire or a
-        conversation since deleted (the FK is SET NULL), and both want a fresh log.
+        Opened eagerly when the trigger is created, so a new schedule is a
+        clickable item straight away, and reused after; the fire path calls this
+        too, as the idempotent fallback. Per trigger, not per fire: a trigger on
+        the interval floor would otherwise mint ~1440 conversations a day. A null
+        id means the conversation was never opened or was since deleted (the FK is
+        SET NULL), and both want a fresh log.
         """
         if trigger.conversation_id is not None:
             return trigger.conversation_id

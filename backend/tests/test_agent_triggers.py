@@ -122,7 +122,9 @@ class TestCreate:
             patch("app.services.agent_trigger.agent_trigger_repo") as repo,
             patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
         ):
-            repo.create = AsyncMock(return_value=_trigger())
+            # A conversation_id already set short-circuits the eager run-log open,
+            # which its own test covers; this one is about the permission floor.
+            repo.create = AsyncMock(return_value=_trigger(conversation_id=uuid.uuid4()))
             await service.create(_ctx(), uuid.uuid4(), _interval())
         assert service.agents.get.call_args.kwargs["perm"].value == "agents:run"
 
@@ -136,7 +138,10 @@ class TestCreate:
         ):
             repo.create = AsyncMock(
                 return_value=_trigger(
-                    schedule_kind="cron", interval_seconds=None, cron_expression="0 9 * * *"
+                    schedule_kind="cron",
+                    interval_seconds=None,
+                    cron_expression="0 9 * * *",
+                    conversation_id=uuid.uuid4(),
                 )
             )
             await service.create(_ctx(), agent.id, cron)
@@ -159,7 +164,9 @@ class TestCreate:
             patch("app.services.agent_trigger.agent_trigger_repo") as repo,
             patch("app.services.agent_trigger.record_audit", new=AsyncMock()) as audit,
         ):
-            repo.create = AsyncMock(return_value=_trigger(agent_id=agent.id))
+            repo.create = AsyncMock(
+                return_value=_trigger(agent_id=agent.id, conversation_id=uuid.uuid4())
+            )
             await service.create(_ctx(), agent.id, _interval(interval_seconds=900))
 
         assert repo.create.call_args.kwargs["created_by_user_id"] == _CALLER
@@ -167,6 +174,25 @@ class TestCreate:
         # First fire is one interval out, not immediate.
         assert repo.create.call_args.kwargs["next_fire_at"] > datetime.now(UTC)
         assert audit.call_args.kwargs["action"] == "agent.trigger_created"
+
+    async def test_creating_a_schedule_opens_its_run_log_conversation_eagerly(self):
+        """The sidebar item must be clickable before the first fire, so the
+        run-log conversation is opened at create, not lazily on the first fire."""
+        agent = _agent(name="Nightly")
+        service = _service(agent)
+        conversation = MagicMock(id=uuid.uuid4())
+        trigger = _trigger(agent_id=agent.id, conversation_id=None)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.conversation_repo") as conversations,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            repo.create = AsyncMock(return_value=trigger)
+            conversations.create_conversation = AsyncMock(return_value=conversation)
+            await service.create(_ctx(), agent.id, _interval())
+        conversations.create_conversation.assert_awaited_once()
+        assert conversations.create_conversation.call_args.kwargs["title"] == "Nightly - scheduled"
+        assert trigger.conversation_id == conversation.id
 
     async def test_a_schedule_can_name_the_environment_it_fires(self):
         agent = _agent()
@@ -178,7 +204,7 @@ class TestCreate:
             patch("app.services.agent_trigger.agent_environment_repo") as environments,
             patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
         ):
-            repo.create = AsyncMock(return_value=_trigger())
+            repo.create = AsyncMock(return_value=_trigger(conversation_id=uuid.uuid4()))
             environments.get = AsyncMock(return_value=environment)
             await service.create(_ctx(), agent.id, _interval(environment_id=environment.id))
         assert repo.create.call_args.kwargs["environment_id"] == environment.id
