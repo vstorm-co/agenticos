@@ -420,15 +420,8 @@ async def get_spend(
         # How much of everything below is a fact. Summed from the per-agent rows
         # rather than queried again, so this figure and `by_agent` cannot
         # disagree about which runs could not be priced - they count the same
-        # top-level rows.
-        #
-        # It marks the two breakdowns underneath as well without measuring them.
-        # Those sum every row's own spend, delegated rows included, so an
-        # unpriced *delegate* makes a vendor and a key a floor while this counts
-        # trees: one parent with three unpriced delegates reads 1. The marker
-        # still fires, because a tree shares one spend ledger and the parent's
-        # row is therefore a floor too - which is why the figure is never 0
-        # while a figure below it is one.
+        # top-level rows. It marks the two breakdowns below without measuring
+        # them; see `CostSummary.partial_run_count`.
         partial_run_count=sum(row.partial_run_count for row in agents),
         by_agent=[
             CostByAgent(

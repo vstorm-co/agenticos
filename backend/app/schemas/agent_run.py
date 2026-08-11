@@ -354,12 +354,15 @@ class CostSummary(BaseSchema):
             "Top-level runs in the window whose cost is a floor because some "
             "model in the run had no price - the run's own or any it delegated "
             "to, which share one spend ledger. How much of everything below is "
-            "a fact: it is never 0 while a figure below it is a floor, because "
-            "an unpriced delegate is in its parent's ledger too. It counts "
-            "*trees* rather than the rows `by_provider` and `by_key` sum, so "
-            "one parent with three unpriced delegates reads 1 - it marks those "
-            "two breakdowns without measuring them, and measures `by_agent`, "
-            "which counts the same top-level rows"
+            "a fact: an unpriced delegate is in its parent's ledger too, so a "
+            "floor under `by_provider` or `by_key` is marked here even though "
+            "neither is measured here. It counts *trees* rather than the rows "
+            "those two sum, so one parent with three unpriced delegates reads "
+            "1, and it measures `by_agent`, which counts the same top-level "
+            "rows. A tree that straddles the start of the window is the one "
+            "case it misses: the delegate's row is inside the window and its "
+            "parent's is not, so the splits are a floor and this reads 0 "
+            "(agenticos#620)"
         ),
     )
     by_agent: list[CostByAgent]

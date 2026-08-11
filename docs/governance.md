@@ -332,11 +332,18 @@ a figure wearing a plus sign is not.
 A run counts when any model in its tree had no price, **its delegates' included** —
 the tree shares one spend ledger, so an unpriced delegate makes the parent's row a
 floor as well. That is what lets one figure govern all three breakdowns: By
-provider and By key sum every row's own spend, delegated rows included, and the
-count is never `0` while one of their figures is a floor. It measures By agent,
-which counts the same top-level rows, and only **marks** the other two — it counts
-trees, so one parent with three unpriced delegates reads `1` while three figures
-below it are a floor.
+provider and By key sum every row's own spend, delegated rows included, and a floor
+in either of them is marked by a count that never looked at the row causing it. It
+**measures** By agent, which counts the same top-level rows, and only **marks** the
+other two — it counts trees, so one parent with three unpriced delegates reads `1`
+while three figures below it are a floor.
+
+A tree that **straddles the start of the window** is the one case the marker misses:
+the delegate's row is inside the window and its parent's row is not, so By provider
+and By key are a floor and the count above them reads `0`. Rare — it needs a
+delegation that outlives the window's edge — and it is the only remaining way this
+page shows a floor with nothing over it saying so
+([#620](https://github.com/vstorm-co/agenticos/issues/620)).
 
 A row is **one per agent**, with `agent_name` on it. It used to be one per agent
 *and model*, carrying only `model_label` — so the tab listed model names where a

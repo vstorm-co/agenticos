@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -87,6 +87,7 @@ async def _run(
     cost: Decimal,
     secret: OrganizationSecret | None = None,
     partial: bool = False,
+    started_at: datetime | None = None,
 ) -> AgentRun:
     """A run somebody started, opened and finished the way every surface does.
 
@@ -97,6 +98,9 @@ async def _run(
     `partial` is what the run's ledger answered about pricing, which is a question
     about the whole tree: a delegate on a model with no price makes this row a
     floor too, because parent and delegate book into one ledger.
+
+    `started_at` is the column every spend window filters on, so it is what puts a
+    run inside or outside the one being asked about.
     """
     run = await agent_run_repo.create_run(
         db,
@@ -109,7 +113,7 @@ async def _run(
         model_label="gpt-4.1",
         provider="openai",
         secret_id=None if secret is None else secret.id,
-        started_at=datetime.now(UTC),
+        started_at=datetime.now(UTC) if started_at is None else started_at,
     )
     return await agent_run_repo.finish_run(
         db,
@@ -134,6 +138,7 @@ async def _delegated(
     task_id: str = "4f2a1b8c",
     secret: OrganizationSecret | None = None,
     partial: bool = False,
+    started_at: datetime | None = None,
 ) -> AgentRun:
     """A delegation, written the way `finish` writes one: complete, in one insert.
 
@@ -141,7 +146,7 @@ async def _delegated(
     while the run was still going - and the foreign key is the thing this proves:
     the parent's row has to exist by the time these are written.
     """
-    moment = datetime.now(UTC)
+    moment = datetime.now(UTC) if started_at is None else started_at
     return await agent_run_repo.record_delegated_run(
         db,
         run_id=uuid.uuid4(),
@@ -496,13 +501,14 @@ class TestTheCostScreen:
 
         The caveat counts top-level runs; By provider and By key sum every row's
         own spend, delegated rows included (#194). So an unpriced *delegate* makes
-        those two a floor through a row the caveat never looks at, and the figure
-        would read 0 above them if the delegation's row were the only one carrying
-        that unpriced request.
+        those two a floor through a row the caveat never looks at, and what keeps
+        the figure non-zero above the vendor it marks is the parent's row being
+        written a floor as well (#597).
 
-        It is not. A tree shares one spend ledger, so the request is in the
-        parent's ledger too and the parent's row is written a floor as well -
-        which is what keeps the count non-zero above the vendor it marks (#597).
+        Both rows are written partial here, which is the state that shared ledger
+        produces rather than a proof of it - `tests/test_delegation_seams.py` is
+        where the parent inherits its delegate's unpriced request. What this pins
+        is the arithmetic downstream of it.
         """
         org = await _org(db)
         orchestrator = await _agent(db, org, slug="orchestrator")
@@ -531,6 +537,55 @@ class TestTheCostScreen:
         assert sum(row.partial_run_count for row in by_agent) == 1
         # And the figure it is a caveat about: Anthropic's share is the delegate's
         # own spend, so that row is the floor the count above it is announcing.
+        assert {provider: cost for provider, cost, _runs in by_provider}["anthropic"] == Decimal(
+            "0.40"
+        )
+
+    async def test_a_tree_that_straddles_the_start_of_the_window_is_marked_nowhere(self, db):
+        """The one floor this page still shows with no figure over it saying so.
+
+        The caveat counts top-level runs *in the window*; the two splits price
+        every row in it through a subquery that is deliberately not windowed
+        (:func:`_own_cost`). A parent that started before the window and delegated
+        inside it therefore puts its delegate's own spend under a vendor and a key
+        and puts nothing at all under the count above them.
+
+        Pinned rather than fixed, and asserted as `0` on purpose: the shared ledger
+        closes the other route to a false zero, this one is a `WHERE` that no
+        longer matches the rows underneath it (agenticos#620). Inverting the first
+        assertion is how the fix will announce itself.
+        """
+        org = await _org(db)
+        orchestrator = await _agent(db, org, slug="orchestrator")
+        researcher = await _agent(db, org, slug="researcher")
+        since = datetime.now(UTC) - timedelta(hours=1)
+        parent = await _run(
+            db,
+            org=org,
+            agent=orchestrator,
+            cost=Decimal("1.00"),
+            partial=True,
+            started_at=since - timedelta(hours=2),
+        )
+        await _delegated(
+            db,
+            org=org,
+            agent=researcher,
+            version=await _version(db, researcher),
+            parent=parent,
+            cost=Decimal("0.40"),
+            partial=True,
+            started_at=since + timedelta(minutes=30),
+        )
+        service = AgentRunnerService(db)
+        ctx = AuthContext(user_id=None, organization_id=org.id, role=OrgRoleName.OWNER)
+
+        by_agent = await service.spend_by_agent(ctx, since=since)
+        by_provider = await service.spend_by_provider(ctx, since=since)
+
+        assert sum(row.partial_run_count for row in by_agent) == 0
+        # The floor nothing on the page announces: the delegate's own spend, at
+        # the vendor it was spent with, from a row written `cost_is_partial`.
         assert {provider: cost for provider, cost, _runs in by_provider}["anthropic"] == Decimal(
             "0.40"
         )
