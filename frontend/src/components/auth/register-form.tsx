@@ -225,21 +225,24 @@ export function RegisterForm() {
         </Button>
 
         <p className="text-foreground/50 text-center text-xs">
-          By creating an account, you agree to our{" "}
-          <Link
-            href={ROUTES.LEGAL_TERMS}
-            className="text-foreground/70 hover:text-foreground underline-offset-4 hover:underline"
-          >
-            {t("terms")}
-          </Link>{" "}
-          and{" "}
-          <Link
-            href={ROUTES.LEGAL_PRIVACY}
-            className="text-foreground/70 hover:text-foreground underline-offset-4 hover:underline"
-          >
-            {t("privacyPolicy")}
-          </Link>
-          .
+          {t.rich("agreeToTerms", {
+            terms: (chunks) => (
+              <Link
+                href={ROUTES.LEGAL_TERMS}
+                className="text-foreground/70 hover:text-foreground underline-offset-4 hover:underline"
+              >
+                {chunks}
+              </Link>
+            ),
+            privacy: (chunks) => (
+              <Link
+                href={ROUTES.LEGAL_PRIVACY}
+                className="text-foreground/70 hover:text-foreground underline-offset-4 hover:underline"
+              >
+                {chunks}
+              </Link>
+            ),
+          })}
         </p>
       </form>
 

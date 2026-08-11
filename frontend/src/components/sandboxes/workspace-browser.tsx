@@ -143,7 +143,7 @@ export function WorkspaceBrowser() {
                             "everybody's". */}
                         {workspace.conversation_title ??
                           (workspace.conversations > 0
-                            ? `${workspace.conversations} conversations`
+                            ? t("conversationCount", { count: workspace.conversations })
                             : "—")}
                       </TableCell>
                       <TableCell className="text-muted-foreground text-xs">
@@ -199,6 +199,7 @@ export function WorkspaceBrowser() {
  */
 function FlatFiles() {
   const t = useTranslations("sandboxes");
+  const tc = useTranslations("common");
   const { listing, isLoading, error } = useAllWorkspaceFiles(true);
   const [opened, setOpened] = useState<FlatFile | null>(null);
 
@@ -251,7 +252,7 @@ function FlatFiles() {
               </div>
               <button
                 type="button"
-                aria-label={`Download ${file.path}`}
+                aria-label={tc("downloadNamed", { name: file.path })}
                 onClick={() =>
                   void workspaceFileAccess(
                     { kind: "workspace", id: file.workspace_id },

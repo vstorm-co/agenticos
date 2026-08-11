@@ -11,8 +11,9 @@ import type { KBScope } from "@/types";
  *
  * A key rather than the word, because a table at module scope has no
  * translator to call - the component reads `t(labelKey)` at the point of use.
- * Spelled out here, these were three one-word strings, which is under
- * `check_i18n.py`'s two-word threshold and so rendered in English under `pl`.
+ * Spelled out here, these were three one-word strings, which sat under the old
+ * guard's two-word threshold and so rendered in English under `pl`. There is no
+ * threshold left to sit under - #395 replaced it with a parser.
  */
 const SCOPE_META: Record<KBScope, { labelKey: string; icon: LucideIcon }> = {
   personal: { labelKey: "scopePersonal", icon: Lock },

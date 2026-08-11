@@ -96,9 +96,10 @@ export function PolicyPanel({ connection, onOpenChange }: PolicyPanelProps) {
             </dl>
 
             <p className="text-muted-foreground text-xs">
-              These are the sandbox service&apos;s own environment, set where it starts — the
-              <span className="font-mono">{t("sandboxd")}</span>
-              {t("serviceYourComposeFile")}
+              {t.rich("serviceEnvironmentDescription", {
+                service: t("sandboxd"),
+                mono: (chunks) => <span className="font-mono">{chunks}</span>,
+              })}
             </p>
 
             {policy.runtimes.length === 0 ? (

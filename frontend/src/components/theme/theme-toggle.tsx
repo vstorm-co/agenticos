@@ -49,7 +49,7 @@ export function ThemeToggle({ variant = "icon", className }: ThemeToggleProps) {
         onClick={cycleTheme}
         className={className}
         aria-label={t("switchThemeCurrent", { theme })}
-        title={`Theme: ${theme}`}
+        title={t("themeTitle", { theme })}
       >
         {resolvedTheme === "dark" ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
         {theme === "system" && <span className="sr-only">{t("followingSystem")}</span>}

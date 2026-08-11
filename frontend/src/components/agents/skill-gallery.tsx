@@ -135,11 +135,13 @@ export function SkillGallery({
       )}
 
       <p className="text-muted-foreground text-xs">
-        The agent loads a skill only when it decides one is relevant, so twenty skills cost almost
-        nothing in context.{" "}
-        <Link href={ROUTES.SKILLS} className="underline underline-offset-4">
-          {t("manageSkills")}
-        </Link>
+        {t.rich("skillLoadingHint", {
+          link: (chunks) => (
+            <Link href={ROUTES.SKILLS} className="underline underline-offset-4">
+              {chunks}
+            </Link>
+          ),
+        })}
       </p>
     </div>
   );

@@ -1,6 +1,8 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 
+import type { Translate } from "@/lib/agent-step-captions";
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
@@ -69,15 +71,26 @@ export function formatBytes(bytes: number): string {
   return `${bytes} B`;
 }
 
-export function timeAgo(dateStr: string): string {
+/**
+ * How long ago, in the coarsest unit that fits.
+ *
+ * Takes the caller's translator, bound to `time`, because what it returns is a
+ * sentence: `30m ago` abbreviates the unit but `ago` is a word, and Polish neither
+ * keeps the order nor spells the unit the same way. Each unit is an ICU `plural` so a
+ * locale that declines its nouns has somewhere to say so.
+ *
+ * The date it falls back to past a week is still formatted `en-US` - that needs the
+ * active locale rather than a translator, and it is #621.
+ */
+export function timeAgo(dateStr: string, t: Translate): string {
   const then = new Date(dateStr).getTime();
   if (Number.isNaN(then)) return "";
   const diff = Math.round((Date.now() - then) / 1000);
   if (diff < 0) return "";
-  if (diff < 60) return "just now";
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  if (diff < 86400 * 7) return `${Math.floor(diff / 86400)}d ago`;
+  if (diff < 60) return t("justNow");
+  if (diff < 3600) return t("minutesAgo", { count: Math.floor(diff / 60) });
+  if (diff < 86400) return t("hoursAgo", { count: Math.floor(diff / 3600) });
+  if (diff < 86400 * 7) return t("daysAgo", { count: Math.floor(diff / 86400) });
   return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 

@@ -63,6 +63,7 @@ function parseOrigins(value: string): string[] {
  */
 export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
   const t = useTranslations("agents");
+  const tc = useTranslations("common");
   const { embeds, isLoading, create, update, remove } = useEmbeds(agentId);
   const [creating, setCreating] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Embed | null>(null);
@@ -287,7 +288,7 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
         <ConfirmDialog
           open
           onOpenChange={() => setPendingDelete(null)}
-          title={`Remove ${pendingDelete.name}?`}
+          title={tc("removeNamedConfirm", { name: pendingDelete.name })}
           description={t("everyPageCarryingIts")}
           confirmLabel={t("remove")}
           destructive
@@ -314,6 +315,7 @@ function EmbedRow({
   onDelete: () => void;
 }) {
   const t = useTranslations("agents");
+  const tc = useTranslations("common");
   const { copy, copied } = useCopyToClipboard();
 
   return (
@@ -337,7 +339,7 @@ function EmbedRow({
               size="icon"
               className="text-destructive hover:text-destructive h-8 w-8"
               onClick={onDelete}
-              aria-label={`Remove ${embed.name}`}
+              aria-label={tc("removeNamed", { name: embed.name })}
             >
               <Trash2 className="h-4 w-4" />
             </Button>

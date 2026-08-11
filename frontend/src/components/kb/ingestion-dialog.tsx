@@ -90,9 +90,10 @@ export function IngestionDialog({
         <DialogHeader>
           <DialogTitle>{t("ingestionSettings")}</DialogTitle>
           <DialogDescription>
-            How documents added to{" "}
-            <span className="text-foreground font-mono text-xs">{collectionName}</span>
-            {t("areReadFromHere")}
+            {t.rich("ingestionSettingsDescription", {
+              name: collectionName,
+              mono: (chunks) => <span className="text-foreground font-mono text-xs">{chunks}</span>,
+            })}
           </DialogDescription>
         </DialogHeader>
 

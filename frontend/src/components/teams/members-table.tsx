@@ -104,7 +104,10 @@ export function MembersTable({
                     value={m.role}
                     onValueChange={(v) => onRoleChange(m.user_id, v as OrgRole)}
                   >
-                    <SelectTrigger className="h-7 w-36" aria-label={`Role for ${m.email}`}>
+                    <SelectTrigger
+                      className="h-7 w-36"
+                      aria-label={t("roleFor", { email: m.email })}
+                    >
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>

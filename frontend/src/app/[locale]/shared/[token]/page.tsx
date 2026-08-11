@@ -29,9 +29,7 @@ export default async function SharedConversationPage({ params }: SharedConversat
         <div className="text-center">
           <MessageSquare className="text-muted-foreground mx-auto h-12 w-12" />
           <h1 className="mt-4 text-xl font-semibold">{t("shareLinkNotFound")}</h1>
-          <p className="text-muted-foreground mt-2">
-            This share link may have expired or been revoked.
-          </p>
+          <p className="text-muted-foreground mt-2">{t("shareLinkExpired")}</p>
         </div>
       </div>
     );
@@ -43,7 +41,7 @@ export default async function SharedConversationPage({ params }: SharedConversat
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
       <div className="mb-6 border-b pb-4">
-        <h1 className="text-xl font-semibold">{conversation.title || "Shared Conversation"}</h1>
+        <h1 className="text-xl font-semibold">{conversation.title || t("sharedConversation")}</h1>
         <p className="text-muted-foreground text-sm">
           {t(
             share.permission === "view"
@@ -71,9 +69,7 @@ export default async function SharedConversationPage({ params }: SharedConversat
         ))}
 
         {messages.length === 0 && (
-          <p className="text-muted-foreground py-12 text-center">
-            This conversation has no messages yet.
-          </p>
+          <p className="text-muted-foreground py-12 text-center">{t("noMessagesYet")}</p>
         )}
       </div>
     </div>

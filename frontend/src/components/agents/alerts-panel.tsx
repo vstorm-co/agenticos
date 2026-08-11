@@ -121,13 +121,13 @@ export function AlertsPanel({ value, onChange, disabled }: AlertsPanelProps) {
       <CardHeader>
         <CardTitle>{t("alerts")}</CardTitle>
         <CardDescription>
-          Who hears about this agent when nobody is watching it. A run started from chat says what
-          happened on screen; the same run started by a schedule, a channel or the API stops
-          silently, and this is what closes that gap.{" "}
-          <Link href={ROUTES.SETTINGS_NOTIFICATIONS} className="underline underline-offset-4">
-            {t("yourOwnSwitches")}
-          </Link>{" "}
-          still apply on top and can only ever remove you from a list.
+          {t.rich("alertsDescription", {
+            link: (chunks) => (
+              <Link href={ROUTES.SETTINGS_NOTIFICATIONS} className="underline underline-offset-4">
+                {chunks}
+              </Link>
+            ),
+          })}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">

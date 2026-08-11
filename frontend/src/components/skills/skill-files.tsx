@@ -239,6 +239,7 @@ export function FileViewer({
   header?: React.ReactNode;
 }) {
   const t = useTranslations("skills");
+  const tc = useTranslations("common");
   const [mode, setMode] = useState<"preview" | "source">("preview");
 
   return (
@@ -260,7 +261,12 @@ export function FileViewer({
           />
         </div>
         {onDelete && canEdit && (
-          <Button variant="ghost" size="icon" aria-label={`Remove ${name}`} onClick={onDelete}>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={tc("removeNamed", { name })}
+            onClick={onDelete}
+          >
             <Trash2 className="h-4 w-4" />
           </Button>
         )}
@@ -279,7 +285,7 @@ export function FileViewer({
             onChange={(event) => onChange?.(event.target.value)}
             readOnly={!canEdit}
             className="h-full min-h-[16rem] resize-none font-mono text-xs"
-            aria-label={`${name} source`}
+            aria-label={t("namedSource", { name })}
           />
         ) : (
           // The shared renderer, which is what makes a skill's `references/api.md`

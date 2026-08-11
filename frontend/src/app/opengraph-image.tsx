@@ -67,17 +67,26 @@ export default async function OpengraphImage() {
             flexWrap: "wrap",
           }}
         >
-          <span>{`${t("ogTagline")}\u00a0`}</span>
-          <span
-            style={{
-              background:
-                "linear-gradient(transparent 50%, #C5F94A 50%, #C5F94A 90%, transparent 90%)",
-              paddingLeft: 8,
-              paddingRight: 8,
-            }}
-          >
-            own.
-          </span>
+          {/* One message with two tags rather than a head and a tail: the lime
+              underline falls on the last word, and which word that is changes with
+              the language. The lead keeps its own span because Satori lays this out
+              as a flex row - a bare string beside an element is not a box it can
+              measure. */}
+          {t.rich("ogHeadline", {
+            lead: (chunks) => <span>{chunks}&#160;</span>,
+            mark: (chunks) => (
+              <span
+                style={{
+                  background:
+                    "linear-gradient(transparent 50%, #C5F94A 50%, #C5F94A 90%, transparent 90%)",
+                  paddingLeft: 8,
+                  paddingRight: 8,
+                }}
+              >
+                {chunks}
+              </span>
+            ),
+          })}
         </div>
       </div>
 
@@ -98,7 +107,7 @@ export default async function OpengraphImage() {
             gap: 10,
           }}
         >
-          Self-hosted
+          {t("ogBadge")}
         </div>
       </div>
     </div>,

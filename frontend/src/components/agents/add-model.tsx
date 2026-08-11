@@ -277,7 +277,10 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
           {keys.length === 1 && (
             <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
               <KeyRound className="h-3.5 w-3.5" />
-              Using <span className="text-foreground font-medium">{keys[0]?.name}</span>
+              {t.rich("usingKey", {
+                name: keys[0]!.name,
+                strong: (chunks) => <span className="text-foreground font-medium">{chunks}</span>,
+              })}
               <span className="font-mono">····{keys[0]?.hint}</span>
             </p>
           )}

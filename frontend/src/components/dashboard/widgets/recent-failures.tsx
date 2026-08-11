@@ -17,6 +17,7 @@ import type { DashboardWidgetProps } from "./types";
  */
 export function RecentFailuresWidget({ title, seeAll }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.recent-failures");
+  const tTime = useTranslations("time");
   const { failures, isLoading, error, refetch } = useRecentFailures(5);
   const { agents } = useAgents();
   const names = new Map(agents.map((agent) => [agent.id, agent.name]));
@@ -41,7 +42,7 @@ export function RecentFailuresWidget({ title, seeAll }: DashboardWidgetProps) {
                   {run.status === "budget_exceeded"
                     ? t("budgetExceeded")
                     : (run.error ?? t("failed"))}
-                  {run.started_at ? ` · ${timeAgo(run.started_at)}` : ""}
+                  {run.started_at ? ` · ${timeAgo(run.started_at, tTime)}` : ""}
                 </span>
               </span>
               <Link
