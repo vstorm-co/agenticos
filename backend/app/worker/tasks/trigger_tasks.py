@@ -63,9 +63,21 @@ async def check_agent_triggers_flow() -> None:
     # Dispatched after the claim's transaction commits, so every submitted run
     # sees the advanced `next_fire_at` and the tick's own work is durable before
     # any of it is handed on.
+    dispatched = 0
     for trigger in triggers:
-        await _dispatch(str(trigger.id))
-    logger.info("agent_triggers_check", extra={"dispatched": len(triggers)})
+        try:
+            await _dispatch(str(trigger.id))
+        except Exception:
+            # The claims already committed, so a trigger whose dispatch fails has its
+            # `next_fire_at` advanced with no run - a missed fire for that one trigger.
+            # Isolate each dispatch so a single failed `run_deployment` (a transient
+            # Prefect API error) does not abort the loop and cost the rest of the batch
+            # their fire too; the failure is logged, and the next tick fires this
+            # trigger again on its new schedule.
+            logger.exception("agent_trigger_dispatch_failed", extra={"trigger_id": str(trigger.id)})
+        else:
+            dispatched += 1
+    logger.info("agent_triggers_check", extra={"dispatched": dispatched, "claimed": len(triggers)})
 
 
 @flow(name="run-scheduled-trigger", log_prints=True)
