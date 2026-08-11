@@ -169,6 +169,15 @@ export function useAgent(agentId: string | null) {
     [queryClient],
   );
 
+  // Publishing (and a rollback, which is a publish) repoints the default
+  // environment server-side, and the environments cache is not under
+  // `qk.agents` - without this the panel keeps naming the pin the publish
+  // just moved, right after a dialog said it would move.
+  const invalidateEnvironments = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: qk.environments.list(agentId ?? "") }),
+    [queryClient, agentId],
+  );
+
   const saveDraft = useMutation({
     mutationFn: (spec: AgentSpec) => apiClient.put<Agent>(`/agents/${agentId}/draft`, { spec }),
     onSuccess: invalidate,
@@ -201,6 +210,7 @@ export function useAgent(agentId: string | null) {
       apiClient.post<{ version: number }>(`/agents/${agentId}/publish`, { note }),
     onSuccess: async (version) => {
       await invalidate();
+      await invalidateEnvironments();
       toast.success(t("publishedVersion", { version: version.version }));
     },
     onError: (error) => toast.error(getErrorMessage(error)),
@@ -211,6 +221,7 @@ export function useAgent(agentId: string | null) {
       apiClient.post<AgentVersion>(`/agents/${agentId}/rollback`, { version_id: versionId }),
     onSuccess: async (version) => {
       await invalidate();
+      await invalidateEnvironments();
       // Rolling back publishes a *new* version rather than moving a pointer
       // backwards, so run history keeps telling the truth about what was live.
       toast.success(t("rolledBack", { version: version.version }));
