@@ -29,10 +29,11 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 from uuid import UUID
 
+from croniter import croniter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
-from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent_run import RunSurface
 from app.db.models.agent_trigger import AgentTrigger, ScheduleKind
@@ -48,21 +49,44 @@ from app.services.agent_registry import AgentRegistryService
 logger = logging.getLogger(__name__)
 
 
-def _next_fire_from(trigger: AgentTrigger, *, now: datetime) -> datetime:
-    """When an interval trigger should next fire, measured from now.
+def _cron_next(expression: str, *, now: datetime) -> datetime:
+    """The first instant a cron expression matches strictly after `now`.
 
-    `now + interval`, not `last_fire + interval`: a worker that was down for an
-    hour must not come back to a burst of catch-up runs it owes nobody. Only
-    interval schedules reach here - cron is refused at creation - so a null
-    interval would be a corrupt row, and letting it raise is better than firing
-    on a guessed cadence.
+    Evaluated in UTC: `now` is tz-aware UTC and croniter carries that tzinfo
+    through, so `0 9 * * *` fires at 09:00 UTC. The expression is validated when
+    the trigger is created (:class:`app.schemas.agent_trigger.TriggerCreate`), so
+    one read back off a row parses here.
     """
-    if trigger.interval_seconds is None:
-        raise BadRequestError(
-            message="Trigger has no interval to schedule from",
-            details={"trigger_id": str(trigger.id), "schedule_kind": trigger.schedule_kind},
-        )
-    return now + timedelta(seconds=trigger.interval_seconds)
+    # croniter ships no type information; the cast is what annotates the result.
+    return cast(datetime, croniter(expression, now).get_next(datetime))
+
+
+def _next_fire(
+    *, schedule_kind: str, interval_seconds: int | None, cron_expression: str | None, now: datetime
+) -> datetime:
+    """When a schedule with these fields should next fire, measured from `now`.
+
+    Both kinds answer "the next time strictly after now", never a burst of
+    catch-up runs a worker owes nobody after being down: an interval is
+    `now + interval` rather than `last_fire + interval`, and cron takes the
+    next matching instant, not every one it missed. The database CHECK
+    (`ck_trigger_schedule_shape`) and the create-time schema both guarantee the
+    kind's own field is present, so the casts cannot be reached with a null - a
+    guard here would be an untestable branch under the 100% gate.
+    """
+    if schedule_kind == ScheduleKind.CRON.value:
+        return _cron_next(cast(str, cron_expression), now=now)
+    return now + timedelta(seconds=cast(int, interval_seconds))
+
+
+def _next_fire_from(trigger: AgentTrigger, *, now: datetime) -> datetime:
+    """When this trigger should next fire, measured from `now` - either kind."""
+    return _next_fire(
+        schedule_kind=trigger.schedule_kind,
+        interval_seconds=trigger.interval_seconds,
+        cron_expression=trigger.cron_expression,
+        now=now,
+    )
 
 
 def _update_action(changes: dict[str, Any]) -> str:
@@ -93,28 +117,17 @@ class AgentTriggerService:
         )
 
     async def create(self, ctx: AuthContext, agent_id: UUID, data: TriggerCreate) -> AgentTrigger:
-        """Schedule the agent to run itself.
+        """Schedule the agent to run itself, on an interval or a cron expression.
 
         Raises:
             NotFoundError: If the agent is not runnable by this caller. Reported
                 as missing, not forbidden, so agent ids stay unprobeable - the
                 rule every per-resource agent route follows.
-            BadRequestError: For a cron schedule, which is modelled but not yet
-                served (agenticos#44 ships interval first).
         """
         agent = await self.agents.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
-        if data.schedule_kind == ScheduleKind.CRON.value:
-            raise BadRequestError(
-                message="Cron schedules are not supported yet; use an interval",
-                details={"schedule_kind": data.schedule_kind},
-            )
         if data.environment_id is not None:
             await self._environment_of(ctx, agent.id, data.environment_id)
 
-        # The schema guarantees an interval trigger carries an interval; cron, the
-        # only kind that would not, is refused above. Narrowed rather than guarded
-        # so there is no unreachable branch to leave uncovered.
-        interval_seconds = cast(int, data.interval_seconds)
         now = datetime.now(UTC)
         trigger = await agent_trigger_repo.create(
             self.db,
@@ -123,13 +136,18 @@ class AgentTriggerService:
             created_by_user_id=ctx.subject_id,
             prompt=data.prompt,
             schedule_kind=data.schedule_kind,
-            interval_seconds=interval_seconds,
+            interval_seconds=data.interval_seconds,
             cron_expression=data.cron_expression,
             environment_id=data.environment_id,
-            # First fire is one interval out, not immediate: creating a schedule
-            # is not a request to run right now, and an immediate fire would make
-            # a mistyped trigger spend before it could be deleted.
-            next_fire_at=now + timedelta(seconds=interval_seconds),
+            # The schedule's next occurrence, never immediate: creating a schedule
+            # is not a request to run right now, and an immediate fire would make a
+            # mistyped trigger spend before it could be deleted.
+            next_fire_at=_next_fire(
+                schedule_kind=data.schedule_kind,
+                interval_seconds=data.interval_seconds,
+                cron_expression=data.cron_expression,
+                now=now,
+            ),
         )
         await record_audit(
             self.db,
@@ -142,6 +160,7 @@ class AgentTriggerService:
                 "trigger_id": str(trigger.id),
                 "schedule_kind": trigger.schedule_kind,
                 "interval_seconds": trigger.interval_seconds,
+                "cron_expression": trigger.cron_expression,
             },
         )
         return trigger

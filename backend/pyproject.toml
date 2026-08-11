@@ -83,6 +83,11 @@ dependencies = [
     "cryptography>=50.0.0",
     "aiogram>=3.17,<4.0",
     "slack-sdk>=3.35.0",
+    # Cron schedules: the next fire after a given instant for a crontab
+    # expression. Interval schedules need no library, but "daily/weekly at HH:MM"
+    # and any raw crontab do - and getting DST and month lengths right by hand is
+    # the kind of arithmetic a dependency exists to own.
+    "croniter>=3.0.0",
 ]
 
 # PEP 735 dependency group — installed by `uv sync` / `uv sync --dev` and

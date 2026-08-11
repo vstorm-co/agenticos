@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
+from croniter import croniter
 from pydantic import Field, model_validator
 
 from app.db.models.agent_trigger import MIN_INTERVAL_SECONDS
@@ -15,9 +16,10 @@ from app.schemas.base import BaseSchema, TimestampSchema
 class TriggerCreate(BaseSchema):
     """A new schedule for the agent named in the path.
 
-    `schedule_kind` defaults to `interval`. `cron` is accepted by the shape check
-    here but refused by the service until the interval-first follow-up lands
-    (agenticos#44), so a client learns the field exists without it half-working.
+    `schedule_kind` defaults to `interval`: "every N seconds". `cron` schedules a
+    crontab expression (evaluated in UTC) - "daily/weekly at HH:MM" or any raw
+    crontab - and the expression is parsed here so an unschedulable one is a 422
+    naming the field, not a fire that never comes.
     """
 
     prompt: str = Field(min_length=1, max_length=10000)
@@ -28,11 +30,13 @@ class TriggerCreate(BaseSchema):
 
     @model_validator(mode="after")
     def _one_schedule(self) -> TriggerCreate:
-        """Exactly the fields the chosen kind needs, and no others.
+        """Exactly the fields the chosen kind needs, and a cron that parses.
 
-        The database CHECK says the same thing, but a request that trips it comes
-        back as an unreadable IntegrityError; caught here it is a 422 naming the
-        field that is wrong.
+        The database CHECK says the same thing about the shape, but a request that
+        trips it comes back as an unreadable IntegrityError; caught here it is a
+        422 naming the field that is wrong. The CHECK cannot judge a cron
+        expression at all - only croniter can - so an unparsable one would
+        otherwise be stored and fire nothing.
         """
         if self.schedule_kind == "interval":
             if self.interval_seconds is None:
@@ -44,6 +48,8 @@ class TriggerCreate(BaseSchema):
                 raise ValueError("cron_expression is required for a cron schedule")
             if self.interval_seconds is not None:
                 raise ValueError("interval_seconds is not valid for a cron schedule")
+            if not croniter.is_valid(self.cron_expression):
+                raise ValueError("cron_expression is not a valid crontab expression")
         return self
 
 

@@ -1,7 +1,7 @@
 """Tests for scheduling an agent to run itself.
 
 The value here is almost entirely in the refusals: an agent the caller cannot
-run, a cron schedule not yet served, a creator who lost access between scheduling
+run, a cron expression that does not parse, a creator who lost access between scheduling
 and firing, and a budget that must stop a fired run rather than be retried into
 spending the same money again. The registry's own refusals (a missing agent, one
 the caller may not run, another tenant's) are proven against the real
@@ -16,8 +16,9 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic import ValidationError as PydanticValidationError
 
-from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.schemas.agent_trigger import TriggerCreate, TriggerUpdate
@@ -94,11 +95,12 @@ class TestScheduleMath:
         trigger = _trigger(interval_seconds=600)
         assert _next_fire_from(trigger, now=now) == now + timedelta(seconds=600)
 
-    def test_a_trigger_with_no_interval_to_schedule_from_is_a_corrupt_row(self):
-        """Only interval schedules reach the heartbeat, so a null interval is a
-        broken row - raising beats firing on a guessed cadence."""
-        with pytest.raises(BadRequestError):
-            _next_fire_from(_trigger(interval_seconds=None), now=datetime(2026, 1, 1, tzinfo=UTC))
+    def test_a_cron_trigger_fires_at_its_next_matching_instant(self):
+        """`0 9 * * *` from 10:00 is tomorrow at 09:00, not one interval later -
+        and evaluated in UTC, the tz the row is stored and compared in."""
+        now = datetime(2026, 1, 1, 10, 0, tzinfo=UTC)
+        trigger = _trigger(schedule_kind="cron", interval_seconds=None, cron_expression="0 9 * * *")
+        assert _next_fire_from(trigger, now=now) == datetime(2026, 1, 2, 9, 0, tzinfo=UTC)
 
     @pytest.mark.parametrize(
         ("changes", "action"),
@@ -124,12 +126,31 @@ class TestCreate:
             await service.create(_ctx(), uuid.uuid4(), _interval())
         assert service.agents.get.call_args.kwargs["perm"].value == "agents:run"
 
-    async def test_a_cron_schedule_is_refused_until_the_follow_up(self):
-        service = _service()
-        cron = TriggerCreate(prompt="run", schedule_kind="cron", cron_expression="*/5 * * * *")
-        with pytest.raises(BadRequestError) as refused:
-            await service.create(_ctx(), uuid.uuid4(), cron)
-        assert refused.value.details == {"schedule_kind": "cron"}
+    async def test_a_cron_schedule_is_persisted_with_its_next_fire_computed(self):
+        agent = _agent()
+        service = _service(agent)
+        cron = TriggerCreate(prompt="run", schedule_kind="cron", cron_expression="0 9 * * *")
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            repo.create = AsyncMock(
+                return_value=_trigger(
+                    schedule_kind="cron", interval_seconds=None, cron_expression="0 9 * * *"
+                )
+            )
+            await service.create(_ctx(), agent.id, cron)
+        assert repo.create.call_args.kwargs["cron_expression"] == "0 9 * * *"
+        assert repo.create.call_args.kwargs["interval_seconds"] is None
+        # The next 09:00 UTC, not an interval out - so the fire lands on the hour.
+        assert repo.create.call_args.kwargs["next_fire_at"].hour == 9
+
+    def test_an_unparsable_cron_is_a_422_at_the_schema(self):
+        """The database CHECK cannot judge a crontab expression, so the schema
+        parses it - a garbled one is a 422 naming the field, never a stored
+        schedule that fires nothing."""
+        with pytest.raises(PydanticValidationError, match="valid crontab"):
+            TriggerCreate(prompt="run", schedule_kind="cron", cron_expression="not a cron")
 
     async def test_a_new_schedule_is_persisted_and_audited(self):
         agent = _agent()

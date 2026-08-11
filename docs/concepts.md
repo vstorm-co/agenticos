@@ -86,8 +86,10 @@ opens once, rather than a new conversation every minute. A heartbeat fires the d
 once a minute - so a minute is the finest interval - and a run that outlives its own
 interval finishes before the next fire rather than piling up on itself.
 
-Interval schedules ship first; cron expressions and email-arrival triggers are their
-own later work.
+A schedule is either an **interval** ("every N seconds", a minute at the finest) or a
+**cron** expression evaluated in UTC - `0 9 * * *` for 09:00 each day, or any crontab -
+the service computing the next fire for each the same way. Event triggers, which fire on
+an arriving email or a GitHub webhook rather than the clock, are their own later work.
 
 ## Run
 

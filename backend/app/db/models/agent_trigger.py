@@ -15,11 +15,11 @@ subject (`created_by_user_id`, the member a fired run runs as) and
 deployment-local runtime state (`next_fire_at`, `last_run_id`, the run-log
 conversation).
 
-`cron_expression` and the `'cron'` half of :class:`ScheduleKind` are modelled
-but not yet served: interval schedules ship first (agenticos#44), and a request
-for a cron schedule is refused at creation until the follow-up lands. The column
-and the CHECK branch exist so that follow-up is a code change, not a migration on
-a populated table.
+A trigger fires on one of two kinds of schedule (:class:`ScheduleKind`): an
+`interval` ("every N seconds") or a `cron` expression ("daily/weekly at HH:MM",
+or any raw crontab), the latter evaluated in UTC. The `schedule_kind`
+discriminator and its CHECK keep exactly one of `interval_seconds` /
+`cron_expression` populated, so "what makes this due" always has one answer.
 """
 
 import enum
@@ -50,12 +50,11 @@ MIN_INTERVAL_SECONDS = 60
 class ScheduleKind(enum.StrEnum):
     """How a trigger decides it is due.
 
-    `INTERVAL` is "every N seconds since the last fire" and is what ships first.
-    `CRON` - a crontab expression evaluated against a timezone - is modelled
-    here so the stored vocabulary is stable, but refused at creation until
-    agenticos#44's follow-up implements it: an interval survives a restart without
-    a timezone decision, which a cron does not, so it is the cheaper half to ship
-    alone.
+    `INTERVAL` is "every N seconds since the last fire". `CRON` is a crontab
+    expression evaluated in UTC - "daily at 09:00" is `0 9 * * *` - which the
+    service computes the next fire for with croniter. UTC keeps a schedule
+    surviving a restart without a stored timezone to reason about; a caller who
+    means a local hour converts it when building the expression.
     """
 
     INTERVAL = "interval"
