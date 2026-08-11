@@ -180,8 +180,10 @@ class TestWriting:
             secret_key_version=None,
             environment_id=None,
             next_fire_at=now,
+            name="Nightly",
         )
         assert session.added == [trigger]
+        assert trigger.name == "Nightly"
         assert (trigger.organization_id, trigger.agent_id, trigger.interval_seconds) == (
             organization_id,
             agent_id,

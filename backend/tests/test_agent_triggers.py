@@ -1123,6 +1123,29 @@ class TestEventTriggerRestrictions:
         assert changes["cron_expression"] == "0 9 * * *"
         assert changes["interval_seconds"] is None
 
+    async def test_switching_to_an_interval_without_a_value_is_refused(self):
+        """Naming `interval` on a cron schedule with no interval to fall back on is a
+        400 for the field, not a row the shape CHECK rejects as a 500."""
+        agent = _agent()
+        service = _service(agent)
+        trigger = _trigger(
+            agent_id=agent.id,
+            schedule_kind="cron",
+            interval_seconds=None,
+            cron_expression="0 9 * * *",
+        )
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.get = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock()
+            with pytest.raises(BadRequestError, match="interval_seconds"):
+                await service.update(
+                    _ctx(),
+                    agent.id,
+                    trigger.id,
+                    TriggerUpdate(schedule_kind="interval"),
+                )
+            repo.update.assert_not_called()
+
     async def test_an_unschedulable_cron_on_update_is_refused(self):
         """A cron that croniter cannot parse is a 400 naming the field, not a row
         the shape CHECK accepts and the heartbeat never fires."""
