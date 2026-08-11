@@ -2074,6 +2074,7 @@
     "finish": "Finish",
     "progress": "Step {current} of {total}",
     "saveFailed": "We couldn't save that you've seen the walkthrough, so it may show again next time.",
+    "helpReminder": "You can replay any page's tips whenever you like — just click the ? in its header.",
     "coachClose": "Close",
     "coachYes": "Yes, let's do it",
     "coachSkip": "Skip",

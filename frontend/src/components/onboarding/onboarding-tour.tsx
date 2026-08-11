@@ -5,6 +5,7 @@ import "driver.js/dist/driver.css";
 import { useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 import type { AllowedButtons, DriveStep, Driver } from "driver.js";
 
 import { useDetailTargets } from "@/components/onboarding/detail-targets";
@@ -95,9 +96,16 @@ export function OnboardingTour() {
     // last page (mcp-servers) rather than the home they started on. A "?" replay
     // is help on one page, so closing it leaves the reader exactly where it was
     // opened. This is the early exit — the X, or Escape — and it makes no offer.
+    // Either way out of the first run — skipped here or finished through
+    // completeWalk below — leaves one reminder behind: the tour never returns
+    // (completion is recorded server-side), so the toast is where the reader
+    // learns the "?" replays any page's tips whenever they want them.
     const closeWalk = () => {
       dismiss();
-      if (mode === "tour") router.push(ROUTES.DASHBOARD);
+      if (mode === "tour") {
+        toast.info(t("helpReminder"));
+        router.push(ROUTES.DASHBOARD);
+      }
     };
 
     // Reaching the end — Next on the last step. Everything closeWalk does, and

@@ -13,7 +13,8 @@ not start here: the first time anyone signs in, a walkthrough opens on the
 dashboard and points out each section in turn. It shows **once** - finishing,
 skipping or closing it is remembered against the account, not the browser, so it
 does not return on the next device - and the **?** in any page header replays that
-page's tips whenever they are wanted.
+page's tips whenever they are wanted. Leaving the walkthrough, finished or
+skipped, says exactly that, so nobody discovers the "?" by accident or not at all.
 
 Finishing the walkthrough offers to build the first agent *together*. That is an
 interactive flow, not a spotlight: it points at the real controls, the reader

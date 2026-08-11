@@ -3,6 +3,7 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { toast } from "sonner";
 
 import { OnboardingTour } from "./onboarding-tour";
 import { RestartTourButton } from "./restart-tour-button";
@@ -46,7 +47,7 @@ vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
   return { ...actual, apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() } };
 });
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 
 const VIEWER = [Perm.agentsView, Perm.skillsView, Perm.collectionsView];
 const OWNER = Object.values(Perm);
@@ -185,6 +186,21 @@ describe("OnboardingTour", () => {
     expect(useOnboardingStore.getState().offer).toBe("create-agent");
   });
 
+  it("reminds the reader about the '?' when the first run ends, either way out", async () => {
+    // The tour never returns (completion is server truth), so leaving it —
+    // skipped or finished — is the one moment to say the "?" replays any page's
+    // tips. A "?" replay itself gets no reminder: it was opened from the "?".
+    servePermissions(OWNER);
+    vi.mocked(apiClient.patch).mockResolvedValue(user({ onboarding_completed_at: "2026-02-02" }));
+    render(<OnboardingTour />, { wrapper });
+    await waitFor(() => expect(shownStep().popover?.title).toBe("Welcome to AgenticOS"));
+
+    act(() => shownStep().popover?.onCloseClick?.(undefined, {} as DriveStep, {} as never));
+    expect(toast.info).toHaveBeenCalledWith(
+      "You can replay any page's tips whenever you like — just click the ? in its header.",
+    );
+  });
+
   it("offers the section's create flow when a '?' walk runs to its end", async () => {
     // Every section's "?" ends by asking whether to make the thing the section
     // is for — the re-entry into the interactive flows.
@@ -220,6 +236,8 @@ describe("OnboardingTour", () => {
 
     act(() => shownStep().popover?.onCloseClick?.(undefined, {} as DriveStep, {} as never));
     expect(router.push).not.toHaveBeenCalledWith(ROUTES.DASHBOARD);
+    // And no "?" reminder either — this walk was opened from the "?" itself.
+    expect(toast.info).not.toHaveBeenCalled();
   });
 });
 
