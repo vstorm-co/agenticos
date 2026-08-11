@@ -53,14 +53,18 @@ export function DashboardPresetMenu({
     }
   };
 
-  const remove = async (preset: DashboardPreset) => {
-    try {
-      await onDelete(preset.id);
-      toast.success(t("presets.deleted", { name: preset.name }));
-    } catch {
-      toast.error(t("presets.deleteFailed"));
-    }
-  };
+  // Through `run` (not close) so `busy` disables the row: a double-click on the
+  // trash would otherwise send two DELETEs, the second 404-ing and toasting a
+  // failure for a delete that succeeded.
+  const remove = (preset: DashboardPreset) =>
+    run(async () => {
+      try {
+        await onDelete(preset.id);
+        toast.success(t("presets.deleted", { name: preset.name }));
+      } catch {
+        toast.error(t("presets.deleteFailed"));
+      }
+    }, false);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>

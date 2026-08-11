@@ -32,8 +32,14 @@ export function useDashboardLayout(): UseDashboardLayoutResult {
   const { data, isLoading } = useQuery({ queryKey, queryFn: getLayout });
 
   const saveMutation = useMutation({
-    mutationFn: (entries: StoredEntry[]) => putLayout(entries),
-    onSuccess: (layout) => queryClient.setQueryData<StoredLayout | null>(queryKey, layout),
+    // Snapshot the key when the mutation starts, not when onSuccess runs: save,
+    // then switch organization before the PUT resolves, and reading `queryKey`
+    // in onSuccess would write org A's layout under org B's key.
+    mutationFn: async (entries: StoredEntry[]) => ({
+      key: queryKey,
+      layout: await putLayout(entries),
+    }),
+    onSuccess: ({ key, layout }) => queryClient.setQueryData<StoredLayout | null>(key, layout),
   });
 
   const resetMutation = useMutation({

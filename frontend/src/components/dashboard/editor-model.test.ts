@@ -9,6 +9,7 @@ import {
   locate,
   moveSection,
   moveWidget,
+  moveWidgetBy,
   patchDivider,
   removeSection,
   removeWidget,
@@ -141,6 +142,43 @@ describe("swapWidgets", () => {
       { divider: null, widgets: ["health", "spend"] },
       { divider: "U", widgets: ["agents", "runs"] },
     ]);
+  });
+});
+
+describe("moveWidgetBy", () => {
+  it("steps a card down one slot within its section", () => {
+    const before = [
+      section("s0", null, [card("a", "runs"), card("b", "spend"), card("c", "agents")]),
+    ];
+    const after = moveWidgetBy(before, "a", 1);
+    expect(shape(after)).toEqual([{ divider: null, widgets: ["spend", "runs", "agents"] }]);
+  });
+
+  it("steps a card up one slot within its section", () => {
+    const before = [
+      section("s0", null, [card("a", "runs"), card("b", "spend"), card("c", "agents")]),
+    ];
+    const after = moveWidgetBy(before, "c", -1);
+    expect(shape(after)).toEqual([{ divider: null, widgets: ["runs", "agents", "spend"] }]);
+  });
+
+  it("carries a card across a divider when it steps off the end of its section", () => {
+    const before = [
+      section("s0", null, [card("a", "runs"), card("b", "spend")]),
+      section("s1", divider("U"), [card("c", "agents")]),
+    ];
+    const after = moveWidgetBy(before, "b", 1);
+    expect(shape(after)).toEqual([
+      { divider: null, widgets: ["runs", "agents"] },
+      { divider: "U", widgets: ["spend"] },
+    ]);
+  });
+
+  it("is a no-op at the ends and for an unknown card", () => {
+    const before = [section("s0", null, [card("a", "runs"), card("b", "spend")])];
+    expect(moveWidgetBy(before, "a", -1)).toBe(before);
+    expect(moveWidgetBy(before, "b", 1)).toBe(before);
+    expect(moveWidgetBy(before, "missing", 1)).toBe(before);
   });
 });
 

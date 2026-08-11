@@ -44,6 +44,7 @@ import {
   fromEditorSections,
   moveSection,
   moveWidget,
+  moveWidgetBy,
   patchDivider,
   removeSection,
   removeWidget,
@@ -65,8 +66,8 @@ interface DashboardEditorProps {
   catalog: WidgetDef[];
   /** The period filter, so the live cards show the same data as the page. */
   period: Period;
-  /** Persist the arrangement as the active layout. */
-  onSave: (entries: StoredEntry[]) => Promise<void>;
+  /** Persist the arrangement as the active layout; `false` if the save failed. */
+  onSave: (entries: StoredEntry[]) => Promise<boolean>;
   onCancel: () => void;
   /** Discard the saved arrangement, back to the audience default. */
   onReset: () => Promise<void>;
@@ -100,7 +101,13 @@ function hitTestWidget(
   y: number,
   draggedUid: string,
 ): { sectionUid: string; index: number; overUid: string | null } | null {
-  const blocks = Array.from(container.querySelectorAll<HTMLElement>("[data-sec-uid]"));
+  // Only droppable sections: a collapsed one renders its `[data-sec-uid]` block
+  // but no grid, so dropping over it (or a gap beside it) would land the card in
+  // a folded section where it reads as vanished. Skipping them sends the card to
+  // the nearest open section instead.
+  const blocks = Array.from(container.querySelectorAll<HTMLElement>("[data-sec-uid]")).filter(
+    (block) => block.querySelector("[data-sec-grid]"),
+  );
   let best: HTMLElement | null = null;
   let bestDistance = Infinity;
   for (const block of blocks) {
@@ -182,6 +189,10 @@ export function DashboardEditor({
   });
   const nextUid = useRef(0);
   const mint = useCallback(() => `u${nextUid.current++}`, []);
+  // Teardown for an in-flight drag, so an unmount mid-drag does not leave the
+  // window listeners (and `document.body.style.userSelect`) behind.
+  const dragTeardown = useRef<(() => void) | null>(null);
+  useEffect(() => () => dragTeardown.current?.(), []);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [presetOpen, setPresetOpen] = useState(false);
   // The blank-start save warning, and whether naming a template from it should
@@ -198,7 +209,7 @@ export function DashboardEditor({
   const [addTarget, setAddTarget] = useState<string | null>(null);
   const [poppedUid, setPoppedUid] = useState<string | null>(null);
 
-  const runBusy = async (action: () => Promise<void>) => {
+  const runBusy = async (action: () => Promise<unknown>) => {
     setBusy(true);
     try {
       await action();
@@ -322,17 +333,23 @@ export function DashboardEditor({
         sectionDrop = hitTestSection(container, moveEvent.clientY, armed.uid);
       }
     };
-    const up = () => {
+    const finish = (endEvent: PointerEvent) => {
       window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", finish);
+      dragTeardown.current = null;
       document.body.style.userSelect = "";
-      if (active && armed.kind === "widget" && overDrop) {
+      // A cancelled gesture (a touch scroll taking over the grip, which has no
+      // `touch-action: none`) tears down without applying the drop, so a leaked
+      // pointerup can no longer fire the stale move on the next click.
+      const apply = endEvent.type !== "pointercancel" && active;
+      if (apply && armed.kind === "widget" && overDrop) {
         const target = overDrop;
         setSections((current) => swapWidgets(current, armed.uid, target));
-      } else if (active && armed.kind === "widget" && widgetDrop) {
+      } else if (apply && armed.kind === "widget" && widgetDrop) {
         const drop = widgetDrop;
         setSections((current) => moveWidget(current, armed.uid, drop.sectionUid, drop.index));
-      } else if (active && armed.kind === "section" && sectionDrop !== null) {
+      } else if (apply && armed.kind === "section" && sectionDrop !== null) {
         const index = sectionDrop;
         setSections((current) => moveSection(current, armed.uid, index));
       }
@@ -340,7 +357,14 @@ export function DashboardEditor({
       setOverUid(null);
     };
     window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", finish);
+    dragTeardown.current = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", finish);
+      document.body.style.userSelect = "";
+    };
   };
 
   // A just-added card scrolls into view and pops; the flag clears once the
@@ -518,6 +542,9 @@ export function DashboardEditor({
                             overUid === widget.uid
                           }
                           onResize={(span, rows) => resize(widget.uid, span, rows)}
+                          onMove={(direction) =>
+                            setSections((current) => moveWidgetBy(current, widget.uid, direction))
+                          }
                           onRemove={() =>
                             setSections((current) => removeWidget(current, widget.uid))
                           }
@@ -553,9 +580,12 @@ export function DashboardEditor({
         onSave={async (name) => {
           const entries = toStored(fromEditorSections(sections));
           await onSaveAsPreset(name, entries);
-          // From the blank-start warning, naming the template also applies it and
-          // leaves the editor, so it is one act rather than a preset to apply by hand.
-          if (presetThenApply) await onSave(entries);
+          // From the blank-start warning, naming the template also applies it as
+          // the active layout and leaves the editor - one act, not a preset to
+          // apply by hand. A failed apply has toasted its own error, so surface
+          // that as the dialog's outcome rather than a clean save.
+          if (presetThenApply) return onSave(entries);
+          return true;
         }}
       />
       <SaveActiveDialog

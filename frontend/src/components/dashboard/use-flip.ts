@@ -34,14 +34,21 @@ function prefersReducedMotion(): boolean {
 export function useFlip<T extends HTMLElement>(signature: string): RefObject<T | null> {
   const containerRef = useRef<T>(null);
   const positions = useRef<Map<string, { left: number; top: number }>>(new Map());
+  const releaseFrame = useRef<number | null>(null);
 
   useLayoutEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
+    // Cancel a release still pending from a previous run: two signature changes
+    // in one frame would otherwise let the first run's callback clear the
+    // second's inverted transform, so that move snaps instead of gliding.
+    if (releaseFrame.current !== null) cancelAnimationFrame(releaseFrame.current);
+
     const reduce = prefersReducedMotion();
     const children = Array.from(container.querySelectorAll<HTMLElement>("[data-flip-id]"));
     const next = new Map<string, { left: number; top: number }>();
+    const moved: HTMLElement[] = [];
 
     // Positions are measured relative to the FLIP container, not the viewport.
     // The dashboard scrolls an inner overflow-auto <main>, not the window, so a
@@ -73,13 +80,26 @@ export function useFlip<T extends HTMLElement>(signature: string): RefObject<T |
       // Commit the inverted offset before scheduling the release, so the browser
       // has a "from" frame to animate out of rather than collapsing both writes.
       void child.offsetWidth;
-      requestAnimationFrame(() => {
-        child.style.transition = FLIP_TRANSITION;
-        child.style.transform = "";
-      });
+      moved.push(child);
     }
 
     positions.current = next;
+    if (moved.length > 0) {
+      releaseFrame.current = requestAnimationFrame(() => {
+        for (const child of moved) {
+          child.style.transition = FLIP_TRANSITION;
+          child.style.transform = "";
+        }
+        releaseFrame.current = null;
+      });
+    }
+
+    return () => {
+      if (releaseFrame.current !== null) {
+        cancelAnimationFrame(releaseFrame.current);
+        releaseFrame.current = null;
+      }
+    };
   }, [signature]);
 
   return containerRef;

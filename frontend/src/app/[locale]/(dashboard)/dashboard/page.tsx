@@ -82,6 +82,16 @@ export default function DashboardPage() {
   // Ephemeral collapse of a section on the page — the divider's saved `collapsed`
   // is the initial, and a click here folds or unfolds it for this visit only.
   const [collapseOverrides, setCollapseOverrides] = useState<Record<string, boolean>>({});
+  // Overrides key on positional section ids (`custom-1`, …), so saving an edit or
+  // applying a preset renumbers the sections and a leftover override would fold a
+  // different one. A new `storedEntries` identity is exactly that renumbering, so
+  // reset the map with it — during render, the pattern React recommends over an
+  // effect for state that follows a changing value.
+  const [overridesFor, setOverridesFor] = useState(storedEntries);
+  if (overridesFor !== storedEntries) {
+    setOverridesFor(storedEntries);
+    setCollapseOverrides({});
+  }
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const organizations = useOrganizationList();
   const activeOrgName = useMemo(
@@ -119,12 +129,14 @@ export default function DashboardPage() {
     setUrlParam("sections", value);
   };
 
-  const handleSave = async (entries: StoredEntry[]) => {
+  const handleSave = async (entries: StoredEntry[]): Promise<boolean> => {
     try {
       await save(entries);
       setEditing(false);
+      return true;
     } catch {
       toast.error(t("edit.saveFailed"));
+      return false;
     }
   };
   const handleReset = async () => {

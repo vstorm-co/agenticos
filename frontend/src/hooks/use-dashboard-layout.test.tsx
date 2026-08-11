@@ -44,6 +44,15 @@ describe("useDashboardLayout", () => {
     expect(result.current.storedEntries).toEqual([{ widget: "runs", span: "s8" }]);
   });
 
+  it("treats an empty saved arrangement as [], distinct from no preference", async () => {
+    // The page leans on this: [] is "hid every card", null is "use the default".
+    // A truthy-object check keeps them apart, so a saved empty layout must not
+    // collapse to null.
+    vi.mocked(api.getLayout).mockResolvedValue({ entries: [] });
+    const result = await hook();
+    expect(result.current.storedEntries).toEqual([]);
+  });
+
   it("writes the saved arrangement into the cache so the page re-renders without a refetch", async () => {
     vi.mocked(api.getLayout).mockResolvedValue(null);
     vi.mocked(api.putLayout).mockResolvedValue({ entries: [{ widget: "spend", span: "s6" }] });

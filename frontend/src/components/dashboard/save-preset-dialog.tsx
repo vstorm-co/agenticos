@@ -19,8 +19,14 @@ import {
 interface SavePresetDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Create the preset. Rejects on a duplicate name or the per-person cap. */
-  onSave: (name: string) => Promise<void>;
+  /**
+   * Save the current arrangement under `name`. Rejects on a duplicate name or
+   * the per-person cap (the dialog reports that and stays open). Resolves to
+   * `false` when a *later* step of a composite save failed and already reported
+   * itself — the blank-start "save as template" also applies the layout — so
+   * the dialog neither claims success nor closes on a half-done action.
+   */
+  onSave: (name: string) => Promise<boolean>;
 }
 
 /**
@@ -34,16 +40,25 @@ export function SavePresetDialog({ open, onOpenChange, onSave }: SavePresetDialo
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // Each open is a fresh name: reset on the way out, so cancelling and
+  // reopening does not show the stale name from last time.
+  const handleOpenChange = (next: boolean) => {
+    if (!next) setName("");
+    onOpenChange(next);
+  };
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) return;
     setBusy(true);
     try {
-      await onSave(trimmed);
-      toast.success(t("presets.saved", { name: trimmed }));
-      setName("");
-      onOpenChange(false);
+      if (await onSave(trimmed)) {
+        toast.success(t("presets.saved", { name: trimmed }));
+        handleOpenChange(false);
+      }
+      // A `false` means a later step failed and reported itself; leave the
+      // dialog open without a contradicting success toast.
     } catch {
       toast.error(t("presets.saveFailed"));
     } finally {
@@ -52,7 +67,7 @@ export function SavePresetDialog({ open, onOpenChange, onSave }: SavePresetDialo
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent>
         <form onSubmit={submit}>
           <DialogHeader>
@@ -75,7 +90,7 @@ export function SavePresetDialog({ open, onOpenChange, onSave }: SavePresetDialo
               type="button"
               variant="ghost"
               disabled={busy}
-              onClick={() => onOpenChange(false)}
+              onClick={() => handleOpenChange(false)}
             >
               {t("edit.cancel")}
             </Button>

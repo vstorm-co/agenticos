@@ -63,7 +63,7 @@ export function SectionDividerCard({
         data-section-grip
         role="presentation"
         aria-hidden
-        className="text-muted-foreground hover:text-foreground flex size-7 shrink-0 cursor-grab items-center justify-center active:cursor-grabbing"
+        className="text-muted-foreground hover:text-foreground flex size-7 shrink-0 cursor-grab touch-none items-center justify-center active:cursor-grabbing"
       >
         <GripVertical className="size-4" />
       </span>

@@ -120,6 +120,26 @@ export function swapWidgets(
 }
 
 /**
+ * Move a card one step earlier (`-1`) or later (`+1`) in reading order across
+ * the whole arrangement — the keyboard counterpart to a drag. It swaps the card
+ * with its neighbour, so a step off the end of one section carries it into the
+ * next (the neighbour takes the vacated slot), the same exchange the drop-on-a-
+ * tile gesture makes. A no-op at the very ends, where there is no neighbour.
+ */
+export function moveWidgetBy(
+  sections: EditorSection[],
+  widgetUid: string,
+  direction: -1 | 1,
+): EditorSection[] {
+  const order = sections.flatMap((section) => section.widgets.map((widget) => widget.uid));
+  const at = order.indexOf(widgetUid);
+  if (at < 0) return sections;
+  const neighbour = order[at + direction];
+  if (neighbour === undefined) return sections;
+  return swapWidgets(sections, widgetUid, neighbour);
+}
+
+/**
  * Move a whole section to `index`, reordering among the other sections. A
  * headingless leading section is pinned to the front — its cards have no divider
  * to travel with — so both the moved section and the target index stay past it.
