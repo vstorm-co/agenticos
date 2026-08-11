@@ -105,6 +105,7 @@ describe("FLOWS", () => {
       "flow-mcp-field-pick",
       "flow-mcp-field-form",
       "flow-mcp-field-connect",
+      "flow-agent-limits",
       "flow-agent-publish",
       "flow-agent-run-pick",
       "flow-agent-run-send",

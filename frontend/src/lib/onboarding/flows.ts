@@ -543,6 +543,16 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         requires: "flow-agent-mcp-ask",
       },
       ...mcpDialogSteps(AGENT_BUILDER, "flow-agent-mcp-ask"),
+      // Limits before Publish: a first agent that can run is a first agent that
+      // can overspend, so the walk names the budget rather than leaving the tab
+      // for the reader to find. Optional — a Next — because the defaults are safe.
+      {
+        id: "flow-agent-limits",
+        page: AGENT_BUILDER,
+        target: "agent-limits",
+        activate: "agent-tab-limits",
+        permission: Perm.agentsView,
+      },
       {
         id: "flow-agent-publish",
         page: AGENT_BUILDER,

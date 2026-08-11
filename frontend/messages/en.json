@@ -2191,6 +2191,10 @@
         "title": "Open the catalog",
         "body": "Choose Connect server — the catalog opens right here in the builder, and we'll pick one together."
       },
+      "flow-agent-limits": {
+        "title": "Set a budget (optional)",
+        "body": "Cap what this agent can spend in a month and how many steps one run may take, and choose who's told when it reaches a limit. It's how an agent that loops or runs away stops itself. Choose Next to move on."
+      },
       "flow-agent-publish": {
         "title": "Publish it",
         "body": "Publishing makes this version the one that runs everywhere the agent is used. Choose Publish when you're ready — we'll move on the moment it's live."
