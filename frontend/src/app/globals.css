@@ -976,16 +976,24 @@
     left 0.45s ease,
     width 0.45s ease,
     height 0.45s ease;
-  animation: onboarding-coach-blink 1.5s ease-in-out infinite;
+  animation: onboarding-coach-pulse 1.6s ease-in-out infinite;
 }
 
-@keyframes onboarding-coach-blink {
+/*
+ * The ring breathes rather than blinks. It used to animate opacity 1 → 0, so the
+ * whole highlight flickered out for half of every cycle — which read as the ring
+ * malfunctioning rather than as "look here". Now the ring stays fully visible and
+ * its glow swells and settles: the attention cue is a steady frame around the
+ * control whose halo pulses, never the control's own border (which would look
+ * like a validation error on a real control).
+ */
+@keyframes onboarding-coach-pulse {
   0%,
   100% {
-    opacity: 1;
+    box-shadow: 0 0 14px 0 var(--color-brand);
   }
   50% {
-    opacity: 0;
+    box-shadow: 0 0 24px 5px var(--color-brand);
   }
 }
 
