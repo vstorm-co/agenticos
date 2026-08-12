@@ -43,8 +43,8 @@ explicitly is also what lets stored secrets survive a `SECRET_KEY` rotation.
 | `TIMEZONE` | `UTC` | IANA timezone (e.g. `UTC`, `Europe/Warsaw`, `America/New_York`) |
 | `MODELS_CACHE_DIR` | `./models_cache` | Directory for cached ML models |
 | `MEDIA_DIR` | `./media` | Directory for uploaded files |
-| `MAX_UPLOAD_SIZE_MB` | `50` | Maximum file upload size in megabytes |
-| `EMBED_MAX_UPLOAD_SIZE_MB` | `5` | What a **stranger** may upload to a hosted page. A ceiling on top of the line above, never a way past it |
+| `MAX_UPLOAD_SIZE_MB` | `50` | Knowledge-base document cap. Chat and embed uploads are bounded by the hardcoded `MAX_UPLOAD_SIZE` (10 MiB in `file_storage.py`), not by this |
+| `EMBED_MAX_UPLOAD_SIZE_MB` | `5` | What a **stranger** may upload to a hosted page. A ceiling on top of the chat path's `MAX_UPLOAD_SIZE`, never a way past it |
 
 ## Authentication
 

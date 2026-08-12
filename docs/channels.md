@@ -394,8 +394,9 @@ stating exactly what a visitor can put where.
 
 **They can store a file**, and only if the operator ticked the switch. The bytes
 go through the same path a member's upload does — the MIME allowlist,
-`MAX_UPLOAD_SIZE_MB`, the parser, the storage backend, a `ChatFile` row — with
-three narrowings in front of it:
+`MAX_UPLOAD_SIZE` (the chat path's hardcoded 10 MiB, not `MAX_UPLOAD_SIZE_MB`,
+which is the knowledge-base cap), the parser, the storage backend, a `ChatFile`
+row — with three narrowings in front of it:
 
 | | |
 |---|---|
