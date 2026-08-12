@@ -146,7 +146,10 @@ class TestATurnComesBackInTheOrderItWasWritten:
         )
 
         assert first.ordinal is not None
-        assert second.ordinal == first.ordinal + 1
+        # Strictly greater, not exactly +1: the design disclaims contiguity - a
+        # gap costs nothing and only the order is read - so a concurrent insert or
+        # a sequence-cache change must not fail this for a property nobody promised.
+        assert second.ordinal > first.ordinal
 
     async def test_a_window_over_a_long_thread_is_the_most_recent_turns(self, db) -> None:
         """What the hosted page and the widget read history with.
