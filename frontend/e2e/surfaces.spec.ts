@@ -35,11 +35,22 @@ async function openAvailability(page: Page, agent: string): Promise<Locator> {
 /** Publish a hosted page, and answer with the link it produced. */
 async function publishPage(page: Page, panel: Locator): Promise<string> {
   const publish = panel.getByRole("button", { name: /Hosted page/ }).first();
-  if (!(await publish.isVisible())) {
+  // Wait for the panel's query to resolve before deciding the button is absent:
+  // isVisible() is immediate, so a slow embeds fetch would skip the spec as
+  // "cannot publish" on a machine that was merely slow rather than unpermitted.
+  try {
+    await publish.waitFor({ state: "visible", timeout: 15_000 });
+  } catch {
     test.skip(true, "this user cannot publish an embed");
   }
   await publish.click();
-  await panel.getByRole("button", { name: "Publish" }).click();
+  const submit = panel.getByRole("button", { name: "Publish" });
+  await submit.click();
+  // The picker form unmounts on success, so the write has landed once the submit
+  // is gone. Reloading before that races the mutation - .click() resolves on the
+  // dispatch, not the response - and the refetch can answer with the pre-write
+  // list (#230).
+  await expect(submit).toHaveCount(0);
 
   await page.reload();
   await openBuilderTab(page, "Availability");
@@ -64,7 +75,11 @@ test.describe("A published surface", () => {
     // driving end to end is the one whose default is on: turning the narration
     // off has to reach the row rather than the renderer.
     await panel.getByRole("checkbox", { name: /What the agent is doing/ }).click();
-    await panel.getByRole("button", { name: "Save changes" }).click();
+    const save = panel.getByRole("button", { name: "Save changes" });
+    await save.click();
+    // The inline form unmounts on success, so the edit has landed once the
+    // button is gone. Reloading before that races the mutation.
+    await expect(save).toHaveCount(0);
 
     await page.reload();
     await openBuilderTab(page, "Availability");
@@ -165,7 +180,11 @@ test.describe("What the page offers a visitor", () => {
       .first()
       .click();
     await panel.getByRole("checkbox", { name: /A microphone in the composer/ }).click();
-    await panel.getByRole("button", { name: "Save changes" }).click();
+    const save = panel.getByRole("button", { name: "Save changes" });
+    await save.click();
+    // The write must land before the stranger loads the page, or they see the
+    // pre-save config: the form unmounts on success, so wait for that.
+    await expect(save).toHaveCount(0);
 
     const stranger = await browser.newContext();
     const hosted = await stranger.newPage();
