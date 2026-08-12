@@ -30,11 +30,14 @@ import { DOCS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import {
   DEFAULT_EMBED_THEME,
+  DEFAULT_HOSTED_CONFIG,
   type Embed,
   type EmbedAuthMode,
   type EmbedVariable,
+  type HostedConfig,
 } from "@/types/embeds";
 import { EmbedVariables } from "@/components/agents/embed-variables";
+import { HostedPageFields } from "@/components/agents/hosted-page-fields";
 import { useTranslations } from "next-intl";
 
 interface EmbedsPanelProps {
@@ -76,6 +79,8 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
   const [context, setContext] = useState("");
   const [variables, setVariables] = useState<EmbedVariable[]>([]);
   const [accent, setAccent] = useState(DEFAULT_EMBED_THEME.accent);
+  const [hosted, setHosted] = useState(false);
+  const [hostedConfig, setHostedConfig] = useState<HostedConfig>(DEFAULT_HOSTED_CONFIG);
 
   const reset = () => {
     setCreating(false);
@@ -86,6 +91,8 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
     setContext("");
     setVariables([]);
     setAccent(DEFAULT_EMBED_THEME.accent);
+    setHosted(false);
+    setHostedConfig(DEFAULT_HOSTED_CONFIG);
   };
 
   const submit = () => {
@@ -97,6 +104,10 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
         jwt_secret: authMode === "jwt" ? secret : null,
         allowed_origins: parseOrigins(origins),
         theme: { ...DEFAULT_EMBED_THEME, accent },
+        // Token auth cannot be hosted, so the flag follows the mode rather than
+        // sending a combination the backend is about to refuse.
+        hosted: hosted && authMode === "public",
+        hosted_config: hostedConfig,
         context: context.trim() || null,
         // A row somebody started and left blank is not a declaration. Dropped
         // here rather than refused on save: the name is the contract, and an
@@ -257,7 +268,18 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
             <EmbedVariables
               variables={variables}
               disabled={create.isPending}
+              hosted={hosted && authMode === "public"}
               onChange={setVariables}
+            />
+
+            <HostedPageFields
+              hosted={hosted}
+              config={hostedConfig}
+              authMode={authMode}
+              variables={variables}
+              disabled={create.isPending}
+              onHostedChange={setHosted}
+              onConfigChange={setHostedConfig}
             />
 
             <div className="flex items-center gap-2">
@@ -390,6 +412,16 @@ function EmbedRow({
         value={embed.socket_url}
         copyLabel={t("copySocketUrl")}
       />
+      {embed.hosted_url !== null && (
+        <>
+          <Integration
+            label={t("hostedIntegration")}
+            value={embed.hosted_url}
+            copyLabel={t("copyHostedUrl")}
+          />
+          <p className="text-muted-foreground mt-2 text-xs">{t("hostedLinkProtection")}</p>
+        </>
+      )}
 
       <p className="text-muted-foreground mt-2 text-xs">
         {t("nativeClientOriginNote")}{" "}

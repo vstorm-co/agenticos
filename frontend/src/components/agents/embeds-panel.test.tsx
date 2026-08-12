@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EmbedsPanel } from "./embeds-panel";
-import { DEFAULT_EMBED_THEME, type Embed } from "@/types/embeds";
+import { DEFAULT_EMBED_THEME, DEFAULT_HOSTED_CONFIG, type Embed } from "@/types/embeds";
 
 /**
  * The widget panel, whose whole job is a bearer credential.
@@ -41,12 +41,15 @@ function embed(overrides: Partial<Embed> = {}): Embed {
     has_jwt_secret: false,
     allowed_origins: ["https://acme.com"],
     theme: DEFAULT_EMBED_THEME,
+    hosted: false,
+    hosted_config: DEFAULT_HOSTED_CONFIG,
     context: null,
     context_variables: [],
     is_active: true,
     rate_limit_per_minute: 10,
     snippet: '<script src="https://app.test/embed.js" data-key="pk_live_abc"></script>',
     socket_url: "wss://app.test/api/v1/embed/pk_live_abc/ws",
+    hosted_url: null,
     ...overrides,
   };
 }
@@ -159,6 +162,24 @@ describe("an existing widget", () => {
     render(<EmbedsPanel agentId="a-1" canManage={false} />);
 
     expect(screen.getByRole("button", { name: "Copy the socket URL" })).toBeInTheDocument();
+  });
+
+  it("offers the link as a third integration once the page is hosted", () => {
+    // The shortest integration there is, and the panel is where somebody
+    // discovers it exists.
+    state.embeds = [embed({ hosted: true, hosted_url: "https://chat.test/e/pk_live_abc" })];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+
+    expect(screen.getByText("https://chat.test/e/pk_live_abc")).toBeInTheDocument();
+    expect(screen.getByText(/Anyone with the link can talk to this agent/)).toBeInTheDocument();
+  });
+
+  it("offers no link for an embed nobody hosted", () => {
+    // A URL that answers 404 is worse than none: it reads as configured.
+    state.embeds = [embed()];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+
+    expect(screen.queryByRole("button", { name: "Copy the link" })).toBeNull();
   });
 
   it("names the sites it may be opened from", () => {
@@ -459,7 +480,7 @@ describe("what the page must supply", () => {
 
     expect(state.create.mutate).toHaveBeenCalledWith(
       expect.objectContaining({
-        context_variables: [{ name: "plan", required: false, description: "" }],
+        context_variables: [{ name: "plan", required: false, description: "", url_safe: false }],
       }),
       expect.anything(),
     );
@@ -510,8 +531,37 @@ describe("what the page must supply", () => {
     expect(state.create.mutate).toHaveBeenCalledWith(
       expect.objectContaining({
         context_variables: [
-          { name: "plan", required: true, description: "Which plan this visitor is on" },
+          {
+            name: "plan",
+            required: true,
+            description: "Which plan this visitor is on",
+            url_safe: false,
+          },
         ],
+      }),
+      expect.anything(),
+    );
+  });
+
+  it("marks a variable URL-safe only once the page is hosted", async () => {
+    // `url_safe` is about a URL. Until there is a page of ours there is no URL
+    // for a visitor to put anything in, so the control would mean nothing.
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await openTheForm();
+    await userEvent.click(screen.getByRole("button", { name: "Add a variable" }));
+
+    expect(screen.queryByRole("checkbox", { name: "URL-safe" })).toBeNull();
+
+    await userEvent.click(screen.getByRole("switch", { name: "Also serve it as a page of ours" }));
+    await userEvent.type(screen.getByLabelText("Variable 1 name"), "plan");
+    await userEvent.click(screen.getByRole("checkbox", { name: "URL-safe" }));
+    await userEvent.type(screen.getByLabelText("Allowed sites"), "https://acme.test");
+    await userEvent.click(screen.getByRole("button", { name: "Publish widget" }));
+
+    expect(state.create.mutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        hosted: true,
+        context_variables: [{ name: "plan", required: false, description: "", url_safe: true }],
       }),
       expect.anything(),
     );

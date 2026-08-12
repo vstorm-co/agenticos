@@ -26,14 +26,24 @@ const MAX_VARIABLES = 20;
  * server-side - the page is something a visitor can edit, and without a
  * declaration any key they invented would become a line in the agent's
  * instructions.
+ *
+ * A hosted page grows a fourth control per row, because it changes what a
+ * declaration can mean: the only place a value can come from there is the
+ * visitor's own URL, so `url_safe` is what says a variable may be filled from
+ * `?var_<name>=`. It is off by default and the backend refuses to host an embed
+ * whose *required* variable is not marked, because a promise the surface cannot
+ * keep is worse than a variable nobody declared.
  */
 export function EmbedVariables({
   variables,
   disabled,
+  hosted,
   onChange,
 }: {
   variables: EmbedVariable[];
   disabled: boolean;
+  /** Whether this embed is also a page of ours, which is what `url_safe` is about. */
+  hosted: boolean;
   onChange: (variables: EmbedVariable[]) => void;
 }) {
   const t = useTranslations("agents");
@@ -79,6 +89,16 @@ export function EmbedVariables({
             />
             {t("variableRequired")}
           </Label>
+          {hosted && (
+            <Label className="flex shrink-0 items-center gap-1.5 py-2 text-xs font-normal">
+              <Checkbox
+                checked={variable.url_safe}
+                disabled={disabled}
+                onCheckedChange={(checked) => edit(index, { url_safe: checked === true })}
+              />
+              {t("variableUrlSafe")}
+            </Label>
+          )}
           <Button
             type="button"
             variant="ghost"
@@ -97,13 +117,19 @@ export function EmbedVariables({
           variant="outline"
           size="sm"
           disabled={disabled}
-          onClick={() => onChange([...variables, { name: "", required: false, description: "" }])}
+          onClick={() =>
+            onChange([
+              ...variables,
+              { name: "", required: false, description: "", url_safe: false },
+            ])
+          }
         >
           <Plus className="h-3.5 w-3.5" />
           {t("addVariable")}
         </Button>
       )}
       <p className="text-muted-foreground text-xs">{t("whatThePageSuppliesHint")}</p>
+      {hosted && <p className="text-muted-foreground text-xs">{t("urlSafeHint")}</p>}
     </div>
   );
 }

@@ -19,6 +19,33 @@ export interface EmbedTheme {
   launcher_label: string;
 }
 
+/** Which image a hosted page shows, chosen from what the platform already stores. */
+export type HostedLogo = "agent" | "organization" | "none";
+
+/**
+ * What a hosted page is branded with.
+ *
+ * Its own shape rather than more fields on `EmbedTheme`: a launcher label and a
+ * corner to sit in mean nothing on a full page, and a page needs a browser-tab
+ * title a bubble has no use for.
+ */
+export interface HostedConfig {
+  /** Empty falls back to the agent's name. */
+  title: string;
+  /** Rendered above the composer before the first question, never sent to the model. */
+  welcome: string;
+  /** `#rgb` or `#rrggbb`; the backend refuses anything else. */
+  accent: string;
+  logo: HostedLogo;
+}
+
+export const DEFAULT_HOSTED_CONFIG: HostedConfig = {
+  title: "",
+  welcome: "",
+  accent: "#4f46e5",
+  logo: "agent",
+};
+
 export interface Embed {
   id: string;
   agent_id: string;
@@ -29,6 +56,9 @@ export interface Embed {
   has_jwt_secret: boolean;
   allowed_origins: string[];
   theme: EmbedTheme;
+  /** Whether this embed is also served as a page of ours at `/e/<public_key>`. */
+  hosted: boolean;
+  hosted_config: HostedConfig;
   context: string | null;
   /**
    * What the page must tell this widget about the visitor in front of it.
@@ -53,6 +83,13 @@ export interface Embed {
    * credential on a shared screen.
    */
   socket_url: string;
+  /**
+   * The link, when hosting is on, and `null` when it is off.
+   *
+   * Off the frontend's own base URL rather than the API's, because the page is
+   * served by the frontend and the socket it opens is what reaches the API.
+   */
+  hosted_url: string | null;
   created_at?: string;
   updated_at?: string | null;
 }
@@ -69,6 +106,8 @@ export interface NewEmbed {
   jwt_secret?: string | null;
   allowed_origins: string[];
   theme: EmbedTheme;
+  hosted: boolean;
+  hosted_config: HostedConfig;
   context?: string | null;
   context_variables?: EmbedVariable[];
   rate_limit_per_minute: number;
@@ -108,4 +147,14 @@ export interface EmbedVariable {
    */
   required: boolean;
   description: string;
+  /**
+   * Whether a hosted page may take this value from `?var_<name>=` in its own URL.
+   *
+   * Off by default and per variable, because a query parameter is
+   * visitor-controlled input: `user_tier=premium` typed into the address bar has
+   * to be impossible unless somebody decided otherwise for that one variable. It
+   * means nothing in the widget, which reads `window.AgenticOSContext` from a
+   * page the operator controls.
+   */
+  url_safe: boolean;
 }
