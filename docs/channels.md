@@ -676,11 +676,19 @@ is stored is what its reader actually saw.
 | HTTP API | The same when the call carries a `conversation_id`. Nothing without one — there is no thread to write a turn into, and the run row is still the record that it happened |
 | A run resumed after an approval | Its continuation — the answer and the calls it made, and the calls even when there is no answer, which is what a continuation that parks again on a second gated call has. No user turn: it picks up at the call it stopped on, and inventing a question would put words in somebody's mouth |
 
-Two things are deliberately not recorded. A channel reply's **delivery notes** — *this
-file was too large to send* — stay out of the transcript: they are about what the
-reply could not carry, not about what the agent said. And an **attachment folded
-into a prompt** contributes only its text; the file itself is a row of its own,
-and its `repr` in a message body would be worse than nothing.
+**What is recorded is what the person wrote, not the prompt assembled around it.**
+Every surface builds something larger before the model sees it: `AttachmentRouter`
+appends a briefing about each file, and an embedded widget prepends the operator's
+placement note. Recording that put the platform's own briefing in the transcript as
+somebody's words — a file posted in Mattermost read back as `co tu widzisz` followed
+by `--- Attached file: … (/uploads/…, 43 KB, image)`, and the opening turn of every
+widget conversation read as a visitor reciting the page they were on. **The file
+itself is a row on that turn**, which is what the dashboard renders as a card, the
+same as an upload made there.
+
+One thing is deliberately not recorded: a channel reply's **delivery notes** — *this
+file was too large to send* — stay out of the transcript, because they are about what
+the reply could not carry rather than about what the agent said.
 
 ### What a turn looks like in web chat
 
@@ -874,7 +882,9 @@ release that starts falling back to a plain request turns red and says so.
 Somebody dropping a spreadsheet on a bot used to have it discarded: `IncomingMessage`
 had no attachment field, so no adapter parsed one and the agent answered about a
 document it never received. Now a message with a file — with or without a caption —
-reaches the agent the same way a web upload does.
+reaches the agent the same way a web upload does, and is **read back the same way**:
+the file is a row on the turn it arrived with, so the thread in `/chat` shows a card
+rather than the briefing the model was given about it.
 
 **Inbound** is the web upload path reached differently. The bytes come from a
 platform instead of a browser and then go through exactly what a web upload gets:

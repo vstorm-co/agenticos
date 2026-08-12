@@ -348,6 +348,12 @@ class EmbedSession:
             ctx,
             self.embed.agent_id,
             prompt,
+            # What the visitor typed, without the placement note and the supplied
+            # block prepended above. Those are addressed to the model; a transcript
+            # that held them would show the operator's briefing as the visitor's
+            # own words, and the first turn of every conversation would read as
+            # somebody reciting their own user tier.
+            said=text,
             # Not `WEB`. A widget on somebody else's public site and an employee
             # in the dashboard are not the same thing to anyone asking how this
             # product is used, and stamping both the same made every embedded

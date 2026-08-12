@@ -169,7 +169,7 @@ def _assert_full_turn(
     assert conversations.complete_tool_call.await_args.kwargs["result"] == "30 days"
 
 
-def _widget_session(db: MagicMock) -> EmbedSession:
+def _widget_session(db: MagicMock, *, embed: MagicMock | None = None) -> EmbedSession:
     """A widget session whose turn opens `db`.
 
     The factory rather than the session itself: `EmbedSession` opens one per turn
@@ -180,7 +180,12 @@ def _widget_session(db: MagicMock) -> EmbedSession:
     async def sessions() -> AsyncIterator[MagicMock]:
         yield db
 
-    return EmbedSession(sessions=sessions, embed=_embed(), visitor=None, websocket=MagicMock())
+    return EmbedSession(
+        sessions=sessions,
+        embed=embed if embed is not None else _embed(),
+        visitor=None,
+        websocket=MagicMock(),
+    )
 
 
 @contextmanager
@@ -207,14 +212,14 @@ def _the_widgets_rows() -> Iterator[None]:
         yield
 
 
-def _embed() -> MagicMock:
+def _embed(*, context: str | None = None) -> MagicMock:
     return MagicMock(
         id=uuid.uuid4(),
         organization_id=uuid.uuid4(),
         agent_id=uuid.uuid4(),
         owner_user_id=uuid.uuid4(),
         name="Support",
-        context=None,
+        context=context,
     )
 
 
@@ -258,6 +263,22 @@ class TestAWidgetRunRecordsItsTranscript:
         recorded = conversations.create_message.await_args_list
         assert [call.kwargs["role"] for call in recorded] == ["user"]
         assert recorded[0].kwargs["content"] == "What's your refund window?"
+
+    async def test_the_transcript_holds_the_visitors_words_not_the_prompt_around_them(self) -> None:
+        """The operator's placement note is addressed to the model, not to a reader.
+
+        The widget prepends it to the first message, so recording what was *sent*
+        made the opening turn of every conversation read as the visitor reciting a
+        briefing about the page they were on.
+        """
+        session = _widget_session(_db(), embed=_embed(context="the pricing page"))
+        run = AsyncMock(return_value=_searched_then_answered("Thirty days."))
+
+        with _run_yielding(run) as (_captured, conversations), _the_widgets_rows():
+            await session._answer("What's your refund window?")
+
+        asked = conversations.create_message.await_args_list[0].kwargs
+        assert asked["content"] == "What's your refund window?"
 
 
 class TestAFailedRunIsStillInHistoryWithItsCost:

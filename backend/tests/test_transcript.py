@@ -209,6 +209,53 @@ class TestWritingTheTranscript:
             repo.complete_tool_call = AsyncMock()
             yield repo
 
+    @pytest.fixture
+    def files(self):
+        """The other repository this writes through: what a turn arrived with."""
+        with patch("app.services.transcript.chat_file_repo") as repo:
+            repo.link_to_message = AsyncMock()
+            yield repo
+
+    async def test_a_file_that_arrived_with_a_turn_is_linked_to_it(self, conversations, files):
+        """The defect this closes: a file posted in a channel became nothing.
+
+        `AttachmentRouter` appends a briefing about each file to the prompt for the
+        *model*, and that briefing was the only trace of the file anywhere - so a
+        person reading the thread in `/chat` was shown `co tu widzisz` followed by
+        `--- Attached file: … (/uploads/…, 43 KB, image)`. The dashboard's own
+        uploads have been rows since they existed.
+        """
+        attachment = MagicMock(id=uuid.uuid4())
+
+        await TranscriptService(_session()).record(
+            _run(), prompt="co tu widzisz", answer="A dashboard.", attachments=[attachment]
+        )
+
+        linked = files.link_to_message.await_args.kwargs
+        asked = conversations.create_message.await_args_list[0].kwargs
+        assert linked["file_ids"] == [attachment.id]
+        assert (linked["message_id"], asked["role"]) == (
+            conversations.create_message.return_value.id,
+            "user",
+        ), "the file hangs off the turn that brought it, not off the answer"
+
+    async def test_a_file_with_no_caption_still_gets_a_turn_to_hang_off(self, conversations, files):
+        """Somebody drops an image and says nothing. That is a turn."""
+        attachment = MagicMock(id=uuid.uuid4())
+
+        await TranscriptService(_session()).record(
+            _run(), prompt="", answer="A dashboard.", attachments=[attachment]
+        )
+
+        asked = conversations.create_message.await_args_list[0].kwargs
+        assert (asked["role"], asked["content"]) == ("user", "")
+        assert files.link_to_message.await_args.kwargs["file_ids"] == [attachment.id]
+
+    async def test_a_turn_that_arrived_with_nothing_links_nothing(self, conversations, files):
+        await TranscriptService(_session()).record(_run(), prompt="hello", answer="hi")
+
+        assert files.link_to_message.await_args.kwargs["file_ids"] == []
+
     async def test_both_turns_are_written_against_the_run(self, conversations):
         run = _run()
 
