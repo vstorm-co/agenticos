@@ -132,8 +132,18 @@ the same socket:
 wss://your-api.example.com/api/v1/embed/PUBLIC_KEY/ws[?token=SIGNED_JWT]
 ```
 
-The handshake must carry an `Origin` on the embed's allow-list; browsers send it
-for you. Native clients must set it explicitly.
+**You do not have to assemble that yourself.** The embed's row in **Agents →
+your agent → Embeds** publishes it beside the script tag, built from the
+deployment's own base URL, with a copy button. The `?token=` is not printed
+there: in `jwt` mode the token is minted per visitor by your backend, and a real
+one on a dashboard screen is a working credential somebody can read over a
+shoulder.
+
+The handshake must carry an `Origin` on the embed's allow-list. **A browser sends
+it for you; a client of your own sends nothing unless you set it** - a mobile app,
+a kiosk, a server-side relay. That is the first thing that goes wrong, and what
+it looks like when it does is `4003` in the table below rather than an error
+message.
 
 **Frames you send**
 

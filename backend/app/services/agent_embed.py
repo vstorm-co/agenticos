@@ -339,6 +339,7 @@ class AgentEmbedService:
             is_active=embed.is_active,
             rate_limit_per_minute=embed.rate_limit_per_minute,
             snippet=self.snippet_for(embed),
+            socket_url=self.socket_url_for(embed),
             created_at=embed.created_at,
             updated_at=embed.updated_at,
         )
@@ -364,3 +365,26 @@ class AgentEmbedService:
             return tag
         keys = ", ".join(f"{name}: …" for name in declared if name)
         return f"<script>window.AgenticOSContext = {{ {keys} }};</script>\n{tag}"
+
+    @staticmethod
+    def socket_url_for(embed: AgentEmbed) -> str:
+        """The socket a client of one's own connects to.
+
+        The second integration this row offers, and the honest one for anybody
+        building their own interface: a mobile app, a kiosk, a component in
+        somebody's design system. The protocol behind it is the one the widget
+        speaks, documented frame by frame in `docs/channels.md`.
+
+        Assembled here for the same reason `snippet_for` is - the deployment's
+        own URL is known in one place - and derived from it rather than declared
+        separately, so a deployment cannot have a widget on one host and a socket
+        on another.
+
+        No `?token=…`: in `jwt` mode the token is minted per visitor by the
+        customer's own backend, and a real one printed in a panel would be a
+        working credential on a screen somebody shares.
+        """
+        base = settings.PUBLIC_BASE_URL.rstrip("/")
+        scheme = "wss" if base.startswith("https://") else "ws"
+        _, _, rest = base.partition("://")
+        return f"{scheme}://{rest}/api/v1/embed/{embed.public_key}/ws"

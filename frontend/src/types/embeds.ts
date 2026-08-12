@@ -44,6 +44,15 @@ export interface Embed {
   rate_limit_per_minute: number;
   /** Assembled server-side, so the deployment's public URL is known in one place. */
   snippet: string;
+  /**
+   * The socket, for an interface somebody is building themselves.
+   *
+   * The second integration this row offers. Assembled server-side for the same
+   * reason as the snippet, and it carries no `?token=` - in `jwt` mode the token
+   * is minted per visitor, and a real one printed in a panel is a working
+   * credential on a shared screen.
+   */
+  socket_url: string;
   created_at?: string;
   updated_at?: string | null;
 }

@@ -16,6 +16,7 @@ already exercised by other tests, and none of them looked at what was written.
 from __future__ import annotations
 
 import uuid
+from contextlib import asynccontextmanager, contextmanager
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -59,14 +60,40 @@ class TestEveryMemberIsAssignedBySomething:
         assert _SURFACES["mattermost"] is RunSurface.MATTERMOST
 
 
+def _one_session() -> Any:
+    """A session factory for a test that builds its session with `__new__`.
+
+    `EmbedSession` opens one per turn rather than holding the socket's own, so
+    the attribute these tests set is the factory and not a session (#39).
+    """
+
+    @asynccontextmanager
+    async def factory() -> Any:
+        yield MagicMock()
+
+    return factory
+
+
+@contextmanager
+def _a_turn(runner: MagicMock) -> Any:
+    """The turn's runner and the rows it reads, mocked at the repository."""
+    with (
+        patch("app.services.embed_session.AgentRunnerService", return_value=runner),
+        patch("app.services.embed_session.conversation_repo") as conversations,
+        patch("app.services.embed_session.member_repo") as members,
+    ):
+        conversations.count_messages = AsyncMock(return_value=0)
+        conversations.get_messages_by_conversation = AsyncMock(return_value=[])
+        yield members
+
+
 class TestWhatTheEmbeddedWidgetStamps:
     @staticmethod
     def _session(runner: MagicMock) -> Any:
         from app.services.embed_session import EmbedSession
 
         session = EmbedSession.__new__(EmbedSession)
-        session.db = MagicMock()
-        session.runner = runner
+        session.sessions = _one_session()
         session.embed = MagicMock(
             id=uuid.uuid4(),
             agent_id=uuid.uuid4(),
@@ -87,7 +114,7 @@ class TestWhatTheEmbeddedWidgetStamps:
         runner = MagicMock(execute=AsyncMock(return_value=("the answer", MagicMock())))
         session = self._session(runner)
 
-        with patch("app.services.embed_session.member_repo") as members:
+        with _a_turn(runner) as members:
             members.get = AsyncMock(return_value=None)
             await session._answer("how do I get a refund?")
 
@@ -106,8 +133,7 @@ class TestTheSuppliedContextIsResentWhenItChanges:
         from app.services.embed_session import EmbedSession
 
         session = EmbedSession.__new__(EmbedSession)
-        session.db = MagicMock()
-        session.runner = runner
+        session.sessions = _one_session()
         session.embed = MagicMock(
             id=uuid.uuid4(),
             agent_id=uuid.uuid4(),
@@ -128,7 +154,7 @@ class TestTheSuppliedContextIsResentWhenItChanges:
         runner = MagicMock(execute=AsyncMock(return_value=("ok", MagicMock())))
         session = self._session(runner)
 
-        with patch("app.services.embed_session.member_repo") as members:
+        with _a_turn(runner) as members:
             members.get = AsyncMock(return_value=None)
 
             # Turn 1: not signed in. The placement context goes; the required

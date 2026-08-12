@@ -12,15 +12,24 @@ embed that accepts an unsigned token, a rate limit that resets per socket.
 
 import time
 import uuid
+from contextlib import asynccontextmanager, contextmanager
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import jwt
 import pytest
 
+from app.core.config import settings
 from app.core.exceptions import BadRequestError
 from app.db.models.agent_run import RunSurface
+from app.repositories import conversation_repo
 from app.services.agent_embed import AgentEmbedService, EmbedDenied, _origin_of
-from app.services.embed_session import EmbedSession, _allowed, _buckets
+from app.services.embed_session import (
+    HISTORY_MESSAGES,
+    EmbedSession,
+    _allowed,
+    _buckets,
+)
 
 MODULE = "app.services.agent_embed"
 
@@ -49,6 +58,55 @@ def _embed(**overrides):
 def _service(embed=None) -> AgentEmbedService:
     service = AgentEmbedService(MagicMock())
     return service
+
+
+@contextmanager
+def _turns(answer: str = "hi", history: list[MagicMock] | None = None):
+    """Everything one turn touches outside the runner, mocked at the repository.
+
+    Yields the patched `AgentRunnerService` class so a test can read what the
+    turn asked it to do.
+    """
+    messages = history or []
+    with (
+        patch("app.services.embed_session.AgentRunnerService") as runner_cls,
+        patch(
+            "app.services.embed_session.conversation_repo.create_conversation",
+            new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+        ),
+        patch(
+            "app.services.embed_session.conversation_repo.count_messages",
+            new=AsyncMock(return_value=len(messages)),
+        ),
+        patch(
+            "app.services.embed_session.conversation_repo.get_messages_by_conversation",
+            new=AsyncMock(return_value=messages),
+        ),
+        patch(
+            "app.services.embed_session.member_repo.get",
+            new=AsyncMock(return_value=MagicMock(role="builder")),
+        ),
+    ):
+        runner_cls.return_value.execute = AsyncMock(return_value=(answer, MagicMock()))
+        yield runner_cls
+
+
+class _Sessions:
+    """A session factory that records how many turns opened one.
+
+    The count is the assertion `EmbedSession` exists to support: a socket that is
+    open and idle must hold no connection, so "one per turn" has to be countable
+    rather than inspected.
+    """
+
+    def __init__(self) -> None:
+        self.opened = 0
+        self.session = MagicMock()
+
+    @asynccontextmanager
+    async def __call__(self):
+        self.opened += 1
+        yield self.session
 
 
 class TestOriginIsThePerimeter:
@@ -225,26 +283,91 @@ class TestTheRunRecordsItsSurface:
     async def test_a_widget_run_is_recorded_as_embed_not_web(self):
         """The by-surface chart tells widget traffic from signed-in web chat
         only if the recorder does - regressing to WEB folds the two silently."""
-        with patch("app.services.embed_session.AgentRunnerService") as runner_cls:
-            execute = AsyncMock(return_value=("hi", MagicMock()))
-            runner_cls.return_value.execute = execute
+        with _turns() as runner_cls:
             session = EmbedSession(
-                db=MagicMock(), embed=_embed(), visitor=None, websocket=MagicMock()
+                sessions=_Sessions(), embed=_embed(), visitor=None, websocket=MagicMock()
             )
-            with (
-                patch(
-                    "app.services.embed_session.conversation_repo.create_conversation",
-                    new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
-                ),
-                patch(
-                    "app.services.embed_session.member_repo.get",
-                    new=AsyncMock(return_value=MagicMock(role="builder")),
-                ),
-            ):
-                answer = await session._answer("hello")
+            answer = await session._answer("hello")
 
         assert answer == "hi"
-        assert execute.call_args.kwargs["surface"] is RunSurface.EMBED
+        assert runner_cls.return_value.execute.call_args.kwargs["surface"] is RunSurface.EMBED
+
+
+class TestAConnectionPerTurnRatherThanPerBrowser:
+    """A widget socket lives as long as a tab, and turns are rare inside it.
+
+    Holding one pooled connection for that whole time meant fifteen idle
+    visitors exhausted the pool and took the API down with them - the dashboard
+    chat was never exposed to it because it opens one per turn (#39).
+    """
+
+    @staticmethod
+    def _session(sessions: _Sessions) -> EmbedSession:
+        return EmbedSession(sessions=sessions, embed=_embed(), visitor=None, websocket=AsyncMock())
+
+    @pytest.mark.anyio
+    async def test_an_open_socket_with_nothing_to_do_holds_no_connection(self):
+        sessions = _Sessions()
+
+        await self._session(sessions).greet()
+
+        assert sessions.opened == 0
+
+    @pytest.mark.anyio
+    async def test_every_turn_opens_one_of_its_own(self):
+        _buckets.clear()
+        sessions = _Sessions()
+        with _turns() as runner_cls:
+            session = self._session(sessions)
+            await session.handle({"type": "message", "text": "one"})
+            await session.handle({"type": "message", "text": "two"})
+
+        assert sessions.opened == 2
+        # And the turn's own session is what the runner books its cost on, not a
+        # connection the socket was handed at admission.
+        assert runner_cls.call_args.args == (sessions.session,)
+
+
+class TestTheWidgetRemembersWhatWasSaid:
+    """The embed was the one surface that passed no history.
+
+    Web chat, the API and all three channels carry theirs, so a widget answered
+    every question as though it were the first - the conversation row grouped the
+    turns for whoever read it afterwards, and the model saw a stranger (#39).
+    """
+
+    @staticmethod
+    def _message(role: str, content: str) -> MagicMock:
+        return MagicMock(role=role, content=content)
+
+    @pytest.mark.anyio
+    async def test_the_previous_turns_reach_the_model(self):
+        history = [self._message("user", "do you ship?"), self._message("assistant", "we do")]
+
+        with _turns(history=history) as runner_cls:
+            session = EmbedSession(
+                sessions=_Sessions(), embed=_embed(), visitor=None, websocket=AsyncMock()
+            )
+            await session._answer("and to Poland?")
+
+        sent = runner_cls.return_value.execute.call_args.kwargs["message_history"]
+        assert [part.parts[0].content for part in sent] == ["do you ship?", "we do"]
+
+    @pytest.mark.anyio
+    async def test_a_long_thread_carries_its_most_recent_turns(self):
+        """The repository orders oldest-first, so a `limit` with no offset hands a
+        long conversation its opening exchanges and drops what was just said."""
+        history = [self._message("user", str(index)) for index in range(100)]
+
+        with _turns(history=history):
+            session = EmbedSession(
+                sessions=_Sessions(), embed=_embed(), visitor=None, websocket=AsyncMock()
+            )
+            await session._answer("still there?")
+            asked = conversation_repo.get_messages_by_conversation.call_args.kwargs
+
+        assert asked["skip"] == 100 - HISTORY_MESSAGES
+        assert asked["limit"] == HISTORY_MESSAGES
 
 
 class TestRateLimit:
@@ -279,23 +402,13 @@ class TestWhatThePageTellsTheWidget:
 
     async def _prompt(self, embed, frames: list[dict]) -> str:
         """Run the frames through a session and hand back the prompt it built."""
-        with patch("app.services.embed_session.AgentRunnerService") as runner_cls:
-            execute = AsyncMock(return_value=("hi", MagicMock()))
-            runner_cls.return_value.execute = execute
-            session = EmbedSession(db=MagicMock(), embed=embed, visitor=None, websocket=AsyncMock())
-            with (
-                patch(
-                    "app.services.embed_session.conversation_repo.create_conversation",
-                    new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
-                ),
-                patch(
-                    "app.services.embed_session.member_repo.get",
-                    new=AsyncMock(return_value=MagicMock(role="builder")),
-                ),
-            ):
-                for frame in frames:
-                    await session.handle(frame)
-        return execute.call_args.args[2]
+        with _turns() as runner_cls:
+            session = EmbedSession(
+                sessions=_Sessions(), embed=embed, visitor=None, websocket=AsyncMock()
+            )
+            for frame in frames:
+                await session.handle(frame)
+        return runner_cls.return_value.execute.call_args.args[2]
 
     @pytest.mark.anyio
     async def test_a_declared_value_reaches_the_prompt(self):
@@ -430,3 +543,43 @@ class TestTheSnippetSaysWhatToSupply:
         snippet = AgentEmbedService.snippet_for(embed)
 
         assert "window.AgenticOSContext = { plan: …, locale: … }" in snippet
+
+
+class TestTheSocketIsOfferedAsAnIntegration:
+    """The panel publishes two integrations, not one.
+
+    A tag for a site somebody does not control, and a socket URL for an
+    interface they are building. Reaching the second one used to mean reading
+    the manual to discover that the thing you needed was already published
+    (#516).
+    """
+
+    def test_the_socket_url_is_derived_from_the_deployments_own_base_url(self, monkeypatch):
+        monkeypatch.setattr(settings, "PUBLIC_BASE_URL", "http://localhost:8000/")
+
+        url = AgentEmbedService.socket_url_for(_embed())
+
+        assert url == "ws://localhost:8000/api/v1/embed/key-123/ws"
+
+    def test_an_https_deployment_is_handed_a_secure_socket(self, monkeypatch):
+        """`ws://` from an `https://` page is refused by every browser, so a
+        deployment behind TLS being told to use one would be told to use nothing."""
+        monkeypatch.setattr(settings, "PUBLIC_BASE_URL", "https://api.example.com")
+
+        assert AgentEmbedService.socket_url_for(_embed()).startswith("wss://api.example.com/")
+
+    def test_the_socket_url_carries_no_token(self):
+        """In `jwt` mode the token is minted per visitor by the customer's own
+        backend. A real one printed in a panel is a working credential on a
+        screen somebody shares."""
+        url = AgentEmbedService.socket_url_for(_embed(auth_mode="jwt"))
+
+        assert "token" not in url
+
+    def test_both_integrations_reach_the_panel(self):
+        embed = _embed(created_at=datetime.now(UTC), updated_at=None)
+
+        read = _service()._read(embed)
+
+        assert read.snippet.startswith("<script")
+        assert read.socket_url.endswith("/api/v1/embed/key-123/ws")

@@ -16,6 +16,13 @@ signed in.
 is per visitor per minute, in this process - good enough for the failure it
 exists to stop, which is one page hammering one socket.
 
+*A connection per turn, not per browser.* The session is handed a factory and
+opens a session inside each turn, because a widget's socket stays open for as
+long as somebody leaves the tab open. Holding one pooled connection for that
+long meant fifteen idle visitors exhausted the pool and took the whole API down
+with them (agenticos#39) - the dashboard chat had never been exposed to it
+because it opens one per turn too.
+
 *Context.* The embed's own note ("you are on the pricing page") is prepended to
 the visitor's first message rather than injected into the agent's instructions:
 the instructions belong to the published version, and a widget must not be able
@@ -26,6 +33,8 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
+from contextlib import AbstractAsyncContextManager
 from typing import Any
 from uuid import UUID
 
@@ -39,6 +48,7 @@ from app.db.models.agent_embed import AgentEmbed
 from app.db.models.agent_run import RunSurface
 from app.repositories import conversation_repo, member_repo
 from app.schemas.agent_embed import EmbedVariable
+from app.services.agent import build_message_history
 from app.services.agent_runner import AgentRunnerService
 
 logger = logging.getLogger(__name__)
@@ -77,6 +87,20 @@ _WINDOW_SECONDS = 60.0
 # and short enough that a paste-bomb is not a model bill.
 MAX_MESSAGE_CHARS = 4000
 
+# How much of the thread the model is reminded of. Bounded rather than the whole
+# conversation because this surface is public: an operator's budget should not be
+# a function of how long a stranger is willing to keep typing.
+HISTORY_MESSAGES = 40
+
+
+SessionFactory = Callable[[], AbstractAsyncContextManager[AsyncSession]]
+"""What opens one database session, for the duration of one turn.
+
+Injected rather than imported so a socket that is open and idle - which is what a
+widget mostly is - holds no pooled connection at all. `app.db.session
+.get_db_context` is what the route passes.
+"""
+
 
 def _allowed(key: tuple[str, str], limit: int) -> bool:
     count, started = _buckets.get(key, (0, 0.0))
@@ -96,12 +120,12 @@ class EmbedSession:
     def __init__(
         self,
         *,
-        db: AsyncSession,
+        sessions: SessionFactory,
         embed: AgentEmbed,
         visitor: str | None,
         websocket: WebSocket,
     ) -> None:
-        self.db = db
+        self.sessions = sessions
         self.embed = embed
         # Anonymous visitors share a bucket per widget, which is the right
         # granularity: without a token there is nothing to tell them apart by,
@@ -109,7 +133,6 @@ class EmbedSession:
         # bypass by reconnecting.
         self.visitor = visitor or "anonymous"
         self.websocket = websocket
-        self.runner = AgentRunnerService(db)
         self.conversation_id: UUID | None = None
         self._context_sent = False
         # What the page said about this visitor, as it last said it. Empty until
@@ -180,10 +203,21 @@ class EmbedSession:
         return
 
     async def _answer(self, text: str) -> str:
-        ctx = await self._context()
+        """One turn, on one session of its own.
+
+        The session spans the whole turn - the conversation row, the run row, the
+        cost it books and the transcript it writes are a single unit of work - and
+        nothing outside it, because between turns there is nobody to serve and a
+        held connection is one the rest of the deployment cannot have.
+        """
+        async with self.sessions() as db:
+            return await self._turn(db, text)
+
+    async def _turn(self, db: AsyncSession, text: str) -> str:
+        ctx = await self._context(db)
         if self.conversation_id is None:
             conversation = await conversation_repo.create_conversation(
-                self.db,
+                db,
                 organization_id=self.embed.organization_id,
                 user_id=None,
                 title=f"{self.embed.name} - {self.visitor}",
@@ -207,7 +241,7 @@ class EmbedSession:
             self._supplied_sent = supplied_block
         prompt = "\n\n".join([*parts, text]) if parts else text
 
-        answer, _run = await self.runner.execute(
+        answer, _run = await AgentRunnerService(db).execute(
             ctx,
             self.embed.agent_id,
             prompt,
@@ -217,8 +251,33 @@ class EmbedSession:
             # run indistinguishable from web chat (#208).
             surface=RunSurface.EMBED,
             conversation_id=self.conversation_id,
+            message_history=await self._history(db),
         )
         return answer or "…"
+
+    async def _history(self, db: AsyncSession) -> list[Any]:
+        """What this visitor and the agent have already said to each other.
+
+        The embed was the one surface that passed none, so a widget forgot the
+        previous question the moment it answered it: the conversation row grouped
+        the turns for whoever read it afterwards, and the model saw a stranger
+        every time. Web chat, the API and all three channels carry theirs (#39).
+
+        The most recent window rather than the first page of one. The repository
+        orders oldest-first, so `limit` alone would hand a long thread its opening
+        exchanges and drop what was just said - which is the failure this is
+        supposed to prevent, arriving later and harder to see.
+        """
+        if self.conversation_id is None:
+            return []
+        total = await conversation_repo.count_messages(db, self.conversation_id)
+        messages = await conversation_repo.get_messages_by_conversation(
+            db,
+            conversation_id=self.conversation_id,
+            skip=max(0, total - HISTORY_MESSAGES),
+            limit=HISTORY_MESSAGES,
+        )
+        return build_message_history([{"role": m.role, "content": m.content} for m in messages])
 
     def _supplied_block(self) -> str:
         """What the page told us about this visitor, as data the model may read.
@@ -266,7 +325,7 @@ class EmbedSession:
             return ""
         return SUPPLIED_HEADER + "\n" + "\n".join(lines)
 
-    async def _context(self) -> AuthContext:
+    async def _context(self, db: AsyncSession) -> AuthContext:
         """The role this run carries.
 
         The widget's owner, because an anonymous visitor has no role and an
@@ -277,7 +336,7 @@ class EmbedSession:
         role = OrgRoleName.VIEWER.value
         if self.embed.owner_user_id is not None:
             membership = await member_repo.get(
-                self.db,
+                db,
                 organization_id=self.embed.organization_id,
                 user_id=self.embed.owner_user_id,
             )

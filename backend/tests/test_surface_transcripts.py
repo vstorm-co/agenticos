@@ -158,6 +158,44 @@ def _assert_full_turn(
     assert conversations.complete_tool_call.await_args.kwargs["result"] == "30 days"
 
 
+def _widget_session(db: MagicMock) -> EmbedSession:
+    """A widget session whose turn opens `db`.
+
+    The factory rather than the session itself: `EmbedSession` opens one per turn
+    so an idle socket holds no pooled connection (#39).
+    """
+
+    @asynccontextmanager
+    async def sessions() -> AsyncIterator[MagicMock]:
+        yield db
+
+    return EmbedSession(sessions=sessions, embed=_embed(), visitor=None, websocket=MagicMock())
+
+
+@contextmanager
+def _the_widgets_rows() -> Iterator[None]:
+    """The conversation the turn opens, its history, and the owner's membership."""
+    with (
+        patch(
+            "app.services.embed_session.conversation_repo.create_conversation",
+            new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+        ),
+        patch(
+            "app.services.embed_session.conversation_repo.count_messages",
+            new=AsyncMock(return_value=0),
+        ),
+        patch(
+            "app.services.embed_session.conversation_repo.get_messages_by_conversation",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
+            "app.services.embed_session.member_repo.get",
+            new=AsyncMock(return_value=MagicMock(role="builder")),
+        ),
+    ):
+        yield
+
+
 def _embed() -> MagicMock:
     return MagicMock(
         id=uuid.uuid4(),
@@ -175,19 +213,12 @@ class TestAWidgetRunRecordsItsTranscript:
     with a cost and no transcript is a bill nobody can reconstruct."""
 
     async def test_a_widget_run_records_the_question_the_answer_and_the_tool_call(self) -> None:
-        session = EmbedSession(db=_db(), embed=_embed(), visitor=None, websocket=MagicMock())
+        session = _widget_session(_db())
         run = AsyncMock(return_value=_searched_then_answered("The refund window is 30 days."))
 
         with (
             _run_yielding(run) as (captured, conversations),
-            patch(
-                "app.services.embed_session.conversation_repo.create_conversation",
-                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
-            ),
-            patch(
-                "app.services.embed_session.member_repo.get",
-                new=AsyncMock(return_value=MagicMock(role="builder")),
-            ),
+            _the_widgets_rows(),
         ):
             answer = await session._answer("What's your refund window?")
 
@@ -203,19 +234,12 @@ class TestAWidgetRunRecordsItsTranscript:
         """The run that failed is the one somebody opens. Without the question
         there is a charge on the organization's month and nothing that says what
         it paid for."""
-        session = EmbedSession(db=_db(), embed=_embed(), visitor=None, websocket=MagicMock())
+        session = _widget_session(_db())
         run = AsyncMock(side_effect=RuntimeError("provider down"))
 
         with (
             _run_yielding(run) as (captured, conversations),
-            patch(
-                "app.services.embed_session.conversation_repo.create_conversation",
-                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
-            ),
-            patch(
-                "app.services.embed_session.member_repo.get",
-                new=AsyncMock(return_value=MagicMock(role="builder")),
-            ),
+            _the_widgets_rows(),
             pytest.raises(RuntimeError),
         ):
             await session._answer("What's your refund window?")

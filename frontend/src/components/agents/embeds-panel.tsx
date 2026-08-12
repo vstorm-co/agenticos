@@ -26,6 +26,7 @@ import {
 } from "@/components/ui";
 import { useEmbeds } from "@/hooks";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
+import { DOCS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import {
   DEFAULT_EMBED_THEME,
@@ -303,6 +304,39 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
   );
 }
 
+/**
+ * One thing a customer copies, labelled with what it is for.
+ *
+ * A component rather than two blocks inline because each copy button owns its
+ * own `copied` state: one hook shared between them ticks both, which reads as
+ * having copied the socket URL when the snippet went to the clipboard.
+ */
+function Integration({
+  label,
+  value,
+  copyLabel,
+}: {
+  label: string;
+  value: string;
+  copyLabel: string;
+}) {
+  const { copy, copied } = useCopyToClipboard();
+
+  return (
+    <div className="mt-3">
+      <p className="text-muted-foreground mb-1 text-xs font-medium">{label}</p>
+      <div className="flex items-start gap-2">
+        <code className="bg-muted min-w-0 flex-1 overflow-x-auto rounded-md p-2 font-mono text-xs whitespace-pre">
+          {value}
+        </code>
+        <Button variant="outline" size="sm" onClick={() => copy(value)} aria-label={copyLabel}>
+          {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function EmbedRow({
   embed,
   canManage,
@@ -316,7 +350,6 @@ function EmbedRow({
 }) {
   const t = useTranslations("agents");
   const tc = useTranslations("common");
-  const { copy, copied } = useCopyToClipboard();
 
   return (
     <div className="border-border rounded-lg border p-3">
@@ -347,19 +380,28 @@ function EmbedRow({
         )}
       </div>
 
-      <div className="mt-3 flex items-start gap-2">
-        <code className="bg-muted min-w-0 flex-1 overflow-x-auto rounded-md p-2 font-mono text-xs whitespace-pre">
-          {embed.snippet}
-        </code>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => copy(embed.snippet)}
-          aria-label={t("copySnippet")}
+      <Integration
+        label={t("scriptTagIntegration")}
+        value={embed.snippet}
+        copyLabel={t("copySnippet")}
+      />
+      <Integration
+        label={t("socketIntegration")}
+        value={embed.socket_url}
+        copyLabel={t("copySocketUrl")}
+      />
+
+      <p className="text-muted-foreground mt-2 text-xs">
+        {t("nativeClientOriginNote")}{" "}
+        <a
+          href={DOCS.RAW_WEBSOCKET}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline underline-offset-2"
         >
-          {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-        </Button>
-      </div>
+          {t("socketFramesAndCloseCodes")}
+        </a>
+      </p>
 
       <p className="text-muted-foreground mt-2 flex items-center gap-1.5 text-xs">
         <Code2 className="h-3 w-3 shrink-0" />

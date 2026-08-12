@@ -107,6 +107,13 @@ async def embed_socket(
     The token arrives as a query parameter because browsers cannot set headers
     on a WebSocket handshake. It is the customer's own signed token, not ours,
     and it never leaves this process.
+
+    **Admission gets a session; the conversation does not.** This socket stays
+    open for as long as a visitor leaves the tab open, and the session below is
+    closed before the first frame is read - the turn loop opens one per turn, the
+    way the dashboard chat does. Held open across the conversation, fifteen idle
+    widget visitors exhausted the connection pool and took the API down with them
+    (#39).
     """
     origin = websocket.headers.get("origin")
 
@@ -122,17 +129,19 @@ async def embed_socket(
             await websocket.close(code=WS_DENIED, reason="This widget is not available here")
             return
 
-        session = EmbedSession(db=db, embed=embed, visitor=visitor, websocket=websocket)
-        await websocket.accept()
-        try:
-            await session.greet()
-            while True:
-                frame = await websocket.receive_json()
-                await session.handle(frame)
-        except WebSocketDisconnect:
-            pass
-        except Exception:
-            logger.exception("embed_session_failed", extra={"embed_id": str(embed.id)})
-            await session.fail("Something went wrong. Please try again.")
-        finally:
-            await session.close()
+    session = EmbedSession(
+        sessions=get_db_context, embed=embed, visitor=visitor, websocket=websocket
+    )
+    await websocket.accept()
+    try:
+        await session.greet()
+        while True:
+            frame = await websocket.receive_json()
+            await session.handle(frame)
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        logger.exception("embed_session_failed", extra={"embed_id": str(embed.id)})
+        await session.fail("Something went wrong. Please try again.")
+    finally:
+        await session.close()

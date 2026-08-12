@@ -130,6 +130,10 @@ class EmbedRead(BaseSchema, TimestampSchema):
     # Ready to paste. Assembled server-side so the one place that knows the
     # public URL is the deployment's own configuration.
     snippet: str
+    # The other integration: the socket, for somebody writing their own client
+    # rather than pasting a tag into a site they do not control. Same reason it
+    # is assembled server-side, and it carries no token - see `socket_url_for`.
+    socket_url: str
 
 
 class EmbedList(BaseSchema):

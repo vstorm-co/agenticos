@@ -46,6 +46,7 @@ function embed(overrides: Partial<Embed> = {}): Embed {
     is_active: true,
     rate_limit_per_minute: 10,
     snippet: '<script src="https://app.test/embed.js" data-key="pk_live_abc"></script>',
+    socket_url: "wss://app.test/api/v1/embed/pk_live_abc/ws",
     ...overrides,
   };
 }
@@ -118,6 +119,46 @@ describe("an existing widget", () => {
 
     // The icon swaps to a tick; the button keeps its accessible name.
     expect(screen.getByRole("button", { name: "Copy the snippet" })).toBeInTheDocument();
+  });
+
+  it("offers the socket beside the script tag, not only in the docs", () => {
+    // The whole of #516: the protocol was published and tested, and the only way
+    // to discover it was to read the manual.
+    state.embeds = [embed()];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+
+    expect(screen.getByText("wss://app.test/api/v1/embed/pk_live_abc/ws")).toBeInTheDocument();
+    expect(screen.getByText("Script tag - for a site you do not control")).toBeInTheDocument();
+    expect(screen.getByText("WebSocket - for an interface you are building")).toBeInTheDocument();
+  });
+
+  it("copies the socket URL rather than the snippet", async () => {
+    state.embeds = [embed()];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Copy the socket URL" }));
+
+    expect(copy).toHaveBeenCalledWith(state.embeds[0]!.socket_url);
+  });
+
+  it("says a client of one's own must send an allowed Origin, and where 4003 is explained", () => {
+    // A native client sends no Origin for free, which is the first thing that
+    // goes wrong and used to be a sentence in the docs only.
+    state.embeds = [embed()];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+
+    expect(screen.getByText(/must set one that is on the allowed-sites list/)).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "Frames and close codes" });
+    expect(link).toHaveAttribute("href", expect.stringContaining("#the-raw-websocket"));
+  });
+
+  it("shows both integrations to somebody who may not manage the widget", () => {
+    // Reading the integration is not managing it: `agents:publish` gates the
+    // switch and the delete, not the address of a published socket.
+    state.embeds = [embed()];
+    render(<EmbedsPanel agentId="a-1" canManage={false} />);
+
+    expect(screen.getByRole("button", { name: "Copy the socket URL" })).toBeInTheDocument();
   });
 
   it("names the sites it may be opened from", () => {
