@@ -56,6 +56,7 @@ model.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import time
@@ -124,6 +125,12 @@ HISTORY_MESSAGES = 40
 # bounds how fast a stranger fills a disk, and this bounds how much of one turn's
 # prompt is somebody else's document.
 MAX_FILES_PER_TURN = 3
+# How long one frame may take to reach the socket before the turn gives up on it.
+# A client reading a byte a second parks the write buffer, and an unbounded
+# `send_json` would hold the per-turn session and the open provider stream for as
+# long as it cared to - #39's pool-exhaustion vector, from the reader's end.
+# Generous, because a legitimate stream pauses; it bounds a stall, not a pause.
+SEND_TIMEOUT_SECONDS = 30.0
 
 # What a continuity key has to look like to be one: the 128 random bits the
 # hosted page mints, as lower-case hex. The upper bound is the column's width.
@@ -645,9 +652,16 @@ class EmbedSession:
         if kind == "tool_call" and "tool_result" not in self.shows:
             payload = {key: value for key, value in payload.items() if key != "args"}
         try:
-            await self.websocket.send_json({"type": kind, "data": payload})
+            await asyncio.wait_for(
+                self.websocket.send_json({"type": kind, "data": payload}),
+                timeout=SEND_TIMEOUT_SECONDS,
+            )
         except Exception:
-            # The visitor closed the tab. Nothing to recover and nobody to tell.
+            # A closed tab (send raises), or a reader so slow the write buffer
+            # never drains (wait_for times out - a TimeoutError, which is an
+            # Exception). Either way there is nobody to wait for, and the turn must
+            # not hang holding its session and stream on one that stopped reading,
+            # so a timed-out frame is dropped like a failed one.
             logger.debug("embed_send_failed", extra={"embed_id": str(self.embed.id)})
 
 
