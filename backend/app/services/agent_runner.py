@@ -1575,6 +1575,7 @@ class AgentRunnerService:
                 conversation_id=conversation_id,
                 environment_id=environment_id,
                 exposure_id=exposure.id if exposure else None,
+                channel_identity_id=ctx.channel_identity_id,
                 surface=surface.value,
                 model_label=model_spec.label,
                 provider=model_spec.provider,

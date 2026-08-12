@@ -585,3 +585,186 @@ class TestAnswerDefault:
         assert execute.call_args.kwargs["message_history"] is history
         assert execute.call_args.kwargs["exposure"] is exposure
         assert answer.text == "42 days"
+
+
+class TestWhatARoomRunsAs:
+    """A channel admits somebody this platform cannot name (#639).
+
+    A direct message is a conversation with a person and keeps asking for a
+    linked account. A channel is a room: whoever could invite the bot chose the
+    audience, so the turn runs under the *binding* - and what it may reach is
+    the binding creator's role, never more.
+    """
+
+    @staticmethod
+    def _binding(creator: uuid.UUID | None, organization_id: uuid.UUID) -> MagicMock:
+        return MagicMock(created_by_user_id=creator, organization_id=organization_id)
+
+    async def _ran_as(self, exposure: MagicMock, **kwargs) -> AuthContext:
+        """The context a turn ran under, admitting an unnamed sender."""
+        agent = MagicMock(id=uuid.uuid4(), slug="support")
+        with (
+            patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
+            patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
+        ):
+            members.get = AsyncMock(return_value=kwargs.pop("membership", None))
+            exposures.list_active_for_bot = AsyncMock(return_value=[(exposure, agent)])
+            execute = AsyncMock(return_value=("hello", MagicMock()))
+            runner_cls.return_value.execute = execute
+
+            await ChannelAgentRouter(MagicMock()).answer_default(
+                "what is the refund window",
+                platform="mattermost",
+                organization_id=exposure.organization_id,
+                bot_id=_BOT_ID,
+                admit_unlinked=True,
+                **kwargs,
+            )
+
+        return execute.call_args.args[0]
+
+    async def test_a_sender_nobody_can_name_runs_under_the_binding_creator(self):
+        organization_id, creator = uuid.uuid4(), uuid.uuid4()
+        exposure = self._binding(creator, organization_id)
+
+        ctx = await self._ran_as(
+            exposure,
+            user_id=None,
+            membership=MagicMock(role=OrgRoleName.BUILDER),
+        )
+
+        assert ctx.user_id == creator
+        assert ctx.role == OrgRoleName.BUILDER
+        assert ctx.organization_id == organization_id
+
+    async def test_a_creator_who_left_the_organization_drops_the_turn_to_viewer(self):
+        """Their departure must not silently widen what a channel can reach."""
+        exposure = self._binding(uuid.uuid4(), uuid.uuid4())
+
+        ctx = await self._ran_as(exposure, user_id=None, membership=None)
+
+        assert ctx.role == OrgRoleName.VIEWER
+
+    async def test_a_binding_nobody_is_recorded_against_runs_as_viewer(self):
+        """A row old enough to predate the column is not a row with an owner."""
+        exposure = self._binding(None, uuid.uuid4())
+
+        ctx = await self._ran_as(exposure, user_id=None)
+
+        assert ctx.user_id is None
+        assert ctx.role == OrgRoleName.VIEWER
+
+    async def test_the_chat_account_is_recorded_even_though_it_is_not_the_subject(self):
+        """Who asked, beside who it ran as - the two are different in a room."""
+        identity_id, creator = uuid.uuid4(), uuid.uuid4()
+        exposure = self._binding(creator, uuid.uuid4())
+
+        ctx = await self._ran_as(
+            exposure,
+            user_id=None,
+            channel_identity_id=identity_id,
+            membership=MagicMock(role=OrgRoleName.MEMBER),
+        )
+
+        assert ctx.channel_identity_id == identity_id
+        assert ctx.user_id == creator
+
+    async def test_a_linked_member_in_a_room_still_runs_as_themselves(self):
+        """Admitting strangers must not stop naming the people it can name."""
+        user_id, identity_id = uuid.uuid4(), uuid.uuid4()
+        exposure = self._binding(uuid.uuid4(), uuid.uuid4())
+
+        ctx = await self._ran_as(
+            exposure,
+            user_id=user_id,
+            channel_identity_id=identity_id,
+            membership=MagicMock(role=OrgRoleName.OPERATOR),
+        )
+
+        assert ctx.user_id == user_id
+        assert ctx.role == OrgRoleName.OPERATOR
+        assert ctx.channel_identity_id == identity_id
+
+    async def test_a_former_member_in_a_room_is_no_more_entitled_than_a_stranger(self):
+        """An account that exists and a standing in this workspace are not the
+        same thing, and only the second one carries a role."""
+        creator = uuid.uuid4()
+        exposure = self._binding(creator, uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), slug="support")
+
+        with (
+            patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
+            patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
+        ):
+            # The departed sender first, then the creator's own membership.
+            members.get = AsyncMock(side_effect=[None, MagicMock(role=OrgRoleName.ADMIN)])
+            exposures.list_active_for_bot = AsyncMock(return_value=[(exposure, agent)])
+            execute = AsyncMock(return_value=("hello", MagicMock()))
+            runner_cls.return_value.execute = execute
+
+            await ChannelAgentRouter(MagicMock()).answer_default(
+                "hello",
+                platform="mattermost",
+                organization_id=exposure.organization_id,
+                bot_id=_BOT_ID,
+                user_id=uuid.uuid4(),
+                admit_unlinked=True,
+            )
+
+        ctx = execute.call_args.args[0]
+        assert ctx.user_id == creator, "the turn runs under the binding, not under them"
+        assert ctx.role == OrgRoleName.ADMIN
+
+    async def test_a_room_that_asks_for_a_link_refuses_instead(self):
+        """`require_link` is the opt-out, and this is the layer that honours it:
+        the caller passes what its policy decided."""
+        with (
+            patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
+            patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
+        ):
+            exposures.list_active_for_bot = _serving("support")
+            runner_cls.return_value.execute = AsyncMock()
+
+            with pytest.raises(AuthorizationError) as refused:
+                await ChannelAgentRouter(MagicMock()).answer_default(
+                    "hello there",
+                    platform="mattermost",
+                    organization_id=uuid.uuid4(),
+                    bot_id=_BOT_ID,
+                    user_id=None,
+                    admit_unlinked=False,
+                )
+
+        assert "/link" in refused.value.message
+        runner_cls.return_value.execute.assert_not_called()
+
+    async def test_a_mention_in_a_room_runs_under_the_binding_too(self):
+        """The `@handle` path and the ordinary one admit the same people."""
+        creator = uuid.uuid4()
+        exposure = self._binding(creator, uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), slug="support")
+
+        with (
+            patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.channels.mentions.agent_repo") as agents,
+            patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
+            patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
+        ):
+            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.MEMBER))
+            agents.get_by_slug = AsyncMock(return_value=agent)
+            exposures.get_for_bot = AsyncMock(return_value=exposure)
+            execute = AsyncMock(return_value=("hello", MagicMock()))
+            runner_cls.return_value.execute = execute
+
+            await ChannelAgentRouter(MagicMock()).answer(
+                "@support hello",
+                platform="mattermost",
+                organization_id=exposure.organization_id,
+                bot_id=_BOT_ID,
+                user_id=None,
+                admit_unlinked=True,
+            )
+
+        assert execute.call_args.args[0].user_id == creator

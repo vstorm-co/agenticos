@@ -187,7 +187,8 @@ class ChannelMessageRouter:
             await self._send_reply(bot, incoming, exc.message)
             return
 
-        if identity.user_id is None:
+        admit_unlinked = self._admits_unlinked(incoming, bot)
+        if identity.user_id is None and not admit_unlinked:
             await self._send_reply(bot, incoming, await self._invite_to_link(incoming, db))
             return
 
@@ -214,7 +215,7 @@ class ChannelMessageRouter:
         directory = self._channel_directory(bot, incoming)
 
         if await self._answer_mention(
-            incoming, bot, identity, session, db, live, handle, directory
+            incoming, bot, identity, session, db, live, handle, directory, admit_unlinked
         ):
             return
 
@@ -232,6 +233,8 @@ class ChannelMessageRouter:
                 organization_id=bot.organization_id,
                 bot_id=bot.id,
                 user_id=identity.user_id,
+                channel_identity_id=identity.id,
+                admit_unlinked=admit_unlinked,
                 conversation_id=session.conversation_id,
                 platform_chat_id=incoming.platform_chat_id,
                 channel_directory=directory,
@@ -323,6 +326,7 @@ class ChannelMessageRouter:
         live: LiveReply | None,
         handle: str | None,
         directory: BoundChannelDirectory | None,
+        admit_unlinked: bool,
     ) -> bool:
         """Answer `@handle …` with that agent, and report whether we did.
 
@@ -331,10 +335,10 @@ class ChannelMessageRouter:
         agent always wins: someone who typed a handle asked for that agent, and
         silently answering as something else is worse than not answering.
 
-        A refusal - unlinked account, unknown handle, an agent they cannot see,
-        an agent nobody exposed on this bot - is reported to the sender and still
-        counts as handled. Falling through to the default assistant would answer
-        a question that was not asked.
+        A refusal - an unnamed sender in a private chat, an unknown handle, an
+        agent they cannot see, an agent nobody exposed on this bot - is reported
+        to the sender and still counts as handled. Falling through to the default
+        assistant would answer a question that was not asked.
         """
         files, file_refusals = await self._receive_files(db, bot, incoming, identity)
         try:
@@ -344,6 +348,8 @@ class ChannelMessageRouter:
                 organization_id=bot.organization_id,
                 bot_id=bot.id,
                 user_id=identity.user_id,
+                channel_identity_id=identity.id,
+                admit_unlinked=admit_unlinked,
                 conversation_id=session.conversation_id,
                 platform_chat_id=incoming.platform_chat_id,
                 channel_directory=directory,
@@ -458,6 +464,29 @@ class ChannelMessageRouter:
                     )
                 )
         # "open" and "jwt_linked" pass through here; jwt_linked is enforced at identity resolution
+
+    def _admits_unlinked(self, incoming: IncomingMessage, bot: Any) -> bool:
+        """Whether somebody with no linked account may be answered here.
+
+        In a room, yes. Somebody with the rights to invite the bot put it in a
+        channel, and the people in that channel are the audience that invitation
+        chose - so the turn runs under the binding's creator and the chat account
+        is recorded on the run. Requiring each of them to open a direct message
+        and click a link first made a channel a dead end: the refusal cannot
+        carry the link, because the link is a bearer credential and everybody in
+        the channel can read it (#639).
+
+        In a direct message, no. It is a conversation with one person, the link
+        is safe to send, and the account it connects is the point of it.
+
+        `require_link` is the way back to refusing both, and this is what makes
+        it mean anything: it sat in the default policy, the schema, the CLI and
+        the dashboard while the gate it was meant to control refused everybody
+        regardless.
+        """
+        if incoming.chat_type == "private":
+            return False
+        return not bool(self._parse_policy(bot).get("require_link", False))
 
     async def _invite_to_link(self, incoming: IncomingMessage, db: Any) -> str:
         """What to answer somebody whose chat account is nobody's yet.
