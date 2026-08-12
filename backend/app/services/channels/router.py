@@ -187,10 +187,25 @@ class ChannelMessageRouter:
             logger.debug("Bot %s not found or inactive - ignoring", incoming.bot_id)
             return
 
+        if self._is_overheard(incoming):
+            # Decided before anything is created or refused, not after. A bot in a
+            # channel hears every post, so a refusal - a whitelist that does not
+            # list the speaker, a jwt bot they have not linked to - posted before
+            # this check talked over two colleagues, message after message, for
+            # exactly the policies meant to narrow access; and an identity row was
+            # minted for every bystander the bot would never answer. A message
+            # naming a handle is not overheard even here - whether that handle is
+            # ours is `_answer_mention`'s to judge, and its refusal stays its own.
+            logger.debug(
+                "channel_message_not_addressed",
+                extra={"platform": incoming.platform, "bot_id": incoming.bot_id},
+            )
+            return
+
         try:
             self._check_access(incoming, bot)
         except AuthorizationError as exc:
-            await self._send_reply(bot, incoming, exc.message)
+            await self._refuse_if_named(bot, incoming, exc.message)
             return
 
         command_reply = await self._handle_command(incoming.text, incoming, bot, db)
@@ -201,17 +216,7 @@ class ChannelMessageRouter:
         try:
             identity = await self._resolve_identity(incoming, bot, db)
         except AuthorizationError as exc:
-            await self._send_reply(bot, incoming, exc.message)
-            return
-
-        if self._is_overheard(incoming):
-            # Not a refusal and not an error: nobody asked. A bot sitting in a
-            # channel hears everything said in it, and answering all of it is the
-            # difference between a colleague and an interruption.
-            logger.debug(
-                "channel_message_not_addressed",
-                extra={"platform": incoming.platform, "bot_id": incoming.bot_id},
-            )
+            await self._refuse_if_named(bot, incoming, exc.message)
             return
 
         admit_unlinked = self._admits_unlinked(incoming, bot)
@@ -800,6 +805,24 @@ class ChannelMessageRouter:
             )
 
         return LiveReply(push), handle
+
+    async def _refuse_if_named(self, bot: Any, incoming: IncomingMessage, message: str) -> None:
+        """Post a refusal only where the bot was actually addressed.
+
+        In a channel the bot is one member of many, so a refusal to a message
+        that named it belongs on screen - but a refusal to a message that named a
+        colleague, or named nobody, is the interruption the overheard gate exists
+        to stop, arriving through the refusal rather than the answer.
+        `_answer_mention` already keeps its unknown-handle refusal to itself for
+        this reason; an access or identity refusal takes the same rule.
+        """
+        if self._names_the_bot(incoming):
+            await self._send_reply(bot, incoming, message)
+        else:
+            logger.info(
+                "channel_refusal_not_addressed",
+                extra={"platform": incoming.platform, "bot_id": incoming.bot_id},
+            )
 
     async def _send_reply(
         self,

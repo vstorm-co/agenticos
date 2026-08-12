@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -89,6 +90,40 @@ class TestWhetherAMessageWasMeantForTheBot:
         assert ChannelMessageRouter._names_the_bot(_incoming(addressed=True)) is True
         assert ChannelMessageRouter._names_the_bot(_incoming(addressed=None)) is True
         assert ChannelMessageRouter._names_the_bot(_incoming(addressed=False)) is False
+
+
+class TestARefusalStaysOutOfARoomItWasNotAddressedIn:
+    """The whitelist bot that talked over the channel (agenticos#634, the second
+    time). A refusal - the whitelist not listing the speaker, a jwt bot they have
+    not linked to - posted to a message that named a colleague, or named nobody,
+    is the same interruption as answering one. So it is logged, not sent, unless
+    the bot itself was named - the rule `_answer_mention` already applies to an
+    unknown handle, now applied to the access and identity refusals too.
+    """
+
+    async def test_a_refusal_to_an_unaddressed_channel_message_is_not_posted(self):
+        router = ChannelMessageRouter()
+        router._send_reply = AsyncMock()
+
+        await router._refuse_if_named(MagicMock(), _incoming(addressed=False), "denied")
+
+        router._send_reply.assert_not_awaited()
+
+    async def test_a_refusal_in_a_direct_message_is_posted(self):
+        router = ChannelMessageRouter()
+        router._send_reply = AsyncMock()
+
+        await router._refuse_if_named(MagicMock(), _incoming(chat_type="private"), "denied")
+
+        router._send_reply.assert_awaited_once()
+
+    async def test_a_refusal_to_a_message_that_named_the_bot_is_posted(self):
+        router = ChannelMessageRouter()
+        router._send_reply = AsyncMock()
+
+        await router._refuse_if_named(MagicMock(), _incoming(addressed=True), "denied")
+
+        router._send_reply.assert_awaited_once()
 
 
 class TestReadingMattermostsOwnMentionList:
