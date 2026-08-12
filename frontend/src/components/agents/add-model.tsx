@@ -32,6 +32,20 @@ interface AddModelProps {
   /** Called with the new model once it exists, so the picker can select it. */
   onCreated: (profile: ModelProfile) => void;
   /**
+   * The model the agent runs on today, which this form *starts on*.
+   *
+   * So the two selects say what is in use rather than "Choose a provider" above a
+   * separate line repeating it. There used to be such a line, and with the labels
+   * derived the way they are it read the model twice - but the deeper problem was
+   * that the panel showed the answer in one place and asked the question in
+   * another, when they are the same two fields.
+   *
+   * Its own state either way: this is still the form that *changes* the model, so
+   * editing it must not write anything until somebody submits. The caller remounts
+   * on a change of selection - see the `key` in `ModelProfilePicker`.
+   */
+  selected?: ModelProfile;
+  /**
    * The way out, where there is one.
    *
    * Omitted when this form is the panel rather than a state of it - the Builder
@@ -112,13 +126,13 @@ export function modelIdIsWellFormed(providerId: string, model: string): boolean 
   return providerId !== "openrouter" || model.includes("/");
 }
 
-export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
+export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelProps) {
   const t = useTranslations("agents");
   // Root, for the absolute keys `modelPlaceholder` answers with - see the note on
   // `placeholderWords`. The chat's picker resolves the same keys from its own
   // namespace, so they cannot be relative to either caller's.
   const tRoot = useTranslations();
-  const { createProfile, catalog } = useModelProviders();
+  const { createProfile, catalog, profiles } = useModelProviders();
   const { purposes } = useSecretPurposes();
   const { secrets } = useSecrets();
   const { can } = usePermissions();
@@ -129,11 +143,11 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
   // control.
   const canStoreKey = can(Perm.secretsEdit);
 
-  const [providerId, setProviderId] = useState("");
-  const [model, setModel] = useState("");
+  const [providerId, setProviderId] = useState(selected?.provider ?? "");
+  const [model, setModel] = useState(selected?.model ?? "");
   const [label, setLabel] = useState("");
-  const [secretId, setSecretId] = useState("");
-  const [baseUrl, setBaseUrl] = useState("");
+  const [secretId, setSecretId] = useState(selected?.secret_id ?? "");
+  const [baseUrl, setBaseUrl] = useState(selected?.base_url ?? "");
   const [failure, setFailure] = useState<string | null>(null);
   const [naming, setNaming] = useState(false);
 
@@ -162,16 +176,31 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
   const derivedLabel =
     provider && model.trim() ? `${provider.label} · ${model.trim()}` : t("howAgentsReferModel");
 
+  // The profile this provider and model already are, if the organization has one.
+  // What makes the form safe to pre-fill: submitting an unchanged selection selects
+  // it again rather than minting a second row that says the same thing, which is
+  // the same rule the chat's picker applies for the same reason.
+  const already =
+    provider === undefined
+      ? undefined
+      : profiles.find((one) => one.provider === provider.id && one.model === model.trim());
+
   const canSubmit =
     provider !== undefined &&
     model.trim() !== "" &&
-    (chosenKey !== "" || keyOptional) &&
+    // A model the organization already has needs no key decision: it has whatever
+    // it was created with, and this submit only selects it.
+    (already !== undefined || chosenKey !== "" || keyOptional) &&
     modelIdIsWellFormed(provider.id, model.trim());
 
   const submit = async () => {
     /* v8 ignore next -- the id comes from the list this select was built from */
     if (provider === undefined) return;
     setFailure(null);
+    if (already !== undefined) {
+      onCreated(already);
+      return;
+    }
     try {
       const profile = await createProfile.mutateAsync({
         label: label.trim() || `${provider.label} · ${model.trim()}`,
@@ -394,8 +423,8 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
           disabled={disabled || !canSubmit || createProfile.isPending}
           onClick={submit}
         >
-          <Plus className="h-4 w-4" />
-          {t("addModel")}
+          {already === undefined && <Plus className="h-4 w-4" />}
+          {already === undefined ? t("addModel") : t("useThisModel")}
         </Button>
         {onCancel && (
           <Button type="button" size="sm" variant="ghost" onClick={onCancel}>

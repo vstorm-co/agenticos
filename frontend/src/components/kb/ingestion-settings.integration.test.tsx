@@ -210,12 +210,15 @@ describe("the model that describes the images", () => {
     expect(within(current).getByText("no key")).toBeInTheDocument();
   });
 
-  it("drops the badge once the model is keyed", async () => {
+  it("says nothing at all once the model is keyed", async () => {
+    // The warning is the whole row, not a badge inside one: a line that says
+    // "everything is fine" above a form that already names the provider and the
+    // model is the redundancy this panel lost.
     state.profiles = [profile({ secret_id: "s-1" })];
     show("p1");
 
-    const current = await screen.findByRole("group", { name: "Current model" });
-    expect(within(current).queryByText("no key")).toBeNull();
+    await waitFor(() => expect(screen.getByRole("radio", { name: "vision" })).toBeInTheDocument());
+    expect(screen.queryByRole("group", { name: "Current model" })).toBeNull();
   });
 
   it("offers no form to somebody who may edit the collection but not add a model", async () => {

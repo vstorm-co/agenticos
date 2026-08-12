@@ -115,19 +115,13 @@ export function ModelProfilePicker({
     </div>
   );
 
-  // What this runs on today, stated above whatever would change it: the form
-  // where there is one, the list where there is not. It is the fact somebody
-  // opens this panel to check, and in a list of a dozen saved models the chosen
-  // one's `no key` badge is a badge among twelve - which of them is chosen is
-  // what decides whether anything runs at all.
+  // What this runs on today, for the panel that has no form to say it in - see the
+  // note on `AddModel.selected` for why the add-capable one says it in the two
+  // fields instead. Named visibly, because the same label appears again in the list
+  // below and nothing else here would tell "what this agent runs on" apart from
+  // "one of the options".
   const current = selected ? (
     <div
-      // Named *visibly*, because the same label appears again in the saved-model
-      // list below and nothing else here distinguishes "what this agent runs on"
-      // from "one of the options". It used to be distinguishable only by
-      // accident: the strip printed `provider · model` after a label that
-      // already was `provider · model`, so it read differently by reading the
-      // model twice.
       role="group"
       aria-labelledby={captionId}
       className="border-border bg-muted/20 flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2"
@@ -145,6 +139,27 @@ export function ModelProfilePicker({
       {!selected.secret_id && <Badge variant="destructive">{t("noKey")}</Badge>}
     </div>
   ) : null;
+
+  // The one fact the form cannot carry, on the panel that has a form. The form
+  // reports the key it *would* use for a provider; whether the profile currently
+  // selected has one is a different question, and it is the question that decides
+  // whether anything runs at all. So it appears only when the answer is no - a row
+  // that says "everything is fine" is the redundancy this panel was asked to lose.
+  const unusable =
+    selected && !selected.secret_id ? (
+      <div
+        role="group"
+        aria-labelledby={captionId}
+        className="border-destructive/40 bg-destructive/5 flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2"
+      >
+        <span id={captionId} className="text-muted-foreground text-xs">
+          {t("currentModel")}
+        </span>
+        <ProviderIcon provider={selected.provider} />
+        <span className="min-w-0 flex-1 truncate text-sm font-medium">{selected.label}</span>
+        <Badge variant="destructive">{t("noKey")}</Badge>
+      </div>
+    ) : null;
 
   // A panel that only chooses between what exists is the list, and the line
   // saying which of them is in use.
@@ -167,14 +182,21 @@ export function ModelProfilePicker({
 
   return (
     <div className="space-y-3">
-      {current}
+      {unusable}
 
-      {/* Provider, model and key, always. Choosing a model is picking those three
-          things; the named profile is a consequence of the choice rather than the
-          way it is made, and a list of previous consequences is not where anybody
-          starts. It stays reachable below, because rotating a key or repointing
-          every agent at once is exactly what a named profile is for. */}
+      {/* Provider, model and key, always - and starting on the model in use, so the
+          panel says what that is in the same two fields that change it rather than
+          in a line above them. Choosing a model *is* picking those three things; the
+          named profile is a consequence of the choice rather than the way it is
+          made. It stays reachable below, because rotating a key or repointing every
+          agent at once is exactly what a named profile is for.
+
+          Keyed on the selection so the fields follow it: picking a saved model from
+          the disclosure below has to move them, and derived state that only reads
+          its prop once would leave them on whatever was selected at mount. */}
       <AddModel
+        key={value ?? "none"}
+        selected={selected}
         disabled={disabled}
         onCreated={(profile) => {
           // Selected, not merely added: somebody who came here to choose a

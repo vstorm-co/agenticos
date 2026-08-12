@@ -22,10 +22,23 @@ vi.mock("@/hooks", () => ({ useModelProviders: () => ({ deleteProfile }) }));
 // `add-model.integration.test.tsx`. What this panel owes it is the callback: a
 // model created here is also the model the agent moves onto.
 vi.mock("@/components/agents/add-model", () => ({
-  AddModel: ({ onCreated }: { onCreated: (profile: { id: string }) => void }) => (
-    <button type="button" onClick={() => onCreated({ id: "p-new" })}>
-      Add model
-    </button>
+  // The real form is a provider, a model id and a key from the vault, tested in
+  // `add-model.integration.test.tsx` - including that it starts on the model in
+  // use. What this panel owes it is the callback and that model, so the stand-in
+  // prints which one it was handed.
+  AddModel: ({
+    onCreated,
+    selected,
+  }: {
+    onCreated: (profile: { id: string }) => void;
+    selected?: { label: string };
+  }) => (
+    <>
+      <button type="button" onClick={() => onCreated({ id: "p-new" })}>
+        Add model
+      </button>
+      <span data-testid="form-starts-on">{selected?.label ?? "nothing"}</span>
+    </>
   ),
 }));
 
@@ -88,13 +101,31 @@ describe("ModelProfilePicker", () => {
     expect(screen.getByText("Use a saved model (1)")).toBeInTheDocument();
   });
 
-  it("states which model the agent is on above the form that would change it", () => {
-    // The form being the default view puts the one fact somebody opens this
-    // panel to check at risk of being the only thing behind a disclosure.
+  it("starts the form on the model the agent is on", () => {
+    // The panel used to answer "which model" in a line above the form and ask it in
+    // the form's two fields, which are the same question - so the fields said
+    // "Choose a provider" over a line naming the provider. They start on it now.
+    mount({ allowAdd: true, value: "p1", profiles: [profile({ secret_id: "s-1" })] });
+
+    expect(screen.getByTestId("form-starts-on")).toHaveTextContent("openai default");
+    expect(screen.queryByRole("group", { name: "Current model" })).toBeNull();
+  });
+
+  it("says so when the model it is on cannot run at all", () => {
+    // The one fact the form cannot carry: it reports the key it *would* use for a
+    // provider, and whether the selected profile has one is a different question -
+    // the one that decides whether anything runs.
     mount({ allowAdd: true, value: "p1" });
 
-    const current = screen.getByRole("group", { name: "Current model" });
-    expect(within(current).getByText("openai default")).toBeInTheDocument();
+    const warning = screen.getByRole("group", { name: "Current model" });
+    expect(within(warning).getByText("openai default")).toBeInTheDocument();
+    expect(within(warning).getByText("no key")).toBeInTheDocument();
+  });
+
+  it("starts it on nothing where the agent is on nothing", () => {
+    mount({ allowAdd: true, value: null });
+
+    expect(screen.getByTestId("form-starts-on")).toHaveTextContent("nothing");
   });
 
   it("says a model has no key wherever it is shown", () => {
@@ -206,21 +237,22 @@ describe("ModelProfilePicker", () => {
     expect(screen.queryByText("no key")).toBeNull();
   });
 
-  it("says the current model has no key, where the agent's own line is", () => {
-    mount({ allowAdd: true, value: "p1" });
+  it("says a model has no key on the row that offers it", () => {
+    // On every row of the list, whichever panel it is: which of a dozen saved models
+    // can run is a question about all of them.
+    mount({ allowAdd: true, value: null });
 
-    const current = screen.getByRole("group", { name: "Current model" });
-    expect(within(current).getByText("no key")).toBeInTheDocument();
+    expect(screen.getByText("no key")).toBeInTheDocument();
   });
 
   it("says what the agent runs on once", () => {
     // A label is derived from the provider and the model unless somebody typed
     // their own, so appending `provider · model` after it read
-    // `OpenRouter · openai/gpt-5.5 openrouter · openai/gpt-5.5` - on the strip
-    // and on every row of the saved list.
+    // `OpenRouter · openai/gpt-5.5 openrouter · openai/gpt-5.5` - on the strip the
+    // choose-only panel still has, and on every row of the saved-model list.
     const derived = profile({ label: "OpenRouter · openai/gpt-5.5", provider: "openrouter" });
 
-    mount({ allowAdd: true, value: "p1", profiles: [derived] });
+    mount({ value: "p1", profiles: [derived] });
 
     const current = screen.getByRole("group", { name: "Current model" });
     expect(within(current).getByText("OpenRouter · openai/gpt-5.5")).toBeInTheDocument();
@@ -230,7 +262,7 @@ describe("ModelProfilePicker", () => {
   it("still names the model where the label does not", () => {
     // The other half: a name somebody chose says nothing about what runs, and
     // dropping the technical line for every profile would lose that.
-    mount({ allowAdd: true, value: "p1", profiles: [profile({ label: "the cheap one" })] });
+    mount({ value: "p1", profiles: [profile({ label: "the cheap one" })] });
 
     const current = screen.getByRole("group", { name: "Current model" });
     expect(within(current).getByText("openai · gpt-4.1")).toBeInTheDocument();
