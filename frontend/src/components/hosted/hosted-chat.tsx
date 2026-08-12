@@ -244,6 +244,15 @@ function suppliedFromUrl(allowed: string[]): Record<string, string> {
  */
 export function HostedChat({ config }: { config: HostedPageConfig }) {
   const t = useTranslations("hosted");
+  // Same origin, not the address the API gave. `img-src 'self' blob: data: https:`
+  // excludes an API on plain `http`, which is every development checkout and any
+  // deployment that terminates TLS elsewhere - so the header and every turn's
+  // gutter rendered a broken-image glyph with nothing saying why. `logo_url` stays
+  // the answer to *whether* there is one: the reasons there might not be - `none`
+  // chosen, `custom` with nothing uploaded, an avatar whose file has gone - are the
+  // backend's to know, and it already decided them.
+  const logoSrc =
+    config.logo_url === null ? null : `/api/embed/${encodeURIComponent(config.public_key)}/logo`;
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState("");
   const [thinking, setThinking] = useState(false);
@@ -399,12 +408,12 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
   return (
     <div className="mx-auto flex h-dvh max-w-3xl flex-col px-4">
       <header className="flex items-center gap-3 border-b py-4">
-        {config.logo_url !== null && (
-          // A plain `<img>`, not `next/image`: the file is served by the API,
-          // whose host is not in `next.config` remote patterns - and must not have
-          // to be for a self-hosted deployment to render its own logo.
+        {logoSrc !== null && (
+          // A plain `<img>`, not `next/image`: the route below is a proxy, and
+          // `next/image` would want it in `next.config` remote patterns - which it
+          // must not need to be for a self-hosted deployment to render its own logo.
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={config.logo_url} alt="" className="h-8 w-8 rounded-md object-cover" />
+          <img src={logoSrc} alt="" className="h-8 w-8 rounded-md object-cover" />
         )}
         <h1 className="flex-1 text-lg font-semibold">{config.title}</h1>
         {config.allow_new_conversation && (
@@ -420,7 +429,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
           <p className="text-muted-foreground text-sm whitespace-pre-wrap">{config.welcome}</p>
         )}
         {turns.map((turn, index) => (
-          <HostedTurn key={index} turn={turn} config={config} />
+          <HostedTurn key={index} turn={turn} logoSrc={logoSrc} />
         ))}
         {thinking && <p className="text-muted-foreground text-sm">{t("thinking")}</p>}
         {closed !== null && (
@@ -533,7 +542,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
  * agent name and version, no cost, no rating, no regenerate, no sources panel. See
  * `docs/channels.md` for why each of those is member-only.
  */
-function HostedTurn({ turn, config }: { turn: Turn; config: HostedPageConfig }) {
+function HostedTurn({ turn, logoSrc }: { turn: Turn; logoSrc: string | null }) {
   const isUser = turn.role === "user";
   return (
     <div
@@ -550,12 +559,12 @@ function HostedTurn({ turn, config }: { turn: Turn; config: HostedPageConfig }) 
       >
         {isUser ? (
           <User className="h-4 w-4" />
-        ) : config.logo_url !== null ? (
+        ) : logoSrc !== null ? (
           // The page's own picture, which is the closest thing this surface has to an
           // agent avatar - the authenticated avatar route is not reachable from here,
           // and the logo is the one image a hosted page may already hand out.
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={config.logo_url} alt="" className="h-full w-full object-cover" />
+          <img src={logoSrc} alt="" className="h-full w-full object-cover" />
         ) : (
           <Bot className="h-4 w-4 sm:h-5 sm:w-5" />
         )}

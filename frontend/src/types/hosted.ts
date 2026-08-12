@@ -14,6 +14,15 @@ export interface HostedPageConfig {
   /** Rendered before the first question. Never sent to the model. */
   welcome: string;
   accent: string;
+  /**
+   * Whether the page has a logo, and the API's own address for it.
+   *
+   * The page does not load *this* URL: it fetches `/api/embed/<key>/logo` on its
+   * own origin, because the CSP excludes an API on plain `http`. What this field
+   * answers is whether there is one at all - `none` chosen, `custom` with nothing
+   * uploaded, or an avatar whose file has gone are all `null`, and all of them are
+   * the backend's to decide.
+   */
   logo_url: string | null;
   agent_name: string;
   /**
