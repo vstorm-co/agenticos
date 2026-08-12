@@ -726,7 +726,7 @@ WIDGET_JS = """(function () {
       var token = window.AgenticOSToken;
       if (token) url += "?token=" + encodeURIComponent(token);
       socket = new WebSocket(url);
-      // The dashboard's own frame vocabulary, of which this reads four. A widget
+      // The dashboard's own frame vocabulary, of which this reads five. A widget
       // is a bubble in the corner of somebody else's page: an answer arriving a
       // word at a time is worth having there, and a narration of tool steps is
       // not, so `tool_call`, `tool_result` and the reasoning deltas are ignored
