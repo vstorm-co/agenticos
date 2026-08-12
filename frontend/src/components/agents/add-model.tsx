@@ -132,7 +132,7 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
   // `placeholderWords`. The chat's picker resolves the same keys from its own
   // namespace, so they cannot be relative to either caller's.
   const tRoot = useTranslations();
-  const { createProfile, catalog, profiles } = useModelProviders();
+  const { createProfile, catalog } = useModelProviders();
   const { purposes } = useSecretPurposes();
   const { secrets } = useSecrets();
   const { can } = usePermissions();
@@ -176,14 +176,24 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
   const derivedLabel =
     provider && model.trim() ? `${provider.label} · ${model.trim()}` : t("howAgentsReferModel");
 
-  // The profile this provider and model already are, if the organization has one.
-  // What makes the form safe to pre-fill: submitting an unchanged selection selects
-  // it again rather than minting a second row that says the same thing, which is
-  // the same rule the chat's picker applies for the same reason.
-  const already =
-    provider === undefined
-      ? undefined
-      : profiles.find((one) => one.provider === provider.id && one.model === model.trim());
+  // Whether the form is still showing the model it *started* on, untouched.
+  //
+  // What makes pre-filling safe: pressing the button without changing anything
+  // selects that model again rather than minting a second row saying the same
+  // thing. Narrowed to `selected` rather than "any profile with this pair", which
+  // was the first attempt and was wrong twice over. It renamed the button whenever
+  // the organization happened to already have the pair - so a flow that deliberately
+  // re-adds one found no "Add model" to press - and worse, it would then have
+  // *selected the old profile* while ignoring the endpoint, the key and the name
+  // somebody had just typed. A form with any of those filled in is creating
+  // something, whatever its first two fields say.
+  const unchanged =
+    selected !== undefined &&
+    provider?.id === selected.provider &&
+    model.trim() === selected.model &&
+    label.trim() === "" &&
+    baseUrl.trim() === (selected.base_url ?? "");
+  const already = unchanged ? selected : undefined;
 
   const canSubmit =
     provider !== undefined &&

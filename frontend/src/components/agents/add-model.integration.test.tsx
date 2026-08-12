@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -41,21 +41,13 @@ const state = {
   source: "live" as "live" | "curated" | null,
   loadingModels: false,
   createProfile: { mutateAsync: vi.fn(), isPending: false },
-  // The organization's existing models. What the form checks before creating one:
-  // submitting a provider and model it already has selects that row rather than
-  // minting a second one saying the same thing.
-  profiles: [] as { id: string; provider: string; model: string }[],
   permissions: [] as Permission[],
 };
 
 const onCreatedSecret = { handler: undefined as ((id: string) => void) | undefined };
 
 vi.mock("@/hooks", () => ({
-  useModelProviders: () => ({
-    createProfile: state.createProfile,
-    catalog: state.catalog,
-    profiles: state.profiles,
-  }),
+  useModelProviders: () => ({ createProfile: state.createProfile, catalog: state.catalog }),
   useSecretPurposes: () => ({ purposes: state.purposes }),
   useSecrets: () => ({ secrets: state.secrets }),
   useProviderModels: () => ({
@@ -131,7 +123,6 @@ beforeEach(() => {
   state.source = "live";
   state.loadingModels = false;
   state.createProfile = { mutateAsync: vi.fn().mockResolvedValue({ id: "p-1" }), isPending: false };
-  state.profiles = [];
   // The form only exists for a caller holding `connections:manage`, and most of
   // what is asserted below is about the form rather than about the vault - so
   // the default caller may also store a key, and the tests that care say so.
@@ -681,27 +672,39 @@ describe("the model the agent is already on", () => {
     // What makes pre-filling the form safe. Without it, opening the panel and
     // pressing the button would create a duplicate profile every time.
     state.secrets = [secret({ id: "s-1", purpose: "openrouter", name: "Router key" })];
-    state.profiles = [{ id: "p-1", provider: "openrouter", model: "openai/gpt-5.5" }];
-    const { onCreated } = mount({ selected: inUse() });
+    const selected = inUse();
+    const { onCreated } = mount({ selected });
 
     await userEvent.click(screen.getByRole("button", { name: "Use this model" }));
 
     expect(state.createProfile.mutateAsync).not.toHaveBeenCalled();
-    expect(onCreated).toHaveBeenCalledWith(state.profiles[0]);
+    expect(onCreated).toHaveBeenCalledWith(selected);
   });
 
-  it("says which of the two things the button will do", () => {
-    // "Add model" under a form pre-filled with the model in use is a button that
-    // reads as making a copy. A pair the organization does not have is the other
-    // way round, and there the button really does create one.
-    state.secrets = [secret({ id: "s-1", purpose: "openrouter", name: "Router key" })];
-    state.profiles = [{ id: "p-1", provider: "openrouter", model: "openai/gpt-5.5" }];
+  it("creates rather than reuses once an endpoint has been typed", async () => {
+    // The second half of the narrowing, and the one that would have been a defect
+    // rather than an annoyance: reusing here would select the old profile and throw
+    // away the endpoint somebody had just entered.
+    state.secrets = [secret({ id: "s-1", purpose: "openai", name: "OpenAI prod" })];
+    mount({ selected: inUse({ provider: "openai", model: "gpt-5", base_url: null }) });
 
+    await userEvent.type(screen.getByLabelText("Endpoint"), "http://localhost:11434/v1");
+
+    expect(screen.getByRole("button", { name: "Add model" })).toBeInTheDocument();
+  });
+
+  it("says which of the two things the button will do", async () => {
+    // "Add model" under a form pre-filled with the model in use is a button that
+    // reads as making a copy. Touch anything and it is creating one again - which is
+    // the narrowing that matters: a form carrying a name or an endpoint somebody
+    // typed is making something new whatever its first two fields say.
+    state.secrets = [secret({ id: "s-1", purpose: "openrouter", name: "Router key" })];
     mount({ selected: inUse() });
     expect(screen.getByRole("button", { name: "Use this model" })).toBeInTheDocument();
 
-    cleanup();
-    mount({ selected: inUse({ model: "openai/gpt-5.6" }) });
+    await userEvent.click(screen.getByRole("button", { name: "Name it something else" }));
+    await userEvent.type(screen.getByLabelText("Name"), "the cheap one");
+
     expect(screen.getByRole("button", { name: "Add model" })).toBeInTheDocument();
   });
 
@@ -709,7 +712,6 @@ describe("the model the agent is already on", () => {
     // It has whatever it was created with. Requiring one again would make the
     // panel unusable for a provider whose key somebody else stored.
     state.secrets = [];
-    state.profiles = [{ id: "p-1", provider: "openrouter", model: "openai/gpt-5.5" }];
     mount({ selected: inUse() });
 
     expect(screen.getByRole("button", { name: "Use this model" })).toBeEnabled();

@@ -105,21 +105,22 @@ describe("ModelProfilePicker", () => {
     // The panel used to answer "which model" in a line above the form and ask it in
     // the form's two fields, which are the same question - so the fields said
     // "Choose a provider" over a line naming the provider. They start on it now.
-    mount({ allowAdd: true, value: "p1", profiles: [profile({ secret_id: "s-1" })] });
-
-    expect(screen.getByTestId("form-starts-on")).toHaveTextContent("openai default");
-    expect(screen.queryByRole("group", { name: "Current model" })).toBeNull();
-  });
-
-  it("says so when the model it is on cannot run at all", () => {
-    // The one fact the form cannot carry: it reports the key it *would* use for a
-    // provider, and whether the selected profile has one is a different question -
-    // the one that decides whether anything runs.
     mount({ allowAdd: true, value: "p1" });
 
-    const warning = screen.getByRole("group", { name: "Current model" });
-    expect(within(warning).getByText("openai default")).toBeInTheDocument();
-    expect(within(warning).getByText("no key")).toBeInTheDocument();
+    expect(screen.getByTestId("form-starts-on")).toHaveTextContent("openai default");
+  });
+
+  it("names the model in use without repeating what the fields say", () => {
+    // The line survives because it answers *which named profile* is in use, which
+    // the two fields cannot - they carry the provider and the model id. What it no
+    // longer carries is that pair, which is what made it read the model twice.
+    const derived = profile({ label: "OpenRouter · openai/gpt-5.5", provider: "openrouter" });
+
+    mount({ allowAdd: true, value: "p1", profiles: [derived] });
+
+    const current = screen.getByRole("group", { name: "Current model" });
+    expect(within(current).getByText("OpenRouter · openai/gpt-5.5")).toBeInTheDocument();
+    expect(within(current).queryByText(/openrouter · openai\/gpt-5\.5/)).toBeNull();
   });
 
   it("starts it on nothing where the agent is on nothing", () => {
@@ -237,12 +238,11 @@ describe("ModelProfilePicker", () => {
     expect(screen.queryByText("no key")).toBeNull();
   });
 
-  it("says a model has no key on the row that offers it", () => {
-    // On every row of the list, whichever panel it is: which of a dozen saved models
-    // can run is a question about all of them.
-    mount({ allowAdd: true, value: null });
+  it("says the model in use has no key, which is what decides whether it runs", () => {
+    mount({ allowAdd: true, value: "p1" });
 
-    expect(screen.getByText("no key")).toBeInTheDocument();
+    const current = screen.getByRole("group", { name: "Current model" });
+    expect(within(current).getByText("no key")).toBeInTheDocument();
   });
 
   it("says what the agent runs on once", () => {
@@ -259,13 +259,13 @@ describe("ModelProfilePicker", () => {
     expect(within(current).queryByText(/openrouter · openai\/gpt-5\.5/)).toBeNull();
   });
 
-  it("still names the model where the label does not", () => {
-    // The other half: a name somebody chose says nothing about what runs, and
-    // dropping the technical line for every profile would lose that.
+  it("still names the model where the label does not, on the row that offers it", () => {
+    // The other half of `modelDetail`: a name somebody chose says nothing about what
+    // runs. It is the *list* that carries it now - the line above the form carries
+    // the name, and the form's own fields carry the pair.
     mount({ value: "p1", profiles: [profile({ label: "the cheap one" })] });
 
-    const current = screen.getByRole("group", { name: "Current model" });
-    expect(within(current).getByText("openai · gpt-4.1")).toBeInTheDocument();
+    expect(screen.getByText("openai · gpt-4.1")).toBeInTheDocument();
   });
 
   it("names what the agent runs on rather than relying on it reading differently", () => {

@@ -85,7 +85,6 @@ export function ModelProfilePicker({
   const t = useTranslations("agents");
   const { deleteProfile } = useModelProviders();
   const selected = profiles.find((profile) => profile.id === value);
-  const detail = selected ? modelDetail(selected) : null;
   // Generated rather than a constant: the Builder and a dialog can both have a
   // picker mounted, and two elements answering to one id makes the second group's
   // accessible name the first one's caption.
@@ -115,11 +114,15 @@ export function ModelProfilePicker({
     </div>
   );
 
-  // What this runs on today, for the panel that has no form to say it in - see the
-  // note on `AddModel.selected` for why the add-capable one says it in the two
-  // fields instead. Named visibly, because the same label appears again in the list
-  // below and nothing else here would tell "what this agent runs on" apart from
-  // "one of the options".
+  // Which of the organization's models this agent runs on, by name.
+  //
+  // **The name and nothing else**, which is the whole history of this line: it used
+  // to print `provider · model` after a label that already *was* `provider · model`,
+  // so it read the pair twice. Then it was deleted, and four things turned out to be
+  // reading it - three journeys and the knowledge-base dialog's "this model cannot
+  // run" - because it is the only place that answers *which named profile* is in
+  // use. The two fields below answer the technical pair; this answers the name, and
+  // between them nothing is said twice.
   const current = selected ? (
     <div
       role="group"
@@ -130,36 +133,12 @@ export function ModelProfilePicker({
         {t("currentModel")}
       </span>
       <ProviderIcon provider={selected.provider} />
-      <span className="min-w-0 flex-1 truncate text-sm">
-        <span className="font-medium">{selected.label}</span>
-        {detail !== null && (
-          <span className="text-muted-foreground font-mono text-xs"> {detail}</span>
-        )}
-      </span>
+      <span className="min-w-0 flex-1 truncate text-sm font-medium">{selected.label}</span>
+      {/* The badge that decides whether the agent can run at all. In a list of a
+          dozen saved models the chosen one's badge is a badge among twelve. */}
       {!selected.secret_id && <Badge variant="destructive">{t("noKey")}</Badge>}
     </div>
   ) : null;
-
-  // The one fact the form cannot carry, on the panel that has a form. The form
-  // reports the key it *would* use for a provider; whether the profile currently
-  // selected has one is a different question, and it is the question that decides
-  // whether anything runs at all. So it appears only when the answer is no - a row
-  // that says "everything is fine" is the redundancy this panel was asked to lose.
-  const unusable =
-    selected && !selected.secret_id ? (
-      <div
-        role="group"
-        aria-labelledby={captionId}
-        className="border-destructive/40 bg-destructive/5 flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2"
-      >
-        <span id={captionId} className="text-muted-foreground text-xs">
-          {t("currentModel")}
-        </span>
-        <ProviderIcon provider={selected.provider} />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium">{selected.label}</span>
-        <Badge variant="destructive">{t("noKey")}</Badge>
-      </div>
-    ) : null;
 
   // A panel that only chooses between what exists is the list, and the line
   // saying which of them is in use.
@@ -182,7 +161,7 @@ export function ModelProfilePicker({
 
   return (
     <div className="space-y-3">
-      {unusable}
+      {current}
 
       {/* Provider, model and key, always - and starting on the model in use, so the
           panel says what that is in the same two fields that change it rather than
