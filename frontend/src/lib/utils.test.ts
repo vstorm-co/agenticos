@@ -163,9 +163,9 @@ describe("timeAgo", () => {
   // The real messages, so a broken ICU plural fails here rather than on screen.
   const t = createTranslator({ locale: "en", messages: en, namespace: "time" }) as Translate;
 
-  function at(iso: string): string {
+  function at(iso: string, locale = "en"): string {
     vi.useFakeTimers({ now: NOW });
-    return timeAgo(iso, t);
+    return timeAgo(iso, t, locale);
   }
 
   it("reads the last minute as just now", () => {
@@ -181,6 +181,12 @@ describe("timeAgo", () => {
   it("falls back to a date once a week has passed", () => {
     // "9d ago" tells nobody anything they could act on.
     expect(at("2026-07-01T12:00:00Z")).toBe("Jul 1");
+  });
+
+  it("formats the fallback date in the active locale, not en-US", () => {
+    // Month name and day-month order come from the runtime, so the locale has
+    // to reach the formatter - under `pl` this read "Jul 1" before #621.
+    expect(at("2026-07-01T12:00:00Z", "pl")).toBe("1 lip");
   });
 
   it("says nothing for a date it cannot read or one in the future", () => {

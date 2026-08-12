@@ -23,7 +23,7 @@ import { apiClient } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
 import { qk } from "@/lib/query-keys";
 import { formatDate, timeAgo } from "@/lib/utils";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import type { AdminOrganization, AdminStats } from "@/types/admin";
 
@@ -44,6 +44,7 @@ const EVENT_ICON: Record<RecentEvent["type"], LucideIcon> = {
 export default function AdminOverviewPage() {
   const t = useTranslations("pages.admin");
   const tTime = useTranslations("time");
+  const locale = useLocale();
   const statsQuery = useQuery({
     queryKey: ["admin", "stats"],
     queryFn: async (): Promise<AdminStats> => {
@@ -257,7 +258,7 @@ export default function AdminOverviewPage() {
                     <p className="text-muted-foreground truncate text-xs">
                       {e.description}
                       {e.description && " · "}
-                      {timeAgo(e.timestamp, tTime)}
+                      {timeAgo(e.timestamp, tTime, locale)}
                     </p>
                   </div>
                 </li>
