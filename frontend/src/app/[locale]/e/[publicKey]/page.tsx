@@ -40,7 +40,15 @@ const fetchHostedConfig = cache(async (publicKey: string): Promise<HostedPageCon
   const response = await fetch(`${baseUrl}/api/v1/embed/${encodeURIComponent(publicKey)}/hosted`, {
     cache: "no-store",
   });
-  if (!response.ok) return null;
+  // 404 is the only "there is no such page" answer, and the only one that should
+  // become a 404 for the visitor. A 5xx - a backend restarting mid-deploy, a
+  // 429 on the per-page limit - is not the page being gone, so it throws and the
+  // error boundary renders rather than telling an operator their link is dead.
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    // i18n-exempt: an Error message for the boundary and the logs, never rendered copy.
+    throw new Error(`Hosted page config request failed with ${response.status}`);
+  }
   const config = (await response.json()) as Omit<HostedPageConfig, "public_key">;
   return { ...config, public_key: publicKey };
 });
