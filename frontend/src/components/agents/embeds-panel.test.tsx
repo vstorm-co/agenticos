@@ -395,7 +395,7 @@ describe("publishing a widget", () => {
     render(<EmbedsPanel agentId="a-1" canManage />);
     await pick("widget");
 
-    const swatch = document.getElementById("embed-accent") as HTMLInputElement;
+    const swatch = document.getElementById("widget-accent") as HTMLInputElement;
     fireEvent.change(swatch, { target: { value: "#00ff00" } });
     await userEvent.type(screen.getByLabelText("Allowed sites"), "https://acme.com");
     await userEvent.click(screen.getByRole("button", { name: "Publish" }));
@@ -478,7 +478,7 @@ describe("publishing a raw socket", () => {
     await pick("socket");
 
     expect(screen.getByLabelText("Allowed sites")).toBeInTheDocument();
-    expect(document.getElementById("embed-accent")).toBeNull();
+    expect(document.getElementById("widget-accent")).toBeNull();
   });
 
   it("says a client of one's own sends no Origin unless it sets one", async () => {

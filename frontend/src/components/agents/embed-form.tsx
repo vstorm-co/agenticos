@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 
 import { EmbedVariables } from "@/components/agents/embed-variables";
 import { PageFields } from "@/components/agents/page-fields";
+import { WidgetFields } from "@/components/agents/widget-fields";
 import {
   Button,
   Input,
@@ -114,29 +115,11 @@ export function EmbedForm({
           />
           <p className="text-muted-foreground text-xs">{t("youNotVisitorsWhich")}</p>
         </div>
-        {config.kind === "widget" && (
-          <div className="space-y-2">
-            <Label htmlFor="embed-accent">{t("accentColour")}</Label>
-            <div className="flex items-center gap-2">
-              <input
-                id="embed-accent"
-                type="color"
-                value={config.accent}
-                disabled={pending}
-                onChange={(event) => setConfig({ ...config, accent: event.target.value })}
-                className="border-input h-9 w-12 cursor-pointer rounded-md border bg-transparent"
-              />
-              <Input
-                value={config.accent}
-                disabled={pending}
-                onChange={(event) => setConfig({ ...config, accent: event.target.value })}
-                className="font-mono"
-                aria-label={t("accentColour")}
-              />
-            </div>
-          </div>
-        )}
       </div>
+
+      {config.kind === "widget" && (
+        <WidgetFields config={config} disabled={pending} onChange={setConfig} />
+      )}
 
       {needsOrigins && (
         <div className="space-y-2">

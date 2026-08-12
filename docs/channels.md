@@ -71,7 +71,10 @@ In the Builder, open the agent → **Availability** → *Website widget*. You ch
   checked against the same list.
 - **Auth** — `public` (anonymous visitors) or `jwt` (your backend vouches for
   each visitor; see below).
-- **Look** — title, greeting, accent colour, which corner.
+- **Look** — the header and the line under it, the greeting, what the empty box
+  says, what the launcher button says, the accent colour and which corner it sits
+  in. All seven, and the greeting is drawn by the widget rather than sent to the
+  model: a greeting in the model's history is a turn the agent thinks it took.
 - **Context** — a note appended to the visitor's first message: *"You are on the
   pricing page"*, *"Answer in German"*. It never replaces the agent's own
   instructions, which belong to the published version.
@@ -429,6 +432,21 @@ tool names here (#144).
 `PageConfig` rather than repeated — a second copy of "off by default" is a copy
 that can disagree with the one somebody reads in the Builder. What `widget.js`
 then *draws* is narrower still, and says so above.
+
+### What is deliberately member-only
+
+Web chat draws three panels a public surface does not, and each omission is a
+decision rather than a gap — recorded here so it is not re-litigated as one.
+
+| Panel | On a public surface | Why |
+|---|---|---|
+| **The usage strip** | No, and it is not a switch | It reports the turn's tokens, its cost, the month against the organization's cap and how full the workspace is. A visitor is not the one paying, and the operator's remaining budget is a fact about the operator. `complete` carries no usage at all, so there is nothing to hide client-side |
+| **The file panel** | No | It lists everything in the agent's *workspace*, which is shared across the conversations of everybody using that agent. A stranger who attached one file would be shown every file the agent has ever been given. Their own attachment is on their own turn, which is what they are owed |
+| **The delegation panel** | No | It names the delegates by slug, what each was asked, and what each cost — the shape of the organization's agent graph. A page that showed it would publish an internal org chart to whoever has the link. A delegation still *runs*: it is one `tool_call` step named `task`, under the same switch as any other step |
+
+The pattern behind all three: what a member sees is *about the organization*, and
+what a visitor sees is *about their own turn*. A panel that crosses that line is
+member-only whatever it would cost to render.
 
 ### What it looks like
 
