@@ -49,6 +49,7 @@ model.
 from __future__ import annotations
 
 import logging
+import re
 import time
 from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager
@@ -108,6 +109,33 @@ MAX_MESSAGE_CHARS = 4000
 # conversation because this surface is public: an operator's budget should not be
 # a function of how long a stranger is willing to keep typing.
 HISTORY_MESSAGES = 40
+
+# What a continuity key has to look like to be one: the 128 random bits the
+# hosted page mints, as lower-case hex. The upper bound is the column's width.
+_CONTINUITY_KEY = re.compile(r"^[0-9a-f]{32,64}$")
+
+
+def continuity_key(value: str | None) -> str | None:
+    """The visitor key this connection may resume by, or `None` for a fresh thread.
+
+    Whoever holds a key resumes the thread it names, including everything already
+    said in it, so what counts as a key is checked rather than assumed. This socket
+    is a published integration (#516): a client of somebody's own that keys on a
+    customer id, an email or a counter would hand every one of its users a
+    conversation the next person can walk into by guessing.
+
+    An unusable key is **dropped rather than refused**, and the reason is the one
+    already written down for a missing required variable: a visitor must not lose
+    their answer to an integrator's mistake. Losing continuity is the small
+    failure; a socket that will not open is the large one, and a stale value in
+    somebody's `localStorage` would be enough to cause it.
+    """
+    if value is None:
+        return None
+    if _CONTINUITY_KEY.match(value) is None:
+        logger.info("embed_visitor_key_rejected", extra={"length": len(value)})
+        return None
+    return value
 
 
 SessionFactory = Callable[[], AbstractAsyncContextManager[AsyncSession]]

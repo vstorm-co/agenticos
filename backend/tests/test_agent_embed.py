@@ -30,6 +30,7 @@ from app.services.embed_session import (
     EmbedSession,
     _allowed,
     _buckets,
+    continuity_key,
 )
 
 MODULE = "app.services.agent_embed"
@@ -812,6 +813,32 @@ class TestAReturningVisitorResumesTheirThread:
             hosted=True,
             visitor_key=visitor_key,
         )
+
+    @pytest.mark.parametrize(
+        "supplied",
+        [
+            pytest.param("1", id="a counter"),
+            pytest.param("visitor@example.com", id="a customer's email"),
+            pytest.param("deadbeef", id="eight hex characters"),
+            pytest.param("DEADBEEF" * 4, id="upper case, which the page never mints"),
+            pytest.param("g" * 32, id="the right length and not hex"),
+        ],
+    )
+    def test_a_key_that_is_not_128_random_bits_is_dropped(self, supplied: str):
+        """Whoever holds a key resumes the thread it names, so a guessable one is
+        a conversation anybody can walk into. The socket is a published
+        integration, so a client of somebody's own keying on a customer id is the
+        mistake worth refusing rather than documenting."""
+        assert continuity_key(supplied) is None
+
+    def test_the_key_the_page_mints_is_accepted(self):
+        assert continuity_key("a" * 32) == "a" * 32
+
+    def test_an_unusable_key_costs_continuity_and_not_the_conversation(self):
+        """Dropped, never refused: the same reasoning already written down for a
+        missing required variable. A stale value in somebody's `localStorage`
+        must not be a socket that will not open."""
+        assert continuity_key(None) is None
 
     @pytest.mark.anyio
     async def test_a_widget_greeting_opens_no_session_at_all(self):

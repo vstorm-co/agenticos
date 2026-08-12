@@ -287,6 +287,14 @@ reading.
 resumes the thread, including what is already in it. It is 128 random bits and
 nothing about the person. Clearing site data starts a new thread.
 
+That shape is enforced, not assumed — the socket accepts 32 to 64 lower-case hex
+characters as a `visitor` and **drops anything else**, opening a fresh thread
+instead. It matters for a client of your own (below): keying continuity on a
+customer id, an email or a counter would hand each of your users a conversation
+the next person can walk into by guessing. A dropped key costs continuity and
+never the conversation, so a stale value in somebody's browser is not a page that
+will not load.
+
 ### What it looks like
 
 Four fields, all optional:

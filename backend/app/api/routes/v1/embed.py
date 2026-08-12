@@ -33,7 +33,7 @@ from app.db.session import get_db_context
 from app.schemas.agent_embed import PublicEmbedConfig, PublicHostedConfig
 from app.services import rate_limit
 from app.services.agent_embed import AgentEmbedService, EmbedDenied
-from app.services.embed_session import WIDGET_JS, EmbedSession
+from app.services.embed_session import WIDGET_JS, EmbedSession, continuity_key
 
 logger = logging.getLogger(__name__)
 
@@ -188,6 +188,13 @@ async def embed_socket(
     and in `jwt` mode it is ignored outright, because the token's subject already
     answers who this is and a second answer would be a weaker one.
 
+    The shape is checked rather than assumed, because this socket is a published
+    integration (#516) and a client of somebody's own may reach it. Whoever holds
+    a key resumes the thread it names, so `visitor=1` would be a conversation
+    anybody can walk into, and a client keying on a customer id rather than on
+    random bytes is the mistake that invites. Anything that is not the 128 random
+    bits our page mints is dropped - see `_continuity_key`.
+
     **Admission gets a session; the conversation does not.** This socket stays
     open for as long as a visitor leaves the tab open, and the session below is
     closed before the first frame is read - the turn loop opens one per turn, the
@@ -222,7 +229,9 @@ async def embed_socket(
         hosted=admission.hosted,
         # Only a hosted connection resumes by key, and only an anonymous one: a
         # `jwt` visitor is already named by their token.
-        visitor_key=visitor if admission.hosted and admission.visitor is None else None,
+        visitor_key=(
+            continuity_key(visitor) if admission.hosted and admission.visitor is None else None
+        ),
     )
     await websocket.accept()
     try:
