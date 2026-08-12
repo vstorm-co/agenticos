@@ -511,19 +511,43 @@ class TestWhatThePageTellsTheWidget:
         assert prompt == "hello"
 
     @pytest.mark.anyio
-    async def test_the_block_is_sent_once_per_conversation(self):
-        """Repeating it every turn spends the same tokens to say the same thing."""
+    async def test_the_block_reaches_the_model_on_every_turn(self):
+        """The transcript records only what the visitor said, so the history each
+        turn is rebuilt from carries neither the placement note nor the supplied
+        block. Sent once, they would reach the model on turn 1 and be gone from
+        turn 2 on; sent every turn, they cost the tokens but stay present, and
+        nothing is duplicated because history never held them."""
+        embed = _embed(context="you are on the pricing page")
+
+        with _turns() as runner_cls:
+            session = EmbedSession(
+                sessions=_Sessions(), embed=embed, visitor=None, websocket=AsyncMock()
+            )
+            await session.handle({"type": "message", "text": "first", "context": {"plan": "pro"}})
+            await session.handle({"type": "message", "text": "second", "context": {"plan": "pro"}})
+
+        prompts = [call.args[2] for call in runner_cls.return_value.execute.call_args_list]
+        assert len(prompts) == 2
+        assert all("you are on the pricing page" in prompt for prompt in prompts)
+        assert prompts[1].endswith("second")
+
+    @pytest.mark.anyio
+    async def test_a_value_the_page_stops_supplying_stops_being_sent(self):
+        """`self._supplied` is refreshed every frame, so a page that signs the
+        visitor out - or a single-page app that changes what it knows - is
+        reflected on the next turn rather than frozen at the first."""
         embed = _embed(context_variables=[self._variable("plan")])
 
-        prompt = await self._prompt(
-            embed,
-            [
-                {"type": "message", "text": "first", "context": {"plan": "pro"}},
-                {"type": "message", "text": "second", "context": {"plan": "pro"}},
-            ],
-        )
+        with _turns() as runner_cls:
+            session = EmbedSession(
+                sessions=_Sessions(), embed=embed, visitor=None, websocket=AsyncMock()
+            )
+            await session.handle({"type": "message", "text": "first", "context": {"plan": "pro"}})
+            await session.handle({"type": "message", "text": "second", "context": {}})
 
-        assert prompt == "second"
+        prompts = [call.args[2] for call in runner_cls.return_value.execute.call_args_list]
+        assert "plan: pro" in prompts[0]
+        assert "plan" not in prompts[1]
 
     @pytest.mark.anyio
     async def test_the_placement_sentence_and_the_page_values_both_arrive(self):

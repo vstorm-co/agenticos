@@ -288,13 +288,9 @@ class EmbedSession:
         # shows must not apply to a turn already half-streamed.
         self.shows = visible_frames(embed)
         self.conversation_id: UUID | None = None
-        self._context_sent = False
         # What the page said about this visitor, as it last said it. Empty until
         # a frame carries it, which is every widget that declares nothing.
         self._supplied: dict[str, Any] = {}
-        # The supplied block as it was last sent to the agent, so a change in it
-        # is re-sent even after the placement context has gone once.
-        self._supplied_sent: str = ""
 
     async def greet(self) -> None:
         """Tell the client it is connected, and hand a returning visitor their thread.
@@ -467,21 +463,19 @@ class EmbedSession:
                         db, db_visitor=visitor, conversation_id=self.conversation_id
                     )
 
-        # The placement context is the operator's and never changes, so it goes
-        # once. The supplied block is the page's and does change - a single-page
-        # app signs the visitor in on turn 2 - so it is re-sent whenever it
-        # differs from what was last sent, which is why `self._supplied` is
-        # refreshed every frame. Latching both on the first turn froze the
-        # supplied block, and its `required`-variable warning, at whatever turn 1
-        # happened to hold.
+        # Prepended to every turn, not latched to the first. The transcript
+        # records only `said` (below), so the history each turn is rebuilt from
+        # carries neither of these - a note sent once would reach the model on
+        # turn 1 and be gone from turn 2 on, taking the placement context and the
+        # visitor's supplied variables with it. `self._supplied` is refreshed on
+        # every frame, so a single-page app signing the visitor in on turn 2 is
+        # reflected here, and a page that stops supplying a value stops sending it.
         parts: list[str] = []
-        if self.embed.context and not self._context_sent:
+        if self.embed.context:
             parts.append(f"[Context for this placement: {self.embed.context}]")
-            self._context_sent = True
         supplied_block = self._supplied_block()
-        if supplied_block and supplied_block != self._supplied_sent:
+        if supplied_block:
             parts.append(supplied_block)
-            self._supplied_sent = supplied_block
         prompt = "\n\n".join([*parts, text]) if parts else text
 
         # The same loop the dashboard's chat drives, through this surface's own
