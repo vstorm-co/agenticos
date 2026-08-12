@@ -1007,6 +1007,50 @@ class TestAnExplicitNullOnAnEmbedUpdate:
         }
 
     @pytest.mark.anyio
+    async def test_switching_a_hosted_page_to_token_auth_is_refused(self):
+        """The re-check runs against the merged row, not the request: a page that
+        already exists cannot be switched to jwt, because the token would travel
+        in the URL. Pinned through update(), not only against _check_page, since
+        it is the merge that decides what the check sees."""
+        embed = _embed(kind="page", auth_mode="public")
+        service = _service()
+        with (
+            patch.object(service, "_owned", new=AsyncMock(return_value=embed)),
+            patch.object(service.agents, "get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MODULE}.record_audit", new=AsyncMock()),
+            pytest.raises(BadRequestError, match="token auth"),
+        ):
+            await service.update(
+                MagicMock(organization_id=uuid.uuid4()),
+                embed.id,
+                EmbedUpdate.model_validate({"auth_mode": "jwt", "jwt_secret": "s" * 32}),
+            )
+
+    @pytest.mark.anyio
+    async def test_adding_a_required_non_url_safe_variable_to_a_page_is_refused(self):
+        """The other half of the merged-row check: the auth_mode arrives from the
+        stored row and the variable from the request, and together they are what
+        the surface cannot deliver - a required value with no way to reach the
+        page."""
+        embed = _embed(kind="page", auth_mode="public", context_variables=[])
+        service = _service()
+        with (
+            patch.object(service, "_owned", new=AsyncMock(return_value=embed)),
+            patch.object(service.agents, "get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MODULE}.record_audit", new=AsyncMock()),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await service.update(
+                MagicMock(organization_id=uuid.uuid4()),
+                embed.id,
+                EmbedUpdate.model_validate(
+                    {"context_variables": [{"name": "plan", "required": True, "url_safe": False}]}
+                ),
+            )
+
+        assert refused.value.details == {"variables": ["plan"]}
+
+    @pytest.mark.anyio
     @pytest.mark.parametrize(
         "field",
         ["name", "auth_mode", "allowed_origins", "is_active", "rate_limit_per_minute"],
