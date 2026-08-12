@@ -154,6 +154,58 @@ export function PageFields({
       </div>
 
       <div className="space-y-2">
+        <Label>{t("pageShows")}</Label>
+        {/* A filter on what the server *sends*, which is why the hints say
+            "sent" rather than "shown": reasoning hidden in CSS is an agent's
+            reasoning sitting in a stranger's devtools. */}
+        <p className="text-muted-foreground text-xs">{t("pageShowsHint")}</p>
+        <Label className="flex items-start gap-2 font-normal">
+          <Checkbox
+            checked={config.show_tool_steps}
+            disabled={disabled}
+            onCheckedChange={(checked) =>
+              onChange({ ...config, show_tool_steps: checked === true })
+            }
+          />
+          <span>
+            <span className="text-sm">{t("pageShowToolSteps")}</span>
+            <span className="text-muted-foreground block text-xs">
+              {t("pageShowToolStepsHint")}
+            </span>
+          </span>
+        </Label>
+        <Label className="flex items-start gap-2 font-normal">
+          <Checkbox
+            checked={config.show_tool_results}
+            // Nothing to open while the steps themselves are not sent, and the
+            // server enforces the same thing - a box that could be ticked into
+            // having no effect is one somebody would tick.
+            disabled={disabled || !config.show_tool_steps}
+            onCheckedChange={(checked) =>
+              onChange({ ...config, show_tool_results: checked === true })
+            }
+          />
+          <span>
+            <span className="text-sm">{t("pageShowToolResults")}</span>
+            <span className="text-muted-foreground block text-xs">
+              {t("pageShowToolResultsHint")}
+            </span>
+          </span>
+        </Label>
+        <Label className="flex items-start gap-2 font-normal">
+          <Checkbox
+            checked={config.show_thinking}
+            disabled={disabled}
+            onCheckedChange={(checked) => onChange({ ...config, show_thinking: checked === true })}
+          />
+          <span>
+            <span className="text-sm">{t("pageShowThinking")}</span>
+            <span className="text-muted-foreground block text-xs">{t("pageShowThinkingHint")}</span>
+          </span>
+        </Label>
+      </div>
+
+      <div className="space-y-2">
         <Label htmlFor="hosted-logo">{t("hostedLogo")}</Label>
         <Select
           value={config.logo}

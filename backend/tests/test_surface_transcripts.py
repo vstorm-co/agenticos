@@ -96,6 +96,37 @@ def _searched_then_answered(output: str) -> MagicMock:
     return MagicMock(output=output, new_messages=MagicMock(return_value=messages))
 
 
+class _Iteration:
+    """A run to iterate, standing in for the library's own.
+
+    It yields no nodes. Which frames a surface sends is pinned in
+    `tests/test_agent_session.py` and `tests/test_embed_frames.py`; what these
+    tests are about is the rows a turn leaves behind. The outcome is awaited on
+    the first step so that a model which raises does so where the real one would -
+    inside the loop, with the settle path around it.
+    """
+
+    def __init__(self, outcome: AsyncMock) -> None:
+        self._outcome = outcome
+        self._started = False
+        self.result: Any = None
+
+    def __aiter__(self) -> _Iteration:
+        return self
+
+    async def __anext__(self) -> Any:
+        if self._started:
+            raise StopAsyncIteration
+        self._started = True
+        self.result = await self._outcome()
+        raise StopAsyncIteration
+
+
+@asynccontextmanager
+async def _iterating(outcome: AsyncMock) -> AsyncIterator[_Iteration]:
+    yield _Iteration(outcome)
+
+
 @contextmanager
 def _run_yielding(agent_run: AsyncMock) -> Iterator[tuple[dict[str, PreparedRun], MagicMock]]:
     """Stub the build, the terminal write and the transcript's repository.
@@ -118,6 +149,9 @@ def _run_yielding(agent_run: AsyncMock) -> Iterator[tuple[dict[str, PreparedRun]
         built.ledger = SpendLedger()
         built.model_label = "gpt-4.1"
         built.agent.run = agent_run
+        # The streaming half, for a surface that shows an answer arriving. The
+        # widget is one since #634, so its turns reach `iterate` rather than `run`.
+        built.agent.iter = MagicMock(side_effect=lambda *_a, **_k: _iterating(agent_run))
         prepared = PreparedRun(
             run=MagicMock(
                 id=uuid.uuid4(),
@@ -236,7 +270,7 @@ class TestAWidgetRunRecordsItsTranscript:
             _run_yielding(run) as (captured, conversations),
             _the_widgets_rows(),
         ):
-            answer = await session._answer("What's your refund window?")
+            answer, _run = await session._answer("What's your refund window?")
 
         assert answer == "The refund window is 30 days."
         _assert_full_turn(

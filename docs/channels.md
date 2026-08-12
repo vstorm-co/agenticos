@@ -184,12 +184,45 @@ message.
 
 **Frames you receive**
 
-| `type` | Meaning |
-|---|---|
-| `ready` | Connected. `visitor: true` when a token identified the person. |
-| `typing` | The agent is working. Show an indicator. |
-| `message` | The answer: `{ "role": "assistant", "text": "…" }` |
-| `error` | Something the visitor should see: rate limit, budget reached, failure. |
+**This is the dashboard's own frame vocabulary, not a second one.** The chat in
+`/chat` and this socket drive one loop (`app/services/run_stream.py`), so an
+answer arrives here a word at a time the same way it does there — a hosted page
+used to show one lump of text after thirty seconds of nothing, and that was the
+loop rather than the transport. Every frame carries `{ "type": …, "data": { … } }`.
+
+| `type` | `data` | Meaning |
+|---|---|---|
+| `ready` | `visitor` | Connected. `visitor: true` when a token identified the person. |
+| `history` | `messages` | On a hosted page only: what was said in the thread this visitor is resuming. |
+| `model_request_start` | — | The agent has gone to the model. Show an indicator. |
+| `part_start` | `index`, `part_type` | A block of the answer is starting. |
+| `text_delta` | `index`, `content` | Words of the answer. Append them. |
+| `thinking_delta` | `index`, `content` | The model's reasoning. **Only if the operator turned it on.** |
+| `call_tools_start` | — | The agent is about to use tools. |
+| `tool_call` | `tool_call_id`, `tool_name`, `args` | A step. `args` only when the operator shows results. |
+| `tool_call_delta` | `index`, `args_delta` | A call's arguments as they stream. |
+| `tool_result` | `tool_call_id`, `content` | What the step returned. |
+| `final_result_start` | `tool_name` | The answer is being produced by an output tool. |
+| `final_result` | `output` | What the run ended with. Empty on a turn that parked. |
+| `complete` | — | The turn is over. It carries **no usage**: what a run cost is the operator's business, not the visitor's. |
+| `error` | `message` | Something the visitor should see: rate limit, budget reached, a refusal, a turn that produced nothing. |
+
+Two frames the dashboard sends never reach a public socket, and both are refusals
+rather than settings. **`user_prompt_processed`** carries the prompt *as
+assembled* — the placement note and the supplied block above what the visitor
+typed — which is the operator's text and not the visitor's to read back.
+**`ask_user` and `tool_approval_required`** have nobody here to answer them: a
+visitor cannot approve a side effect on somebody else's organization, so the run
+parks exactly as it does on a channel and the turn ends with `error` saying a
+person has to decide. Unlike a channel, it is not given the link to the decision:
+the reader there is a member who can open `/runs`, and here they are a stranger
+holding a link.
+
+**A client ignores what it does not draw**, and `widget.js` is the worked example:
+it reads `model_request_start`, `text_delta`, `final_result`, `complete` and
+`error`, and ignores the reasoning and the steps on purpose — an answer arriving
+a word at a time is worth having in a bubble in the corner of a page, and a
+narration of tool calls is not. The hosted page draws all of them.
 
 **Close codes**
 
@@ -213,12 +246,19 @@ A minimal client:
 
 ```js
 const socket = new WebSocket(`${BASE}/api/v1/embed/${KEY}/ws`);
+let answer = "";
 socket.onmessage = (event) => {
-  const frame = JSON.parse(event.data);
-  if (frame.type === "message") render(frame.text);
+  const { type, data } = JSON.parse(event.data);
+  if (type === "text_delta") render((answer += data.content));
+  if (type === "final_result" && data.output) render((answer = data.output));
+  if (type === "complete") answer = "";
+  if (type === "error") render(data.message);
 };
 socket.send(JSON.stringify({ type: "message", text: "hello" }));
 ```
+
+`final_result` is assigned rather than appended: it is what the run *ended* with,
+and a provider that streamed no deltas leaves it as the only copy of the answer.
 
 ---
 
@@ -324,7 +364,37 @@ a page turned on for itself would be one nobody could turn off.
   it on for the public. A browser without one is shown no microphone rather than
   a button that does nothing.
 
+### What the visitor sees of the work
+
+Three more switches, and they are **filters on what the server sends** rather than
+on what the page draws. That distinction is the whole design: reasoning hidden in
+CSS is an agent's reasoning sitting in a stranger's devtools, and a page is
+exactly where a stranger has one open. A visitor who opens theirs sees what is
+ticked here and nothing else.
+
+| Switch | Default | What it lets through |
+|---|---|---|
+| **What the agent is doing** | on | One line per step — *Searching the documents*, *Ran a query*. On, because a page that goes quiet for thirty seconds reads as broken |
+| **What each step returned** | off | The arguments a step was called with and what came back. Written for the model, so this is where something internal turns up: an address, a row from a system, a passage nobody meant to publish |
+| **The agent's reasoning** | off | What the model says to itself before answering. Not written for anybody to read, and not an answer an operator can stand behind |
+
+*What each step returned* cannot be turned on alone — there is no step for it to
+open, and the server drops both regardless of what the config says. The step line
+itself is named from the same table web chat names it from
+(`src/lib/tool-catalog.ts`), so a tool renamed in the backend is renamed on the
+page or falls back to a humanized name; there is deliberately no second table of
+tool names here (#144).
+
+**A widget and a raw socket carry no switches and get these defaults**, read off
+`PageConfig` rather than repeated — a second copy of "off by default" is a copy
+that can disagree with the one somebody reads in the Builder. What `widget.js`
+then *draws* is narrower still, and says so above.
+
 ### What it looks like
+
+The answer renders as **Markdown**, the same as web chat: an agent told to answer
+in Markdown is answering in it whether or not the page reinterprets the asterisks.
+What a *visitor* typed is not reinterpreted — it is not a document.
 
 Four fields, all optional:
 

@@ -4,15 +4,112 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import { MessageSquarePlus, Mic, MicOff, Send } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { MarkdownContent } from "@/components/chat/markdown-content";
 import { Button, Input } from "@/components/ui";
 import { WS_URL } from "@/lib/constants";
+import { toolStep } from "@/lib/tool-steps";
 import { cn } from "@/lib/utils";
 import type { HostedPageConfig } from "@/types/hosted";
+
+/** One tool call, as much of it as the operator lets this page see. */
+interface Step {
+  id: string;
+  name: string;
+  args?: Record<string, unknown>;
+  result?: string;
+}
 
 /** One line of the thread, as the page has it. */
 interface Turn {
   role: "user" | "assistant";
   text: string;
+  thinking?: string;
+  steps?: Step[];
+  /**
+   * Whether this turn is still being written.
+   *
+   * What makes a delta land on the turn it belongs to rather than starting a new
+   * bubble per frame. Cleared by `complete`, which is the only frame that says a
+   * turn is over.
+   */
+  live?: boolean;
+}
+
+/**
+ * Fold one frame into the thread.
+ *
+ * Outside the component because it is the half worth testing on its own: the wire
+ * is the dashboard's own vocabulary since #634, and what this page renders is
+ * whatever of it the server chose to send. There is deliberately no branch here
+ * that decides whether the reasoning or a step *may* be shown - a frame that
+ * arrives is one the operator agreed to, and one they did not never left the
+ * server (`EmbedSession._emit`).
+ */
+export function fold(said: readonly Turn[], type: string, data: Record<string, never>): Turn[] {
+  const payload = data as Record<string, unknown>;
+  switch (type) {
+    case "history":
+      return (payload.messages as Turn[]) ?? [];
+    case "text_delta":
+      return intoLive(said, (turn) => ({ ...turn, text: turn.text + String(payload.content) }));
+    case "thinking_delta":
+      return intoLive(said, (turn) => ({
+        ...turn,
+        thinking: (turn.thinking ?? "") + String(payload.content),
+      }));
+    case "tool_call":
+      return intoLive(said, (turn) => ({
+        ...turn,
+        steps: [
+          ...(turn.steps ?? []),
+          {
+            id: String(payload.tool_call_id),
+            name: String(payload.tool_name),
+            args: payload.args as Record<string, unknown> | undefined,
+          },
+        ],
+      }));
+    case "tool_result":
+      return intoLive(said, (turn) => ({
+        ...turn,
+        steps: (turn.steps ?? []).map((step) =>
+          step.id === payload.tool_call_id ? { ...step, result: String(payload.content) } : step,
+        ),
+      }));
+    case "final_result":
+      // What the run ended with. Assigned rather than appended: the deltas are the
+      // same words, and a provider that streamed none leaves this as the only copy
+      // of them. Empty on a turn that parked, which `error` then explains.
+      return payload.output === ""
+        ? [...said]
+        : intoLive(said, (turn) => ({ ...turn, text: String(payload.output) }));
+    case "complete":
+      return said.map((turn) => (turn.live === true ? { ...turn, live: false } : turn));
+    case "error":
+      // A turn that produced nothing leaves an empty bubble behind, so the
+      // refusal replaces it rather than appearing under it.
+      return [
+        ...withoutEmptyLive(said),
+        { role: "assistant", text: String(payload.message) } as Turn,
+      ];
+    default:
+      return [...said];
+  }
+}
+
+function intoLive(said: readonly Turn[], mutate: (turn: Turn) => Turn): Turn[] {
+  const last = said.at(-1);
+  if (last !== undefined && last.role === "assistant" && last.live === true) {
+    return [...said.slice(0, -1), mutate(last)];
+  }
+  return [...said, mutate({ role: "assistant", text: "", live: true })];
+}
+
+function withoutEmptyLive(said: readonly Turn[]): Turn[] {
+  const last = said.at(-1);
+  const empty =
+    last !== undefined && last.live === true && last.text === "" && (last.steps ?? []).length === 0;
+  return empty ? said.slice(0, -1) : [...said];
 }
 
 /**
@@ -72,10 +169,14 @@ function suppliedFromUrl(allowed: string[]): Record<string, string> {
  * picker, no conversation list, no tool panels and no approvals queue - those are
  * all about being a member of an organization, and nobody here is.
  *
- * It speaks the widget's socket unchanged, so there is no second protocol to keep
- * in step: `ready`, `history`, `typing`, `message`, `error` in, one `message`
- * frame out. `4029` is the rate limit and worth telling somebody about; every
- * other close is the same refusal the widget gets, and says as little.
+ * It speaks the same socket the widget does and the same frame vocabulary the
+ * dashboard does, so there is no second protocol to keep in step: the answer
+ * arrives as `text_delta`, the work as `tool_call` and `tool_result`, the
+ * reasoning as `thinking_delta`, and `complete` says the turn is over. Which of
+ * those arrive at all is the operator's decision, enforced where the frame is
+ * *sent* - so there is no branch here that hides one. `4029` is the rate limit and
+ * worth telling somebody about; every other close is the same refusal the widget
+ * gets, and says as little.
  *
  * What it offers beyond that is the operator's to decide, and arrives in the
  * config rather than being assumed here: a capability the page turned on for
@@ -115,20 +216,9 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
 
     socket.onmessage = (event) => {
       const frame = JSON.parse(event.data as string);
-      if (frame.type === "history") {
-        setTurns(frame.messages as Turn[]);
-      }
-      if (frame.type === "typing") {
-        setThinking(true);
-      }
-      if (frame.type === "message") {
-        setThinking(false);
-        setTurns((said) => [...said, { role: "assistant", text: frame.text as string }]);
-      }
-      if (frame.type === "error") {
-        setThinking(false);
-        setTurns((said) => [...said, { role: "assistant", text: frame.message as string }]);
-      }
+      if (frame.type === "model_request_start") setThinking(true);
+      if (frame.type === "complete" || frame.type === "error") setThinking(false);
+      setTurns((said) => fold(said, frame.type as string, frame.data ?? {}));
     };
     socket.onclose = (event) => {
       setThinking(false);
@@ -227,12 +317,28 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
           >
             <div
               className={cn(
-                "max-w-[80%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap",
+                "max-w-[80%] rounded-2xl px-4 py-2.5 text-sm",
                 turn.role === "user" ? "text-white" : "bg-muted",
               )}
               style={turn.role === "user" ? { background: config.accent } : undefined}
             >
-              {turn.text}
+              {turn.thinking !== undefined && (
+                <p className="text-muted-foreground mb-2 text-xs whitespace-pre-wrap italic">
+                  {turn.thinking}
+                </p>
+              )}
+              {(turn.steps ?? []).map((step) => (
+                <ToolLine key={step.id} step={step} />
+              ))}
+              {/* Markdown for the agent, plain text for the visitor. An agent told
+                  to answer in Markdown is answering in it whatever this page does
+                  with the asterisks, which is the whole argument; what a visitor
+                  typed is not a document and must not be reinterpreted as one. */}
+              {turn.role === "assistant" ? (
+                <MarkdownContent content={turn.text} />
+              ) : (
+                <span className="whitespace-pre-wrap">{turn.text}</span>
+              )}
             </div>
           </div>
         ))}
@@ -279,6 +385,38 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
           <span className="sr-only">{t("send")}</span>
         </Button>
       </form>
+    </div>
+  );
+}
+
+/**
+ * One step of the agent's work, named the way the dashboard names it.
+ *
+ * Through `toolStep` and the catalog in `src/lib/tool-catalog.ts`, not a second
+ * table of tool names: the last time that knowledge was duplicated, two renamed
+ * tools rendered as raw JSON for five weeks with a green suite (#144). A name the
+ * catalog has never heard of - an MCP tool, one a binding renamed - falls back to
+ * a humanized label there, which is the same answer web chat gives.
+ *
+ * The result opens rather than showing, and only when the server sent one: a
+ * page whose operator left `show_tool_results` off never receives it, so there is
+ * nothing here to hide.
+ */
+function ToolLine({ step }: { step: Step }) {
+  const t = useTranslations("chat.tools");
+  const line = toolStep(step.name, step.args, step.result !== undefined, t);
+  return (
+    <div className="text-muted-foreground mb-1.5 text-xs">
+      {step.result === undefined ? (
+        <span>{line.label}</span>
+      ) : (
+        <details>
+          <summary className="cursor-pointer">{line.label}</summary>
+          <pre className="mt-1 max-h-40 overflow-auto text-[11px] whitespace-pre-wrap">
+            {step.result}
+          </pre>
+        </details>
+      )}
     </div>
   );
 }

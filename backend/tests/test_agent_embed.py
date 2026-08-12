@@ -298,7 +298,7 @@ class TestTheRunRecordsItsSurface:
             session = EmbedSession(
                 sessions=_Sessions(), embed=_embed(), visitor=None, websocket=MagicMock()
             )
-            answer = await session._answer("hello")
+            answer, _run = await session._answer("hello")
 
         assert answer == "hi"
         assert runner_cls.return_value.execute.call_args.kwargs["surface"] is RunSurface.EMBED
@@ -902,7 +902,7 @@ class TestAReturningVisitorResumesTheirThread:
 
         history = session.websocket.send_json.await_args_list[-1].args[0]
         assert history["type"] == "history"
-        assert history["messages"] == [
+        assert history["data"]["messages"] == [
             {"role": "user", "text": "do you ship?"},
             {"role": "assistant", "text": "we do"},
         ]
@@ -969,6 +969,9 @@ class TestAnExplicitNullOnAnEmbedUpdate:
             "accent": "#4f46e5",
             "allow_voice": False,
             "allow_new_conversation": True,
+            "show_thinking": False,
+            "show_tool_steps": True,
+            "show_tool_results": False,
             "logo": "agent",
         }
 

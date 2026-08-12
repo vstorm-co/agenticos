@@ -5,6 +5,14 @@ do* - the spec, the budget, the approval gate, the tenant - is already decided
 by `AgentRunnerService`; this only carries frames in and out and keeps a
 transcript so a run is findable afterwards.
 
+**The turn loop is `app.services.run_stream`, the same one the dashboard's chat
+drives.** It used to await the whole answer and send a single frame, which is why
+a hosted page showed a lump of text after thirty seconds of nothing - not because
+a public socket cannot carry more. What this surface adds is a *filter*: the sink
+in `_emit` drops every frame kind the operator has not agreed to show. Filtering
+there rather than in a renderer is the whole point, because reasoning hidden in
+CSS is an agent's reasoning sitting in a stranger's devtools.
+
 Three things it owns, because nothing else can:
 
 *Identity.* A visitor is anonymous by construction. The run is attributed to the
@@ -63,11 +71,12 @@ from app.agents.capabilities.budget import BudgetExceeded
 from app.core.exceptions import AppException
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_embed import AgentEmbed
-from app.db.models.agent_run import RunSurface
+from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.repositories import conversation_repo, embed_visitor_repo, member_repo
-from app.schemas.agent_embed import EmbedVariable
+from app.schemas.agent_embed import EmbedVariable, PageConfig
 from app.services.agent import build_message_history
 from app.services.agent_runner import AgentRunnerService
+from app.services.run_stream import RunFrames
 
 logger = logging.getLogger(__name__)
 
@@ -147,6 +156,74 @@ widget mostly is - holds no pooled connection at all. `app.db.session
 """
 
 
+_ALWAYS = frozenset(
+    {
+        "model_request_start",
+        "part_start",
+        "text_delta",
+        "final_result",
+        "complete",
+        "error",
+        "ready",
+        "history",
+    }
+)
+"""Frames a public surface sends whatever its operator decided.
+
+`user_prompt_processed` is deliberately absent, and it is the one frame that
+would be a leak rather than a choice: it carries the prompt *as assembled*, which
+on this surface is the operator's placement note and the supplied block above what
+the visitor typed. The dashboard sends it to a member of the organization that
+wrote both.
+"""
+
+_THINKING = frozenset({"thinking_delta"})
+_STEPS = frozenset({"call_tools_start", "tool_call", "final_result_start"})
+_DETAIL = frozenset({"tool_call_delta", "tool_result"})
+"""What a step opens into: the arguments as they stream, and what came back.
+
+Grouped with the arguments rather than with the step for the reason the dashboard
+puts them behind one disclosure - "the agent searched the knowledge base" and
+"here is the passage it found" are different claims about what a stranger may
+read, and the second is where something internal actually turns up.
+"""
+
+
+def visible_frames(embed: AgentEmbed) -> frozenset[str]:
+    """Which frame kinds this embed's operator has agreed to send.
+
+    A page carries the three switches; a widget and a socket integration carry
+    none, so they get `PageConfig()` - the defaults, read from the schema rather
+    than repeated here, because a second copy of "off by default" is a copy that
+    can disagree with the one somebody reads in the Builder.
+    """
+    page = PageConfig.model_validate(embed.config) if embed.kind == "page" else PageConfig()
+    kinds = set(_ALWAYS)
+    if page.show_thinking:
+        kinds |= _THINKING
+    if page.show_tool_steps:
+        kinds |= _STEPS
+        if page.show_tool_results:
+            kinds |= _DETAIL
+    return frozenset(kinds)
+
+
+def _no_answer(run: AgentRun) -> str:
+    """What to say when a turn ended with no words, told apart by why.
+
+    The same three endings `channels/router._empty_answer` distinguishes, and the
+    same reasoning - except that a parked run is not offered the link to the
+    decision. On a channel the person reading it is a member of the organization
+    who can open `/runs`; here they are a stranger holding a link, and a URL into
+    somebody's console is not an answer to them.
+    """
+    if run.status == RunStatus.AWAITING_APPROVAL.value:
+        return "That needs somebody to approve it before it can run."
+    if run.status == RunStatus.BUDGET_EXCEEDED.value:
+        return "This assistant has reached its usage limit."
+    return "Sorry, I could not produce an answer to that. Please try again."
+
+
 def _allowed(key: tuple[str, str], limit: int) -> bool:
     count, started = _buckets.get(key, (0, 0.0))
     now = time.monotonic()
@@ -180,6 +257,10 @@ class EmbedSession:
         self.visitor = visitor or "anonymous"
         self.websocket = websocket
         self.visitor_key = visitor_key
+        # Resolved once at admission rather than per frame: it is read off the row
+        # the connection was opened against, and a mid-turn change to what a page
+        # shows must not apply to a turn already half-streamed.
+        self.shows = visible_frames(embed)
         self.conversation_id: UUID | None = None
         self._context_sent = False
         # What the page said about this visitor, as it last said it. Empty until
@@ -200,13 +281,13 @@ class EmbedSession:
         A connection with no `visitor_key` opens no session at all - which is
         every widget - so an idle socket still holds no connection.
         """
-        await self._send({"type": "ready", "visitor": self.visitor != "anonymous"})
+        await self._emit("ready", {"visitor": self.visitor != "anonymous"})
         if self.visitor_key is None:
             return
         async with self.sessions() as db:
             said = await self._resume(db, self.visitor_key)
         if said:
-            await self._send({"type": "history", "messages": said})
+            await self._emit("history", {"messages": said})
 
     async def _resume(self, db: AsyncSession, visitor_key: str) -> list[dict[str, str]]:
         """Find this visitor's thread, and read back what is in it.
@@ -260,40 +341,53 @@ class EmbedSession:
         if not text:
             return
         if len(text) > MAX_MESSAGE_CHARS:
-            await self._send(
-                {"type": "error", "message": "That message is too long. Try a shorter one."}
-            )
+            await self._emit("error", {"message": "That message is too long. Try a shorter one."})
             return
 
         if not _allowed((str(self.embed.id), self.visitor), self.embed.rate_limit_per_minute):
-            await self._send({"type": "error", "message": "You are sending messages too quickly."})
+            await self._emit("error", {"message": "You are sending messages too quickly."})
             return
 
-        await self._send({"type": "typing"})
+        unanswered = await self._turn_frames(text)
+        if unanswered is not None:
+            await self._emit("error", {"message": unanswered})
+        # Last, on every path that produced frames, so a client stops drawing the
+        # turn whether it ended with an answer or with a refusal. It carries
+        # nothing: the dashboard's `complete` reports what the turn cost, and what
+        # a run cost is the operator's business rather than the visitor's.
+        await self._emit("complete", {})
+
+    async def _turn_frames(self, text: str) -> str | None:
+        """Run one turn, and answer with the sentence to say if it produced no words.
+
+        Three endings have none, and they are not the same sentence. A run parked
+        on an approval is waiting for a person the visitor cannot reach; a run
+        stopped at its budget has hit a ceiling somebody can raise; anything else
+        is an apology, because sending a stranger to a queue over a decision that
+        was never raised is worse than saying nothing useful.
+
+        An exception that is neither of the two named refusals propagates: the
+        route logs it and closes the socket, which is what it did before.
+        """
         try:
-            answer = await self._answer(text)
+            answer, run = await self._answer(text)
         except BudgetExceeded:
             # The one failure worth naming: an operator seeing this in a widget
             # needs to know the agent hit its ceiling rather than broke.
-            await self._send(
-                {"type": "error", "message": "This assistant has reached its usage limit."}
-            )
-            return
+            return "This assistant has reached its usage limit."
         except AppException:
             logger.exception("embed_run_refused", extra={"embed_id": str(self.embed.id)})
-            await self._send({"type": "error", "message": "This assistant is unavailable."})
-            return
-
-        await self._send({"type": "message", "role": "assistant", "text": answer})
+            return "This assistant is unavailable."
+        return None if answer else _no_answer(run)
 
     async def fail(self, message: str) -> None:
-        await self._send({"type": "error", "message": message})
+        await self._emit("error", {"message": message})
 
     async def close(self) -> None:
         """Nothing to release: the session owns no task and no client."""
         return
 
-    async def _answer(self, text: str) -> str:
+    async def _answer(self, text: str) -> tuple[str, AgentRun]:
         """One turn, on one session of its own.
 
         The session spans the whole turn - the conversation row, the run row, the
@@ -304,7 +398,7 @@ class EmbedSession:
         async with self.sessions() as db:
             return await self._turn(db, text)
 
-    async def _turn(self, db: AsyncSession, text: str) -> str:
+    async def _turn(self, db: AsyncSession, text: str) -> tuple[str, AgentRun]:
         ctx = await self._context(db)
         if self.conversation_id is None:
             conversation = await conversation_repo.create_conversation(
@@ -344,7 +438,12 @@ class EmbedSession:
             self._supplied_sent = supplied_block
         prompt = "\n\n".join([*parts, text]) if parts else text
 
-        answer, _run = await AgentRunnerService(db).execute(
+        # The same loop the dashboard's chat drives, through this surface's own
+        # sink - which is what makes the page stream at all, and what makes it
+        # stream only what its operator agreed to show (`_emit`). The visitor's
+        # own words, not the assembled prompt, for the frame that echoes one.
+        frames = RunFrames(emit=self._emit, prompt=text)
+        answer, run = await AgentRunnerService(db).execute(
             ctx,
             self.embed.agent_id,
             prompt,
@@ -361,8 +460,9 @@ class EmbedSession:
             surface=RunSurface.EMBED,
             conversation_id=self.conversation_id,
             message_history=await self._history(db),
+            stream=frames.drive,
         )
-        return answer or "…"
+        return answer, run
 
     async def _history(self, db: AsyncSession) -> list[Any]:
         """What this visitor and the agent have already said to each other.
@@ -465,9 +565,21 @@ class EmbedSession:
             role=role,
         )
 
-    async def _send(self, payload: dict[str, Any]) -> None:
+    async def _emit(self, kind: str, payload: dict[str, Any]) -> None:
+        """One frame out, in the envelope every socket on this platform uses.
+
+        The sink `RunFrames` is handed, and where the operator's decision is
+        enforced: a frame this embed does not show is never written to the socket.
+        Arguments are the one payload narrowed rather than dropped - a step says
+        the agent searched the knowledge base whether or not a stranger may read
+        what it searched for.
+        """
+        if kind not in self.shows:
+            return
+        if kind == "tool_call" and "tool_result" not in self.shows:
+            payload = {key: value for key, value in payload.items() if key != "args"}
         try:
-            await self.websocket.send_json(payload)
+            await self.websocket.send_json({"type": kind, "data": payload})
         except Exception:
             # The visitor closed the tab. Nothing to recover and nobody to tell.
             logger.debug("embed_send_failed", extra={"embed_id": str(self.embed.id)})
@@ -547,16 +659,37 @@ WIDGET_JS = """(function () {
       var token = window.AgenticOSToken;
       if (token) url += "?token=" + encodeURIComponent(token);
       socket = new WebSocket(url);
+      // The dashboard's own frame vocabulary, of which this reads four. A widget
+      // is a bubble in the corner of somebody else's page: an answer arriving a
+      // word at a time is worth having there, and a narration of tool steps is
+      // not, so `tool_call`, `tool_result` and the reasoning deltas are ignored
+      // on purpose rather than absent. The hosted page draws them.
+      var answer = "";
       socket.onmessage = function (event) {
         var frame = JSON.parse(event.data);
-        if (frame.type === "typing") { pending = bubble("assistant", "…"); return; }
-        if (frame.type === "message") {
-          if (pending) { pending.textContent = frame.text; pending = null; }
-          else bubble("assistant", frame.text);
+        var data = frame.data || {};
+        if (frame.type === "model_request_start") {
+          if (!pending) { pending = bubble("assistant", "…"); answer = ""; }
+          return;
         }
+        if (frame.type === "text_delta") {
+          if (!pending) pending = bubble("assistant", "");
+          answer += data.content;
+          pending.textContent = answer;
+          log.scrollTop = log.scrollHeight;
+        }
+        if (frame.type === "final_result") {
+          // What the run ended with, which is the answer the transcript holds.
+          // Assigned rather than appended: the deltas are the same words, and a
+          // provider that sent none leaves this as the only copy of them.
+          if (data.output) { if (!pending) pending = bubble("assistant", ""); pending.textContent = data.output; }
+        }
+        if (frame.type === "complete") { pending = null; answer = ""; }
         if (frame.type === "error") {
-          if (pending) { pending.remove(); pending = null; }
-          bubble("assistant", frame.message);
+          if (pending && !answer) { pending.remove(); }
+          pending = null;
+          answer = "";
+          bubble("assistant", data.message);
         }
       };
       socket.onclose = function (event) {

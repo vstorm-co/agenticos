@@ -5,6 +5,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HostedChat } from "./hosted-chat";
 import type { HostedPageConfig } from "@/types/hosted";
 
+// The real renderer is loaded with `next/dynamic` and `ssr: false`, so under
+// jsdom it renders its own placeholder and every assertion on an answer's words
+// would be asserting on a non-breaking space. What it renders is tested where it
+// lives; what matters here is that the answer reaches it at all.
+vi.mock("@/components/chat/markdown-content", () => ({
+  MarkdownContent: ({ content }: { content: string }) => <span>{content}</span>,
+}));
+
 /**
  * The page somebody reaches by a link, signed into nothing.
  *
@@ -123,10 +131,12 @@ describe("the hosted page", () => {
     act(() =>
       socket().deliver({
         type: "history",
-        messages: [
-          { role: "user", text: "do you ship to Poland?" },
-          { role: "assistant", text: "we do" },
-        ],
+        data: {
+          messages: [
+            { role: "user", text: "do you ship to Poland?" },
+            { role: "assistant", text: "we do" },
+          ],
+        },
       }),
     );
 
@@ -153,10 +163,12 @@ describe("the hosted page", () => {
 
     await userEvent.type(screen.getByRole("textbox"), "hello");
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
-    act(() => socket().deliver({ type: "typing" }));
+    act(() => socket().deliver({ type: "model_request_start", data: {} }));
     expect(screen.getByText("Working on it…")).toBeInTheDocument();
 
-    act(() => socket().deliver({ type: "message", role: "assistant", text: "30 days" }));
+    act(() => socket().deliver({ type: "text_delta", data: { content: "30 " } }));
+    act(() => socket().deliver({ type: "text_delta", data: { content: "days" } }));
+    act(() => socket().deliver({ type: "complete", data: {} }));
 
     expect(screen.getByText("30 days")).toBeInTheDocument();
     expect(screen.queryByText("Working on it…")).toBeNull();
@@ -195,7 +207,10 @@ describe("what the operator lets the page offer", () => {
     // thread. The old one is not deleted - it stops being the one this browser
     // resumes.
     render(<HostedChat config={config()} />);
-    FakeSocket.last!.deliver({ type: "history", messages: [{ role: "user", text: "earlier" }] });
+    FakeSocket.last!.deliver({
+      type: "history",
+      data: { messages: [{ role: "user", text: "earlier" }] },
+    });
 
     const before = window.localStorage.getItem("agenticos:visitor:pk_abc");
     await userEvent.click(screen.getByRole("button", { name: "New chat" }));
@@ -258,5 +273,110 @@ describe("what the operator lets the page offer", () => {
 
     expect(await screen.findByDisplayValue("where is my order")).toBeInTheDocument();
     expect(FakeSocket.last!.sent).toEqual([]);
+  });
+});
+
+describe("what the page does with the frames it is sent", () => {
+  it("shows the agent's work as a line, named the way the dashboard names it", () => {
+    // Through `src/lib/tool-catalog.ts`, not a second table of tool names: the
+    // last time that knowledge was duplicated, two renamed tools rendered as raw
+    // JSON for five weeks with a green suite (#144).
+    render(<HostedChat config={config()} />);
+
+    act(() =>
+      socket().deliver({
+        type: "tool_call",
+        data: { tool_call_id: "c1", tool_name: "search_documents" },
+      }),
+    );
+
+    expect(screen.getByText("Searching the documents")).toBeInTheDocument();
+  });
+
+  it("opens a step into what came back, when the server sent it", () => {
+    render(<HostedChat config={config()} />);
+
+    act(() =>
+      socket().deliver({
+        type: "tool_call",
+        data: { tool_call_id: "c1", tool_name: "search_documents" },
+      }),
+    );
+    act(() =>
+      socket().deliver({ type: "tool_result", data: { tool_call_id: "c1", content: "30 days" } }),
+    );
+
+    expect(screen.getByText("30 days")).toBeInTheDocument();
+  });
+
+  it("renders the reasoning it was sent, and nothing where it was not", () => {
+    // The page has no branch that hides it: a page whose operator left
+    // `show_thinking` off never receives the frame, which is what makes the
+    // setting mean something on a surface with devtools.
+    render(<HostedChat config={config()} />);
+
+    act(() => socket().deliver({ type: "thinking_delta", data: { content: "Checking policy." } }));
+
+    expect(screen.getByText("Checking policy.")).toBeInTheDocument();
+  });
+
+  it("keeps one bubble for a turn rather than one per frame", () => {
+    render(<HostedChat config={config()} />);
+
+    act(() => socket().deliver({ type: "text_delta", data: { content: "Thirty " } }));
+    act(() => socket().deliver({ type: "text_delta", data: { content: "days." } }));
+
+    expect(screen.getByText("Thirty days.")).toBeInTheDocument();
+  });
+
+  it("starts a new bubble once a turn is over", () => {
+    render(<HostedChat config={config()} />);
+
+    act(() => socket().deliver({ type: "text_delta", data: { content: "First." } }));
+    act(() => socket().deliver({ type: "complete", data: {} }));
+    act(() => socket().deliver({ type: "text_delta", data: { content: "Second." } }));
+
+    expect(screen.getByText("First.")).toBeInTheDocument();
+    expect(screen.getByText("Second.")).toBeInTheDocument();
+  });
+
+  it("settles on what the run ended with", () => {
+    // A provider that streams no deltas leaves `final_result` as the only copy of
+    // the answer, so it is assigned rather than appended.
+    render(<HostedChat config={config()} />);
+
+    act(() => socket().deliver({ type: "final_result", data: { output: "Thirty days." } }));
+
+    expect(screen.getByText("Thirty days.")).toBeInTheDocument();
+  });
+
+  it("replaces an empty turn with the reason it produced nothing", () => {
+    // A run parked on an approval streams a `final_result` with no output. Two
+    // bubbles - one blank, one explaining - is worse than one.
+    render(<HostedChat config={config()} />);
+
+    act(() => socket().deliver({ type: "model_request_start", data: {} }));
+    act(() => socket().deliver({ type: "final_result", data: { output: "" } }));
+    act(() =>
+      socket().deliver({
+        type: "error",
+        data: { message: "That needs somebody to approve it before it can run." },
+      }),
+    );
+    act(() => socket().deliver({ type: "complete", data: {} }));
+
+    expect(
+      screen.getByText("That needs somebody to approve it before it can run."),
+    ).toBeInTheDocument();
+  });
+
+  it("ignores a frame it has never heard of", () => {
+    // A page cached in somebody's browser may be older than this server. Closing
+    // the thread over an unknown frame would take the conversation with it.
+    render(<HostedChat config={config()} />);
+
+    act(() => socket().deliver({ type: "delegation_started", data: { name: "researcher" } }));
+
+    expect(screen.getByRole("textbox")).toBeEnabled();
   });
 });

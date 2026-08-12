@@ -110,6 +110,36 @@ class PageConfig(BaseSchema):
             "longer the one this browser resumes."
         ),
     )
+    show_thinking: bool = Field(
+        default=False,
+        description=(
+            "Whether the visitor sees the agent's reasoning as it arrives. Off by "
+            "default, and it is a filter on *emission*: the frame is never sent "
+            "rather than hidden, because reasoning hidden in CSS is an agent's "
+            "reasoning sitting in a stranger's devtools."
+        ),
+    )
+    show_tool_steps: bool = Field(
+        default=True,
+        description=(
+            "Whether the visitor sees what the agent is doing while it works - "
+            "*Searched the knowledge base*, *Ran a query*. On by default because "
+            "the alternative is a page that goes quiet for thirty seconds, which "
+            "reads as broken."
+        ),
+    )
+    show_tool_results: bool = Field(
+        default=False,
+        description=(
+            "Whether a step opens into what it was called with and what came "
+            "back. Off by default: an argument list and a tool's raw output are "
+            "written for the model, and on a public surface they are the most "
+            "likely thing to carry something internal - an address, a row from a "
+            "system, a knowledge-base passage nobody meant to publish. It has no "
+            "effect while `show_tool_steps` is off, because there is no step to "
+            "open."
+        ),
+    )
     logo: HostedLogo = Field(
         default="agent",
         description=(

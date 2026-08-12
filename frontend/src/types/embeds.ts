@@ -68,6 +68,18 @@ export interface PageConfig {
   allow_voice: boolean;
   /** Whether the visitor may start a fresh thread, which mints a new key. */
   allow_new_conversation: boolean;
+  /**
+   * What of the agent's work the page is *sent*.
+   *
+   * Filters on emission rather than on rendering, which is why there is no
+   * matching branch in `HostedChat`: a frame the operator did not agree to never
+   * leaves the server, because reasoning hidden in CSS is an agent's reasoning
+   * sitting in a stranger's devtools.
+   */
+  show_thinking: boolean;
+  show_tool_steps: boolean;
+  /** Has no effect while `show_tool_steps` is off - there is no step to open. */
+  show_tool_results: boolean;
   logo: HostedLogo;
 }
 
@@ -172,6 +184,9 @@ export const DEFAULT_PAGE_CONFIG: PageConfig = {
   accent: "#4f46e5",
   allow_voice: false,
   allow_new_conversation: true,
+  show_thinking: false,
+  show_tool_steps: true,
+  show_tool_results: false,
   logo: "agent",
 };
 

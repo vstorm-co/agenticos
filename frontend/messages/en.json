@@ -559,7 +559,15 @@
     "pageAllowVoice": "A microphone in the composer",
     "pageAllowVoiceHint": "Dictation using the visitor's own browser. No audio reaches this deployment and nothing is transcribed here - but a browser that offers it hands the audio to its vendor, so this is off unless you turn it on.",
     "pageAllowNewConversation": "A button to start a fresh thread",
-    "pageAllowNewConversationHint": "The old thread is not deleted. It stops being the one this browser resumes."
+    "pageAllowNewConversationHint": "The old thread is not deleted. It stops being the one this browser resumes.",
+    "pageShows": "What the visitor sees of the work",
+    "pageShowsHint": "These decide what the server sends, not what the page draws. A visitor who opens devtools sees exactly what is ticked here and nothing else.",
+    "pageShowToolSteps": "What the agent is doing",
+    "pageShowToolStepsHint": "One line per step - Searching the documents, Running a query. On, because a page that goes quiet for thirty seconds reads as broken.",
+    "pageShowToolResults": "What each step returned",
+    "pageShowToolResultsHint": "The arguments a step was called with and what came back. Written for the model, so this is where something internal turns up - an address, a row from a system, a passage nobody meant to publish.",
+    "pageShowThinking": "The agent's reasoning",
+    "pageShowThinkingHint": "What the model says to itself before it answers. It is not written for anybody to read and it is not an answer you can stand behind."
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",

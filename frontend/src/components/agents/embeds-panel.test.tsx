@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -760,5 +760,169 @@ describe("what a hosted page is allowed to offer", () => {
     await pick("page");
 
     expect(screen.getByText(/hands the audio to its vendor/)).toBeInTheDocument();
+  });
+
+  it("publishes a page that narrates its work and keeps the rest to itself", async () => {
+    // The defaults, and they are the interesting part: a page that goes quiet for
+    // thirty seconds reads as broken, while an argument list and a tool's raw
+    // output are written for the model and are where something internal turns up.
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("page");
+
+    await userEvent.click(screen.getByRole("button", { name: "Publish" }));
+
+    const [payload] = state.create.mutate.mock.calls.at(-1)!;
+    expect(payload.config).toMatchObject({
+      show_tool_steps: true,
+      show_tool_results: false,
+      show_thinking: false,
+    });
+  });
+
+  it("carries a decision to show the reasoning into the config", async () => {
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("page");
+
+    await userEvent.click(screen.getByRole("checkbox", { name: /The agent's reasoning/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Publish" }));
+
+    const [payload] = state.create.mutate.mock.calls.at(-1)!;
+    expect(payload.config).toMatchObject({ show_thinking: true });
+  });
+
+  it("offers no way to open a step that is not sent", async () => {
+    // There is nothing for it to open, and the server enforces the same thing - a
+    // box that could be ticked into having no effect is one somebody would tick.
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("page");
+
+    await userEvent.click(screen.getByRole("checkbox", { name: /What the agent is doing/ }));
+
+    expect(screen.getByRole("checkbox", { name: /What each step returned/ })).toBeDisabled();
+  });
+
+  it("uploads a picture for the page being edited, not for whichever was last listed", async () => {
+    // The id travels with the file. A panel that read it from state instead would
+    // attach one page's logo to another the moment two are listed.
+    state.embeds = [page({ id: "e-9", config: { ...DEFAULT_PAGE_CONFIG, logo: "custom" } })];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await userEvent.click(screen.getByRole("button", { name: "Edit Hosted page" }));
+
+    const file = new File(["x"], "logo.png", { type: "image/png" });
+    await userEvent.upload(document.querySelector('input[type="file"]')!, file);
+
+    expect(state.uploadLogo.mutate).toHaveBeenCalledWith({ id: "e-9", file });
+  });
+
+  it("closes the editor once the change has actually landed", async () => {
+    // On success rather than on submit: a refused update that closed the form
+    // would look like it took.
+    state.embeds = [page()];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await userEvent.click(screen.getByRole("button", { name: "Edit Hosted page" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    const [, options] = state.update.mutate.mock.calls.at(-1)!;
+    act(() => options.onSuccess());
+    expect(screen.queryByRole("button", { name: "Save changes" })).toBeNull();
+  });
+
+  it("dismisses the delete confirmation without removing anything", async () => {
+    // Dismissing is the path that must not delete: the dialog closes on any
+    // outside interaction, and a handler wired to the removal instead of to the
+    // state would make "escape" mean "yes".
+    state.embeds = [embed()];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await userEvent.click(screen.getByRole("button", { name: "Remove Website widget" }));
+
+    await userEvent.keyboard("{Escape}");
+
+    expect(state.remove.mutateAsync).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: /^Remove$/ })).toBeNull();
+  });
+
+  it("closes the API notes and offers the surfaces again", async () => {
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("api");
+
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
+
+    expect(screen.getByRole("button", { name: /Hosted page/ })).toBeInTheDocument();
+  });
+
+  it("says these decide what is sent rather than what is drawn", async () => {
+    // The whole reason the filter is at emission: reasoning hidden in CSS is an
+    // agent's reasoning sitting in a stranger's devtools.
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("page");
+
+    expect(screen.getByText(/what the server sends, not what the page draws/)).toBeInTheDocument();
+  });
+});
+
+describe("the fields every surface shares", () => {
+  it("carries an accent typed as hex on a widget", async () => {
+    // Two controls, one value: the swatch for somebody who does not know the hex,
+    // the box for somebody who has it from a brand guide.
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("widget");
+
+    await userEvent.clear(screen.getAllByLabelText("Accent colour")[1]!);
+    await userEvent.type(screen.getAllByLabelText("Accent colour")[1]!, "#0f172a");
+
+    expect(screen.getAllByLabelText("Accent colour")[1]!).toHaveValue("#0f172a");
+  });
+
+  it("carries what a declared variable is for", async () => {
+    // The description is what whoever writes the integration reads. A field wired
+    // to nothing would leave them guessing at a name.
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("widget");
+    await userEvent.click(screen.getByRole("button", { name: /Add a variable/ }));
+
+    await userEvent.type(screen.getByLabelText("Variable 1 description"), "T");
+
+    expect(screen.getByLabelText("Variable 1 description")).toHaveValue("T");
+  });
+});
+
+describe("copying an integration", () => {
+  it("marks the snippet as copied rather than saying nothing happened", async () => {
+    // The whole feedback for the action: nothing else on the row changes, so a
+    // button that looks identical afterwards reads as a click that missed.
+    copied.value = true;
+    state.embeds = [embed()];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Copy the snippet" }));
+
+    expect(copy).toHaveBeenCalledWith(embed().snippet);
+  });
+
+  it("pauses a live surface, and says so on the row", async () => {
+    state.embeds = [embed({ is_active: false })];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+
+    expect(screen.getByText("paused")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("switch", { name: "Resume Website widget" }));
+
+    expect(state.update.mutate).toHaveBeenCalledWith({ id: "e-1", is_active: true });
+  });
+});
+
+describe("publishing a surface", () => {
+  it("closes the form once the surface actually exists", async () => {
+    // On success rather than on submit: a refused publish that closed the form
+    // would look like it took, and the key it would have printed is the whole
+    // point of the screen.
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("page");
+
+    await userEvent.click(screen.getByRole("button", { name: "Publish" }));
+    const [, options] = state.create.mutate.mock.calls.at(-1)!;
+    act(() => options.onSuccess());
+
+    expect(screen.queryByRole("button", { name: "Publish" })).toBeNull();
   });
 });
