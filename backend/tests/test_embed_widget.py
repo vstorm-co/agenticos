@@ -40,10 +40,27 @@ def test_the_token_is_read_from_the_page_rather_than_baked_in():
 
 
 def test_it_speaks_the_documented_frames():
-    """`docs/channels.md` promises these four; a rename here silently breaks
-    every hand-written client built against that page."""
-    for frame in ("typing", "message", "error", "ready"):
-        assert frame in RENDERED
+    """`docs/channels.md` promises the widget reads these five; a rename here
+    silently breaks every hand-written client built against that page.
+
+    They are the *dashboard's* frame names since #634, when both sockets started
+    driving one loop. It used to be `typing` and `message`, which was the second
+    dialect that went with the second loop.
+    """
+    for frame in ("model_request_start", "text_delta", "final_result", "complete", "error"):
+        # The quoted name, which is how the script compares one - a bare substring
+        # would be satisfied by the comment that explains the choice.
+        assert f'"{frame}"' in RENDERED
+
+
+def test_it_ignores_the_frames_it_does_not_draw():
+    """A widget is a bubble in the corner of somebody else's page: an answer
+    arriving a word at a time is worth having there, a narration of tool calls is
+    not. The page draws those, and `docs/channels.md` says which client reads what -
+    so a widget that quietly started rendering them would make that page wrong.
+    """
+    for frame in ("thinking_delta", "tool_call", "tool_result"):
+        assert f'"{frame}"' not in RENDERED
 
 
 def test_a_refusal_is_not_retried():
