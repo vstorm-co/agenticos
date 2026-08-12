@@ -432,11 +432,22 @@ ticked here and nothing else.
 | **The agent's reasoning** | off | What the model says to itself before answering. Not written for anybody to read, and not an answer an operator can stand behind |
 
 *What each step returned* cannot be turned on alone — there is no step for it to
-open, and the server drops both regardless of what the config says. The step line
-itself is named from the same table web chat names it from
-(`src/lib/tool-catalog.ts`), so a tool renamed in the backend is renamed on the
-page or falls back to a humanized name; there is deliberately no second table of
-tool names here (#144).
+open, and the server drops both regardless of what the config says.
+
+**A turn is rendered by web chat's own components**, not by a second set that looks
+like them: `TurnParts` is what the dashboard renders and what the page renders, so
+the reasoning is the same disclosure, the answer the same Markdown, and a run of
+tool calls the same rail — the icon from `src/lib/tool-catalog.ts`, the wording from
+`toolStep`, and the same renderers opening under a step for a knowledge search, a
+web search, a chart, code that ran, a skill that was loaded and a file that was
+written. There is deliberately no second table of tool names and no second turn
+renderer (#144). What the page does *not* draw is everything about being a member —
+see below.
+
+One thing reads differently by necessity: a call that came from an MCP server is
+named *Linear · Create issue* in the dashboard and by a humanized name here,
+because the mapping is the organization's list of connections and reading it needs a
+session.
 
 **A widget and a raw socket carry no switches and get these defaults**, read off
 `PageConfig` rather than repeated — a second copy of "off by default" is a copy
