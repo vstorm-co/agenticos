@@ -8,7 +8,6 @@ import {
   ingestionProblems,
   overrideSize,
   sameIngestion,
-  summarizeEmbedding,
   toNumber,
 } from "./ingestion-config";
 import type { Translate } from "@/lib/agent-step-captions";
@@ -205,18 +204,5 @@ describe("sameIngestion", () => {
     });
 
     expect(sameIngestion(DEFAULT_INGESTION_CONFIG, zero)).toBe(false);
-  });
-});
-
-describe("summarizeEmbedding", () => {
-  it("states what a collection was indexed with, not what it is set to", () => {
-    // Frozen at creation: two collections on different models are not peers, and
-    // this is the line that says which one this is.
-    expect(
-      summarizeEmbedding({
-        embedding_model: "text-embedding-3-large",
-        embedding_dim: 3072,
-      } as Parameters<typeof summarizeEmbedding>[0]),
-    ).toBe("text-embedding-3-large · 3,072 dimensions");
   });
 });

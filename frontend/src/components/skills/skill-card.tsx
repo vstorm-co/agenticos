@@ -25,6 +25,7 @@ interface SkillCardProps {
  */
 export function SkillCard({ skill, canEdit, onOpen, onDelete }: SkillCardProps) {
   const t = useTranslations("skills");
+  const tc = useTranslations("common");
   return (
     <Card className="hover:border-foreground/20 h-full transition-colors">
       <CardContent className="flex items-start justify-between gap-3 p-5">
@@ -56,7 +57,7 @@ export function SkillCard({ skill, canEdit, onOpen, onDelete }: SkillCardProps) 
           <Button
             variant="ghost"
             size="icon"
-            aria-label={`Delete ${skill.name}`}
+            aria-label={tc("deleteNamed", { name: skill.name })}
             onClick={onDelete}
           >
             <Trash2 className="h-4 w-4" />

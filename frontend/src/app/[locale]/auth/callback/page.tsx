@@ -75,7 +75,7 @@ export default function AuthCallbackPage() {
         // so this is a spinner rather than a skeleton of a page nobody stays on.
         <p className="text-foreground/65 flex items-center gap-3 text-sm">
           <Spinner className="h-4 w-4" aria-hidden />
-          Completing sign-in…
+          {t("completingSignIn")}
         </p>
       )}
     </div>

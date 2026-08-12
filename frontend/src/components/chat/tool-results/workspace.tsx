@@ -111,23 +111,25 @@ function FileCardActions({
   name: string;
   onOpen: () => void;
 }) {
+  const t = useTranslations("files");
+  const tc = useTranslations("common");
   const { download, error } = useFileActions(access);
 
   return (
     <span className="flex shrink-0 items-center gap-1">
       {error !== null && <span className="text-destructive mr-1 text-[11px]">{error}</span>}
       <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onOpen}>
-        Open
+        {t("open")}
       </Button>
       <Button
         variant="outline"
         size="sm"
         className="h-7 text-xs"
-        aria-label={`Download ${name}`}
+        aria-label={tc("downloadNamed", { name })}
         onClick={download}
       >
         <Download className="h-3.5 w-3.5" />
-        Download
+        {t("download")}
       </Button>
     </span>
   );

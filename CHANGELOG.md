@@ -17,6 +17,296 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.112] - 2026-08-12
+
+The copy guard reads the frontend with a TypeScript parser instead of five
+regexes, and the 137 English strings it can now see are in the catalog.
+
+### Changed
+
+- **The i18n guard parses instead of grepping, and the copy it found is in the
+  catalog.** `scripts/check_i18n.py` had been patched for a new shape four times
+  (#199, #246, #249, #314) and each fix was correct: the pattern was the problem.
+  Reading a `.tsx` file as text means deciding per candidate whether you are looking
+  at TypeScript or JSX, so every rule carried a threshold standing in for a parse
+  and the next shape fell between two of them. The last one was one word wide —
+  `` aria-label={`Remove ${source.name}`} `` sat below a two-word threshold that
+  existed to keep `` `audience${key}Hint` `` out. It is now
+  `frontend/scripts/check-i18n.ts`, walking `JsxText`, `JsxExpression`,
+  `StringLiteral` and `TemplateExpression` through `ts.createSourceFile`: a node the
+  formatter broke over three lines is one node, a type argument list is not JsxText
+  at all, and a comment is invisible rather than blanked. `MIXED`, `COUNT`, `LEAD`,
+  `JSX_TEXT`, `mask_generics`, `readable`, `NOT_PROSE` and both word-count
+  thresholds are deleted rather than ported; every policy rule carries over.
+  Runs from `make lint-frontend` (`bun run check:i18n`) and a new pre-commit hook,
+  with `frontend/scripts/check-i18n.test.ts` in place of the five
+  `backend/tests/test_check_i18n_*.py` files. Closes #395 and #141. (#610)
+- **131 hardcoded strings answered, and 34 dead keys deleted.** What the parser
+  reports on the tree before the sweep, in 66 files: 64 template literals, 62 text
+  nodes, 4 strings and a toast. That is the one-word template literals #395
+  measured (`aria-label`s and toasts — `Open ${org.name}`, `${name} updated.`), the
+  multi-line text nodes #141 measured (the 404 page, `global-error.tsx`, the
+  magic-link step, four legal paragraphs), and eight confirm-dialog titles a bare
+  `?` on the machine-read list had been exempting. 128 became messages; three took a
+  reasoned `i18n-exempt` — two on the error boundary that renders above
+  `NextIntlClientProvider`, one on a capability's wire format. A sentence split across an
+  element is now one `t.rich` message rather than a head, a `<span>` and a tail,
+  which is what made the 34 fragment keys dead — the guard's own `unreadKeys` named
+  every one. Three decisions worth recording. A number and its unit is a formatter
+  rather than a message — `` `${bytes} KiB` `` is the shape, and `ctx` joined the
+  unit list for the model picker's badge — so the fourteen of those take a rule
+  rather than fourteen exemptions. `PROVIDER_DEFAULT` holds a key now instead of the
+  words, per the module-table rule. And `result: ` in `run-python.tsx` keeps an
+  exemption, because `parseResult` beside it matches the string literally. (#610)
+
+### Fixed
+
+- **An `i18n-exempt` now covers the element it opens.** It applied to its own line
+  and the next, so the three exemptions in `app/not-found.tsx` — written above an
+  `<h1>` whose words are on the third line, because the opening tag carries four
+  Tailwind classes — covered the tag and missed the copy. Nothing noticed while a
+  text node alone on its line matched no rule at all. A reason worth two lines
+  covers the code under the whole comment block, too. (#610)
+- **The parser reads a `.ts` file, which is what kept #446 closed.** The port
+  landed with the offence sweep narrowed back to `*.tsx`, because the branch was
+  cut before #446 was fixed. Merging it that way would have taken the `.ts` sweep
+  out again — every `toast.success("…")` in `src/hooks/**` invisible, and nothing
+  stopping the 381 strings #446 migrated from coming back. The sweep reads both
+  suffixes now, by the same rules: a parser has no bracket to anchor on, so
+  nothing needs gating on the suffix. `src/app/api/**` keeps its skip, still at
+  the sweep rather than in a rule, because a route payload is a string a rule
+  reads perfectly well and what excuses it is where it lives (#603). Six strings
+  the widened sweep found are in the catalog: `timeAgo`'s three relative-time
+  labels as ICU plurals, the stream-error prefix, `chunk {number}`, and
+  `summarizeEmbedding` — deleted rather than translated, having had no caller but
+  its own test. (#610)
+- **A key was checked against the wrong namespace when a file held two
+  translators.** `missingKeys` unioned every namespace in a file, so a key read
+  through one translator counted as present if any *other* namespace held it. That
+  hid eight keys on the admin conversations page: `archived`, `active`, `all`,
+  `allOwners` and `allAgents` were read through a `useTranslations("admin")` while
+  only `pages.admin` held them, so all eight rendered as their own key strings on
+  screen in every locale. A call now resolves to the nearest enclosing binding of
+  that name — by scope, because one page binds `getTranslations("pages.meta")` in
+  `generateMetadata` and `getTranslations("pages.auth")` below it, both called
+  `t`, and keying on the name alone reports 157 live keys as missing. Where the
+  walk finds no binding it falls back to every namespace that name takes. (#610)
+- **`` `Bearer ${token}` `` was reported as copy.** An auth header value is the one
+  header shape `MACHINE_READ`'s character class cannot see, holding no punctuation
+  at all, so the whitespace rule read it as a word beside an interpolation. Only
+  latent while the sweep skipped `.ts`; both call sites are in `src/lib`. (#610)
+- **A ternary between two one-word labels in a readable prop was read by nothing.**
+  `aria-label={busy ? "Saving" : "Save"}` passed the attribute rule, which read a
+  bare literal, and `readString`, which wants a capital and a space before it calls
+  something a sentence — #395's own defect wearing a ternary. A label is
+  capitalised or holds a space, which keeps `dir === "asc" ? "desc" : "asc"` out.
+  (#610)
+- **A toast holding a sentence was reported twice**, once by each rule that owns
+  it, inflating the count a person works through. The toast rule keeps its
+  argument. (#610)
+
+## [0.0.111] - 2026-08-12
+
+The pricing caveat on the cost screen says which breakdown it measures and which
+it only marks.
+
+### Fixed
+
+- **One caveat, three breakdowns, and three places claiming it measured all
+  three.** "Some runs could not be priced" counts top-level runs — one per run
+  tree, the same rows *By agent* groups — so it measures that breakdown and only
+  *marks* By provider and By key, which sum every row's own spend, delegated rows
+  included. One parent with three unpriced delegates therefore reads `1` while
+  three figures below it are a floor. The two schema descriptions, the route
+  comment, the rendering side and `docs/governance.md` now say that instead of
+  claiming the figure and "its breakdown" cannot disagree. Descriptions, comments
+  and tests only — no behaviour change. (#597)
+- **The invariant behind it was untested end to end**: no breakdown is a floor
+  without a figure on the same page saying so. Two integration tests now pin it —
+  a priced parent with an unpriced delegate reads `1` above a provider split that
+  is the delegate's own spend, and one parent with two unpriced delegates still
+  reads `1`, with the delegate's own row counted nowhere. (#597)
+
+Checked and not changed: the marker itself is sound. The reported sequence — an
+unpriced delegate leaving the count at `0` — is not reachable, because a run tree
+shares one spend ledger and the top-level row is written from it.
+
+## [0.0.110] - 2026-08-12
+
+A turn that stopped for an approval no longer says so in the agent's own voice,
+in a transcript that keeps it forever.
+
+### Fixed
+
+- **The approval notice was stored as the agent's words.** A chat turn that
+  parked on an approval wrote *"This run needs approval before it can go further
+  — it is waiting in the approvals queue."* into the assistant message's
+  `content`. The moment somebody approved, that sentence was false, and it stayed
+  in the transcript attributed to the agent, in the middle of a turn that plainly
+  did go further — visible between two steps that both ran, since a run's segments
+  are drawn as one turn. It was never the model's text; it was UI state written
+  into the one field that keeps things forever. A parked run now records no answer
+  of its own, which is what every surface that does not stream already did — web
+  chat was the one place inventing a sentence. That a run is parked is still said
+  by the two things that stop saying it once the decision is made: the step it
+  stopped on, and the approval panel. (#509)
+- **A model that explained itself before asking for a gated call had that
+  explanation overwritten.** A parked turn now persists what was streamed before
+  it stopped, the same route a turn that failed, was stopped or lost its socket
+  already takes. Usually empty; not always. (#509)
+
+Known, and no longer covered for: a still-parked run says nothing about waiting
+once the page is reloaded — the stored tool-call row keeps `status="running"` and
+renders as a finished step, and the approval panel is only ever raised by a live
+socket frame. Every non-streaming surface has always looked like this; the notice
+was accidentally hiding it here. (#601)
+
+## [0.0.109] - 2026-08-12
+
+The suite reaches no Prefect server on a laptop either, so what a developer runs
+is what CI runs.
+
+### Fixed
+
+- **A test that called a flow needed a Prefect server listening on
+  `localhost:4200`.** Prefect resolves its own settings from `backend/.env` — its
+  settings model carries `env_file=".env"` — so the `PREFECT_API_URL` line
+  `make dev` needs was also the address a test's flow call tried to reach, and it
+  failed as `Failed to reach API at …` out of a test that patches every
+  collaborator it has. CI never saw it: with no `.env` there is no URL, so what a
+  laptop ran was never what CI ran. The URL is now assigned *empty* before Prefect
+  is imported — deleting it would leave the dotenv source to answer, and an empty
+  assignment outranks that source because Prefect's model carries
+  `env_ignore_empty=False` — and Prefect reads an empty URL as no URL, running the
+  flow against a temporary server of its own, which is what CI has always done.
+  Unconditionally, so a developer with `make dev` up gets the same run rather than
+  a different code path. (#536)
+- **That temporary server wrote into a developer's own Prefect database.**
+  Its state is a SQLite file under `PREFECT_HOME`, which is `~/.prefect` unless
+  something says otherwise — the same file a locally run `prefect server` has
+  open. It now points at a directory of the tests' own, for the same reason the
+  test database name does. (#536)
+- **And starting it inside Prefect's own 20-second allowance failed on a first
+  run.** The server migrates its database before it answers: about 75 seconds cold
+  against a `PREFECT_HOME` nothing has written, about seven warm. Trading a
+  deterministic failure for a first-run one is not a fix, so the allowance is 90
+  seconds, and ephemeral mode is named rather than inherited — with it off a flow
+  call does not fail fast, it retries for 75 seconds and then fails. (#536)
+
+## [0.0.108] - 2026-08-12
+
+The backend suite runs in a random order, and the first shuffle found a
+connection-pool defect that had been hiding behind collection order.
+
+### Added
+
+- **`pytest-randomly`, and the documentation that described it is now true.**
+  Two pages said the shuffle was on by default while the plugin was in neither
+  `pyproject.toml` nor the lockfile: the suite ran in collection order, the
+  documented `-p no:randomly` was a silent no-op, and the order-independence
+  those pages called verified had never been exercised by that mechanism. The
+  seed is printed in the header and reaches every xdist worker through
+  `workerinput`, so `-n auto` collects one order rather than four. A guard test
+  asserts the *declaration*, so removing the dependency fails a test rather than
+  silently un-shuffling the suite. (#571)
+
+### Fixed
+
+- **A closed event loop's connection was left in the app engine's pool.**
+  `app.db.session.engine` is a module-level object, so its pool outlives the test
+  that filled it, while anyio gives every test its own event loop — and a
+  connection created on a loop that has since closed answers
+  `cannot perform operation: another operation is in progress` for the next
+  statement issued through it, in whichever test checked it out. The two files
+  driving the real `get_db_session` each disposed the engine on the way *out*,
+  which covers only the pair of them; anything else sharing the xdist worker
+  could leave a connection there. The `engine` fixture now disposes on the way
+  *in*, and the two per-file disposes are gone. Pre-existing — which tests share
+  a worker was already decided at run time by `--dist load`; the shuffle only
+  changed the adjacencies and made it surface, red on run 6 of 8. (#571)
+
+## [0.0.107] - 2026-08-12
+
+Picking Polish now survives the next click.
+
+### Fixed
+
+- **The language switcher redrew the current page and nothing more.** The
+  locale's entire persistence was the `/pl` URL prefix, and under
+  `localePrefix: "as-needed"` a path without a prefix *is* the default locale —
+  so every ordinary `<Link href="/agents">` and `router.push("/orgs")` in the app
+  dropped the prefix and the language with it, and a reload never brought Polish
+  back either. next-intl reads a `NEXT_LOCALE` cookie itself, but only under
+  `localeDetection`, which also turns on `accept-language` sniffing — and this
+  deployment serves English at the root whatever the browser asks for. So nothing
+  wrote the cookie and nothing read it. One routing config now backs both the
+  middleware and the navigation APIs: the switcher writes the cookie with a
+  year's `maxAge`, making the choice a preference rather than a session, and the
+  middleware redirects an unprefixed path to the picked locale while still
+  ignoring `accept-language`. A path that names a locale always wins, so a shared
+  `/pl/...` URL still means what it says. (#285)
+
+## [0.0.106] - 2026-08-11
+
+The seam that puts a chart in a Slack reply is covered, so the line holding it
+there can no longer be deleted with a green suite.
+
+### Fixed
+
+- **A chart could stop reaching a channel reply without a single test
+  noticing.** `drawn_chart` was covered on its own and the runner's hand-back of
+  the tool calls a turn made was covered on its own; nothing joined them. Every
+  test of `ChannelAgentRouter.answer` mocks the runner, so the list of calls
+  stays empty and `image_png` is always `None` — which means `tool_calls=called`
+  could be deleted from either call site in `channels/mentions.py` with a green
+  suite and a 100% coverage gate, and a Slack user would be back to reading
+  "here is the chart" under no chart. Both reply paths now run against a stub
+  runner that fills the list the way the real one does, and assert on the PNG
+  rather than on a mock call; the stub takes the tool calls as a *required*
+  keyword, so a router that stops passing them fails loudly. (#515)
+
+Two things the issue behind this asserted did not survive checking, recorded
+here rather than left open: the line it named was already covered by the pull
+request that exposed it, and CI was never green while the local gate was red —
+the same 99.98% failure was red there for seven runs, so this was not a
+`make check` / CI divergence.
+
+## [0.0.105] - 2026-08-11
+
+`next build` no longer touches the network, so a CDN nobody in this repository
+controls can no longer fail a frontend build.
+
+### Fixed
+
+- **Every green frontend build so far was luck of the CDN.**
+  `next/font/google` resolves a family against `fonts.gstatic.com` at build
+  time, and when gstatic 404s the `.woff2` Turbopack surfaces it as
+  `Module not found: Can't resolve
+  '@vercel/turbopack-next/internal/font/google/font'` and exits non-zero — which
+  is `test-frontend`'s `Build` step and `e2e`'s `Build the frontend` step. On
+  2026-08-10 it took out two pull requests inside one push window (#570,
+  Bricolage, six errors; #544, Inter, twenty-eight) while a third built fine.
+  Bricolage Grotesque, Inter and Geist Mono are now vendored under
+  `frontend/src/app/fonts/` and read by `next/font/local` — the latin subset of
+  each, range-limited to the weights in use, 113 KB across the three, with SIL
+  OFL 1.1 and all three copyright notices beside them. A regression test asserts
+  no module imports the Google helper and that the set of `.woff2` on disk is
+  exactly the set `layout.tsx` declares, compared in both directions. (#572)
+
+- **The coverage gate failed at random, on branches with no Python in them.**
+  Exactly 99.98%, twice tonight: on a frontend-only change and on a commit that
+  bumped three version strings. The missed line was the `continue` in
+  `catalog.custom_icon`, reachable only when `glob` yields a non-matching mark
+  first — `scandir` order, which on the runners' ext4 volumes is hash order, not
+  alphabetical. A test that asks for a name matching no mark in a directory
+  holding two now reaches it whatever the order. A red `test` job at 99.98% on a
+  diff that touched no Python is this, and reading it as the branch's fault cost
+  an hour. (#625)
+
+Known, unchanged: the vendored subsets are `latin` only — exactly what
+`subsets: ["latin"]` asked for before — so Polish diacritics on the `pl` locale
+still fall through to the system font.
+
 ## [0.0.104] - 2026-08-11
 
 A channel message the platform delivers twice is answered once, and the decision

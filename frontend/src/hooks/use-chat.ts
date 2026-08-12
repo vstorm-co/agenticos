@@ -328,7 +328,10 @@ export function useChat(options: UseChatOptions = {}) {
             // Into the timeline rather than onto `content` directly: the store's
             // append keeps the two in step, and it starts a parts list for a
             // message that has none - which is what a replayed turn looks like.
-            appendTextDelta(id, `\n\n❌ Error: ${message || t("unknownError")}`);
+            appendTextDelta(
+              id,
+              `\n\n${t("streamError", { message: message || t("unknownError") })}`,
+            );
             updateMessage(id, (msg) => ({ ...msg, isStreaming: false }));
           }
           setIsProcessing(false);

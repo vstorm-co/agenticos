@@ -200,11 +200,12 @@ class AgentSession:
         # stored, so a reloaded conversation is the one somebody watched rather
         # than a reconstruction of it; see `chat_timeline.TurnTimeline`.
         #
-        # It also holds what the model has said so far, for the turn that does not
-        # finish. On the success path `turn.output` is the answer and `.text` is
-        # never read; nothing can tell in advance which path a turn is on, and the
-        # alternative is throwing away a half-written answer on exactly the runs
-        # somebody opens afterwards.
+        # It also holds what the model has said so far, for every turn that does
+        # not end with an answer: one that failed, was stopped or lost its socket,
+        # and one that parked on an approval. `turn.output` is the answer where
+        # there is one and empty where there is not; nothing can tell in advance
+        # which path a turn is on, and the alternative is throwing away a
+        # half-written answer on exactly the runs somebody opens afterwards.
         timeline = TurnTimeline()
         # The run row, as soon as `prepare` opens one. A list because the
         # callback is `list.append` and a turn opens at most one run - it is
@@ -258,12 +259,22 @@ class AgentSession:
                     model_profile_id=requested_model_profile_id(data),
                     environment_id=requested_environment_id(data),
                 )
-            output = turn.output
+            # `turn.output` is what the run *ended* with; a turn that parked ended
+            # with nothing, so its words are on the timeline (#509).
+            output = turn.output or timeline.text
             model_label = turn.model_label
             agent_version_id = turn.agent_version_id
 
             self.conversation_history.append({"role": "user", "content": user_message})
-            self.conversation_history.append({"role": "assistant", "content": output})
+            # Only when there was something to say - tidiness, not a broken
+            # request being fixed. Skipping the assistant entry can leave two
+            # `user` entries in a row (park with no text, decide, type again),
+            # and `_agent_graph._clean_message_history` merges those into one
+            # `ModelRequest` before every model call; the empty `TextPart` this
+            # avoids was harmless too, dropped by the Anthropic adapter and sent
+            # as `content: ""` by the OpenAI one.
+            if output:
+                self.conversation_history.append({"role": "assistant", "content": output})
             assistant_msg_id: str | None = None
             if self.current_conversation_id:
                 assistant_msg_id = await persist_assistant_turn(

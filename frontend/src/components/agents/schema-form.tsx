@@ -220,7 +220,9 @@ function SchemaField({
               type="button"
               onClick={() => setRevealed((shown) => !shown)}
               disabled={disabled}
-              aria-label={revealed ? `Hide ${label}` : `Show ${label}`}
+              aria-label={
+                revealed ? t("hideNamed", { name: label }) : t("showNamed", { name: label })
+              }
               aria-pressed={revealed}
               className="text-muted-foreground hover:text-foreground absolute top-1/2 right-1 -translate-y-1/2 rounded-md p-2 disabled:pointer-events-none disabled:opacity-50"
             >

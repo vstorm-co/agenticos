@@ -115,15 +115,16 @@ export function CookieBanner() {
               {t("weUseCookies")}
             </p>
             <p className="text-foreground/65 mt-1 text-xs leading-relaxed">
-              Essential cookies keep you signed in. Optional ones help us understand how the product
-              is used. See our{" "}
-              <Link
-                href={ROUTES.LEGAL_COOKIES}
-                className="text-foreground underline-offset-4 hover:underline"
-              >
-                {t("cookiePolicy")}
-              </Link>
-              .
+              {t.rich("cookieBannerBody", {
+                policy: (chunks) => (
+                  <Link
+                    href={ROUTES.LEGAL_COOKIES}
+                    className="text-foreground underline-offset-4 hover:underline"
+                  >
+                    {chunks}
+                  </Link>
+                ),
+              })}
             </p>
           </div>
           <button

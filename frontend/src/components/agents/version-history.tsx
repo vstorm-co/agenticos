@@ -65,7 +65,10 @@ function PromoteMenu({
       disabled={promoting}
       onValueChange={(environmentId) => onPromote(environmentId, version.id)}
     >
-      <SelectTrigger className="w-36" aria-label={`Promote v${version.version} to…`}>
+      <SelectTrigger
+        className="w-36"
+        aria-label={t("promoteVersionTo", { version: version.version })}
+      >
         <SelectValue placeholder={t("promote")} />
       </SelectTrigger>
       <SelectContent>
@@ -159,7 +162,7 @@ export function VersionHistory({
               size="sm"
               variant="ghost"
               onClick={() => setLeftId(version.id)}
-              aria-label={`Compare v${version.version}`}
+              aria-label={t("compareVersion", { version: version.version })}
               aria-pressed={leftId === version.id}
               className={cn(leftId === version.id && "bg-accent")}
             >

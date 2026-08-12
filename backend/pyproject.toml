@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "0.0.104"
+version = "0.0.112"
 description = "OS for your agents."
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -99,6 +99,12 @@ dev = [
     "ty>=0.0.69",
     "pre-commit>=4.0.0",
     "pytest-xdist>=3.8.0",
+    # Shuffles the suite every run and prints the seed, so an order-dependent
+    # test fails here rather than months later in an unrelated pull request.
+    # It carries its own xdist support (the controller's seed is handed to each
+    # worker through `workerinput`), without which the workers would collect in
+    # four different orders and `-n auto` would abort on the mismatch.
+    "pytest-randomly>=4.1.0",
     "vulture>=2.14",
 ]
 # The documentation site. Its own group rather than part of `dev`, because the

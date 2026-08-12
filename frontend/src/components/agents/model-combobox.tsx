@@ -149,7 +149,10 @@ export function ModelCombobox({
               >
                 <Pencil className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
                 <span className="min-w-0 flex-1 truncate">
-                  Use <span className="font-mono">{custom}</span>
+                  {t.rich("useCustomModel", {
+                    name: custom,
+                    mono: (chunks) => <span className="font-mono">{chunks}</span>,
+                  })}
                 </span>
                 <Badge variant="outline">{t("notList")}</Badge>
               </Command.Item>

@@ -20,8 +20,8 @@ type Messages = { [key: string]: string | Messages };
  *
  * Merged rather than duplicated. `pl.json` holds the strings that have actually been
  * translated and nothing else, so there is no second copy of nine hundred English
- * sentences to keep in step - and `scripts/check_i18n.py` only has to hold one
- * catalog complete.
+ * sentences to keep in step - and `frontend/scripts/check-i18n.ts` only has to hold
+ * one catalog complete.
  */
 function withEnglishUnderneath(messages: Messages): Messages {
   const merge = (base: Messages, over: Messages): Messages => {

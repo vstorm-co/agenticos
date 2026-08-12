@@ -41,7 +41,6 @@ from app.api.exception_handlers import register_exception_handlers
 from app.core.background import spawn, spawn_after_commit
 from app.core.exceptions import NotFoundError
 from app.core.middleware import RequestIDMiddleware
-from app.db.session import engine as app_engine
 
 pytestmark = pytest.mark.anyio
 
@@ -78,10 +77,6 @@ async def probe_table(engine: AsyncEngine) -> AsyncGenerator[AsyncEngine, None]:
     yield engine
     async with engine.begin() as connection:
         await connection.execute(text(_DROP))
-    # The route below goes through the real `get_db_session` and its pool. anyio
-    # gives each test its own event loop, so a connection left in that pool is
-    # one the next test finds attached to a loop that no longer exists.
-    await app_engine.dispose()
 
 
 async def _committed(engine: AsyncEngine, row_id: UUID) -> bool:

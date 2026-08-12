@@ -254,9 +254,11 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
             {form.kind === "docker" && local?.token_available === true && (
               <div className="bg-muted/40 space-y-2 rounded-md p-3">
                 <p className="text-xs">
-                  This deployment already holds the token its sandbox service was started with — the
-                  one <span className="font-mono">{t("makeSandboxToken")}</span> wrote to{" "}
-                  <span className="font-mono">backend/.env</span>.
+                  {t.rich("deploymentHoldsToken", {
+                    command: t("makeSandboxToken"),
+                    file: "backend/.env",
+                    mono: (chunks) => <span className="font-mono">{chunks}</span>,
+                  })}
                 </p>
                 <Button
                   variant="outline"
