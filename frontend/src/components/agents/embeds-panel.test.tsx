@@ -828,6 +828,20 @@ describe("what a hosted page is allowed to offer", () => {
     expect(screen.queryByRole("button", { name: "Save changes" })).toBeNull();
   });
 
+  it("keeps a custom rate limit through an edit rather than resetting it to the default", async () => {
+    // There is no field for the limit in this form, so an edit that hardcoded
+    // the default would silently rewrite a value set through the API - a limit
+    // of 60 back to 10 by renaming the surface or ticking a box.
+    state.embeds = [page({ rate_limit_per_minute: 60 })];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await userEvent.click(screen.getByRole("button", { name: "Edit Hosted page" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    const [changes] = state.update.mutate.mock.calls.at(-1)!;
+    expect(changes.rate_limit_per_minute).toBe(60);
+  });
+
   it("dismisses the delete confirmation without removing anything", async () => {
     // Dismissing is the path that must not delete: the dialog closes on any
     // outside interaction, and a handler wired to the removal instead of to the

@@ -238,7 +238,10 @@ export function EmbedForm({
               // Dropped here rather than refused on save: the name is the
               // contract, and an empty one has nothing to contract about.
               context_variables: variables.filter((variable) => variable.name.trim() !== ""),
-              rate_limit_per_minute: 10,
+              // Carried through on edit rather than reset: there is no field for
+              // it in this form, so a limit set through the API to anything but
+              // the default would otherwise be rewritten to 10 by every save.
+              rate_limit_per_minute: embed?.rate_limit_per_minute ?? 10,
             })
           }
         >
