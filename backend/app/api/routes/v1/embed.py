@@ -25,11 +25,12 @@ from fastapi import (
     WebSocket,
     WebSocketDisconnect,
 )
+from fastapi.responses import FileResponse
 
 from app.api.deps import DBSession, EmbedSvc
 from app.core.config import settings
 from app.db.session import get_db_context
-from app.schemas.agent_embed import PublicEmbedConfig
+from app.schemas.agent_embed import PublicEmbedConfig, PublicHostedConfig
 from app.services import rate_limit
 from app.services.agent_embed import AgentEmbedService, EmbedDenied
 from app.services.embed_session import WIDGET_JS, EmbedSession
@@ -68,14 +69,53 @@ async def embed_config(
         raise HTTPException(status_code=429, detail="Too many requests")
 
     try:
-        embed, _ = await service.admit(public_key, origin=origin, token=None)
+        admission = await service.admit(public_key, origin=origin, token=None)
     except EmbedDenied:
         raise HTTPException(status_code=403, detail="This widget is not available here") from None
 
     if origin:
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Vary"] = "Origin"
-    return await service.public_config(embed)
+    return await service.public_config(admission.embed)
+
+
+@router.get("/{public_key}/hosted", response_model=PublicHostedConfig)
+async def hosted_config(public_key: str, service: EmbedSvc, request: Request) -> Any:
+    """What a page of our own renders itself from.
+
+    No origin check, unlike every other route here, and that is the stance rather
+    than an oversight: an allow-list is a rule about *other people's* sites, and
+    this page is ours. What protects a hosted link in `public` mode is the key's
+    unguessability, the embed's rate bucket, its budget and its pause switch -
+    nothing else, which is why it is said in `docs/channels.md` too.
+
+    404 rather than 403 when hosting is off, for the same reason the widget script
+    does: a key that names nothing and a key whose page is not published are the
+    same amount of information to give away.
+    """
+    if not await rate_limit.embed_admission_allowed(request):
+        raise HTTPException(status_code=429, detail="Too many requests")
+
+    embed = await service.find_hosted(public_key)
+    if embed is None:
+        raise HTTPException(status_code=404, detail="This page is not available")
+    return await service.hosted_config(embed)
+
+
+@router.get("/{public_key}/logo", response_class=FileResponse)
+async def hosted_logo(public_key: str, service: EmbedSvc) -> Any:
+    """The one image a hosted page may hand out without a session.
+
+    The agent's avatar or the organization's, whichever the page was configured
+    with - both are uploaded through the mechanics that already exist, so there is
+    no second upload path and no operator-supplied URL for a page we serve to go
+    fetching. The authenticated avatar routes stay authenticated: what makes this
+    one public is the hosted flag on this embed, and nothing wider.
+    """
+    path = await service.hosted_logo_path(public_key)
+    if path is None:
+        raise HTTPException(status_code=404, detail="No logo")
+    return FileResponse(path)
 
 
 @router.get("/{public_key}/widget.js", response_class=Response)
@@ -113,12 +153,19 @@ async def embed_socket(
     websocket: WebSocket,
     public_key: str,
     token: str | None = Query(default=None),
+    visitor: str | None = Query(default=None, max_length=64),
 ) -> None:
     """One visitor's conversation with an embedded agent.
 
     The token arrives as a query parameter because browsers cannot set headers
     on a WebSocket handshake. It is the customer's own signed token, not ours,
     and it never leaves this process.
+
+    `visitor` is the hosted page's own continuity key, kept in `localStorage` so a
+    bookmarked link reopens the thread it left. It is a bearer credential for that
+    conversation and is treated as one: it is only read for a hosted connection,
+    and in `jwt` mode it is ignored outright, because the token's subject already
+    answers who this is and a second answer would be a weaker one.
 
     **Admission gets a session; the conversation does not.** This socket stays
     open for as long as a visitor leaves the tab open, and the session below is
@@ -137,7 +184,7 @@ async def embed_socket(
     async with get_db_context() as db:
         service = AgentEmbedService(db)
         try:
-            embed, visitor = await service.admit(public_key, origin=origin, token=token)
+            admission = await service.admit(public_key, origin=origin, token=token)
         except EmbedDenied:
             # Accepted first, then closed with a code: a handshake rejected
             # outright gives the browser no way to tell "refused" from "server
@@ -147,7 +194,14 @@ async def embed_socket(
             return
 
     session = EmbedSession(
-        sessions=get_db_context, embed=embed, visitor=visitor, websocket=websocket
+        sessions=get_db_context,
+        embed=admission.embed,
+        visitor=admission.visitor,
+        websocket=websocket,
+        hosted=admission.hosted,
+        # Only a hosted connection resumes by key, and only an anonymous one: a
+        # `jwt` visitor is already named by their token.
+        visitor_key=visitor if admission.hosted and admission.visitor is None else None,
     )
     await websocket.accept()
     try:
@@ -158,7 +212,7 @@ async def embed_socket(
     except WebSocketDisconnect:
         pass
     except Exception:
-        logger.exception("embed_session_failed", extra={"embed_id": str(embed.id)})
+        logger.exception("embed_session_failed", extra={"embed_id": str(admission.embed.id)})
         await session.fail("Something went wrong. Please try again.")
     finally:
         await session.close()

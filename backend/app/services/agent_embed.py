@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import logging
 import secrets
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from urllib.parse import urlparse
 from uuid import UUID
@@ -38,16 +39,19 @@ from app.core.exceptions import (
 from app.core.permissions import AuthContext, Perm
 from app.core.vault import VaultScope, seal, unseal
 from app.db.models.agent_embed import DEFAULT_THEME, AgentEmbed
-from app.repositories import agent_embed_repo, agent_repo
+from app.repositories import agent_embed_repo, agent_repo, organization_repo
 from app.schemas.agent_embed import (
     EmbedCreate,
     EmbedRead,
     EmbedTheme,
     EmbedUpdate,
     EmbedVariable,
+    HostedConfig,
     PublicEmbedConfig,
+    PublicHostedConfig,
 )
 from app.services.agent_registry import AgentRegistryService
+from app.services.file_storage import get_file_storage
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +63,22 @@ _KEY_BYTES = 24
 _MAX_TOKEN_AGE_SECONDS = 60 * 60 * 12
 
 
+@dataclass(frozen=True)
+class Admission:
+    """What admitting a visitor established, for whoever serves them next.
+
+    `hosted` is not a preference the caller passes in - it is decided here, from
+    the origin the browser reported, and it narrows what the connection may do:
+    on a page of our own the only source of a declared variable is the URL, so
+    only variables marked URL-safe are accepted from it. A caller-supplied flag
+    would be a visitor asking to be trusted more.
+    """
+
+    embed: AgentEmbed
+    visitor: str | None
+    hosted: bool
+
+
 class EmbedDenied(Exception):
     """The widget refuses this visitor, and the reason is not theirs to know.
 
@@ -66,6 +86,16 @@ class EmbedDenied(Exception):
     caller cannot accidentally tell a stranger which of the three it was, and
     an origin probe learns nothing about tokens.
     """
+
+
+def _own_origin() -> str:
+    """The origin this deployment's own pages are served from.
+
+    Derived from settings in the same place the socket URL is, and never
+    hardcoded: a hosted page is served by the frontend, so what a browser reports
+    when it opens the socket from `/e/<key>` is that host and not the API's.
+    """
+    return _origin_of(settings.FRONTEND_URL)
 
 
 def _origin_of(value: str) -> str:
@@ -108,6 +138,8 @@ class AgentEmbedService:
         agent = await self.agents.get(ctx, data.agent_id, perm=Perm.AGENTS_PUBLISH)
 
         self._check_secret(data.auth_mode, data.jwt_secret)
+        if data.hosted:
+            self._check_hostable(data.auth_mode, data.context_variables)
 
         embed = AgentEmbed(
             organization_id=ctx.organization_id,
@@ -119,6 +151,8 @@ class AgentEmbedService:
             jwt_secret_encrypted=self._seal(ctx.organization_id, data.jwt_secret),
             allowed_origins=[_origin_of(str(origin)) for origin in data.allowed_origins],
             theme=data.theme.model_dump(),
+            hosted=data.hosted,
+            hosted_config=data.hosted_config.model_dump(),
             context=data.context,
             context_variables=[variable.model_dump() for variable in data.context_variables],
             rate_limit_per_minute=data.rate_limit_per_minute,
@@ -131,7 +165,11 @@ class AgentEmbedService:
             action="agent.embed_created",
             target_type="agent",
             target_id=str(agent.id),
-            details={"embed_id": str(created.id), "auth_mode": created.auth_mode},
+            details={
+                "embed_id": str(created.id),
+                "auth_mode": created.auth_mode,
+                "hosted": created.hosted,
+            },
         )
         return self._read(created)
 
@@ -162,6 +200,10 @@ class AgentEmbedService:
             ]
         if "theme" in changes and changes["theme"] is not None:
             changes["theme"] = EmbedTheme.model_validate(changes["theme"]).model_dump()
+        if "hosted_config" in changes and changes["hosted_config"] is not None:
+            changes["hosted_config"] = HostedConfig.model_validate(
+                changes["hosted_config"]
+            ).model_dump()
         if "context_variables" in changes:
             # An explicit null means "declare none", not NULL: the column cannot
             # hold one, and a widget that declares nothing is the ordinary state
@@ -170,6 +212,19 @@ class AgentEmbedService:
                 EmbedVariable.model_validate(variable).model_dump()
                 for variable in (changes["context_variables"] or [])
             ]
+
+        # Re-checked against what the row will hold rather than against what this
+        # request said, because either half can arrive alone: turning hosting on
+        # is refused by a `required` variable already stored, and marking a stored
+        # variable un-URL-safe is refused while hosting is already on.
+        if changes.get("hosted", embed.hosted):
+            self._check_hostable(
+                mode,
+                [
+                    EmbedVariable.model_validate(variable)
+                    for variable in changes.get("context_variables", embed.context_variables or [])
+                ],
+            )
 
         updated = await agent_embed_repo.update(self.db, db_embed=embed, update_data=changes)
         await record_audit(
@@ -202,14 +257,13 @@ class AgentEmbedService:
             details={"embed_id": str(embed_id)},
         )
 
-    async def admit(
-        self, public_key: str, *, origin: str | None, token: str | None
-    ) -> tuple[AgentEmbed, str | None]:
+    async def admit(self, public_key: str, *, origin: str | None, token: str | None) -> Admission:
         """Decide whether this visitor may talk to this widget.
 
-        Returns the widget and the visitor's identity - the `sub` of their
-        token, or None for an anonymous one. The identity is what a rate limit
-        and a transcript are keyed on.
+        Returns the widget, the visitor's identity - the `sub` of their token, or
+        None for an anonymous one - and whether they arrived on a page we serve
+        ourselves. The identity is what a rate limit and a transcript are keyed
+        on.
 
         Raises:
             EmbedDenied: For every refusal, without saying which.
@@ -218,7 +272,8 @@ class AgentEmbedService:
         if embed is None or not embed.is_active:
             raise EmbedDenied("unknown or inactive widget")
 
-        if not self._origin_allowed(embed, origin):
+        hosted = bool(embed.hosted) and origin is not None and _origin_of(origin) == _own_origin()
+        if not hosted and not self._origin_allowed(embed, origin):
             # Logged, not answered: the person who needs this message is the
             # operator wondering why their widget is silent, not the caller.
             logger.info(
@@ -228,8 +283,83 @@ class AgentEmbedService:
             raise EmbedDenied("origin not allowed")
 
         if embed.auth_mode == "public":
-            return embed, None
-        return embed, self._verify_token(embed, token)
+            return Admission(embed=embed, visitor=None, hosted=hosted)
+        return Admission(embed=embed, visitor=self._verify_token(embed, token), hosted=hosted)
+
+    async def find_hosted(self, public_key: str) -> AgentEmbed | None:
+        """The embed a key names, if it is published as a page of our own.
+
+        No origin check, and that is the security stance rather than an omission:
+        the allow-list is a rule about *other people's* sites, and this page is
+        ours. **A hosted link in `public` mode is protected by the key's
+        unguessability, the embed's rate bucket, its budget and its pause switch -
+        nothing else.** Written down here, in `docs/channels.md`, and nowhere
+        implied.
+        """
+        embed = await agent_embed_repo.get_by_key(self.db, public_key)
+        if embed is None or not embed.is_active or not embed.hosted:
+            return None
+        return embed
+
+    async def hosted_config(self, embed: AgentEmbed) -> PublicHostedConfig:
+        """What the hosted page renders itself from."""
+        config = HostedConfig.model_validate(embed.hosted_config or {})
+        agent = await agent_repo.get(self.db, embed.agent_id, organization_id=embed.organization_id)
+        declared = [
+            EmbedVariable.model_validate(variable) for variable in (embed.context_variables or [])
+        ]
+        return PublicHostedConfig(
+            title=config.title or (agent.name if agent else "Assistant"),
+            welcome=config.welcome,
+            accent=config.accent,
+            logo_url=self._logo_url(embed, config),
+            agent_name=agent.name if agent else "Assistant",
+            variables=[variable.name for variable in declared if variable.url_safe],
+        )
+
+    async def hosted_logo_path(self, public_key: str) -> str | None:
+        """The file a hosted page's logo is served from, or `None` if there is none.
+
+        The image is the agent's avatar or the organization's, both already
+        uploaded through the paths that exist for them - so hosting a page adds a
+        way to *read* one image without a session and no way to write one. `None`
+        covers every reason there is nothing to send: hosting off, `logo` set to
+        `none`, no avatar uploaded, or a stored path whose file has gone.
+        """
+        embed = await self.find_hosted(public_key)
+        if embed is None:
+            return None
+        config = HostedConfig.model_validate(embed.hosted_config or {})
+        if config.logo == "none":
+            return None
+
+        stored: str | None = None
+        if config.logo == "agent":
+            agent = await agent_repo.get(
+                self.db, embed.agent_id, organization_id=embed.organization_id
+            )
+            stored = agent.avatar_url if agent else None
+        else:
+            organization = await organization_repo.get_by_id(self.db, embed.organization_id)
+            stored = organization.avatar_url if organization else None
+        if not stored:
+            return None
+
+        full = get_file_storage().get_full_path(stored)
+        return str(full) if full is not None and full.exists() else None
+
+    @staticmethod
+    def _logo_url(embed: AgentEmbed, config: HostedConfig) -> str | None:
+        """Where the page fetches its logo, or `None` when it shows none.
+
+        A path on this API rather than the stored storage key: the key is an
+        internal address, and the route that serves it is what decides a hosted
+        embed may hand out that one image without a session.
+        """
+        if config.logo == "none":
+            return None
+        base = settings.PUBLIC_BASE_URL.rstrip("/")
+        return f"{base}/api/v1/embed/{embed.public_key}/logo"
 
     async def find_public(self, public_key: str) -> AgentEmbed | None:
         """The widget a key names, with no origin check.
@@ -298,6 +428,47 @@ class AgentEmbedService:
             raise EmbedDenied("token has no subject")
         return str(subject)
 
+    @staticmethod
+    def _check_hostable(auth_mode: str, variables: list[EmbedVariable]) -> None:
+        """Refuse to host what a hosted page cannot honestly serve.
+
+        Both refusals are explicit and at enable time, never a silent fallback to
+        an unhosted embed: somebody who asked for a link and got none would go
+        looking for the link.
+
+        **`jwt` mode cannot be hosted.** The token would have to travel in the
+        URL, which puts it in browser history, in `Referer` headers and in every
+        chat client the link is pasted into - and the fragment trick that avoids
+        some of that stops the link being "send it and it works", which is the
+        whole point of a link. `jwt` on the widget is unaffected.
+
+        **A required variable that is not URL-safe cannot be hosted.** On a page
+        of our own the URL is the only source of a supplied value, so a variable
+        the agent is promised and cannot be given would be a promise the surface
+        structurally cannot keep.
+        """
+        if auth_mode != "public":
+            raise BadRequestError(
+                message=(
+                    "A hosted page cannot use token auth: the token would travel in the "
+                    "URL, and so into history, referrers and every chat client the link "
+                    "is pasted into. Publish it as public, or use the widget."
+                ),
+                details={"auth_mode": auth_mode},
+            )
+        unreachable = sorted(
+            variable.name for variable in variables if variable.required and not variable.url_safe
+        )
+        if unreachable:
+            raise BadRequestError(
+                message=(
+                    "A hosted page can only be told a variable through its own URL, so a "
+                    "required variable has to be marked URL-safe. Mark it, or make it "
+                    "optional."
+                ),
+                details={"variables": unreachable},
+            )
+
     def _check_secret(
         self, auth_mode: str, secret: str | None, *, allow_missing: bool = False
     ) -> None:
@@ -331,6 +502,8 @@ class AgentEmbedService:
             has_jwt_secret=embed.jwt_secret_encrypted is not None,
             allowed_origins=list(embed.allowed_origins or []),
             theme=EmbedTheme.model_validate(theme),
+            hosted=embed.hosted,
+            hosted_config=HostedConfig.model_validate(embed.hosted_config or {}),
             context=embed.context,
             context_variables=[
                 EmbedVariable.model_validate(variable)
@@ -340,6 +513,7 @@ class AgentEmbedService:
             rate_limit_per_minute=embed.rate_limit_per_minute,
             snippet=self.snippet_for(embed),
             socket_url=self.socket_url_for(embed),
+            hosted_url=self.hosted_url_for(embed),
             created_at=embed.created_at,
             updated_at=embed.updated_at,
         )
@@ -365,6 +539,19 @@ class AgentEmbedService:
             return tag
         keys = ", ".join(f"{name}: …" for name in declared if name)
         return f"<script>window.AgenticOSContext = {{ {keys} }};</script>\n{tag}"
+
+    @staticmethod
+    def hosted_url_for(embed: AgentEmbed) -> str | None:
+        """The link, when hosting is on, and `None` when it is off.
+
+        Off the *frontend's* base URL rather than the API's, because the page is
+        served by the frontend and the socket it opens is what reaches the API -
+        which is also why the origin the browser reports is this host and why
+        `_own_origin` reads the same setting.
+        """
+        if not embed.hosted:
+            return None
+        return f"{settings.FRONTEND_URL.rstrip('/')}/e/{embed.public_key}"
 
     @staticmethod
     def socket_url_for(embed: AgentEmbed) -> str:

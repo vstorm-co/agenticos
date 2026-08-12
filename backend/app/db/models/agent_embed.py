@@ -120,6 +120,33 @@ class AgentEmbed(Base, TimestampMixin):
     value omits its line and logs, rather than costing the visitor an answer.
     """
 
+    hosted: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    """Whether this embed is also reachable as a page we serve ourselves.
+
+    A flag on this row rather than a table of its own, because a hosted page *is*
+    an embed: the same public key, the same auth mode, the same rate bucket,
+    budget and pause switch, rendered as a page instead of as a bubble in the
+    corner of somebody else's site. A second table would be a second place for
+    "who may reach this agent" to be answered, which is how the surfaces drifted
+    apart the last time (#517).
+
+    Not a `placement` value. Placement is where a widget renders on a page; a
+    page of our own is not a position.
+    """
+
+    hosted_config: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    """What the hosted page is branded with - see `HostedConfig`.
+
+    Separate from `theme`, which describes a bubble: a launcher label and a
+    corner to sit in mean nothing on a full page, and a page needs a title in the
+    browser tab that a widget has no use for. One validated model each, rather
+    than one union with half its fields inert on either surface.
+    """
+
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     # Per visitor, per minute. The one control between a public URL and an
     # afternoon's model budget.
@@ -127,6 +154,11 @@ class AgentEmbed(Base, TimestampMixin):
 
     __table_args__ = (
         CheckConstraint("auth_mode IN ('public', 'jwt')", name="ck_embed_auth_mode"),
+        # A hosted page puts its link in chat clients, browser history and
+        # `Referer` headers, so `jwt` mode would mean a token travelling through
+        # all three. The service refuses the combination at enable time with a
+        # message; this is the half a future refactor cannot talk its way past.
+        CheckConstraint("NOT hosted OR auth_mode = 'public'", name="ck_embed_hosted_is_public"),
         CheckConstraint("rate_limit_per_minute > 0", name="ck_embed_rate_limit_positive"),
         # A `jwt` embed with no secret cannot verify anything, and the failure
         # mode is the dangerous one: every token would be rejected, or worse, a

@@ -27,6 +27,49 @@ class EmbedTheme(BaseSchema):
     launcher_label: str = Field(default="Chat", max_length=24)
 
 
+HostedLogo = Literal["agent", "organization", "none"]
+
+
+class HostedConfig(BaseSchema):
+    """What a hosted page is branded with.
+
+    A fixed set of fields, for the same reason `EmbedTheme` is one: this renders
+    to the public internet, and free-form styling in a JSONB column is a
+    stylesheet nobody reviews.
+
+    Its own model rather than more fields on `EmbedTheme`, because the two
+    surfaces do not describe the same thing: a launcher label and a corner to sit
+    in mean nothing on a full page, and a page needs a browser-tab title a bubble
+    has no use for.
+    """
+
+    title: str = Field(
+        default="",
+        max_length=80,
+        description="The page and browser-tab title. Empty falls back to the agent's name.",
+    )
+    welcome: str = Field(
+        default="",
+        max_length=600,
+        description=(
+            "Shown above the composer before the first question. It is rendered "
+            "to the visitor and never sent to the model - a greeting in the "
+            "model's history is a turn the agent thinks it took."
+        ),
+    )
+    accent: str = Field(default="#4f46e5", pattern=r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
+    logo: HostedLogo = Field(
+        default="agent",
+        description=(
+            "Which image the page shows: the agent's avatar, the organization's, "
+            "or none. A choice among images this platform already stores rather "
+            "than a URL or a second upload path - an operator-supplied URL is a "
+            "third-party request from a page we serve, and one more thing to "
+            "make safe."
+        ),
+    )
+
+
 class EmbedVariable(BaseSchema):
     """One thing the page must tell this widget about the visitor.
 
@@ -58,6 +101,18 @@ class EmbedVariable(BaseSchema):
         max_length=200,
         description="What it is for, shown to whoever writes the integration",
     )
+    url_safe: bool = Field(
+        default=False,
+        description=(
+            "Whether a hosted page may take this value from `?var_<name>=` in its "
+            "own URL. Off by default and deliberately per variable: a query "
+            "parameter is visitor-controlled input, so `user_tier=premium` typed "
+            "into the address bar has to be impossible unless somebody decided "
+            "otherwise for that one variable. It has no meaning in the widget, "
+            "which reads `window.AgenticOSContext` from a page the operator "
+            "controls."
+        ),
+    )
 
 
 class EmbedCreate(BaseSchema):
@@ -76,6 +131,15 @@ class EmbedCreate(BaseSchema):
         description="Sites this widget may be opened from. Empty means nowhere.",
     )
     theme: EmbedTheme = Field(default_factory=EmbedTheme)
+    hosted: bool = Field(
+        default=False,
+        description=(
+            "Also serve this embed as a page of our own, at `/e/<public_key>`. "
+            "Refused in `jwt` mode, and refused when a required variable is not "
+            "marked URL-safe - both at creation, with a message."
+        ),
+    )
+    hosted_config: HostedConfig = Field(default_factory=HostedConfig)
     context: str | None = Field(default=None, max_length=2000)
     context_variables: list[EmbedVariable] = Field(
         default_factory=list,
@@ -102,6 +166,8 @@ class EmbedUpdate(BaseSchema):
     jwt_secret: str | None = Field(default=None, min_length=16, max_length=512)
     allowed_origins: list[HttpUrl] | None = Field(default=None, max_length=20)
     theme: EmbedTheme | None = None
+    hosted: bool | None = None
+    hosted_config: HostedConfig | None = None
     context: str | None = Field(default=None, max_length=2000)
     context_variables: list[EmbedVariable] | None = Field(default=None, max_length=20)
     is_active: bool | None = None
@@ -123,6 +189,8 @@ class EmbedRead(BaseSchema, TimestampSchema):
     has_jwt_secret: bool
     allowed_origins: list[str]
     theme: EmbedTheme
+    hosted: bool
+    hosted_config: HostedConfig
     context: str | None
     context_variables: list[EmbedVariable] = []
     is_active: bool
@@ -134,6 +202,9 @@ class EmbedRead(BaseSchema, TimestampSchema):
     # rather than pasting a tag into a site they do not control. Same reason it
     # is assembled server-side, and it carries no token - see `socket_url_for`.
     socket_url: str
+    # The link, when hosting is on; `None` when it is off, so a panel has nothing
+    # to show rather than a URL that answers 404.
+    hosted_url: str | None
 
 
 class EmbedList(BaseSchema):
@@ -163,3 +234,24 @@ class PublicEmbedConfig(BaseSchema):
     @classmethod
     def _no_empty_name(cls, value: str) -> str:
         return value or "Assistant"
+
+
+class PublicHostedConfig(BaseSchema):
+    """What a hosted page renders itself from, before anybody says anything.
+
+    Thin for the same reason `PublicEmbedConfig` is: served to whoever has the
+    link, so a name, a look and what the page may ask for - no agent id, no
+    organization, no counts.
+
+    `variables` is the declared set a visitor's URL may fill, and only the ones
+    marked URL-safe reach it. The page needs the list to know which `?var_…`
+    parameters to forward; the server drops anything else regardless, so this is
+    a convenience rather than the enforcement.
+    """
+
+    title: str
+    welcome: str
+    accent: str
+    logo_url: str | None
+    agent_name: str
+    variables: list[str] = []

@@ -104,6 +104,8 @@ class TestWhatTheEmbeddedWidgetStamps:
         )
         session.conversation_id = uuid.uuid4()
         session.visitor = "visitor-1"
+        session.hosted = False
+        session.visitor_key = None
         session._context_sent = False
         return session
 
@@ -145,6 +147,8 @@ class TestTheSuppliedContextIsResentWhenItChanges:
         )
         session.conversation_id = uuid.uuid4()
         session.visitor = "visitor-1"
+        session.hosted = False
+        session.visitor_key = None
         session._context_sent = False
         session._supplied = {}
         session._supplied_sent = ""

@@ -24,6 +24,13 @@ their own machinery is: `tests/test_agent_session.py` keeps a failed web-chat
 turn's partial answer, and `tests/test_agent_runner.py` with
 `tests/test_transcript.py` cover a run resumed after an approval, whose
 continuation records over HTTP rather than the socket a conversation streams.
+
+The same harness answers the other half of #39, and it is here rather than in a
+file of its own because the surface's real entry point has to be driven either
+way: **a run that failed is still in history, with what it spent.** Audit
+finding 3 was that only web chat committed, so a failed run on any other surface
+flushed its cost and rolled it back - no row, no budget impact, and an
+organization billed by a provider for a request nothing recorded.
 """
 
 from __future__ import annotations
@@ -31,13 +38,17 @@ from __future__ import annotations
 import uuid
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager, contextmanager
+from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic_ai.messages import ModelRequest, ModelResponse, ToolCallPart, ToolReturnPart
+from pydantic_ai.usage import RequestUsage
 
-from app.agents.capabilities.budget import SpendLedger
+from app.agents.capabilities.budget import SpendLedger, record_ambient_usage
+from app.core.permissions import AuthContext, OrgRoleName
+from app.db.models.agent_run import RunStatus, RunSurface
 from app.services.agent_runner import AgentRunnerService, PreparedRun
 from app.services.channels.mentions import ChannelAgentRouter
 from app.services.embed_session import EmbedSession
@@ -247,6 +258,84 @@ class TestAWidgetRunRecordsItsTranscript:
         recorded = conversations.create_message.await_args_list
         assert [call.kwargs["role"] for call in recorded] == ["user"]
         assert recorded[0].kwargs["content"] == "What's your refund window?"
+
+
+class TestAFailedRunIsStillInHistoryWithItsCost:
+    """The other half of #39, per surface, because the fix is central.
+
+    Audit finding 3: only web chat committed, so a failed run on any other
+    surface flushed its cost and rolled it back. No row, no budget impact, and an
+    organization billed by a provider for a request nothing recorded. The fix is
+    one `commit` inside `AgentRunnerService._run` - which is exactly the kind of
+    fix that regresses quietly, because it is one line and no test named a
+    surface.
+
+    Each case is the real failure rather than an immediate one: the model is
+    called, tokens are spent, and *then* something breaks. Recording the spend
+    through `record_ambient_usage` means these also prove the metering wrapper is
+    live on the surface - the ambient call finds an active ledger or it finds
+    nothing, which is agenticos#16 from the other direction.
+    """
+
+    @staticmethod
+    def _spent_then_broke() -> AsyncMock:
+        """A turn that embeds something, and then the provider goes away."""
+
+        async def run(*_args: Any, **_kwargs: Any) -> None:
+            record_ambient_usage(
+                "text-embedding-3-small", RequestUsage(input_tokens=1000), "openai"
+            )
+            raise RuntimeError("the provider went away")
+
+        return AsyncMock(side_effect=run)
+
+    async def test_a_broken_widget_run_keeps_its_row_its_status_and_its_cost(self) -> None:
+        db = _db()
+        session = _widget_session(db)
+
+        with (
+            _run_yielding(self._spent_then_broke()),
+            _the_widgets_rows(),
+            patch(
+                "app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()
+            ) as finish_run,
+            pytest.raises(RuntimeError),
+        ):
+            await session._answer("What's your refund window?")
+
+        recorded = finish_run.await_args.kwargs
+        assert recorded["status"] == RunStatus.FAILED.value
+        assert recorded["cost_usd"] == Decimal("0.00002")
+        # The commit is what makes the row outlive the turn: the session context
+        # rolls back on the exception this test is asserting through.
+        db.commit.assert_awaited()
+
+    async def test_a_broken_api_run_keeps_its_row_its_status_and_its_cost(self) -> None:
+        """Through `execute`, which is what the route calls and all the route
+        does - the HTTP layer adds a response model and nothing else."""
+        db = _db()
+        context = AuthContext(
+            user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.BUILDER.value
+        )
+
+        with (
+            _run_yielding(self._spent_then_broke()),
+            patch(
+                "app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()
+            ) as finish_run,
+            pytest.raises(RuntimeError),
+        ):
+            await AgentRunnerService(db).execute(
+                context,
+                uuid.uuid4(),
+                "What's your refund window?",
+                surface=RunSurface.API,
+            )
+
+        recorded = finish_run.await_args.kwargs
+        assert recorded["status"] == RunStatus.FAILED.value
+        assert recorded["cost_usd"] == Decimal("0.00002")
+        db.commit.assert_awaited()
 
 
 class TestAMentionRecordsItsTranscript:

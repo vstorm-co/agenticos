@@ -23,6 +23,7 @@ from app.core.config import settings
 from app.core.exceptions import BadRequestError
 from app.db.models.agent_run import RunSurface
 from app.repositories import conversation_repo
+from app.schemas.agent_embed import EmbedVariable
 from app.services.agent_embed import AgentEmbedService, EmbedDenied, _origin_of
 from app.services.embed_session import (
     HISTORY_MESSAGES,
@@ -49,6 +50,8 @@ def _embed(**overrides):
     embed.context = None
     embed.context_variables = []
     embed.is_active = True
+    embed.hosted = False
+    embed.hosted_config = {}
     embed.rate_limit_per_minute = 10
     for key, value in overrides.items():
         setattr(embed, key, value)
@@ -113,12 +116,11 @@ class TestOriginIsThePerimeter:
     @pytest.mark.anyio
     async def test_a_listed_origin_is_admitted(self):
         with patch(f"{MODULE}.agent_embed_repo.get_by_key", new=AsyncMock(return_value=_embed())):
-            embed, visitor = await _service().admit(
-                "key-123", origin="https://acme.test", token=None
-            )
+            admission = await _service().admit("key-123", origin="https://acme.test", token=None)
 
-        assert visitor is None
-        assert embed.public_key == "key-123"
+        assert admission.visitor is None
+        assert admission.embed.public_key == "key-123"
+        assert admission.hosted is False
 
     @pytest.mark.anyio
     async def test_an_unlisted_origin_is_refused(self):
@@ -186,11 +188,9 @@ class TestTokenMode:
             ),
             patch(f"{MODULE}.unseal", return_value=secret),
         ):
-            _embed_row, visitor = await _service().admit(
-                "key-123", origin="https://acme.test", token=token
-            )
+            admission = await _service().admit("key-123", origin="https://acme.test", token=token)
 
-        assert visitor == "user-42"
+        assert admission.visitor == "user-42"
 
     @pytest.mark.anyio
     async def test_a_token_signed_with_the_wrong_secret_is_refused(self):
@@ -583,3 +583,316 @@ class TestTheSocketIsOfferedAsAnIntegration:
 
         assert read.snippet.startswith("<script")
         assert read.socket_url.endswith("/api/v1/embed/key-123/ws")
+
+
+class TestTheHostedPage:
+    """An embed rendered as a page of ours, reached by a link and nothing else.
+
+    Every assertion here is a refusal or a boundary, because that is all a
+    hosted page adds: the object, the protocol and the budget are the widget's
+    (#517). What it does add is a page on *our* origin, which is the one place
+    an allow-list about other people's sites has nothing to say - so the stance
+    has to be written down and held by tests rather than implied.
+    """
+
+    def test_hosting_is_off_until_somebody_turns_it_on(self):
+        assert AgentEmbedService.hosted_url_for(_embed()) is None
+
+    def test_a_hosted_embed_publishes_a_link_on_the_frontends_own_host(self, monkeypatch):
+        """The frontend's, not the API's: the page is served by the frontend and
+        the socket it opens is what reaches the API."""
+        monkeypatch.setattr(settings, "FRONTEND_URL", "https://chat.example.com/")
+
+        url = AgentEmbedService.hosted_url_for(_embed(hosted=True))
+
+        assert url == "https://chat.example.com/e/key-123"
+
+    def test_token_auth_cannot_be_hosted(self):
+        """The token would travel in the URL, and so into history, referrers and
+        every chat client the link is pasted into."""
+        with pytest.raises(BadRequestError, match="token auth"):
+            AgentEmbedService._check_hostable("jwt", [])
+
+    def test_a_required_variable_that_is_not_url_safe_cannot_be_hosted(self):
+        """On a page of our own the URL is the only source of a supplied value,
+        so the agent would be promised something the surface cannot deliver."""
+        variables = [
+            EmbedVariable(name="plan", required=True, url_safe=False),
+            EmbedVariable(name="locale", required=True, url_safe=True),
+        ]
+
+        with pytest.raises(BadRequestError) as refused:
+            AgentEmbedService._check_hostable("public", variables)
+
+        assert refused.value.details == {"variables": ["plan"]}
+
+    def test_an_optional_variable_that_is_not_url_safe_is_fine(self):
+        """It simply never arrives, which is what optional means."""
+        AgentEmbedService._check_hostable(
+            "public", [EmbedVariable(name="plan", required=False, url_safe=False)]
+        )
+
+    @pytest.mark.anyio
+    async def test_our_own_origin_reaches_a_hosted_embed(self, monkeypatch):
+        """The allow-list is a rule about other people's sites. A page we serve
+        is admitted by the hosting flag instead - derived from settings, never
+        hardcoded."""
+        monkeypatch.setattr(settings, "FRONTEND_URL", "https://chat.example.com")
+        with patch(
+            f"{MODULE}.agent_embed_repo.get_by_key",
+            new=AsyncMock(return_value=_embed(hosted=True, allowed_origins=[])),
+        ):
+            admission = await _service().admit(
+                "key-123", origin="https://chat.example.com", token=None
+            )
+
+        assert admission.hosted is True
+
+    @pytest.mark.anyio
+    async def test_our_own_origin_is_refused_when_hosting_is_off(self, monkeypatch):
+        """Serving the page is what opens the origin, so an embed nobody hosted
+        must not be reachable from our own site either."""
+        monkeypatch.setattr(settings, "FRONTEND_URL", "https://chat.example.com")
+        with (
+            patch(
+                f"{MODULE}.agent_embed_repo.get_by_key",
+                new=AsyncMock(return_value=_embed(hosted=False, allowed_origins=[])),
+            ),
+            pytest.raises(EmbedDenied),
+        ):
+            await _service().admit("key-123", origin="https://chat.example.com", token=None)
+
+    @pytest.mark.anyio
+    async def test_a_third_party_site_reaching_a_hosted_embed_is_still_checked(self, monkeypatch):
+        """Hosting opens *our* origin and nothing else: a widget on somebody
+        else's site is admitted by the allow-list exactly as before."""
+        monkeypatch.setattr(settings, "FRONTEND_URL", "https://chat.example.com")
+        with (
+            patch(
+                f"{MODULE}.agent_embed_repo.get_by_key",
+                new=AsyncMock(return_value=_embed(hosted=True, allowed_origins=[])),
+            ),
+            pytest.raises(EmbedDenied),
+        ):
+            await _service().admit("key-123", origin="https://evil.test", token=None)
+
+    @pytest.mark.anyio
+    async def test_a_paused_embed_serves_no_page(self):
+        """The pause switch is one of the four things protecting a hosted link,
+        so it has to reach this surface as well as the widget's."""
+        with patch(
+            f"{MODULE}.agent_embed_repo.get_by_key",
+            new=AsyncMock(return_value=_embed(hosted=True, is_active=False)),
+        ):
+            assert await _service().find_hosted("key-123") is None
+
+    @pytest.mark.anyio
+    async def test_an_embed_nobody_hosted_serves_no_page(self):
+        with patch(
+            f"{MODULE}.agent_embed_repo.get_by_key",
+            new=AsyncMock(return_value=_embed(hosted=False)),
+        ):
+            assert await _service().find_hosted("key-123") is None
+
+    @pytest.mark.anyio
+    async def test_the_page_falls_back_to_the_agents_name_for_its_title(self):
+        """A page with no title in the browser tab is a bookmark nobody can
+        tell apart from another."""
+        embed = _embed(hosted=True, hosted_config={})
+        service = _service()
+        with patch(
+            f"{MODULE}.agent_repo.get", new=AsyncMock(return_value=MagicMock(name="x", id=1))
+        ) as agent_get:
+            agent_get.return_value.name = "Refund helper"
+            config = await service.hosted_config(embed)
+
+        assert config.title == "Refund helper"
+
+    @pytest.mark.anyio
+    async def test_the_page_is_told_only_the_variables_a_url_may_fill(self):
+        """It forwards `?var_…` for these and the server drops anything else
+        regardless - so a page that knew about the others would only be able to
+        send values that are thrown away."""
+        embed = _embed(
+            hosted=True,
+            hosted_config={},
+            context_variables=[
+                {"name": "plan", "required": False, "description": "", "url_safe": True},
+                {"name": "secret_tier", "required": False, "description": "", "url_safe": False},
+            ],
+        )
+        with patch(f"{MODULE}.agent_repo.get", new=AsyncMock(return_value=None)):
+            config = await _service().hosted_config(embed)
+
+        assert config.variables == ["plan"]
+
+    @pytest.mark.anyio
+    async def test_a_page_showing_no_logo_is_given_no_logo_url(self):
+        embed = _embed(hosted=True, hosted_config={"logo": "none"})
+        with patch(f"{MODULE}.agent_repo.get", new=AsyncMock(return_value=None)):
+            config = await _service().hosted_config(embed)
+
+        assert config.logo_url is None
+
+
+class TestWhatAVisitorsOwnUrlMaySay:
+    """A hosted page's only source of a supplied value is the visitor's URL.
+
+    So the same declaration means different things on the two surfaces, and the
+    difference is a narrowing: on a page of ours a value is accepted only for a
+    variable somebody marked URL-safe, because otherwise `user_tier=premium`
+    typed into the address bar would be a line in an agent's instructions (#517).
+    """
+
+    @staticmethod
+    def _variables() -> list[dict]:
+        return [
+            {"name": "plan", "required": False, "description": "", "url_safe": True},
+            {"name": "user_tier", "required": False, "description": "", "url_safe": False},
+        ]
+
+    async def _prompt(self, *, hosted: bool) -> str:
+        embed = _embed(context_variables=self._variables())
+        with _turns() as runner_cls:
+            session = EmbedSession(
+                sessions=_Sessions(),
+                embed=embed,
+                visitor=None,
+                websocket=AsyncMock(),
+                hosted=hosted,
+            )
+            await session.handle(
+                {
+                    "type": "message",
+                    "text": "hello",
+                    "context": {"plan": "pro", "user_tier": "premium"},
+                }
+            )
+        return runner_cls.return_value.execute.call_args.args[2]
+
+    @pytest.mark.anyio
+    async def test_a_hosted_page_drops_a_variable_nobody_marked_url_safe(self):
+        prompt = await self._prompt(hosted=True)
+
+        assert "plan: pro" in prompt
+        assert "premium" not in prompt
+
+    @pytest.mark.anyio
+    async def test_the_widget_is_unaffected_by_the_flag(self):
+        """`url_safe` is about a URL. The widget reads `window.AgenticOSContext`
+        from a page the operator controls, so narrowing it there would take away
+        something that was never at risk."""
+        prompt = await self._prompt(hosted=False)
+
+        assert "plan: pro" in prompt
+        assert "user_tier: premium" in prompt
+
+
+class TestAReturningVisitorResumesTheirThread:
+    """The part of #517 that a page buys over a bubble.
+
+    A widget keys a conversation to a socket; a bookmarked link has to survive
+    the tab being closed. The key is a bearer credential for that thread, which
+    is why nothing derives it from the visitor and why only a hosted connection
+    is allowed to present one.
+    """
+
+    @staticmethod
+    def _session(sessions: _Sessions, *, visitor_key: str | None) -> EmbedSession:
+        return EmbedSession(
+            sessions=sessions,
+            embed=_embed(hosted=True),
+            visitor=None,
+            websocket=AsyncMock(),
+            hosted=True,
+            visitor_key=visitor_key,
+        )
+
+    @pytest.mark.anyio
+    async def test_a_widget_greeting_opens_no_session_at_all(self):
+        """Only a hosted page carries a key, so the widget's socket still holds
+        no connection while it sits idle."""
+        sessions = _Sessions()
+
+        await self._session(sessions, visitor_key=None).greet()
+
+        assert sessions.opened == 0
+
+    @pytest.mark.anyio
+    async def test_a_first_visit_is_remembered_and_replays_nothing(self):
+        sessions = _Sessions()
+        session = self._session(sessions, visitor_key="v-1")
+
+        with (
+            patch(
+                "app.services.embed_session.embed_visitor_repo.get",
+                new=AsyncMock(return_value=None),
+            ),
+            patch(
+                "app.services.embed_session.embed_visitor_repo.create", new=AsyncMock()
+            ) as created,
+        ):
+            await session.greet()
+
+        assert created.await_args.kwargs["visitor_key"] == "v-1"
+        sent = [call.args[0]["type"] for call in session.websocket.send_json.await_args_list]
+        assert sent == ["ready"]
+
+    @pytest.mark.anyio
+    async def test_a_returning_visitor_is_handed_the_thread_they_left(self):
+        sessions = _Sessions()
+        session = self._session(sessions, visitor_key="v-1")
+        conversation_id = uuid.uuid4()
+
+        with (
+            patch(
+                "app.services.embed_session.embed_visitor_repo.get",
+                new=AsyncMock(return_value=MagicMock(conversation_id=conversation_id)),
+            ),
+            patch("app.services.embed_session.embed_visitor_repo.touch", new=AsyncMock()),
+            patch(
+                "app.services.embed_session.conversation_repo.count_messages",
+                new=AsyncMock(return_value=2),
+            ),
+            patch(
+                "app.services.embed_session.conversation_repo.get_messages_by_conversation",
+                new=AsyncMock(
+                    return_value=[
+                        MagicMock(role="user", content="do you ship?"),
+                        MagicMock(role="assistant", content="we do"),
+                    ]
+                ),
+            ),
+        ):
+            await session.greet()
+
+        history = session.websocket.send_json.await_args_list[-1].args[0]
+        assert history["type"] == "history"
+        assert history["messages"] == [
+            {"role": "user", "text": "do you ship?"},
+            {"role": "assistant", "text": "we do"},
+        ]
+        # And the agent is reminded of the same thread the visitor is reading.
+        assert session.conversation_id == conversation_id
+
+    @pytest.mark.anyio
+    async def test_the_first_turn_is_what_attaches_a_conversation_to_the_key(self):
+        """The row exists from the greeting; the thread it names does not, because
+        a visitor who opens the page and says nothing has no conversation."""
+        sessions = _Sessions()
+        session = self._session(sessions, visitor_key="v-1")
+        stored = MagicMock(conversation_id=None)
+
+        with (
+            _turns(),
+            patch(
+                "app.services.embed_session.embed_visitor_repo.get",
+                new=AsyncMock(return_value=stored),
+            ),
+            patch(
+                "app.services.embed_session.embed_visitor_repo.touch", new=AsyncMock()
+            ) as touched,
+        ):
+            await session._answer("hello")
+
+        assert touched.await_args.kwargs["conversation_id"] == session.conversation_id

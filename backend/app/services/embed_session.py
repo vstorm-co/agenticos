@@ -27,6 +27,23 @@ because it opens one per turn too.
 the visitor's first message rather than injected into the agent's instructions:
 the instructions belong to the published version, and a widget must not be able
 to rewrite what an agent is.
+
+The same session serves the **hosted page** (#517), which is an embed rendered as
+a page of ours rather than a bubble on somebody else's site. Two things differ,
+both narrowing rather than widening:
+
+*What a value may be.* A widget reads `window.AgenticOSContext` from a page the
+operator controls; a hosted page has only the visitor's own URL. So on a hosted
+connection a declared variable is accepted only if it is marked `url_safe` -
+otherwise `user_tier=premium` in the address bar would be a line in an agent's
+instructions. `hosted` is decided at admission from the origin the browser
+reported, never asked for by the client.
+
+*What coming back means.* A widget's conversation lives as long as its socket. A
+bookmarked link is a stronger promise, so a hosted page carries a `visitor_key`
+from `localStorage`, `embed_visitors` maps it to a conversation, and `greet`
+replays what is in it. The key is a bearer credential for that thread - see the
+model.
 """
 
 from __future__ import annotations
@@ -46,7 +63,7 @@ from app.core.exceptions import AppException
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_embed import AgentEmbed
 from app.db.models.agent_run import RunSurface
-from app.repositories import conversation_repo, member_repo
+from app.repositories import conversation_repo, embed_visitor_repo, member_repo
 from app.schemas.agent_embed import EmbedVariable
 from app.services.agent import build_message_history
 from app.services.agent_runner import AgentRunnerService
@@ -124,6 +141,8 @@ class EmbedSession:
         embed: AgentEmbed,
         visitor: str | None,
         websocket: WebSocket,
+        hosted: bool = False,
+        visitor_key: str | None = None,
     ) -> None:
         self.sessions = sessions
         self.embed = embed
@@ -133,6 +152,11 @@ class EmbedSession:
         # bypass by reconnecting.
         self.visitor = visitor or "anonymous"
         self.websocket = websocket
+        # Decided at admission from the origin the browser reported, never asked
+        # for by the client. It narrows what this connection may do rather than
+        # widening it - see `_supplied_block`.
+        self.hosted = hosted
+        self.visitor_key = visitor_key
         self.conversation_id: UUID | None = None
         self._context_sent = False
         # What the page said about this visitor, as it last said it. Empty until
@@ -143,8 +167,57 @@ class EmbedSession:
         self._supplied_sent: str = ""
 
     async def greet(self) -> None:
-        """Tell the widget it is connected. The greeting itself is client-side."""
+        """Tell the client it is connected, and hand a returning visitor their thread.
+
+        The widget's greeting is client-side and stays that way. What is *not*
+        client-side is the thread a bookmarked hosted link comes back to: the page
+        cannot know what was said before it was closed, so the socket says it once,
+        here, and never again.
+
+        A connection with no `visitor_key` opens no session at all - which is
+        every widget - so an idle socket still holds no connection.
+        """
         await self._send({"type": "ready", "visitor": self.visitor != "anonymous"})
+        if self.visitor_key is None:
+            return
+        async with self.sessions() as db:
+            said = await self._resume(db)
+        if said:
+            await self._send({"type": "history", "messages": said})
+
+    async def _resume(self, db: AsyncSession) -> list[dict[str, str]]:
+        """Find this visitor's thread, and read back what is in it.
+
+        The row is created on first sight rather than on the first message, so a
+        visitor who opens the page and says nothing still comes back to the same
+        (empty) thread instead of collecting one row per visit.
+        """
+        existing = await embed_visitor_repo.get(
+            db, embed_id=self.embed.id, visitor_key=self.visitor_key or ""
+        )
+        if existing is None:
+            await embed_visitor_repo.create(
+                db,
+                embed_id=self.embed.id,
+                visitor_key=self.visitor_key or "",
+                conversation_id=None,
+            )
+            return []
+
+        await embed_visitor_repo.touch(db, db_visitor=existing)
+        self.conversation_id = existing.conversation_id
+        if self.conversation_id is None:
+            return []
+        # The window the model is reminded of, so what the visitor reads back and
+        # what the agent remembers are the same conversation.
+        total = await conversation_repo.count_messages(db, self.conversation_id)
+        messages = await conversation_repo.get_messages_by_conversation(
+            db,
+            conversation_id=self.conversation_id,
+            skip=max(0, total - HISTORY_MESSAGES),
+            limit=HISTORY_MESSAGES,
+        )
+        return [{"role": message.role, "text": message.content} for message in messages]
 
     async def handle(self, frame: dict[str, Any]) -> None:
         """Process one inbound frame.
@@ -223,6 +296,18 @@ class EmbedSession:
                 title=f"{self.embed.name} - {self.visitor}",
             )
             self.conversation_id = conversation.id
+            if self.visitor_key is not None:
+                # The row exists from `greet`; what is new is the thread it names.
+                # Attached on the first turn rather than at connect because a
+                # conversation is only created when somebody actually says
+                # something.
+                visitor = await embed_visitor_repo.get(
+                    db, embed_id=self.embed.id, visitor_key=self.visitor_key
+                )
+                if visitor is not None:
+                    await embed_visitor_repo.touch(
+                        db, db_visitor=visitor, conversation_id=self.conversation_id
+                    )
 
         # The placement context is the operator's and never changes, so it goes
         # once. The supplied block is the page's and does change - a single-page
@@ -303,6 +388,14 @@ class EmbedSession:
             EmbedVariable.model_validate(variable)
             for variable in (self.embed.context_variables or [])
         ]
+        if self.hosted:
+            # On a page of our own the only place a value can come from is the
+            # visitor's own URL, so `user_tier=premium` typed into the address bar
+            # has to be impossible unless somebody marked that one variable
+            # URL-safe. The narrowing is here, keyed on an origin the browser
+            # reported and the server checked, rather than on anything the client
+            # asked for (#517).
+            declared = [variable for variable in declared if variable.url_safe]
         if not declared:
             return ""
 

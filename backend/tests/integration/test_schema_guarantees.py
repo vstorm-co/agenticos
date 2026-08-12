@@ -17,10 +17,13 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
+from app.db.models.agent_embed import AgentEmbed
 from app.db.models.agent_exposure import AgentExposure, ExposureSurface
 from app.db.models.agent_run import AgentRun, RunStatus, ToolApproval
 from app.db.models.channel_bot import ChannelBot
+from app.db.models.conversation import Conversation
 from app.db.models.credential import ModelProfile
+from app.db.models.embed_visitor import EmbedVisitor
 from app.db.models.ingestion_spend import IngestionSpend
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization import Organization, OrganizationMember
@@ -873,3 +876,96 @@ class TestExposureAttribution:
         await db.refresh(run)
 
         assert (run.exposure_id, run.cost_usd) == (None, Decimal("2.00"))
+
+
+class TestHostedEmbedConstraints:
+    """A hosted page cannot be a token-authenticated one, and the database says so.
+
+    The service refuses the combination at enable time with a message somebody
+    can act on. This is the other half: a hosted link travels in browser history,
+    in `Referer` headers and in every chat client it is pasted into, so a `jwt`
+    embed hosted by a future call site that forgot to ask would put a visitor
+    token through all three (#517).
+    """
+
+    @staticmethod
+    def _embed(org: Organization, agent: Agent, **overrides) -> AgentEmbed:
+        return AgentEmbed(
+            id=uuid.uuid4(),
+            organization_id=org.id,
+            agent_id=agent.id,
+            name="Support",
+            public_key=uuid.uuid4().hex,
+            **overrides,
+        )
+
+    async def test_a_public_embed_may_be_hosted(self, db):
+        org = await _org(db)
+        agent = await _agent(db, org)
+
+        db.add(self._embed(org, agent, auth_mode="public", hosted=True))
+        await db.flush()
+
+    async def test_a_token_embed_may_not_be_hosted(self, db):
+        org = await _org(db)
+        agent = await _agent(db, org)
+
+        db.add(self._embed(org, agent, auth_mode="jwt", jwt_secret_encrypted="sealed", hosted=True))
+        with pytest.raises(IntegrityError):
+            await db.flush()
+
+    async def test_one_visitor_key_names_one_thread_per_embed(self, db):
+        """The key is what a bookmarked link resumes by. Two rows for one key
+        would make "which conversation" a question with two answers."""
+        org = await _org(db)
+        agent = await _agent(db, org)
+        embed = self._embed(org, agent, hosted=True)
+        db.add(embed)
+        await db.flush()
+
+        for _ in range(2):
+            db.add(EmbedVisitor(id=uuid.uuid4(), embed_id=embed.id, visitor_key="v-1"))
+        with pytest.raises(IntegrityError):
+            await db.flush()
+
+    async def test_the_same_key_may_visit_two_embeds(self, db):
+        """Nothing links the two: a browser holds one key per public key, and a
+        collision across embeds must not be a collision at all."""
+        org = await _org(db)
+        agent = await _agent(db, org)
+        first, second = self._embed(org, agent, hosted=True), self._embed(org, agent, hosted=True)
+        db.add_all([first, second])
+        await db.flush()
+
+        db.add_all(
+            [
+                EmbedVisitor(id=uuid.uuid4(), embed_id=first.id, visitor_key="v-1"),
+                EmbedVisitor(id=uuid.uuid4(), embed_id=second.id, visitor_key="v-1"),
+            ]
+        )
+        await db.flush()
+
+    async def test_a_deleted_conversation_leaves_the_visitor_able_to_start_again(self, db):
+        """`SET NULL`, not `CASCADE`: a retention sweep must not delete the
+        visitor along with the thread it removed."""
+        org = await _org(db)
+        agent = await _agent(db, org)
+        embed = self._embed(org, agent, hosted=True)
+        conversation = Conversation(id=uuid.uuid4(), organization_id=org.id, title="t")
+        db.add_all([embed, conversation])
+        await db.flush()
+
+        visitor = EmbedVisitor(
+            id=uuid.uuid4(),
+            embed_id=embed.id,
+            visitor_key="v-1",
+            conversation_id=conversation.id,
+        )
+        db.add(visitor)
+        await db.flush()
+
+        await db.delete(conversation)
+        await db.flush()
+        await db.refresh(visitor)
+
+        assert visitor.conversation_id is None
