@@ -1,7 +1,7 @@
 # Putting an agent where people already are
 
 An agent that only answers inside this dashboard is a demo. The same published
-agent can answer in five places, and every one of them runs the *same frozen
+agent answers in seven places, and every one of them runs the *same frozen
 version* through the same budget, the same approval gate and the same tenant
 checks — the surface changes, the agent does not.
 
@@ -10,21 +10,35 @@ checks — the surface changes, the agent does not.
 | **Dashboard** | nothing | a signed-in member |
 | **Website widget** | a `<script>` tag | anonymous, or a user your backend vouches for |
 | **WebSocket** | a widget key | whatever your integration says |
+| **A hosted page** | a link | anonymous, and nothing else |
+| **The API** | a session | whoever holds the credential |
 | **Slack** | a bot token | a Slack account, optionally linked to a member |
 | **Telegram** | a bot token | a Telegram account, optionally linked |
 | **Mattermost** | a bot token and your server URL | a Mattermost account, optionally linked |
 
-Two rules hold everywhere, and both are enforced in the runner rather than per
-surface: **a run always belongs to exactly one organization**, and **a spending
-limit is checked before each model request, never after**.
+Three rules hold everywhere, and all three are enforced in the runner rather
+than per surface: **a run always belongs to exactly one organization**, **a
+spending limit is checked before each model request, never after**, and **a run
+that failed is still in history with what it spent** — the tokens were spent
+before it broke, and a budget that ignores that is not a budget.
 
-Every run records the surface that admitted it — `playground`, `web`, `embed`,
-`api`, `slack`, `telegram` or `mattermost` — which is what the dashboard's
-by-surface chart aggregates. Two historical wrinkles: widget runs recorded
-before the `embed` value existed are stored as `web`, and Mattermost runs from
-the same era as `api`. Neither is backfilled — rewriting history would be a
-guess — so charts over old periods fold those runs into the surface they were
-recorded under.
+Every run records the surface that admitted it — `web`, `embed`, `api`, `slack`,
+`telegram` or `mattermost` — which is what the dashboard's by-surface chart
+aggregates. A hosted page records `embed`, because it *is* an embed; the widget
+and the page share one object and one set of refusals. Two historical wrinkles:
+widget runs recorded before the `embed` value existed are stored as `web`, and
+Mattermost runs from the same era as `api`. Neither is backfilled — rewriting
+history would be a guess — so charts over old periods fold those runs into the
+surface they were recorded under.
+
+**What a stranger may do, they may do at a rate.** The surfaces reachable
+without a session carry a limit counted in the deployment's Redis, so it holds
+across workers: the run API per caller, and admission to a widget or a hosted
+page per address. `RATE_LIMIT_RUN_PER_MINUTE` and
+`RATE_LIMIT_EMBED_PER_MINUTE` set them, and
+[configuration](configuration.md#rate-limiting) has the one caveat worth reading
+before production — behind a proxy, every visitor arrives as the proxy unless
+you say otherwise.
 
 ---
 
@@ -188,6 +202,129 @@ socket.onmessage = (event) => {
 };
 socket.send(JSON.stringify({ type: "message", text: "hello" }));
 ```
+
+---
+
+## A hosted page
+
+The shortest integration there is: **send somebody a link.** No site of your
+own, no `<script>` tag, no client to write, no sign-in.
+
+In the Builder, open the agent → **Embeds**, and either publish a new embed or
+edit one with *Also serve it as a page of ours*. The row then offers a third
+integration beside the tag and the socket:
+
+```
+https://your-app.example.com/e/PUBLIC_KEY
+```
+
+It is **the same embed**, not a second kind of object: the same public key, the
+same rate limit, the same budget and the same pause switch. Turning hosting off,
+or pausing the embed, stops the page and the widget together.
+
+### What protects it
+
+Say this part out loud before publishing one, because it is the whole security
+model:
+
+> **A hosted link in `public` mode is protected by the key being unguessable,
+> plus the embed's rate limit, its budget and its pause switch. Nothing else.**
+
+Whoever has the link can talk to the agent. That is the point of a link, and it
+is why the key is 24 random bytes rather than something readable.
+
+The allowed-origins list has nothing to say here, deliberately. An allow-list is
+a rule about *other people's* sites; this page is one we serve. So a hosted embed
+additionally accepts the deployment's own origin — derived from `FRONTEND_URL`,
+never hardcoded — and nothing wider: a third-party site is still checked against
+the list, and an embed nobody hosted is refused from our own origin too.
+
+### Two things a hosted page refuses
+
+Both are refused when you enable hosting, with a message, rather than silently
+falling back to an unhosted embed:
+
+- **`jwt` mode cannot be hosted.** The token would have to travel in the URL, and
+  so into browser history, `Referer` headers and every chat client the link is
+  pasted into — and the fragment trick that avoids some of that stops the link
+  being "send it and it works". Use the widget for a per-user integration; `jwt`
+  there is unaffected. A `CHECK` constraint holds the same rule in the database.
+- **A *required* variable that is not URL-safe cannot be hosted** — see below.
+
+### Variables from the address bar
+
+A hosted page has no page of yours to read `window.AgenticOSContext` from. Its
+only source for a declared variable is the visitor's own URL:
+
+```
+https://your-app.example.com/e/PUBLIC_KEY?var_plan=pro
+```
+
+**A query parameter is visitor-controlled input**, so this is off per variable
+and on only where somebody decided it: tick *URL-safe* on the variable in the
+Builder. Without it, `?var_user_tier=premium` typed into the address bar is
+dropped — which is the point. Anything not declared at all is dropped as it is on
+the widget.
+
+That is also why a *required* variable has to be marked: on this surface the URL
+is the only way to supply one, so a required-and-not-URL-safe variable is a
+promise the page structurally cannot keep.
+
+### Coming back to it
+
+A widget's conversation lasts as long as its socket. A bookmarked link is a
+stronger promise, so the page keeps a random visitor key in `localStorage` — one
+per public key — and the server maps it to a conversation. Reopening the link
+replays the thread and the agent is reminded of the same window the visitor is
+reading.
+
+**The key is a bearer credential for that conversation**: whoever holds it
+resumes the thread, including what is already in it. It is 128 random bits and
+nothing about the person. Clearing site data starts a new thread.
+
+### What it looks like
+
+Four fields, all optional:
+
+| Field | Default |
+|---|---|
+| **Page title** | the agent's name |
+| **Welcome message** | none. Shown before the first question, and never sent to the model — a greeting in the model's history is a turn the agent thinks it took |
+| **Accent colour** | `#4f46e5`. Light and dark still follow the visitor's system |
+| **Logo** | the agent's avatar; or the organization's, or none |
+
+The logo is a *choice among images this platform already stores*, uploaded
+through the paths that already exist for them. There is no second upload here and
+no field for a URL of your own: a page we serve fetching an operator-supplied
+image is one more thing to make safe.
+
+The page is `noindex`. A secret link is not a page to be indexed, and a crawler
+that follows one has published it.
+
+---
+
+## The public API
+
+No frontend at all, and no browser. One request, one answer:
+
+```bash
+curl -X POST https://your-api.example.com/api/v1/agents/AGENT_ID/run \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Summarise this week's refunds"}'
+```
+
+It goes through the same runner as every other surface, so the run is recorded,
+the budget applies and the cost lands in the same dashboard — an API caller
+cannot route around governance by not using the UI. Runs are stamped `api`.
+
+The answer carries `run_id`, `output`, `status` and what it cost. A `status` of
+`awaiting_approval` with an empty output means a tool call is parked: the run is
+in the approvals queue, and it continues when somebody decides.
+
+Limited per caller rather than per address — an office behind one NAT is not one
+caller — at `RATE_LIMIT_RUN_PER_MINUTE`.
 
 ---
 
@@ -852,5 +989,11 @@ pasted into the instructions, is a prompt injection with a public edit button.
 - Your own site, no accounts → **widget, `public` mode**.
 - Inside your product, per-user → **widget, `jwt` mode**.
 - Your own interface entirely → **WebSocket**.
+- No site of your own, and a link will do → **a hosted page**.
 - Where the team already talks → **Slack, Telegram or Mattermost**.
 - Another system entirely → the REST API (`POST /api/v1/agents/{id}/run`).
+
+The first four are one object. A widget, a socket client and a hosted page are
+three ways of reaching the same embed, with one set of refusals between them —
+so "who may talk to this agent" has exactly one answer whichever of the three
+somebody arrives through.
