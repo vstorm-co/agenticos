@@ -175,7 +175,29 @@
     "copyLink": "Link skopiowany do schowka",
     "failedToShare": "Nie udało się udostępnić konwersacji",
     "failedToGenerateLink": "Nie udało się wygenerować linku",
-    "failedToRevoke": "Nie udało się cofnąć dostępu"
+    "failedToRevoke": "Nie udało się cofnąć dostępu",
+    "tools": {
+      "patternInFile": "{pattern} w {file}"
+    }
+  },
+  "errors": {
+    "authorizationFailed": "Autoryzacja nie powiodła się",
+    "avatarNotAvailable": "Awatar jest niedostępny",
+    "backendUnavailable": "Serwer jest niedostępny",
+    "failedToGetUser": "Nie udało się pobrać danych użytkownika",
+    "fileNotFound": "Nie znaleziono pliku",
+    "forbidden": "Brak dostępu",
+    "internalServerError": "Wewnętrzny błąd serwera",
+    "loginFailed": "Logowanie nie powiodło się",
+    "missingAuthorizationCode": "Brak kodu autoryzacji",
+    "missingTokens": "Brak tokenów sesji",
+    "noRefreshToken": "Sesja wygasła — zaloguj się ponownie",
+    "notAuthenticated": "Nie jesteś zalogowany",
+    "registrationFailed": "Rejestracja nie powiodła się",
+    "requestFailed": "Żądanie nie powiodło się",
+    "sessionExpired": "Sesja wygasła",
+    "unexpected": "Wystąpił nieoczekiwany błąd",
+    "uploadFailed": "Przesyłanie nie powiodło się"
   },
   "admin": {
     "conversations": "Konwersacje",

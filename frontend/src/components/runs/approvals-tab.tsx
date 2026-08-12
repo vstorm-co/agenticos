@@ -3,11 +3,12 @@
 import { useTranslations } from "next-intl";
 import { CheckCircle2, XCircle } from "lucide-react";
 
+import { getErrorMessage } from "@/lib/api-error";
 import { ApprovalDelegate } from "@/components/runs/approval-delegate";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
 import { useApprovals } from "@/hooks";
-import { formatDate, getErrorMessage } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 
 /**
  * The queue of tool calls waiting on a person, and the two buttons that settle one.
@@ -29,6 +30,7 @@ import { formatDate, getErrorMessage } from "@/lib/utils";
  * seventy calls went missing.
  */
 export function ApprovalsTab() {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("pages.runs");
   const { approvals, total, isLoading, error, decide, refetch } = useApprovals();
 
@@ -44,7 +46,7 @@ export function ApprovalsTab() {
         ) : error ? (
           <ErrorState
             title={t("queueCouldNotBeRead")}
-            description={getErrorMessage(error, t("aParkedRunIsStill"))}
+            description={getErrorMessage(error, tErrors, t("aParkedRunIsStill"))}
             cta={{ label: t("tryAgain"), onClick: () => void refetch() }}
           />
         ) : approvals.length === 0 ? (

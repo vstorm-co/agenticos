@@ -1,16 +1,35 @@
+import { createTranslator } from "next-intl";
 import { describe, expect, it } from "vitest";
 
+import en from "../../messages/en.json";
+import pl from "../../messages/pl.json";
+import type { Translate } from "./agent-step-captions";
 import {
   ApiError,
   fieldProblems,
+  getErrorMessage,
   parseErrorMessage,
   problemList,
   submitFailure,
 } from "./api-error";
+import { BFF_ERROR_KEYS } from "./bff-errors";
+
+/**
+ * The real `errors` messages, in both locales: what a refusal shows is what these
+ * tests are about, and resolving them here also proves every code in
+ * `BFF_ERROR_KEYS` has its copy. Cast for the reason `tool-steps.test.ts` casts.
+ */
+const tEn = createTranslator({ locale: "en", messages: en, namespace: "errors" }) as Translate;
+const tPl = createTranslator({ locale: "pl", messages: pl, namespace: "errors" }) as Translate;
 
 /** A domain refusal, exactly as `app_exception_handler` writes it. */
 function envelope(code: string, message: string, details: Record<string, unknown> | null = null) {
   return { error: { code, message, details } };
+}
+
+/** An `ApiError` built the way `api-client.ts` builds one, from a response body. */
+function apiError(status: number, body: unknown): ApiError {
+  return new ApiError(status, parseErrorMessage(body), body);
 }
 
 const CONFLICT = envelope("ALREADY_EXISTS", "An agent with the handle 'support' already exists", {
@@ -158,13 +177,17 @@ describe("submitFailure", () => {
     // The reported bug, in one assertion: the handle is derived from the name,
     // so "that handle is taken" is a fact about the Name input, and belongs
     // under it rather than in a toast that vanishes.
-    const failure = submitFailure(new ApiError(409, parseErrorMessage(CONFLICT), CONFLICT), form);
+    const failure = submitFailure(
+      new ApiError(409, parseErrorMessage(CONFLICT), CONFLICT),
+      form,
+      tEn,
+    );
     expect(failure.fields.name).toBe("An agent with the handle 'support' already exists");
     expect(failure.toast).toBeNull();
   });
 
   it("matches a field by its leaf, because the Builder posts a nested spec", () => {
-    const failure = submitFailure(new ApiError(422, "…", VALIDATION), form);
+    const failure = submitFailure(new ApiError(422, "…", VALIDATION), form, tEn);
     expect(failure.fields.name).toBe("String should have at most 128 characters");
     expect(failure.toast).toBeNull();
   });
@@ -175,15 +198,17 @@ describe("submitFailure", () => {
     const error = new ApiError(500, "An unexpected error occurred", {
       error: { code: "INTERNAL_ERROR", message: "An unexpected error occurred", details: null },
     });
-    const failure = submitFailure(error, form);
+    const failure = submitFailure(error, form, tEn);
     expect(failure.fields).toEqual({});
     expect(failure.toast).toBe("An unexpected error occurred");
   });
 
   it("does not attribute a conflict to a form that has no single identifier", () => {
-    const failure = submitFailure(new ApiError(409, parseErrorMessage(CONFLICT), CONFLICT), {
-      fields: ["name"],
-    });
+    const failure = submitFailure(
+      new ApiError(409, parseErrorMessage(CONFLICT), CONFLICT),
+      { fields: ["name"] },
+      tEn,
+    );
     expect(failure.fields).toEqual({});
     expect(failure.toast).toBe("An agent with the handle 'support' already exists");
   });
@@ -198,7 +223,7 @@ describe("submitFailure", () => {
         fields: [{ field: "instructions", message: "String should have at most 100 characters" }],
       }),
     );
-    const failure = submitFailure(error, form);
+    const failure = submitFailure(error, form, tEn);
     expect(failure.fields).toEqual({});
     expect(failure.toast).toBe("instructions: String should have at most 100 characters");
   });
@@ -214,7 +239,7 @@ describe("submitFailure", () => {
         ],
       }),
     );
-    const failure = submitFailure(error, form);
+    const failure = submitFailure(error, form, tEn);
     expect(failure.fields).toEqual({ name: "Field required" });
     expect(failure.toast).toBe("instructions: String should have at most 100 characters");
   });
@@ -229,13 +254,74 @@ describe("submitFailure", () => {
         fields: [{ field: "surname", message: "Field required" }],
       }),
     );
-    expect(submitFailure(error, form).fields).toEqual({});
+    expect(submitFailure(error, form, tEn).fields).toEqual({});
   });
 
   it("handles a thrown value that never reached the server", () => {
-    expect(submitFailure(new TypeError("Failed to fetch"), form)).toEqual({
+    expect(submitFailure(new TypeError("Failed to fetch"), form, tEn)).toEqual({
       fields: {},
       toast: "Failed to fetch",
     });
+  });
+});
+
+describe("getErrorMessage", () => {
+  it("resolves a BFF refusal code in the reader's locale (#603)", () => {
+    // The regression this exists for: a BFF route cannot write a sentence, so it
+    // writes a code - and the toast used to show its English detail verbatim
+    // under every locale.
+    const refusal = apiError(401, { code: "NOT_AUTHENTICATED" });
+    expect(refusal.code).toBe("NOT_AUTHENTICATED");
+    expect(getErrorMessage(refusal, tEn)).toBe("Not authenticated");
+    expect(getErrorMessage(refusal, tPl)).toBe("Nie jesteś zalogowany");
+  });
+
+  it("shows the backend's own message as written, whatever its code", () => {
+    const refused = apiError(409, CONFLICT);
+    expect(getErrorMessage(refused, tPl)).toBe("An agent with the handle 'support' already exists");
+  });
+
+  it("does not mistake an unmapped top-level code for a BFF refusal", () => {
+    const stranger = apiError(500, { code: "SOMETHING_ELSE" });
+    expect(stranger.code).toBe("UNKNOWN");
+    expect(getErrorMessage(stranger, tPl)).toBe("Żądanie nie powiodło się");
+  });
+
+  it("translates the fallback sentinel a body that named nothing gets", () => {
+    expect(getErrorMessage(apiError(502, null), tEn)).toBe("Request failed");
+    expect(getErrorMessage(apiError(502, null), tPl)).toBe("Żądanie nie powiodło się");
+  });
+
+  it("uses the error's own sentence, which is the server's refusal", () => {
+    expect(getErrorMessage(new Error("Missing required permission"), tEn)).toBe(
+      "Missing required permission",
+    );
+  });
+
+  it("falls back for something thrown that is not an error", () => {
+    // A rejected fetch can throw a string or an event; neither is worth showing.
+    expect(getErrorMessage("boom", tEn)).toBe("An unexpected error occurred");
+    expect(getErrorMessage("boom", tPl)).toBe("Wystąpił nieoczekiwany błąd");
+    expect(getErrorMessage(undefined, tEn, "Could not save")).toBe("Could not save");
+  });
+});
+
+describe("BFF_ERROR_KEYS", () => {
+  it("holds copy for every code, in both catalogs", () => {
+    // A code without a message would reach the toast as raw English fallback -
+    // exactly the defect the table exists to end.
+    for (const key of Object.values(BFF_ERROR_KEYS)) {
+      expect(en.errors[key as keyof typeof en.errors]).toBeTruthy();
+      expect(pl.errors[key as keyof typeof pl.errors]).toBeTruthy();
+    }
+  });
+
+  it("localizes the toast a form shows for a BFF refusal", () => {
+    const failure = submitFailure(
+      apiError(500, { code: "INTERNAL_SERVER_ERROR" }),
+      { fields: ["name"] },
+      tPl,
+    );
+    expect(failure.toast).toBe("Wewnętrzny błąd serwera");
   });
 });

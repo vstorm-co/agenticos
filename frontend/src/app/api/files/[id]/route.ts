@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { bffRefusal } from "@/lib/server-api";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 
@@ -7,7 +8,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const { id } = await params;
     const accessToken = request.cookies.get("access_token")?.value;
     if (!accessToken) {
-      return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
+      return bffRefusal("NOT_AUTHENTICATED", 401);
     }
 
     // Forward ?disposition=attachment so the explicit Download button can
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     });
 
     if (!response.ok) {
-      return NextResponse.json({ detail: "File not found" }, { status: response.status });
+      return bffRefusal("FILE_NOT_FOUND", response.status);
     }
 
     const data = await response.arrayBuffer();
@@ -41,6 +42,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       },
     });
   } catch {
-    return NextResponse.json({ detail: "Internal server error" }, { status: 500 });
+    return bffRefusal("INTERNAL_SERVER_ERROR", 500);
   }
 }

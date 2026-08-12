@@ -3,9 +3,9 @@
 import { useCallback, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
+import { getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
-import { getErrorMessage } from "@/lib/utils";
 import type {
   Conversation,
   ConversationListResponse,
@@ -14,6 +14,7 @@ import type {
 } from "@/types";
 
 export function useConversationShares() {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("sharing");
   const queryClient = useQueryClient();
 
@@ -90,12 +91,12 @@ export function useConversationShares() {
         });
         return share;
       } catch (err: unknown) {
-        const message = getErrorMessage(err, t("failedShare"));
+        const message = getErrorMessage(err, tErrors, t("failedShare"));
         setError(message);
         throw err;
       }
     },
-    [queryClient, t],
+    [queryClient, t, tErrors],
   );
 
   const fetchShares = useCallback(
@@ -122,12 +123,12 @@ export function useConversationShares() {
           queryKey: qk.conversationShares.list(conversationId),
         });
       } catch (err: unknown) {
-        const message = getErrorMessage(err, t("failedRevoke"));
+        const message = getErrorMessage(err, tErrors, t("failedRevoke"));
         setError(message);
         throw err;
       }
     },
-    [queryClient, t],
+    [queryClient, t, tErrors],
   );
 
   const fetchSharedWithMe = useCallback(
@@ -147,7 +148,8 @@ export function useConversationShares() {
     sharedWithMeTotal,
     isLoading,
     /** A refused write, or failing that a refused read. */
-    error: error ?? (readFailure ? getErrorMessage(readFailure, t("failedLoadShares")) : null),
+    error:
+      error ?? (readFailure ? getErrorMessage(readFailure, tErrors, t("failedLoadShares")) : null),
     shareConversation,
     fetchShares,
     revokeShare,

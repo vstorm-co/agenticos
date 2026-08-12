@@ -6,8 +6,10 @@ import { backendFetch } from "@/lib/server-api";
  * OAuth redirect target. The provider sends the user here with `code` + `state`
  * (or an `error`). We forward them to the backend's state-authenticated
  * callback, then bounce the browser back to the integrations settings page
- * with a status the page turns into a toast. No auth cookie is required -
- * the `state` token authenticates the exchange.
+ * with a status the page turns into a toast. A failure of this route's own is
+ * named by a `BFF_ERROR_KEYS` code, since there is no locale here to write a
+ * sentence in (#603); a provider's or the backend's reason is passed as given.
+ * No auth cookie is required - the `state` token authenticates the exchange.
  */
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
@@ -23,7 +25,7 @@ export async function GET(request: NextRequest) {
   const code = params.get("code");
   const state = params.get("state");
   if (!code || !state) {
-    return settings(`mcp_oauth=error&reason=${encodeURIComponent("Missing authorization code")}`);
+    return settings(`mcp_oauth=error&reason=MISSING_AUTHORIZATION_CODE`);
   }
 
   try {
@@ -36,12 +38,12 @@ export async function GET(request: NextRequest) {
       body: JSON.stringify({ code, state }),
     });
     if (!result.ok) {
-      const reason = result.error ?? "Authorization failed";
+      const reason = result.error ?? "AUTHORIZATION_FAILED";
       return settings(`mcp_oauth=error&reason=${encodeURIComponent(reason)}`);
     }
     const name = result.connection_name ?? "";
     return settings(`mcp_oauth=success&name=${encodeURIComponent(name)}`);
   } catch {
-    return settings(`mcp_oauth=error&reason=${encodeURIComponent("Authorization failed")}`);
+    return settings(`mcp_oauth=error&reason=AUTHORIZATION_FAILED`);
   }
 }

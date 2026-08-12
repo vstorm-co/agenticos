@@ -8,6 +8,7 @@ import {
   modelPlaceholder,
   placeholderWords,
 } from "@/components/agents/add-model";
+import { getErrorMessage } from "@/lib/api-error";
 import { ProviderIcon } from "@/components/vault/provider-icon";
 import { ProviderRow } from "@/components/vault/provider-row";
 import {
@@ -28,7 +29,6 @@ import {
   useSecretPurposes,
   useSecrets,
 } from "@/hooks";
-import { getErrorMessage } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 
@@ -68,6 +68,7 @@ interface ChatModelPickerProps {
  * itself to nobody.
  */
 export function ChatModelPicker({ value, onChange }: ChatModelPickerProps) {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("chat.modelPicker");
   // Root, for the absolute keys `modelPlaceholder` answers with. Resolving them
   // through `t` above asked for `chat.modelPicker.pickProviderFirst`, which does
@@ -135,7 +136,7 @@ export function ChatModelPicker({ value, onChange }: ChatModelPickerProps) {
     } catch (error) {
       // Caught, not left to reject: every refusal this endpoint gives is about
       // the model id, so it belongs under the field, where it can be fixed.
-      setFailure(getErrorMessage(error));
+      setFailure(getErrorMessage(error, tErrors));
     }
   };
 

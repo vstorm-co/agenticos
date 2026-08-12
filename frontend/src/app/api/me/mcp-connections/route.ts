@@ -1,11 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { BackendApiError, backendFetch } from "@/lib/server-api";
+import { BackendApiError, backendFetch, bffRefusal } from "@/lib/server-api";
 
 export async function GET(request: NextRequest) {
   const accessToken = request.cookies.get("access_token")?.value;
   if (!accessToken) {
-    return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
+    return bffRefusal("NOT_AUTHENTICATED", 401);
   }
   try {
     const data = await backendFetch<{ items: unknown[]; total: number }>(
@@ -17,14 +17,14 @@ export async function GET(request: NextRequest) {
     if (error instanceof BackendApiError) {
       return NextResponse.json({ detail: error.message }, { status: error.status });
     }
-    return NextResponse.json({ detail: "Internal server error" }, { status: 500 });
+    return bffRefusal("INTERNAL_SERVER_ERROR", 500);
   }
 }
 
 export async function POST(request: NextRequest) {
   const accessToken = request.cookies.get("access_token")?.value;
   if (!accessToken) {
-    return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
+    return bffRefusal("NOT_AUTHENTICATED", 401);
   }
   try {
     const body = (await request.json()) as Record<string, unknown>;
@@ -38,6 +38,6 @@ export async function POST(request: NextRequest) {
     if (error instanceof BackendApiError) {
       return NextResponse.json({ detail: error.message }, { status: error.status });
     }
-    return NextResponse.json({ detail: "Internal server error" }, { status: 500 });
+    return bffRefusal("INTERNAL_SERVER_ERROR", 500);
   }
 }

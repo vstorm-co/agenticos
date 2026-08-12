@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import {
   READABLE_ATTRS,
   duplicatedInSource,
-  isSwept,
   isTemplateCopy,
   missingKeys,
   offences,
@@ -508,19 +507,14 @@ describe("a .ts file", () => {
     expect(saidTs("  const over = used > limit && remaining;\n")).toEqual([]);
   });
 
-  it("skips the BFF route handlers, and only for the offence sweep (#603)", () => {
-    // Not exempt in itself - a route payload is a string a rule reads perfectly well, and
-    // what excuses it is where it lives. Pinned both ways so a rule change that stopped
-    // reading this shape cannot make the skip look unnecessary.
+  it("reads a BFF route payload like any other string (#603)", () => {
+    // The handlers used to be skipped for want of a translator; a refusal is now a
+    // `BFF_ERROR_KEYS` code the client resolves, so English prose in one is an
+    // offence like anywhere else - and a code, having no whitespace, is not.
     const payload = 'return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });\n';
 
     expect(saidTs(payload)).toEqual(["string 'Not authenticated'"]);
-    expect(isSwept("app/api/orgs/[id]/route.ts")).toBe(false);
-    expect(isSwept("hooks/use-members.ts")).toBe(true);
-  });
-
-  it("matches that skip below src, so a deeper app/api is not covered by it", () => {
-    expect(isSwept("components/app/api/thing.ts")).toBe(true);
+    expect(saidTs('return bffRefusal("NOT_AUTHENTICATED", 401);\n')).toEqual([]);
   });
 
   it("lets a .ts file claim an exemption, and still asks it for a reason", () => {

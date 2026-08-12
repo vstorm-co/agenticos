@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { backendFetch, BackendApiError } from "@/lib/server-api";
+import { BackendApiError, backendFetch, bffRefusal } from "@/lib/server-api";
 
 interface OAuthCallbackBody {
   access_token: string;
@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as Partial<OAuthCallbackBody>;
     if (!body.access_token || !body.refresh_token) {
-      return NextResponse.json({ detail: "Missing tokens" }, { status: 400 });
+      return bffRefusal("MISSING_TOKENS", 400);
     }
 
     const user = await backendFetch("/api/v1/auth/me", {
@@ -45,6 +45,6 @@ export async function POST(request: NextRequest) {
       const detail = (error.data as { detail?: string })?.detail || "Sign-in failed";
       return NextResponse.json({ detail }, { status: error.status });
     }
-    return NextResponse.json({ detail: "Internal server error" }, { status: 500 });
+    return bffRefusal("INTERNAL_SERVER_ERROR", 500);
   }
 }

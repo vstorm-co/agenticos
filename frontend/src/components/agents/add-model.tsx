@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Check, KeyRound, Plus } from "lucide-react";
 
+import { getErrorMessage } from "@/lib/api-error";
 import { ModelCombobox } from "@/components/agents/model-combobox";
 import { InlineSecret } from "@/components/vault/inline-secret";
 import { ProviderRow } from "@/components/vault/provider-row";
@@ -23,7 +24,6 @@ import {
   useSecretPurposes,
   useSecrets,
 } from "@/hooks";
-import { getErrorMessage } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 import type { ModelProfile } from "@/types/providers";
 import { useTranslations } from "next-intl";
@@ -113,6 +113,7 @@ export function modelIdIsWellFormed(providerId: string, model: string): boolean 
 }
 
 export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
   // Root, for the absolute keys `modelPlaceholder` answers with - see the note on
   // `placeholderWords`. The chat's picker resolves the same keys from its own
@@ -191,7 +192,7 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
       // refusal this endpoint gives is about the model id - a bare id where the
       // provider namespaces them, an endpoint that is not a URL - so it belongs
       // under the field, where it can be fixed.
-      setFailure(getErrorMessage(error));
+      setFailure(getErrorMessage(error, tErrors));
     }
   };
 

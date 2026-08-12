@@ -16,8 +16,8 @@ import {
   Switch,
   Textarea,
 } from "@/components/ui";
+import { getErrorMessage } from "@/lib/api-error";
 import { EmptyState } from "@/components/states";
-import { ApiError } from "@/lib/api-client";
 import { BUILTIN_COMMAND_LIST, isBuiltinEnabled, useSlashCommands } from "@/hooks";
 import type { UserSlashCommandRecord } from "@/lib/slash-commands-api";
 import { useTranslations } from "next-intl";
@@ -25,6 +25,8 @@ import { useTranslations } from "next-intl";
 const NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
 
 export function SlashCommandsManager() {
+  const tErrors = useTranslations("errors");
+
   const t = useTranslations("settings");
   const tCommands = useTranslations("chat.commands");
   const {
@@ -87,8 +89,7 @@ export function SlashCommandsManager() {
       }
       setEditingId(null);
     } catch (e) {
-      const msg =
-        e instanceof ApiError ? e.message : e instanceof Error ? e.message : t("failedSaveCommand");
+      const msg = getErrorMessage(e, tErrors, t("failedSaveCommand"));
       toast.error(msg);
     } finally {
       setSubmitting(false);

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { nanoid } from "nanoid";
 import { useTranslations } from "next-intl";
 import { useWebSocket } from "./use-websocket";
+import { getErrorMessage } from "@/lib/api-error";
 import { useChatStore, useAuthStore, useOrgStore } from "@/stores";
 import { useTenantId } from "@/hooks/use-organizations";
 import { useAgentSelectionStore } from "@/stores";
@@ -33,7 +34,6 @@ import { WS_URL } from "@/lib/constants";
 import { toast } from "sonner";
 
 import { apiClient } from "@/lib/api-client";
-import { getErrorMessage } from "@/lib/utils";
 import { setUrlParam } from "@/lib/utils";
 import { useConversationStore } from "@/stores";
 /** A message the user typed while the agent was busy / socket offline.
@@ -51,6 +51,8 @@ interface UseChatOptions {
 }
 
 export function useChat(options: UseChatOptions = {}) {
+  const tErrors = useTranslations("errors");
+
   const { conversationId, onConversationCreated } = options;
   // `chat.unknownError` was in the catalog and read by nothing, while this hook
   // wrote the words out (#425). The `❌ Error:` in front of it is still English:
@@ -855,7 +857,7 @@ export function useChat(options: UseChatOptions = {}) {
           // the closing the resume answer would have carried had it returned, and
           // still surface the failure (agenticos#262).
           setDelegations((current) => resolveAwaitingOnResume(current, terminalStatus));
-          toast.error(getErrorMessage(error));
+          toast.error(getErrorMessage(error, tErrors));
           return;
         }
         // The decision failed to record, or the resume could not be built (a secret
@@ -863,10 +865,18 @@ export function useChat(options: UseChatOptions = {}) {
         // rather than swallowing it - a panel that vanished is a person believing
         // they unblocked it, and the retry can now succeed.
         setPendingApproval(parked);
-        toast.error(getErrorMessage(error));
+        toast.error(getErrorMessage(error, tErrors));
       }
     },
-    [pendingApproval, updateToolCallPart, decideApproval, resumeRun, addMessage, conversationId],
+    [
+      pendingApproval,
+      updateToolCallPart,
+      decideApproval,
+      resumeRun,
+      addMessage,
+      conversationId,
+      tErrors,
+    ],
   );
 
   const sendAskUserResponses = useCallback(
