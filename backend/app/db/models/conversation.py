@@ -5,7 +5,18 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Identity,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -49,7 +60,7 @@ class Conversation(Base, TimestampMixin):
         "Message",
         back_populates="conversation",
         cascade="all, delete-orphan",
-        order_by="Message.created_at",
+        order_by="Message.ordinal",
     )
 
     def __repr__(self) -> str:
@@ -61,6 +72,7 @@ class Message(Base, TimestampMixin):
 
     Attributes:
         id: Unique message identifier
+        ordinal: Where this turn sits in the order they were written
         conversation_id: The conversation this message belongs to
         run_id: The agent run this turn belongs to, when one produced it
         role: Message role (user, assistant, system)
@@ -71,8 +83,24 @@ class Message(Base, TimestampMixin):
     """
 
     __tablename__ = "messages"
+    __table_args__ = (Index("messages_conversation_id_ordinal_idx", "conversation_id", "ordinal"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    # What order the turns were written in, and the only column that can say.
+    # `created_at` defaults to `func.now()`, which in Postgres is the
+    # *transaction's* start time - and one turn writes the question and the answer
+    # inside a single transaction, so both rows carry the same timestamp to the
+    # microsecond and `ORDER BY created_at` returns whichever the planner prefers.
+    # `id` cannot break the tie either: it is `uuid4`.
+    #
+    # Allocated by the database from one deployment-wide identity, not counted per
+    # conversation: `MAX(ordinal) + 1` is a read two writers get the same answer to,
+    # and the loser either violates a constraint - losing the transcript, whose
+    # write is wrapped in a savepoint that swallows the failure - or writes the tie
+    # back. Gaps are the price and cost nothing; only the order is read (#634).
+    ordinal: Mapped[int] = mapped_column(
+        BigInteger, Identity(always=False, start=1, increment=1), nullable=False
+    )
     conversation_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("conversations.id", ondelete="CASCADE"),

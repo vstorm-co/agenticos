@@ -495,12 +495,18 @@ async def get_messages_by_conversation(
     limit: int = 100,
     include_tool_calls: bool = False,
 ) -> list[Message]:
-    """Get messages for a conversation with pagination."""
+    """Get messages for a conversation, in the order they were written.
+
+    Ordered by `ordinal` rather than `created_at`: one turn writes the question
+    and the answer in a single transaction, and `func.now()` gives both the same
+    timestamp - so this used to return the answer above the question whenever the
+    planner felt like it. See `Message.ordinal`.
+    """
     query = select(Message).where(Message.conversation_id == conversation_id)
     if include_tool_calls:
         query = query.options(selectinload(Message.tool_calls))
     query = query.options(selectinload(Message.files))
-    query = query.order_by(Message.created_at.asc()).offset(skip).limit(limit)
+    query = query.order_by(Message.ordinal.asc()).offset(skip).limit(limit)
     result = await db.execute(query)
     return list(result.scalars().all())
 
@@ -531,7 +537,7 @@ async def get_messages_by_run(
     if include_tool_calls:
         query = query.options(selectinload(Message.tool_calls))
     query = query.options(selectinload(Message.files))
-    query = query.order_by(Message.created_at.asc()).offset(skip).limit(limit)
+    query = query.order_by(Message.ordinal.asc()).offset(skip).limit(limit)
     result = await db.execute(query)
     return list(result.scalars().all())
 
