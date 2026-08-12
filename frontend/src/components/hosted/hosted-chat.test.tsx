@@ -559,3 +559,56 @@ describe("a turn laid out the way web chat lays one out", () => {
     expect(screen.getByText("# A heading")).toBeInTheDocument();
   });
 });
+
+describe("the chrome around a turn", () => {
+  it("names the agent above its answer", () => {
+    // Web chat draws this line, and without it an answer has no author on a page
+    // whose whole subject is one agent. The *version* stays out: what a stored spec
+    // is called is an internal fact.
+    render(<HostedChat config={config({ agent_name: "JARVIS" })} />);
+
+    act(() => socket().deliver({ type: "text_delta", data: { content: "Hi." } }));
+
+    expect(screen.getByText("JARVIS")).toBeInTheDocument();
+  });
+
+  it("falls back to the agent's initial where there is no picture", () => {
+    // What `AgentAvatar` does in the dashboard. A generic robot glyph was the one
+    // thing on this page that looked like a different product.
+    render(<HostedChat config={config({ agent_name: "jarvis", logo_url: null })} />);
+
+    act(() => socket().deliver({ type: "text_delta", data: { content: "Hi." } }));
+
+    expect(screen.getByText("J")).toBeInTheDocument();
+  });
+
+  it("prints the time a replayed turn was written, not the time it was read", () => {
+    // The `history` frame carries `at` for this: a bookmarked link comes back with
+    // the times still under its turns, which is the visit continuity exists for.
+    render(<HostedChat config={config()} />);
+
+    act(() =>
+      socket().deliver({
+        type: "history",
+        data: {
+          messages: [{ role: "user", text: "earlier", at: "2026-08-12T17:46:00+00:00" }],
+        },
+      }),
+    );
+
+    const printed = new Date("2026-08-12T17:46:00+00:00").toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    expect(screen.getByText(printed)).toBeInTheDocument();
+  });
+
+  it("prints no time while the turn is still being written", () => {
+    // A time under a turn that has not finished is a time that is about to be wrong.
+    render(<HostedChat config={config()} />);
+
+    act(() => socket().deliver({ type: "text_delta", data: { content: "Thinking" } }));
+
+    expect(screen.queryByText(/^\d{1,2}:\d{2}/)).toBeNull();
+  });
+});

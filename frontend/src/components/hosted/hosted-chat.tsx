@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { Bot, MessageSquarePlus, Mic, MicOff, Paperclip, Send, User, X } from "lucide-react";
+import { MessageSquarePlus, Mic, MicOff, Paperclip, Send, User, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { TurnParts } from "@/components/chat/turn-parts";
@@ -24,6 +24,14 @@ import type { HostedPageConfig } from "@/types/hosted";
 interface Turn {
   role: "user" | "assistant";
   parts: MessagePart[];
+  /**
+   * When the turn was written, as an ISO string.
+   *
+   * Off the `history` frame for a replayed thread and stamped here for a live one,
+   * so a bookmarked link comes back with the times still under its turns - which is
+   * the visit continuity exists for.
+   */
+  at?: string;
   /**
    * Whether this turn is still being written.
    *
@@ -48,9 +56,10 @@ export function fold(said: readonly Turn[], type: string, data: Record<string, n
   const payload = data as Record<string, unknown>;
   switch (type) {
     case "history":
-      return ((payload.messages as { role: Turn["role"]; text: string }[]) ?? []).map(
+      return ((payload.messages as { role: Turn["role"]; text: string; at?: string }[]) ?? []).map(
         (message, index) => ({
           role: message.role,
+          at: message.at,
           parts: [{ id: `h${index}`, type: "text", content: message.text }],
         }),
       );
@@ -108,7 +117,12 @@ export function fold(said: readonly Turn[], type: string, data: Record<string, n
 
 /** A refusal, as a turn of its own. */
 function refusal(message: string): Turn {
-  return { role: "assistant", parts: [{ id: "err", type: "text", content: message }] };
+  return { role: "assistant", at: now(), parts: [{ id: "err", type: "text", content: message }] };
+}
+
+/** Now, as the turn records it. Its own function so a test can hold it still. */
+function now(): string {
+  return new Date().toISOString();
 }
 
 /** Append to the trailing part of this kind, or open one. */
@@ -159,7 +173,7 @@ function intoLive(said: readonly Turn[], mutate: (parts: MessagePart[]) => Messa
   if (last !== undefined && last.role === "assistant" && last.live === true) {
     return [...said.slice(0, -1), { ...last, parts: mutate(last.parts) }];
   }
-  return [...said, { role: "assistant", parts: mutate([]), live: true }];
+  return [...said, { role: "assistant", parts: mutate([]), live: true, at: now() }];
 }
 
 function withoutEmptyLive(said: readonly Turn[]): Turn[] {
@@ -391,7 +405,11 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
       return;
     setTurns((said) => [
       ...said,
-      { role: "user", parts: [{ id: `said-${said.length}`, type: "text", content: text }] },
+      {
+        role: "user",
+        at: now(),
+        parts: [{ id: `said-${said.length}`, type: "text", content: text }],
+      },
     ]);
     setDraft("");
     setAttached([]);
@@ -429,7 +447,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
           <p className="text-muted-foreground text-sm whitespace-pre-wrap">{config.welcome}</p>
         )}
         {turns.map((turn, index) => (
-          <HostedTurn key={index} turn={turn} logoSrc={logoSrc} />
+          <HostedTurn key={index} turn={turn} logoSrc={logoSrc} agentName={config.agent_name} />
         ))}
         {thinking && <p className="text-muted-foreground text-sm">{t("thinking")}</p>}
         {closed !== null && (
@@ -464,69 +482,84 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
         </div>
       )}
 
+      {/* The composer as one card, which is the shape web chat's is: a border that
+          follows focus, the field and its controls inside it, and nothing between them
+          and the edge. It used to be a bordered input with three buttons beside it on
+          a hairline - the same controls, arranged like a form rather than like a
+          composer. What is *not* in the card is the usage strip that sits at the top
+          of the dashboard's: what a turn cost is the operator's business. */}
       <form
-        className="flex items-center gap-2 border-t py-4"
+        className="bg-card border-border focus-within:border-foreground/30 mb-4 rounded-2xl border transition-colors"
         onSubmit={(event) => {
           event.preventDefault();
           send();
         }}
       >
-        <Input
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          placeholder={t("placeholder")}
-          aria-label={t("placeholder")}
-          disabled={closed !== null}
-        />
-        {config.allow_files && (
-          <>
-            <input
-              ref={filePicker}
-              type="file"
-              className="hidden"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) void attach(file);
-                // Cleared so choosing the same file twice fires again, which is
-                // what somebody does after a refused upload.
-                event.target.value = "";
-              }}
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              disabled={closed !== null || uploading}
-              onClick={() => filePicker.current?.click()}
-              aria-label={t("attach")}
-            >
-              <Paperclip className="text-muted-foreground h-4 w-4" />
-            </Button>
-          </>
-        )}
-        {config.allow_voice && canDictate && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={toggleDictation}
+        <div className="flex items-end gap-2 px-3 py-2 sm:px-4">
+          <Input
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            placeholder={t("placeholder")}
+            aria-label={t("placeholder")}
             disabled={closed !== null}
-            aria-label={listening ? t("stopDictation") : t("startDictation")}
-          >
-            {listening ? (
-              <MicOff className="text-destructive h-4 w-4 animate-pulse" />
-            ) : (
-              <Mic className="text-muted-foreground h-4 w-4" />
+            className="min-h-[40px] flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0"
+          />
+          <div className="flex shrink-0 items-center gap-0.5 pb-1">
+            {config.allow_files && (
+              <>
+                <input
+                  ref={filePicker}
+                  type="file"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) void attach(file);
+                    // Cleared so choosing the same file twice fires again, which is
+                    // what somebody does after a refused upload.
+                    event.target.value = "";
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9"
+                  disabled={closed !== null || uploading}
+                  onClick={() => filePicker.current?.click()}
+                  aria-label={t("attach")}
+                >
+                  <Paperclip className="text-muted-foreground h-4 w-4" />
+                </Button>
+              </>
             )}
-          </Button>
-        )}
-        <Button
-          type="submit"
-          disabled={closed !== null || (draft.trim() === "" && attached.length === 0)}
-        >
-          <Send className="h-4 w-4" />
-          <span className="sr-only">{t("send")}</span>
-        </Button>
+            {config.allow_voice && canDictate && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9"
+                onClick={toggleDictation}
+                disabled={closed !== null}
+                aria-label={listening ? t("stopDictation") : t("startDictation")}
+              >
+                {listening ? (
+                  <MicOff className="text-destructive h-4 w-4 animate-pulse" />
+                ) : (
+                  <Mic className="text-muted-foreground h-4 w-4" />
+                )}
+              </Button>
+            )}
+            <Button
+              type="submit"
+              size="icon"
+              className="h-9 w-9 rounded-full"
+              disabled={closed !== null || (draft.trim() === "" && attached.length === 0)}
+            >
+              <Send className="h-4 w-4" />
+              <span className="sr-only">{t("send")}</span>
+            </Button>
+          </div>
+        </div>
       </form>
     </div>
   );
@@ -542,7 +575,15 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
  * agent name and version, no cost, no rating, no regenerate, no sources panel. See
  * `docs/channels.md` for why each of those is member-only.
  */
-function HostedTurn({ turn, logoSrc }: { turn: Turn; logoSrc: string | null }) {
+function HostedTurn({
+  turn,
+  logoSrc,
+  agentName,
+}: {
+  turn: Turn;
+  logoSrc: string | null;
+  agentName: string;
+}) {
   const isUser = turn.role === "user";
   return (
     <div
@@ -553,7 +594,7 @@ function HostedTurn({ turn, logoSrc }: { turn: Turn; logoSrc: string | null }) {
     >
       <div
         className={cn(
-          "z-10 flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full sm:h-9 sm:w-9",
+          "z-10 flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full text-sm font-medium sm:h-9 sm:w-9",
           isUser ? "bg-foreground text-background" : "bg-muted text-foreground",
         )}
       >
@@ -566,7 +607,10 @@ function HostedTurn({ turn, logoSrc }: { turn: Turn; logoSrc: string | null }) {
           // eslint-disable-next-line @next/next/no-img-element
           <img src={logoSrc} alt="" className="h-full w-full object-cover" />
         ) : (
-          <Bot className="h-4 w-4 sm:h-5 sm:w-5" />
+          // The initial, which is what `AgentAvatar` falls back to in the dashboard.
+          // A generic robot glyph is the one thing on this page that looked like a
+          // different product.
+          (agentName.trim()[0] ?? "?").toUpperCase()
         )}
       </div>
       <div
@@ -575,6 +619,15 @@ function HostedTurn({ turn, logoSrc }: { turn: Turn; logoSrc: string | null }) {
           isUser && "flex flex-col items-end",
         )}
       >
+        {/* Which agent answered, above the turn it answered - the same line web chat
+            draws. Without it an answer has no author on a page whose whole subject is
+            one agent. The *version* is not here: what a stored spec is called is an
+            internal fact, and a visitor has nothing to do with it. */}
+        {!isUser && (
+          <p className="text-foreground/55 font-mono text-[10px] tracking-wider uppercase">
+            {agentName}
+          </p>
+        )}
         <TurnParts
           parts={turn.parts}
           isStreaming={turn.live === true}
@@ -583,6 +636,14 @@ function HostedTurn({ turn, logoSrc }: { turn: Turn; logoSrc: string | null }) {
           // so a call that came from one reads as a humanized name here.
           mcpServers={[]}
         />
+        {/* The time, on the side the turn is on. What is deliberately not beside it is
+            the turn's cost, which web chat prints here and which is the operator's
+            business rather than the visitor's - see `docs/channels.md`. */}
+        {turn.at !== undefined && turn.live !== true && (
+          <span className={cn("text-muted-foreground block text-[10px]", isUser && "text-right")}>
+            {new Date(turn.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+          </span>
+        )}
       </div>
     </div>
   );

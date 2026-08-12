@@ -346,7 +346,17 @@ class EmbedSession:
             skip=max(0, total - HISTORY_MESSAGES),
             limit=HISTORY_MESSAGES,
         )
-        return [{"role": message.role, "text": message.content} for message in messages]
+        # `at` as well as the words: the page prints a time under each turn the way
+        # web chat does, and a reloaded thread whose turns had none would lose it on
+        # exactly the visit continuity exists for.
+        return [
+            {
+                "role": message.role,
+                "text": message.content,
+                "at": message.created_at.isoformat(),
+            }
+            for message in messages
+        ]
 
     async def handle(self, frame: dict[str, Any]) -> None:
         """Process one inbound frame.

@@ -33,6 +33,9 @@ from app.services.embed_session import (
     continuity_key,
 )
 
+# One fixed instant, so a replayed turn's time is assertable.
+_AT = datetime(2026, 8, 12, 17, 46, tzinfo=UTC)
+
 MODULE = "app.services.agent_embed"
 
 
@@ -892,8 +895,8 @@ class TestAReturningVisitorResumesTheirThread:
                 "app.services.embed_session.conversation_repo.get_messages_by_conversation",
                 new=AsyncMock(
                     return_value=[
-                        MagicMock(role="user", content="do you ship?"),
-                        MagicMock(role="assistant", content="we do"),
+                        MagicMock(role="user", content="do you ship?", created_at=_AT),
+                        MagicMock(role="assistant", content="we do", created_at=_AT),
                     ]
                 ),
             ),
@@ -903,9 +906,9 @@ class TestAReturningVisitorResumesTheirThread:
         history = session.websocket.send_json.await_args_list[-1].args[0]
         assert history["type"] == "history"
         assert history["data"]["messages"] == [
-            {"role": "user", "text": "do you ship?"},
-            {"role": "assistant", "text": "we do"},
-        ]
+            {"role": "user", "text": "do you ship?", "at": _AT.isoformat()},
+            {"role": "assistant", "text": "we do", "at": _AT.isoformat()},
+        ], "the time as well as the words: the page prints one under each turn"
         # And the agent is reminded of the same thread the visitor is reading.
         assert session.conversation_id == conversation_id
 

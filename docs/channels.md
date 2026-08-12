@@ -206,7 +206,7 @@ loop rather than the transport. Every frame carries `{ "type": …, "data": { �
 | `type` | `data` | Meaning |
 |---|---|---|
 | `ready` | `visitor` | Connected. `visitor: true` when a token identified the person. |
-| `history` | `messages` | On a hosted page only: what was said in the thread this visitor is resuming. |
+| `history` | `messages` | On a hosted page only: what was said in the thread this visitor is resuming. Each entry is `role`, `text` and `at`, so a replayed turn keeps the time under it. |
 | `model_request_start` | — | The agent has gone to the model. Show an indicator. |
 | `part_start` | `index`, `part_type` | A block of the answer is starting. |
 | `text_delta` | `index`, `content` | Words of the answer. Append them. |
@@ -433,6 +433,15 @@ ticked here and nothing else.
 
 *What each step returned* cannot be turned on alone — there is no step for it to
 open, and the server drops both regardless of what the config says.
+
+**A turn looks like a turn in web chat**, down to the chrome around it: the agent's
+name above the answer, the avatar in the gutter — the page's logo where there is one
+and the agent's initial where there is not — the time under each turn on the side it
+is on, and one composer card with the field and its controls inside it. Three things
+web chat draws there are deliberately absent, and all three are the same decision as
+the panels below: what the turn cost, what the month has cost, and which agent and
+model to run — that last one because a frame that could pick a model is a visitor
+picking one on the operator's bill.
 
 **A turn is rendered by web chat's own components**, not by a second set that looks
 like them: `TurnParts` is what the dashboard renders and what the page renders, so
