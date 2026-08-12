@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ModelProfilePicker } from "./model-profile-picker";
@@ -32,14 +32,21 @@ vi.mock("@/components/agents/add-model", () => ({
   }: {
     onCreated: (profile: { id: string }) => void;
     selected?: { label: string };
-  }) => (
-    <>
-      <button type="button" onClick={() => onCreated({ id: "p-new" })}>
-        Add model
-      </button>
-      <span data-testid="form-starts-on">{selected?.label ?? "nothing"}</span>
-    </>
-  ),
+  }) => {
+    // Read once, like the real form: its fields are `useState(selected?.…)`, so a
+    // prop that arrives later moves nothing. That is the whole reason the panel
+    // keys this component, and a stand-in that re-read the prop on every render
+    // would pass with the key removed.
+    const [seeded] = useState(selected?.label ?? "nothing");
+    return (
+      <>
+        <button type="button" onClick={() => onCreated({ id: "p-new" })}>
+          Add model
+        </button>
+        <span data-testid="form-starts-on">{seeded}</span>
+      </>
+    );
+  },
 }));
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -121,6 +128,23 @@ describe("ModelProfilePicker", () => {
     const current = screen.getByRole("group", { name: "Current model" });
     expect(within(current).getByText("OpenRouter · openai/gpt-5.5")).toBeInTheDocument();
     expect(within(current).queryByText(/openrouter · openai\/gpt-5\.5/)).toBeNull();
+  });
+
+  it("starts it on the model once the profiles arrive, not only when they were already there", () => {
+    // `value` and `profiles` do not land together: an agent already pointed at a
+    // model renders with the id while the list is still in flight, so keying the
+    // form on the id meant the key never changed once the list came back and the
+    // fields kept the nothing they mounted with. "Choose a provider" over an agent
+    // that plainly has one - which passed on a warm laptop and failed in CI.
+    const { rerender } = render(
+      <ModelProfilePicker profiles={[]} value="p1" allowAdd onChange={vi.fn()} />,
+      { wrapper },
+    );
+    expect(screen.getByTestId("form-starts-on")).toHaveTextContent("nothing");
+
+    rerender(<ModelProfilePicker profiles={[profile()]} value="p1" allowAdd onChange={vi.fn()} />);
+
+    expect(screen.getByTestId("form-starts-on")).toHaveTextContent("openai default");
   });
 
   it("starts it on nothing where the agent is on nothing", () => {

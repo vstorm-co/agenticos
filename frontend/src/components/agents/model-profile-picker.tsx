@@ -172,9 +172,16 @@ export function ModelProfilePicker({
 
           Keyed on the selection so the fields follow it: picking a saved model from
           the disclosure below has to move them, and derived state that only reads
-          its prop once would leave them on whatever was selected at mount. */}
+          its prop once would leave them on whatever was selected at mount.
+
+          On the *profile*, not on `value`, because the two are not available at the
+          same moment: an agent already pointed at one renders with `value` set while
+          the profiles are still in flight, so a key of `value` never changes once
+          they land and the form keeps the empty fields it mounted with. Which is
+          "Choose a provider" above an agent that plainly has one, for as long as the
+          list took - green on a warm laptop and red in CI. */}
       <AddModel
-        key={value ?? "none"}
+        key={selected?.id ?? "none"}
         selected={selected}
         disabled={disabled}
         onCreated={(profile) => {
