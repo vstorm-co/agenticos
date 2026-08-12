@@ -136,7 +136,7 @@ export function UserDetailDrawer({
         <div className="flex-1 scrollbar-thin overflow-y-auto px-6 py-5">
           <div className="flex flex-wrap gap-1.5">
             <Badge variant={subject.is_active ? "default" : "secondary"} className="text-[10px]">
-              {subject.is_active ? t("active2") : t("suspended")}
+              {subject.is_active ? t("active") : t("suspended")}
             </Badge>
             {/* One privilege, so one badge. There used to be a second one
                 printing `users.role`, which said "user" for every account on
@@ -184,7 +184,8 @@ export function UserDetailDrawer({
                       </p>
                       <p className="text-foreground/45 truncate font-mono text-[10px] tracking-wider uppercase">
                         {formatDateTime(c.created_at)}
-                        {typeof c.message_count === "number" && ` · ${c.message_count} msg`}
+                        {typeof c.message_count === "number" &&
+                          ` · ${t("messageCountShort", { count: c.message_count })}`}
                       </p>
                     </div>
                     <a

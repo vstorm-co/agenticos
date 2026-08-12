@@ -96,7 +96,7 @@ export function UploadOverrideDialog({
           >
             {/* The way back, and the only one: a departure nobody can undo is a
                 departure that quietly applies to the next thing dropped here. */}
-            Use the collection&apos;s settings
+            {t("useCollectionSettings")}
           </Button>
           <Button
             type="button"
@@ -106,11 +106,7 @@ export function UploadOverrideDialog({
               onOpenChange(false);
             }}
           >
-            {count === 0
-              ? t("nothingChanged2")
-              : count === 1
-                ? t("apply1Change")
-                : `Apply ${count} changes`}
+            {count === 0 ? t("nothingChanged2") : t("applyChanges", { count })}
           </Button>
         </DialogFooter>
       </DialogContent>

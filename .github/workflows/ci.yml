@@ -159,13 +159,16 @@ jobs:
       - name: Install dependencies
         run: uv sync --directory backend --dev
 
-      # ruff check, ruff format --check, ty, and the two guard scripts - the
-      # target, not a second copy of its commands. Every step this job used to
-      # spell out was also spelled out in the Makefile, and the pair drifted:
-      # `scripts/check_i18n.py` was in `make lint` and never here, so hardcoded
-      # copy failed locally and passed the build. Calling the target is how the
-      # two stay equal rather than how they are asserted to be equal - and
+      # ruff check, ruff format --check, ty, vulture and the three guard scripts -
+      # the target, not a second copy of its commands. Every step this job used to
+      # spell out was also spelled out in the Makefile, and the pair drifted: the
+      # i18n guard was in `make lint` and never here, so hardcoded copy failed
+      # locally and passed the build. Calling the target is how the two stay equal
+      # rather than how they are asserted to be equal - and
       # `backend/tests/test_ci_parity.py` catches whatever this still misses.
+      #
+      # The i18n guard is no longer among them: since #395 it is TypeScript, and it
+      # runs in `test-frontend` as the fourth step of `make lint-frontend`.
       - name: Lint, format-check and type-check the backend
         run: make lint-backend
 
@@ -326,9 +329,14 @@ jobs:
         working-directory: frontend
 
       # eslint (`--max-warnings 0`, because a warning nobody has to fix is a
-      # warning everybody learns to scroll past), prettier and tsc. `make lint`
-      # ran none of the three until #143, so a type error in a `.tsx` passed
-      # locally and stopped the build here.
+      # warning everybody learns to scroll past), prettier, tsc, and the i18n
+      # guard. `make lint` ran none of the first three until #143, so a type error
+      # in a `.tsx` passed locally and stopped the build here.
+      #
+      # The i18n guard joined them in #395, when it stopped being a Python script
+      # and became `frontend/scripts/check-i18n.ts`. It reads `frontend/src` and
+      # `frontend/messages` only, so this job's path filter is the right one to
+      # gate it - a backend-only branch cannot affect what it reads.
       - name: Lint, format-check and type-check the frontend
         run: make lint-frontend
 

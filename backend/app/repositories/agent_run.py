@@ -554,10 +554,12 @@ class AgentSpendRow:
             the column sums to the total printed above it. A delegate's tokens
             are already inside its parent's row.
         run_count: Runs behind that figure.
-        partial_run_count: How many of them had a model with no price. The
-            figure is a floor by exactly that much, and saying "3 of 40 runs
-            could not be priced" is the difference between a number a reader
-            can act on and one they have to take on trust.
+        partial_run_count: How many of them could not be fully priced - some
+            model in the run had no price, its delegates' included, because a
+            tree shares one ledger. The figure is a floor by exactly that many
+            runs, and saying "3 of 40 runs could not be priced" is the
+            difference between a number a reader can act on and one they have
+            to take on trust.
         month_to_date_usd: This agent's **own** month, delegated rows included -
             because that is the spend its cap is a cap on, and a delegate's rows
             are the only record of what it itself did. It does not sum to the

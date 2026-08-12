@@ -1,5 +1,6 @@
 import { parseRAGResults } from "@/components/chat/tool-results/rag";
 import { parseWebSearch } from "@/components/chat/tool-results/web-search";
+import type { Translate } from "@/lib/agent-step-captions";
 import type { ChatMessage, ToolCall } from "@/types";
 
 export interface SourceItem {
@@ -20,7 +21,7 @@ function getToolCalls(message: ChatMessage): ToolCall[] {
   return message.toolCalls ?? [];
 }
 
-export function extractSources(message: ChatMessage): SourceItem[] {
+export function extractSources(message: ChatMessage, t: Translate): SourceItem[] {
   const sources: SourceItem[] = [];
 
   for (const tc of getToolCalls(message)) {
@@ -34,7 +35,7 @@ export function extractSources(message: ChatMessage): SourceItem[] {
           type: "rag",
           title: item.source,
           subtitle:
-            [item.page && `p.${item.page}`, item.chunk && `chunk ${item.chunk}`]
+            [item.page && `p.${item.page}`, item.chunk && t("chunkNumber", { number: item.chunk })]
               .filter(Boolean)
               .join(" · ") || undefined,
           content: item.content,

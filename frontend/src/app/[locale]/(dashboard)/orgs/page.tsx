@@ -48,6 +48,7 @@ function WorkspacesCard({ count, children }: { count: number | null; children: R
 
 export default function OrgsPage() {
   const t = useTranslations("pages.orgs");
+  const tc = useTranslations("common");
   const { orgs, activeOrgId, fetchOrgs, switchOrg } = useOrganizations();
   const [createOpen, setCreateOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -145,7 +146,7 @@ export default function OrgsPage() {
                   <Link
                     href={ROUTES.ORG_MEMBERS(org.id)}
                     className="focus-visible:ring-ring absolute inset-0 z-10 rounded-[inherit] focus-visible:ring-2 focus-visible:outline-none"
-                    aria-label={`Open ${org.name}`}
+                    aria-label={tc("openNamed", { name: org.name })}
                   />
 
                   <div className="flex items-start gap-3">

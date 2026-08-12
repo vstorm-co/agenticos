@@ -418,8 +418,10 @@ async def get_spend(
         to_date=to_date,
         month_to_date_usd=await service.monthly_spend(ctx),
         # How much of everything below is a fact. Summed from the per-agent rows
-        # rather than queried again, so the figure and its breakdown cannot
-        # disagree about which runs could not be priced.
+        # rather than queried again, so this figure and `by_agent` cannot
+        # disagree about which runs could not be priced - they count the same
+        # top-level rows. It marks the two breakdowns below without measuring
+        # them; see `CostSummary.partial_run_count`.
         partial_run_count=sum(row.partial_run_count for row in agents),
         by_agent=[
             CostByAgent(

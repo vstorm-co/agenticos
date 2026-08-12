@@ -109,6 +109,7 @@ function subjectLabel(grant: ResourceGrant): string {
  */
 export function SharingPanel({ resourceType, resourceId, canManage }: SharingPanelProps) {
   const t = useTranslations("sharing");
+  const tc = useTranslations("common");
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const { members } = useMembers(activeOrgId ?? "");
   const { sharing, isLoading, share, revoke, setVisibility } = useSharing(resourceType, resourceId);
@@ -226,7 +227,7 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
                   <Button
                     variant="ghost"
                     size="sm"
-                    aria-label={`Remove ${name}`}
+                    aria-label={tc("removeNamed", { name })}
                     disabled={revoke.isPending}
                     onClick={() => revoke.mutate(grant.subject_user_id)}
                   >

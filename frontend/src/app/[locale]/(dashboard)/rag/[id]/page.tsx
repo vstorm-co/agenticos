@@ -76,8 +76,8 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
    * document one is raised from a `DataTable` cell and the sync-source one from
    * a row component, and a dialog rendered inside either is a dialog inside a
    * subtree that re-renders on every poll. These were `window.confirm` calls
-   * carrying hardcoded English, which is copy no locale and no `check_i18n.py`
-   * sweep can reach.
+   * carrying hardcoded English, which no locale could reach and no guard reported
+   * either, until #395 started reading a call's arguments.
    */
   const [deletingCollection, setDeletingCollection] = useState(false);
   const [removingDocument, setRemovingDocument] = useState<KBDocument | null>(null);

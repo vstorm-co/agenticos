@@ -217,6 +217,7 @@ function ProfileRow({
   onRemove?: () => void;
 }) {
   const t = useTranslations("agents");
+  const tc = useTranslations("common");
   return (
     // The radio and the delete are siblings, not nested: a button inside a
     // button is invalid, and the browser resolves it by dropping one of them.
@@ -252,7 +253,7 @@ function ProfileRow({
           variant="ghost"
           size="icon"
           disabled={disabled}
-          aria-label={`Remove ${title}`}
+          aria-label={tc("removeNamed", { name: title })}
           onClick={onRemove}
         >
           <Trash2 className="h-4 w-4" />

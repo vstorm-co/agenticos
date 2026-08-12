@@ -80,6 +80,7 @@ export function SecretsTable({
   onDelete,
 }: SecretsTableProps) {
   const t = useTranslations("vault");
+  const tc = useTranslations("common");
   return (
     <Table
       className={cn(
@@ -179,7 +180,7 @@ export function SecretsTable({
                     <Button
                       variant="ghost"
                       size="icon"
-                      aria-label={`Rotate ${secret.name}`}
+                      aria-label={t("rotateNamed", { name: secret.name })}
                       onClick={() => onRotate(secret)}
                     >
                       <RotateCw className="h-4 w-4" />
@@ -187,7 +188,7 @@ export function SecretsTable({
                     <Button
                       variant="ghost"
                       size="icon"
-                      aria-label={`Delete ${secret.name}`}
+                      aria-label={tc("deleteNamed", { name: secret.name })}
                       onClick={() => onDelete(secret)}
                     >
                       <Trash2 className="h-4 w-4" />

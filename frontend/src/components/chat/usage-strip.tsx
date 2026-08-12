@@ -115,10 +115,13 @@ function Measured({
     <>
       <span
         className="flex items-center gap-1.5"
-        title={`${usage.input_tokens.toLocaleString()} in · ${usage.output_tokens.toLocaleString()} out`}
+        title={t("inputOutputSplit", {
+          input: usage.input_tokens,
+          output: usage.output_tokens,
+        })}
       >
         <Coins className="h-3 w-3" aria-hidden />
-        {tokens.toLocaleString()} tokens · ${usage.cost_usd.toFixed(4)}
+        {t("tokensAndCost", { count: tokens, cost: usage.cost_usd.toFixed(4) })}
         {/* The agent's own cap first: it is the one whoever is looking at this
             agent can raise. The organization's stops every agent at once and is
             somebody else's to change, so it is only worth the space once it is

@@ -23,6 +23,7 @@ const NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
  */
 export function EnvironmentsPanel({ agentId, canManage }: { agentId: string; canManage: boolean }) {
   const t = useTranslations("agents");
+  const tc = useTranslations("common");
   const { environments, isLoading, create, remove } = useAgentEnvironments(agentId);
   const [name, setName] = useState("");
 
@@ -47,8 +48,10 @@ export function EnvironmentsPanel({ agentId, canManage }: { agentId: string; can
             <div className="min-w-0 flex-1">
               <p className="truncate font-mono text-sm">{environment.name}</p>
               <p className="text-muted-foreground text-xs">
-                serves v{environment.version}
-                {environment.is_default && " - what publish repoints"}
+                {t("servesVersion", {
+                  version: environment.version,
+                  isDefault: String(environment.is_default),
+                })}
               </p>
             </div>
             {environment.is_default && <Badge variant="secondary">{t("default2")}</Badge>}
@@ -57,7 +60,7 @@ export function EnvironmentsPanel({ agentId, canManage }: { agentId: string; can
                 variant="ghost"
                 size="sm"
                 disabled={remove.isPending}
-                aria-label={`Remove ${environment.name}`}
+                aria-label={tc("removeNamed", { name: environment.name })}
                 onClick={() => remove.mutate(environment.id)}
               >
                 <Trash2 className="h-4 w-4" />

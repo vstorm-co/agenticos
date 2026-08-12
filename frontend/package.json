@@ -1,6 +1,6 @@
 {
   "name": "agenticos-frontend",
-  "version": "0.0.104",
+  "version": "0.0.112",
   "private": true,
   "license": "Apache-2.0",
   "scripts": {
@@ -24,7 +24,8 @@
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
-    "gen:mcp-logos": "bun run scripts/gen-mcp-logos.ts"
+    "gen:mcp-logos": "bun run scripts/gen-mcp-logos.ts",
+    "check:i18n": "bun run scripts/check-i18n.ts"
   },
   "dependencies": {
     "@lobehub/icons": "5.15.0",

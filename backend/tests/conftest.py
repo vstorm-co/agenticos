@@ -8,6 +8,7 @@ See: https://anyio.readthedocs.io/en/stable/testing.html
 
 import os
 import re
+import tempfile
 from pathlib import Path
 
 # Before anything imports `app.core.config`, and therefore before anything can
@@ -85,6 +86,48 @@ def _a_password_is_already_configured() -> bool:
 # integration fixture now honours it too instead of ignoring it.
 if not _a_password_is_already_configured():
     os.environ["POSTGRES_PASSWORD"] = "postgres"
+
+
+# Prefect reads `.env` itself - its own settings model carries `env_file=".env"` - so
+# `PREFECT_API_URL=http://localhost:4200/api`, which `backend/.env` sets for `make dev`,
+# is also the address a `@flow` call in this suite tries to reach. With no server up
+# that is `RuntimeError: Failed to reach API at http://localhost:4200/api/` out of a
+# test that patched every collaborator it has, which is #536: the failure belongs to the
+# environment and reads as the test's. CI never saw it, having no `.env` and therefore no
+# URL at all, so what a laptop ran was never what CI ran.
+#
+# Deleting the variable would not do it: an unset variable leaves the dotenv source to
+# answer, and the dotenv source is what holds the URL. An empty *assignment* is what
+# outranks it, because Prefect's settings model carries `env_ignore_empty=False` and an
+# empty string is therefore an answer rather than a silence. That is Prefect's rule and
+# not ours: `app/core/config.py` sets it the other way, so the same line against one of
+# *our* settings is discarded and the `.env` answers anyway - which is why the password
+# above is checked for rather than emptied. Prefect reads an empty URL as no URL and
+# runs the flow against a temporary server of its own, which is what CI has always done.
+# Unconditionally, because the point is that the two agree: a developer with `make dev`
+# up gets the same run CI gets rather than a different code path.
+#
+# That server keeps its state in a SQLite database under `PREFECT_HOME`, which is
+# `~/.prefect` unless something says otherwise - a developer's own Prefect data, and the
+# file a locally run `prefect server` has open. Pointed at a directory of the tests' own
+# for the same reason as the database name above: a unit run has no business writing
+# there. One directory rather than one per process, because what costs is creating it.
+#
+# Ephemeral mode is named rather than assumed. It is the default today, but with no URL
+# and no ephemeral server a `@flow` call does not fail - it retries for 75 seconds and
+# then fails, which is a worse version of the bug this removes.
+#
+# Creating that database is a migration, and the allowance for it is raised past
+# Prefect's own 20 seconds as headroom rather than because 20 has been seen to fail:
+# against a `PREFECT_HOME` nothing had written yet the whole start takes about six
+# seconds here and about nine on a CI runner, which is cold on every run. What 90 buys
+# is that the one step whose cost nothing here bounds - a migration on a contended
+# machine, or a temporary directory that has been swept - waits instead of failing a
+# suite that a second run would pass.
+os.environ["PREFECT_API_URL"] = ""
+os.environ["PREFECT_HOME"] = str(Path(tempfile.gettempdir()) / "agenticos-prefect-test")
+os.environ["PREFECT_SERVER_EPHEMERAL_ENABLED"] = "true"
+os.environ["PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS"] = "90"
 
 from collections.abc import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock

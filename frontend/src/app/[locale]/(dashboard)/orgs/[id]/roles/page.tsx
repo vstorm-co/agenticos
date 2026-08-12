@@ -98,19 +98,21 @@ export default function RolesPage({ params }: PageProps) {
         <CardHeader>
           <CardTitle>{t("permissionMatrix2")}</CardTitle>
           <CardDescription>
-            Resource permissions carry a scope - <strong>{t("own")}</strong> is what you created,{" "}
-            <strong>{t("shared")}</strong>
-            {t("addsWhatWasShared")}
-            <strong>{t("all")}</strong> is the whole organization. Sharing a single resource can
-            widen access beyond the role, never narrow it.
+            {t.rich("scopeDescription", {
+              strong: (chunks) => <strong>{chunks}</strong>,
+            })}
             {myRole ? (
               <>
                 {" "}
-                Your role here is{" "}
-                <Badge variant="secondary" className="capitalize">
-                  {myRole}
-                </Badge>
-                {isAppAdmin ? " (platform superadmin - everything is permitted)" : null}.
+                {t.rich("yourRoleHere", {
+                  role: myRole,
+                  badge: (chunks) => (
+                    <Badge variant="secondary" className="capitalize">
+                      {chunks}
+                    </Badge>
+                  ),
+                })}
+                {isAppAdmin ? t("platformSuperadmin") : null}.
               </>
             ) : null}
           </CardDescription>

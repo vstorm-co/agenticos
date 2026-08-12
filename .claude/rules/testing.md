@@ -56,6 +56,14 @@ job always has one.
 
 Traps, each of which has cost a red job here:
 
+- **The order is shuffled every run** (`pytest-randomly`, on by default since #571), so
+  a test that passed yesterday and fails today may have been depending on what ran
+  before it. The header prints `Using --randomly-seed=<n>`; replay that seed to get the
+  same order back, and `-p no:randomly` to pin collection order while bisecting. The
+  seed fixes the order, not which worker runs what - `--dist load` decides that on
+  timing - so a failure that depended on what shared a worker only reproduces without
+  `-n`. The plugin also reseeds `random` identically before every test: anything using
+  it for uniqueness is unique within a test and repeats across them.
 - **`bun run test:run` measures no coverage.** The frontend gate is a separate command
   and CI runs it (`bun run test:coverage`); 168 green files still failed the job.
 - **Frontend commands run from `frontend/`.** At the repository root vitest finds no
@@ -113,6 +121,12 @@ The conftest points `POSTGRES_DB` at `<base>_p<pid>` before `app.core.config` is
 imported — a test database, and one per pytest process. Leave both halves: the unit
 suite once emptied a developer's database through a populated `.env`, and a constant
 name meant two runs on one machine dropping each other's tables mid-test (#189).
+
+It seeds Prefect in the same block and for the same reason, because Prefect reads
+`backend/.env` itself: `PREFECT_API_URL` **empty**, so a `@flow` call starts a
+temporary server instead of reaching for the one `make dev` names (#536), and
+`PREFECT_HOME` at a directory of the tests' own, so that server's SQLite database is
+not a developer's `~/.prefect`. `docs/testing.md` has the whole of it.
 
 `tests/integration/conftest.py` creates that database at the start of the session and
 drops it at the end, even when the suite fails, so **two concurrent runs are safe and

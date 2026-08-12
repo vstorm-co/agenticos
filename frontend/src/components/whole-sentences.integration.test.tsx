@@ -22,7 +22,7 @@ import { TermsBodyEn, TermsBodyPl } from "@/components/legal/terms-content";
  * the message names and the component does not supply - `<em>` renamed, a
  * parameter dropped - makes next-intl give up on the message and render its key.
  * Nothing else in this suite would notice: `messages/catalog.test.ts` reads the
- * catalog without a component, and `check_i18n.py` reads the source without a
+ * catalog without a component, and `check-i18n.ts` reads the source without a
  * catalog. Both would pass on `Sign in to <em>your workspace.</em>` read with a
  * `strong` callback.
  *

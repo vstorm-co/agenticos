@@ -166,6 +166,7 @@ function IntegrationRow({
   onDelete: () => void;
 }) {
   const t = useTranslations("kb");
+  const tc = useTranslations("common");
   const brand = connectorBrand(source.connector_type);
   return (
     <li className="hover:bg-accent flex items-center gap-3 px-4 py-3 transition-colors">
@@ -176,7 +177,9 @@ function IntegrationRow({
         <p className="text-foreground truncate text-sm font-medium">{source.name}</p>
         <p className="text-muted-foreground mt-0.5 font-mono text-[10px] tracking-wider uppercase">
           {source.connector_type}
-          {source.schedule_minutes ? ` · every ${source.schedule_minutes}m` : " · manual"}
+          {source.schedule_minutes
+            ? ` · ${t("everyMinutes", { minutes: source.schedule_minutes })}`
+            : ` · ${t("manualSchedule")}`}
         </p>
       </div>
       <Button variant="outline" size="sm" onClick={onClone} disabled={!canClone}>
@@ -189,7 +192,7 @@ function IntegrationRow({
             variant="ghost"
             size="sm"
             className="text-muted-foreground hover:text-destructive h-8 w-8 p-0"
-            aria-label={`Remove ${source.name}`}
+            aria-label={tc("removeNamed", { name: source.name })}
           >
             <Trash2 className="h-3.5 w-3.5" />
           </Button>

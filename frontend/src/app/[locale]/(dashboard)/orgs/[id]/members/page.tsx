@@ -70,6 +70,7 @@ function getInitials(nameOrEmail: string): string {
 
 export default function OrgMembersPage({ params }: PageProps) {
   const t = useTranslations("pages.orgs");
+  const tc = useTranslations("common");
   const { id } = use(params);
   const { user } = useAuth();
   const { members, total, isLoading, fetchMembers, changeRole, removeMember } = useMembers(id);
@@ -175,7 +176,10 @@ export default function OrgMembersPage({ params }: PageProps) {
           if (canManage && !isOwner && !isSelf) {
             return (
               <Select value={m.role} onValueChange={(v) => changeRole(m.user_id, v as OrgRole)}>
-                <SelectTrigger className="h-8 w-32 capitalize" aria-label={`Role for ${m.email}`}>
+                <SelectTrigger
+                  className="h-8 w-32 capitalize"
+                  aria-label={t("roleFor", { email: m.email })}
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -220,7 +224,7 @@ export default function OrgMembersPage({ params }: PageProps) {
               size="sm"
               className="text-muted-foreground hover:text-destructive"
               onClick={() => removeMember(m.user_id)}
-              aria-label={`Remove ${m.full_name || m.email}`}
+              aria-label={tc("removeNamed", { name: m.full_name || m.email })}
             >
               <Trash2 className="h-4 w-4" />
             </Button>

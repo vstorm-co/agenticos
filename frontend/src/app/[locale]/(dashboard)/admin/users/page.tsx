@@ -47,6 +47,7 @@ function getInitials(nameOrEmail: string): string {
 
 export default function AdminUsersPage() {
   const t = useTranslations("pages.admin");
+  const tc = useTranslations("common");
   const { users, total, isLoading, fetchUsers, updateUser, deleteUser, impersonateUser } =
     useAdminUsers();
   const [search, setSearch] = useState("");
@@ -239,7 +240,7 @@ export default function AdminUsersPage() {
           <SelectContent>
             {PAGE_SIZE_OPTIONS.map((n) => (
               <SelectItem key={n} value={String(n)}>
-                {n} / page
+                {tc("perPage", { count: n })}
               </SelectItem>
             ))}
           </SelectContent>
@@ -262,7 +263,7 @@ export default function AdminUsersPage() {
       {total > 0 && (
         <div className="border-border bg-card flex items-center justify-between rounded-xl border px-4 py-3">
           <span className="text-muted-foreground text-sm">
-            {start}–{end} of {total.toLocaleString()}
+            {tc("rangeOfTotal", { start, end, total })}
           </span>
           <div className="flex items-center gap-1">
             <Button
