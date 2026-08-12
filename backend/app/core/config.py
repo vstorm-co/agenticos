@@ -170,9 +170,11 @@ class Settings(BaseSettings):
     # embed's own `rate_limit_per_minute`, counted per visitor.
     RATE_LIMIT_EMBED_PER_MINUTE: int = 20
     # How many files one visitor may upload to one page, per minute. Counted per
-    # visitor and per key rather than per address, in the shared Redis, because
+    # address first and then per (page, visitor), in the shared Redis, because
     # this is the first thing on this surface that *stores* something: a limit on
-    # how fast a stranger may write bytes to the deployment's disk.
+    # how fast a stranger may write bytes to the deployment's disk. Address first
+    # because the continuity key is minted by the browser, so counting only that
+    # bounds nothing - a script varies it per file.
     RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE: int = 5
     # How often one hosted page may be configured, per minute. Per page and not
     # per address, because that config is fetched server-side by the frontend: on
