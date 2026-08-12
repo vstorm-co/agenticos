@@ -70,13 +70,17 @@ async def embed_config(
 
     try:
         admission = await service.admit(public_key, origin=origin, token=None)
+        # Inside the same refusal, because a key of another kind has no widget
+        # config to answer with and saying which it is would be saying more than
+        # a refusal should.
+        config = await service.public_config(admission.embed)
     except EmbedDenied:
         raise HTTPException(status_code=403, detail="This widget is not available here") from None
 
     if origin:
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Vary"] = "Origin"
-    return await service.public_config(admission.embed)
+    return config
 
 
 @router.get("/{public_key}/hosted", response_model=PublicPageConfig)

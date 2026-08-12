@@ -24,8 +24,6 @@ import {
   type EmbedKind,
   type EmbedVariable,
   type NewEmbed,
-  type PageConfig,
-  type WidgetConfig,
 } from "@/types/embeds";
 
 const MIN_SECRET = 16;
@@ -110,17 +108,13 @@ export function EmbedForm({
                 type="color"
                 value={config.accent}
                 disabled={pending}
-                onChange={(event) =>
-                  setConfig({ ...(config as WidgetConfig), accent: event.target.value })
-                }
+                onChange={(event) => setConfig({ ...config, accent: event.target.value })}
                 className="border-input h-9 w-12 cursor-pointer rounded-md border bg-transparent"
               />
               <Input
                 value={config.accent}
                 disabled={pending}
-                onChange={(event) =>
-                  setConfig({ ...(config as WidgetConfig), accent: event.target.value })
-                }
+                onChange={(event) => setConfig({ ...config, accent: event.target.value })}
                 className="font-mono"
                 aria-label={t("accentColour")}
               />
@@ -197,12 +191,7 @@ export function EmbedForm({
       )}
 
       {config.kind === "page" && (
-        <PageFields
-          config={config as PageConfig}
-          variables={variables}
-          disabled={pending}
-          onChange={setConfig}
-        />
+        <PageFields config={config} variables={variables} disabled={pending} onChange={setConfig} />
       )}
 
       <div className="space-y-2">

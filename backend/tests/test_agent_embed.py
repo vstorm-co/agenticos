@@ -1044,3 +1044,28 @@ class TestAnEmbedCannotChangeKind:
         config = AgentEmbedService._parse_config(None, kind="socket")
 
         assert config.kind == "socket"
+
+
+class TestTheWidgetsOwnRoutesAnswerOnlyForAWidget:
+    """A page's key and a socket's key name nothing on the widget's two routes.
+
+    Both assume the config they read is a bubble's. Handing a page's config to
+    `PublicEmbedConfig` is a `ValidationError` on a request a browser on our own
+    hosted page can make, and serving `widget.js` for a page would draw a
+    launcher over a page that already is the conversation.
+    """
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("kind", ["page", "socket"])
+    async def test_the_widget_script_is_not_served_for_another_kind(self, kind):
+        with patch(
+            f"{MODULE}.agent_embed_repo.get_by_key",
+            new=AsyncMock(return_value=_embed(kind=kind)),
+        ):
+            assert await _service().find_public("key-123") is None
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("kind", ["page", "socket"])
+    async def test_the_widget_config_refuses_another_kind(self, kind):
+        with pytest.raises(EmbedDenied):
+            await _service().public_config(_embed(kind=kind))

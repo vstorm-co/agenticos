@@ -377,11 +377,27 @@ class AgentEmbedService:
 
         Only for serving the script itself, which carries no secret and decides
         nothing: the origin is what admits a socket, and that is `admit`.
+
+        A key of another kind names nothing here. The script it would be handed
+        is a bubble that renders a launcher and calls `/config` - which a page
+        and a socket integration have no answer for.
         """
-        return await agent_embed_repo.get_by_key(self.db, public_key)
+        embed = await agent_embed_repo.get_by_key(self.db, public_key)
+        if embed is None or embed.kind != "widget":
+            return None
+        return embed
 
     async def public_config(self, embed: AgentEmbed) -> PublicEmbedConfig:
-        """What the widget renders itself from, before anybody authenticates."""
+        """What the widget renders itself from, before anybody authenticates.
+
+        Raises:
+            EmbedDenied: For any other kind. A page renders from `page_config`
+                and a socket integration renders itself, so this is the widget's
+                own shape - and validating another kind's config against it
+                would answer a reachable request with a 500.
+        """
+        if embed.kind != "widget":
+            raise EmbedDenied("not a widget")
         agent = await agent_repo.get(self.db, embed.agent_id, organization_id=embed.organization_id)
         config = WidgetConfig.model_validate(embed.config)
         return PublicEmbedConfig(
