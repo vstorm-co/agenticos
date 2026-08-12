@@ -233,25 +233,32 @@ class TestANullIsDroppedWhereTheColumnRefusesIt:
         assert writable(ConversationUpdate.model_validate({}), over=Conversation) == {}
 
 
-class TestNoServiceDumpsAnUpdateItself:
-    def test_the_shape_this_replaced_is_gone(self) -> None:
+class TestNothingDumpsAnUpdateItself:
+    @pytest.mark.parametrize("package", ["services", "api"])
+    def test_the_shape_this_replaced_is_gone(self, package: str) -> None:
         """The only way back to the crash is to write the dump by hand again.
 
         A grep rather than a type: `exclude_unset` is correct in general and wrong
         only when its result is written to a row, and nothing in the types can tell
-        those apart. What the guard can say is that every service goes through
+        those apart. What the guard can say is that every caller goes through
         `writable`, which reads the column.
+
+        `api` as well as `services`, because the first version of this read services
+        alone and `skills.py` dumped in the **route** - so `PATCH /skills/{id}` with
+        `{"description": null}` still reached a `NOT NULL` column, which is the whole
+        of #637 in the one layer the guard was not looking at.
         """
-        services = Path(__file__).resolve().parent.parent / "app" / "services"
+        root = Path(__file__).resolve().parent.parent
+        searched = root / "app" / package
         offenders = sorted(
-            str(path.relative_to(services.parent.parent))
-            for path in services.rglob("*.py")
-            if str(path.relative_to(services.parent.parent)) not in _DUMP_EXEMPT
+            str(path.relative_to(root))
+            for path in searched.rglob("*.py")
+            if str(path.relative_to(root)) not in _DUMP_EXEMPT
             and _DUMP.search(path.read_text(encoding="utf-8"))
         )
 
         assert not offenders, (
-            f"services dumping an update schema themselves: {offenders} - use "
+            f"dumping an update schema by hand: {offenders} - use "
             "`app.db.updates.writable`, which drops the nulls the columns refuse"
         )
 
