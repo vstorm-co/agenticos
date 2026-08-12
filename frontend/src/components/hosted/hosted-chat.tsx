@@ -1,30 +1,29 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { MessageSquarePlus, Mic, MicOff, Paperclip, Send, X } from "lucide-react";
+import { Bot, MessageSquarePlus, Mic, MicOff, Paperclip, Send, User, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { MarkdownContent } from "@/components/chat/markdown-content";
+import { TurnParts } from "@/components/chat/turn-parts";
 import { Button, Input } from "@/components/ui";
 import { BACKEND_URL, WS_URL } from "@/lib/constants";
-import { toolStep } from "@/lib/tool-steps";
 import { cn } from "@/lib/utils";
+import type { MessagePart } from "@/types";
 import type { HostedPageConfig } from "@/types/hosted";
 
-/** One tool call, as much of it as the operator lets this page see. */
-interface Step {
-  id: string;
-  name: string;
-  args?: Record<string, unknown>;
-  result?: string;
-}
-
-/** One line of the thread, as the page has it. */
+/**
+ * One turn of the thread, in the shape web chat renders.
+ *
+ * `MessagePart[]` rather than a text field and a list of steps beside it, and that
+ * is not a detail: parts carry the *order*, so an agent that says a sentence, calls
+ * a tool and then says another arrives as three things in that sequence. The page's
+ * own shape could not express it - the text was one accumulating string and the
+ * steps a separate list, so a turn like that rendered its whole answer above all of
+ * its work whatever actually happened.
+ */
 interface Turn {
   role: "user" | "assistant";
-  text: string;
-  thinking?: string;
-  steps?: Step[];
+  parts: MessagePart[];
   /**
    * Whether this turn is still being written.
    *
@@ -49,67 +48,128 @@ export function fold(said: readonly Turn[], type: string, data: Record<string, n
   const payload = data as Record<string, unknown>;
   switch (type) {
     case "history":
-      return (payload.messages as Turn[]) ?? [];
+      return ((payload.messages as { role: Turn["role"]; text: string }[]) ?? []).map(
+        (message, index) => ({
+          role: message.role,
+          parts: [{ id: `h${index}`, type: "text", content: message.text }],
+        }),
+      );
     case "text_delta":
-      return intoLive(said, (turn) => ({ ...turn, text: turn.text + String(payload.content) }));
+      return intoLive(said, (parts) => extend(parts, "text", String(payload.content)));
     case "thinking_delta":
-      return intoLive(said, (turn) => ({
-        ...turn,
-        thinking: (turn.thinking ?? "") + String(payload.content),
-      }));
+      return intoLive(said, (parts) => extend(parts, "thinking", String(payload.content)));
     case "tool_call":
-      return intoLive(said, (turn) => ({
-        ...turn,
-        steps: [
-          ...(turn.steps ?? []),
-          {
+      return intoLive(said, (parts) => [
+        ...parts,
+        {
+          id: `tool-${String(payload.tool_call_id)}`,
+          type: "tool",
+          toolCall: {
             id: String(payload.tool_call_id),
             name: String(payload.tool_name),
-            args: payload.args as Record<string, unknown> | undefined,
+            // Absent where the operator does not show what a step returned, and an
+            // empty object is the honest stand-in: `toolStep` reads the arguments to
+            // name a step by its subject, and finds none rather than being handed a
+            // subject that was never sent.
+            args: (payload.args as Record<string, unknown> | undefined) ?? {},
+            status: "running",
           },
-        ],
-      }));
+        },
+      ]);
     case "tool_result":
-      return intoLive(said, (turn) => ({
-        ...turn,
-        steps: (turn.steps ?? []).map((step) =>
-          step.id === payload.tool_call_id ? { ...step, result: String(payload.content) } : step,
-        ),
-      }));
+      return intoLive(said, (parts) =>
+        parts.map((part) => {
+          const call = part.toolCall;
+          if (call === undefined || call.id !== payload.tool_call_id) return part;
+          return {
+            ...part,
+            toolCall: { ...call, result: String(payload.content), status: "completed" as const },
+          };
+        }),
+      );
     case "final_result":
-      // What the run ended with. Assigned rather than appended: the deltas are the
-      // same words, and a provider that streamed none leaves this as the only copy
-      // of them. Empty on a turn that parked, which `error` then explains.
+      // What the run ended with. It *replaces* the streamed text rather than
+      // appending to it - they are the same words - and a provider that streamed no
+      // deltas leaves this as the only copy of them. Empty on a turn that parked,
+      // which `error` then explains.
       return payload.output === ""
         ? [...said]
-        : intoLive(said, (turn) => ({ ...turn, text: String(payload.output) }));
+        : intoLive(said, (parts) => settle(parts, String(payload.output)));
     case "complete":
-      return said.map((turn) => (turn.live === true ? { ...turn, live: false } : turn));
+      return said.map((turn) => (turn.live === true ? { ...turn, ...finished(turn) } : turn));
     case "error":
       // A turn that produced nothing leaves an empty bubble behind, so the
       // refusal replaces it rather than appearing under it.
-      return [
-        ...withoutEmptyLive(said),
-        { role: "assistant", text: String(payload.message) } as Turn,
-      ];
+      return [...withoutEmptyLive(said), refusal(String(payload.message))];
     default:
       return [...said];
   }
 }
 
-function intoLive(said: readonly Turn[], mutate: (turn: Turn) => Turn): Turn[] {
+/** A refusal, as a turn of its own. */
+function refusal(message: string): Turn {
+  return { role: "assistant", parts: [{ id: "err", type: "text", content: message }] };
+}
+
+/** Append to the trailing part of this kind, or open one. */
+function extend(parts: MessagePart[], type: "text" | "thinking", content: string): MessagePart[] {
+  const last = parts.at(-1);
+  if (last !== undefined && last.type === type) {
+    return [...parts.slice(0, -1), { ...last, content: (last.content ?? "") + content }];
+  }
+  return [...parts, { id: `${type}-${parts.length}`, type, content }];
+}
+
+/**
+ * The answer as the run ended with it, on the part that was streaming it.
+ *
+ * On the trailing text part where there is one, so a turn that streamed and then
+ * settled keeps one bubble rather than gaining a second identical one - and as a new
+ * part where the words arrived only here, which is a provider that does not stream.
+ */
+function settle(parts: MessagePart[], output: string): MessagePart[] {
+  const last = parts.at(-1);
+  if (last !== undefined && last.type === "text") {
+    return [...parts.slice(0, -1), { ...last, content: output }];
+  }
+  return [...parts, { id: `text-${parts.length}`, type: "text", content: output }];
+}
+
+/**
+ * The turn is over, so nothing in it is still in flight.
+ *
+ * A call with no result when `complete` arrives never got one: the run broke, or
+ * parked on it. `unfinished` is what web chat calls that, and it matters because it
+ * is the one state that must not animate - a spinner under a turn that has ended is
+ * a promise nothing is going to keep.
+ */
+function finished(turn: Turn): Pick<Turn, "live" | "parts"> {
+  return {
+    live: false,
+    parts: turn.parts.map((part) => {
+      const call = part.toolCall;
+      if (call === undefined || call.status !== "running") return part;
+      return { ...part, toolCall: { ...call, status: "unfinished" as const } };
+    }),
+  };
+}
+
+function intoLive(said: readonly Turn[], mutate: (parts: MessagePart[]) => MessagePart[]): Turn[] {
   const last = said.at(-1);
   if (last !== undefined && last.role === "assistant" && last.live === true) {
-    return [...said.slice(0, -1), mutate(last)];
+    return [...said.slice(0, -1), { ...last, parts: mutate(last.parts) }];
   }
-  return [...said, mutate({ role: "assistant", text: "", live: true })];
+  return [...said, { role: "assistant", parts: mutate([]), live: true }];
 }
 
 function withoutEmptyLive(said: readonly Turn[]): Turn[] {
   const last = said.at(-1);
-  const empty =
-    last !== undefined && last.live === true && last.text === "" && (last.steps ?? []).length === 0;
+  const empty = last !== undefined && last.live === true && !said.at(-1)?.parts.some(hasContent);
   return empty ? said.slice(0, -1) : [...said];
+}
+
+function hasContent(part: MessagePart): boolean {
+  return part.toolCall !== undefined || (part.content ?? "") !== "";
 }
 
 /**
@@ -307,7 +367,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
         const stored = (await response.json()) as { id: string; filename: string };
         setAttached((held) => [...held, stored]);
       } catch {
-        setTurns((said) => [...said, { role: "assistant", text: t("uploadFailed") }]);
+        setTurns((said) => [...said, refusal(t("uploadFailed"))]);
       } finally {
         setUploading(false);
       }
@@ -320,7 +380,10 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
     const socket = socketRef.current;
     if ((!text && attached.length === 0) || socket === null || socket.readyState !== WebSocket.OPEN)
       return;
-    setTurns((said) => [...said, { role: "user", text }]);
+    setTurns((said) => [
+      ...said,
+      { role: "user", parts: [{ id: `said-${said.length}`, type: "text", content: text }] },
+    ]);
     setDraft("");
     setAttached([]);
     socket.send(
@@ -357,36 +420,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
           <p className="text-muted-foreground text-sm whitespace-pre-wrap">{config.welcome}</p>
         )}
         {turns.map((turn, index) => (
-          <div
-            key={index}
-            className={cn("flex", turn.role === "user" ? "justify-end" : "justify-start")}
-          >
-            <div
-              className={cn(
-                "max-w-[80%] rounded-2xl px-4 py-2.5 text-sm",
-                turn.role === "user" ? "text-white" : "bg-muted",
-              )}
-              style={turn.role === "user" ? { background: config.accent } : undefined}
-            >
-              {turn.thinking !== undefined && (
-                <p className="text-muted-foreground mb-2 text-xs whitespace-pre-wrap italic">
-                  {turn.thinking}
-                </p>
-              )}
-              {(turn.steps ?? []).map((step) => (
-                <ToolLine key={step.id} step={step} />
-              ))}
-              {/* Markdown for the agent, plain text for the visitor. An agent told
-                  to answer in Markdown is answering in it whatever this page does
-                  with the asterisks, which is the whole argument; what a visitor
-                  typed is not a document and must not be reinterpreted as one. */}
-              {turn.role === "assistant" ? (
-                <MarkdownContent content={turn.text} />
-              ) : (
-                <span className="whitespace-pre-wrap">{turn.text}</span>
-              )}
-            </div>
-          </div>
+          <HostedTurn key={index} turn={turn} config={config} />
         ))}
         {thinking && <p className="text-muted-foreground text-sm">{t("thinking")}</p>}
         {closed !== null && (
@@ -396,6 +430,11 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
         )}
       </div>
 
+      {uploading && (
+        <p className="text-muted-foreground pt-2 text-xs" role="status">
+          {t("uploading")}
+        </p>
+      )}
       {attached.length > 0 && (
         <div className="flex flex-wrap gap-2 pt-2">
           {attached.map((file) => (
@@ -485,33 +524,57 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
 }
 
 /**
- * One step of the agent's work, named the way the dashboard names it.
+ * One turn, laid out the way web chat lays one out.
  *
- * Through `toolStep` and the catalog in `src/lib/tool-catalog.ts`, not a second
- * table of tool names: the last time that knowledge was duplicated, two renamed
- * tools rendered as raw JSON for five weeks with a green suite (#144). A name the
- * catalog has never heard of - an MCP tool, one a binding renamed - falls back to
- * a humanized label there, which is the same answer web chat gives.
- *
- * The result opens rather than showing, and only when the server sent one: a
- * page whose operator left `show_tool_results` off never receives it, so there is
- * nothing here to hide.
+ * An avatar in the gutter, the person's words in a bubble on the right, the agent's
+ * as prose on the left, and its work on a rail between them - and every one of those
+ * comes from `TurnParts`, so the two surfaces cannot drift into rendering the same
+ * turn two ways. What is deliberately absent is everything about being a member: no
+ * agent name and version, no cost, no rating, no regenerate, no sources panel. See
+ * `docs/channels.md` for why each of those is member-only.
  */
-function ToolLine({ step }: { step: Step }) {
-  const t = useTranslations("chat.tools");
-  const line = toolStep(step.name, step.args, step.result !== undefined, t);
+function HostedTurn({ turn, config }: { turn: Turn; config: HostedPageConfig }) {
+  const isUser = turn.role === "user";
   return (
-    <div className="text-muted-foreground mb-1.5 text-xs">
-      {step.result === undefined ? (
-        <span>{line.label}</span>
-      ) : (
-        <details>
-          <summary className="cursor-pointer">{line.label}</summary>
-          <pre className="mt-1 max-h-40 overflow-auto text-[11px] whitespace-pre-wrap">
-            {step.result}
-          </pre>
-        </details>
+    <div
+      className={cn(
+        "group relative flex gap-2 py-3 sm:gap-4 sm:py-4",
+        isUser && "flex-row-reverse",
       )}
+    >
+      <div
+        className={cn(
+          "z-10 flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full sm:h-9 sm:w-9",
+          isUser ? "bg-foreground text-background" : "bg-muted text-foreground",
+        )}
+      >
+        {isUser ? (
+          <User className="h-4 w-4" />
+        ) : config.logo_url !== null ? (
+          // The page's own picture, which is the closest thing this surface has to an
+          // agent avatar - the authenticated avatar route is not reachable from here,
+          // and the logo is the one image a hosted page may already hand out.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={config.logo_url} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <Bot className="h-4 w-4 sm:h-5 sm:w-5" />
+        )}
+      </div>
+      <div
+        className={cn(
+          "max-w-[88%] flex-1 space-y-2 overflow-hidden sm:max-w-[85%]",
+          isUser && "flex flex-col items-end",
+        )}
+      >
+        <TurnParts
+          parts={turn.parts}
+          isStreaming={turn.live === true}
+          isUser={isUser}
+          // None to offer: reading the organization's MCP connections needs a session,
+          // so a call that came from one reads as a humanized name here.
+          mcpServers={[]}
+        />
+      </div>
     </div>
   );
 }

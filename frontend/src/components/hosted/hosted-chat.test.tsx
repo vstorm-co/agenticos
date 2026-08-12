@@ -1,4 +1,6 @@
-import { act, render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, render as renderBare, screen } from "@testing-library/react";
+import type { ReactElement } from "react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -12,6 +14,18 @@ import type { HostedPageConfig } from "@/types/hosted";
 vi.mock("@/components/chat/markdown-content", () => ({
   MarkdownContent: ({ content }: { content: string }) => <span>{content}</span>,
 }));
+
+/**
+ * The page renders web chat's own turn components, and two of their renderers reach
+ * for a query client - the workspace card, to turn a file the agent wrote into one
+ * somebody can open. In the app there is one: `src/app/[locale]/layout.tsx` wraps
+ * every locale route, this one included. Here there is not, so the test supplies it
+ * rather than the component defending against its absence.
+ */
+function render(ui: ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return renderBare(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+}
 
 /**
  * The page somebody reaches by a link, signed into nothing.
@@ -294,18 +308,25 @@ describe("what the page does with the frames it is sent", () => {
     expect(screen.getByText("Searching the documents")).toBeInTheDocument();
   });
 
-  it("opens a step into what came back, when the server sent it", () => {
+  it("opens a step into what came back, when the server sent it", async () => {
+    // A name the catalog has never heard of - an MCP tool, or one a binding renamed
+    // - which is the generic renderer and the one that shows a result verbatim.
     render(<HostedChat config={config()} />);
 
     act(() =>
       socket().deliver({
         type: "tool_call",
-        data: { tool_call_id: "c1", tool_name: "search_documents" },
+        data: { tool_call_id: "c1", tool_name: "post_invoice" },
       }),
     );
     act(() =>
       socket().deliver({ type: "tool_result", data: { tool_call_id: "c1", content: "30 days" } }),
     );
+
+    // Behind the step rather than under it, which is what web chat does: a
+    // transcript that opened every finished call is a wall of results.
+    expect(screen.queryByText("30 days")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /Post Invoice/ }));
 
     expect(screen.getByText("30 days")).toBeInTheDocument();
   });
@@ -470,5 +491,71 @@ describe("attaching a file", () => {
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
 
     expect(JSON.parse(socket().sent[0]!)).toMatchObject({ text: "", file_ids: ["f-1"] });
+  });
+});
+
+describe("a turn laid out the way web chat lays one out", () => {
+  it("keeps a turn's words and its work in the order they arrived", () => {
+    // The reason the page holds `MessagePart[]` rather than a string and a list of
+    // steps beside it: an agent that speaks, works, then speaks again is three
+    // things in that sequence. The old shape rendered the whole answer above all of
+    // the work whatever actually happened.
+    render(<HostedChat config={config()} />);
+
+    act(() => socket().deliver({ type: "text_delta", data: { content: "Let me look." } }));
+    act(() =>
+      socket().deliver({
+        type: "tool_call",
+        data: { tool_call_id: "c1", tool_name: "post_invoice" },
+      }),
+    );
+    act(() => socket().deliver({ type: "text_delta", data: { content: "Thirty days." } }));
+
+    const said = screen.getByText("Let me look.");
+    const step = screen.getByRole("button", { name: /Post Invoice/ });
+    const answered = screen.getByText("Thirty days.");
+    expect(said.compareDocumentPosition(step)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(step.compareDocumentPosition(answered)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it("stops a step animating once the turn is over", () => {
+    // A call with no result when `complete` arrives never got one - the run broke,
+    // or parked on it. A spinner under a turn that has ended is a promise nothing is
+    // going to keep, which is why web chat calls that state `unfinished`.
+    render(<HostedChat config={config()} />);
+
+    act(() =>
+      socket().deliver({
+        type: "tool_call",
+        data: { tool_call_id: "c1", tool_name: "post_invoice" },
+      }),
+    );
+    expect(screen.getByLabelText("Running")).toBeInTheDocument();
+
+    act(() => socket().deliver({ type: "complete", data: {} }));
+
+    expect(screen.queryByLabelText("Running")).toBeNull();
+  });
+
+  it("renders the answer as Markdown and the question as plain text", () => {
+    // The same split web chat makes: an agent told to answer in Markdown is
+    // answering in it, and what a visitor typed is not a document.
+    render(<HostedChat config={config()} />);
+
+    act(() =>
+      socket().deliver({
+        type: "history",
+        data: {
+          messages: [
+            { role: "user", text: "**not bold**" },
+            { role: "assistant", text: "# A heading" },
+          ],
+        },
+      }),
+    );
+
+    // The renderer is mocked to echo, so what is asserted is which side reached it.
+    expect(screen.getByText("**not bold**")).toBeInTheDocument();
+    expect(screen.getByText("# A heading")).toBeInTheDocument();
   });
 });
