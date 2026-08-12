@@ -23,7 +23,7 @@ from app.core.config import settings
 from app.core.exceptions import BadRequestError
 from app.db.models.agent_run import RunSurface
 from app.repositories import conversation_repo
-from app.schemas.agent_embed import EmbedVariable
+from app.schemas.agent_embed import EmbedUpdate, EmbedVariable
 from app.services.agent_embed import AgentEmbedService, EmbedDenied, _origin_of
 from app.services.embed_session import (
     HISTORY_MESSAGES,
@@ -901,3 +901,40 @@ class TestAReturningVisitorResumesTheirThread:
             await session._answer("hello")
 
         assert touched.await_args.kwargs["conversation_id"] == session.conversation_id
+
+
+class TestAnExplicitNullOnAnEmbedUpdate:
+    """`null` on a column that cannot hold one.
+
+    `context_variables` already reads it as "declare none". The two JSONB
+    branding columns are the same shape and one of them was the same defect: a
+    request a client can perfectly reasonably make - reset the branding - passed
+    `None` through to a `NOT NULL` column and would have answered 500 naming a
+    constraint. `theme` still does; #637 is that half.
+    """
+
+    @pytest.mark.anyio
+    async def test_clearing_the_hosted_branding_restores_the_defaults(self):
+        embed = _embed(hosted=True, hosted_config={"title": "Old"})
+        service = _service()
+        with (
+            patch.object(service, "_owned", new=AsyncMock(return_value=embed)),
+            patch.object(service.agents, "get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MODULE}.record_audit", new=AsyncMock()),
+            patch(
+                f"{MODULE}.agent_embed_repo.update",
+                new=AsyncMock(side_effect=lambda db, **kw: embed),
+            ) as updated,
+        ):
+            await service.update(
+                MagicMock(organization_id=uuid.uuid4()),
+                embed.id,
+                EmbedUpdate.model_validate({"hosted_config": None}),
+            )
+
+        assert updated.await_args.kwargs["update_data"]["hosted_config"] == {
+            "title": "",
+            "welcome": "",
+            "accent": "#4f46e5",
+            "logo": "agent",
+        }

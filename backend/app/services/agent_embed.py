@@ -200,9 +200,13 @@ class AgentEmbedService:
             ]
         if "theme" in changes and changes["theme"] is not None:
             changes["theme"] = EmbedTheme.model_validate(changes["theme"]).model_dump()
-        if "hosted_config" in changes and changes["hosted_config"] is not None:
+        if "hosted_config" in changes:
+            # An explicit null means "back to the defaults", not NULL - the same
+            # reading as `context_variables` below, and for the same reason: the
+            # column cannot hold one, so passing it through would answer a
+            # perfectly sensible request with a 500 naming a constraint.
             changes["hosted_config"] = HostedConfig.model_validate(
-                changes["hosted_config"]
+                changes["hosted_config"] or {}
             ).model_dump()
         if "context_variables" in changes:
             # An explicit null means "declare none", not NULL: the column cannot
