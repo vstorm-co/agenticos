@@ -220,8 +220,8 @@ loop rather than the transport. Every frame carries `{ "type": …, "data": { �
 | `complete` | — | The turn is over. It carries **no usage**: what a run cost is the operator's business, not the visitor's. |
 | `error` | `message` | Something the visitor should see: rate limit, budget reached, a refusal, a turn that produced nothing. |
 
-Two frames the dashboard sends never reach a public socket, and both are refusals
-rather than settings. **`user_prompt_processed`** carries the prompt *as
+Three frames the dashboard sends never reach a public socket, and all three are
+refusals rather than settings. **`user_prompt_processed`** carries the prompt *as
 assembled* — the placement note and the supplied block above what the visitor
 typed — which is the operator's text and not the visitor's to read back.
 **`ask_user` and `tool_approval_required`** have nobody here to answer them: a
