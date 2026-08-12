@@ -454,12 +454,14 @@ class EmbedSession:
                 # The row exists from `greet`; what is new is the thread it names.
                 # Attached on the first turn rather than at connect because a
                 # conversation is only created when somebody actually says
-                # something.
+                # something. Linked conditionally and the winner adopted, so two
+                # tabs on one key answer into one thread rather than the second
+                # detaching the first - `link_conversation` has the race.
                 visitor = await embed_visitor_repo.get(
                     db, embed_id=self.embed.id, visitor_key=self.visitor_key
                 )
                 if visitor is not None:
-                    await embed_visitor_repo.touch(
+                    self.conversation_id = await embed_visitor_repo.link_conversation(
                         db, db_visitor=visitor, conversation_id=self.conversation_id
                     )
 

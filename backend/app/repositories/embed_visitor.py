@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -49,13 +50,26 @@ async def claim(db: AsyncSession, *, embed_id: UUID, visitor_key: str) -> EmbedV
     return result.scalars().one()
 
 
-async def touch(
-    db: AsyncSession, *, db_visitor: EmbedVisitor, conversation_id: UUID | None = None
-) -> EmbedVisitor:
-    """Record that the key was used, and which thread it now names."""
-    db_visitor.last_seen_at = datetime.now(UTC)
-    if conversation_id is not None:
-        db_visitor.conversation_id = conversation_id
-    await db.flush()
+async def link_conversation(
+    db: AsyncSession, *, db_visitor: EmbedVisitor, conversation_id: UUID
+) -> UUID:
+    """Point the key at a thread, but only if it names none yet, and return the
+    one it now holds.
+
+    `claim` closed the two-tab race on *connect*; this closes it on the first
+    *message*. Two tabs on one key both begin with `conversation_id` NULL and
+    both create a thread when their first message arrives - an unconditional
+    write would let the second detach the first, so the visitor's next visit
+    resumes only one of them. The `WHERE conversation_id IS NULL` sets the column
+    only where it is still empty; Postgres serialises the two writes on the row
+    lock, so the loser matches no row and the re-read returns the winner's
+    thread. The caller adopts that, and both tabs answer into the one thread the
+    key will come back to.
+    """
+    await db.execute(
+        sql_update(EmbedVisitor)
+        .where(EmbedVisitor.id == db_visitor.id, EmbedVisitor.conversation_id.is_(None))
+        .values(conversation_id=conversation_id, last_seen_at=datetime.now(UTC))
+    )
     await db.refresh(db_visitor)
-    return db_visitor
+    return db_visitor.conversation_id or conversation_id

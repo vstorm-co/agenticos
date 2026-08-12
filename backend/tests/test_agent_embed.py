@@ -951,12 +951,15 @@ class TestAReturningVisitorResumesTheirThread:
                 new=AsyncMock(return_value=stored),
             ),
             patch(
-                "app.services.embed_session.embed_visitor_repo.touch", new=AsyncMock()
-            ) as touched,
+                "app.services.embed_session.embed_visitor_repo.link_conversation",
+                new=AsyncMock(
+                    side_effect=lambda db, *, db_visitor, conversation_id: conversation_id
+                ),
+            ) as linked,
         ):
             await session._answer("hello")
 
-        assert touched.await_args.kwargs["conversation_id"] == session.conversation_id
+        assert linked.await_args.kwargs["conversation_id"] == session.conversation_id
 
 
 class TestAnExplicitNullOnAnEmbedUpdate:

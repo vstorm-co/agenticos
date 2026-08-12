@@ -983,11 +983,39 @@ class TestHostedEmbedConstraints:
         await db.flush()
 
         claimed = await embed_visitor_repo.claim(db, embed_id=embed.id, visitor_key="v-1")
-        await embed_visitor_repo.touch(db, db_visitor=claimed, conversation_id=conversation.id)
+        await embed_visitor_repo.link_conversation(
+            db, db_visitor=claimed, conversation_id=conversation.id
+        )
 
         again = await embed_visitor_repo.claim(db, embed_id=embed.id, visitor_key="v-1")
 
         assert again.conversation_id == conversation.id
+
+    async def test_a_second_link_keeps_the_first_thread_and_returns_it(self, db):
+        """The first-message race: two tabs on one key each create a thread and
+        each try to link it. The second write finds the column already set, so it
+        changes nothing and the caller is handed the first thread to answer into -
+        rather than detaching it and stranding the visitor's history."""
+        org = await _org(db)
+        agent = await _agent(db, org)
+        embed = self._embed(org, agent, kind="page")
+        first = Conversation(id=uuid.uuid4(), organization_id=org.id, title="first")
+        second = Conversation(id=uuid.uuid4(), organization_id=org.id, title="second")
+        db.add_all([embed, first, second])
+        await db.flush()
+
+        claimed = await embed_visitor_repo.claim(db, embed_id=embed.id, visitor_key="v-1")
+        won = await embed_visitor_repo.link_conversation(
+            db, db_visitor=claimed, conversation_id=first.id
+        )
+        adopted = await embed_visitor_repo.link_conversation(
+            db, db_visitor=claimed, conversation_id=second.id
+        )
+
+        assert won == first.id
+        assert adopted == first.id
+        again = await embed_visitor_repo.claim(db, embed_id=embed.id, visitor_key="v-1")
+        assert again.conversation_id == first.id
 
     async def test_the_same_key_may_visit_two_embeds(self, db):
         """Nothing links the two: a browser holds one key per public key, and a
