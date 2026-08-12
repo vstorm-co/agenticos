@@ -259,7 +259,13 @@ def get_invitation_service(db: DBSession) -> InvitationService:
 OrganizationSvc = Annotated[OrganizationService, Depends(get_organization_service)]
 MemberSvc = Annotated[MemberService, Depends(get_member_service)]
 InvitationSvc = Annotated[InvitationService, Depends(get_invitation_service)]
-from app.core.exceptions import AuthenticationError, AuthorizationError, NotFoundError
+from app.core.exceptions import (
+    AuthenticationError,
+    AuthorizationError,
+    NotFoundError,
+    RateLimitError,
+)
+from app.services import rate_limit
 from app.core.security import verify_token
 from app.db.models.user import User
 
@@ -521,6 +527,34 @@ def require(*perms: Perm) -> Callable[..., Awaitable[AuthContext]]:
         return ctx
 
     return dependency
+
+
+async def limit_agent_run(ctx: Auth) -> None:
+    """Refuse a caller asking the public run API for more than its share.
+
+    Keyed on the caller and not on their address. The endpoint is
+    authenticated, so there is a subject to count, and an office behind one NAT
+    is not one caller - keying on the address there would be an outage wearing a
+    limit's clothes.
+
+    Only the public surfaces carry one of these. Whether the console's own
+    routes should have a ceiling too is a different product decision, with its
+    own issue if we want it; this is about what a stranger can reach (#39).
+
+    Usage::
+
+        @router.post("/{agent_id}/run", dependencies=[Depends(limit_agent_run)])
+    """
+    decision = await rate_limit.consume(
+        surface="agent_run",
+        caller=f"user:{ctx.subject_id}",
+        limit=rate_limit.run_limit(),
+    )
+    if not decision.allowed:
+        raise RateLimitError(
+            message="Too many runs in the last minute. Wait and try again.",
+            details={"retry_after_seconds": decision.retry_after_seconds},
+        )
 
 
 class RequireOrgRole:

@@ -154,8 +154,21 @@ class Settings(BaseSettings):
             return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
         return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
 
-    RATE_LIMIT_REQUESTS: int = 100
-    RATE_LIMIT_PERIOD: int = 60
+    # What one caller may ask the public run API for, per minute. Keyed on the
+    # caller rather than on their address: the endpoint is authenticated, and an
+    # office behind one NAT is not one caller.
+    RATE_LIMIT_RUN_PER_MINUTE: int = 30
+    # How often one address may ask to be admitted to a widget or a hosted page,
+    # per minute. Admission only - what a visitor may say once admitted is the
+    # embed's own `rate_limit_per_minute`, counted per visitor.
+    RATE_LIMIT_EMBED_PER_MINUTE: int = 20
+    # Whether `X-Forwarded-For` names the caller. Off by default because the
+    # header is set by whoever is calling, so trusting it unconditionally is a
+    # per-IP limit anybody bypasses by varying one string. On costs the mirror
+    # image: behind a proxy every visitor arrives as the proxy and shares one
+    # bucket. Turn it on when a proxy is the only thing that can reach this
+    # deployment - see `docs/configuration.md`.
+    RATE_LIMIT_TRUST_FORWARDED_FOR: bool = False
 
     PREFECT_API_URL: str = "http://localhost:4200/api"
     PREFECT_API_KEY: str | None = None

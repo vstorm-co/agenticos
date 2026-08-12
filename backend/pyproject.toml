@@ -39,7 +39,6 @@ dependencies = [
     "redis>=8.1.0",
     "fastapi-cache2>=0.2.2",
     "jinja2>=3.1.0",
-    "slowapi>=0.1.9",
     "aiosmtplib>=3.0.0",
     "itsdangerous>=2.2.0",
     "prefect>=3.8.0",
@@ -387,6 +386,11 @@ include = [
     # two statements, and one of them decides whether `db-check` reports real drift.
     "app/db/vector_tables.py",
     "app/services/access.py",
+    # How often a stranger may reach a public surface. It was configured and
+    # never applied for the whole life of the product (#39), which is the
+    # argument for holding the replacement to the bar every other refusal is
+    # held to rather than reporting it.
+    "app/services/rate_limit.py",
     "app/services/agent_chat.py",
     "app/services/agent_environment.py",
     "app/services/agent_exposure.py",
@@ -522,6 +526,11 @@ include = [
     # two statements, and one of them decides whether `db-check` reports real drift.
     "app/db/vector_tables.py",
     "app/services/access.py",
+    # How often a stranger may reach a public surface. It was configured and
+    # never applied for the whole life of the product (#39), which is the
+    # argument for holding the replacement to the bar every other refusal is
+    # held to rather than reporting it.
+    "app/services/rate_limit.py",
     "app/services/agent_chat.py",
     "app/services/agent_environment.py",
     "app/services/agent_exposure.py",

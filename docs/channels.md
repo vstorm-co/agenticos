@@ -165,10 +165,18 @@ message.
 | Code | Meaning |
 |---|---|
 | `4003` | Refused. The origin is not allowed, the token failed, or the widget is paused. Do not retry — the answer will not change. |
+| `4029` | Too many connections from this address in the last minute. Back off and retry. |
 
 The refusal is deliberately one code with one message. A page that is not on the
 allow-list learns that it is not allowed and nothing about whether a token would
 have helped.
+
+`4029` is separate from it for the opposite reason: "not allowed" and "allowed
+but too fast" ask a client for opposite things — stop for ever, and try again
+later — so a client that cannot tell them apart either hammers a refusal or
+abandons a limit. How many connections an address gets is
+`RATE_LIMIT_EMBED_PER_MINUTE`; how many *messages* a visitor gets once connected
+is the widget's own rate limit, set in the Builder.
 
 A minimal client:
 

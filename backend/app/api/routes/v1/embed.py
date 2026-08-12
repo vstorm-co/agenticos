@@ -20,6 +20,7 @@ from fastapi import (
     Header,
     HTTPException,
     Query,
+    Request,
     Response,
     WebSocket,
     WebSocketDisconnect,
@@ -29,6 +30,7 @@ from app.api.deps import DBSession, EmbedSvc
 from app.core.config import settings
 from app.db.session import get_db_context
 from app.schemas.agent_embed import PublicEmbedConfig
+from app.services import rate_limit
 from app.services.agent_embed import AgentEmbedService, EmbedDenied
 from app.services.embed_session import WIDGET_JS, EmbedSession
 
@@ -41,11 +43,18 @@ router = APIRouter()
 # nothing about whether a token would have helped.
 WS_DENIED = 4003
 
+# Not folded into 4003. "You are not allowed here" and "you are allowed here but
+# arriving too fast" ask a client for opposite things - stop for ever, and retry
+# later - so a client that cannot tell them apart either hammers a refusal or
+# gives up on a limit.
+WS_TOO_MANY = 4029
+
 
 @router.get("/{public_key}/config", response_model=PublicEmbedConfig)
 async def embed_config(
     public_key: str,
     service: EmbedSvc,
+    request: Request,
     response: Response,
     origin: str | None = Header(default=None),
 ) -> Any:
@@ -55,6 +64,9 @@ async def embed_config(
     on the widget's list - a wildcard here would let any site read the config
     and, more to the point, would make the allow-list decorative.
     """
+    if not await rate_limit.embed_admission_allowed(request):
+        raise HTTPException(status_code=429, detail="Too many requests")
+
     try:
         embed, _ = await service.admit(public_key, origin=origin, token=None)
     except EmbedDenied:
@@ -116,6 +128,11 @@ async def embed_socket(
     (#39).
     """
     origin = websocket.headers.get("origin")
+
+    if not await rate_limit.embed_admission_allowed(websocket):
+        await websocket.accept()
+        await websocket.close(code=WS_TOO_MANY, reason="Too many connections. Try again shortly.")
+        return
 
     async with get_db_context() as db:
         service = AgentEmbedService(db)

@@ -512,10 +512,41 @@ Production validation: `CORS_ORIGINS` cannot contain `"*"` in
 
 ## Rate Limiting
 
+Applied to the surfaces a stranger can reach, and only those: the public run
+API and the admission step of the widget and the hosted page. The console's own
+routes are behind a session and are not metered — whether the whole API should
+carry a ceiling is a separate decision, not this one.
+
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `RATE_LIMIT_REQUESTS` | `100` | Maximum requests per period |
-| `RATE_LIMIT_PERIOD` | `60` | Period in seconds |
+| `RATE_LIMIT_RUN_PER_MINUTE` | `30` | `POST /api/v1/agents/{id}/run`, per caller |
+| `RATE_LIMIT_EMBED_PER_MINUTE` | `20` | Widget and hosted-page admission, per address |
+| `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Whether `X-Forwarded-For` names the caller |
+
+The counts live in the deployment's Redis, so they hold across workers —
+production runs four, and a count kept per process would let through four times
+what it says. If Redis cannot be reached the limit is not applied and a warning
+is logged: refusing a visitor their answer because a cache blipped is the worse
+failure of the two.
+
+What a visitor may *say* once admitted is a different number, set per widget in
+the Builder (`rate_limit_per_minute`) and counted per visitor. These two are the
+ceiling on getting in.
+
+### `RATE_LIMIT_TRUST_FORWARDED_FOR`, and why it is off
+
+Per-address limits count `request.client.host`. **Behind a proxy or a CDN that
+is the proxy's address, not the visitor's** — every visitor shares one bucket, so
+a busy site behind Cloudflare exhausts the widget's twenty admissions a minute
+for everybody at once. Turning this on reads the leftmost `X-Forwarded-For` hop
+instead.
+
+It is off by default because the header is set by whoever is calling: trusted
+unconditionally, a per-address limit becomes a per-header limit that anybody
+bypasses by varying one string. **Turn it on only when a proxy you control is
+the only thing that can reach the API** — if the container's port is published
+as well, a caller can set the header themselves and the limit stops meaning
+anything.
 
 ## A worker whose event loop has stopped turning
 
