@@ -123,6 +123,38 @@ class TestTheWidgetsAdmission:
 
         assert response.status_code == 429
 
+    async def test_the_hosted_page_is_counted_against_the_page_not_the_caller(
+        self, mock_redis: MagicMock
+    ):
+        """The wiring half of the per-page limit, because the address on this
+        request belongs to the frontend server rather than to a visitor: counted
+        per address it was one bucket for every hosted page in the deployment, and
+        the eleventh visitor of the minute was served a 404 by the page.
+        """
+        app.dependency_overrides[deps.get_redis] = lambda: mock_redis
+        app.dependency_overrides[deps.get_db_session] = lambda: MagicMock()
+        client_mock = _redis(used=1)
+        rate_limit.configure(client_mock)
+
+        async with AsyncClient(
+            transport=ASGITransport(app=app, raise_app_exceptions=False), base_url="http://test"
+        ) as client:
+            await client.get("/api/v1/embed/some-key/hosted")
+
+        assert client_mock.count_in_window.await_args.args[0] == (
+            "ratelimit:hosted_config:key:some-key"
+        )
+
+    async def test_a_hosted_page_over_its_allowance_is_refused(self, mock_redis: MagicMock):
+        app.dependency_overrides[deps.get_redis] = lambda: mock_redis
+        app.dependency_overrides[deps.get_db_session] = lambda: MagicMock()
+        rate_limit.configure(_redis(used=999))
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get("/api/v1/embed/some-key/hosted")
+
+        assert response.status_code == 429
+
     async def test_a_socket_over_the_allowance_closes_with_its_own_code(self):
         """4029, not 4003. "Not allowed here" and "allowed but too fast" ask a
         client for opposite things - stop for ever, and retry later - so a client

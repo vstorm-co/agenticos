@@ -205,3 +205,54 @@ class TestTheLimitsThemselves:
         rate_limit.configure(_redis([3]))
 
         assert await rate_limit.embed_admission_allowed(_connection()) is False
+
+
+class TestTheHostedPageIsCountedPerPage:
+    """The one surface whose caller is not its visitor.
+
+    `/hosted` is fetched by the frontend server, so the address on the request is
+    a container's and every visitor in the deployment arrives as the same one.
+    Counted per address it was a single bucket for everybody - ten page loads a
+    minute at the widget's allowance, served to the eleventh visitor as a 404 -
+    and no setting could have fixed it, because a server-side `fetch` sends no
+    `X-Forwarded-For` to trust.
+    """
+
+    async def test_the_bucket_is_the_page_and_not_an_address(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_HOSTED_PAGE_PER_MINUTE", 5)
+        client = _redis([1])
+        rate_limit.configure(client)
+
+        assert await rate_limit.hosted_admission_allowed("abc123") is True
+        assert client.count_in_window.await_args.args[0] == "ratelimit:hosted_config:key:abc123"
+
+    async def test_two_pages_do_not_share_one_allowance(self, monkeypatch):
+        """The failure this replaces, stated as the property it must not have: one
+        busy page must not be able to take another page down."""
+        monkeypatch.setattr(settings, "RATE_LIMIT_HOSTED_PAGE_PER_MINUTE", 5)
+        client = _redis([1, 1])
+        rate_limit.configure(client)
+
+        await rate_limit.hosted_admission_allowed("first")
+        await rate_limit.hosted_admission_allowed("second")
+
+        keys = [call.args[0] for call in client.count_in_window.await_args_list]
+        assert keys == ["ratelimit:hosted_config:key:first", "ratelimit:hosted_config:key:second"]
+
+    async def test_a_page_over_its_allowance_is_refused(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_HOSTED_PAGE_PER_MINUTE", 5)
+        rate_limit.configure(_redis([6]))
+
+        assert await rate_limit.hosted_admission_allowed("abc123") is False
+
+    async def test_the_allowance_is_its_own_setting_and_a_wider_one(self, monkeypatch):
+        """Not the widget's twenty: that number rations one visitor, and this one
+        bounds a whole page. Reusing it would have moved the same squeeze onto a
+        single link rather than removing it."""
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_PER_MINUTE", 20)
+        client = _redis([1])
+        rate_limit.configure(client)
+
+        await rate_limit.hosted_admission_allowed("abc123")
+
+        assert settings.RATE_LIMIT_HOSTED_PAGE_PER_MINUTE > settings.RATE_LIMIT_EMBED_PER_MINUTE

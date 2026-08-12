@@ -1,3 +1,4 @@
+import { cache } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
@@ -22,7 +23,16 @@ interface HostedPageProps {
   params: Promise<{ publicKey: string; locale: string }>;
 }
 
-async function fetchHostedConfig(publicKey: string): Promise<HostedPageConfig | null> {
+/**
+ * Wrapped in `cache` so the title and the page are one request, not two.
+ *
+ * `generateMetadata` and the render both need the config, and both run for the
+ * same visit - so without this the backend is asked twice for every page load.
+ * That doubled the only route whose limit is counted per page rather than per
+ * address, and it left a second failure open: the metadata could be answered and
+ * the render refused, which renders a titled 404.
+ */
+const fetchHostedConfig = cache(async (publicKey: string): Promise<HostedPageConfig | null> => {
   // The key is generated with `secrets.token_urlsafe`, so anything outside that
   // alphabet is not a key this deployment ever minted.
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(publicKey)) return null;
@@ -33,7 +43,7 @@ async function fetchHostedConfig(publicKey: string): Promise<HostedPageConfig | 
   if (!response.ok) return null;
   const config = (await response.json()) as Omit<HostedPageConfig, "public_key">;
   return { ...config, public_key: publicKey };
-}
+});
 
 export async function generateMetadata({ params }: HostedPageProps): Promise<Metadata> {
   const { publicKey } = await params;

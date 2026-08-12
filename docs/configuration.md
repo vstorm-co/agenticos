@@ -520,7 +520,8 @@ carry a ceiling is a separate decision, not this one.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `RATE_LIMIT_RUN_PER_MINUTE` | `30` | `POST /api/v1/agents/{id}/run`, per caller |
-| `RATE_LIMIT_EMBED_PER_MINUTE` | `20` | Widget and hosted-page admission, per address |
+| `RATE_LIMIT_EMBED_PER_MINUTE` | `20` | Widget admission and a hosted page's socket, per address |
+| `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | A hosted page's config, **per page** — see below |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Whether `X-Forwarded-For` names the caller |
 
 The counts live in the deployment's Redis, so they hold across workers —
@@ -532,6 +533,21 @@ failure of the two.
 What a visitor may *say* once admitted is a different number, set per widget in
 the Builder (`rate_limit_per_minute`) and counted per visitor. These two are the
 ceiling on getting in.
+
+### `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE`, and why it is not per address
+
+A hosted page's config is fetched **server-side**, by the frontend, so the page
+paints branded on the first frame. That means the address on the request is the
+frontend container's and not the visitor's — so counting it put every hosted page
+load in the deployment in a single bucket, and the visitor who tripped it was
+served a 404 with nothing saying why. `RATE_LIMIT_TRUST_FORWARDED_FOR` cannot
+help: a server-side `fetch` sends no such header for anyone to trust.
+
+So this one is counted per public key. It bounds a single page rather than
+rationing a visitor, which is why the default is wide — **it is not what limits
+spend.** Spend starts at the socket the page opens next, which the browser makes,
+which is counted per address under `RATE_LIMIT_EMBED_PER_MINUTE`. And guessing a
+key is not a strategy against 192 bits of `secrets.token_urlsafe`.
 
 ### `RATE_LIMIT_TRUST_FORWARDED_FOR`, and why it is off
 

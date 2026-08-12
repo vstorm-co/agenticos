@@ -80,7 +80,7 @@ async def embed_config(
 
 
 @router.get("/{public_key}/hosted", response_model=PublicHostedConfig)
-async def hosted_config(public_key: str, service: EmbedSvc, request: Request) -> Any:
+async def hosted_config(public_key: str, service: EmbedSvc) -> Any:
     """What a page of our own renders itself from.
 
     No origin check, unlike every other route here, and that is the stance rather
@@ -92,8 +92,13 @@ async def hosted_config(public_key: str, service: EmbedSvc, request: Request) ->
     404 rather than 403 when hosting is off, for the same reason the widget script
     does: a key that names nothing and a key whose page is not published are the
     same amount of information to give away.
+
+    **The only route here limited per page rather than per address.** This one is
+    called by the frontend server, not by the browser, so the address belongs to
+    a container and counting it put the whole deployment in one bucket - see
+    `rate_limit.hosted_admission_allowed`.
     """
-    if not await rate_limit.embed_admission_allowed(request):
+    if not await rate_limit.hosted_admission_allowed(public_key):
         raise HTTPException(status_code=429, detail="Too many requests")
 
     embed = await service.find_hosted(public_key)

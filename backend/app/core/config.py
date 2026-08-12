@@ -162,6 +162,12 @@ class Settings(BaseSettings):
     # per minute. Admission only - what a visitor may say once admitted is the
     # embed's own `rate_limit_per_minute`, counted per visitor.
     RATE_LIMIT_EMBED_PER_MINUTE: int = 20
+    # How often one hosted page may be configured, per minute. Per page and not
+    # per address, because that config is fetched server-side by the frontend: on
+    # that one route every visitor arrives as the same caller, so an address
+    # counts nobody. Wide, because it bounds a page rather than rationing
+    # visitors - what rations spend is the socket, counted per address.
+    RATE_LIMIT_HOSTED_PAGE_PER_MINUTE: int = 240
     # Whether `X-Forwarded-For` names the caller. Off by default because the
     # header is set by whoever is calling, so trusting it unconditionally is a
     # per-IP limit anybody bypasses by varying one string. On costs the mirror

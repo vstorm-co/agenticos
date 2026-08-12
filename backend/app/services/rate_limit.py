@@ -129,6 +129,31 @@ def run_limit() -> Limit:
     return Limit(attempts=settings.RATE_LIMIT_RUN_PER_MINUTE)
 
 
+async def hosted_admission_allowed(public_key: str) -> bool:
+    """Whether this hosted page may be configured again right now.
+
+    Keyed on the page rather than on the caller's address, because on this one
+    route the caller is not the visitor: the page's config is fetched
+    server-side, so `request.client.host` is the frontend's own address and every
+    visitor in the deployment shares one bucket. At the widget's allowance that
+    was ten page loads a minute for the whole deployment, answered as a 404 by
+    the page - and `RATE_LIMIT_TRUST_FORWARDED_FOR` could not fix it, because a
+    server-side `fetch` sends no such header to read.
+
+    What this bounds is therefore one page, not one visitor, so the allowance is
+    its own and a much wider one: it exists to stop a single key being hammered
+    into a database load, not to ration visitors. **Nothing here rations spend** -
+    that is the socket, counted per address, and the key's 192 bits are what make
+    guessing one a non-strategy.
+    """
+    decision = await consume(
+        surface="hosted_config",
+        caller=f"key:{public_key}",
+        limit=Limit(attempts=settings.RATE_LIMIT_HOSTED_PAGE_PER_MINUTE),
+    )
+    return decision.allowed
+
+
 async def embed_admission_allowed(connection: HTTPConnection) -> bool:
     """Whether this address may ask to be admitted to a widget right now.
 

@@ -33,12 +33,17 @@ surface they were recorded under.
 
 **What a stranger may do, they may do at a rate.** The surfaces reachable
 without a session carry a limit counted in the deployment's Redis, so it holds
-across workers: the run API per caller, and admission to a widget or a hosted
-page per address. `RATE_LIMIT_RUN_PER_MINUTE` and
-`RATE_LIMIT_EMBED_PER_MINUTE` set them, and
-[configuration](configuration.md#rate-limiting) has the one caveat worth reading
-before production — behind a proxy, every visitor arrives as the proxy unless
-you say otherwise.
+across workers: the run API per caller, admission to a widget per address, and a
+hosted page's config **per page** — that one is fetched by the frontend server
+rather than by the browser, so an address there names a container and would put
+every visitor in the deployment in one bucket. `RATE_LIMIT_RUN_PER_MINUTE`,
+`RATE_LIMIT_EMBED_PER_MINUTE` and `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` set them,
+and [configuration](configuration.md#rate-limiting) has the one caveat worth
+reading before production — behind a proxy, every visitor arrives as the proxy
+unless you say otherwise.
+
+What rations *spend* on a hosted page is the socket the page opens, and that is
+counted per address like the widget's.
 
 ---
 
