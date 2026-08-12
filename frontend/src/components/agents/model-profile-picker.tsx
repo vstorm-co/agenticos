@@ -1,11 +1,13 @@
 "use client";
 
+import { useId } from "react";
 import { Check, ChevronRight, KeyRound, Trash2 } from "lucide-react";
 
 import { AddModel } from "@/components/agents/add-model";
 import { ProviderIcon } from "@/components/vault/provider-icon";
 import { Badge, Button } from "@/components/ui";
 import { useModelProviders } from "@/hooks";
+import { modelDetail } from "@/lib/model-profiles";
 import { cn } from "@/lib/utils";
 import type { ModelProfile } from "@/types/providers";
 import { useTranslations } from "next-intl";
@@ -83,6 +85,11 @@ export function ModelProfilePicker({
   const t = useTranslations("agents");
   const { deleteProfile } = useModelProviders();
   const selected = profiles.find((profile) => profile.id === value);
+  const detail = selected ? modelDetail(selected) : null;
+  // Generated rather than a constant: the Builder and a dialog can both have a
+  // picker mounted, and two elements answering to one id makes the second group's
+  // accessible name the first one's caption.
+  const captionId = useId();
 
   const list = (
     <div role="radiogroup" aria-label={t("model2")} className="space-y-1">
@@ -92,7 +99,7 @@ export function ModelProfilePicker({
           selected={value === profile.id}
           onSelect={() => onChange(profile.id)}
           title={profile.label}
-          subtitle={`${profile.provider} · ${profile.model}`}
+          subtitle={modelDetail(profile)}
           provider={profile.provider}
           // A picker that omits this lets somebody publish an agent onto a model
           // that cannot answer. Read from `secret_id` alone: this used to also
@@ -115,21 +122,25 @@ export function ModelProfilePicker({
   // what decides whether anything runs at all.
   const current = selected ? (
     <div
-      // Named, because the same label also appears in the saved-model list
-      // below: without it there are two identical strings on this panel and
-      // nothing distinguishes "what this agent runs on" from "one of the
-      // options".
+      // Named *visibly*, because the same label appears again in the saved-model
+      // list below and nothing else here distinguishes "what this agent runs on"
+      // from "one of the options". It used to be distinguishable only by
+      // accident: the strip printed `provider · model` after a label that
+      // already was `provider · model`, so it read differently by reading the
+      // model twice.
       role="group"
-      aria-label={t("currentModel")}
+      aria-labelledby={captionId}
       className="border-border bg-muted/20 flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2"
     >
+      <span id={captionId} className="text-muted-foreground text-xs">
+        {t("currentModel")}
+      </span>
       <ProviderIcon provider={selected.provider} />
       <span className="min-w-0 flex-1 truncate text-sm">
         <span className="font-medium">{selected.label}</span>
-        <span className="text-muted-foreground font-mono text-xs">
-          {" "}
-          {selected.provider} · {selected.model}
-        </span>
+        {detail !== null && (
+          <span className="text-muted-foreground font-mono text-xs"> {detail}</span>
+        )}
       </span>
       {!selected.secret_id && <Badge variant="destructive">{t("noKey")}</Badge>}
     </div>
@@ -202,7 +213,8 @@ function ProfileRow({
   selected: boolean;
   onSelect: () => void;
   title: string;
-  subtitle: string;
+  /** `null` where the title already names the provider and the model. */
+  subtitle: string | null;
   provider: string;
   noKey?: boolean;
   disabled?: boolean;
@@ -234,9 +246,11 @@ function ProfileRow({
             <span className="truncate text-sm font-medium">{title}</span>
             {noKey && <Badge variant="destructive">{t("noKey2")}</Badge>}
           </span>
-          <span className="text-muted-foreground mt-0.5 block truncate font-mono text-xs">
-            {subtitle}
-          </span>
+          {subtitle !== null && (
+            <span className="text-muted-foreground mt-0.5 block truncate font-mono text-xs">
+              {subtitle}
+            </span>
+          )}
         </span>
         {selected && <Check className="text-foreground h-4 w-4 shrink-0" />}
       </button>

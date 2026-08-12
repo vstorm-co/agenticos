@@ -212,4 +212,37 @@ describe("ModelProfilePicker", () => {
     const current = screen.getByRole("group", { name: "Current model" });
     expect(within(current).getByText("no key")).toBeInTheDocument();
   });
+
+  it("says what the agent runs on once", () => {
+    // A label is derived from the provider and the model unless somebody typed
+    // their own, so appending `provider · model` after it read
+    // `OpenRouter · openai/gpt-5.5 openrouter · openai/gpt-5.5` - on the strip
+    // and on every row of the saved list.
+    const derived = profile({ label: "OpenRouter · openai/gpt-5.5", provider: "openrouter" });
+
+    mount({ allowAdd: true, value: "p1", profiles: [derived] });
+
+    const current = screen.getByRole("group", { name: "Current model" });
+    expect(within(current).getByText("OpenRouter · openai/gpt-5.5")).toBeInTheDocument();
+    expect(within(current).queryByText(/openrouter · openai\/gpt-5\.5/)).toBeNull();
+  });
+
+  it("still names the model where the label does not", () => {
+    // The other half: a name somebody chose says nothing about what runs, and
+    // dropping the technical line for every profile would lose that.
+    mount({ allowAdd: true, value: "p1", profiles: [profile({ label: "the cheap one" })] });
+
+    const current = screen.getByRole("group", { name: "Current model" });
+    expect(within(current).getByText("openai · gpt-4.1")).toBeInTheDocument();
+  });
+
+  it("names what the agent runs on rather than relying on it reading differently", () => {
+    // The strip and the selected row now hold the same string, which is what
+    // saying it once costs. The caption is what tells them apart, and it is
+    // visible rather than only an accessible name.
+    mount({ value: "p1", profiles: [profile({ label: "OpenRouter · openai/gpt-5.5" })] });
+
+    const current = screen.getByRole("group", { name: "Current model" });
+    expect(within(current).getByText("Current model")).toBeInTheDocument();
+  });
 });
