@@ -47,6 +47,7 @@ from app.core.permissions import AuthContext, Perm
 from app.core.vault import VaultScope, seal, unseal
 from app.db.models.agent_embed import AgentEmbed
 from app.db.models.chat_file import ChatFile
+from app.db.updates import cleared, writable
 from app.repositories import agent_embed_repo, agent_repo, organization_repo
 from app.schemas.agent_embed import (
     EmbedConfig,
@@ -184,15 +185,13 @@ class AgentEmbedService:
         embed = await self._owned(ctx, embed_id)
         await self.agents.get(ctx, embed.agent_id, perm=Perm.AGENTS_PUBLISH)
 
-        changes = data.model_dump(exclude_unset=True)
-        # On `EmbedUpdate` a `None` is the "not provided" sentinel, not a value -
-        # but `exclude_unset` keeps an explicitly sent `null`, and these columns
-        # are `NOT NULL`. Passed through, `{"name": null}` reaches the database
-        # and comes back a 500 naming a constraint, for a request the API's own
-        # types say is legal.
-        for field in ("name", "auth_mode", "allowed_origins", "is_active", "rate_limit_per_minute"):
-            if changes.get(field, ...) is None:
-                del changes[field]
+        # `writable` rather than a dump: on an `*Update` a `None` is the "not
+        # provided" sentinel, and `exclude_unset` keeps an explicitly sent one - so
+        # `{"name": null}` used to reach a `NOT NULL` column and come back a 500
+        # naming a constraint, for a request the API's own types say is legal. This
+        # used to be a hand-kept list of five field names here; the column decides
+        # now, so a field added to the schema is covered the day it is added (#637).
+        changes = writable(data, over=AgentEmbed)
 
         mode = changes.get("auth_mode", embed.auth_mode)
         if "auth_mode" in changes or "jwt_secret" in changes:
@@ -214,20 +213,20 @@ class AgentEmbedService:
             changes["allowed_origins"] = [
                 _origin_of(str(origin)) for origin in changes["allowed_origins"]
             ]
-        if "config" in changes:
-            # An explicit null means "back to the defaults", not NULL - the same
-            # reading as `context_variables` below, and for the same reason: the
-            # column cannot hold one, so passing it through would answer a
-            # perfectly sensible request with a 500 naming a constraint.
-            config = self._parse_config(changes["config"], kind=embed.kind)
+        # An explicit null means "back to the defaults", not NULL. `writable` drops
+        # it - which is the right default for a column that cannot hold one - so the
+        # two fields with a default worth returning to ask what the caller *sent*
+        # and put it back themselves. Dropping alone would answer a perfectly
+        # sensible request by doing nothing at all.
+        if "config" in changes or cleared(data, "config"):
+            config = self._parse_config(changes.get("config"), kind=embed.kind)
             changes["config"] = config.model_dump()
-        if "context_variables" in changes:
-            # An explicit null means "declare none", not NULL: the column cannot
-            # hold one, and a widget that declares nothing is the ordinary state
-            # rather than an absence of information about it.
+        if "context_variables" in changes or cleared(data, "context_variables"):
+            # "Declare none", for the same reason: a widget that declares nothing is
+            # the ordinary state rather than an absence of information about it.
             changes["context_variables"] = [
                 EmbedVariable.model_validate(variable).model_dump()
-                for variable in (changes["context_variables"] or [])
+                for variable in (changes.get("context_variables") or [])
             ]
 
         # Re-checked against what the row will hold rather than against what this

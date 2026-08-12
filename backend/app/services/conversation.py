@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.db.models.conversation import Conversation, Message, ToolCall
+from app.db.updates import writable
 from app.repositories import (
     chat_file_repo,
     conversation_repo,
@@ -282,7 +283,7 @@ class ConversationService:
             organization_id=organization_id,
             user_id=user_id,
         )
-        update_data = data.model_dump(exclude_unset=True)
+        update_data = writable(data, over=Conversation)
         return await conversation_repo.update_conversation(
             self.db, db_conversation=conversation, update_data=update_data
         )

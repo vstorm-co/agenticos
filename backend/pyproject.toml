@@ -385,6 +385,11 @@ include = [
     # Which tables alembic owns and which the vector store makes at runtime. It is
     # two statements, and one of them decides whether `db-check` reports real drift.
     "app/db/vector_tables.py",
+    # Which explicit `null` on an update may reach a row. It is one function and
+    # it stands between a legal request and a 500 naming a database constraint
+    # (#637), which is the kind of thing a branch that never runs is exactly how
+    # it comes back.
+    "app/db/updates.py",
     "app/services/access.py",
     # How often a stranger may reach a public surface. It was configured and
     # never applied for the whole life of the product (#39), which is the
@@ -530,6 +535,11 @@ include = [
     # Which tables alembic owns and which the vector store makes at runtime. It is
     # two statements, and one of them decides whether `db-check` reports real drift.
     "app/db/vector_tables.py",
+    # Which explicit `null` on an update may reach a row. It is one function and
+    # it stands between a legal request and a 500 naming a database constraint
+    # (#637), which is the kind of thing a branch that never runs is exactly how
+    # it comes back.
+    "app/db/updates.py",
     "app/services/access.py",
     # How often a stranger may reach a public surface. It was configured and
     # never applied for the whole life of the product (#39), which is the
