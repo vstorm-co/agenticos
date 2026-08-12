@@ -541,19 +541,18 @@ class TestTheCostScreen:
             "0.40"
         )
 
-    async def test_a_tree_that_straddles_the_start_of_the_window_is_marked_nowhere(self, db):
-        """The one floor this page still shows with no figure over it saying so.
+    async def test_a_tree_that_straddles_the_start_of_the_window_is_still_marked(self, db):
+        """No breakdown is a floor without a figure on the same page saying so,
+        and a window boundary inside the tree does not suspend that.
 
-        The caveat counts top-level runs *in the window*; the two splits price
-        every row in it through a subquery that is deliberately not windowed
-        (:func:`_own_cost`). A parent that started before the window and delegated
-        inside it therefore puts its delegate's own spend under a vendor and a key
-        and puts nothing at all under the count above them.
-
-        Pinned rather than fixed, and asserted as `0` on purpose: the shared ledger
-        closes the other route to a false zero, this one is a `WHERE` that no
-        longer matches the rows underneath it (agenticos#620). Inverting the first
-        assertion is how the fix will announce itself.
+        The caveat's top-level count carries the window, so a parent that started
+        before the window and delegated inside it used to put its delegate's own
+        spend under a vendor and a key - the two splits price every row in the
+        window through a subquery that is deliberately not windowed
+        (:func:`_own_cost`) - and nothing at all under the count above them
+        (agenticos#620). The count now reaches the delegate's row: it carries the
+        mark on the agent it ran as, because the parent row that would otherwise
+        carry it is outside every aggregate on the page.
         """
         org = await _org(db)
         orchestrator = await _agent(db, org, slug="orchestrator")
@@ -583,12 +582,83 @@ class TestTheCostScreen:
         by_agent = await service.spend_by_agent(ctx, since=since)
         by_provider = await service.spend_by_provider(ctx, since=since)
 
-        assert sum(row.partial_run_count for row in by_agent) == 0
-        # The floor nothing on the page announces: the delegate's own spend, at
-        # the vendor it was spent with, from a row written `cost_is_partial`.
+        assert sum(row.partial_run_count for row in by_agent) == 1
+        # On the agent the delegate ran as - the only row of the tree the window
+        # can see - not on the orchestrator, whose run is outside the window.
+        counts = {row.agent_name: row.partial_run_count for row in by_agent}
+        assert counts["Researcher"] == 1
+        # The floor that count announces: the delegate's own spend, at the vendor
+        # it was spent with, from a row written `cost_is_partial`.
         assert {provider: cost for provider, cost, _runs in by_provider}["anthropic"] == Decimal(
             "0.40"
         )
+
+    async def test_a_straddling_tree_counts_once_however_many_delegations_crossed(self, db):
+        """The trees-not-rows rule holds across the window's edge: one parent
+        outside it, two unpriced delegations inside it, and the figure reads 1 -
+        distinct parents, not delegated rows."""
+        org = await _org(db)
+        orchestrator = await _agent(db, org, slug="orchestrator")
+        researcher = await _agent(db, org, slug="researcher")
+        version = await _version(db, researcher)
+        since = datetime.now(UTC) - timedelta(hours=1)
+        parent = await _run(
+            db,
+            org=org,
+            agent=orchestrator,
+            cost=Decimal("1.00"),
+            partial=True,
+            started_at=since - timedelta(hours=2),
+        )
+        for cost, task_id in ((Decimal("0.40"), "4f2a1b8c"), (Decimal("0.30"), "9c1d2e3f")):
+            await _delegated(
+                db,
+                org=org,
+                agent=researcher,
+                version=version,
+                parent=parent,
+                cost=cost,
+                task_id=task_id,
+                partial=True,
+                started_at=since + timedelta(minutes=30),
+            )
+        ctx = AuthContext(user_id=None, organization_id=org.id, role=OrgRoleName.OWNER)
+
+        by_agent = await AgentRunnerService(db).spend_by_agent(ctx, since=since)
+
+        assert sum(row.partial_run_count for row in by_agent) == 1
+
+    async def test_a_priced_delegation_across_the_edge_raises_no_caveat(self, db):
+        """The parent's unpriced spend is outside the window, and the delegate's
+        own spend - the only money of the tree the splits sum - is fully priced.
+        The window's figures are exact, so a caveat here would mark a floor that
+        is not one."""
+        org = await _org(db)
+        orchestrator = await _agent(db, org, slug="orchestrator")
+        researcher = await _agent(db, org, slug="researcher")
+        since = datetime.now(UTC) - timedelta(hours=1)
+        parent = await _run(
+            db,
+            org=org,
+            agent=orchestrator,
+            cost=Decimal("1.00"),
+            partial=True,
+            started_at=since - timedelta(hours=2),
+        )
+        await _delegated(
+            db,
+            org=org,
+            agent=researcher,
+            version=await _version(db, researcher),
+            parent=parent,
+            cost=Decimal("0.40"),
+            started_at=since + timedelta(minutes=30),
+        )
+        ctx = AuthContext(user_id=None, organization_id=org.id, role=OrgRoleName.OWNER)
+
+        by_agent = await AgentRunnerService(db).spend_by_agent(ctx, since=since)
+
+        assert sum(row.partial_run_count for row in by_agent) == 0
 
     async def test_the_caveat_counts_trees_rather_than_the_rows_the_splits_sum(self, db):
         """One parent, two unpriced delegates, and the figure reads 1.
