@@ -760,6 +760,7 @@ WIDGET_JS = """(function () {
       };
       socket.onclose = function (event) {
         if (event.code === 4003) bubble("assistant", "This assistant is not available on this page.");
+        else if (event.code === 4029) bubble("assistant", "Too many messages just now - please wait a moment and try again.");
       };
     }
 

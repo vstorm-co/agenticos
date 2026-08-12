@@ -71,6 +71,13 @@ def test_a_refusal_is_not_retried():
     assert "setTimeout" not in RENDERED or "reconnect" not in RENDERED.lower()
 
 
+def test_a_rate_limit_close_says_to_wait_rather_than_going_silent():
+    """4029 means allowed but too fast. Unlike 4003 the client should say to
+    wait - `docs/channels.md` promises exactly that - not leave a dead box with
+    nothing on screen."""
+    assert "4029" in RENDERED
+
+
 def test_it_is_valid_javascript():
     """Parsed by an actual engine rather than eyeballed.
 
