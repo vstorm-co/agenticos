@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { MessageSquarePlus, Mic, MicOff, Paperclip, Send, User, X } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -470,7 +471,14 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
   }, [draft, attached, config.variables]);
 
   return (
-    <div className="mx-auto flex h-dvh max-w-3xl flex-col px-4">
+    // The operator's accent, applied through a CSS variable rather than a
+    // hardcoded class so the send button carries their brand colour. Validated as
+    // a hex on both the client field and the server, so interpolating it here is
+    // safe.
+    <div
+      className="mx-auto flex h-dvh max-w-3xl flex-col px-4"
+      style={{ "--hosted-accent": config.accent } as CSSProperties}
+    >
       <header className="flex items-center gap-3 border-b py-4">
         {logoSrc !== null && (
           // A plain `<img>`, not `next/image`: the route below is a proxy, and
@@ -616,7 +624,8 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
             <Button
               type="submit"
               size="icon"
-              className="h-9 w-9 rounded-full"
+              className="h-9 w-9 rounded-full text-white hover:opacity-90"
+              style={{ backgroundColor: "var(--hosted-accent)" }}
               disabled={closed !== null || (draft.trim() === "" && attached.length === 0)}
             >
               <Send className="h-4 w-4" />

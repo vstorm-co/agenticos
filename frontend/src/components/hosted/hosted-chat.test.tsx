@@ -150,6 +150,16 @@ describe("the hosted page", () => {
     }
   });
 
+  it("paints the send button with the operator's accent", () => {
+    // The colour is configured, stored and served; before this it reached the
+    // DOM nowhere, so the picker was a no-op.
+    render(<HostedChat config={config({ accent: "#ff0000" })} />);
+
+    const send = screen.getByRole("button", { name: "Send" });
+    expect(send).toHaveStyle({ backgroundColor: "var(--hosted-accent)" });
+    expect(send.closest("[style*='--hosted-accent']")).not.toBeNull();
+  });
+
   it("keeps a separate key per public key", () => {
     // Two hosted pages are two conversations with two agents; one shared id
     // would put them in the same thread on the server.
