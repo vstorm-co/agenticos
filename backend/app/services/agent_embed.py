@@ -389,7 +389,7 @@ class AgentEmbedService:
             title=config.title or (agent.name if agent else "Assistant"),
             welcome=config.welcome,
             accent=config.accent,
-            logo_url=self._logo_url(embed, config),
+            logo_url=await self._logo_url(embed, config),
             agent_name=agent.name if agent else "Assistant",
             variables=[variable.name for variable in declared if variable.url_safe],
             allow_voice=config.allow_voice,
@@ -453,7 +453,15 @@ class AgentEmbedService:
         embed = await self.find_page(public_key)
         if embed is None:
             return None
-        config = PageConfig.model_validate(embed.config)
+        return await self._logo_file(embed, PageConfig.model_validate(embed.config))
+
+    async def _logo_file(self, embed: AgentEmbed, config: PageConfig) -> str | None:
+        """Where this page's logo actually is on disk, if it is anywhere.
+
+        Takes the embed rather than a key so the two callers can share it without
+        reading the row twice: the config route already holds it, and it has to ask
+        the same question before advertising a URL - see `_logo_url`.
+        """
         if config.logo == "none":
             return None
 
@@ -474,20 +482,25 @@ class AgentEmbedService:
         full = get_file_storage().get_full_path(stored)
         return str(full) if full is not None and full.exists() else None
 
-    @staticmethod
-    def _logo_url(embed: AgentEmbed, config: PageConfig) -> str | None:
-        """Where the page fetches its logo, or `None` when it shows none.
+    async def _logo_url(self, embed: AgentEmbed, config: PageConfig) -> str | None:
+        """Where the page fetches its logo, or `None` when there is none to fetch.
 
         A path on this API rather than the stored storage key: the key is an
         internal address, and the route that serves it is what decides a hosted
         embed may hand out that one image without a session.
+
+        **It answers `None` whenever the route behind it would answer 404**, which
+        is why it resolves the file rather than reasoning about the setting. The
+        previous version covered one of those cases - `custom` with nothing uploaded -
+        and its comment gave the reason for all of them: a browser cannot tell a 404
+        from a slow image, so it renders a broken glyph and says nothing. The default
+        is `agent`, and an agent with no avatar is the common case, so every hosted
+        page published without one showed that glyph in its header (#634).
+
+        The extra work is a read the config route was making anyway, because
+        `_logo_file` is handed the embed it already holds.
         """
-        if config.logo == "none":
-            return None
-        # `custom` with nothing uploaded is a page that would render a broken
-        # image: the route behind this URL answers 404, and a browser has no way
-        # to tell that from a slow one.
-        if config.logo == "custom" and not embed.logo_path:
+        if await self._logo_file(embed, config) is None:
             return None
         base = settings.PUBLIC_BASE_URL.rstrip("/")
         return f"{base}/api/v1/embed/{embed.public_key}/logo"

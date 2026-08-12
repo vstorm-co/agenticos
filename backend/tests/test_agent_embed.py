@@ -1080,6 +1080,14 @@ class TestTheWidgetsOwnRoutesAnswerOnlyForAWidget:
             await _service().public_config(_embed(kind=kind))
 
 
+def _agent(avatar_url: str | None) -> MagicMock:
+    """An agent row. `name` is assigned rather than passed: on a `MagicMock` the
+    constructor keyword names the mock itself, and the schema wants a string."""
+    agent = MagicMock(avatar_url=avatar_url)
+    agent.name = "Clerk"
+    return agent
+
+
 class TestAPagesOwnPicture:
     """The third logo choice, and the only one that writes a file.
 
@@ -1195,3 +1203,65 @@ class TestAPagesOwnPicture:
             config = await _service().page_config(embed)
 
         assert config.logo_url is None
+
+    @pytest.mark.anyio
+    async def test_an_agent_with_no_avatar_shows_none_either(self):
+        """The same reasoning as the case above, on the *default* setting.
+
+        `logo` defaults to `agent`, and an agent with no avatar uploaded is the
+        common case - so every hosted page published without one advertised a URL
+        that answered 404, and the page rendered the broken glyph the comment on
+        `_logo_url` was written about (#634).
+        """
+        embed = _embed(kind="page", config={"logo": "agent"})
+
+        with patch(f"{MODULE}.agent_repo.get", new=AsyncMock(return_value=_agent(None))):
+            config = await _service().page_config(embed)
+
+        assert config.logo_url is None
+
+    @pytest.mark.anyio
+    async def test_an_organization_with_no_avatar_shows_none_too(self):
+        embed = _embed(kind="page", config={"logo": "organization"})
+
+        with (
+            patch(f"{MODULE}.agent_repo.get", new=AsyncMock(return_value=None)),
+            patch(
+                f"{MODULE}.organization_repo.get_by_id",
+                new=AsyncMock(return_value=MagicMock(avatar_url=None)),
+            ),
+        ):
+            config = await _service().page_config(embed)
+
+        assert config.logo_url is None
+
+    @pytest.mark.anyio
+    async def test_a_stored_avatar_whose_file_has_gone_shows_none(self):
+        """A path in the column is not a file on the disk. The route resolves the
+        one and answers 404 for the other, so this has to ask the same question."""
+        embed = _embed(kind="page", config={"logo": "agent"})
+        storage = MagicMock()
+        storage.get_full_path.return_value = MagicMock(exists=lambda: False)
+
+        with (
+            patch(f"{MODULE}.agent_repo.get", new=AsyncMock(return_value=_agent("a/b.png"))),
+            patch(f"{MODULE}.get_file_storage", return_value=storage),
+        ):
+            config = await _service().page_config(embed)
+
+        assert config.logo_url is None
+
+    @pytest.mark.anyio
+    async def test_an_avatar_that_is_there_is_advertised(self):
+        embed = _embed(kind="page", config={"logo": "agent"})
+        storage = MagicMock()
+        storage.get_full_path.return_value = MagicMock(exists=lambda: True)
+
+        with (
+            patch(f"{MODULE}.agent_repo.get", new=AsyncMock(return_value=_agent("a/b.png"))),
+            patch(f"{MODULE}.get_file_storage", return_value=storage),
+        ):
+            config = await _service().page_config(embed)
+
+        assert config.logo_url is not None
+        assert config.logo_url.endswith(f"/api/v1/embed/{embed.public_key}/logo")

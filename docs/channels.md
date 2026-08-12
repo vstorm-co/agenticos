@@ -487,11 +487,16 @@ Four fields, all optional:
 | **Page title** | the agent's name |
 | **Welcome message** | none. Shown before the first question, and never sent to the model — a greeting in the model's history is a turn the agent thinks it took |
 | **Accent colour** | `#4f46e5`. Light and dark still follow the visitor's system |
-| **Logo** | the agent's avatar; or the organization's, one you upload, or none |
+| **Logo** | the agent's avatar; or the organization's, one you upload, or none. Whichever you pick, the page shows **nothing** rather than a broken image when there is no file behind it — an agent with no avatar is the common case, and a browser cannot tell a 404 from a slow image |
 
 Three of those four are images this platform already holds. The fourth takes a
 file — PNG, JPEG, WebP or GIF, up to 2MB — and it can only be added once the page
 exists, because an upload needs a row to attach to.
+
+The page fetches it from **its own origin**, not from the API: `img-src` in
+`next.config.ts` excludes an API on plain `http`, so a page pointing an `<img>` at
+one rendered a broken glyph in dev and on any deployment terminating TLS elsewhere.
+`/api/embed/<key>/logo` on the frontend proxies it.
 
 **What it does not take is a URL of your own.** A page we serve fetching an
 operator-supplied image is one more thing to make safe. And the stored path is a
