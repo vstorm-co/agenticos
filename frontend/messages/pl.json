@@ -677,5 +677,19 @@
     "done": "Gotowe",
     "error": "Niepowodzenie",
     "cancelled": "Anulowano"
+  },
+  "hosted": {
+    "placeholder": "Zadaj pytanie…",
+    "send": "Wyślij",
+    "thinking": "Pracuję nad tym…",
+    "tooManyConnections": "Zbyt wiele połączeń stąd w ostatniej minucie. Spróbuj ponownie za chwilę.",
+    "unavailable": "Ten asystent jest teraz niedostępny.",
+    "newConversation": "Nowa rozmowa",
+    "startDictation": "Dyktuj",
+    "stopDictation": "Zakończ dyktowanie",
+    "attach": "Załącz plik",
+    "removeAttachment": "Usuń {name}",
+    "uploadFailed": "Nie udało się załączyć tego pliku.",
+    "uploading": "Załączam…"
   }
 }
