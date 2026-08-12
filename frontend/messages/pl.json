@@ -74,16 +74,27 @@
     "responseRatings": "Oceny odpowiedzi",
     "settingsSection": "Ustawienia",
     "agents": "Agenci",
-    "skills": "Umiejętności",
+    "skills": "Skille",
     "activity": "Aktywność",
     "primary": "Główna",
     "build": "Budowanie",
     "workspace": "Przestrzeń",
-    "vault": "Sejf",
+    "vault": "Vault",
     "mcpServers": "Serwery MCP",
     "workspaces": "Pliki agentów",
     "sandboxes": "Sandboxy",
-    "adminOverview": "Administracja"
+    "adminOverview": "Administracja",
+    "channels": "Kanały",
+    "commandPalette": "Paleta poleceń",
+    "esc": "ESC",
+    "knowledgeBase": "Baza wiedzy",
+    "noMatches": "Brak dopasowań.",
+    "open": "Otwórz",
+    "profileAndSettings": "Profil i ustawienia",
+    "quickActions": "Szybkie akcje",
+    "searchJump": "Szukaj lub przejdź do…",
+    "startNewChat": "Zacznij nowy czat",
+    "untitledConversation": "Rozmowa bez tytułu"
   },
   "auth": {
     "login": "Zaloguj się",
@@ -229,7 +240,11 @@
     "creating": "Tworzę...",
     "created": "Organizacja utworzona",
     "updated": "Organizacja zaktualizowana",
-    "deleted": "Organizacja usunięta"
+    "deleted": "Organizacja usunięta",
+    "accessLost": "Nie masz już dostępu do tej organizacji.",
+    "accessLostSwitched": "Nie masz już dostępu do tej organizacji. Przełączono na {name}.",
+    "failedDelete": "Nie udało się usunąć organizacji",
+    "failedUpdate": "Nie udało się zaktualizować organizacji"
   },
   "members": {
     "title": "Członkowie",
@@ -247,7 +262,8 @@
     "pendingInvitations": "Oczekujące zaproszenia",
     "revoke": "Cofnij",
     "revokeSuccess": "Zaproszenie cofnięte",
-    "failedRevoke": "Nie udało się cofnąć zaproszenia"
+    "failedRevoke": "Nie udało się cofnąć zaproszenia",
+    "failedCreateLink": "Nie udało się utworzyć linku"
   },
   "knowledgeBases": {
     "title": "Bazy wiedzy",
@@ -259,7 +275,24 @@
     "inactive": "Nieaktywna",
     "created": "Baza wiedzy utworzona",
     "updated": "Baza wiedzy zaktualizowana",
-    "deleted": "Baza wiedzy usunięta"
+    "deleted": "Baza wiedzy usunięta",
+    "documentRemoved": "Dokument usunięty",
+    "failedCloneIntegration": "Nie udało się skopiować integracji",
+    "failedCreateSyncSource": "Nie udało się utworzyć źródła synchronizacji",
+    "failedDelete": "Nie udało się usunąć bazy wiedzy",
+    "failedDeleteDocument": "Nie udało się usunąć dokumentu",
+    "failedLoad": "Nie udało się wczytać bazy wiedzy",
+    "failedLoadMoreDocuments": "Nie udało się wczytać kolejnych dokumentów",
+    "failedRemoveSyncSource": "Nie udało się usunąć źródła synchronizacji",
+    "failedTriggerSync": "Nie udało się uruchomić synchronizacji",
+    "failedUpdate": "Nie udało się zaktualizować bazy wiedzy",
+    "ingestionSaved": "Ustawienia ingestii zapisane",
+    "integrationCloned": "Integracja skopiowana do tej bazy wiedzy",
+    "syncSourceConnected": "Źródło synchronizacji podłączone",
+    "syncSourceRemoved": "Źródło synchronizacji usunięte",
+    "syncStarted": "Synchronizacja ruszyła — dokumenty pojawią się w miarę ingestii",
+    "uploadFailed": "Przesyłanie nie powiodło się",
+    "uploaded": "Przesłano {name}"
   },
   "billing": {
     "title": "Rozliczenia",
@@ -389,7 +422,8 @@
       "workspace": "Twoja przestrzeń",
       "build": "Twoi agenci",
       "adoption": "Jak zachowują się Twoje wdrożenia",
-      "health": "Zdrowie"
+      "health": "Zdrowie",
+      "sandboxes": "Gdzie agenci uruchamiają kod"
     },
     "actions": {
       "newChat": "Nowy czat",
@@ -511,7 +545,8 @@
         "empty": {
           "title": "Brak ukończonych uruchomień",
           "description": "Opóźnienie wymaga co najmniej jednego zakończonego uruchomienia."
-        }
+        },
+        "viewSlowest": "Otwórz te runy, od najwolniejszego"
       },
       "active-users": {
         "title": "Aktywne osoby",
@@ -700,14 +735,102 @@
         "title": "Udostępnione Tobie",
         "agents": "Agenci",
         "collections": "Kolekcje",
-        "skills": "Umiejętności",
+        "skills": "Skille",
         "subline": "Wszystko, co ktoś Ci udostępnił - przeglądaj z paska bocznego.",
         "empty": {
           "title": "Jeszcze nic nie udostępniono",
-          "description": "Gdy ktoś udostępni agenta, kolekcję albo umiejętność, policzy się tutaj."
+          "description": "Gdy ktoś udostępni agenta, kolekcję albo skilla, policzy się tutaj."
+        }
+      },
+      "sandbox-capacity": {
+        "title": "Pojemność sandboxów",
+        "subline": "Otwarte sandboxy wobec limitu, który obowiązuje tę organizację — liczby, z której bierze się 429.",
+        "openOfTenantLimit": "{used} z {limit}",
+        "openUncapped": "{count, plural, one {1 otwarty} few {# otwarte} many {# otwartych} other {# otwartego}}",
+        "hostUncounted": "Tego, jak pełny jest sam host, nie da się tutaj pokazać. Jego własne dwa limity są dzielone z każdą organizacją na nim i nikt ich nie publikuje, więc to jedyna liczba, która się dzieli. Odmowa sandboxa, gdy ta organizacja jest poniżej swojego limitu, oznacza, że host zapełnił ktoś inny.",
+        "elsewhere": "Działa na Daytonie — tamte sandboxy liczą się na tamtym koncie, nie tutaj.",
+        "empty": {
+          "title": "Nie zarejestrowano hosta sandboxów",
+          "description": "Zarejestruj hosta, a miejsce dla agentów na uruchamianie kodu wyląduje tutaj."
+        }
+      },
+      "sandbox-policy": {
+        "title": "Runtime'y sandboxów",
+        "subline": "Limity, nie liczniki. Te dwa na całym hoście są dzielone z każdą organizacją na nim i nic nie publikuje, ile jest w użyciu, więc tylko liczbę dla organizacji da się narysować jako ułamek. Wszystko to jest własnym środowiskiem usługi, ustawianym tam, gdzie ona startuje.",
+        "ceilings": {
+          "hostOpen": "Otwarte, na całym hoście",
+          "hostResident": "Rezydentne, na całym hoście",
+          "perOrganization": "Ta organizacja"
+        },
+        "default": "domyślny",
+        "noMemoryCeiling": "bez limitu",
+        "noRuntime": "Ta usługa nie pozwala na żaden runtime, więc żaden agent nie uruchomi na niej kodu.",
+        "elsewhere": {
+          "title": "Sandboxy działają na Daytonie",
+          "description": "Daytona nie publikuje własnej listy dozwolonych — to, na co pozwala, jest ustawieniem na tamtym koncie."
+        },
+        "empty": {
+          "title": "Nie zarejestrowano hosta sandboxów",
+          "description": "Zarejestruj hosta, a runtime'y, na które pozwala, wylądują tutaj."
+        }
+      },
+      "sandbox-sessions": {
+        "title": "Otwarte sandboxy",
+        "nothingRunning": "Nic nie działa. Sandbox otwiera się, gdy agent pierwszy raz uruchamia kod.",
+        "runningOn": "na {name}",
+        "unattributed": "Nie zapisano agenta",
+        "memoryOfLimit": "{used} z {limit}",
+        "sampleUsage": "Pamięć",
+        "sampleUsageHint": "Próbka pamięci i CPU — jedno zapytanie do hosta na sandbox",
+        "showActivity": "Aktywność",
+        "hideActivity": "Ukryj",
+        "activityOf": "Pokaż, co zrobiono w sandboxie {id}",
+        "noActivity": "Nic jeszcze nie zapisano dla tego sandboxa.",
+        "tookMs": "{ms} ms",
+        "idle": {
+          "seconds": "{count} s bezczynności",
+          "minutes": "{count} min bezczynności",
+          "hours": "{count} godz. bezczynności"
+        },
+        "scope": {
+          "run": "tylko jeden run",
+          "conversation": "dzielony w jednej rozmowie",
+          "channel": "dzielony w jednym kanale",
+          "user": "dzielony przez jedną osobę",
+          "agent": "dzielony w obrębie całego agenta",
+          "unknown": "zakres, którego ta wersja nie rozpoznaje"
+        },
+        "elsewhere": {
+          "title": "Sandboxy działają na Daytonie",
+          "description": "Sesje otwarte tam pojawiają się w panelu tamtego konta, nie tutaj."
+        },
+        "empty": {
+          "title": "Nie zarejestrowano hosta sandboxów",
+          "description": "Zarejestruj hosta, a sandboxy otwierane przez Twoich agentów wylądują tutaj."
         }
       }
-    }
+    },
+    "activeSessions": "Aktywne sesje",
+    "allOtherSessionsRevoked": "Wszystkie pozostałe sesje unieważnione",
+    "breadcrumb": "Ścieżka nawigacji",
+    "cancel": "Anuluj",
+    "couldnTLoadYour": "Nie udało się wczytać Twoich sesji",
+    "current": "Bieżąca",
+    "devicesCurrentlySignedYour": "Urządzenia obecnie zalogowane na Twoje konto.",
+    "everyDeviceSignedYour": "Każde urządzenie zalogowane na Twoje konto zostanie wylogowane — poza tym jednym.",
+    "failedRevokeSession": "Nie udało się unieważnić sesji",
+    "failedRevokeSessions": "Nie udało się unieważnić sesji",
+    "lastActive": "Ostatnia aktywność {when}",
+    "nextPage": "Następna strona",
+    "noSessionDataAvailable": "Brak danych o sesjach.",
+    "previousPage": "Poprzednia strona",
+    "revokeAll": "Unieważnij wszystkie",
+    "revokeAllOtherSessions": "Unieważnić wszystkie pozostałe sesje?",
+    "revokeAllOthers": "Unieważnij pozostałe",
+    "revokeSession": "Unieważnij sesję",
+    "revokeSession2": "Unieważnij sesję",
+    "sessionRevoked": "Sesja unieważniona",
+    "unknownDevice": "Nieznane urządzenie"
   },
   "ui": {
     "nextMonths": "Następne miesiące",
