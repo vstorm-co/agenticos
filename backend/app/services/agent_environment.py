@@ -177,11 +177,6 @@ class AgentEnvironmentService:
 
         version: AgentVersion | None = None
         if "version_id" in changes:
-            if changes["version_id"] is None:
-                raise BadRequestError(
-                    message="An environment is always pinned - point it at a version.",
-                    details={"environment_id": str(environment.id)},
-                )
             version = await self._version_of(ctx, agent, changes["version_id"])
 
         environment = await agent_environment_repo.update(

@@ -76,11 +76,16 @@ test.describe("Models", () => {
     // `add-model.integration.test.tsx`, where the form is guaranteed empty. It
     // cannot be asserted here: the fields start on whatever model the agent is
     // already on, and this agent is shared with every other spec in this file.
+    // Away and back, because what clears the model id is the provider *changing*:
+    // picking the one the form already shows is a Radix select answering with the
+    // value it holds, so nothing fires and the form stays exactly as it was. That
+    // is why this read as "Add model not found" in CI and passed on a laptop - the
+    // button says "Use this model" while the fields still match the profile the
+    // agent is on, and which provider that is depends on what ran before.
+    await pickProvider(page, "Anthropic");
     await pickProvider(page, "OpenAI");
     // Refused. A profile with a provider and no model id is one that fails at the
-    // moment a run needs it rather than here. Picking the provider clears whatever
-    // model was in the field, which is what makes this observable on a form that
-    // started on one.
+    // moment a run needs it rather than here.
     const submit = page.getByRole("button", { name: "Add model" });
     await expect(submit).toBeDisabled();
 
