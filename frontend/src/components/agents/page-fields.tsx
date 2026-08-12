@@ -151,6 +151,17 @@ export function PageFields({
             <span className="text-muted-foreground block text-xs">{t("pageAllowVoiceHint")}</span>
           </span>
         </Label>
+        <Label className="flex items-start gap-2 font-normal">
+          <Checkbox
+            checked={config.allow_files}
+            disabled={disabled}
+            onCheckedChange={(checked) => onChange({ ...config, allow_files: checked === true })}
+          />
+          <span>
+            <span className="text-sm">{t("pageAllowFiles")}</span>
+            <span className="text-muted-foreground block text-xs">{t("pageAllowFilesHint")}</span>
+          </span>
+        </Label>
       </div>
 
       <div className="space-y-2">

@@ -46,6 +46,7 @@ from app.core.exceptions import (
 from app.core.permissions import AuthContext, Perm
 from app.core.vault import VaultScope, seal, unseal
 from app.db.models.agent_embed import AgentEmbed
+from app.db.models.chat_file import ChatFile
 from app.repositories import agent_embed_repo, agent_repo, organization_repo
 from app.schemas.agent_embed import (
     EmbedConfig,
@@ -60,6 +61,7 @@ from app.schemas.agent_embed import (
 )
 from app.services.agent_registry import AgentRegistryService
 from app.services.file_storage import IMAGE_MIME_TYPES, MAX_AVATAR_SIZE, get_file_storage
+from app.services.file_upload import FileUploadService
 
 logger = logging.getLogger(__name__)
 
@@ -392,6 +394,51 @@ class AgentEmbedService:
             variables=[variable.name for variable in declared if variable.url_safe],
             allow_voice=config.allow_voice,
             allow_new_conversation=config.allow_new_conversation,
+            allow_files=config.allow_files,
+        )
+
+    async def accept_upload(
+        self, embed: AgentEmbed, *, data: bytes, filename: str, content_type: str | None
+    ) -> ChatFile:
+        """Store a file a stranger sent to a hosted page.
+
+        The bytes go through exactly what a member's upload goes through -
+        `FileUploadService.upload`, and so the MIME allowlist, the parser and the
+        storage backend - with one narrowing in front of it: a cap of this
+        surface's own. A member uploading a fifty-megabyte export is somebody the
+        organization employs; the same allowance on a public link is a way to fill
+        a disk from an address nobody knows.
+
+        **The row belongs to the member who published the page.** A visitor has no
+        account, `chat_files.user_id` is `NOT NULL`, and inventing an owner is not
+        available - so the owner is the same person the run is attributed to,
+        which is the answer already given for who a public turn runs as. A page
+        whose publisher's account is gone therefore cannot take files, and says so
+        rather than storing them against nobody.
+
+        Raises:
+            EmbedDenied: If this page does not accept files, or has no owner to
+                attribute them to. One refusal for both, because a visitor is owed
+                "not here" and nothing about the operator's configuration.
+            BadRequestError: If the file is too large or of a type nothing here
+                can read. That one *is* said: it is about what they sent.
+        """
+        config = PageConfig.model_validate(embed.config)
+        if not config.allow_files or embed.owner_user_id is None:
+            raise EmbedDenied("this embed does not accept files")
+        if len(data) > settings.EMBED_MAX_UPLOAD_SIZE_MB * 1024 * 1024:
+            raise BadRequestError(
+                message=(
+                    f"That file is too large. The limit here is "
+                    f"{settings.EMBED_MAX_UPLOAD_SIZE_MB}MB."
+                ),
+                details={"limit_mb": settings.EMBED_MAX_UPLOAD_SIZE_MB},
+            )
+        return await FileUploadService(self.db).upload(
+            user_id=embed.owner_user_id,
+            file_data=data,
+            filename=filename,
+            content_type=content_type,
         )
 
     async def page_logo_path(self, public_key: str) -> str | None:

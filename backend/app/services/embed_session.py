@@ -59,7 +59,7 @@ from __future__ import annotations
 import logging
 import re
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from contextlib import AbstractAsyncContextManager
 from typing import Any
 from uuid import UUID
@@ -72,7 +72,13 @@ from app.core.exceptions import AppException
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_embed import AgentEmbed
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
-from app.repositories import conversation_repo, embed_visitor_repo, member_repo
+from app.db.models.chat_file import ChatFile
+from app.repositories import (
+    chat_file_repo,
+    conversation_repo,
+    embed_visitor_repo,
+    member_repo,
+)
 from app.schemas.agent_embed import EmbedVariable, PageConfig
 from app.services.agent import build_message_history
 from app.services.agent_runner import AgentRunnerService
@@ -119,9 +125,33 @@ MAX_MESSAGE_CHARS = 4000
 # a function of how long a stranger is willing to keep typing.
 HISTORY_MESSAGES = 40
 
+# How many files may ride on one message. Small on purpose: the per-minute limit
+# bounds how fast a stranger fills a disk, and this bounds how much of one turn's
+# prompt is somebody else's document.
+MAX_FILES_PER_TURN = 3
+
 # What a continuity key has to look like to be one: the 128 random bits the
 # hosted page mints, as lower-case hex. The upper bound is the column's width.
 _CONTINUITY_KEY = re.compile(r"^[0-9a-f]{32,64}$")
+
+
+def _attached_ids(value: Any) -> list[UUID]:
+    """The file ids a frame names, dropping anything that is not one.
+
+    Dropped rather than refused, for the reason a malformed continuity key is:
+    what a client sends is not the visitor's fault, and losing an attachment beats
+    losing the question that came with it. A value that is not a list at all is no
+    attachments, which is what every client that sends nothing produces.
+    """
+    if not isinstance(value, list):
+        return []
+    ids: list[UUID] = []
+    for entry in value:
+        try:
+            ids.append(UUID(str(entry)))
+        except ValueError:
+            logger.info("embed_file_id_rejected")
+    return ids
 
 
 def continuity_key(value: str | None) -> str | None:
@@ -337,8 +367,16 @@ class EmbedSession:
         if isinstance(supplied, dict):
             self._supplied = supplied
 
+        attached = _attached_ids(frame.get("file_ids"))
+        if len(attached) > MAX_FILES_PER_TURN:
+            await self._emit(
+                "error",
+                {"message": f"You can attach up to {MAX_FILES_PER_TURN} files to one message."},
+            )
+            return
+
         text = str(frame.get("text") or "").strip()
-        if not text:
+        if not text and not attached:
             return
         if len(text) > MAX_MESSAGE_CHARS:
             await self._emit("error", {"message": "That message is too long. Try a shorter one."})
@@ -348,7 +386,7 @@ class EmbedSession:
             await self._emit("error", {"message": "You are sending messages too quickly."})
             return
 
-        unanswered = await self._turn_frames(text)
+        unanswered = await self._turn_frames(text, attached)
         if unanswered is not None:
             await self._emit("error", {"message": unanswered})
         # Last, on every path that produced frames, so a client stops drawing the
@@ -357,7 +395,7 @@ class EmbedSession:
         # a run cost is the operator's business rather than the visitor's.
         await self._emit("complete", {})
 
-    async def _turn_frames(self, text: str) -> str | None:
+    async def _turn_frames(self, text: str, attached: Sequence[UUID]) -> str | None:
         """Run one turn, and answer with the sentence to say if it produced no words.
 
         Three endings have none, and they are not the same sentence. A run parked
@@ -370,7 +408,7 @@ class EmbedSession:
         route logs it and closes the socket, which is what it did before.
         """
         try:
-            answer, run = await self._answer(text)
+            answer, run = await self._answer(text, attached)
         except BudgetExceeded:
             # The one failure worth naming: an operator seeing this in a widget
             # needs to know the agent hit its ceiling rather than broke.
@@ -387,7 +425,7 @@ class EmbedSession:
         """Nothing to release: the session owns no task and no client."""
         return
 
-    async def _answer(self, text: str) -> tuple[str, AgentRun]:
+    async def _answer(self, text: str, attached: Sequence[UUID] = ()) -> tuple[str, AgentRun]:
         """One turn, on one session of its own.
 
         The session spans the whole turn - the conversation row, the run row, the
@@ -396,9 +434,11 @@ class EmbedSession:
         held connection is one the rest of the deployment cannot have.
         """
         async with self.sessions() as db:
-            return await self._turn(db, text)
+            return await self._turn(db, text, attached)
 
-    async def _turn(self, db: AsyncSession, text: str) -> tuple[str, AgentRun]:
+    async def _turn(
+        self, db: AsyncSession, text: str, attached: Sequence[UUID] = ()
+    ) -> tuple[str, AgentRun]:
         ctx = await self._context(db)
         if self.conversation_id is None:
             conversation = await conversation_repo.create_conversation(
@@ -460,9 +500,44 @@ class EmbedSession:
             surface=RunSurface.EMBED,
             conversation_id=self.conversation_id,
             message_history=await self._history(db),
+            attachments=await self._files(db, attached),
             stream=frames.drive,
         )
         return answer, run
+
+    async def _files(self, db: AsyncSession, attached: Sequence[UUID]) -> list[ChatFile]:
+        """The rows behind the ids this frame named, narrowed to ones it may use.
+
+        Two conditions, and between them they are what stops a frame from
+        attaching a file that is not this visitor's to attach. The row must belong
+        to the member who published this embed - which is who
+        `accept_upload` attributes an upload to - and it must not already hang off
+        a message, so a file cannot be replayed into a second turn or into somebody
+        else's thread.
+
+        That is proportionate rather than complete, and the reason it is enough is
+        the id: `uuid4` is 122 random bits, so "an id from another visitor" is a
+        value nobody can produce without having been handed it. Anything narrower
+        would need a column recording which visitor uploaded what, which is a row
+        that exists to re-state what the message it ends up on already says.
+
+        A dropped id is logged and the turn goes ahead. The alternative is refusing
+        somebody their answer over a stale id in a composer.
+        """
+        if not attached:
+            return []
+        rows = await chat_file_repo.get_many(db, attached)
+        usable = [
+            row
+            for row in rows
+            if row.user_id == self.embed.owner_user_id and row.message_id is None
+        ]
+        if len(usable) != len(attached):
+            logger.info(
+                "embed_attachment_refused",
+                extra={"embed_id": str(self.embed.id), "asked": len(attached)},
+            )
+        return usable
 
     async def _history(self, db: AsyncSession) -> list[Any]:
         """What this visitor and the agent have already said to each other.

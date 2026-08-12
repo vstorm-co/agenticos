@@ -560,6 +560,8 @@
     "pageAllowVoiceHint": "Dictation using the visitor's own browser. No audio reaches this deployment and nothing is transcribed here - but a browser that offers it hands the audio to its vendor, so this is off unless you turn it on.",
     "pageAllowNewConversation": "A button to start a fresh thread",
     "pageAllowNewConversationHint": "The old thread is not deleted. It stops being the one this browser resumes.",
+    "pageAllowFiles": "A way to attach a file",
+    "pageAllowFilesHint": "The only thing here that lets a stranger store something on this deployment. The file goes through the same checks and parser a member's upload does, under a smaller cap and a limit per visitor - and the agent reads it the way it reads any attachment.",
     "pageShows": "What the visitor sees of the work",
     "pageShowsHint": "These decide what the server sends, not what the page draws. A visitor who opens devtools sees exactly what is ticked here and nothing else.",
     "pageShowToolSteps": "What the agent is doing",
@@ -1547,7 +1549,11 @@
     "unavailable": "This assistant is not available right now.",
     "newConversation": "New chat",
     "startDictation": "Dictate",
-    "stopDictation": "Stop dictating"
+    "stopDictation": "Stop dictating",
+    "attach": "Attach a file",
+    "removeAttachment": "Remove {name}",
+    "uploadFailed": "That file could not be attached.",
+    "uploading": "Attaching…"
   },
   "invitations": {
     "acceptSuccess": "Joined organization!",

@@ -32,4 +32,12 @@ export interface HostedPageConfig {
    */
   allow_voice: boolean;
   allow_new_conversation: boolean;
+  /**
+   * Whether the composer offers to attach a file.
+   *
+   * The only capability here that lets a visitor *store* something, so the page
+   * offers no picker unless the operator ticked it - and the upload route refuses
+   * one anyway, because a control the client decided to draw is not permission.
+   */
+  allow_files: boolean;
 }

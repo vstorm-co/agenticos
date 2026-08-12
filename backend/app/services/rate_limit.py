@@ -159,6 +159,29 @@ async def hosted_admission_allowed(public_key: str) -> bool:
     return decision.allowed
 
 
+async def embed_upload_allowed(*, public_key: str, visitor: str) -> bool:
+    """Whether this visitor may store another file on this page right now.
+
+    Per visitor *and* per page, unlike admission next door, because this is the
+    first thing on a public surface that writes bytes to the deployment's own
+    disk: an address is what a stranger has one of, and a continuity key is what
+    a stranger keeps. Counting only the address would let one browser fill a disk
+    from a coffee shop; counting only the key would let a script mint a new one
+    per file, so the pair is what bounds it.
+
+    Beside `embed_admission_allowed` rather than folded into it, on the same
+    reasoning as messages against admissions: what somebody may *say* and what
+    they may *store* have nothing to do with each other, and one number for both
+    is a number chosen for whichever matters less.
+    """
+    decision = await consume(
+        surface="embed_upload",
+        caller=f"key:{public_key}:visitor:{visitor}",
+        limit=Limit(attempts=settings.RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE),
+    )
+    return decision.allowed
+
+
 async def embed_admission_allowed(connection: HTTPConnection) -> bool:
     """Whether this address may ask to be admitted to a widget right now.
 

@@ -38,6 +38,13 @@ class Settings(BaseSettings):
     MODELS_CACHE_DIR: Path = Path("./models_cache")
     MEDIA_DIR: Path = Path("./media")
     MAX_UPLOAD_SIZE_MB: int = 50
+    # What a *stranger* may upload to a hosted page, in megabytes. Its own
+    # setting and much smaller, because the two callers are not comparable: a
+    # member uploading a fifty-megabyte export is somebody the organization
+    # employs, and the same allowance on a public link is a way to fill a disk
+    # from an address nobody knows. It is a ceiling on top of the allowlist and
+    # `MAX_UPLOAD_SIZE_MB`, never a way past either.
+    EMBED_MAX_UPLOAD_SIZE_MB: int = 5
     STORAGE_SOFT_LIMIT_BYTES: int = 5 * 1024 * 1024 * 1024
 
     # Seconds the event loop may stop turning before the worker kills itself so
@@ -162,6 +169,11 @@ class Settings(BaseSettings):
     # per minute. Admission only - what a visitor may say once admitted is the
     # embed's own `rate_limit_per_minute`, counted per visitor.
     RATE_LIMIT_EMBED_PER_MINUTE: int = 20
+    # How many files one visitor may upload to one page, per minute. Counted per
+    # visitor and per key rather than per address, in the shared Redis, because
+    # this is the first thing on this surface that *stores* something: a limit on
+    # how fast a stranger may write bytes to the deployment's disk.
+    RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE: int = 5
     # How often one hosted page may be configured, per minute. Per page and not
     # per address, because that config is fetched server-side by the frontend: on
     # that one route every visitor arrives as the same caller, so an address

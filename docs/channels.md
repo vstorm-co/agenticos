@@ -363,6 +363,46 @@ a page turned on for itself would be one nobody could turn off.
   hands the audio to its vendor, which is the half worth reading before turning
   it on for the public. A browser without one is shown no microphone rather than
   a button that does nothing.
+- **A way to attach a file**, off by default. See below: it is the only thing on
+  this surface that lets a stranger *store* something.
+
+### What a stranger holding the link can write to
+
+Everything else on a public surface reads. This one writes, so it is worth
+stating exactly what a visitor can put where.
+
+**They can store a file**, and only if the operator ticked the switch. The bytes
+go through the same path a member's upload does — the MIME allowlist,
+`MAX_UPLOAD_SIZE_MB`, the parser, the storage backend, a `ChatFile` row — with
+three narrowings in front of it:
+
+| | |
+|---|---|
+| **A cap of this surface's own** | `EMBED_MAX_UPLOAD_SIZE_MB`, 5MB by default. A member uploading a fifty-megabyte export is somebody the organization employs; the same allowance on a public link is a way to fill a disk from an address nobody knows |
+| **A limit per visitor and per page** | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE`, in the shared Redis. Per *both*, because an address is what a stranger has one of and a continuity key is what a browser keeps — either alone is bypassable |
+| **Three files to a message** | Which bounds how much of one turn's prompt is somebody else's document |
+
+**The row belongs to the member who published the page**, because
+`chat_files.user_id` is `NOT NULL` and a visitor has no account — the same answer
+already given for who a public turn *runs* as. A page whose publisher's account is
+gone therefore cannot take files at all, and says "not available" rather than
+storing them against nobody.
+
+**Where the file then goes is the runner's decision, not this surface's.** It is
+the routing in [File processing](file-processing.md), unchanged: into the agent's
+workspace where it has one, folded into the prompt where it does not, and an image
+both ways up to the inline ceiling. Nothing about a visitor's file is a special
+case.
+
+A frame may only name a file that belongs to this page's owner and does not
+already hang off a message, so an id cannot be replayed into a second turn or
+into somebody else's thread. That is proportionate rather than complete, and what
+makes it enough is the id itself: `uuid4` is 122 random bits, so an id from
+another visitor is a value nobody can produce without having been handed it.
+
+**They cannot write anything else.** No knowledge base, no workspace path of their
+own, no config, no variable that is not declared and URL-safe. The conversation
+row and the turns in it are written *about* them, by the platform.
 
 ### What the visitor sees of the work
 

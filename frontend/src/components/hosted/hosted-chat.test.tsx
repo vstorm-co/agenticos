@@ -57,6 +57,7 @@ function config(overrides: Partial<HostedPageConfig> = {}): HostedPageConfig {
     variables: [],
     allow_voice: false,
     allow_new_conversation: true,
+    allow_files: false,
     ...overrides,
   };
 }
@@ -378,5 +379,96 @@ describe("what the page does with the frames it is sent", () => {
     act(() => socket().deliver({ type: "delegation_started", data: { name: "researcher" } }));
 
     expect(screen.getByRole("textbox")).toBeEnabled();
+  });
+});
+
+describe("attaching a file", () => {
+  it("offers no picker unless the operator allowed one", () => {
+    render(<HostedChat config={config()} />);
+
+    expect(screen.queryByRole("button", { name: "Attach a file" })).toBeNull();
+  });
+
+  it("stores the file and names it on the next message", async () => {
+    // The id is what the turn carries, so the file is stored first and the
+    // message names it - a file attached and then thought better of must not
+    // become a turn of its own.
+    const fetched = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: "f-1", filename: "invoice.pdf" }),
+    });
+    vi.stubGlobal("fetch", fetched);
+    vi.stubGlobal("WebSocket", FakeSocket);
+    render(<HostedChat config={config({ allow_files: true })} />);
+
+    const file = new File(["x"], "invoice.pdf", { type: "application/pdf" });
+    await userEvent.upload(document.querySelector('input[type="file"]')!, file);
+
+    expect(await screen.findByText("invoice.pdf")).toBeInTheDocument();
+    // The visitor key travels with it: the limit is counted per visitor and per
+    // page, so an upload with no key is one the server cannot bound.
+    expect(fetched.mock.calls[0]![0]).toMatch(/\/files\?visitor=[0-9a-f]{32}$/);
+
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(JSON.parse(socket().sent[0]!).file_ids).toEqual(["f-1"]);
+  });
+
+  it("says so when a file was refused rather than doing nothing", async () => {
+    // A picker that appears to do nothing is worse than a sentence: the refusal
+    // is about the file - too large, a type nothing can read - and is fixable.
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
+    vi.stubGlobal("WebSocket", FakeSocket);
+    render(<HostedChat config={config({ allow_files: true })} />);
+
+    await userEvent.upload(
+      document.querySelector('input[type="file"]')!,
+      new File(["x"], "huge.zip", { type: "application/zip" }),
+    );
+
+    expect(await screen.findByText("That file could not be attached.")).toBeInTheDocument();
+  });
+
+  it("lets a visitor change their mind before sending", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ id: "f-1", filename: "invoice.pdf" }),
+      }),
+    );
+    vi.stubGlobal("WebSocket", FakeSocket);
+    render(<HostedChat config={config({ allow_files: true })} />);
+    await userEvent.upload(
+      document.querySelector('input[type="file"]')!,
+      new File(["x"], "invoice.pdf", { type: "application/pdf" }),
+    );
+    await screen.findByText("invoice.pdf");
+
+    await userEvent.click(screen.getByRole("button", { name: "Remove invoice.pdf" }));
+
+    expect(screen.queryByText("invoice.pdf")).toBeNull();
+  });
+
+  it("sends a file with no words at all", async () => {
+    // Somebody drops a screenshot and asks nothing. The server writes the turn
+    // anyway, because the row is what the file hangs off.
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue({ ok: true, json: async () => ({ id: "f-1", filename: "shot.png" }) }),
+    );
+    vi.stubGlobal("WebSocket", FakeSocket);
+    render(<HostedChat config={config({ allow_files: true })} />);
+    await userEvent.upload(
+      document.querySelector('input[type="file"]')!,
+      new File(["x"], "shot.png", { type: "image/png" }),
+    );
+    await screen.findByText("shot.png");
+
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(JSON.parse(socket().sent[0]!)).toMatchObject({ text: "", file_ids: ["f-1"] });
   });
 });

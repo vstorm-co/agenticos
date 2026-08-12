@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { MessageSquarePlus, Mic, MicOff, Send } from "lucide-react";
+import { MessageSquarePlus, Mic, MicOff, Paperclip, Send, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { MarkdownContent } from "@/components/chat/markdown-content";
 import { Button, Input } from "@/components/ui";
-import { WS_URL } from "@/lib/constants";
+import { BACKEND_URL, WS_URL } from "@/lib/constants";
 import { toolStep } from "@/lib/tool-steps";
 import { cn } from "@/lib/utils";
 import type { HostedPageConfig } from "@/types/hosted";
@@ -192,6 +192,11 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
   // so a new thread is a new connection rather than a frame.
   const [session, setSession] = useState(0);
   const [listening, setListening] = useState(false);
+  // Files already stored, waiting on the message that will name them. Held here
+  // rather than sent as they arrive: the id is what the turn carries, and a file
+  // attached and then thought better of should not become a turn of its own.
+  const [attached, setAttached] = useState<{ id: string; filename: string }[]>([]);
+  const [uploading, setUploading] = useState(false);
   // Whether this browser has a recogniser at all: a control that cannot work is
   // not rendered, the same rule the dashboard applies to a permission somebody
   // lacks. Read as an external snapshot rather than set from an effect - the
@@ -207,6 +212,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
   const socketRef = useRef<WebSocket | null>(null);
   const threadRef = useRef<HTMLDivElement | null>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const filePicker = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const visitor = visitorKeyFor(config.public_key);
@@ -276,16 +282,56 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
     setListening(true);
   }, [listening]);
 
+  /**
+   * Send a file, and keep the id the server answers with.
+   *
+   * Straight to the API rather than through a route handler of ours: this page has
+   * no session to proxy, and the upload is authorised by the public key and the
+   * visitor's own continuity key, both of which are already in the URL. A refusal
+   * - too large, a type nothing can read, a page whose operator turned this off -
+   * is said in the thread rather than thrown away, because a picker that appears
+   * to do nothing is worse than a sentence.
+   */
+  const attach = useCallback(
+    async (file: File) => {
+      setUploading(true);
+      try {
+        const body = new FormData();
+        body.append("file", file);
+        const visitor = visitorKeyFor(config.public_key);
+        const response = await fetch(
+          `${BACKEND_URL}/api/v1/embed/${encodeURIComponent(config.public_key)}/files?visitor=${visitor}`,
+          { method: "POST", body },
+        );
+        if (!response.ok) throw new Error("refused");
+        const stored = (await response.json()) as { id: string; filename: string };
+        setAttached((held) => [...held, stored]);
+      } catch {
+        setTurns((said) => [...said, { role: "assistant", text: t("uploadFailed") }]);
+      } finally {
+        setUploading(false);
+      }
+    },
+    [config.public_key, t],
+  );
+
   const send = useCallback(() => {
     const text = draft.trim();
     const socket = socketRef.current;
-    if (!text || socket === null || socket.readyState !== WebSocket.OPEN) return;
+    if ((!text && attached.length === 0) || socket === null || socket.readyState !== WebSocket.OPEN)
+      return;
     setTurns((said) => [...said, { role: "user", text }]);
     setDraft("");
+    setAttached([]);
     socket.send(
-      JSON.stringify({ type: "message", text, context: suppliedFromUrl(config.variables) }),
+      JSON.stringify({
+        type: "message",
+        text,
+        file_ids: attached.map((file) => file.id),
+        context: suppliedFromUrl(config.variables),
+      }),
     );
-  }, [draft, config.variables]);
+  }, [draft, attached, config.variables]);
 
   return (
     <div className="mx-auto flex h-dvh max-w-3xl flex-col px-4">
@@ -350,6 +396,26 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
         )}
       </div>
 
+      {attached.length > 0 && (
+        <div className="flex flex-wrap gap-2 pt-2">
+          {attached.map((file) => (
+            <span
+              key={file.id}
+              className="border-border flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs"
+            >
+              {file.filename}
+              <button
+                type="button"
+                onClick={() => setAttached((held) => held.filter((one) => one.id !== file.id))}
+                aria-label={t("removeAttachment", { name: file.filename })}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
       <form
         className="flex items-center gap-2 border-t py-4"
         onSubmit={(event) => {
@@ -364,6 +430,32 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
           aria-label={t("placeholder")}
           disabled={closed !== null}
         />
+        {config.allow_files && (
+          <>
+            <input
+              ref={filePicker}
+              type="file"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void attach(file);
+                // Cleared so choosing the same file twice fires again, which is
+                // what somebody does after a refused upload.
+                event.target.value = "";
+              }}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              disabled={closed !== null || uploading}
+              onClick={() => filePicker.current?.click()}
+              aria-label={t("attach")}
+            >
+              <Paperclip className="text-muted-foreground h-4 w-4" />
+            </Button>
+          </>
+        )}
         {config.allow_voice && canDictate && (
           <Button
             type="button"
@@ -380,7 +472,10 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
             )}
           </Button>
         )}
-        <Button type="submit" disabled={closed !== null || draft.trim() === ""}>
+        <Button
+          type="submit"
+          disabled={closed !== null || (draft.trim() === "" && attached.length === 0)}
+        >
           <Send className="h-4 w-4" />
           <span className="sr-only">{t("send")}</span>
         </Button>

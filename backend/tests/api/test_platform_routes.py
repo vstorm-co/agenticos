@@ -1259,6 +1259,15 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # write any.
         ("GET", f"{V1}/embed/{{public_key}}/hosted"),
         ("GET", f"{V1}/embed/{{public_key}}/logo"),
+        # The one open route on this surface that *writes*, and the only one whose
+        # exemption is about more than a read. It exists because a page whose
+        # operator ticked "a visitor may attach a file" has to accept bytes from
+        # somebody with no account; what bounds it is the page's own switch, a cap
+        # of this surface's own, the MIME allowlist every upload goes through, and
+        # a per-visitor-per-page limit in the shared Redis. The row is attributed
+        # to whoever published the page, because `chat_files.user_id` is NOT NULL
+        # and a stranger has nobody to be.
+        ("POST", f"{V1}/embed/{{public_key}}/files"),
     }
 )
 

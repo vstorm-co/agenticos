@@ -13,24 +13,27 @@ does that, and the same frames the dashboard chat already speaks work unchanged.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import (
     APIRouter,
+    File,
     Header,
     HTTPException,
     Query,
     Request,
     Response,
+    UploadFile,
     WebSocket,
     WebSocketDisconnect,
+    status,
 )
 from fastapi.responses import FileResponse
 
 from app.api.deps import DBSession, EmbedSvc
 from app.core.config import settings
 from app.db.session import get_db_context
-from app.schemas.agent_embed import PublicEmbedConfig, PublicPageConfig
+from app.schemas.agent_embed import PublicEmbedConfig, PublicPageConfig, PublicUpload
 from app.services import rate_limit
 from app.services.agent_embed import AgentEmbedService, EmbedDenied
 from app.services.embed_session import WIDGET_JS, EmbedSession, continuity_key
@@ -171,6 +174,58 @@ async def embed_widget(public_key: str, db: DBSession, request: Request) -> Resp
             "Cache-Control": "public, max-age=300",
         },
     )
+
+
+@router.post(
+    "/{public_key}/files", response_model=PublicUpload, status_code=status.HTTP_201_CREATED
+)
+async def embed_upload(
+    public_key: str,
+    service: EmbedSvc,
+    file: Annotated[UploadFile, File()],
+    visitor: str = Query(max_length=64),
+) -> Any:
+    """A file from a stranger, on a page whose operator allowed it.
+
+    **The only route on this surface that stores anything**, which is why it is
+    the only one with three gates rather than one. The visitor's continuity key is
+    required and shaped like one, because the limit is counted per visitor and per
+    page: an address is what a stranger has one of, a key is what a browser keeps,
+    and either alone is bypassable. The cap and the MIME allowlist are the
+    service's, and the row belongs to whoever published the page - see
+    `AgentEmbedService.accept_upload`.
+
+    Counted before the key is looked up, like admission next door, so probing for
+    live keys with a body attached is not free.
+
+    404 for every refusal that is about the *page* - unknown key, not a page, not
+    accepting files, no owner to attribute a file to - because a visitor is owed
+    "not here" and nothing about somebody else's configuration. What they sent is
+    a different matter and is answered plainly: too large, or a type nothing here
+    can read.
+
+    It answers the id and nothing else. The parse, the size and the storage path
+    are the operator's to read in the transcript, not the visitor's to read back.
+    """
+    key = continuity_key(visitor)
+    if key is None:
+        raise HTTPException(status_code=400, detail="A visitor key is required")
+    if not await rate_limit.embed_upload_allowed(public_key=public_key, visitor=key):
+        raise HTTPException(status_code=429, detail="Too many uploads. Try again shortly.")
+
+    embed = await service.find_page(public_key)
+    if embed is None:
+        raise HTTPException(status_code=404, detail="This page is not available")
+    try:
+        stored = await service.accept_upload(
+            embed,
+            data=await file.read(),
+            filename=file.filename or "attachment",
+            content_type=file.content_type,
+        )
+    except EmbedDenied:
+        raise HTTPException(status_code=404, detail="This page is not available") from None
+    return PublicUpload(id=stored.id, filename=stored.filename)
 
 
 @router.websocket("/{public_key}/ws")

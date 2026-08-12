@@ -110,6 +110,17 @@ class PageConfig(BaseSchema):
             "longer the one this browser resumes."
         ),
     )
+    allow_files: bool = Field(
+        default=False,
+        description=(
+            "Whether a visitor may attach a file. Off by default, and it is the "
+            "only setting here that lets a stranger *store* something: the bytes "
+            "go through the same allowlist, parser and storage a member's upload "
+            "does, under a cap of their own and a per-visitor limit. Where the "
+            "file then goes is the runner's decision and not this surface's - a "
+            "workspace where the agent has one, the prompt where it does not."
+        ),
+    )
     show_thinking: bool = Field(
         default=False,
         description=(
@@ -365,3 +376,16 @@ class PublicPageConfig(BaseSchema):
     # operator cannot turn off.
     allow_voice: bool = False
     allow_new_conversation: bool = True
+    allow_files: bool = False
+
+
+class PublicUpload(BaseSchema):
+    """What a visitor is told about a file they just sent.
+
+    The id, so the next message can name it, and the filename, so the composer
+    can draw the card they are looking at. Nothing else: the parse, the size and
+    the storage path belong to whoever reads the transcript.
+    """
+
+    id: UUID
+    filename: str

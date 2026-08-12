@@ -969,6 +969,7 @@ class TestAnExplicitNullOnAnEmbedUpdate:
             "accent": "#4f46e5",
             "allow_voice": False,
             "allow_new_conversation": True,
+            "allow_files": False,
             "show_thinking": False,
             "show_tool_steps": True,
             "show_tool_results": False,

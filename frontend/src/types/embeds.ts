@@ -69,6 +69,14 @@ export interface PageConfig {
   /** Whether the visitor may start a fresh thread, which mints a new key. */
   allow_new_conversation: boolean;
   /**
+   * Whether a visitor may attach a file.
+   *
+   * The only setting here that lets a stranger store something. Off by default,
+   * and the bytes go through the same allowlist and parser a member's upload
+   * does, under a smaller cap and a per-visitor limit.
+   */
+  allow_files: boolean;
+  /**
    * What of the agent's work the page is *sent*.
    *
    * Filters on emission rather than on rendering, which is why there is no
@@ -184,6 +192,7 @@ export const DEFAULT_PAGE_CONFIG: PageConfig = {
   accent: "#4f46e5",
   allow_voice: false,
   allow_new_conversation: true,
+  allow_files: false,
   show_thinking: false,
   show_tool_steps: true,
   show_tool_results: false,

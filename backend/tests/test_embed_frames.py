@@ -23,14 +23,23 @@ import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic_ai import FunctionToolCallEvent, FunctionToolResultEvent, PartStartEvent
 from pydantic_ai.messages import TextPart, ThinkingPart, ToolCallPart, ToolReturnPart
 
+from app.core.config import settings
+from app.core.exceptions import BadRequestError
 from app.db.models.agent_run import RunStatus
-from app.services.embed_session import EmbedSession, _no_answer, visible_frames
+from app.services.agent_embed import AgentEmbedService, EmbedDenied
+from app.services.embed_session import (
+    EmbedSession,
+    _attached_ids,
+    _no_answer,
+    visible_frames,
+)
+from app.services.file_upload import FileUploadService
 from app.services.run_stream import RunFrames
 
 pytestmark = pytest.mark.anyio
@@ -243,3 +252,102 @@ class TestATurnThatProducedNoWords:
         message = _no_answer(MagicMock(status=RunStatus.FAILED.value))
 
         assert "approve" not in message
+
+
+class TestAFileFromAStranger:
+    """The only thing on this surface that stores something, so the only one whose
+    refusals are worth pinning individually."""
+
+    async def test_a_page_that_was_not_asked_to_take_files_refuses(self) -> None:
+        embed = _embed(allow_files=False)
+
+        with pytest.raises(EmbedDenied):
+            await AgentEmbedService(MagicMock()).accept_upload(
+                embed, data=b"x", filename="a.txt", content_type="text/plain"
+            )
+
+    async def test_a_page_whose_publisher_is_gone_refuses_too(self) -> None:
+        """`chat_files.user_id` is `NOT NULL` and a visitor has nobody to be, so the
+        row is attributed to whoever published the page - the same person the run is
+        attributed to. With no owner there is nothing to attribute it to, and
+        storing it against nobody is not one of the options.
+        """
+        embed = _embed(allow_files=True)
+        embed.owner_user_id = None
+
+        with pytest.raises(EmbedDenied):
+            await AgentEmbedService(MagicMock()).accept_upload(
+                embed, data=b"x", filename="a.txt", content_type="text/plain"
+            )
+
+    async def test_a_file_past_this_surfaces_own_cap_is_refused_by_size(self) -> None:
+        """Smaller than a member's, and said plainly: this refusal is about what
+        they sent rather than about the operator's configuration."""
+        embed = _embed(allow_files=True)
+        oversized = b"x" * (settings.EMBED_MAX_UPLOAD_SIZE_MB * 1024 * 1024 + 1)
+
+        with pytest.raises(BadRequestError) as refused:
+            await AgentEmbedService(MagicMock()).accept_upload(
+                embed, data=oversized, filename="a.txt", content_type="text/plain"
+            )
+
+        assert refused.value.details["limit_mb"] == settings.EMBED_MAX_UPLOAD_SIZE_MB
+
+    async def test_an_accepted_file_belongs_to_whoever_published_the_page(self) -> None:
+        embed = _embed(allow_files=True)
+        stored = MagicMock(id=uuid.uuid4(), filename="a.txt")
+
+        with patch.object(
+            FileUploadService, "upload", new=AsyncMock(return_value=stored)
+        ) as uploaded:
+            answer = await AgentEmbedService(MagicMock()).accept_upload(
+                embed, data=b"hello", filename="a.txt", content_type="text/plain"
+            )
+
+        assert answer is stored
+        assert uploaded.await_args.kwargs["user_id"] == embed.owner_user_id
+
+
+class TestWhichFilesAFrameMayAttach:
+    async def test_a_frame_naming_more_than_the_cap_is_refused_whole(self) -> None:
+        session = _session(_embed(allow_files=True))
+
+        await session.handle(
+            {"type": "message", "text": "look", "file_ids": [str(uuid.uuid4()) for _ in range(4)]}
+        )
+
+        assert _kinds(session) == ["error"]
+        assert "3 files" in _sent(session)[0][1]["message"]
+
+    async def test_a_value_that_is_not_an_id_is_dropped_rather_than_refused(self) -> None:
+        """Losing an attachment beats losing the question that came with it."""
+        assert _attached_ids(["not-a-uuid"]) == []
+        assert _attached_ids("nonsense") == []
+
+    async def test_a_row_belonging_to_somebody_else_is_not_attached(self) -> None:
+        """Two conditions, and between them they stop a frame from attaching a file
+        it was never handed: the row is the page owner's, and it hangs off no
+        message yet."""
+        session = _session(_embed(allow_files=True))
+        mine = MagicMock(id=uuid.uuid4(), user_id=session.embed.owner_user_id, message_id=None)
+        somebody_elses = MagicMock(id=uuid.uuid4(), user_id=uuid.uuid4(), message_id=None)
+        already_sent = MagicMock(
+            id=uuid.uuid4(), user_id=session.embed.owner_user_id, message_id=uuid.uuid4()
+        )
+        asked = [mine.id, somebody_elses.id, already_sent.id]
+
+        with patch(
+            "app.services.embed_session.chat_file_repo.get_many",
+            new=AsyncMock(return_value=[mine, somebody_elses, already_sent]),
+        ):
+            usable = await session._files(MagicMock(), asked)
+
+        assert usable == [mine]
+
+    async def test_a_frame_that_names_nothing_reads_no_rows(self) -> None:
+        session = _session(_embed())
+
+        with patch("app.services.embed_session.chat_file_repo.get_many", new=AsyncMock()) as read:
+            assert await session._files(MagicMock(), []) == []
+
+        read.assert_not_awaited()

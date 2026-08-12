@@ -82,6 +82,16 @@ describe("what the page is allowed to offer", () => {
     );
   });
 
+  it("carries a decision to let a visitor attach a file", async () => {
+    // The only capability here that lets a stranger store something, which is why
+    // it is off until somebody says otherwise.
+    fields();
+
+    await userEvent.click(screen.getByRole("checkbox", { name: /attach a file/ }));
+
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ allow_files: true }));
+  });
+
   it("carries a decision to offer a microphone", async () => {
     fields();
 
