@@ -716,4 +716,21 @@ describe("the model the agent is already on", () => {
 
     expect(screen.getByRole("button", { name: "Use this model" })).toBeEnabled();
   });
+
+  it("creates rather than reuses once a different key has been picked", async () => {
+    // The key is part of "changed" too: an organization with two keys for one
+    // provider can re-point a model at the other, and reusing here would select
+    // the old profile with the old key and drop the one just picked.
+    state.secrets = [
+      secret({ id: "s-1", purpose: "openrouter", name: "Router key" }),
+      secret({ id: "s-2", purpose: "openrouter", name: "Router key two" }),
+    ];
+    mount({ selected: inUse({ secret_id: "s-1" }) });
+    expect(screen.getByRole("button", { name: "Use this model" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByLabelText("Key"));
+    await userEvent.click(screen.getByRole("option", { name: /Router key two/ }));
+
+    expect(screen.getByRole("button", { name: "Add model" })).toBeInTheDocument();
+  });
 });

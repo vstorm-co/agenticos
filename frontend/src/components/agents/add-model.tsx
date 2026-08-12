@@ -192,7 +192,11 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
     provider?.id === selected.provider &&
     model.trim() === selected.model &&
     label.trim() === "" &&
-    baseUrl.trim() === (selected.base_url ?? "");
+    baseUrl.trim() === (selected.base_url ?? "") &&
+    // The key is part of "changed" too: an organization with two keys for one
+    // provider can re-point a model at the other, and a submit that ignored this
+    // would select the old profile and silently drop the key just picked.
+    (secretId === "" || secretId === (selected.secret_id ?? ""));
   const already = unchanged ? selected : undefined;
 
   const canSubmit =
