@@ -413,6 +413,25 @@ describe("what the page does with the frames it is sent", () => {
     ).toBeInTheDocument();
   });
 
+  it("stops a turn's spinner when an error arrives with no trailing complete", () => {
+    // The route's own failure path fails a turn without a `complete`. A turn that
+    // had streamed a running tool call must not keep animating under the refusal
+    // - the error finishes it the way complete would.
+    render(<HostedChat config={config()} />);
+
+    act(() =>
+      socket().deliver({
+        type: "tool_call",
+        data: { tool_call_id: "c1", tool_name: "search_documents" },
+      }),
+    );
+    act(() => socket().deliver({ type: "error", data: { message: "Something went wrong." } }));
+
+    expect(screen.getByText("Something went wrong.")).toBeInTheDocument();
+    // The step is present but settled, not spinning: no progressbar is left behind.
+    expect(screen.queryByRole("progressbar")).toBeNull();
+  });
+
   it("ignores a frame it has never heard of", () => {
     // A page cached in somebody's browser may be older than this server. Closing
     // the thread over an unknown frame would take the conversation with it.

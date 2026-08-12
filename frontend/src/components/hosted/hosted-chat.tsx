@@ -109,8 +109,16 @@ export function fold(said: readonly Turn[], type: string, data: Record<string, n
       return said.map((turn) => (turn.live === true ? { ...turn, ...finished(turn) } : turn));
     case "error":
       // A turn that produced nothing leaves an empty bubble behind, so the
-      // refusal replaces it rather than appearing under it.
-      return [...withoutEmptyLive(said), refusal(String(payload.message))];
+      // refusal replaces it rather than appearing under it. A turn that produced
+      // something is finished the way `complete` finishes it - the route's own
+      // failure path fails a turn with no trailing `complete`, and a running
+      // spinner must not keep animating under the refusal.
+      return [
+        ...withoutEmptyLive(said).map((turn) =>
+          turn.live === true ? { ...turn, ...finished(turn) } : turn,
+        ),
+        refusal(String(payload.message)),
+      ];
     default:
       return [...said];
   }
