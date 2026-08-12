@@ -24,4 +24,12 @@ export interface HostedPageConfig {
    * anything.
    */
   variables: string[];
+  /**
+   * What the page may offer, as the operator set it.
+   *
+   * Sent rather than decided here: a capability the page turned on for itself
+   * would be one the operator cannot turn off.
+   */
+  allow_voice: boolean;
+  allow_new_conversation: boolean;
 }

@@ -967,6 +967,8 @@ class TestAnExplicitNullOnAnEmbedUpdate:
             "title": "",
             "welcome": "",
             "accent": "#4f46e5",
+            "allow_voice": False,
+            "allow_new_conversation": True,
             "logo": "agent",
         }
 

@@ -91,6 +91,25 @@ class PageConfig(BaseSchema):
         ),
     )
     accent: str = Field(default="#4f46e5", pattern=r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
+    allow_voice: bool = Field(
+        default=False,
+        description=(
+            "Whether the composer offers a microphone. It dictates into the box "
+            "using the browser's own speech recognition - the same one the "
+            "dashboard's composer uses - so no audio reaches this deployment and "
+            "nothing is transcribed server-side. Off by default because a "
+            "browser that has one hands the audio to its vendor, which is a "
+            "sentence somebody should read before turning it on."
+        ),
+    )
+    allow_new_conversation: bool = Field(
+        default=True,
+        description=(
+            "Whether the visitor may start a fresh thread. It mints a new "
+            "continuity key, so the old thread is not deleted - it is simply no "
+            "longer the one this browser resumes."
+        ),
+    )
     logo: HostedLogo = Field(
         default="agent",
         description=(
@@ -311,3 +330,8 @@ class PublicPageConfig(BaseSchema):
     logo_url: str | None
     agent_name: str
     variables: list[str] = []
+    # What the page may offer, decided by the operator and sent rather than
+    # inferred. A capability the page decided for itself would be one the
+    # operator cannot turn off.
+    allow_voice: bool = False
+    allow_new_conversation: bool = True

@@ -58,6 +58,16 @@ export interface PageConfig {
   welcome: string;
   /** `#rgb` or `#rrggbb`; the backend refuses anything else. */
   accent: string;
+  /**
+   * Whether the composer offers a microphone.
+   *
+   * The browser's own speech recognition dictates into the box - no audio
+   * reaches this deployment. Off by default because a browser that has one hands
+   * the audio to its vendor.
+   */
+  allow_voice: boolean;
+  /** Whether the visitor may start a fresh thread, which mints a new key. */
+  allow_new_conversation: boolean;
   logo: HostedLogo;
 }
 
@@ -160,6 +170,8 @@ export const DEFAULT_PAGE_CONFIG: PageConfig = {
   title: "",
   welcome: "",
   accent: "#4f46e5",
+  allow_voice: false,
+  allow_new_conversation: true,
   logo: "agent",
 };
 

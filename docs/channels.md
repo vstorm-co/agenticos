@@ -309,6 +309,21 @@ the next person can walk into by guessing. A dropped key costs continuity and
 never the conversation, so a stale value in somebody's browser is not a page that
 will not load.
 
+### What it offers
+
+Two switches, and both are the operator's rather than the page's — a capability
+a page turned on for itself would be one nobody could turn off.
+
+- **A button to start a fresh thread**, on by default. It mints a new continuity
+  key, so the old thread is not deleted: it stops being the one that browser
+  resumes.
+- **A microphone in the composer**, off by default. It dictates into the box
+  using the *visitor's own browser*, so no audio reaches this deployment and
+  nothing is transcribed here — but a browser that offers speech recognition
+  hands the audio to its vendor, which is the half worth reading before turning
+  it on for the public. A browser without one is shown no microphone rather than
+  a button that does nothing.
+
 ### What it looks like
 
 Four fields, all optional:

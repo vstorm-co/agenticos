@@ -390,6 +390,8 @@ class AgentEmbedService:
             logo_url=self._logo_url(embed, config),
             agent_name=agent.name if agent else "Assistant",
             variables=[variable.name for variable in declared if variable.url_safe],
+            allow_voice=config.allow_voice,
+            allow_new_conversation=config.allow_new_conversation,
         )
 
     async def page_logo_path(self, public_key: str) -> str | None:

@@ -554,7 +554,12 @@
     "hostedLogoReplace": "Replace the picture",
     "hostedLogoLimits": "PNG, JPEG, WebP or GIF, up to 2MB.",
     "hostedLogoPublishFirst": "Publish the page first - an upload needs somewhere to go. The picture can be added the moment it exists.",
-    "logoUploaded": "Logo uploaded"
+    "logoUploaded": "Logo uploaded",
+    "pageCapabilities": "What the page offers",
+    "pageAllowVoice": "A microphone in the composer",
+    "pageAllowVoiceHint": "Dictation using the visitor's own browser. No audio reaches this deployment and nothing is transcribed here - but a browser that offers it hands the audio to its vendor, so this is off unless you turn it on.",
+    "pageAllowNewConversation": "A button to start a fresh thread",
+    "pageAllowNewConversationHint": "The old thread is not deleted. It stops being the one this browser resumes."
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -1531,7 +1536,10 @@
     "send": "Send",
     "thinking": "Working on it…",
     "tooManyConnections": "Too many connections from here in the last minute. Try again shortly.",
-    "unavailable": "This assistant is not available right now."
+    "unavailable": "This assistant is not available right now.",
+    "newConversation": "New chat",
+    "startDictation": "Dictate",
+    "stopDictation": "Stop dictating"
   },
   "invitations": {
     "acceptSuccess": "Joined organization!",

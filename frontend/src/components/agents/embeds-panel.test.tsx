@@ -729,3 +729,36 @@ describe("a picture of the page's own", () => {
     expect(screen.getByText(/Publish the page first/)).toBeInTheDocument();
   });
 });
+
+describe("what a hosted page is allowed to offer", () => {
+  it("carries the operator's choices into the config, not the page's", async () => {
+    // A capability the page decided for itself would be one the operator cannot
+    // turn off, so both flags travel in the stored config.
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("page");
+
+    await userEvent.click(screen.getByRole("checkbox", { name: /A microphone in the composer/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Publish" }));
+
+    const [payload] = state.create.mutate.mock.calls.at(-1)!;
+    expect(payload.config).toMatchObject({ allow_voice: true, allow_new_conversation: true });
+  });
+
+  it("says a fresh thread does not delete the old one", async () => {
+    // It mints a new key. Calling that "delete" would be a promise the surface
+    // does not keep.
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("page");
+
+    expect(screen.getByText(/old thread is not deleted/)).toBeInTheDocument();
+  });
+
+  it("says where a dictated voice actually goes", async () => {
+    // Nothing reaches this deployment, and the browser hands it to its vendor.
+    // Somebody turning this on for the public should read both halves.
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("page");
+
+    expect(screen.getByText(/hands the audio to its vendor/)).toBeInTheDocument();
+  });
+});

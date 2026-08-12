@@ -47,11 +47,17 @@ function config(overrides: Partial<HostedPageConfig> = {}): HostedPageConfig {
     logo_url: null,
     agent_name: "Refund helper",
     variables: [],
+    allow_voice: false,
+    allow_new_conversation: true,
     ...overrides,
   };
 }
 
 beforeEach(() => {
+  // A stubbed recogniser must not outlive its test: the assertion that a browser
+  // without one renders no microphone would pass or fail on ordering.
+  vi.unstubAllGlobals();
+  window.localStorage.clear();
   FakeSocket.last = null;
   vi.stubGlobal("WebSocket", FakeSocket);
   window.localStorage.clear();
@@ -84,7 +90,7 @@ describe("the hosted page", () => {
     render(<HostedChat config={config({ welcome: "Ask about a refund." })} />);
 
     await userEvent.type(screen.getByRole("textbox"), "where is my money");
-    await userEvent.click(screen.getByRole("button"));
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
 
     expect(socket().sent).toHaveLength(1);
     expect(socket().sent[0]).not.toContain("Ask about a refund");
@@ -136,7 +142,7 @@ describe("the hosted page", () => {
     render(<HostedChat config={config({ variables: ["plan"] })} />);
 
     await userEvent.type(screen.getByRole("textbox"), "hello");
-    await userEvent.click(screen.getByRole("button"));
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
 
     const frame = JSON.parse(socket().sent[0]!);
     expect(frame.context).toEqual({ plan: "pro" });
@@ -146,7 +152,7 @@ describe("the hosted page", () => {
     render(<HostedChat config={config()} />);
 
     await userEvent.type(screen.getByRole("textbox"), "hello");
-    await userEvent.click(screen.getByRole("button"));
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
     act(() => socket().deliver({ type: "typing" }));
     expect(screen.getByText("Working on it…")).toBeInTheDocument();
 
@@ -180,5 +186,77 @@ describe("the hosted page", () => {
     act(() => socket().onclose?.({ code: 4003 }));
 
     expect(screen.getByRole("textbox")).toBeDisabled();
+  });
+});
+
+describe("what the operator lets the page offer", () => {
+  it("starts a fresh thread on a new key, and forgets what was on screen", async () => {
+    // The server maps a continuity key to a conversation, so a new key is a new
+    // thread. The old one is not deleted - it stops being the one this browser
+    // resumes.
+    render(<HostedChat config={config()} />);
+    FakeSocket.last!.deliver({ type: "history", messages: [{ role: "user", text: "earlier" }] });
+
+    const before = window.localStorage.getItem("agenticos:visitor:pk_abc");
+    await userEvent.click(screen.getByRole("button", { name: "New chat" }));
+
+    expect(window.localStorage.getItem("agenticos:visitor:pk_abc")).not.toBe(before);
+    expect(screen.queryByText("earlier")).toBeNull();
+  });
+
+  it("offers no way to start one when the operator did not allow it", () => {
+    render(<HostedChat config={config({ allow_new_conversation: false })} />);
+
+    expect(screen.queryByRole("button", { name: "New chat" })).toBeNull();
+  });
+
+  it("offers no microphone unless the operator turned it on", () => {
+    render(<HostedChat config={config({ allow_voice: false })} />);
+
+    expect(screen.queryByRole("button", { name: "Dictate" })).toBeNull();
+  });
+
+  it("offers no microphone in a browser that has none, even when allowed", () => {
+    // A control that cannot work is not rendered - the same rule the dashboard
+    // applies to a permission somebody lacks.
+    render(<HostedChat config={config({ allow_voice: true })} />);
+
+    expect(screen.queryByRole("button", { name: "Dictate" })).toBeNull();
+  });
+
+  it("dictates into the draft rather than sending anything anywhere", async () => {
+    // The browser's own recogniser: the transcript lands in the box exactly as
+    // if it had been typed, and no audio reaches this deployment.
+    const recognition = {
+      continuous: false,
+      interimResults: false,
+      lang: "",
+      onresult: null as ((event: unknown) => void) | null,
+      onend: null as (() => void) | null,
+      onerror: null as (() => void) | null,
+      start: vi.fn(),
+      stop: vi.fn(),
+    };
+    // A `function` expression, not an arrow: the component calls this with
+    // `new`, and an arrow is not a constructor.
+    vi.stubGlobal(
+      "SpeechRecognition",
+      vi.fn(function () {
+        return recognition;
+      }),
+    );
+
+    render(<HostedChat config={config({ allow_voice: true })} />);
+    await userEvent.click(screen.getByRole("button", { name: "Dictate" }));
+
+    expect(recognition.start).toHaveBeenCalled();
+
+    recognition.onresult?.({
+      resultIndex: 0,
+      results: [Object.assign([{ transcript: "where is my order" }], { isFinal: true })],
+    });
+
+    expect(await screen.findByDisplayValue("where is my order")).toBeInTheDocument();
+    expect(FakeSocket.last!.sent).toEqual([]);
   });
 });

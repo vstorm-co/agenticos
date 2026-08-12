@@ -6,6 +6,7 @@ import { Upload } from "lucide-react";
 
 import {
   Button,
+  Checkbox,
   Input,
   Label,
   Select,
@@ -120,6 +121,36 @@ export function PageFields({
           onChange={(event) => onChange({ ...config, welcome: event.target.value })}
         />
         <p className="text-muted-foreground text-xs">{t("hostedWelcomeHint")}</p>
+      </div>
+
+      <div className="space-y-2">
+        <Label>{t("pageCapabilities")}</Label>
+        <Label className="flex items-start gap-2 font-normal">
+          <Checkbox
+            checked={config.allow_new_conversation}
+            disabled={disabled}
+            onCheckedChange={(checked) =>
+              onChange({ ...config, allow_new_conversation: checked === true })
+            }
+          />
+          <span>
+            <span className="text-sm">{t("pageAllowNewConversation")}</span>
+            <span className="text-muted-foreground block text-xs">
+              {t("pageAllowNewConversationHint")}
+            </span>
+          </span>
+        </Label>
+        <Label className="flex items-start gap-2 font-normal">
+          <Checkbox
+            checked={config.allow_voice}
+            disabled={disabled}
+            onCheckedChange={(checked) => onChange({ ...config, allow_voice: checked === true })}
+          />
+          <span>
+            <span className="text-sm">{t("pageAllowVoice")}</span>
+            <span className="text-muted-foreground block text-xs">{t("pageAllowVoiceHint")}</span>
+          </span>
+        </Label>
       </div>
 
       <div className="space-y-2">
