@@ -103,6 +103,14 @@ export function parseErrorMessage(body: unknown, fallback: string = FALLBACK_MES
   const problems = readFastApiDetail(body);
   if (problems) return problems.map((problem) => `${problem.field}: ${problem.message}`).join("; ");
 
+  // The code spelled out, so a reader that shows `.message` without a translator
+  // (#655) says "Not authenticated" rather than the meaningless sentinel.
+  const code = readBffCode(body);
+  if (code !== null) {
+    const words = code.toLowerCase().replace(/_/g, " ");
+    return words.charAt(0).toUpperCase() + words.slice(1);
+  }
+
   if (isRecord(body)) {
     if (typeof body.detail === "string") return body.detail;
     if (typeof body.message === "string") return body.message;

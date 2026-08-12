@@ -100,7 +100,7 @@ export function SlashCommandsManager() {
     try {
       await updateCustom(record.id, { is_enabled: next });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("failedToggle"));
+      toast.error(getErrorMessage(e, tErrors, t("failedToggle")));
     }
   };
 
@@ -108,7 +108,7 @@ export function SlashCommandsManager() {
     try {
       await setBuiltinEnabled(name, next);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("failedToggle2"));
+      toast.error(getErrorMessage(e, tErrors, t("failedToggle2")));
     }
   };
 
@@ -118,7 +118,7 @@ export function SlashCommandsManager() {
       await remove(record.id);
       toast.success(`/${record.name} deleted.`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("failedDelete3"));
+      toast.error(getErrorMessage(e, tErrors, t("failedDelete3")));
     }
   };
 

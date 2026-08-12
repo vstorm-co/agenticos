@@ -77,6 +77,11 @@ describe("parseErrorMessage", () => {
     expect(error.details).toEqual({ slug: "support" });
   });
 
+  it("spells a BFF code out, for a reader with no translator in reach (#655)", () => {
+    expect(parseErrorMessage({ code: "NOT_AUTHENTICATED" })).toBe("Not authenticated");
+    expect(parseErrorMessage({ code: "SOMETHING_ELSE" })).toBe("Request failed");
+  });
+
   it("falls back rather than stringifying something it does not recognise", () => {
     // `{"detail": [...]}` passed straight to `Error` used to render as
     // "[object Object]" - a message that says nothing and looks like a crash.

@@ -23,7 +23,6 @@ export async function POST(request: NextRequest) {
     const response = NextResponse.json({
       user,
       access_token: data.access_token,
-      message: "Sign-in successful",
     });
 
     const isProd = process.env.NODE_ENV === "production";

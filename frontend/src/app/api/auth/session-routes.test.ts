@@ -465,7 +465,7 @@ describe("finishing an OAuth sign-in", () => {
 
     const response = await oauthCallback(request({}, { access_token: "x", refresh_token: "y" }));
 
-    await expect(response.json()).resolves.toEqual({ detail: "Sign-in failed" });
+    await expect(response.json()).resolves.toEqual({ code: "LOGIN_FAILED" });
   });
 
   it("answers 500 when the check could not be made", async () => {

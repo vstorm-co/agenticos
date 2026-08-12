@@ -21,7 +21,6 @@ export async function POST(request: NextRequest) {
     const response = NextResponse.json({
       user,
       access_token: body.access_token,
-      message: "Sign-in successful",
     });
 
     const isProd = process.env.NODE_ENV === "production";
@@ -42,7 +41,8 @@ export async function POST(request: NextRequest) {
     return response;
   } catch (error) {
     if (error instanceof BackendApiError) {
-      const detail = (error.data as { detail?: string })?.detail || "Sign-in failed";
+      const detail = (error.data as { detail?: string })?.detail;
+      if (!detail) return bffRefusal("LOGIN_FAILED", error.status);
       return NextResponse.json({ detail }, { status: error.status });
     }
     return bffRefusal("INTERNAL_SERVER_ERROR", 500);

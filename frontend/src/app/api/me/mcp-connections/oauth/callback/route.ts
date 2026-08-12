@@ -5,11 +5,13 @@ import { backendFetch } from "@/lib/server-api";
 /**
  * OAuth redirect target. The provider sends the user here with `code` + `state`
  * (or an `error`). We forward them to the backend's state-authenticated
- * callback, then bounce the browser back to the integrations settings page
- * with a status the page turns into a toast. A failure of this route's own is
- * named by a `BFF_ERROR_KEYS` code, since there is no locale here to write a
- * sentence in (#603); a provider's or the backend's reason is passed as given.
- * No auth cookie is required - the `state` token authenticates the exchange.
+ * callback, then bounce the browser back with the outcome in the query string -
+ * which today nothing reads: `/settings/integrations` is a redirect to
+ * `/mcp-servers` and no page consumes `mcp_oauth` (#657). A failure of this
+ * route's own is named by a `BFF_ERROR_KEYS` code, since there is no locale
+ * here to write a sentence in (#603); a provider's or the backend's reason is
+ * passed as given. No auth cookie is required - the `state` token
+ * authenticates the exchange.
  */
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
