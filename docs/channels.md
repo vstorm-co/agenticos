@@ -354,6 +354,14 @@ reading.
 resumes the thread, including what is already in it. It is 128 random bits and
 nothing about the person. Clearing site data starts a new thread.
 
+That key is the whole of what the page stores, which is why **a hosted page and a
+shared conversation show no cookie prompt** — the two surfaces served to somebody
+who is not a member are the two with no optional cookie to consent to. The
+product's banner used to appear here, asking permission for analytics this
+deployment does not run while sitting over the composer and covering Send (#644).
+A consent prompt for one essential key is a prompt whose only effect is the
+overlap.
+
 That shape is enforced, not assumed — the socket accepts 32 to 64 lower-case hex
 characters as a `visitor` and **drops anything else**, opening a fresh thread
 instead. It matters for a client of your own (below): keying continuity on a
