@@ -3,7 +3,7 @@
 import { Plus, X } from "lucide-react";
 
 import { Button, Checkbox, Input, Label } from "@/components/ui";
-import type { EmbedVariable } from "@/types/embeds";
+import type { EmbedKind, EmbedVariable } from "@/types/embeds";
 import { useTranslations } from "next-intl";
 
 /** What the backend accepts, so an over-long value is refused before it is sent. */
@@ -27,26 +27,27 @@ const MAX_VARIABLES = 20;
  * declaration any key they invented would become a line in the agent's
  * instructions.
  *
- * A hosted page grows a fourth control per row, because it changes what a
- * declaration can mean: the only place a value can come from there is the
- * visitor's own URL, so `url_safe` is what says a variable may be filled from
- * `?var_<name>=`. It is off by default and the backend refuses to host an embed
- * whose *required* variable is not marked, because a promise the surface cannot
- * keep is worse than a variable nobody declared.
+ * A page grows a fourth control per row, because it changes what a declaration
+ * can mean: the only place a value can come from there is the visitor's own URL,
+ * so `url_safe` is what says a variable may be filled from `?var_<name>=`. It is
+ * off by default and the backend refuses a page whose *required* variable is not
+ * marked, because a promise the surface cannot keep is worse than a variable
+ * nobody declared.
  */
 export function EmbedVariables({
   variables,
   disabled,
-  hosted,
+  kind,
   onChange,
 }: {
   variables: EmbedVariable[];
   disabled: boolean;
-  /** Whether this embed is also a page of ours, which is what `url_safe` is about. */
-  hosted: boolean;
+  /** The surface, because `url_safe` only means anything on a page. */
+  kind: EmbedKind;
   onChange: (variables: EmbedVariable[]) => void;
 }) {
   const t = useTranslations("agents");
+  const hosted = kind === "page";
 
   function edit(index: number, patch: Partial<EmbedVariable>) {
     onChange(variables.map((row, at) => (at === index ? { ...row, ...patch } : row)));

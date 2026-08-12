@@ -68,4 +68,5 @@ export const DOCS_URL = "https://vstorm-co.github.io/agenticos";
  */
 export const DOCS = {
   RAW_WEBSOCKET: `${DOCS_URL}/channels/#the-raw-websocket`,
+  PUBLIC_API: `${DOCS_URL}/channels/#the-public-api`,
 } as const;

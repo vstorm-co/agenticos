@@ -1,8 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Code2, Copy, Globe, Plus, Trash2 } from "lucide-react";
+import { Check, Code2, Copy, Radio, Trash2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 
+import { EmbedForm } from "@/components/agents/embed-form";
+import {
+  ApiSurfaceNotes,
+  SurfacePicker,
+  type SurfaceChoice,
+} from "@/components/agents/surface-picker";
 import { LoadingState } from "@/components/states";
 import {
   Badge,
@@ -13,32 +20,13 @@ import {
   CardHeader,
   CardTitle,
   ConfirmDialog,
-  Input,
-  Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
   Switch,
-  MarkdownEditor,
-  Textarea,
 } from "@/components/ui";
 import { useEmbeds } from "@/hooks";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { DOCS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import {
-  DEFAULT_EMBED_THEME,
-  DEFAULT_HOSTED_CONFIG,
-  type Embed,
-  type EmbedAuthMode,
-  type EmbedVariable,
-  type HostedConfig,
-} from "@/types/embeds";
-import { EmbedVariables } from "@/components/agents/embed-variables";
-import { HostedPageFields } from "@/components/agents/hosted-page-fields";
-import { useTranslations } from "next-intl";
+import type { Embed, EmbedKind } from "@/types/embeds";
 
 interface EmbedsPanelProps {
   agentId: string;
@@ -46,92 +34,42 @@ interface EmbedsPanelProps {
   canManage: boolean;
 }
 
-/** Origins as typed: one per line, blank lines dropped, whitespace trimmed. */
-function parseOrigins(value: string): string[] {
-  return value
-    .split(/[\n,]/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-}
+/** What each surface is called, so a row says what it is without reading its URL. */
+const KIND_LABEL: Record<EmbedKind, string> = {
+  widget: "surfaceWidget",
+  socket: "surfaceSocket",
+  page: "surfacePage",
+};
 
 /**
- * The widgets this agent is published as.
+ * The public surfaces this agent is published on.
  *
- * The panel leads with the snippet rather than the settings, because pasting it
- * is the only step a customer actually performs; everything else is ours to get
- * right beforehand.
- *
- * The origin field is a textarea and not a nicety: an empty allow-list allows
- * nothing, and that has to be visible at the moment somebody creates a widget
- * rather than discovered when it silently refuses to open.
+ * A list and a picker, rather than one *Publish as widget* button with the other
+ * two surfaces hidden inside its form. They are one table underneath - one
+ * public key, one rate bucket, one budget, one pause switch - and three
+ * different things to configure, which is exactly the shape a picker models and
+ * a single form does not.
  */
 export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
   const t = useTranslations("agents");
   const tc = useTranslations("common");
   const { embeds, isLoading, create, update, remove } = useEmbeds(agentId);
-  const [creating, setCreating] = useState(false);
+  const [picked, setPicked] = useState<SurfaceChoice | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Embed | null>(null);
-
-  const [name, setName] = useState(t("websiteWidget"));
-  const [origins, setOrigins] = useState("");
-  const [authMode, setAuthMode] = useState<EmbedAuthMode>("public");
-  const [secret, setSecret] = useState("");
-  const [context, setContext] = useState("");
-  const [variables, setVariables] = useState<EmbedVariable[]>([]);
-  const [accent, setAccent] = useState(DEFAULT_EMBED_THEME.accent);
-  const [hosted, setHosted] = useState(false);
-  const [hostedConfig, setHostedConfig] = useState<HostedConfig>(DEFAULT_HOSTED_CONFIG);
-
-  const reset = () => {
-    setCreating(false);
-    setName(t("websiteWidget2"));
-    setOrigins("");
-    setAuthMode("public");
-    setSecret("");
-    setContext("");
-    setVariables([]);
-    setAccent(DEFAULT_EMBED_THEME.accent);
-    setHosted(false);
-    setHostedConfig(DEFAULT_HOSTED_CONFIG);
-  };
-
-  const submit = () => {
-    create.mutate(
-      {
-        agent_id: agentId,
-        name: name.trim(),
-        auth_mode: authMode,
-        jwt_secret: authMode === "jwt" ? secret : null,
-        allowed_origins: parseOrigins(origins),
-        theme: { ...DEFAULT_EMBED_THEME, accent },
-        // Token auth cannot be hosted, so the flag follows the mode rather than
-        // sending a combination the backend is about to refuse.
-        hosted: hosted && authMode === "public",
-        hosted_config: hostedConfig,
-        context: context.trim() || null,
-        // A row somebody started and left blank is not a declaration. Dropped
-        // here rather than refused on save: the name is the contract, and an
-        // empty one has nothing to contract about.
-        context_variables: variables.filter((variable) => variable.name.trim() !== ""),
-        rate_limit_per_minute: 10,
-      },
-      { onSuccess: reset },
-    );
-  };
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Globe className="h-4 w-4" />
-          {t("websiteWidget")}
+          <Radio className="h-4 w-4" />
+          {t("publicSurfaces")}
         </CardTitle>
-        <CardDescription>{t("publishAgentAsChat")}</CardDescription>
+        <CardDescription>{t("publicSurfacesDescription")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {isLoading ? (
           <LoadingState variant="skeleton-panel" rows={1} />
-        ) : embeds.length === 0 && !creating ? (
+        ) : embeds.length === 0 ? (
           <p className="text-muted-foreground text-sm">{t("notPublishedAnySite")}</p>
         ) : (
           <div className="space-y-3">
@@ -147,164 +85,17 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
           </div>
         )}
 
-        {creating && (
-          <div className="border-border space-y-4 rounded-lg border border-dashed p-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="embed-name">{t("name5")}</Label>
-                <Input
-                  id="embed-name"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder={t("websiteWidget")}
-                />
-                <p className="text-muted-foreground text-xs">{t("youNotVisitorsWhich")}</p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="embed-accent">{t("accentColour")}</Label>
-                <div className="flex items-center gap-2">
-                  <input
-                    id="embed-accent"
-                    type="color"
-                    value={accent}
-                    onChange={(event) => setAccent(event.target.value)}
-                    className="border-input h-9 w-12 cursor-pointer rounded-md border bg-transparent"
-                  />
-                  <Input
-                    value={accent}
-                    onChange={(event) => setAccent(event.target.value)}
-                    className="font-mono"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="embed-origins">{t("allowedSites")}</Label>
-              <Textarea
-                id="embed-origins"
-                value={origins}
-                onChange={(event) => setOrigins(event.target.value)}
-                placeholder={"https://acme.com\nhttps://www.acme.com"}
-                rows={3}
-                className="font-mono text-sm"
-              />
-              <p className="text-muted-foreground text-xs">{t("onePerLineDifferent")}</p>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="embed-auth">{t("whoCanUse")}</Label>
-                <Select
-                  value={authMode}
-                  onValueChange={(value) => setAuthMode(value as EmbedAuthMode)}
-                >
-                  <SelectTrigger id="embed-auth">
-                    <SelectValue />
-                  </SelectTrigger>
-                  {/* Each option's second line exists to tell it from the other
-                      one, so it belongs in `trailing`: an item's `ItemText` is
-                      what Radix draws in the closed trigger, where the sentence
-                      distinguishing two modes is left describing one.
-
-                      The cap is what that costs. Stacked, the two lines were
-                      about 30 characters wide; side by side they are one row of
-                      about 60, and a popper sized to `max-content` overflowed a
-                      narrow viewport. `runtime-field.tsx` caps its content for
-                      the same reason. */}
-                  <SelectContent className="max-w-[min(26rem,90vw)]">
-                    <SelectItem
-                      value="public"
-                      trailing={
-                        <span className="text-muted-foreground ml-auto max-w-64 pl-3 text-xs">
-                          {t("noSignMarketingPage")}
-                        </span>
-                      }
-                    >
-                      {t("anyoneThoseSites")}
-                    </SelectItem>
-                    <SelectItem
-                      value="jwt"
-                      trailing={
-                        <span className="text-muted-foreground ml-auto max-w-64 pl-3 text-xs">
-                          {t("yourBackendSignsToken")}
-                        </span>
-                      }
-                    >
-                      {t("signedUsersOnly")}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              {authMode === "jwt" && (
-                <div className="space-y-2">
-                  <Label htmlFor="embed-secret">{t("signingSecret2")}</Label>
-                  <Input
-                    id="embed-secret"
-                    value={secret}
-                    onChange={(event) => setSecret(event.target.value)}
-                    placeholder={t("atLeast16Characters")}
-                    className="font-mono"
-                  />
-                  <p className="text-muted-foreground text-xs">{t("storedVaultNeverShown")}</p>
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="embed-context">{t("contextPlacement")}</Label>
-              <MarkdownEditor
-                id="embed-context"
-                value={context}
-                onChange={setContext}
-                label={t("contextPlacement")}
-                placeholder={t("youArePricingPage")}
-                rows={6}
-                disabled={create.isPending}
-              />
-              <p className="text-muted-foreground text-xs">{t("addedFirstMessageEach")}</p>
-            </div>
-
-            <EmbedVariables
-              variables={variables}
-              disabled={create.isPending}
-              hosted={hosted && authMode === "public"}
-              onChange={setVariables}
-            />
-
-            <HostedPageFields
-              hosted={hosted}
-              config={hostedConfig}
-              authMode={authMode}
-              variables={variables}
-              disabled={create.isPending}
-              onHostedChange={setHosted}
-              onConfigChange={setHostedConfig}
-            />
-
-            <div className="flex items-center gap-2">
-              <Button
-                onClick={submit}
-                disabled={create.isPending || !name.trim() || parseOrigins(origins).length === 0}
-              >
-                {t("publishWidget")}
-              </Button>
-              <Button variant="ghost" onClick={reset}>
-                {t("cancel3")}
-              </Button>
-              {parseOrigins(origins).length === 0 && (
-                <span className="text-muted-foreground text-xs">{t("addAtLeastOne")}</span>
-              )}
-            </div>
-          </div>
+        {picked === "api" && <ApiSurfaceNotes agentId={agentId} onClose={() => setPicked(null)} />}
+        {picked !== null && picked !== "api" && (
+          <EmbedForm
+            agentId={agentId}
+            kind={picked}
+            pending={create.isPending}
+            onSubmit={(embed) => create.mutate(embed, { onSuccess: () => setPicked(null) })}
+            onCancel={() => setPicked(null)}
+          />
         )}
-
-        {canManage && !creating && (
-          <Button variant="outline" onClick={() => setCreating(true)}>
-            <Plus className="h-4 w-4" />
-            {t("publishAsWidget")}
-          </Button>
-        )}
+        {canManage && picked === null && <SurfacePicker onPick={setPicked} />}
       </CardContent>
 
       {pendingDelete !== null && (
@@ -377,9 +168,8 @@ function EmbedRow({
     <div className="border-border rounded-lg border p-3">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm font-medium">{embed.name}</span>
-        <Badge variant={embed.auth_mode === "jwt" ? "secondary" : "outline"}>
-          {embed.auth_mode === "jwt" ? "signed-in users" : "public"}
-        </Badge>
+        <Badge variant="secondary">{t(KIND_LABEL[embed.kind])}</Badge>
+        {embed.auth_mode === "jwt" && <Badge variant="outline">{t("authSignedIn")}</Badge>}
         {!embed.is_active && <Badge variant="outline">{t("paused")}</Badge>}
         <div className="flex-1" />
         {canManage && (
@@ -402,47 +192,57 @@ function EmbedRow({
         )}
       </div>
 
-      <Integration
-        label={t("scriptTagIntegration")}
-        value={embed.snippet}
-        copyLabel={t("copySnippet")}
-      />
-      <Integration
-        label={t("socketIntegration")}
-        value={embed.socket_url}
-        copyLabel={t("copySocketUrl")}
-      />
-      {embed.hosted_url !== null && (
+      {embed.snippet !== null && (
+        <Integration
+          label={t("scriptTagIntegration")}
+          value={embed.snippet}
+          copyLabel={t("copySnippet")}
+        />
+      )}
+      {embed.socket_url !== null && (
+        <Integration
+          label={t("socketIntegration")}
+          value={embed.socket_url}
+          copyLabel={t("copySocketUrl")}
+        />
+      )}
+      {embed.page_url !== null && (
         <>
           <Integration
             label={t("hostedIntegration")}
-            value={embed.hosted_url}
+            value={embed.page_url}
             copyLabel={t("copyHostedUrl")}
           />
           <p className="text-muted-foreground mt-2 text-xs">{t("hostedLinkProtection")}</p>
         </>
       )}
 
-      <p className="text-muted-foreground mt-2 text-xs">
-        {t("nativeClientOriginNote")}{" "}
-        <a
-          href={DOCS.RAW_WEBSOCKET}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline underline-offset-2"
-        >
-          {t("socketFramesAndCloseCodes")}
-        </a>
-      </p>
+      {embed.socket_url !== null && (
+        <p className="text-muted-foreground mt-2 text-xs">
+          {t("nativeClientOriginNote")}{" "}
+          <a
+            href={DOCS.RAW_WEBSOCKET}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2"
+          >
+            {t("socketFramesAndCloseCodes")}
+          </a>
+        </p>
+      )}
 
-      <p className="text-muted-foreground mt-2 flex items-center gap-1.5 text-xs">
-        <Code2 className="h-3 w-3 shrink-0" />
-        <span className={cn("truncate", embed.allowed_origins.length === 0 && "text-destructive")}>
-          {embed.allowed_origins.length === 0
-            ? t("noSitesAllowedWidget")
-            : embed.allowed_origins.join(", ")}
-        </span>
-      </p>
+      {embed.kind !== "page" && (
+        <p className="text-muted-foreground mt-2 flex items-center gap-1.5 text-xs">
+          <Code2 className="h-3 w-3 shrink-0" />
+          <span
+            className={cn("truncate", embed.allowed_origins.length === 0 && "text-destructive")}
+          >
+            {embed.allowed_origins.length === 0
+              ? t("noSitesAllowedWidget")
+              : embed.allowed_origins.join(", ")}
+          </span>
+        </p>
+      )}
     </div>
   );
 }

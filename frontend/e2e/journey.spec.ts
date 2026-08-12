@@ -247,19 +247,19 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
   await page.goto(`/agents/${agentId}`);
   await page.getByRole("tab", { name: "Availability" }).click();
   const availability = page.getByRole("tabpanel");
-  const publishWidget = availability.getByRole("button", { name: "Publish as widget" });
-  if (!(await publishWidget.isVisible())) {
+  const publishPage = availability.getByRole("button", { name: /Hosted page/ }).first();
+  if (!(await publishPage.isVisible())) {
     test.skip(true, "this user cannot publish an embed");
   }
-  await publishWidget.click();
+  await publishPage.click();
 
-  // A site has to be allowed before the form will publish at all - an empty list
-  // allows nothing, deliberately. The hosted page does not need it (our own
-  // origin is admitted by the hosting flag), which is exactly why the widget's
-  // rule has to stay visible in the same form.
-  await availability.getByLabel("Allowed sites").fill(origin);
-  await availability.getByRole("switch", { name: "Also serve it as a page of ours" }).click();
-  await availability.getByRole("button", { name: "Publish widget" }).click();
+  // No allowed site, and that is the assertion rather than an omission: an
+  // allow-list is a rule about other people's sites, and this page is ours. The
+  // form used to demand one before it would publish anything, which made the
+  // shortest integration this product has - send somebody a link - impossible to
+  // create without inventing a site.
+  await expect(availability.getByLabel("Allowed sites")).toHaveCount(0);
+  await availability.getByRole("button", { name: "Publish" }).click();
 
   // Reloaded before the link is read. The list's refetch after a write is
   // sometimes answered with the pre-write list (#230), and this step needs the
