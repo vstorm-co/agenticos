@@ -25,7 +25,12 @@ from app.services.channels.base import IncomingMessage, OutgoingAttachment, Outg
 from app.services.channels.dedupe import claim_delivery, release_delivery
 from app.services.channels.directory import BoundChannelDirectory
 from app.services.channels.live_reply import WORKING, LiveReply, channel_stream
-from app.services.channels.mentions import ChannelAgentRouter, UnaddressedMessage, channel_key
+from app.services.channels.mentions import (
+    ChannelAgentRouter,
+    UnaddressedMessage,
+    channel_key,
+    parse_mention,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -185,6 +190,16 @@ class ChannelMessageRouter:
             identity = await self._resolve_identity(incoming, bot, db)
         except AuthorizationError as exc:
             await self._send_reply(bot, incoming, exc.message)
+            return
+
+        if self._is_overheard(incoming):
+            # Not a refusal and not an error: nobody asked. A bot sitting in a
+            # channel hears everything said in it, and answering all of it is the
+            # difference between a colleague and an interruption.
+            logger.debug(
+                "channel_message_not_addressed",
+                extra={"platform": incoming.platform, "bot_id": incoming.bot_id},
+            )
             return
 
         admit_unlinked = self._admits_unlinked(incoming, bot)
@@ -360,7 +375,19 @@ class ChannelMessageRouter:
         except UnaddressedMessage:
             return False
         except AppException as exc:
-            await self._send_reply(bot, incoming, exc.message)
+            # A handle that names no agent of ours. In a channel where the bot was
+            # not among the mentioned accounts, that handle was somebody's
+            # colleague - so the refusal is logged rather than posted, because a bot
+            # that answers "@ada is not available on this bot" every time two people
+            # talk to each other is the interruption this gate exists to stop. It
+            # still counts as handled: nothing else should answer it either.
+            if self._names_the_bot(incoming):
+                await self._send_reply(bot, incoming, exc.message)
+            else:
+                logger.info(
+                    "channel_mention_not_ours",
+                    extra={"platform": incoming.platform, "bot_id": incoming.bot_id},
+                )
             return True
 
         answer = self._with_notes(answered.text, file_refusals, _kept_back(answered.refused))
@@ -487,6 +514,50 @@ class ChannelMessageRouter:
         if incoming.chat_type == "private":
             return False
         return not bool(self._parse_policy(bot).get("require_link", False))
+
+    @staticmethod
+    def _is_overheard(incoming: IncomingMessage) -> bool:
+        """Whether this message was said *near* the bot rather than to it.
+
+                **A direct message is always to the bot** - there is nobody else in the
+                room, so requiring a mention there would be asking somebody to address the
+                only participant. In a channel it is the other way round: the bot is one
+                member of many, and a message that names nobody names nobody.
+
+                The distinction is what was missing. Mattermost's socket delivers every
+                post in every channel the bot belongs to, so the default agent answered all
+                of them - a bot added to a team channel replied to colleagues talking to
+                each other (agenticos#634).
+
+                `addressed is None` means the platform did not say, and that is deliberately
+                *not* treated as unaddressed: Slack and Telegram deliver on their own
+                subscription rules, and reading silence as "ignore" would make a working bot
+                on either go quiet.
+
+        **An `@agent-slug` handle counts as addressing the bot**, and it has to be read
+                here rather than left to `_answer_mention`: an agent's slug is a name in *this*
+                product, not an account on the platform, so it never appears in a mention list
+                and a gate that only trusted that list would have silently broken every
+                `@sales what is the refund window` in a channel.
+
+                Read syntactically, which lets a message naming a *colleague* past this gate -
+                `@ada` is a handle as far as the pattern is concerned. What stops the bot
+                answering that is `_answer_mention` keeping its refusal to itself when the
+                platform says the bot was not among the mentioned; see `_names_the_bot`.
+        """
+        if incoming.chat_type == "private" or incoming.addressed is not False:
+            return False
+        return parse_mention(incoming.text) is None
+
+    @staticmethod
+    def _names_the_bot(incoming: IncomingMessage) -> bool:
+        """Whether the bot itself was addressed, as far as the platform will say.
+
+        True in a direct message and true where the platform did not report mentions
+        at all, both for the reason `_is_overheard` gives: neither is a case where
+        silence is what somebody asked for.
+        """
+        return incoming.chat_type == "private" or incoming.addressed is not False
 
     async def _invite_to_link(self, incoming: IncomingMessage, db: Any) -> str:
         """What to answer somebody whose chat account is nobody's yet.

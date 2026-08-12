@@ -98,6 +98,20 @@ class IncomingMessage:
     platform_username: str | None = None
     platform_display_name: str | None = None
     message_id: str | None = None
+    addressed: bool | None = None
+    """Whether this message named the bot, where the platform says.
+
+    `None` means it did not say, and the two are not the same answer: a platform
+    that reports mentions lets a bot sit in a busy channel and only speak when
+    somebody asks it, while `None` leaves the behaviour a bot had before - answer
+    whatever arrives, because what arrives is what that platform chose to deliver.
+
+    Only Mattermost sets it today, and it is the surface the difference was
+    reported on: its socket delivers *every* post in every channel the bot is in,
+    so a default agent answering all of them is a bot that talks over a team
+    (agenticos#634). Slack and Telegram deliver on their own subscription rules.
+    """
+
     attachments: list[IncomingAttachment] = field(default_factory=list)
     """Files sent with this message, unfetched.
 

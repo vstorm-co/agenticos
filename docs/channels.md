@@ -494,7 +494,7 @@ Four fields, all optional:
 | Field | Default |
 |---|---|
 | **Page title** | the agent's name |
-| **Welcome message** | none. Shown before the first question, and never sent to the model — a greeting in the model's history is a turn the agent thinks it took |
+| **Welcome message** | none. **Markdown**, written in the same editor the placement note uses and rendered as Markdown on the page. Shown before the first question and never sent to the model — a greeting in the model's history is a turn the agent thinks it took |
 | **Accent colour** | `#4f46e5`. Light and dark still follow the visitor's system |
 | **Logo** | the agent's avatar; or the organization's, one you upload, or none. Whichever you pick, the page shows **nothing** rather than a broken image when there is no file behind it — an agent with no avatar is the common case, and a browser cannot tell a 404 from a slow image |
 
@@ -596,6 +596,28 @@ Two ways in; pick by whether your Mattermost can reach this deployment.
    admit it, saying it "is not a part of this team".
 4. Invite the bot to a channel. The deployment opens an authenticated WebSocket
    to your server and every `posted` event arrives on it.
+
+**Every** post, which is the thing to know about this transport: the socket is not
+a subscription to messages aimed at the bot, it is the channel. So the rule is the
+one a colleague follows:
+
+| Where | When it answers |
+|---|---|
+| **A direct message** | Always. There is nobody else in the room, so requiring a mention would be asking somebody to address the only participant |
+| **A channel** | Only when it is named — `@the-bot`, or `@agent-slug` for one of the agents exposed on it |
+
+The bot resolves its own account once per stream session and reads Mattermost's
+own mention list off each event, rather than matching text: `@ada` is somebody
+whose display name the bot cannot resolve, and a bot called `bot` should not answer
+the word "robot". An `@agent-slug` is the exception that has to be read from the
+text — a slug is a name in *this* product, so it is never in a mention list. A
+handle that turns out to name neither the bot nor one of its agents is answered in
+a direct message and passed over in a channel, because there it was somebody's
+colleague.
+
+If the bot's own account cannot be resolved, it answers everything, as it did
+before this rule existed: going quiet on a server that would not say who we are is
+the worse of the two failures.
 
 **Outgoing webhook.** For a Mattermost that can reach this API.
 
