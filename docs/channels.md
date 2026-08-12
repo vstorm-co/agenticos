@@ -1,7 +1,7 @@
 # Putting an agent where people already are
 
 An agent that only answers inside this dashboard is a demo. The same published
-agent answers in seven places, and every one of them runs the *same frozen
+agent answers in eight places, and every one of them runs the *same frozen
 version* through the same budget, the same approval gate and the same tenant
 checks — the surface changes, the agent does not.
 
@@ -9,7 +9,7 @@ checks — the surface changes, the agent does not.
 |---|---|---|
 | **Dashboard** | nothing | a signed-in member |
 | **Website widget** | a `<script>` tag | anonymous, or a user your backend vouches for |
-| **WebSocket** | a widget key | whatever your integration says |
+| **Raw WebSocket** | an embed key | whatever your integration says |
 | **A hosted page** | a link | anonymous, and nothing else |
 | **The API** | a session | whoever holds the credential |
 | **Slack** | a bot token | a Slack account, optionally linked to a member |
