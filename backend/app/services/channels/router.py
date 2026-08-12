@@ -66,6 +66,18 @@ def _as_command(text: str) -> str:
     return f"/{stripped}" if match else stripped
 
 
+# How much of a channel thread the model is reminded of.
+#
+# Its own number rather than the widget's 40, and larger, because the two surfaces
+# are bounded for different reasons. A widget's is a public URL with somebody
+# else's budget behind it, so the ceiling is about spend. A channel is a room the
+# operator's own colleagues work in: the thread is long-lived and shared, so a
+# window that only holds a few turns loses context two people are relying on. What
+# it is still bounded *for* is the same - a prompt is not a transcript, and one
+# thread's whole history is a per-turn bill that grows for ever.
+HISTORY_MESSAGES = 200
+
+
 def _get_chat_lock(bot_id: str, chat_id: str) -> asyncio.Lock:
     """Return (or create) the asyncio.Lock for a bot + chat pair."""
     key = f"{bot_id}:{chat_id}"
@@ -826,11 +838,26 @@ class ChannelMessageRouter:
 
     @staticmethod
     async def _load_history(db: Any, conversation_id: Any) -> list[dict[str, str]]:
-        """The channel thread so far, oldest first, as role/content dicts."""
+        """The most recent turns of the channel thread, oldest first.
+
+        **The most recent, which took a `count` to get right.** The repository orders
+        oldest-first, so `limit` with no offset is the *first* `HISTORY_MESSAGES`
+        turns - and a support channel passes that in days, because
+        `channel_sessions` keys the conversation to the chat and the thread never
+        rolls over. Past it the model was reminded of how the conversation opened
+        and told nothing said since, including the question before the one it was
+        answering. Nothing errored: the bot answered plausibly, from a version of
+        the conversation that had stopped hundreds of turns ago (#638).
+
+        One `COUNT(*)` per turn on an indexed column is the price, and it is the
+        price the widget has paid since #39 fixed the same window from the other
+        direction - see `embed_session.HISTORY_MESSAGES`.
+        """
+        total = await conversation_repo.count_messages(db, conversation_id)
         messages = await conversation_repo.get_messages_by_conversation(
             db,
             conversation_id=conversation_id,
-            skip=0,
-            limit=200,
+            skip=max(0, total - HISTORY_MESSAGES),
+            limit=HISTORY_MESSAGES,
         )
         return [{"role": m.role, "content": m.content} for m in messages]

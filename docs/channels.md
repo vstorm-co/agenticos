@@ -684,6 +684,19 @@ it is about to wait.
 
 ## What every channel shares
 
+- **The model is reminded of the most recent turns, not the first ones.** A
+  channel thread is keyed to the chat and never rolls over, so a support channel
+  passes the window in days. Two hundred turns for a channel against forty for a
+  widget, and the two numbers are different on purpose: a widget is a public URL
+  with somebody else's budget behind it, and a channel is a room the operator's own
+  colleagues work in. Bounded either way, because a prompt is not a transcript and
+  one thread's whole history is a per-turn bill that grows for ever.
+
+    It read from the wrong end until #638: the repository orders oldest-first, so
+    the bot was told how the conversation opened and nothing said since — and it
+    answered plausibly, from a version of the thread that had stopped hundreds of
+    turns ago. Nothing errored, which is why it needed a test rather than a fix.
+
 - **One bot answers as one agent.** A bot user is a single identity in the chat:
   the same avatar, the same name, whichever agent produced the reply. So a bot
   serves exactly one agent, and binding a second is refused — in the Builder's
