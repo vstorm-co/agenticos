@@ -80,7 +80,7 @@ def _a_turn(runner: MagicMock) -> Any:
     with (
         patch("app.services.embed_session.AgentRunnerService", return_value=runner),
         patch("app.services.embed_session.conversation_repo") as conversations,
-        patch("app.services.embed_session.member_repo") as members,
+        patch("app.services.access.member_repo") as members,
     ):
         conversations.count_messages = AsyncMock(return_value=0)
         conversations.get_messages_by_conversation = AsyncMock(return_value=[])

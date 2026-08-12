@@ -50,12 +50,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.capabilities.channel_tools import ChannelDirectory
 from app.agents.capabilities.charts._spec import parse_chart_spec
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext
 from app.db.models.agent_exposure import AgentExposure
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
 from app.repositories import agent_exposure_repo, agent_repo, member_repo
+from app.services.access import publisher_context
 from app.services.agent_runner import AgentRunnerService, RunStream
 from app.services.channels.base import OutgoingAttachment
 from app.services.channels.chart_png import render_chart_png
@@ -571,24 +572,13 @@ class ChannelAgentRouter:
     ) -> AuthContext:
         """The context a turn nobody can name runs under: the binding creator's.
 
-        `viewer` when that person has left the organization, and when the binding
-        is old enough to predate the column recording who made it. Their
-        departure must not silently widen what a channel can reach, and neither
-        must a missing row.
+        One line, because the rule and its `viewer` fallback are the same ones a
+        widget and a hosted page answer with - see `access.publisher_context`, which
+        is where the reasoning now lives so the two cannot drift apart (#640).
         """
-        role = OrgRoleName.VIEWER.value
-        if exposure.created_by_user_id is not None:
-            membership = await member_repo.get(
-                self.db,
-                organization_id=exposure.organization_id,
-                user_id=exposure.created_by_user_id,
-            )
-            if membership is not None:
-                role = membership.role
-
-        return AuthContext(
-            user_id=exposure.created_by_user_id,
+        return await publisher_context(
+            self.db,
             organization_id=exposure.organization_id,
-            role=role,
+            publisher_user_id=exposure.created_by_user_id,
             channel_identity_id=channel_identity_id,
         )

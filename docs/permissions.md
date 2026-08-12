@@ -166,6 +166,28 @@ taken away by the absence of a grant.
 4. Only now is `resource_grants` consulted, and the level compared against the
    minimum the permission requires.
 
+### A surface with nobody in front of it
+
+`publisher_context` answers a different question in the same module: **which role
+does a turn take when the person cannot be named?** A widget on somebody's site, a
+hosted page behind a link, an agent bound to a Slack channel — the visitor is
+anonymous, or a chat account with no platform user behind it, and a run still needs
+a subject, because the role is what resolves what the agent may reach.
+
+The answer is **whoever published the surface**, and the fallback is the part worth
+knowing: `viewer` when that person is no longer a member, and `viewer` when no
+publisher was recorded at all. A departure must not silently *widen* what a public
+surface reaches, and a widget on a customer's site outlives the person who pasted
+it.
+
+Who **asked** is carried separately — `channel_identity_id`, the chat account that
+spoke. Merging the two would make a channel run claim the sender's authority, which
+is exactly what an unlinked sender does not have.
+
+One function rather than one per surface, since #640: it was written twice, against
+`agent_embeds.owner_user_id` and `agent_exposures.created_by_user_id`, and two
+copies of an authorization decision is one that gets fixed once.
+
 ### Listings
 
 `visible_resource_ids` answers the same question for a list, and has one trap

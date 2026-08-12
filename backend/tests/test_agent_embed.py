@@ -100,7 +100,7 @@ def _turns(answer: str = "hi", history: list[MagicMock] | None = None):
             new=AsyncMock(return_value=messages),
         ),
         patch(
-            "app.services.embed_session.member_repo.get",
+            "app.services.access.member_repo.get",
             new=AsyncMock(return_value=MagicMock(role="builder")),
         ),
     ):

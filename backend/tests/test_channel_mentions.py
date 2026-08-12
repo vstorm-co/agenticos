@@ -243,7 +243,11 @@ class TestAnswer:
 
     async def test_a_linked_sender_who_left_the_organization_is_refused_the_same_way(self):
         """Their account exists; their standing in this workspace does not."""
-        with patch("app.services.channels.mentions.member_repo") as members:
+        with (
+            patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.access.member_repo", new=members),
+            patch("app.services.access.member_repo", new=members),
+        ):
             members.get = AsyncMock(return_value=None)
 
             with pytest.raises(AuthorizationError) as refused:
@@ -260,6 +264,7 @@ class TestAnswer:
     async def test_an_unknown_handle_is_reported_as_missing(self):
         with (
             patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.access.member_repo", new=members),
             patch("app.services.channels.mentions.agent_repo") as agents,
             patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
         ):
@@ -291,6 +296,7 @@ class TestAnswer:
 
         with (
             patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.access.member_repo", new=members),
             patch("app.services.channels.mentions.agent_repo") as agents,
             patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
             patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
@@ -318,6 +324,7 @@ class TestAnswer:
         """Pausing is how a binding is switched off without losing who made it."""
         with (
             patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.access.member_repo", new=members),
             patch("app.services.channels.mentions.agent_repo") as agents,
             patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
             patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
@@ -349,6 +356,7 @@ class TestAnswer:
 
         with (
             patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.access.member_repo", new=members),
             patch("app.services.channels.mentions.agent_repo") as agents,
             patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
             patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
@@ -378,6 +386,7 @@ class TestAnswer:
 
         with (
             patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.access.member_repo", new=members),
             patch("app.services.channels.mentions.agent_repo") as agents,
             patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
             patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
@@ -404,6 +413,7 @@ class TestAnswer:
 
         with (
             patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.access.member_repo", new=members),
             patch("app.services.channels.mentions.agent_repo") as agents,
             patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
             patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
@@ -443,6 +453,7 @@ class TestAnswer:
         """An unknown platform is recorded as API rather than guessed at."""
         with (
             patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.access.member_repo", new=members),
             patch("app.services.channels.mentions.agent_repo") as agents,
             patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
             patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
@@ -469,6 +480,7 @@ class TestAnswer:
 
         with (
             patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.access.member_repo", new=members),
             patch("app.services.channels.mentions.agent_repo") as agents,
             patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
             patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
@@ -560,6 +572,7 @@ class TestAnswerDefault:
 
         with (
             patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.access.member_repo", new=members),
             patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
             patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
         ):
@@ -605,6 +618,7 @@ class TestWhatARoomRunsAs:
         agent = MagicMock(id=uuid.uuid4(), slug="support")
         with (
             patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.access.member_repo", new=members),
             patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
             patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
         ):
@@ -695,6 +709,7 @@ class TestWhatARoomRunsAs:
 
         with (
             patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.access.member_repo", new=members),
             patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
             patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
         ):
@@ -748,6 +763,7 @@ class TestWhatARoomRunsAs:
 
         with (
             patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.access.member_repo", new=members),
             patch("app.services.channels.mentions.agent_repo") as agents,
             patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
             patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,

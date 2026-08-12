@@ -69,17 +69,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.budget import BudgetExceeded
 from app.core.exceptions import AppException
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext
 from app.db.models.agent_embed import AgentEmbed
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.chat_file import ChatFile
-from app.repositories import (
-    chat_file_repo,
-    conversation_repo,
-    embed_visitor_repo,
-    member_repo,
-)
+from app.repositories import chat_file_repo, conversation_repo, embed_visitor_repo
 from app.schemas.agent_embed import EmbedVariable, PageConfig
+from app.services.access import publisher_context
 from app.services.agent import build_message_history
 from app.services.agent_runner import AgentRunnerService
 from app.services.run_stream import RunFrames
@@ -628,26 +624,16 @@ class EmbedSession:
         return SUPPLIED_HEADER + "\n" + "\n".join(lines)
 
     async def _context(self, db: AsyncSession) -> AuthContext:
-        """The role this run carries.
+        """The role this run carries: the member who published the widget.
 
-        The widget's owner, because an anonymous visitor has no role and an
-        agent needs one to resolve what it may reach. Falling back to `viewer`
-        when the owner has left the organization: their departure must not
-        silently widen what a public widget can do.
+        One line, because the rule and its `viewer` fallback are the same ones a
+        channel binding answers with - see `access.publisher_context`, which is
+        where the reasoning lives so the two cannot drift apart (#640).
         """
-        role = OrgRoleName.VIEWER.value
-        if self.embed.owner_user_id is not None:
-            membership = await member_repo.get(
-                db,
-                organization_id=self.embed.organization_id,
-                user_id=self.embed.owner_user_id,
-            )
-            if membership is not None:
-                role = membership.role
-        return AuthContext(
-            user_id=self.embed.owner_user_id,
+        return await publisher_context(
+            db,
             organization_id=self.embed.organization_id,
-            role=role,
+            publisher_user_id=self.embed.owner_user_id,
         )
 
     async def _emit(self, kind: str, payload: dict[str, Any]) -> None:
