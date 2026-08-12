@@ -2,7 +2,10 @@
 
 import { useTranslations } from "next-intl";
 
+import { Upload } from "lucide-react";
+
 import {
+  Button,
   Input,
   Label,
   Select,
@@ -13,6 +16,7 @@ import {
   Textarea,
 } from "@/components/ui";
 import type { EmbedVariable, HostedLogo, PageConfig } from "@/types/embeds";
+import { useRef } from "react";
 
 const MAX_TITLE = 80;
 const MAX_WELCOME = 600;
@@ -35,14 +39,28 @@ export function PageFields({
   config,
   variables,
   disabled,
+  hasCustomLogo,
+  onUpload,
   onChange,
 }: {
   config: PageConfig;
   variables: EmbedVariable[];
   disabled: boolean;
+  /** Whether a picture is already stored for this page. */
+  hasCustomLogo: boolean;
+  /**
+   * Send a file, or `undefined` on a page that does not exist yet.
+   *
+   * An upload needs a row to attach to, and the row is created by the form this
+   * sits in - so a page being published offers the choice and says what it
+   * needs, rather than opening a file picker that would have nowhere to put the
+   * result.
+   */
+  onUpload?: (file: File) => void;
   onChange: (config: PageConfig) => void;
 }) {
   const t = useTranslations("agents");
+  const picker = useRef<HTMLInputElement>(null);
   const unreachable = variables
     .filter((variable) => variable.required && !variable.url_safe && variable.name.trim() !== "")
     .map((variable) => variable.name);
@@ -116,10 +134,49 @@ export function PageFields({
           <SelectContent>
             <SelectItem value="agent">{t("hostedLogoAgent")}</SelectItem>
             <SelectItem value="organization">{t("hostedLogoOrganization")}</SelectItem>
+            <SelectItem value="custom" disabled={onUpload === undefined && !hasCustomLogo}>
+              {t("hostedLogoCustom")}
+            </SelectItem>
             <SelectItem value="none">{t("hostedLogoNone")}</SelectItem>
           </SelectContent>
         </Select>
         <p className="text-muted-foreground text-xs">{t("hostedLogoHint")}</p>
+
+        {/* Beside the greyed option rather than under it once chosen: on a page
+            that does not exist yet the option cannot be chosen at all, so a
+            hint gated on choosing it is one nobody can read. */}
+        {onUpload === undefined && (
+          <p className="text-muted-foreground text-xs">{t("hostedLogoPublishFirst")}</p>
+        )}
+
+        {config.logo === "custom" && onUpload !== undefined && (
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              ref={picker}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) onUpload(file);
+                // Cleared so choosing the same file twice fires again, which
+                // is what somebody does after a refused upload.
+                event.target.value = "";
+              }}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={disabled}
+              onClick={() => picker.current?.click()}
+            >
+              <Upload className="h-3.5 w-3.5" />
+              {hasCustomLogo ? t("hostedLogoReplace") : t("hostedLogoUpload")}
+            </Button>
+            <span className="text-muted-foreground text-xs">{t("hostedLogoLimits")}</span>
+          </div>
+        )}
       </div>
     </div>
   );

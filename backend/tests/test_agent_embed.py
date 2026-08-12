@@ -61,6 +61,9 @@ def _embed(**overrides):
     embed.context_variables = []
     embed.is_active = True
     embed.rate_limit_per_minute = 10
+    # Explicit, because a `MagicMock` answers any attribute with a truthy mock -
+    # so "no logo uploaded" has to be said rather than left unsaid.
+    embed.logo_path = None
     for key, value in overrides.items():
         setattr(embed, key, value)
     return embed
@@ -1069,3 +1072,120 @@ class TestTheWidgetsOwnRoutesAnswerOnlyForAWidget:
     async def test_the_widget_config_refuses_another_kind(self, kind):
         with pytest.raises(EmbedDenied):
             await _service().public_config(_embed(kind=kind))
+
+
+class TestAPagesOwnPicture:
+    """The third logo choice, and the only one that writes a file.
+
+    The other two name an image this platform already stores. This one takes
+    bytes, which is why the *path* is a column the upload writes rather than a
+    field in `config`: `config` arrives in a request body and the path is read
+    back by a public route, so accepting one would let a caller name any file
+    this process can open.
+    """
+
+    @staticmethod
+    def _service_for(embed):
+        service = _service()
+        service._owned = AsyncMock(return_value=embed)
+        service.agents.get = AsyncMock(return_value=MagicMock())
+        return service
+
+    @pytest.mark.anyio
+    async def test_a_file_that_is_not_an_image_is_refused(self):
+        with pytest.raises(BadRequestError, match="images are allowed"):
+            await _service().set_page_logo(
+                MagicMock(),
+                uuid.uuid4(),
+                file_data=b"%PDF-1.4",
+                filename="logo.pdf",
+                content_type="application/pdf",
+            )
+
+    @pytest.mark.anyio
+    async def test_an_image_over_the_limit_is_refused(self):
+        with pytest.raises(BadRequestError, match="too large"):
+            await _service().set_page_logo(
+                MagicMock(),
+                uuid.uuid4(),
+                file_data=b"x" * (2 * 1024 * 1024 + 1),
+                filename="logo.png",
+                content_type="image/png",
+            )
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("kind", ["widget", "socket"])
+    async def test_a_kind_with_no_page_to_brand_is_refused(self, kind):
+        """A widget is styled by its own theme and a socket renders itself, so
+        an accepted upload there is a file stored where nothing reads it."""
+        service = self._service_for(_embed(kind=kind))
+
+        with pytest.raises(BadRequestError, match="hosted page"):
+            await service.set_page_logo(
+                MagicMock(organization_id=uuid.uuid4()),
+                uuid.uuid4(),
+                file_data=b"png",
+                filename="logo.png",
+                content_type="image/png",
+            )
+
+    @pytest.mark.anyio
+    async def test_an_upload_stores_the_file_and_points_the_page_at_it(self):
+        """Both halves in one statement. An operator who uploads a picture and
+        finds the page still showing the agent's avatar was given a form that
+        lies about what it did."""
+        embed = _embed(kind="page", config={"logo": "agent"})
+        service = self._service_for(embed)
+        stored = "0f9c/abc123_logo.png"
+        storage = MagicMock()
+        storage.save = AsyncMock(return_value=stored)
+
+        with (
+            patch(f"{MODULE}.get_file_storage", return_value=storage),
+            patch(f"{MODULE}.record_audit", new=AsyncMock()),
+            patch(
+                f"{MODULE}.agent_embed_repo.update",
+                new=AsyncMock(side_effect=lambda db, **kw: embed),
+            ) as updated,
+        ):
+            await service.set_page_logo(
+                MagicMock(organization_id=uuid.uuid4()),
+                embed.id,
+                file_data=b"png",
+                filename="logo.png",
+                content_type="image/png",
+            )
+
+        written = updated.await_args.kwargs["update_data"]
+        assert written["logo_path"] == stored
+        assert written["config"]["logo"] == "custom"
+        # The row's own id, not a path with a prefix: `save` keeps only the last
+        # component of what it is handed, so `embeds/<id>` would collapse to the
+        # same directory while reading as a layout that exists.
+        assert storage.save.await_args.args[0] == str(embed.id)
+
+    @pytest.mark.anyio
+    async def test_the_public_route_serves_the_uploaded_file(self):
+        embed = _embed(kind="page", config={"logo": "custom"}, logo_path="0f9c/abc123_logo.png")
+        storage = MagicMock()
+        storage.get_full_path.return_value = MagicMock(exists=lambda: True)
+
+        with (
+            patch(f"{MODULE}.agent_embed_repo.get_by_key", new=AsyncMock(return_value=embed)),
+            patch(f"{MODULE}.get_file_storage", return_value=storage),
+        ):
+            path = await _service().page_logo_path("key-123")
+
+        assert path is not None
+        storage.get_full_path.assert_called_once_with("0f9c/abc123_logo.png")
+
+    @pytest.mark.anyio
+    async def test_a_custom_logo_with_nothing_uploaded_shows_none(self):
+        """The URL would answer 404 and the page would render a broken image,
+        which a browser cannot tell from a slow one."""
+        embed = _embed(kind="page", config={"logo": "custom"})
+
+        with patch(f"{MODULE}.agent_repo.get", new=AsyncMock(return_value=None)):
+            config = await _service().page_config(embed)
+
+        assert config.logo_url is None

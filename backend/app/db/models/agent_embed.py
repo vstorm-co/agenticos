@@ -131,6 +131,19 @@ class AgentEmbed(Base, TimestampMixin):
     value omits its line and logs, rather than costing the visitor an answer.
     """
 
+    logo_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    """Where an uploaded page logo is stored, when there is one.
+
+    A column rather than a field in `config`, and that is a security decision
+    rather than a layout one: `config` is submitted by a client, and a stored
+    path is read back and streamed by a public route. Accepting one from a
+    request body would let a caller name any file this process can open.
+
+    Written only by `AgentEmbedService.set_page_logo`, which puts the bytes
+    there itself. `config.logo` says *which* image the page shows; this says
+    where the uploaded one lives.
+    """
+
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     # Per visitor, per minute. The one control between a public URL and an
     # afternoon's model budget.

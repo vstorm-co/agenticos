@@ -47,7 +47,7 @@ export interface SocketConfig {
 }
 
 /** Which image a hosted page shows, chosen from what the platform already stores. */
-export type HostedLogo = "agent" | "organization" | "none";
+export type HostedLogo = "agent" | "organization" | "custom" | "none";
 
 /** What a page we serve ourselves is branded with. */
 export interface PageConfig {
@@ -87,6 +87,14 @@ export interface Embed {
   context_variables: EmbedVariable[];
   is_active: boolean;
   rate_limit_per_minute: number;
+  /**
+   * Whether a picture was uploaded for this page.
+   *
+   * The stored path stays on the server: it is an internal address, and the
+   * route that streams it is what decides a page may hand that one image out
+   * without a session. This says only whether there is one to replace.
+   */
+  has_custom_logo: boolean;
   /**
    * The three integrations, each `null` on the kinds it does not belong to.
    *

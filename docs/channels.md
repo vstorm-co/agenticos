@@ -318,12 +318,17 @@ Four fields, all optional:
 | **Page title** | the agent's name |
 | **Welcome message** | none. Shown before the first question, and never sent to the model — a greeting in the model's history is a turn the agent thinks it took |
 | **Accent colour** | `#4f46e5`. Light and dark still follow the visitor's system |
-| **Logo** | the agent's avatar; or the organization's, or none |
+| **Logo** | the agent's avatar; or the organization's, one you upload, or none |
 
-The logo is a *choice among images this platform already stores*, uploaded
-through the paths that already exist for them. There is no second upload here and
-no field for a URL of your own: a page we serve fetching an operator-supplied
-image is one more thing to make safe.
+Three of those four are images this platform already holds. The fourth takes a
+file — PNG, JPEG, WebP or GIF, up to 2MB — and it can only be added once the page
+exists, because an upload needs a row to attach to.
+
+**What it does not take is a URL of your own.** A page we serve fetching an
+operator-supplied image is one more thing to make safe. And the stored path is a
+*column*, written by the upload route and never by the config you submit: the
+path is read back and streamed by a public route, so one accepted from a request
+body would be a caller naming any file the process can open.
 
 The page is `noindex`. A secret link is not a page to be indexed, and a crawler
 that follows one has published it.

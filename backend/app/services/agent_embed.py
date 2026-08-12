@@ -25,6 +25,7 @@ this deployment's own origin, because it is the only site that serves one.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import secrets
 from dataclasses import dataclass
@@ -58,7 +59,7 @@ from app.schemas.agent_embed import (
     WidgetConfig,
 )
 from app.services.agent_registry import AgentRegistryService
-from app.services.file_storage import get_file_storage
+from app.services.file_storage import IMAGE_MIME_TYPES, MAX_AVATAR_SIZE, get_file_storage
 
 logger = logging.getLogger(__name__)
 
@@ -271,6 +272,69 @@ class AgentEmbedService:
             details={"embed_id": str(embed_id)},
         )
 
+    async def set_page_logo(
+        self,
+        ctx: AuthContext,
+        embed_id: UUID,
+        *,
+        file_data: bytes,
+        filename: str,
+        content_type: str | None,
+    ) -> EmbedRead:
+        """Upload the image a hosted page shows, and point the page at it.
+
+        The bytes go into this platform's own storage and the path is written to
+        a column, never taken from a request body - see `AgentEmbed.logo_path`.
+        Setting `config.logo` to `custom` in the same statement is what makes the
+        upload finish the job: an operator who uploads a picture and finds the
+        page still showing the agent's avatar has been given a form that lies.
+
+        Raises:
+            NotFoundError: If the embed is not this organization's.
+            AuthorizationError: Without `agents:publish` on its agent.
+            BadRequestError: For a kind with no page to brand, a file that is not
+                an image this platform accepts, or one over the size limit.
+        """
+        if content_type not in IMAGE_MIME_TYPES:
+            raise BadRequestError(message="Only JPEG, PNG, WebP, and GIF images are allowed")
+        if len(file_data) > MAX_AVATAR_SIZE:
+            raise BadRequestError(message="Logo image too large. Maximum 2MB.")
+
+        embed = await self._owned(ctx, embed_id)
+        if embed.kind != "page":
+            raise BadRequestError(
+                message="Only a hosted page shows a logo. A widget is styled by its own theme.",
+                details={"kind": embed.kind},
+            )
+        await self.agents.get(ctx, embed.agent_id, perm=Perm.AGENTS_PUBLISH)
+
+        storage = get_file_storage()
+        if embed.logo_path:
+            # A replaced picture is not worth failing an upload over, and the old
+            # file is unreachable the moment the row stops pointing at it.
+            with contextlib.suppress(Exception):
+                await storage.delete(embed.logo_path)
+        # The id alone: `save` keeps only the last component of what it is given,
+        # so a `embeds/` prefix reads as a directory layout it would silently drop.
+        path = await storage.save(str(embed.id), filename, file_data)
+
+        config = PageConfig.model_validate(embed.config).model_copy(update={"logo": "custom"})
+        updated = await agent_embed_repo.update(
+            self.db,
+            db_embed=embed,
+            update_data={"logo_path": path, "config": config.model_dump()},
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="agent.embed_updated",
+            target_type="agent",
+            target_id=str(embed.agent_id),
+            details={"embed_id": str(embed.id), "fields": ["logo_path"]},
+        )
+        return self._read(updated)
+
     async def admit(self, public_key: str, *, origin: str | None, token: str | None) -> Admission:
         """Decide whether this visitor may talk to this embed.
 
@@ -345,7 +409,9 @@ class AgentEmbedService:
             return None
 
         stored: str | None = None
-        if config.logo == "agent":
+        if config.logo == "custom":
+            stored = embed.logo_path
+        elif config.logo == "agent":
             agent = await agent_repo.get(
                 self.db, embed.agent_id, organization_id=embed.organization_id
             )
@@ -368,6 +434,11 @@ class AgentEmbedService:
         embed may hand out that one image without a session.
         """
         if config.logo == "none":
+            return None
+        # `custom` with nothing uploaded is a page that would render a broken
+        # image: the route behind this URL answers 404, and a browser has no way
+        # to tell that from a slow one.
+        if config.logo == "custom" and not embed.logo_path:
             return None
         base = settings.PUBLIC_BASE_URL.rstrip("/")
         return f"{base}/api/v1/embed/{embed.public_key}/logo"
@@ -601,6 +672,7 @@ class AgentEmbedService:
             ],
             is_active=embed.is_active,
             rate_limit_per_minute=embed.rate_limit_per_minute,
+            has_custom_logo=bool(embed.logo_path),
             snippet=self.snippet_for(embed),
             socket_url=self.socket_url_for(embed),
             page_url=self.page_url_for(embed),

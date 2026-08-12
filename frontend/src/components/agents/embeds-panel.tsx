@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Code2, Copy, Radio, Trash2 } from "lucide-react";
+import { Check, Code2, Copy, Pencil, Radio, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { EmbedForm } from "@/components/agents/embed-form";
@@ -53,8 +53,9 @@ const KIND_LABEL: Record<EmbedKind, string> = {
 export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
   const t = useTranslations("agents");
   const tc = useTranslations("common");
-  const { embeds, isLoading, create, update, remove } = useEmbeds(agentId);
+  const { embeds, isLoading, create, update, remove, uploadLogo } = useEmbeds(agentId);
   const [picked, setPicked] = useState<SurfaceChoice | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Embed | null>(null);
 
   return (
@@ -73,15 +74,40 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
           <p className="text-muted-foreground text-sm">{t("notPublishedAnySite")}</p>
         ) : (
           <div className="space-y-3">
-            {embeds.map((embed) => (
-              <EmbedRow
-                key={embed.id}
-                embed={embed}
-                canManage={canManage}
-                onToggle={(active) => update.mutate({ id: embed.id, is_active: active })}
-                onDelete={() => setPendingDelete(embed)}
-              />
-            ))}
+            {embeds.map((embed) =>
+              editing === embed.id ? (
+                // In place of its row rather than below the list: the row is
+                // what somebody clicked, and a form that opens somewhere else
+                // makes "which one am I editing" a question.
+                <EmbedForm
+                  key={embed.id}
+                  agentId={agentId}
+                  kind={embed.kind}
+                  embed={embed}
+                  pending={update.isPending || uploadLogo.isPending}
+                  onUploadLogo={(file) => uploadLogo.mutate({ id: embed.id, file })}
+                  onSubmit={({ agent_id: _agent, ...changes }) =>
+                    update.mutate(
+                      { id: embed.id, ...changes },
+                      { onSuccess: () => setEditing(null) },
+                    )
+                  }
+                  onCancel={() => setEditing(null)}
+                />
+              ) : (
+                <EmbedRow
+                  key={embed.id}
+                  embed={embed}
+                  canManage={canManage}
+                  onToggle={(active) => update.mutate({ id: embed.id, is_active: active })}
+                  onEdit={() => {
+                    setPicked(null);
+                    setEditing(embed.id);
+                  }}
+                  onDelete={() => setPendingDelete(embed)}
+                />
+              ),
+            )}
           </div>
         )}
 
@@ -95,7 +121,7 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
             onCancel={() => setPicked(null)}
           />
         )}
-        {canManage && picked === null && <SurfacePicker onPick={setPicked} />}
+        {canManage && picked === null && editing === null && <SurfacePicker onPick={setPicked} />}
       </CardContent>
 
       {pendingDelete !== null && (
@@ -154,11 +180,13 @@ function EmbedRow({
   embed,
   canManage,
   onToggle,
+  onEdit,
   onDelete,
 }: {
   embed: Embed;
   canManage: boolean;
   onToggle: (active: boolean) => void;
+  onEdit: () => void;
   onDelete: () => void;
 }) {
   const t = useTranslations("agents");
@@ -179,6 +207,15 @@ function EmbedRow({
               onCheckedChange={onToggle}
               aria-label={`${embed.is_active ? t("pause") : t("resume")} ${embed.name}`}
             />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={onEdit}
+              aria-label={t("editSurface", { name: embed.name })}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
             <Button
               variant="ghost"
               size="icon"

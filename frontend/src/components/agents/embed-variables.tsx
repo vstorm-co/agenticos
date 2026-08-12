@@ -56,6 +56,8 @@ export function EmbedVariables({
   return (
     <div className="space-y-2">
       <Label>{t("whatThePageSupplies")}</Label>
+      <p className="text-muted-foreground text-xs">{t("whatThePageSuppliesHint")}</p>
+      {hosted && <p className="text-muted-foreground text-xs">{t("urlSafeHint")}</p>}
       {variables.map((variable, index) => (
         <div key={index} className="flex items-start gap-2">
           <Input
@@ -115,9 +117,9 @@ export function EmbedVariables({
       {variables.length < MAX_VARIABLES && (
         <Button
           type="button"
-          variant="outline"
-          size="sm"
+          variant="ghost"
           disabled={disabled}
+          className="text-muted-foreground hover:text-foreground border-border h-9 w-full justify-center border border-dashed"
           onClick={() =>
             onChange([
               ...variables,
@@ -129,8 +131,6 @@ export function EmbedVariables({
           {t("addVariable")}
         </Button>
       )}
-      <p className="text-muted-foreground text-xs">{t("whatThePageSuppliesHint")}</p>
-      {hosted && <p className="text-muted-foreground text-xs">{t("urlSafeHint")}</p>}
     </div>
   );
 }

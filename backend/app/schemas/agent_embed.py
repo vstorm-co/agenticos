@@ -59,7 +59,7 @@ class SocketConfig(BaseSchema):
     kind: Literal["socket"] = "socket"
 
 
-HostedLogo = Literal["agent", "organization", "none"]
+HostedLogo = Literal["agent", "organization", "custom", "none"]
 
 
 class PageConfig(BaseSchema):
@@ -95,10 +95,12 @@ class PageConfig(BaseSchema):
         default="agent",
         description=(
             "Which image the page shows: the agent's avatar, the organization's, "
-            "or none. A choice among images this platform already stores rather "
-            "than a URL or a second upload path - an operator-supplied URL is a "
-            "third-party request from a page we serve, and one more thing to "
-            "make safe."
+            "one uploaded for this page, or none. `custom` names the file in "
+            "`agent_embeds.logo_path`, which is written by the upload route and "
+            "never by this field - a path accepted from a request body is a "
+            "caller naming any file the process can open. There is deliberately "
+            "no field for a URL of your own: a page we serve fetching an "
+            "operator-supplied image is one more thing to make safe."
         ),
     )
 
@@ -243,6 +245,11 @@ class EmbedRead(BaseSchema, TimestampSchema):
     context_variables: list[EmbedVariable] = []
     is_active: bool
     rate_limit_per_minute: int
+    # Whether an uploaded logo is actually there, so the Builder can offer to
+    # replace one rather than to upload a second. The path itself stays here:
+    # it is an internal address, and the route that streams it is what decides
+    # a page may hand that one image out without a session.
+    has_custom_logo: bool
     # Ready to paste, on a widget. Assembled server-side so the one place that
     # knows the public URL is the deployment's own configuration.
     snippet: str | None

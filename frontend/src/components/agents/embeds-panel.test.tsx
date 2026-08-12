@@ -27,6 +27,7 @@ const state = {
   create: { mutate: vi.fn(), isPending: false },
   update: { mutate: vi.fn(), isPending: false },
   remove: { mutateAsync: vi.fn(), isPending: false },
+  uploadLogo: { mutate: vi.fn(), isPending: false },
 };
 
 const copied = { value: false };
@@ -52,6 +53,7 @@ function embed(overrides: Partial<Embed> = {}): Embed {
     context_variables: [],
     is_active: true,
     rate_limit_per_minute: 10,
+    has_custom_logo: false,
     snippet: '<script src="https://app.test/embed.js" data-key="pk_live_abc"></script>',
     socket_url: "wss://app.test/api/v1/embed/pk_live_abc/ws",
     page_url: null,
@@ -78,6 +80,7 @@ beforeEach(() => {
   state.create = { mutate: vi.fn(), isPending: false };
   state.update = { mutate: vi.fn(), isPending: false };
   state.remove = { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false };
+  state.uploadLogo = { mutate: vi.fn(), isPending: false };
   copied.value = false;
   copy.mockReset();
 });
@@ -573,5 +576,156 @@ describe("what the integration must supply", () => {
     await userEvent.click(screen.getByRole("button", { name: "Remove plan" }));
 
     expect(screen.queryByLabelText("Variable 1 name")).toBeNull();
+  });
+});
+
+describe("editing what was already published", () => {
+  it("offers no edit control to somebody who may not manage it", () => {
+    state.embeds = [embed()];
+    render(<EmbedsPanel agentId="a-1" canManage={false} />);
+
+    expect(screen.queryByRole("button", { name: "Edit Website widget" })).toBeNull();
+  });
+
+  it("opens the form on the row, filled with what is stored", async () => {
+    // Deleting and republishing is not an alternative: the key does not come
+    // back, and every page carrying it breaks.
+    state.embeds = [embed({ context: "You are on the pricing page.", name: "Pricing bubble" })];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit Pricing bubble" }));
+
+    expect(screen.getByLabelText("Name")).toHaveValue("Pricing bubble");
+    expect(screen.getByLabelText("Allowed sites")).toHaveValue("https://acme.com");
+    expect(screen.getByLabelText("Context for this placement")).toHaveValue(
+      "You are on the pricing page.",
+    );
+  });
+
+  it("sends only what a row may change, and never its agent", async () => {
+    state.embeds = [embed()];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit Website widget" }));
+    await userEvent.clear(screen.getByLabelText("Name"));
+    await userEvent.type(screen.getByLabelText("Name"), "Renamed");
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    const [payload] = state.update.mutate.mock.calls.at(-1)!;
+    expect(payload).toMatchObject({ id: "e-1", name: "Renamed" });
+    expect(payload).not.toHaveProperty("agent_id");
+  });
+
+  it("keeps a stored signing secret when the field is left blank", async () => {
+    // Retyping a secret to change a colour is how a secret gets written down
+    // somewhere, and the backend keeps the stored one when the mode is unchanged.
+    state.embeds = [embed({ auth_mode: "jwt", has_jwt_secret: true })];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit Website widget" }));
+
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled();
+
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    const [payload] = state.update.mutate.mock.calls.at(-1)!;
+    expect(payload.jwt_secret).toBeNull();
+  });
+
+  it("demands a secret when a public embed is switched to token auth", async () => {
+    // Switching in without one would leave it verifying against whatever was
+    // there before - which is nothing.
+    state.embeds = [embed()];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit Website widget" }));
+    await userEvent.click(screen.getByLabelText("Who can use it"));
+    await userEvent.click(screen.getByRole("option", { name: /Signed-in users only/ }));
+
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
+  });
+
+  it("edits a page without asking for a site, as publishing one does not", async () => {
+    state.embeds = [page()];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit Hosted page" }));
+
+    expect(screen.queryByLabelText("Allowed sites")).toBeNull();
+    expect(screen.getByLabelText("Page title")).toBeInTheDocument();
+  });
+
+  it("hides the surface cards while a row is being edited", async () => {
+    // Two open forms on one card is two answers to "what am I filling in".
+    state.embeds = [embed()];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit Website widget" }));
+
+    expect(screen.queryByRole("button", { name: /Raw WebSocket/ })).toBeNull();
+  });
+
+  it("leaves the row alone on cancel", async () => {
+    state.embeds = [embed()];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit Website widget" }));
+    await userEvent.clear(screen.getByLabelText("Name"));
+    await userEvent.type(screen.getByLabelText("Name"), "Renamed");
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(state.update.mutate).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Copy the snippet" })).toBeInTheDocument();
+  });
+});
+
+describe("a picture of the page's own", () => {
+  it("offers the upload only on a page that exists", async () => {
+    // An upload needs a row to attach to, and the row is created by this form.
+    // Offering a file picker with nowhere to put the result is a control that
+    // cannot work.
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("page");
+    await userEvent.click(screen.getByLabelText("Logo"));
+
+    expect(screen.getByRole("option", { name: "A picture you upload" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+  });
+
+  it("uploads a file against the row being edited", async () => {
+    state.embeds = [page()];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit Hosted page" }));
+    await userEvent.click(screen.getByLabelText("Logo"));
+    await userEvent.click(screen.getByRole("option", { name: "A picture you upload" }));
+
+    const file = new File(["png"], "logo.png", { type: "image/png" });
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    await userEvent.upload(input, file);
+
+    expect(state.uploadLogo.mutate).toHaveBeenCalledWith({ id: "e-1", file });
+  });
+
+  it("offers to replace rather than to upload a second when one is stored", async () => {
+    state.embeds = [
+      page({ has_custom_logo: true, config: { ...DEFAULT_PAGE_CONFIG, logo: "custom" } }),
+    ];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit Hosted page" }));
+
+    expect(screen.getByRole("button", { name: "Replace the picture" })).toBeInTheDocument();
+  });
+
+  it("says what to do when the page is not published yet", async () => {
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("page");
+
+    // The option is disabled, so the explanation is what is left to read - it
+    // has to say the upload is possible, only later.
+    expect(screen.getByText(/Publish the page first/)).toBeInTheDocument();
   });
 });

@@ -19,6 +19,7 @@ import {
 } from "@/components/ui";
 import {
   defaultConfigFor,
+  type Embed,
   type EmbedAuthMode,
   type EmbedConfig,
   type EmbedKind,
@@ -44,12 +45,14 @@ export function parseOrigins(value: string): string[] {
 }
 
 /**
- * Publishing one agent on one surface, with only the fields that surface has.
+ * One agent on one surface: publishing it, and editing what was published.
  *
- * The kind is chosen before this form opens and is not editable in it, which is
- * the same rule the backend holds: a tag already pasted, a client already
+ * The kind is chosen before this form opens and is never editable in it, which
+ * is the rule the backend holds too: a tag already pasted, a client already
  * written and a link already sent all name one row, so changing what it is would
- * change what all three do without touching any of them.
+ * change what all three do without touching any of them. Everything else about
+ * a live surface is editable in place - a colour, a welcome, one more allowed
+ * site - because the alternative is deleting it, and its key does not come back.
  *
  * Three of the fields are conditional, and each because the surface makes it
  * meaningless rather than merely unusual. Allowed origins are what admit a
@@ -61,30 +64,42 @@ export function parseOrigins(value: string): string[] {
 export function EmbedForm({
   agentId,
   kind,
+  embed,
   pending,
   onSubmit,
+  onUploadLogo,
   onCancel,
 }: {
   agentId: string;
   kind: EmbedKind;
+  /** The row being edited. Absent when publishing a new surface. */
+  embed?: Embed;
   pending: boolean;
   onSubmit: (embed: NewEmbed) => void;
+  /** Only wired on an existing row - an upload needs somewhere to go. */
+  onUploadLogo?: (file: File) => void;
   onCancel: () => void;
 }) {
   const t = useTranslations("agents");
   const needsOrigins = kind !== "page";
 
-  const [name, setName] = useState(t(NAME_KEY[kind]));
-  const [config, setConfig] = useState<EmbedConfig>(defaultConfigFor(kind));
-  const [origins, setOrigins] = useState("");
-  const [authMode, setAuthMode] = useState<EmbedAuthMode>("public");
+  const [name, setName] = useState(embed?.name ?? t(NAME_KEY[kind]));
+  const [config, setConfig] = useState<EmbedConfig>(embed?.config ?? defaultConfigFor(kind));
+  const [origins, setOrigins] = useState((embed?.allowed_origins ?? []).join("\n"));
+  const [authMode, setAuthMode] = useState<EmbedAuthMode>(embed?.auth_mode ?? "public");
   const [secret, setSecret] = useState("");
-  const [context, setContext] = useState("");
-  const [variables, setVariables] = useState<EmbedVariable[]>([]);
+  const [context, setContext] = useState(embed?.context ?? "");
+  const [variables, setVariables] = useState<EmbedVariable[]>(embed?.context_variables ?? []);
 
   const originList = parseOrigins(origins);
   const missingOrigins = needsOrigins && originList.length === 0;
-  const missingSecret = authMode === "jwt" && secret.trim().length < MIN_SECRET;
+  // Blank is allowed only where the stored secret still verifies what it always
+  // did: the same embed, already in token mode. Switching *into* token mode
+  // without one would leave the surface checking against whatever was there
+  // before, which the backend refuses and this must not offer.
+  const keepsStoredSecret = authMode === "jwt" && embed?.auth_mode === "jwt" && secret === "";
+  const missingSecret =
+    authMode === "jwt" && !keepsStoredSecret && secret.trim().length < MIN_SECRET;
 
   return (
     <div className="border-border space-y-4 rounded-lg border border-dashed p-4">
@@ -181,7 +196,9 @@ export function EmbedForm({
                 value={secret}
                 disabled={pending}
                 onChange={(event) => setSecret(event.target.value)}
-                placeholder={t("atLeast16Characters")}
+                placeholder={
+                  embed?.has_jwt_secret ? t("secretUnchanged") : t("atLeast16Characters")
+                }
                 className="font-mono"
               />
               <p className="text-muted-foreground text-xs">{t("storedVaultNeverShown")}</p>
@@ -191,7 +208,14 @@ export function EmbedForm({
       )}
 
       {config.kind === "page" && (
-        <PageFields config={config} variables={variables} disabled={pending} onChange={setConfig} />
+        <PageFields
+          config={config}
+          variables={variables}
+          disabled={pending}
+          hasCustomLogo={embed?.has_custom_logo ?? false}
+          onUpload={embed && onUploadLogo ? onUploadLogo : undefined}
+          onChange={setConfig}
+        />
       )}
 
       <div className="space-y-2">
@@ -224,7 +248,7 @@ export function EmbedForm({
               name: name.trim(),
               config,
               auth_mode: authMode,
-              jwt_secret: authMode === "jwt" ? secret : null,
+              jwt_secret: authMode === "jwt" && !keepsStoredSecret ? secret : null,
               allowed_origins: originList,
               context: context.trim() || null,
               // A row somebody started and left blank is not a declaration.
@@ -235,7 +259,7 @@ export function EmbedForm({
             })
           }
         >
-          {t("publishSurface")}
+          {embed ? t("saveSurface") : t("publishSurface")}
         </Button>
         <Button variant="ghost" disabled={pending} onClick={onCancel}>
           {t("cancel3")}
