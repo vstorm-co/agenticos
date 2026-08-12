@@ -611,15 +611,23 @@ async def create_tool_call(
     tool_name: str,
     args: dict[str, Any],
     started_at: datetime,
+    status: str = "running",
 ) -> ToolCall:
-    """Create a new tool call record."""
+    """Create a new tool call record.
+
+    `status` is `awaiting_approval` for a call the run parked on: the parked
+    state otherwise lives only on `agent_runs` and the `approvals` rows, so a
+    reloaded conversation read the one call somebody has to decide about as a
+    step that ran (#601). `complete_tool_call` closes the row whichever way the
+    call ends - a resume, a rejection replayed, or an expiry.
+    """
     tool_call = ToolCall(
         message_id=message_id,
         tool_call_id=tool_call_id,
         tool_name=tool_name,
         args=args,
         started_at=started_at,
-        status="running",
+        status=status,
     )
     db.add(tool_call)
     await db.flush()

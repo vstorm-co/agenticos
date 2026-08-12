@@ -531,6 +531,19 @@ class TestATurnThatFinished:
             },
         )
 
+    async def test_a_parked_turn_stores_which_calls_are_waiting(self):
+        """The panel above is live state; the stored turn is what a reload gets.
+        Without the parked ids the row is written `running`, which replays as a
+        step that ran - so the page said nothing about waiting and the only way
+        to find the decision was the approvals queue on another page (#601)."""
+        session = _session()
+        turn = _finished_turn(output="", parked=_parked_call())
+
+        with _chat(AsyncMock(return_value=turn)) as chat:
+            await session.process_message(_message())
+
+        assert chat.answer.await_args.kwargs["parked_tool_call_ids"] == {"call-1"}
+
     async def test_a_parked_turn_stores_no_notice_in_the_agents_own_voice(self):
         """Whatever this turn ends with becomes the assistant message's `content`,
         so a sentence about the approvals queue is stored as something the agent

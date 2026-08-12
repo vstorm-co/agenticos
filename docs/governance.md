@@ -580,6 +580,17 @@ Four properties worth knowing:
 
 - **A parked run is resumable.** Its message history is stored, so the decision is
   applied to the conversation it belongs to rather than starting again.
+- **A parked run survives a reload saying so.** The transcript stores the call the
+  run stopped on as `awaiting_approval` rather than `running`, so reopening the
+  conversation still shows the step waiting — and `GET /runs/{id}/parked` answers
+  with the pending calls (the approval to decide, the tool, its arguments), which
+  is how the chat rebuilds the approval panel the live
+  `tool_approval_required` frame gave to whoever was watching. It answers empty
+  for a run that is not parked, and it is gated on `approvals:decide` like the
+  queue, because its rows are offered to be decided
+  ([#601](https://github.com/vstorm-co/agenticos/issues/601)). The step does not
+  read as waiting for ever: a resume settles it with what the call returned, an
+  expiry settles it with the timeout notice.
 - **A continuation says what it did.** `POST /runs/{id}/resume` answers with the
   tool calls the continuation made, in order, each with what came back — and the
   transcript records them whether or not it reached an answer. Both halves used to

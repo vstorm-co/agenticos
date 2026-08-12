@@ -289,6 +289,10 @@ class AgentSession:
                     agent_version_id=agent_version_id,
                     usage=turn.usage,
                     run_id=turn.run_id,
+                    # Stored as `awaiting_approval`, so reloading the page keeps
+                    # saying the step is waiting on a person (#601). The frame
+                    # below carries the same calls to whoever is watching live.
+                    parked_tool_call_ids={parked.tool_call_id for parked in turn.parked},
                 )
                 # Written, so the `finally` below has nothing left to save. It
                 # cannot read `turn` to work that out - the whole point of it is

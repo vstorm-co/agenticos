@@ -20,8 +20,8 @@ import {
 // A decision on a parked call goes to the same REST endpoints the approvals queue
 // uses. It used to be a WebSocket `resume` frame the server silently discarded, so
 // asserting on the frame is exactly what let that pass.
-const { post } = vi.hoisted(() => ({ post: vi.fn() }));
-vi.mock("@/lib/api-client", () => ({ apiClient: { post } }));
+const { post, get } = vi.hoisted(() => ({ post: vi.fn(), get: vi.fn() }));
+vi.mock("@/lib/api-client", () => ({ apiClient: { post, get } }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const { sent, socket, connect, disconnect } = vi.hoisted(() => ({
@@ -40,18 +40,32 @@ const { sent, socket, connect, disconnect } = vi.hoisted(() => ({
 /**
  * `useChat` resolves the tenant through the organizations query, so it needs a
  * client - it clears a queued message when the organization moves, and a
- * message queued in one organization must not be sent as another.
+ * message queued in one organization must not be sent as another. It reads the
+ * caller's permissions the same way, for whether a reloaded parked run may have
+ * its approval panel rebuilt.
  */
-function wrapper({ children }: { children: ReactNode }) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false, staleTime: Infinity } },
-  });
-  // Seeded rather than fetched: these tests count requests, and an
-  // organizations query going out for the tenant would be a request none of
-  // them made.
-  client.setQueryData(qk.organizations.list(), []);
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+function makeWrapper(permissions: string[] = []) {
+  return function Wrapper({ children }: { children: ReactNode }) {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    });
+    // Seeded rather than fetched: these tests count requests, and an
+    // organizations or permissions query going out would be a request none of
+    // them made.
+    client.setQueryData(qk.organizations.list(), []);
+    client.setQueryData(qk.organizations.permissions("current"), {
+      organization_id: "org-1",
+      role: "member",
+      is_app_admin: false,
+      permissions: permissions.map((permission) => ({ permission, scope: "all" })),
+    });
+    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  };
 }
+
+const wrapper = makeWrapper();
+/** The same wrapper for a caller who may decide approvals. */
+const decider = makeWrapper(["approvals:decide"]);
 
 vi.mock("./use-websocket", () => ({
   useWebSocket: (options: {
@@ -94,6 +108,19 @@ function frame(nth = 0): Record<string, unknown> {
 /** The assistant message being streamed. */
 function streaming() {
   return useChatStore.getState().messages.find((message) => message.role === "assistant");
+}
+
+/** A stored assistant turn whose run is parked - what a reloaded conversation holds. */
+function parkedTurn() {
+  return {
+    id: "m-1",
+    role: "assistant" as const,
+    content: "",
+    timestamp: new Date(),
+    conversationId: "c-1",
+    runId: "r-1",
+    toolCalls: [{ id: "tc-1", name: "send_email", args: {}, status: "awaiting_approval" as const }],
+  };
 }
 
 beforeEach(() => {
@@ -1055,6 +1082,121 @@ describe("useChat - approvals and questions", () => {
     });
 
     expect(result.current.pendingApproval).toBeNull();
+  });
+
+  it("puts the approval panel back when a reloaded conversation is still parked", async () => {
+    // The live `tool_approval_required` frame exists only for whoever was watching
+    // when the run parked. The stored step says "waiting for approval" after a
+    // reload, but the panel with the decision was gone, so the only way to finish
+    // the run was the approvals queue on another page (#601).
+    get.mockResolvedValue([
+      { id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", tool_args: { to: "a@b.c" } },
+      // A run parked before the tool-call mapping was stored has no id to
+      // resolve a card with; the decision is still offered.
+      { id: "ar-2", tool_call_id: null, tool_name: "execute", tool_args: {} },
+    ]);
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(parkedTurn());
+
+    const { result } = renderHook(() => useChat(), { wrapper: decider });
+    await act(async () => {});
+
+    expect(get.mock.calls).toEqual([["/runs/r-1/parked"]]);
+    expect(result.current.pendingApproval).toEqual({
+      actionRequests: [
+        { id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", args: { to: "a@b.c" } },
+        { id: "ar-2", tool_call_id: "", tool_name: "execute", args: {} },
+      ],
+      reviewConfigs: [
+        { tool_name: "send_email", allow_edit: false },
+        { tool_name: "execute", allow_edit: false },
+      ],
+      runId: "r-1",
+      messageId: "m-1",
+    });
+  });
+
+  it("asks nothing without approvals:decide", async () => {
+    // The endpoint is gated on the permission deciding takes, so a caller
+    // without it would 403 on every reopened conversation. The stored step
+    // still says the run is waiting; there is just no decision to offer.
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(parkedTurn());
+
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await act(async () => {});
+
+    expect(get).not.toHaveBeenCalled();
+    expect(result.current.pendingApproval).toBeNull();
+  });
+
+  it("asks about a run once, not on every store update", async () => {
+    get.mockResolvedValue([]);
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(parkedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper: decider });
+    await act(async () => {});
+    expect(result.current.pendingApproval).toBeNull();
+
+    act(() => {
+      useChatStore.getState().addMessage({
+        id: "m-2",
+        role: "user",
+        content: "hello?",
+        timestamp: new Date(),
+      });
+    });
+    await act(async () => {});
+
+    // Once for the run - and an answer of "nothing pending" leaves the panel
+    // down rather than inventing one: the calls were decided somewhere else.
+    expect(get).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves a parked step from before runs were stamped on messages alone", async () => {
+    // The step still reads "waiting for approval", but there is no run on the
+    // message to ask about.
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage({ ...parkedTurn(), runId: undefined });
+
+    const { result } = renderHook(() => useChat(), { wrapper: decider });
+    await act(async () => {});
+
+    expect(get).not.toHaveBeenCalled();
+    expect(result.current.pendingApproval).toBeNull();
+  });
+
+  it("stays quiet when the parked rows cannot be read", async () => {
+    // The approvals queue holds the same rows, so a panel that could not be
+    // rebuilt is not worth an error over the transcript somebody is reading.
+    get.mockRejectedValue(new Error("offline"));
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(parkedTurn());
+
+    const { result } = renderHook(() => useChat(), { wrapper: decider });
+    await act(async () => {});
+
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(result.current.pendingApproval).toBeNull();
+  });
+
+  it("waits for the turn in flight before asking", async () => {
+    // While a turn is processing the parked state on screen is the live one,
+    // and the live frame is what will carry the panel.
+    get.mockResolvedValue([]);
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const { result } = renderHook(() => useChat(), { wrapper: decider });
+    act(() => result.current.sendMessage("do it"));
+    act(() => {
+      useChatStore.getState().addMessage(parkedTurn());
+    });
+    await act(async () => {});
+    expect(get).not.toHaveBeenCalled();
+
+    receive("complete", {});
+    await act(async () => {});
+
+    expect(get).toHaveBeenCalledTimes(1);
   });
 
   it("takes a pending question off screen when another conversation is opened", () => {

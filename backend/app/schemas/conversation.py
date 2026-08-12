@@ -84,7 +84,7 @@ class ToolCallRead(ToolCallBase):
     id: UUID
     message_id: UUID
     result: str | None = None
-    status: Literal["pending", "running", "completed", "failed"] = "pending"
+    status: Literal["pending", "running", "completed", "failed", "awaiting_approval"] = "pending"
     started_at: datetime
     completed_at: datetime | None = None
     duration_ms: int | None = None

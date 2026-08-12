@@ -1028,6 +1028,7 @@ class TestWhatANonStreamingRunRecords:
         assert [(call.tool_name, call.args, call.result) for call in written["tool_calls"]] == [
             ("send_email", {"to": "ada@example.com"}, "ok")
         ]
+        assert written["parked"] == frozenset()
 
     @pytest.mark.anyio
     async def test_a_run_that_broke_still_records_what_was_asked(self):
@@ -1299,6 +1300,29 @@ class TestParking:
             # here, one whose agent binds no delegation at all (agenticos#175).
             "dynamic_specialists": [],
         }
+
+    @pytest.mark.anyio
+    async def test_a_parked_runs_transcript_marks_the_call_that_is_waiting(self):
+        """The transcript rows are the only account of the turn a reload has, and
+        they used to say `running` for the very call somebody has to decide about -
+        so a reopened conversation showed the step as ran and said nothing about
+        waiting (#601)."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared(conversation_id=uuid.uuid4())
+        prepared.approvals.parked = {"approval-1": "call-1"}
+        result = MagicMock(output=DeferredToolRequests())
+        result.all_messages = MagicMock(return_value=[])
+        result.new_messages = MagicMock(return_value=[])
+        prepared.built.agent.run = AsyncMock(return_value=result)
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service.transcript, "record", new=AsyncMock()) as record,
+        ):
+            await service.execute(_ctx(), uuid.uuid4(), "email the customer")
+
+        assert record.await_args.kwargs["parked"] == frozenset({"call-1"})
 
     @pytest.mark.anyio
     async def test_the_delegation_tree_is_folded_in_without_the_surface_supplying_it(self):

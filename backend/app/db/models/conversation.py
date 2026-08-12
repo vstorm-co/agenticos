@@ -182,7 +182,9 @@ class ToolCall(Base):
         tool_name: Name of the tool that was called
         args: JSON arguments passed to the tool
         result: Result returned by the tool
-        status: Current status (pending, running, completed, failed)
+        status: Current status (pending, running, completed, failed,
+            awaiting_approval - the run parked on this call and a person has
+            not decided yet)
         started_at: When the tool call started
         completed_at: When the tool call completed
         duration_ms: Execution time in milliseconds

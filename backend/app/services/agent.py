@@ -11,6 +11,7 @@ Framework-specific concerns (multimodal input, streaming events) stay in the rou
 
 import json
 import logging
+from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -286,6 +287,7 @@ async def persist_assistant_turn(
     agent_version_id: UUID | None = None,
     usage: UsageReport | None = None,
     run_id: UUID | None = None,
+    parked_tool_call_ids: Collection[str] = (),
 ) -> str | None:
     """Persist the assistant message and any tool calls. Returns the saved message id.
 
@@ -318,6 +320,13 @@ async def persist_assistant_turn(
     persisted before the run is built. It is passed beside `data` rather than
     inside it: `MessageCreate` is bound from a request body elsewhere, and a run
     id a caller could set is one they could aim at another organization's run.
+
+    `parked_tool_call_ids` names the calls the turn stopped on, so their rows are
+    stored `awaiting_approval` rather than `running` - the parked state otherwise
+    lives only on `agent_runs` and the `approvals` rows, and a reloaded
+    conversation read the one call somebody has to decide about as a step that
+    ran (#601). The resume settles the row through the transcript service, and an
+    expiry settles it with the timeout notice.
     """
     try:
         async with get_db_context() as db:
@@ -353,6 +362,7 @@ async def persist_assistant_turn(
                             args=normalize_tool_args(tc.get("args")),
                             started_at=datetime.now(UTC),
                         ),
+                        parked=tc["tool_call_id"] in parked_tool_call_ids,
                     )
                     if tc.get("result"):
                         await conv_service.complete_tool_call(

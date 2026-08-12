@@ -25,7 +25,7 @@ must not make the run inside it unaccountable.
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -146,6 +146,7 @@ class TranscriptService:
         answer: str,
         tool_calls: Sequence[RecordedToolCall] = (),
         settled: Mapping[str, str] | None = None,
+        parked: Collection[str] = (),
         model_label: str | None = None,
     ) -> None:
         """Write whatever this run produced, and never fail the run for it.
@@ -170,6 +171,14 @@ class TranscriptService:
         the call it belongs to (:func:`settled_calls_in`). So the one call somebody
         deliberately reviewed used to be the one call the transcript showed
         finishing with nothing under it.
+
+        `parked` names the calls this run just stopped on, and their rows are
+        written `awaiting_approval` rather than `running`. The parked state
+        otherwise lives only on `agent_runs` and the `approvals` rows, so a
+        reloaded conversation read the one call somebody has to decide about as
+        a step that ran (#601). The row is not left that way for ever: a resume
+        settles it with what the call returned, and an expiry settles it with
+        the timeout notice (:meth:`ApprovalService._settle_expired_run`).
 
         Never raises, and never poisons the session it shares with the caller.
         The answer has already been produced and the money already spent; losing
@@ -205,6 +214,7 @@ class TranscriptService:
                         run,
                         answer=answer,
                         tool_calls=tool_calls,
+                        parked=parked,
                         model_label=model_label,
                     )
         except Exception:
@@ -242,6 +252,7 @@ class TranscriptService:
         *,
         answer: str,
         tool_calls: Sequence[RecordedToolCall],
+        parked: Collection[str],
         model_label: str | None,
     ) -> None:
         """The assistant turn and the calls it made, attributed to the version.
@@ -269,6 +280,7 @@ class TranscriptService:
                 tool_name=call.tool_name,
                 args=call.args,
                 started_at=now,
+                status="awaiting_approval" if call.tool_call_id in parked else "running",
             )
             if call.result is not None:
                 await conversation_repo.complete_tool_call(

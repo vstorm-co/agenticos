@@ -3204,6 +3204,9 @@ class AgentRunnerService:
                 answer=output,
                 tool_calls=called,
                 settled=settled,
+                # So the step the run stopped on reads "awaiting approval" when
+                # the conversation is read back, not as a call that ran (#601).
+                parked=frozenset(paused.tool_call_ids.values()) if paused else frozenset(),
                 model_label=prepared.built.model_label,
             )
             # Committed here rather than left to the session context: that exit
