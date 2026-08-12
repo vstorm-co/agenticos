@@ -182,18 +182,19 @@ async def embed_widget(public_key: str, db: DBSession, request: Request) -> Resp
 async def embed_upload(
     public_key: str,
     service: EmbedSvc,
+    request: Request,
     file: Annotated[UploadFile, File()],
     visitor: str = Query(max_length=64),
 ) -> Any:
     """A file from a stranger, on a page whose operator allowed it.
 
     **The only route on this surface that stores anything**, which is why it is
-    the only one with three gates rather than one. The visitor's continuity key is
-    required and shaped like one, because the limit is counted per visitor and per
-    page: an address is what a stranger has one of, a key is what a browser keeps,
-    and either alone is bypassable. The cap and the MIME allowlist are the
-    service's, and the row belongs to whoever published the page - see
-    `AgentEmbedService.accept_upload`.
+    the only one with three gates rather than one. The limit is counted per address
+    *and* per visitor key: the key is minted by the browser, so counting only that
+    bounds nothing - a script varies it per file - and counting only the address
+    lets one browser on a shared one spend everybody's. The cap and the MIME
+    allowlist are the service's, and the row belongs to whoever published the page -
+    see `AgentEmbedService.accept_upload`.
 
     Counted before the key is looked up, like admission next door, so probing for
     live keys with a body attached is not free.
@@ -210,7 +211,7 @@ async def embed_upload(
     key = continuity_key(visitor)
     if key is None:
         raise HTTPException(status_code=400, detail="A visitor key is required")
-    if not await rate_limit.embed_upload_allowed(public_key=public_key, visitor=key):
+    if not await rate_limit.embed_upload_allowed(request, public_key=public_key, visitor=key):
         raise HTTPException(status_code=429, detail="Too many uploads. Try again shortly.")
 
     embed = await service.find_page(public_key)

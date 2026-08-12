@@ -159,27 +159,37 @@ async def hosted_admission_allowed(public_key: str) -> bool:
     return decision.allowed
 
 
-async def embed_upload_allowed(*, public_key: str, visitor: str) -> bool:
-    """Whether this visitor may store another file on this page right now.
+async def embed_upload_allowed(
+    connection: HTTPConnection, *, public_key: str, visitor: str
+) -> bool:
+    """Whether this caller may store another file on this page right now.
 
-    Per visitor *and* per page, unlike admission next door, because this is the
-    first thing on a public surface that writes bytes to the deployment's own
-    disk: an address is what a stranger has one of, and a continuity key is what
-    a stranger keeps. Counting only the address would let one browser fill a disk
-    from a coffee shop; counting only the key would let a script mint a new one
-    per file, so the pair is what bounds it.
+    **Two counters, and one of them is not optional.** This is the first thing on
+    a public surface that writes bytes to the deployment's own disk, and the two
+    things a stranger has are an address and a continuity key. Counting only the
+    key bounds nothing at all: the key is minted by the browser and any 32 hex
+    characters is a valid one, so a script that varies it gets the allowance again
+    per file. Counting only the address is the limit that holds, and the key is
+    what stops one browser on a shared address from spending everybody's.
+
+    So both, and both have to allow it. The address is counted first, because it
+    is the one that cannot be varied for free.
 
     Beside `embed_admission_allowed` rather than folded into it, on the same
     reasoning as messages against admissions: what somebody may *say* and what
     they may *store* have nothing to do with each other, and one number for both
     is a number chosen for whichever matters less.
     """
-    decision = await consume(
-        surface="embed_upload",
-        caller=f"key:{public_key}:visitor:{visitor}",
-        limit=Limit(attempts=settings.RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE),
+    limit = Limit(attempts=settings.RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE)
+    by_address = await consume(
+        surface="embed_upload", caller=f"ip:{caller_ip(connection)}", limit=limit
     )
-    return decision.allowed
+    if not by_address.allowed:
+        return False
+    by_visitor = await consume(
+        surface="embed_upload", caller=f"key:{public_key}:visitor:{visitor}", limit=limit
+    )
+    return by_visitor.allowed
 
 
 async def embed_admission_allowed(connection: HTTPConnection) -> bool:

@@ -392,7 +392,7 @@ three narrowings in front of it:
 | | |
 |---|---|
 | **A cap of this surface's own** | `EMBED_MAX_UPLOAD_SIZE_MB`, 5MB by default. A member uploading a fifty-megabyte export is somebody the organization employs; the same allowance on a public link is a way to fill a disk from an address nobody knows |
-| **A limit per visitor and per page** | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE`, in the shared Redis. Per *both*, because an address is what a stranger has one of and a continuity key is what a browser keeps — either alone is bypassable |
+| **A limit per address and per visitor** | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE`, in the shared Redis, and **both** have to allow it. Counting only the continuity key bounds nothing: the browser mints it and any 32 hex characters is a valid one, so a script varies it per file. Counting only the address lets one browser on a shared one spend everybody's |
 | **Three files to a message** | Which bounds how much of one turn's prompt is somebody else's document |
 
 **The row belongs to the member who published the page**, because

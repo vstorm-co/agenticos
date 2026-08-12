@@ -256,3 +256,59 @@ class TestTheHostedPageIsCountedPerPage:
         await rate_limit.hosted_admission_allowed("abc123")
 
         assert settings.RATE_LIMIT_HOSTED_PAGE_PER_MINUTE > settings.RATE_LIMIT_EMBED_PER_MINUTE
+
+
+class TestStoringAFileIsCountedTwice:
+    """The upload is the only public route that writes bytes to a disk, and the
+    only one whose caller has two identities worth counting.
+
+    Counting only the continuity key bounds nothing at all: the key is minted by
+    the browser and any 32 hex characters is a valid one, so a script that varies
+    it gets the whole allowance again per file. Counting only the address lets one
+    browser on a shared one spend everybody's. So both, and both have to allow it.
+    """
+
+    async def test_the_address_is_counted_first(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE", 5)
+        monkeypatch.setattr(settings, "RATE_LIMIT_TRUST_FORWARDED_FOR", False)
+        client = _redis([1, 1])
+        rate_limit.configure(client)
+
+        assert (
+            await rate_limit.embed_upload_allowed(
+                _connection(), public_key="pk_abc", visitor="a" * 32
+            )
+            is True
+        )
+        counted = [call.args[0] for call in client.count_in_window.await_args_list]
+        assert counted == [
+            "ratelimit:embed_upload:ip:203.0.113.7",
+            f"ratelimit:embed_upload:key:pk_abc:visitor:{'a' * 32}",
+        ]
+
+    async def test_a_fresh_key_does_not_buy_a_fresh_allowance(self, monkeypatch):
+        """The hole this closes: the key is the browser's to choose."""
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE", 5)
+        client = _redis([9])
+        rate_limit.configure(client)
+
+        assert (
+            await rate_limit.embed_upload_allowed(
+                _connection(), public_key="pk_abc", visitor="b" * 32
+            )
+            is False
+        )
+        # The visitor's own bucket was never reached, so varying the key cannot
+        # get past a refusal the address already earned.
+        assert client.count_in_window.await_count == 1
+
+    async def test_one_browser_cannot_spend_a_shared_addresss_allowance(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE", 5)
+        rate_limit.configure(_redis([1, 9]))
+
+        assert (
+            await rate_limit.embed_upload_allowed(
+                _connection(), public_key="pk_abc", visitor="c" * 32
+            )
+            is False
+        )
