@@ -351,3 +351,35 @@ class TestWhichFilesAFrameMayAttach:
             assert await session._files(MagicMock(), []) == []
 
         read.assert_not_awaited()
+
+
+class TestWhatAVisitorsFrameCannotChoose:
+    """The dashboard's inbound frame names the agent, the model and the
+    environment. A public one names none of them, and this is what says so.
+
+    A frame that could choose a model is a visitor choosing one on the operator's
+    bill; one that could choose an agent is a visitor talking to something nobody
+    published on this key. Both are pinned by construction - the run reads
+    `self.embed.agent_id` and passes no override - so what could regress is a
+    later hand adding a field "for parity" with the dashboard.
+    """
+
+    async def test_a_frame_naming_an_agent_a_model_and_an_environment_changes_nothing(
+        self,
+    ) -> None:
+        session = _session(_embed())
+        answered = AsyncMock(return_value=("hi", MagicMock(status=RunStatus.COMPLETED.value)))
+
+        with patch.object(EmbedSession, "_answer", new=answered):
+            await session.handle(
+                {
+                    "type": "message",
+                    "text": "hello",
+                    "agent_id": str(uuid.uuid4()),
+                    "model_profile_id": str(uuid.uuid4()),
+                    "environment_id": str(uuid.uuid4()),
+                }
+            )
+
+        assert answered.await_args is not None
+        assert answered.await_args.args == ("hello", [])

@@ -185,6 +185,16 @@ message.
 { "type": "message", "text": "Do you ship to Poland?" }
 ```
 
+That is the whole inbound vocabulary, plus `context` (what the page says about the
+visitor) and `file_ids` (what they attached, on a page that takes files). **It
+deliberately does not include the three fields the dashboard's own frame carries:**
+the agent, the model profile and the environment. A frame that could choose a model
+is a visitor choosing one on the operator's bill, and one that could choose an
+agent is a visitor talking to something nobody published on this key. All three
+come off the embed row. An unknown field is ignored rather than refused — a client
+cached in somebody's browser may be older than this server, and closing the socket
+over it would take the conversation with it.
+
 **Frames you receive**
 
 **This is the dashboard's own frame vocabulary, not a second one.** The chat in
