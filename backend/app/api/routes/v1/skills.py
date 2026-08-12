@@ -17,8 +17,6 @@ from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 
 from app.api.deps import Auth, SkillSvc, require
 from app.core.permissions import Perm
-from app.db.models.skill import Skill, SkillResource
-from app.db.updates import writable
 from app.repositories.skill import SkillSort
 from app.schemas.skill import (
     LibrarySkillList,
@@ -116,7 +114,7 @@ async def get_skill(skill_id: UUID, service: SkillSvc, ctx: Auth) -> Any:
 @router.patch("/{skill_id}", response_model=SkillRead)
 async def update_skill(skill_id: UUID, data: SkillUpdate, service: SkillSvc, ctx: Auth) -> Any:
     """Edit a skill. Every agent bound to it is current on the next run."""
-    return await service.update(ctx, skill_id, writable(data, over=Skill))
+    return await service.update(ctx, skill_id, data)
 
 
 @router.delete(
@@ -193,9 +191,7 @@ async def update_resource(
     service: SkillSvc,
     ctx: Auth,
 ) -> Any:
-    return await service.update_resource(
-        ctx, skill_id, resource_id, writable(data, over=SkillResource)
-    )
+    return await service.update_resource(ctx, skill_id, resource_id, data)
 
 
 @router.delete(
