@@ -932,11 +932,12 @@ class TestAReturningVisitorResumesTheirThread:
 class TestAnExplicitNullOnAnEmbedUpdate:
     """`null` on a column that cannot hold one.
 
-    `context_variables` already reads it as "declare none". The two JSONB
-    branding columns are the same shape and one of them was the same defect: a
-    request a client can perfectly reasonably make - reset the branding - passed
-    `None` through to a `NOT NULL` column and would have answered 500 naming a
-    constraint. `theme` still does; #637 is that half.
+    `model_dump(exclude_unset=True)` keeps a field explicitly set to `None`, so
+    every `X | None` on `EmbedUpdate` whose column is `NOT NULL` was one request
+    away from a 500 naming a constraint - for a question a client may reasonably
+    ask. `config` and `context_variables` read it as "back to the defaults" and
+    "declare none"; the scalars have no such reading and are dropped, which
+    leaves the stored value alone (#637).
     """
 
     @pytest.mark.anyio
@@ -965,3 +966,81 @@ class TestAnExplicitNullOnAnEmbedUpdate:
             "accent": "#4f46e5",
             "logo": "agent",
         }
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        "field",
+        ["name", "auth_mode", "allowed_origins", "is_active", "rate_limit_per_minute"],
+    )
+    async def test_a_null_scalar_leaves_the_stored_value_alone(self, field):
+        """Every one of these columns is `NOT NULL`, and `null` is the sentinel
+        this schema uses for "not provided" - so the honest reading is to drop
+        it rather than to write it and let the flush explain."""
+        embed = _embed()
+        service = _service()
+        with (
+            patch.object(service, "_owned", new=AsyncMock(return_value=embed)),
+            patch.object(service.agents, "get", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{MODULE}.record_audit", new=AsyncMock()),
+            patch(
+                f"{MODULE}.agent_embed_repo.update",
+                new=AsyncMock(side_effect=lambda db, **kw: embed),
+            ) as updated,
+        ):
+            await service.update(
+                MagicMock(organization_id=uuid.uuid4()),
+                embed.id,
+                EmbedUpdate.model_validate({field: None}),
+            )
+
+        assert field not in updated.await_args.kwargs["update_data"]
+
+
+class TestAnOriginListHasToMatchTheSurface:
+    """Both directions, because both are a surface that cannot work.
+
+    An empty list on a widget or a socket admits nobody, so publishing one is
+    asking for a surface that refuses every visitor - and the rule used to live
+    in a disabled button on the frontend, which is why a page could not be
+    published at all: the button demanded a field a page has no use for.
+
+    A list on a page is the mirror image. It is dead configuration, or worse,
+    somebody's belief that it is what protects the link.
+    """
+
+    def test_a_widget_allowed_nowhere_is_refused(self):
+        with pytest.raises(BadRequestError, match="at least one site"):
+            AgentEmbedService._check_origins("widget", [])
+
+    def test_a_socket_allowed_nowhere_is_refused(self):
+        """Its handshake is checked against the same list."""
+        with pytest.raises(BadRequestError, match="at least one site"):
+            AgentEmbedService._check_origins("socket", [])
+
+    def test_a_page_carrying_a_list_is_refused(self):
+        with pytest.raises(BadRequestError, match="own origin"):
+            AgentEmbedService._check_origins("page", ["https://acme.test"])
+
+    def test_a_page_with_no_list_is_the_ordinary_case(self):
+        AgentEmbedService._check_origins("page", [])
+
+
+class TestAnEmbedCannotChangeKind:
+    """A tag pasted, a client written and a link sent all name one row.
+
+    Migrating the row underneath them would change what all three do without
+    touching any of them, so the config is editable and a config of a different
+    kind is refused.
+    """
+
+    def test_a_config_of_another_kind_is_refused(self):
+        with pytest.raises(BadRequestError, match="cannot change kind"):
+            AgentEmbedService._parse_config({"kind": "page"}, kind="widget")
+
+    def test_an_untagged_config_takes_the_rows_own_kind(self):
+        """`null` means "back to the defaults", and defaults belong to a kind -
+        so an untagged body is resolved against the row rather than refused as
+        ambiguous."""
+        config = AgentEmbedService._parse_config(None, kind="socket")
+
+        assert config.kind == "socket"

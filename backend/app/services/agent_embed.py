@@ -182,6 +182,15 @@ class AgentEmbedService:
         await self.agents.get(ctx, embed.agent_id, perm=Perm.AGENTS_PUBLISH)
 
         changes = data.model_dump(exclude_unset=True)
+        # On `EmbedUpdate` a `None` is the "not provided" sentinel, not a value -
+        # but `exclude_unset` keeps an explicitly sent `null`, and these columns
+        # are `NOT NULL`. Passed through, `{"name": null}` reaches the database
+        # and comes back a 500 naming a constraint, for a request the API's own
+        # types say is legal.
+        for field in ("name", "auth_mode", "allowed_origins", "is_active", "rate_limit_per_minute"):
+            if changes.get(field, ...) is None:
+                del changes[field]
+
         mode = changes.get("auth_mode", embed.auth_mode)
         if "auth_mode" in changes or "jwt_secret" in changes:
             secret = changes.get("jwt_secret")
@@ -197,7 +206,7 @@ class AgentEmbedService:
                 changes["jwt_secret_encrypted"] = None
         changes.pop("jwt_secret", None)
 
-        if "allowed_origins" in changes and changes["allowed_origins"] is not None:
+        if "allowed_origins" in changes:
             self._check_origins(embed.kind, [str(origin) for origin in changes["allowed_origins"]])
             changes["allowed_origins"] = [
                 _origin_of(str(origin)) for origin in changes["allowed_origins"]

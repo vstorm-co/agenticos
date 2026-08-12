@@ -22,10 +22,18 @@ spending limit is checked before each model request, never after**, and **a run
 that failed is still in history with what it spent** — the tokens were spent
 before it broke, and a budget that ignores that is not a budget.
 
+**Three of those eight are one table, and its rows differ by a `kind`.** A
+widget, a raw socket and a hosted page are each an *embed*: one public key, one
+rate bucket, one budget, one pause switch, and one set of refusals. What differs
+is what there is to configure and what admits a visitor — which is why the
+Builder asks which one you want before it asks anything else, and why a page has
+no allowed-origins list rather than an ignored one. A kind is fixed at creation:
+a tag already pasted, a client already written and a link already sent all name
+the same row.
+
 Every run records the surface that admitted it — `web`, `embed`, `api`, `slack`,
 `telegram` or `mattermost` — which is what the dashboard's by-surface chart
-aggregates. A hosted page records `embed`, because it *is* an embed; the widget
-and the page share one object and one set of refusals. Two historical wrinkles:
+aggregates. All three embed kinds record `embed`. Two historical wrinkles:
 widget runs recorded before the `embed` value existed are stored as `web`, and
 Mattermost runs from the same era as `api`. Neither is backfilled — rewriting
 history would be a guess — so charts over old periods fold those runs into the
@@ -53,12 +61,14 @@ The shortest path. Publish the agent, create an embed, paste two lines.
 
 ### 1. Create the embed
 
-In the Builder, open the agent → **Embeds** → *Publish as widget*. You choose:
+In the Builder, open the agent → **Availability** → *Website widget*. You choose:
 
 - **Allowed origins** — the sites this widget may be opened from. **An empty
-  list allows nothing.** The key in the script tag is public by construction, so
-  the origin list is what actually stops somebody else running your agent on
-  your bill.
+  list allows nothing**, so publishing without one is refused rather than
+  producing a widget that answers nowhere. The key in the script tag is public by
+  construction, so the origin list is what actually stops somebody else running
+  your agent on your bill. The same rule holds for a socket, whose handshake is
+  checked against the same list.
 - **Auth** — `public` (anonymous visitors) or `jwt` (your backend vouches for
   each visitor; see below).
 - **Look** — title, greeting, accent colour, which corner.
@@ -151,9 +161,11 @@ the same socket:
 wss://your-api.example.com/api/v1/embed/PUBLIC_KEY/ws[?token=SIGNED_JWT]
 ```
 
-**You do not have to assemble that yourself.** The embed's row in **Agents →
-your agent → Embeds** publishes it beside the script tag, built from the
-deployment's own base URL, with a copy button. The `?token=` is not printed
+**You do not have to assemble that yourself.** Publish one from the Builder —
+the agent → **Availability** → *Raw WebSocket* — and its row prints the URL,
+built from the deployment's own base URL, with a copy button. A **widget** prints
+the same thing beside its script tag, because a widget is a client of this
+protocol: moving to an interface of your own is a step rather than a rewrite. The `?token=` is not printed
 there: in `jwt` mode the token is minted per visitor by your backend, and a real
 one on a dashboard screen is a working credential somebody can read over a
 shoulder.
@@ -215,17 +227,17 @@ socket.send(JSON.stringify({ type: "message", text: "hello" }));
 The shortest integration there is: **send somebody a link.** No site of your
 own, no `<script>` tag, no client to write, no sign-in.
 
-In the Builder, open the agent → **Embeds**, and either publish a new embed or
-edit one with *Also serve it as a page of ours*. The row then offers a third
-integration beside the tag and the socket:
+In the Builder, open the agent → **Availability** → *Hosted page*. There is no
+site to name and nothing to paste — the form asks for a title, a welcome, an
+accent and a logo, all optional, and publishes:
 
 ```
 https://your-app.example.com/e/PUBLIC_KEY
 ```
 
-It is **the same embed**, not a second kind of object: the same public key, the
-same rate limit, the same budget and the same pause switch. Turning hosting off,
-or pausing the embed, stops the page and the widget together.
+It is **an embed like the other two**: the same kind of key, the same rate limit,
+the same budget and the same pause switch. Pausing it stops the page at once, and
+every link already sent with it.
 
 ### What protects it
 
@@ -238,23 +250,25 @@ model:
 Whoever has the link can talk to the agent. That is the point of a link, and it
 is why the key is 24 random bytes rather than something readable.
 
-The allowed-origins list has nothing to say here, deliberately. An allow-list is
-a rule about *other people's* sites; this page is one we serve. So a hosted embed
-additionally accepts the deployment's own origin — derived from `FRONTEND_URL`,
-never hardcoded — and nothing wider: a third-party site is still checked against
-the list, and an embed nobody hosted is refused from our own origin too.
+There is no allowed-origins list here, deliberately, and the form does not offer
+one: an allow-list is a rule about *other people's* sites, and this page is one we
+serve. A page is admitted from the deployment's own origin — derived from
+`FRONTEND_URL`, never hardcoded — and nowhere else. A `CHECK` constraint refuses
+a page that carries a list at all, because a stored one reads as the thing
+protecting the link, and it is not.
 
 ### Two things a hosted page refuses
 
-Both are refused when you enable hosting, with a message, rather than silently
-falling back to an unhosted embed:
+Both are refused at publish, with a message, rather than silently falling back to
+a widget:
 
-- **`jwt` mode cannot be hosted.** The token would have to travel in the URL, and
-  so into browser history, `Referer` headers and every chat client the link is
-  pasted into — and the fragment trick that avoids some of that stops the link
-  being "send it and it works". Use the widget for a per-user integration; `jwt`
-  there is unaffected. A `CHECK` constraint holds the same rule in the database.
-- **A *required* variable that is not URL-safe cannot be hosted** — see below.
+- **A page cannot use `jwt` mode**, and the form does not offer it. The token
+  would have to travel in the URL, and so into browser history, `Referer` headers
+  and every chat client the link is pasted into — and the fragment trick that
+  avoids some of that stops the link being "send it and it works". Use a widget
+  or a socket for a per-user integration; `jwt` there is unaffected. A `CHECK`
+  constraint holds the same rule in the database.
+- **A *required* variable that is not URL-safe cannot be on a page** — see below.
 
 ### Variables from the address bar
 
