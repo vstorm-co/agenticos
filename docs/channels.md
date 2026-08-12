@@ -220,16 +220,20 @@ loop rather than the transport. Every frame carries `{ "type": …, "data": { �
 | `complete` | — | The turn is over. It carries **no usage**: what a run cost is the operator's business, not the visitor's. |
 | `error` | `message` | Something the visitor should see: rate limit, budget reached, a refusal, a turn that produced nothing. |
 
-Three frames the dashboard sends never reach a public socket, and all three are
-refusals rather than settings. **`user_prompt_processed`** carries the prompt *as
-assembled* — the placement note and the supplied block above what the visitor
-typed — which is the operator's text and not the visitor's to read back.
-**`ask_user` and `tool_approval_required`** have nobody here to answer them: a
-visitor cannot approve a side effect on somebody else's organization, so the run
-parks exactly as it does on a channel and the turn ends with `error` saying a
-person has to decide. Unlike a channel, it is not given the link to the decision:
-the reader there is a member who can open `/runs`, and here they are a stranger
-holding a link.
+Some dashboard frames never reach a public socket, and they are refusals rather
+than settings. **`user_prompt_processed`** carries the prompt *as assembled* —
+the placement note and the supplied block above what the visitor typed — which is
+the operator's text and not the visitor's to read back.
+
+**`ask_user` and `tool_approval_required` have nobody here to answer them, but
+they fail differently.** A visitor cannot approve a side effect on somebody
+else's organization, so `tool_approval_required` **parks** the run exactly as it
+does on a channel, and the turn ends with `error` saying a person has to decide —
+unlike a channel, without the `/runs` link, because the reader there is a member
+who can open it and here they are a stranger holding a link. `ask_user` does
+**not** park: `AgentDeps.ask_user` is `None` on this surface, so the tool
+*refuses* when the model calls it (`app/agents/ask_user.py`) and the model carries
+on to answer without the input — a degraded answer, not a parked run.
 
 **A client ignores what it does not draw**, and `widget.js` is the worked example:
 it reads `model_request_start`, `text_delta`, `final_result`, `complete` and
