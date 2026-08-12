@@ -41,7 +41,10 @@ describe("what the operator writes on the page", () => {
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ title: "R" }));
   });
 
-  it("carries the welcome message", async () => {
+  it("carries the welcome message, written in a Markdown editor", async () => {
+    // The same control "Context for this placement" uses. Three rows of a plain
+    // textarea is a keyhole onto prose somebody is composing, and the page renders
+    // this as Markdown, so the editor and the render agree about what it is.
     fields();
 
     await userEvent.type(screen.getByLabelText("Welcome message"), "H");

@@ -102,10 +102,13 @@ describe("the hosted page", () => {
     expect(screen.getByRole("heading", { name: "Refunds" })).toBeInTheDocument();
   });
 
-  it("shows the welcome message before the first question", () => {
-    render(<HostedChat config={config({ welcome: "Ask about a refund." })} />);
+  it("shows the welcome message before the first question, as Markdown", () => {
+    // The operator writes it in a Markdown editor, so printing the asterisks would
+    // be the one place on this page that shows source instead of text. The renderer
+    // is mocked to echo, so what is asserted is that it went through it.
+    render(<HostedChat config={config({ welcome: "**Ask** about a refund." })} />);
 
-    expect(screen.getByText("Ask about a refund.")).toBeInTheDocument();
+    expect(screen.getByText("**Ask** about a refund.")).toBeInTheDocument();
   });
 
   it("never sends the welcome message to the agent", async () => {

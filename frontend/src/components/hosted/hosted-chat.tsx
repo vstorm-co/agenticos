@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import { MessageSquarePlus, Mic, MicOff, Paperclip, Send, User, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { MarkdownContent } from "@/components/chat/markdown-content";
 import { TurnParts } from "@/components/chat/turn-parts";
 import { Button, Input } from "@/components/ui";
 import { BACKEND_URL, WS_URL } from "@/lib/constants";
@@ -443,8 +444,15 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
       </header>
 
       <div ref={threadRef} className="flex-1 space-y-3 overflow-y-auto py-4">
+        {/* Markdown, like the answer and for the same reason: the operator writes it
+            in a Markdown editor, so printing the asterisks would be the one place on
+            this page that shows the source instead of the text. Never sent to the
+            model - a greeting in the model's history is a turn the agent thinks it
+            took. */}
         {config.welcome !== "" && turns.length === 0 && (
-          <p className="text-muted-foreground text-sm whitespace-pre-wrap">{config.welcome}</p>
+          <div className="text-muted-foreground prose-sm max-w-none text-sm">
+            <MarkdownContent content={config.welcome} />
+          </div>
         )}
         {turns.map((turn, index) => (
           <HostedTurn key={index} turn={turn} logoSrc={logoSrc} agentName={config.agent_name} />

@@ -13,8 +13,8 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
+  MarkdownEditor,
   SelectValue,
-  Textarea,
 } from "@/components/ui";
 import type { EmbedVariable, HostedLogo, PageConfig } from "@/types/embeds";
 import { useRef } from "react";
@@ -112,13 +112,19 @@ export function PageFields({
 
       <div className="space-y-2">
         <Label htmlFor="hosted-welcome">{t("hostedWelcome")}</Label>
-        <Textarea
+        {/* The same editor "Context for this placement" uses, and for a related
+            reason: this is Markdown, and three rows of a plain textarea is a
+            keyhole onto prose somebody is composing. The difference is who reads
+            it - the placement note is read by the model, and this is rendered to
+            the visitor - which is why the page renders it as Markdown too rather
+            than printing the asterisks. */}
+        <MarkdownEditor
           id="hosted-welcome"
           value={config.welcome}
-          rows={3}
-          maxLength={MAX_WELCOME}
+          onChange={(next) => onChange({ ...config, welcome: next.slice(0, MAX_WELCOME) })}
+          label={t("hostedWelcome")}
+          rows={6}
           disabled={disabled}
-          onChange={(event) => onChange({ ...config, welcome: event.target.value })}
         />
         <p className="text-muted-foreground text-xs">{t("hostedWelcomeHint")}</p>
       </div>
