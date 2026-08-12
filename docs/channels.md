@@ -353,8 +353,9 @@ caller — at `RATE_LIMIT_RUN_PER_MINUTE`.
 
 Works in channels and in DMs. A thread gets its own conversation, so two people
 asking different things in the same channel do not end up in one thread of
-context. A message runs as the person who typed it — never as the bot — which is
-why an unlinked Slack account is refused rather than run with no role.
+context. A message from a linked account runs as that person — never as the bot;
+one from an account nobody has linked runs under the binding, and only in a
+channel. A direct message asks for the account first.
 
 ## Telegram
 
@@ -387,7 +388,11 @@ Two ways in; pick by whether your Mattermost can reach this deployment.
    the token, and set **Server URL** to your Mattermost, e.g.
    `https://mattermost.acme.internal` or `http://mattermost:8065` inside compose.
    Leave the webhook token empty.
-3. Invite the bot to a channel. The deployment opens an authenticated WebSocket
+3. Add the bot to the **team**, which *Integrations → Bot Accounts* does not do:
+   *System Console → User Management → Users*, find it, **Manage Teams**, add the
+   team — or `mmctl team users add <team> <bot>`. Until then a channel refuses to
+   admit it, saying it "is not a part of this team".
+4. Invite the bot to a channel. The deployment opens an authenticated WebSocket
    to your server and every `posted` event arrives on it.
 
 **Outgoing webhook.** For a Mattermost that can reach this API.
@@ -474,10 +479,31 @@ it is about to wait.
     which no amount of routing can. `@slug` still parses — as an alias for the
     agent behind this bot, refused when it names any other.
 - **Access policy per bot** — open, whitelist, or "must be linked to a member".
-- **Linking, and it comes first** — a channel run belongs to a *person*: the
+- **Linking, and where it is required** — every run belongs to somebody: the
   budget it spends, what it may read and the audit entry it writes are all
-  theirs. So an unlinked chat account is refused, whatever the bot's access
-  policy says.
+  attributed. Where that *somebody* comes from depends on whether the bot is
+  being spoken to privately or standing in a room.
+
+    **A direct message asks for an account.** It is a conversation with one
+    person, so an unlinked chat account is refused until it names one.
+
+    **A channel answers anybody in it.** Whoever could invite the bot chose the
+    audience, so a sender with no linked account is not refused: the turn runs
+    under the *binding* that admitted it — the role of whoever bound the agent to
+    this bot, dropping to `viewer` if they have since left the organization — and
+    the chat account that typed it is recorded on the run. What that widens is
+    real and worth saying: anyone who can speak in the channel can spend the
+    organization's budget and reach what the binding's creator can reach, which
+    is the same trade a public widget makes. The ceilings are the rate limit per
+    chat account, the access policy, and the organization's monthly cap.
+
+    Set **`require_link`** on the bot's access policy to refuse in channels too,
+    which is the old behaviour.
+
+    Linking still matters in a channel, and it is worth doing: a linked sender
+    runs as *themselves* rather than under the binding, and linking later makes
+    their earlier channel turns attributable to them — the run points at the chat
+    account, and the chat account gains a person.
 
     The refusal carries the way out. Message the bot and it answers with a URL;
     open it, and the dashboard — where you are already signed in — names the chat

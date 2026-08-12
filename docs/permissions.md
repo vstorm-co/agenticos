@@ -279,6 +279,20 @@ trail and the approval gate all key on one.
   several layers down as an `IntegrityError` - by which point the audit entry is
   lost and the request has half happened.
 
+The surfaces open to people this deployment cannot name do not use that
+constructor. A hosted page, a widget and a channel each run the turn under
+whoever *published* it - the embed's owner, or the binding that put the agent on
+the bot - falling back to `viewer` when that person has left the organization, so
+their departure cannot silently widen what a public surface reaches. The subject
+is therefore a real one, and it is not the person who typed the message.
+
+`AuthContext.channel_identity_id` is who typed it, when that is a chat account
+rather than a member. It carries no authority - no permission reads it - and
+exists so a channel turn is attributable: it is stamped on `agent_runs`, and
+linking that chat account later attributes those runs to a person without
+rewriting what they ran as. See
+[Channels](channels.md#what-every-channel-shares).
+
 What such a run is allowed to do comes from the **exposure** that admitted it,
 created by somebody who did have a role.
 
