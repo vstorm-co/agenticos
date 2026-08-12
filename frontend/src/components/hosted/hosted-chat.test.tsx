@@ -430,8 +430,12 @@ describe("attaching a file", () => {
 
     expect(await screen.findByText("invoice.pdf")).toBeInTheDocument();
     // The visitor key travels with it: the limit is counted per visitor and per
-    // page, so an upload with no key is one the server cannot bound.
-    expect(fetched.mock.calls[0]![0]).toMatch(/\/files\?visitor=[0-9a-f]{32}$/);
+    // page, so an upload with no key is one the server cannot bound. It rides a
+    // header, not the query string - it is a bearer credential and a query lands
+    // in access logs.
+    expect(fetched.mock.calls[0]![0]).toMatch(/\/files$/);
+    const sentHeaders = fetched.mock.calls[0]![1]!.headers as Record<string, string>;
+    expect(sentHeaders["X-Visitor-Key"]).toMatch(/^[0-9a-f]{32}$/);
 
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
 

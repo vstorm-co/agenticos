@@ -186,7 +186,7 @@ async def embed_upload(
     service: EmbedSvc,
     request: Request,
     file: Annotated[UploadFile, File()],
-    visitor: str = Query(max_length=64),
+    visitor: Annotated[str, Header(alias="X-Visitor-Key", max_length=64)],
 ) -> Any:
     """A file from a stranger, on a page whose operator allowed it.
 
@@ -209,6 +209,11 @@ async def embed_upload(
 
     It answers the id and nothing else. The parse, the size and the storage path
     are the operator's to read in the transcript, not the visitor's to read back.
+
+    The continuity key travels as a header rather than a query parameter: the
+    model's own docstring calls it a bearer credential for the whole transcript,
+    and a query string lands in access logs and any intermediary's. The socket
+    handshake cannot avoid a query; this route can.
     """
     key = continuity_key(visitor)
     if key is None:

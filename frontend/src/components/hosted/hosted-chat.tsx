@@ -370,11 +370,13 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
    * Send a file, and keep the id the server answers with.
    *
    * Straight to the API rather than through a route handler of ours: this page has
-   * no session to proxy, and the upload is authorised by the public key and the
-   * visitor's own continuity key, both of which are already in the URL. A refusal
-   * - too large, a type nothing can read, a page whose operator turned this off -
-   * is said in the thread rather than thrown away, because a picker that appears
-   * to do nothing is worse than a sentence.
+   * no session to proxy, and the upload is authorised by the public key in the path
+   * and the visitor's own continuity key. That key rides an X-Visitor-Key header
+   * rather than the query string: it is a bearer credential for the whole
+   * transcript, and a query string lands in access logs. A refusal - too large, a
+   * type nothing can read, a page whose operator turned this off - is said in the
+   * thread rather than thrown away, because a picker that appears to do nothing is
+   * worse than a sentence.
    */
   const attach = useCallback(
     async (file: File) => {
@@ -384,8 +386,8 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
         body.append("file", file);
         const visitor = visitorKeyFor(config.public_key);
         const response = await fetch(
-          `${BACKEND_URL}/api/v1/embed/${encodeURIComponent(config.public_key)}/files?visitor=${visitor}`,
-          { method: "POST", body },
+          `${BACKEND_URL}/api/v1/embed/${encodeURIComponent(config.public_key)}/files`,
+          { method: "POST", body, headers: { "X-Visitor-Key": visitor } },
         );
         if (!response.ok) throw new Error("refused");
         const stored = (await response.json()) as { id: string; filename: string };
