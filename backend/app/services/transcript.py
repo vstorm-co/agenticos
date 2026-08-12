@@ -196,6 +196,10 @@ class TranscriptService:
                         role="user",
                         content=prompt,
                         run_id=run.id,
+                        # Off the run rather than passed in: the run row already
+                        # records which chat account asked, and a second route to
+                        # the same fact is a second route to getting it wrong.
+                        channel_identity_id=run.channel_identity_id,
                     )
                 for tool_call_id, result in (settled or {}).items():
                     await self._settle(run, tool_call_id=tool_call_id, result=result)

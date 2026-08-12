@@ -43,12 +43,17 @@ from app.services.transcript import (
 pytestmark = pytest.mark.anyio
 
 
-def _run(*, in_a_conversation: bool = True) -> MagicMock:
+def _run(
+    *, in_a_conversation: bool = True, channel_identity_id: uuid.UUID | None = None
+) -> MagicMock:
+    # `channel_identity_id` is named rather than left to the mock: an attribute
+    # nobody set answers with a `MagicMock`, and this one is written to a column.
     return MagicMock(
         id=uuid.uuid4(),
         agent_id=uuid.uuid4(),
         agent_version_id=uuid.uuid4(),
         conversation_id=uuid.uuid4() if in_a_conversation else None,
+        channel_identity_id=channel_identity_id,
     )
 
 
@@ -219,6 +224,26 @@ class TestWritingTheTranscript:
         )
         assert (answer["role"], answer["content"], answer["run_id"]) == ("assistant", "two", run.id)
         assert answer["model_name"] == "gpt-4.1"
+
+    async def test_a_turn_from_a_channel_records_which_chat_account_wrote_it(self, conversations):
+        """A room is one thread with several people in it, so `role="user"` does
+        not say who spoke - and whose list the thread appears in is read off this.
+        """
+        identity_id = uuid.uuid4()
+        run = _run(channel_identity_id=identity_id)
+
+        await TranscriptService(_session()).record(run, prompt="hej", answer="czesc")
+
+        prompt, answer = (call.kwargs for call in conversations.create_message.await_args_list)
+        assert prompt["channel_identity_id"] == identity_id
+        assert "channel_identity_id" not in answer, "the agent has no chat account"
+
+    async def test_a_turn_typed_into_the_dashboard_records_none(self, conversations):
+        """Null is the honest value: there is no chat account behind it."""
+        await TranscriptService(_session()).record(_run(), prompt="hej", answer="czesc")
+
+        prompt = conversations.create_message.await_args_list[0].kwargs
+        assert prompt["channel_identity_id"] is None
 
     async def test_the_answer_is_attributed_to_the_version_that_ran(self, conversations):
         """An agent is rewritten between runs. Attributing last Tuesday's answer

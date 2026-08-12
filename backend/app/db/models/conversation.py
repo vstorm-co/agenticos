@@ -96,6 +96,19 @@ class Message(Base, TimestampMixin):
         nullable=True,
         index=True,
     )
+    # Who wrote this turn, when the writer was a chat account rather than somebody
+    # signed in. A channel thread has several people in it, so a row with only
+    # `role="user"` cannot say which of them spoke - and a `DISTINCT` over this
+    # column is also what decides whose conversation list the thread appears in,
+    # which is why there is no participants table beside it (#639).
+    #
+    # Null on every assistant turn and on anything typed into the dashboard.
+    channel_identity_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("channel_identities.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     # Which frozen spec answered, not just which agent. An agent is rewritten;
     # what it said last Tuesday was said by one version of it, and "why did it
     # answer that" is a question about the version. Runs have recorded this

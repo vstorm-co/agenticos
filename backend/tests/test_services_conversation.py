@@ -1,6 +1,7 @@
 """Tests for ConversationService (PostgreSQL async variant)."""
 
 from datetime import UTC, datetime
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -33,6 +34,7 @@ class MockConversation:
         # real object would fail the moment anything serializes it.
         self.created_at = datetime(2026, 7, 27, tzinfo=UTC)
         self.updated_at = None
+        self.messages: list[Any] = []
 
 
 class MockMessage:
@@ -103,6 +105,51 @@ class TestConversationServiceGetConversation:
             mock_repo.get_conversation_by_id.assert_called_once_with(
                 service.db, conv_id, include_messages=False
             )
+
+    @pytest.mark.anyio
+    async def test_a_channel_turn_is_read_back_with_the_name_that_wrote_it(
+        self, service: ConversationService
+    ):
+        """A thread several people spoke in renders as several people, or it reads
+        as one person talking to themselves."""
+        identity_id = uuid4()
+        identity = MagicMock(id=identity_id, platform_username="kacper.wlodarczyk")
+        conversation = MockConversation()
+        wrote = MagicMock(id=uuid4(), channel_identity_id=identity_id)
+        # `author=None` explicitly: a bare mock invents the attribute, and then the
+        # assertion below would pass whatever the code did.
+        typed = MagicMock(id=uuid4(), channel_identity_id=None, author=None)
+        conversation.messages = [wrote, typed]
+
+        with patch("app.services.conversation.conversation_repo") as mock_repo:
+            mock_repo.get_conversation_by_id = AsyncMock(return_value=conversation)
+            mock_repo.authors_of = AsyncMock(return_value={identity_id: identity})
+
+            await service.get_conversation(
+                conversation.id, include_messages=True, organization_id=TEST_ORG_ID
+            )
+
+        assert wrote.author is identity
+        assert typed.author is None, "nothing typed into the dashboard has a chat account"
+        mock_repo.authors_of.assert_awaited_once_with(service.db, [identity_id])
+
+    @pytest.mark.anyio
+    async def test_a_dashboard_thread_asks_for_no_authors_at_all(
+        self, service: ConversationService
+    ):
+        """One query per page, and not even that when there is nothing to name."""
+        conversation = MockConversation()
+        conversation.messages = [MagicMock(id=uuid4(), channel_identity_id=None)]
+
+        with patch("app.services.conversation.conversation_repo") as mock_repo:
+            mock_repo.get_conversation_by_id = AsyncMock(return_value=conversation)
+            mock_repo.authors_of = AsyncMock(return_value={})
+
+            await service.get_conversation(
+                conversation.id, include_messages=True, organization_id=TEST_ORG_ID
+            )
+
+        mock_repo.authors_of.assert_awaited_once_with(service.db, [])
 
     @pytest.mark.anyio
     async def test_get_conversation_not_found_raises(self, service: ConversationService):

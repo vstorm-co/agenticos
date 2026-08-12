@@ -110,7 +110,26 @@ class ConversationService:
             for msg in conversation.messages:
                 msg.user_rating = user_ratings.get(msg.id)  # ty: ignore[unresolved-attribute]
                 msg.rating_count = rating_counts.get(msg.id)  # ty: ignore[unresolved-attribute]
+        if include_messages and conversation.messages:
+            await self._attach_authors(conversation.messages)
         return conversation
+
+    async def _attach_authors(self, messages: list[Message]) -> None:
+        """Put a name on each turn that came from a chat account.
+
+        Outside the ratings block above on purpose: ratings are *this reader's*,
+        so they are only fetched when there is a reader, while who wrote a turn is
+        a property of the turn. A channel thread read with no `user_id` - an admin
+        view, an export - would otherwise render a room full of anonymous "hej".
+        """
+        authors = await conversation_repo.authors_of(
+            self.db, [m.channel_identity_id for m in messages if m.channel_identity_id]
+        )
+        if not authors:
+            return
+        for msg in messages:
+            if msg.channel_identity_id is not None:
+                msg.author = authors.get(msg.channel_identity_id)  # ty: ignore[unresolved-attribute]
 
     async def list_conversations(
         self,

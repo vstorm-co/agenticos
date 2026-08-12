@@ -43,13 +43,13 @@ def upgrade() -> None:
         ondelete="SET NULL",
     )
     op.create_index(
-        "ix_agent_runs_channel_identity_id",
+        "agent_runs_channel_identity_id_idx",
         "agent_runs",
         ["channel_identity_id"],
     )
 
 
 def downgrade() -> None:
-    op.drop_index("ix_agent_runs_channel_identity_id", table_name="agent_runs")
+    op.drop_index("agent_runs_channel_identity_id_idx", table_name="agent_runs")
     op.drop_constraint("agent_runs_channel_identity_id_fkey", "agent_runs", type_="foreignkey")
     op.drop_column("agent_runs", "channel_identity_id")

@@ -539,6 +539,23 @@ it is about to wait.
     their earlier channel turns attributable to them — the run points at the chat
     account, and the chat account gains a person.
 
+    **A channel thread is one conversation with several people in it**, and it
+    appears in the conversation list of everybody whose linked chat account has
+    written in it — not only whoever spoke first, and not nobody, which is what a
+    thread with no linked speaker used to reach. Each turn records the account
+    that wrote it, so a room reads as a room rather than as one person talking to
+    themselves. Linking afterwards is what puts the earlier thread in front of
+    somebody, with no backfill: the turn points at the chat account and the
+    account gains a person.
+
+    **That list says who spoke, not who may read.** Participation is never
+    re-checked against the platform, so somebody removed from the channel there
+    keeps the thread in their list here — deliberately, and [#641][641] is what it
+    would take to change. Nothing may use it as an authorization check without
+    asking the platform first.
+
+[641]: https://github.com/vstorm-co/agenticos/issues/641
+
     The refusal carries the way out. Message the bot and it answers with a URL;
     open it, and the dashboard — where you are already signed in — names the chat
     account and asks you to confirm. Nothing is typed and no code is copied. Ask
