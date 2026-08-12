@@ -108,7 +108,7 @@ async def hosted_config(public_key: str, service: EmbedSvc) -> Any:
 
 
 @router.get("/{public_key}/logo", response_class=FileResponse)
-async def hosted_logo(public_key: str, service: EmbedSvc) -> Any:
+async def hosted_logo(public_key: str, service: EmbedSvc, request: Request) -> Any:
     """The one image a hosted page may hand out without a session.
 
     The agent's avatar or the organization's, whichever the page was configured
@@ -116,7 +116,15 @@ async def hosted_logo(public_key: str, service: EmbedSvc) -> Any:
     no second upload path and no operator-supplied URL for a page we serve to go
     fetching. The authenticated avatar routes stay authenticated: what makes this
     one public is the hosted flag on this embed, and nothing wider.
+
+    Per address, unlike `/hosted` beside it: this one is fetched by the visitor's
+    browser as an `<img>`, so the address is theirs. It is the most expensive
+    route here - two queries, a stat and a file - which is the reason it carries a
+    gate at all rather than being left as the cheap read the others are.
     """
+    if not await rate_limit.embed_admission_allowed(request):
+        raise HTTPException(status_code=429, detail="Too many requests")
+
     path = await service.hosted_logo_path(public_key)
     if path is None:
         raise HTTPException(status_code=404, detail="No logo")
@@ -124,14 +132,22 @@ async def hosted_logo(public_key: str, service: EmbedSvc) -> Any:
 
 
 @router.get("/{public_key}/widget.js", response_class=Response)
-async def embed_widget(public_key: str, db: DBSession) -> Response:
+async def embed_widget(public_key: str, db: DBSession, request: Request) -> Response:
     """The script a customer pastes into their page.
 
     Served from the API rather than a CDN so a self-hosted deployment needs no
     second host, and so the script always matches the server it talks to. It is
     handed out to anyone who asks: it contains no secret, and the origin check
     happens when it opens a socket, not when it is downloaded.
+
+    Gated per address like the rest, which it was not until the surface count in
+    `rate_limit` was made honest. "Static script" is what it looks like from
+    outside; from in here it is a row read per request, and the five-minute cache
+    is a browser's courtesy rather than a ceiling anybody has to respect.
     """
+    if not await rate_limit.embed_admission_allowed(request):
+        raise HTTPException(status_code=429, detail="Too many requests")
+
     service = AgentEmbedService(db)
     embed = await service.find_public(public_key)
     if embed is None or not embed.is_active:

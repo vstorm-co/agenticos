@@ -1,12 +1,17 @@
 """How often one caller may reach a public surface.
 
-Three of this platform's surfaces are reachable without a session: the public
-run API, the widget's config endpoint and the widget's socket. Between them and
-somebody else's model budget there was, until #39, nothing at all - a limiter
-was constructed in `app/core/rate_limit.py`, registered on the app, and used by
-no route, while a second Redis-backed one sat unimported in
-`app/services/rate_limit/` and could not have been imported anyway: it read
-`get_redis` from a module that does not define one.
+Six of this platform's surfaces are reachable without a session: the public run
+API, the widget's script, its config endpoint, its socket, a hosted page's config
+and that page's logo. Every one of them reads at least one row before it decides
+anything, and between them and somebody else's model budget there was, until #39,
+nothing at all - a limiter was constructed in `app/core/rate_limit.py`,
+registered on the app, and used by no route, while a second Redis-backed one sat
+unimported in `app/services/rate_limit/` and could not have been imported anyway:
+it read `get_redis` from a module that does not define one.
+
+The count is load-bearing rather than decorative: it said "three" while five
+existed, which is how a public route acquires no gate - nothing complains, and
+the next reader takes the number for the sweep.
 
 What replaced both is this module, and the shape is deliberately
 `app/services/channels/dedupe.py`:

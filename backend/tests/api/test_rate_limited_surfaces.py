@@ -155,6 +155,34 @@ class TestTheWidgetsAdmission:
 
         assert response.status_code == 429
 
+    async def test_the_logo_is_gated_too(self, mock_redis: MagicMock):
+        """The most expensive public route here - two queries, a stat and a file -
+        and the last one to get a gate. Per address, because unlike `/hosted`
+        beside it this one is fetched by the visitor's own browser as an `<img>`.
+        """
+        app.dependency_overrides[deps.get_redis] = lambda: mock_redis
+        app.dependency_overrides[deps.get_db_session] = lambda: MagicMock()
+        rate_limit.configure(_redis(used=999))
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get("/api/v1/embed/some-key/logo")
+
+        assert response.status_code == 429
+
+    async def test_the_widget_script_is_gated_too(self, mock_redis: MagicMock):
+        """ "Static script" is what it looks like from outside. From in here it is
+        a row read per request, and a five-minute cache is a browser's courtesy
+        rather than a ceiling a caller has to respect.
+        """
+        app.dependency_overrides[deps.get_redis] = lambda: mock_redis
+        app.dependency_overrides[deps.get_db_session] = lambda: MagicMock()
+        rate_limit.configure(_redis(used=999))
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get("/api/v1/embed/some-key/widget.js")
+
+        assert response.status_code == 429
+
     async def test_a_socket_over_the_allowance_closes_with_its_own_code(self):
         """4029, not 4003. "Not allowed here" and "allowed but too fast" ask a
         client for opposite things - stop for ever, and retry later - so a client
