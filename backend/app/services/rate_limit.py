@@ -94,15 +94,22 @@ def caller_ip(connection: HTTPConnection) -> str:
     deployment is the only thing that can reach it - `docs/configuration.md`
     has the sentence.
 
+    The **rightmost** hop is read, not the leftmost. `X-Forwarded-For` is a list
+    the client starts and each proxy appends to, and nginx's
+    `$proxy_add_x_forwarded_for` and Cloudflare both *add* the peer address
+    rather than replacing the list - so the leftmost entry is whatever the client
+    typed, and counting it hands the limiter back to anyone willing to vary a
+    header. The last entry is the one the trusted proxy itself wrote, which is why
+    this setting is only safe with exactly one such proxy in front; a deployment
+    with two has to collapse the header to one hop at its edge.
+
     Works for a WebSocket as well as a request: both are `HTTPConnection`, and
     the socket handshake needs the same answer.
     """
     if settings.RATE_LIMIT_TRUST_FORWARDED_FOR:
         forwarded = connection.headers.get("x-forwarded-for")
         if forwarded:
-            # The leftmost hop is the original client; everything after it is
-            # the chain of proxies that carried the request.
-            return forwarded.split(",")[0].strip()
+            return forwarded.split(",")[-1].strip() or "unknown"
     return connection.client.host if connection.client else "unknown"
 
 

@@ -556,15 +556,19 @@ key is not a strategy against 192 bits of `secrets.token_urlsafe`.
 Per-address limits count `request.client.host`. **Behind a proxy or a CDN that
 is the proxy's address, not the visitor's** — every visitor shares one bucket, so
 a busy site behind Cloudflare exhausts the widget's twenty admissions a minute
-for everybody at once. Turning this on reads the leftmost `X-Forwarded-For` hop
-instead.
+for everybody at once. Turning this on reads the **rightmost** `X-Forwarded-For`
+hop instead — the address the trusted proxy itself appended.
 
 It is off by default because the header is set by whoever is calling: trusted
 unconditionally, a per-address limit becomes a per-header limit that anybody
-bypasses by varying one string. **Turn it on only when a proxy you control is
-the only thing that can reach the API** — if the container's port is published
+bypasses by varying one string. The rightmost hop is read rather than the
+leftmost for the same reason — `X-Forwarded-For` is a list the client starts and
+each proxy appends to, so the head is what the client typed and only the tail is
+what a proxy you control wrote. **Turn it on only when a single proxy you control
+is the only thing that can reach the API** — if the container's port is published
 as well, a caller can set the header themselves and the limit stops meaning
-anything.
+anything; and with two proxies in front, collapse the header to one hop at your
+edge, because only the last hop is trustworthy.
 
 ## A worker whose event loop has stopped turning
 

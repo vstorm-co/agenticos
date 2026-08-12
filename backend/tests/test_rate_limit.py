@@ -150,24 +150,37 @@ class TestWhichAddressIsCounted:
 
         assert address == "10.0.0.1"
 
-    def test_a_trusted_deployment_counts_the_visitor_rather_than_its_proxy(self, monkeypatch):
+    def test_a_trusted_deployment_counts_the_hop_its_own_proxy_wrote(self, monkeypatch):
         """Behind a proxy the socket's peer is the proxy, so every visitor would
-        share one bucket and a busy site would exhaust it for everybody."""
+        share one bucket. The trusted proxy appends the real peer, so the address
+        to count is the rightmost entry - the one it wrote, not the list head the
+        client controls."""
         monkeypatch.setattr(settings, "RATE_LIMIT_TRUST_FORWARDED_FOR", True)
 
         address = rate_limit.caller_ip(
-            _connection(host="10.0.0.1", **{"x-forwarded-for": "1.1.1.1, 10.0.0.1"})
+            _connection(host="10.0.0.1", **{"x-forwarded-for": "1.1.1.1, 203.0.113.9"})
         )
 
-        assert address == "1.1.1.1"
+        assert address == "203.0.113.9"
 
-    def test_the_leftmost_hop_is_the_client(self, monkeypatch):
+    def test_a_spoofed_leftmost_entry_cannot_mint_a_fresh_bucket(self, monkeypatch):
+        """The header is a list the client starts and each proxy appends to. A
+        caller varying the leftmost entry per request must not land in a new
+        bucket each time - the counted address is the hop the trusted proxy added,
+        which they cannot forge."""
         monkeypatch.setattr(settings, "RATE_LIMIT_TRUST_FORWARDED_FOR", True)
 
-        assert (
-            rate_limit.caller_ip(_connection(**{"x-forwarded-for": " 9.9.9.9 ,8.8.8.8"}))
-            == "9.9.9.9"
-        )
+        first = rate_limit.caller_ip(_connection(**{"x-forwarded-for": "evil-1, 203.0.113.9"}))
+        second = rate_limit.caller_ip(_connection(**{"x-forwarded-for": "evil-2, 203.0.113.9"}))
+
+        assert first == second == "203.0.113.9"
+
+    def test_a_forwarded_header_of_only_commas_falls_back_to_unknown(self, monkeypatch):
+        """A rightmost entry that is empty must not key everybody sending it into
+        one shared bucket."""
+        monkeypatch.setattr(settings, "RATE_LIMIT_TRUST_FORWARDED_FOR", True)
+
+        assert rate_limit.caller_ip(_connection(**{"x-forwarded-for": "9.9.9.9 , "})) == "unknown"
 
     def test_an_empty_forwarded_header_falls_back_to_the_peer(self, monkeypatch):
         monkeypatch.setattr(settings, "RATE_LIMIT_TRUST_FORWARDED_FOR", True)
