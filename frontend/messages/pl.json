@@ -997,6 +997,8 @@
     "thinking": "Pracuję nad tym…",
     "tooManyConnections": "Zbyt wiele połączeń stąd w ostatniej minucie. Spróbuj ponownie za chwilę.",
     "unavailable": "Ten asystent jest teraz niedostępny.",
+    "connectionLost": "Połączenie zostało przerwane.",
+    "reconnect": "Połącz ponownie",
     "newConversation": "Nowa rozmowa",
     "startDictation": "Dyktuj",
     "stopDictation": "Zakończ dyktowanie",

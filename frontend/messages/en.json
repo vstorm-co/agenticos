@@ -1557,6 +1557,8 @@
     "thinking": "Working on it…",
     "tooManyConnections": "Too many connections from here in the last minute. Try again shortly.",
     "unavailable": "This assistant is not available right now.",
+    "connectionLost": "The connection was lost.",
+    "reconnect": "Reconnect",
     "newConversation": "New chat",
     "startDictation": "Dictate",
     "stopDictation": "Stop dictating",

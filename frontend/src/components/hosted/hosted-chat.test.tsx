@@ -235,6 +235,21 @@ describe("the hosted page", () => {
 
     expect(screen.getByRole("textbox")).toBeDisabled();
   });
+
+  it("says the connection was lost on an abnormal close, and disables the composer", async () => {
+    // A network blip or a server restart carries neither 4029 nor 4003. The
+    // composer must not stay enabled to swallow a send silently.
+    render(<HostedChat config={config()} />);
+
+    act(() => socket().onclose?.({ code: 1006 }));
+
+    expect(screen.getByText("The connection was lost.")).toBeInTheDocument();
+    expect(screen.getByRole("textbox")).toBeDisabled();
+    // Reconnect reopens the socket on the same key rather than starting a fresh
+    // thread, so the composer comes back.
+    await userEvent.click(screen.getByRole("button", { name: "Reconnect" }));
+    expect(screen.getByRole("textbox")).toBeEnabled();
+  });
 });
 
 describe("what the operator lets the page offer", () => {

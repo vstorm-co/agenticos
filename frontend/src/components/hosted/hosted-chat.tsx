@@ -291,7 +291,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState("");
   const [thinking, setThinking] = useState(false);
-  const [closed, setClosed] = useState<"refused" | "too-many" | null>(null);
+  const [closed, setClosed] = useState<"refused" | "too-many" | "lost" | null>(null);
   // Bumped to reconnect on a fresh key. The socket carries the key in its URL,
   // so a new thread is a new connection rather than a frame.
   const [session, setSession] = useState(0);
@@ -323,6 +323,10 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
     const url = `${WS_URL}/api/v1/embed/${encodeURIComponent(config.public_key)}/ws?visitor=${visitor}`;
     const socket = new WebSocket(url);
     socketRef.current = socket;
+    // Set before the cleanup closes the socket, so a teardown - an unmount, a
+    // reconnect, "start a new chat" bumping `session` - does not read as the
+    // server having dropped us and flash "connection lost" on the way out.
+    let intentional = false;
 
     socket.onmessage = (event) => {
       const frame = JSON.parse(event.data as string);
@@ -331,12 +335,21 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
       setTurns((said) => fold(said, frame.type as string, frame.data ?? {}));
     };
     socket.onclose = (event) => {
+      if (intentional) return;
       setThinking(false);
       if (event.code === 4029) setClosed("too-many");
       else if (event.code === 4003) setClosed("refused");
+      // Any other close - a network blip, uvicorn restarting mid-deploy, the 1006
+      // an abnormal drop carries - is not a refusal and not a limit. The composer
+      // is disabled rather than left to swallow a `send` silently, and the visitor
+      // is offered a reconnect that keeps their thread.
+      else setClosed("lost");
     };
 
-    return () => socket.close();
+    return () => {
+      intentional = true;
+      socket.close();
+    };
   }, [config.public_key, session]);
 
   useEffect(() => {
@@ -351,6 +364,16 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
     setClosed(null);
     setSession((count) => count + 1);
   }, [config.public_key]);
+
+  // Reopen the socket on the *same* visitor key, so a dropped connection is
+  // resumed rather than replaced: bumping `session` re-runs the effect and
+  // `visitorKeyFor` reads the stored key, keeping the thread. Unlike startFresh,
+  // which mints a new key and so a new thread.
+  const reconnect = useCallback(() => {
+    setThinking(false);
+    setClosed(null);
+    setSession((count) => count + 1);
+  }, []);
 
   /**
    * Dictate into the box using the browser's own recogniser.
@@ -481,9 +504,20 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
         ))}
         {thinking && <p className="text-muted-foreground text-sm">{t("thinking")}</p>}
         {closed !== null && (
-          <p className="text-muted-foreground text-sm">
-            {closed === "too-many" ? t("tooManyConnections") : t("unavailable")}
-          </p>
+          <div className="text-muted-foreground flex items-center gap-2 text-sm">
+            <span>
+              {closed === "too-many"
+                ? t("tooManyConnections")
+                : closed === "lost"
+                  ? t("connectionLost")
+                  : t("unavailable")}
+            </span>
+            {closed === "lost" && (
+              <Button variant="ghost" size="sm" onClick={reconnect}>
+                {t("reconnect")}
+              </Button>
+            )}
+          </div>
         )}
       </div>
 
