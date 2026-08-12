@@ -21,11 +21,13 @@ import uuid
 
 import pytest
 
+from app.core.exceptions import NotFoundError
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.conversation import Conversation, Message
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.repositories import conversation as conversation_repo
+from app.services.conversation import ConversationService
 
 pytestmark = pytest.mark.anyio
 
@@ -232,3 +234,68 @@ class TestWhoSeesARoomThread:
         )
 
         assert [c.id for c in listed] == [owned.id]
+
+
+class TestWhoMayOpenARoomThread:
+    """The read path of the same rule. The list widened to participants (#639);
+    the detail read did not, so a participant saw the thread and got a 404
+    opening it - and a room thread has no owner, so the owner guard was skipped
+    entirely and any member of the organization could read one the list showed
+    them nothing of. Opening a thread is now allowed for exactly the set the list
+    is: the owner, a share, or somebody who spoke in it.
+    """
+
+    async def test_a_participant_may_open_a_room_thread(self, db) -> None:
+        organization = await _org(db)
+        reader = await _user(db)
+        thread = await _room_thread(db, organization)
+        await _said(db, thread, await _identity(db, user=reader))
+
+        opened = await ConversationService(db).get_conversation(
+            thread.id, organization_id=organization.id, user_id=reader.id
+        )
+
+        assert opened.id == thread.id
+
+    async def test_a_member_who_never_spoke_cannot_open_an_unowned_room_thread(self, db) -> None:
+        """The hole this closes: user_id is None, so the owner guard was skipped
+        and every member of the organization could read it."""
+        organization = await _org(db)
+        stranger = await _user(db)
+        thread = await _room_thread(db, organization)
+        await _said(db, thread, await _identity(db, user=await _user(db)))
+
+        with pytest.raises(NotFoundError):
+            await ConversationService(db).get_conversation(
+                thread.id, organization_id=organization.id, user_id=stranger.id
+            )
+
+    async def test_the_owner_of_a_dashboard_thread_still_opens_it(self, db) -> None:
+        organization = await _org(db)
+        owner = await _user(db)
+        owned = Conversation(
+            id=uuid.uuid4(), user_id=owner.id, organization_id=organization.id, title="Mine"
+        )
+        db.add(owned)
+        await db.flush()
+
+        opened = await ConversationService(db).get_conversation(
+            owned.id, organization_id=organization.id, user_id=owner.id
+        )
+
+        assert opened.id == owned.id
+
+    async def test_a_stranger_cannot_open_a_dashboard_thread_that_is_not_theirs(self, db) -> None:
+        organization = await _org(db)
+        owner = await _user(db)
+        stranger = await _user(db)
+        owned = Conversation(
+            id=uuid.uuid4(), user_id=owner.id, organization_id=organization.id, title="Mine"
+        )
+        db.add(owned)
+        await db.flush()
+
+        with pytest.raises(NotFoundError):
+            await ConversationService(db).get_conversation(
+                owned.id, organization_id=organization.id, user_id=stranger.id
+            )

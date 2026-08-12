@@ -192,6 +192,7 @@ class TestConversationServiceGetConversation:
         ):
             mock_repo.get_conversation_by_id = AsyncMock(return_value=mock_conv)
             mock_share_repo.get_share = AsyncMock(return_value=None)
+            mock_repo.spoke_in = AsyncMock(return_value=False)
 
             with pytest.raises(NotFoundError):
                 await service.get_conversation(
@@ -229,13 +230,43 @@ class TestConversationServiceGetConversation:
             assert result.id == conv_id
 
     @pytest.mark.anyio
-    async def test_get_conversation_null_owner_allows_any_user(self, service: ConversationService):
-        """get_conversation succeeds when conversation has no user_id set."""
+    async def test_get_conversation_null_owner_refuses_a_non_participant(
+        self, service: ConversationService
+    ):
+        """A room thread has no owner, so the owner guard used to be skipped and
+        any member of the organization could read one they never spoke in. It is
+        readable now only by a participant or a share."""
         conv_id = uuid4()
         mock_conv = MockConversation(id=conv_id, user_id=None)
 
-        with patch("app.services.conversation.conversation_repo") as mock_repo:
+        with (
+            patch("app.services.conversation.conversation_repo") as mock_repo,
+            patch("app.services.conversation.conversation_share_repo") as mock_share_repo,
+        ):
             mock_repo.get_conversation_by_id = AsyncMock(return_value=mock_conv)
+            mock_share_repo.get_share = AsyncMock(return_value=None)
+            mock_repo.spoke_in = AsyncMock(return_value=False)
+
+            with pytest.raises(NotFoundError):
+                await service.get_conversation(
+                    conv_id, user_id=uuid4(), organization_id=TEST_ORG_ID
+                )
+
+    @pytest.mark.anyio
+    async def test_get_conversation_null_owner_allows_a_participant(
+        self, service: ConversationService
+    ):
+        """The other half: somebody who spoke in the room may open it."""
+        conv_id = uuid4()
+        mock_conv = MockConversation(id=conv_id, user_id=None)
+
+        with (
+            patch("app.services.conversation.conversation_repo") as mock_repo,
+            patch("app.services.conversation.conversation_share_repo") as mock_share_repo,
+        ):
+            mock_repo.get_conversation_by_id = AsyncMock(return_value=mock_conv)
+            mock_share_repo.get_share = AsyncMock(return_value=None)
+            mock_repo.spoke_in = AsyncMock(return_value=True)
 
             result = await service.get_conversation(
                 conv_id, user_id=uuid4(), organization_id=TEST_ORG_ID
@@ -435,6 +466,7 @@ class TestConversationServiceUpdate:
         ):
             mock_repo.get_conversation_by_id = AsyncMock(return_value=mock_conv)
             mock_share_repo.get_share = AsyncMock(return_value=None)
+            mock_repo.spoke_in = AsyncMock(return_value=False)
 
             with pytest.raises(NotFoundError):
                 await service.update_conversation(
@@ -496,6 +528,7 @@ class TestConversationServiceArchive:
         ):
             mock_repo.get_conversation_by_id = AsyncMock(return_value=mock_conv)
             mock_share_repo.get_share = AsyncMock(return_value=None)
+            mock_repo.spoke_in = AsyncMock(return_value=False)
 
             with pytest.raises(NotFoundError):
                 await service.archive_conversation(
@@ -556,6 +589,7 @@ class TestConversationServiceDelete:
         ):
             mock_repo.get_conversation_by_id = AsyncMock(return_value=mock_conv)
             mock_share_repo.get_share = AsyncMock(return_value=None)
+            mock_repo.spoke_in = AsyncMock(return_value=False)
 
             with pytest.raises(NotFoundError):
                 await service.delete_conversation(

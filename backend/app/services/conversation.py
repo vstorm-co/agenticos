@@ -88,18 +88,11 @@ class ConversationService:
                 message="Conversation not found",
                 details={"conversation_id": str(conversation_id)},
             )
-        if (
-            user_id is not None
-            and hasattr(conversation, "user_id")
-            and conversation.user_id is not None
-            and str(conversation.user_id) != str(user_id)
-        ):
-            share = await conversation_share_repo.get_share(self.db, conversation_id, user_id)
-            if not share:
-                raise NotFoundError(
-                    message="Conversation not found",
-                    details={"conversation_id": str(conversation_id)},
-                )
+        if user_id is not None and not await self._may_read(conversation, user_id):
+            raise NotFoundError(
+                message="Conversation not found",
+                details={"conversation_id": str(conversation_id)},
+            )
         if include_messages and user_id is not None and conversation.messages:
             message_ids = [m.id for m in conversation.messages]
             user_ratings = await message_rating_repo.get_user_ratings_for_messages(
@@ -114,6 +107,25 @@ class ConversationService:
         if include_messages and conversation.messages:
             await self._attach_authors(conversation.messages)
         return conversation
+
+    async def _may_read(self, conversation: Conversation, user_id: UUID) -> bool:
+        """Whether this reader may open this conversation.
+
+        Three ways in, and a channel thread needs all three: the owner, whoever
+        it was explicitly shared with, and - for a thread that came out of a room
+        - anyone a chat account of whose spoke in it, the same set `_reachable_by`
+        puts the thread in front of in the list. Ownership alone left the list and
+        the read disagreeing: a participant saw the thread and got a 404 opening
+        it, and a thread whose first speaker linked no account has no owner at all,
+        so the whole organization could read it while the list showed it only to
+        the people who were there.
+        """
+        owner = getattr(conversation, "user_id", None)
+        if owner is not None and str(owner) == str(user_id):
+            return True
+        if await conversation_share_repo.get_share(self.db, conversation.id, user_id):
+            return True
+        return await conversation_repo.spoke_in(self.db, conversation.id, user_id)
 
     async def _attach_authors(self, messages: list[Message]) -> None:
         """Put a name on each turn that came from a chat account.

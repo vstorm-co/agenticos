@@ -272,6 +272,27 @@ def _reachable_by(user_id: UUID) -> ColumnElement[bool]:
     return or_(Conversation.user_id == user_id, spoke_in_it)
 
 
+async def spoke_in(db: AsyncSession, conversation_id: UUID, user_id: UUID) -> bool:
+    """Whether a chat account of this user's has spoken in this conversation.
+
+    The read-side counterpart of `_reachable_by`'s `spoke_in_it`: a channel
+    thread appears in the list of everyone who was in the room, so opening it has
+    to be allowed for the same set - otherwise a participant sees the thread and
+    gets a 404 opening it. The same #641 caveat carries over: this is who spoke,
+    not a live check against the platform's current membership.
+    """
+    result = await db.execute(
+        select(Message.id)
+        .join(ChannelIdentity, ChannelIdentity.id == Message.channel_identity_id)
+        .where(
+            Message.conversation_id == conversation_id,
+            ChannelIdentity.user_id == user_id,
+        )
+        .limit(1)
+    )
+    return result.first() is not None
+
+
 def _sort_columns() -> dict[str, Any]:
     """The columns a conversation listing can be ordered by, before the extras.
 
