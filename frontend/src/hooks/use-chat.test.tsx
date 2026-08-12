@@ -1180,6 +1180,36 @@ describe("useChat - approvals and questions", () => {
     expect(result.current.pendingApproval).toBeNull();
   });
 
+  it("drops an answer that lands after another conversation was opened", async () => {
+    // The fetch can resolve on the far side of a conversation switch, and a
+    // panel drawn under another transcript is the stale, actionable state the
+    // switch effect exists to prevent - Approve would decide a call the person
+    // is no longer looking at.
+    let resolveParked!: (rows: unknown) => void;
+    get.mockReturnValue(
+      new Promise((resolve) => {
+        resolveParked = resolve;
+      }),
+    );
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(parkedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper: decider });
+    await act(async () => {});
+    expect(get).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      useConversationStore.getState().setCurrentConversationId("c-2");
+      // What the container does on a switch - the messages on screen are the
+      // new conversation's.
+      useChatStore.getState().clearMessages();
+    });
+    await act(async () => {
+      resolveParked([{ id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", tool_args: {} }]);
+    });
+
+    expect(result.current.pendingApproval).toBeNull();
+  });
+
   it("waits for the turn in flight before asking", async () => {
     // While a turn is processing the parked state on screen is the live one,
     // and the live frame is what will carry the panel.

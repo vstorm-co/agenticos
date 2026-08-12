@@ -714,10 +714,15 @@ export function useChat(options: UseChatOptions = {}) {
     const runId = parkedMessage.runId;
     if (approvalOfferedForRef.current.has(runId)) return;
     approvalOfferedForRef.current.add(runId);
+    const conversation = activeConversationId;
     void (async () => {
       try {
         const parked = await apiClient.get<ParkedCall[]>(`/runs/${runId}/parked`);
-        if (parked.length === 0) return;
+        // An answer that lands after the reader has moved on is dropped: a
+        // panel drawn under another conversation's transcript is the stale,
+        // actionable state the conversation-switch effect above exists to
+        // prevent, and this fetch can resolve on the far side of that switch.
+        if (parked.length === 0 || panelsBelongTo.current !== conversation) return;
         setPendingApproval({
           actionRequests: parked.map((call) => ({
             id: call.id,
@@ -735,7 +740,7 @@ export function useChat(options: UseChatOptions = {}) {
         // Deliberately quiet - see above.
       }
     })();
-  }, [messages, pendingApproval, isProcessing, canDecide]);
+  }, [messages, pendingApproval, isProcessing, canDecide, activeConversationId]);
 
   /** Record one decision on the `approvals` row it belongs to. */
   const decideApproval = useCallback(
