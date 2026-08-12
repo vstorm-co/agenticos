@@ -3276,7 +3276,6 @@
   "settings": {
     "builtCommands": "Built-in commands",
     "cancel": "Cancel",
-    "chatSendsStoredPrompt": "in chat sends the stored prompt.",
     "commandNamePlaceholder": "name",
     "create3": "Create",
     "createOneSendLong": "Create one to send a long prompt with a few keystrokes.",
@@ -3305,7 +3304,7 @@
     "save2": "Save",
     "saving4": "Saving…",
     "sentAsRegularUserMessage": "Sent as a regular user message when you type <cmd>/{name}</cmd>.",
-    "slashShortcutsLead": "Slash shortcuts for prompts you type often. Typing /name",
+    "slashShortcuts": "Slash shortcuts for prompts you type often. Typing <cmd>/name</cmd> in chat sends the stored prompt.",
     "summarizeConversationAsChecklist": "Summarize the conversation as a checklist of action items.",
     "todo": "todo",
     "yourCustomCommands": "Your custom commands"
