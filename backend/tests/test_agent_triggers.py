@@ -819,9 +819,10 @@ class TestFiring:
         assert trigger.last_run_id == orphan.id
         assert trigger.is_active is True
 
-    async def test_a_fire_clears_the_in_flight_marker_when_the_run_completes(self):
-        """The claim set fire_in_flight_since; fire clears it in a finally, so once the
-        run settles the next tick can claim the trigger again."""
+    async def test_the_scheduled_path_clears_the_in_flight_marker_when_the_run_completes(self):
+        """The claim set fire_in_flight_since; the scheduled fire it dispatched clears
+        it in a finally (`release_marker=True`), so once the run settles the next tick
+        can claim the trigger again."""
         agent = _agent()
         service = _service(agent)
         trigger = _trigger(
@@ -841,10 +842,60 @@ class TestFiring:
             members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
             runner = runner_cls.return_value
             runner.execute = AsyncMock(return_value=("done", run))
-            await service.fire(trigger.id)
+            await service.fire(trigger.id, release_marker=True)
 
         assert trigger.fire_in_flight_since is None
         assert trigger.last_run_id == run.id
+
+    async def test_a_fire_off_the_scheduled_path_leaves_a_concurrent_claims_marker(self):
+        """`run_now` and an event fire reach `fire` with no claim behind them, so they
+        must not clear a marker a concurrent scheduled fire set and is still relying
+        on: clearing it would reopen the trigger to the next tick mid-run - the
+        self-overlap `0025` closes. Without `release_marker`, the marker stands."""
+        agent = _agent()
+        service = _service(agent)
+        in_flight = datetime(2026, 1, 1, tzinfo=UTC)
+        trigger = _trigger(
+            agent_id=agent.id, conversation_id=uuid.uuid4(), fire_in_flight_since=in_flight
+        )
+        run = MagicMock(id=uuid.uuid4(), status=RunStatus.COMPLETED.value)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.member_repo") as members,
+            patch("app.services.agent_trigger.conversation_repo"),
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            runner = runner_cls.return_value
+            runner.execute = AsyncMock(return_value=("done", run))
+            await service.fire(trigger.id)
+
+        assert trigger.fire_in_flight_since == in_flight
+        assert trigger.last_run_id == run.id
+
+    async def test_a_failed_dispatch_releases_the_claims_marker(self):
+        """The claim commits the marker before the heartbeat submits the run; when the
+        submit raises, no fire runs to clear it. `release_fire_marker` clears it in the
+        heartbeat's own transaction, so the trigger is not held out of the next claim
+        until the lease lapses."""
+        service = _service()
+        trigger = _trigger(fire_in_flight_since=datetime(2026, 1, 1, tzinfo=UTC))
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            await service.release_fire_marker(trigger.id)
+        assert trigger.fire_in_flight_since is None
+        service.db.flush.assert_awaited()
+
+    async def test_releasing_the_marker_of_a_trigger_deleted_since_the_claim_is_a_no_op(self):
+        """A trigger removed between claim and the failed dispatch has nothing to
+        release; the heartbeat neither raises nor flushes."""
+        service = _service()
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.get_by_id = AsyncMock(return_value=None)
+            await service.release_fire_marker(uuid.uuid4())  # must not raise
+        service.db.flush.assert_not_awaited()
 
 
 class TestCreatingAnEventTrigger:

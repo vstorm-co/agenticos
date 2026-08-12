@@ -517,12 +517,34 @@ class AgentTriggerService:
             trigger.last_fired_at = now
             # Mark the fire in flight in the same committed UPDATE that advances the
             # schedule, so no window opens in which a slow run's trigger looks
-            # claimable to the next tick. The fired run clears it in its own `finally`.
+            # claimable to the next tick. The scheduled fire this claim dispatches
+            # clears it (`fire(..., release_marker=True)`); a dispatch that never
+            # started a run clears it through `release_fire_marker`.
             trigger.fire_in_flight_since = now
         await self.db.flush()
         return triggers
 
-    async def fire(self, trigger_id: UUID, *, event_context: str | None = None) -> None:
+    async def release_fire_marker(self, trigger_id: UUID) -> None:
+        """Clear the in-flight marker for a claimed trigger whose dispatch never ran.
+
+        The claim commits `fire_in_flight_since` before the heartbeat submits the
+        run; when that submission raises - a transient Prefect API error - no
+        `run_scheduled_trigger_flow` starts, so nothing reaches `fire` to clear the
+        marker. Left set, it holds the trigger out of `claim_due` until the lease
+        lapses - up to an hour of skipped fires bought by one lost submit, where the
+        intent is that the next tick fires it again on its advanced schedule. Nothing
+        is in flight for a trigger whose dispatch failed, so the heartbeat releases
+        the marker here. A trigger deleted between claim and release is a no-op.
+        """
+        trigger = await agent_trigger_repo.get_by_id(self.db, trigger_id)
+        if trigger is None:
+            return
+        trigger.fire_in_flight_since = None
+        await self.db.flush()
+
+    async def fire(
+        self, trigger_id: UUID, *, event_context: str | None = None, release_marker: bool = False
+    ) -> None:
         """Run the agent this trigger fires, as the member who created it.
 
         Called by the worker with a bare id (a scheduled fire) or by the webhook's
@@ -548,6 +570,15 @@ class AgentTriggerService:
         is in Activity; `fire` recovers that row from the trigger's conversation to
         stamp `last_run_id` and returns, rather than letting the error fail the
         Prefect flow and retry the same outage against the same money.
+
+        `release_marker` says this fire is the one the heartbeat's claim marked in
+        flight, so it clears `fire_in_flight_since` when it ends - however it ends: a
+        completed run, a recorded failure, a disable, or a skip. Only the scheduled
+        worker path passes it. `run_now` and an event fire reach `fire` with no claim
+        behind them, and a marker they find belongs to a concurrent scheduled fire
+        still relying on it: clearing it would reopen the trigger to the next tick
+        mid-run, the self-overlap `0025` exists to close. The lease still frees a
+        marker a crashed scheduled fire never cleared.
         """
         trigger = await agent_trigger_repo.get_by_id(self.db, trigger_id)
         if trigger is None:
@@ -556,18 +587,15 @@ class AgentTriggerService:
         try:
             await self._fire_loaded(trigger, event_context=event_context)
         finally:
-            # Release the in-flight marker the claim set, however this fire ended - a
-            # completed run, a recorded failure, a disable, or a skip. The next tick's
-            # no-overlap and last_run_id guards still apply; leaving it set would park
-            # the trigger until the lease lapses.
-            trigger.fire_in_flight_since = None
-            await self.db.flush()
+            if release_marker:
+                trigger.fire_in_flight_since = None
+                await self.db.flush()
 
     async def _fire_loaded(
         self, trigger: AgentTrigger, *, event_context: str | None = None
     ) -> None:
         """The fire itself, once the row is loaded - split out so `fire` can clear the
-        in-flight marker in a `finally` around every path through it."""
+        scheduled path's in-flight marker in a `finally` around every path through it."""
         if not trigger.is_active:
             logger.info("trigger_fire_skipped", extra={"trigger_id": str(trigger.id)})
             return

@@ -68,13 +68,17 @@ async def check_agent_triggers_flow() -> None:
         try:
             await _dispatch(str(trigger.id))
         except Exception:
-            # The claims already committed, so a trigger whose dispatch fails has its
-            # `next_fire_at` advanced with no run - a missed fire for that one trigger.
             # Isolate each dispatch so a single failed `run_deployment` (a transient
             # Prefect API error) does not abort the loop and cost the rest of the batch
-            # their fire too; the failure is logged, and the next tick fires this
-            # trigger again on its new schedule.
+            # their fire too. The claim already committed this trigger's advanced
+            # `next_fire_at` and its `fire_in_flight_since` marker, and the run that
+            # would clear the marker never starts - so release it here, in its own
+            # transaction: nothing is in flight for a trigger whose dispatch failed,
+            # and a marker left set would hold it out of `claim_due` until the lease
+            # lapsed rather than the next tick firing it again on its new schedule.
             logger.exception("agent_trigger_dispatch_failed", extra={"trigger_id": str(trigger.id)})
+            async with get_worker_db_context() as db:
+                await AgentTriggerService(db).release_fire_marker(trigger.id)
         else:
             dispatched += 1
     logger.info("agent_triggers_check", extra={"dispatched": dispatched, "claimed": len(triggers)})
@@ -86,4 +90,6 @@ async def run_scheduled_trigger_flow(trigger_id: str) -> None:
     from app.services.agent_trigger import AgentTriggerService
 
     async with get_worker_db_context() as db:
-        await AgentTriggerService(db).fire(UUID(trigger_id))
+        # The claim marked this trigger in flight; this fire, dispatched for that
+        # claim, is the one to clear the marker when the run settles.
+        await AgentTriggerService(db).fire(UUID(trigger_id), release_marker=True)

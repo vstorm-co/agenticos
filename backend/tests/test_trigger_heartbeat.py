@@ -1,11 +1,13 @@
-"""The heartbeat's dispatch loop isolates each submission.
+"""The heartbeat's dispatch loop isolates each submission and unwedges a failure.
 
 `check_agent_triggers_flow` claims the due triggers in one committed
 transaction, then submits a run for each. Because the claim commits *before* the
 loop, a trigger whose `run_deployment` raises has already had its `next_fire_at`
-advanced - so a bare loop that let the exception propagate would abort after the
-first failure and leave the rest of the batch with an advanced schedule and no
-run: a missed fire nobody asked for. The loop isolates each dispatch instead.
+advanced *and* its `fire_in_flight_since` marker set - so a bare loop that let the
+exception propagate would abort after the first failure and leave the rest of the
+batch with an advanced schedule and no run: a missed fire nobody asked for. The
+loop isolates each dispatch instead, and releases the marker of the one that
+failed so it is not held out of the next claim until the lease lapses.
 """
 
 from __future__ import annotations
@@ -30,7 +32,8 @@ async def _fake_db_context() -> AsyncGenerator[MagicMock, None]:
 async def test_one_failed_dispatch_does_not_drop_the_rest_of_the_batch() -> None:
     """Three triggers are claimed; the middle one's dispatch raises. The other two
     are still submitted - one transient Prefect error costs its own trigger a fire,
-    never the whole batch."""
+    never the whole batch - and only the failed one's marker is released, since only
+    its run never started."""
     triggers = [MagicMock(id=uuid.uuid4()) for _ in range(3)]
     attempted: list[str] = []
 
@@ -41,6 +44,7 @@ async def test_one_failed_dispatch_does_not_drop_the_rest_of_the_batch() -> None
 
     service = MagicMock()
     service.claim_and_advance = AsyncMock(return_value=triggers)
+    service.release_fire_marker = AsyncMock()
     with (
         patch.object(trigger_tasks, "get_worker_db_context", _fake_db_context),
         patch.object(trigger_tasks, "_dispatch", side_effect=dispatch),
@@ -49,3 +53,4 @@ async def test_one_failed_dispatch_does_not_drop_the_rest_of_the_batch() -> None
         await trigger_tasks.check_agent_triggers_flow.fn()  # must not raise
 
     assert attempted == [str(t.id) for t in triggers]
+    service.release_fire_marker.assert_awaited_once_with(triggers[1].id)
