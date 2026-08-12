@@ -181,26 +181,21 @@ class EmbedSession:
         if self.visitor_key is None:
             return
         async with self.sessions() as db:
-            said = await self._resume(db)
+            said = await self._resume(db, self.visitor_key)
         if said:
             await self._send({"type": "history", "messages": said})
 
-    async def _resume(self, db: AsyncSession) -> list[dict[str, str]]:
+    async def _resume(self, db: AsyncSession, visitor_key: str) -> list[dict[str, str]]:
         """Find this visitor's thread, and read back what is in it.
 
         The row is created on first sight rather than on the first message, so a
         visitor who opens the page and says nothing still comes back to the same
         (empty) thread instead of collecting one row per visit.
         """
-        existing = await embed_visitor_repo.get(
-            db, embed_id=self.embed.id, visitor_key=self.visitor_key or ""
-        )
+        existing = await embed_visitor_repo.get(db, embed_id=self.embed.id, visitor_key=visitor_key)
         if existing is None:
             await embed_visitor_repo.create(
-                db,
-                embed_id=self.embed.id,
-                visitor_key=self.visitor_key or "",
-                conversation_id=None,
+                db, embed_id=self.embed.id, visitor_key=visitor_key, conversation_id=None
             )
             return []
 

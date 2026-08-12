@@ -566,7 +566,12 @@ class TestTheSocketIsOfferedAsAnIntegration:
         deployment behind TLS being told to use one would be told to use nothing."""
         monkeypatch.setattr(settings, "PUBLIC_BASE_URL", "https://api.example.com")
 
-        assert AgentEmbedService.socket_url_for(_embed()).startswith("wss://api.example.com/")
+        url = AgentEmbedService.socket_url_for(_embed())
+
+        # The whole URL rather than its prefix. A stronger assertion, and it is
+        # also not a `startswith` on a URL - which reads as sanitisation to a
+        # scanner and is a bypassable one wherever it really is used that way.
+        assert url == "wss://api.example.com/api/v1/embed/key-123/ws"
 
     def test_the_socket_url_carries_no_token(self):
         """In `jwt` mode the token is minted per visitor by the customer's own
