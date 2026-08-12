@@ -5,6 +5,7 @@ import json
 import logging
 import re
 import time
+from collections.abc import Callable
 from typing import Any
 
 from app.core.config import settings
@@ -232,13 +233,6 @@ class ChannelMessageRouter:
             await self._send_reply(bot, incoming, exc.message)
             return
 
-        # Opened once, here, and handed to whichever path answers. Opening it
-        # inside `_answer_mention` left one behind on every ordinary message:
-        # that path posts, discovers the message names no agent, returns False -
-        # and the placeholder stays on screen for ever while the default path
-        # posts a second one beside it.
-        live, handle = await self._open_reply(bot, incoming)
-
         # Built here, once, from the row that admitted the message - so an agent
         # that asks about the channel asks about *this* channel, with the bot's
         # own token, and never about one named by the model. Free to build for a
@@ -246,11 +240,18 @@ class ChannelMessageRouter:
         # does.
         directory = self._channel_directory(bot, incoming)
 
+        # The mention path opens its own placeholder lazily, because it may find
+        # the handle names a colleague rather than an agent of ours and stay
+        # silent - a "…" posted up front would be left hanging under two people's
+        # conversation. The default path always answers when it is reached, so it
+        # opens eagerly below: the "…" that tells a channel the bot is working
+        # rather than crashed.
         if await self._answer_mention(
-            incoming, bot, identity, session, db, live, handle, directory, admit_unlinked
+            incoming, bot, identity, session, db, directory, admit_unlinked
         ):
             return
 
+        live, handle = await self._open_reply(bot, incoming)
         files, file_refusals = await self._receive_files(db, bot, incoming, identity)
 
         # Loaded before the run, so the turn being run is the prompt and
@@ -355,8 +356,6 @@ class ChannelMessageRouter:
         identity: Any,
         session: Any,
         db: Any,
-        live: LiveReply | None,
-        handle: str | None,
         directory: BoundChannelDirectory | None,
         admit_unlinked: bool,
     ) -> bool:
@@ -371,8 +370,13 @@ class ChannelMessageRouter:
         agent they cannot see, an agent nobody exposed on this bot - is reported
         to the sender and still counts as handled. Falling through to the default
         assistant would answer a question that was not asked.
+
+        The placeholder is opened lazily: a handle that names a colleague rather
+        than an agent of ours raises before a token is streamed, so nothing is
+        ever posted and no "…" is left hanging under two people's conversation.
         """
         files, file_refusals = await self._receive_files(db, bot, incoming, identity)
+        live, handle_of = self._lazy_reply(bot, incoming)
         try:
             answered = await ChannelAgentRouter(db).answer(
                 incoming.text,
@@ -387,7 +391,7 @@ class ChannelMessageRouter:
                 channel_directory=directory,
                 turn=session.turn_count,
                 attachments=files,
-                stream=None if live is None else channel_stream(live),
+                stream=channel_stream(live),
             )
         except UnaddressedMessage:
             return False
@@ -397,7 +401,8 @@ class ChannelMessageRouter:
             # colleague - so the refusal is logged rather than posted, because a bot
             # that answers "@ada is not available on this bot" every time two people
             # talk to each other is the interruption this gate exists to stop. It
-            # still counts as handled: nothing else should answer it either.
+            # still counts as handled: nothing else should answer it either. Nothing
+            # streamed, so the lazy placeholder was never opened.
             if self._names_the_bot(incoming):
                 await self._send_reply(bot, incoming, exc.message)
             else:
@@ -408,8 +413,61 @@ class ChannelMessageRouter:
             return True
 
         answer = self._with_notes(answered.text, file_refusals, _kept_back(answered.refused))
-        await self._deliver(bot, incoming, answer, answered, handle)
+        await self._deliver(bot, incoming, answer, answered, handle_of())
         return True
+
+    def _lazy_reply(
+        self, bot: Any, incoming: IncomingMessage
+    ) -> tuple[LiveReply, Callable[[], str | None]]:
+        """A live reply that posts its placeholder on the first push, not before.
+
+        `_open_reply` puts a "…" on screen for every message it is called on. The
+        mention path cannot use that: `answer()` may discover the handle names a
+        colleague rather than an agent of ours and raise before a token is
+        streamed, and a placeholder already posted would be left hanging under
+        two people's conversation for ever. Opened on the first push instead,
+        nothing appears unless the agent produced something - and a handle that
+        resolves to nobody produces nothing.
+
+        The handle is captured so `_deliver` can edit the message into the final
+        answer; when nothing streamed it stays `None` and `_deliver` posts the
+        answer whole, the same fallback a platform that cannot edit already takes.
+        """
+        adapter = get_adapter(incoming.platform)
+        token = unseal_bot_token(bot)
+        state: dict[str, str | None] = {"handle": None}
+        opened = False
+
+        async def push(text: str) -> None:
+            nonlocal opened
+            if not opened:
+                opened = True
+                placeholder = OutgoingMessage(
+                    platform_chat_id=incoming.platform_chat_id,
+                    text=text or WORKING,
+                    reply_to_message_id=incoming.message_id,
+                    api_base_url=getattr(bot, "api_base_url", None),
+                )
+                try:
+                    state["handle"] = await adapter.begin_reply(token, placeholder)
+                except Exception:
+                    logger.warning(
+                        "Could not open a live reply on %s", incoming.platform, exc_info=True
+                    )
+                return
+            if state["handle"] is None:
+                return
+            await adapter.update_reply(
+                token,
+                OutgoingMessage(
+                    platform_chat_id=incoming.platform_chat_id,
+                    text=text,
+                    api_base_url=getattr(bot, "api_base_url", None),
+                ),
+                state["handle"],
+            )
+
+        return LiveReply(push), lambda: state["handle"]
 
     @staticmethod
     def _channel_directory(bot: Any, incoming: IncomingMessage) -> BoundChannelDirectory | None:
