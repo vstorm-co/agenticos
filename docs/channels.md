@@ -433,6 +433,11 @@ tool names here (#144).
 that can disagree with the one somebody reads in the Builder. What `widget.js`
 then *draws* is narrower still, and says so above.
 
+Neither of them takes files either, and that is the route rather than the client:
+the upload endpoint resolves the key through `find_page`, so a widget key reaches
+it and is answered "not available". A widget lives on a page the operator already
+controls, which is where a file picker of their own belongs.
+
 ### What is deliberately member-only
 
 Web chat draws three panels a public surface does not, and each omission is a
