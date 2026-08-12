@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { MessageSquarePlus, Mic, MicOff, Send } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -91,11 +91,18 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
   // so a new thread is a new connection rather than a frame.
   const [session, setSession] = useState(0);
   const [listening, setListening] = useState(false);
-  // Whether this browser has a recogniser at all. Read in an effect because it
-  // is a browser fact and the first render is the server's: a control that
-  // cannot work is not rendered, which is the same rule the dashboard applies to
-  // a permission somebody lacks.
-  const [canDictate, setCanDictate] = useState(false);
+  // Whether this browser has a recogniser at all: a control that cannot work is
+  // not rendered, the same rule the dashboard applies to a permission somebody
+  // lacks. Read as an external snapshot rather than set from an effect - the
+  // first render is the server's, where the answer is `false`, and an effect that
+  // calls `setState` in its body renders the page twice for a fact that cannot
+  // change while it is open. Nothing is subscribed to, so the store never
+  // notifies.
+  const canDictate = useSyncExternalStore(
+    () => () => {},
+    () => Boolean(window.SpeechRecognition || window.webkitSpeechRecognition),
+    () => false,
+  );
   const socketRef = useRef<WebSocket | null>(null);
   const threadRef = useRef<HTMLDivElement | null>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
@@ -131,10 +138,6 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
 
     return () => socket.close();
   }, [config.public_key, session]);
-
-  useEffect(() => {
-    setCanDictate(Boolean(window.SpeechRecognition || window.webkitSpeechRecognition));
-  }, []);
 
   useEffect(() => {
     const thread = threadRef.current;
