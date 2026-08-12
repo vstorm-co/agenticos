@@ -1,21 +1,26 @@
-"""Publishing an agent as a widget, and letting a stranger talk to it.
+"""Publishing an agent on a public surface, and letting a stranger talk to it.
 
 Two audiences in one service, and they are told different things.
 
-*The owner* creates, edits and deletes widgets. Who may is `agents:publish` on
+*The owner* creates, edits and deletes embeds. Who may is `agents:publish` on
 that agent, resolved through `resolve_access` - the same permission and the same
 reasoning as an exposure: both answer "what does the outside world reach", and
 somebody who may freeze a version may say where it runs.
 
-*The visitor* has a key from a script tag and nothing else. Everything they are
-allowed to do is decided here, from the row that key names:
+*The visitor* has a key from a script tag, a client of their own or a link, and
+nothing else. Everything they are allowed to do is decided here, from the row
+that key names:
 
-1. Is the widget active, and is its agent still published?
-2. Is the page they are on one of the allowed origins?
+1. Is the embed active, and is its agent still published?
+2. Is the origin they arrived from one this embed accepts?
 3. In `jwt` mode, does their token verify against the customer's own secret?
 
 The order matters. Origin is checked before the token because a request from an
 unlisted site should learn nothing about whether a token would have worked.
+
+Step 2 is the one place the three kinds diverge at admission: a `widget` and a
+`socket` are checked against the operator's allow-list, and a `page` against
+this deployment's own origin, because it is the only site that serves one.
 """
 
 from __future__ import annotations
@@ -28,6 +33,7 @@ from urllib.parse import urlparse
 from uuid import UUID
 
 import jwt
+from pydantic import TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
@@ -38,17 +44,18 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext, Perm
 from app.core.vault import VaultScope, seal, unseal
-from app.db.models.agent_embed import DEFAULT_THEME, AgentEmbed
+from app.db.models.agent_embed import AgentEmbed
 from app.repositories import agent_embed_repo, agent_repo, organization_repo
 from app.schemas.agent_embed import (
+    EmbedConfig,
     EmbedCreate,
     EmbedRead,
-    EmbedTheme,
     EmbedUpdate,
     EmbedVariable,
-    HostedConfig,
+    PageConfig,
     PublicEmbedConfig,
-    PublicHostedConfig,
+    PublicPageConfig,
+    WidgetConfig,
 )
 from app.services.agent_registry import AgentRegistryService
 from app.services.file_storage import get_file_storage
@@ -62,21 +69,15 @@ _KEY_BYTES = 24
 # load; anything older is a token that leaked out of a browser somewhere.
 _MAX_TOKEN_AGE_SECONDS = 60 * 60 * 12
 
+_CONFIG_ADAPTER: TypeAdapter[EmbedConfig] = TypeAdapter(EmbedConfig)
+
 
 @dataclass(frozen=True)
 class Admission:
-    """What admitting a visitor established, for whoever serves them next.
-
-    `hosted` is not a preference the caller passes in - it is decided here, from
-    the origin the browser reported, and it narrows what the connection may do:
-    on a page of our own the only source of a declared variable is the URL, so
-    only variables marked URL-safe are accepted from it. A caller-supplied flag
-    would be a visitor asking to be trusted more.
-    """
+    """What admitting a visitor established, for whoever serves them next."""
 
     embed: AgentEmbed
     visitor: str | None
-    hosted: bool
 
 
 class EmbedDenied(Exception):
@@ -127,32 +128,34 @@ class AgentEmbedService:
         return [self._read(row) for row in rows]
 
     async def create(self, ctx: AuthContext, data: EmbedCreate) -> EmbedRead:
-        """Publish an agent as a widget.
+        """Publish an agent on one public surface.
 
         Raises:
             NotFoundError: If the agent is not reachable by this caller.
             AuthorizationError: Without `agents:publish` on that agent.
-            BadRequestError: For a `jwt` embed with no secret, or a `public` one
-                carrying a secret nothing would ever read.
+            BadRequestError: For a `jwt` embed with no secret, a `public` one
+                carrying a secret nothing would ever read, or an origin list
+                that contradicts the kind - see `_check_origins`.
         """
         agent = await self.agents.get(ctx, data.agent_id, perm=Perm.AGENTS_PUBLISH)
 
+        kind = data.config.kind
         self._check_secret(data.auth_mode, data.jwt_secret)
-        if data.hosted:
-            self._check_hostable(data.auth_mode, data.context_variables)
+        self._check_origins(kind, [str(origin) for origin in data.allowed_origins])
+        if kind == "page":
+            self._check_page(data.auth_mode, data.context_variables)
 
         embed = AgentEmbed(
             organization_id=ctx.organization_id,
             agent_id=agent.id,
             owner_user_id=ctx.user_id,
             name=data.name,
+            kind=kind,
             public_key=secrets.token_urlsafe(_KEY_BYTES),
             auth_mode=data.auth_mode,
             jwt_secret_encrypted=self._seal(ctx.organization_id, data.jwt_secret),
             allowed_origins=[_origin_of(str(origin)) for origin in data.allowed_origins],
-            theme=data.theme.model_dump(),
-            hosted=data.hosted,
-            hosted_config=data.hosted_config.model_dump(),
+            config=data.config.model_dump(),
             context=data.context,
             context_variables=[variable.model_dump() for variable in data.context_variables],
             rate_limit_per_minute=data.rate_limit_per_minute,
@@ -167,8 +170,8 @@ class AgentEmbedService:
             target_id=str(agent.id),
             details={
                 "embed_id": str(created.id),
+                "kind": created.kind,
                 "auth_mode": created.auth_mode,
-                "hosted": created.hosted,
             },
         )
         return self._read(created)
@@ -195,19 +198,17 @@ class AgentEmbedService:
         changes.pop("jwt_secret", None)
 
         if "allowed_origins" in changes and changes["allowed_origins"] is not None:
+            self._check_origins(embed.kind, [str(origin) for origin in changes["allowed_origins"]])
             changes["allowed_origins"] = [
                 _origin_of(str(origin)) for origin in changes["allowed_origins"]
             ]
-        if "theme" in changes and changes["theme"] is not None:
-            changes["theme"] = EmbedTheme.model_validate(changes["theme"]).model_dump()
-        if "hosted_config" in changes:
+        if "config" in changes:
             # An explicit null means "back to the defaults", not NULL - the same
             # reading as `context_variables` below, and for the same reason: the
             # column cannot hold one, so passing it through would answer a
             # perfectly sensible request with a 500 naming a constraint.
-            changes["hosted_config"] = HostedConfig.model_validate(
-                changes["hosted_config"] or {}
-            ).model_dump()
+            config = self._parse_config(changes["config"], kind=embed.kind)
+            changes["config"] = config.model_dump()
         if "context_variables" in changes:
             # An explicit null means "declare none", not NULL: the column cannot
             # hold one, and a widget that declares nothing is the ordinary state
@@ -218,11 +219,11 @@ class AgentEmbedService:
             ]
 
         # Re-checked against what the row will hold rather than against what this
-        # request said, because either half can arrive alone: turning hosting on
-        # is refused by a `required` variable already stored, and marking a stored
-        # variable un-URL-safe is refused while hosting is already on.
-        if changes.get("hosted", embed.hosted):
-            self._check_hostable(
+        # request said, because either half can arrive alone: marking a stored
+        # variable un-URL-safe is refused on a page that already exists, and so
+        # is switching one to token auth.
+        if embed.kind == "page":
+            self._check_page(
                 mode,
                 [
                     EmbedVariable.model_validate(variable)
@@ -262,57 +263,54 @@ class AgentEmbedService:
         )
 
     async def admit(self, public_key: str, *, origin: str | None, token: str | None) -> Admission:
-        """Decide whether this visitor may talk to this widget.
+        """Decide whether this visitor may talk to this embed.
 
-        Returns the widget, the visitor's identity - the `sub` of their token, or
-        None for an anonymous one - and whether they arrived on a page we serve
-        ourselves. The identity is what a rate limit and a transcript are keyed
-        on.
+        Returns the embed and the visitor's identity - the `sub` of their token,
+        or None for an anonymous one. The identity is what a rate limit and a
+        transcript are keyed on.
 
         Raises:
             EmbedDenied: For every refusal, without saying which.
         """
         embed = await agent_embed_repo.get_by_key(self.db, public_key)
         if embed is None or not embed.is_active:
-            raise EmbedDenied("unknown or inactive widget")
+            raise EmbedDenied("unknown or inactive embed")
 
-        hosted = bool(embed.hosted) and origin is not None and _origin_of(origin) == _own_origin()
-        if not hosted and not self._origin_allowed(embed, origin):
+        if not self._origin_allowed(embed, origin):
             # Logged, not answered: the person who needs this message is the
-            # operator wondering why their widget is silent, not the caller.
+            # operator wondering why their embed is silent, not the caller.
             logger.info(
                 "embed_origin_refused",
-                extra={"embed_id": str(embed.id), "origin": origin},
+                extra={"embed_id": str(embed.id), "kind": embed.kind, "origin": origin},
             )
             raise EmbedDenied("origin not allowed")
 
         if embed.auth_mode == "public":
-            return Admission(embed=embed, visitor=None, hosted=hosted)
-        return Admission(embed=embed, visitor=self._verify_token(embed, token), hosted=hosted)
+            return Admission(embed=embed, visitor=None)
+        return Admission(embed=embed, visitor=self._verify_token(embed, token))
 
-    async def find_hosted(self, public_key: str) -> AgentEmbed | None:
+    async def find_page(self, public_key: str) -> AgentEmbed | None:
         """The embed a key names, if it is published as a page of our own.
 
         No origin check, and that is the security stance rather than an omission:
         the allow-list is a rule about *other people's* sites, and this page is
-        ours. **A hosted link in `public` mode is protected by the key's
-        unguessability, the embed's rate bucket, its budget and its pause switch -
-        nothing else.** Written down here, in `docs/channels.md`, and nowhere
-        implied.
+        ours. **A page in `public` mode is protected by the key's unguessability,
+        the embed's rate bucket, its budget and its pause switch - nothing else.**
+        Written down here, in `docs/channels.md`, and nowhere implied.
         """
         embed = await agent_embed_repo.get_by_key(self.db, public_key)
-        if embed is None or not embed.is_active or not embed.hosted:
+        if embed is None or not embed.is_active or embed.kind != "page":
             return None
         return embed
 
-    async def hosted_config(self, embed: AgentEmbed) -> PublicHostedConfig:
+    async def page_config(self, embed: AgentEmbed) -> PublicPageConfig:
         """What the hosted page renders itself from."""
-        config = HostedConfig.model_validate(embed.hosted_config or {})
+        config = PageConfig.model_validate(embed.config)
         agent = await agent_repo.get(self.db, embed.agent_id, organization_id=embed.organization_id)
         declared = [
             EmbedVariable.model_validate(variable) for variable in (embed.context_variables or [])
         ]
-        return PublicHostedConfig(
+        return PublicPageConfig(
             title=config.title or (agent.name if agent else "Assistant"),
             welcome=config.welcome,
             accent=config.accent,
@@ -321,19 +319,19 @@ class AgentEmbedService:
             variables=[variable.name for variable in declared if variable.url_safe],
         )
 
-    async def hosted_logo_path(self, public_key: str) -> str | None:
+    async def page_logo_path(self, public_key: str) -> str | None:
         """The file a hosted page's logo is served from, or `None` if there is none.
 
         The image is the agent's avatar or the organization's, both already
-        uploaded through the paths that exist for them - so hosting a page adds a
-        way to *read* one image without a session and no way to write one. `None`
-        covers every reason there is nothing to send: hosting off, `logo` set to
-        `none`, no avatar uploaded, or a stored path whose file has gone.
+        uploaded through the paths that exist for them - so publishing a page adds
+        a way to *read* one image without a session and no way to write one.
+        `None` covers every reason there is nothing to send: not a page, `logo`
+        set to `none`, no avatar uploaded, or a stored path whose file has gone.
         """
-        embed = await self.find_hosted(public_key)
+        embed = await self.find_page(public_key)
         if embed is None:
             return None
-        config = HostedConfig.model_validate(embed.hosted_config or {})
+        config = PageConfig.model_validate(embed.config)
         if config.logo == "none":
             return None
 
@@ -353,7 +351,7 @@ class AgentEmbedService:
         return str(full) if full is not None and full.exists() else None
 
     @staticmethod
-    def _logo_url(embed: AgentEmbed, config: HostedConfig) -> str | None:
+    def _logo_url(embed: AgentEmbed, config: PageConfig) -> str | None:
         """Where the page fetches its logo, or `None` when it shows none.
 
         A path on this API rather than the stored storage key: the key is an
@@ -376,29 +374,40 @@ class AgentEmbedService:
     async def public_config(self, embed: AgentEmbed) -> PublicEmbedConfig:
         """What the widget renders itself from, before anybody authenticates."""
         agent = await agent_repo.get(self.db, embed.agent_id, organization_id=embed.organization_id)
-        theme = {**DEFAULT_THEME, **(embed.theme or {})}
+        config = WidgetConfig.model_validate(embed.config)
         return PublicEmbedConfig(
-            title=str(theme.get("title", "")),
-            subtitle=str(theme.get("subtitle", "")),
-            greeting=str(theme.get("greeting", "")),
-            placeholder=str(theme.get("placeholder", "")),
-            accent=str(theme.get("accent", "#4f46e5")),
-            position="left" if theme.get("position") == "left" else "right",
-            launcher_label=str(theme.get("launcher_label", "Chat")),
+            title=config.title,
+            subtitle=config.subtitle,
+            greeting=config.greeting,
+            placeholder=config.placeholder,
+            accent=config.accent,
+            position=config.position,
+            launcher_label=config.launcher_label,
             requires_token=embed.auth_mode == "jwt",
             agent_name=agent.name if agent else "Assistant",
         )
 
     def _origin_allowed(self, embed: AgentEmbed, origin: str | None) -> bool:
-        """Whether the page the widget is on may use it.
+        """Whether the site this visitor arrived from may use this embed.
 
-        An empty allow-list denies everything. That is the safe default and the
-        only honest one: a widget key lives in public HTML, so without an origin
-        the key alone is the whole authorization.
+        A `page` accepts exactly one origin - this deployment's own, because it
+        is the only place that serves one - and the operator's allow-list has no
+        say, in either direction: it cannot widen a page to a third-party site
+        and it cannot be what a page is refused by.
+
+        For the other two kinds an empty allow-list denies everything. That is
+        the safe default and the only honest one: the key lives in public HTML or
+        in somebody's client, so without an origin the key alone would be the
+        whole authorization.
+
+        A missing `Origin` is refused on every kind. A browser sends one; a client
+        of your own sends nothing unless it sets one, and that is `4003`.
         """
-        allowed = [str(item).lower() for item in (embed.allowed_origins or [])]
-        if not allowed or origin is None:
+        if origin is None:
             return False
+        if embed.kind == "page":
+            return _origin_of(origin) == _own_origin()
+        allowed = [str(item).lower() for item in (embed.allowed_origins or [])]
         return _origin_of(origin) in allowed
 
     def _verify_token(self, embed: AgentEmbed, token: str | None) -> str:
@@ -433,23 +442,23 @@ class AgentEmbedService:
         return str(subject)
 
     @staticmethod
-    def _check_hostable(auth_mode: str, variables: list[EmbedVariable]) -> None:
-        """Refuse to host what a hosted page cannot honestly serve.
+    def _check_page(auth_mode: str, variables: list[EmbedVariable]) -> None:
+        """Refuse to publish a page that cannot honestly serve what it promises.
 
-        Both refusals are explicit and at enable time, never a silent fallback to
-        an unhosted embed: somebody who asked for a link and got none would go
-        looking for the link.
+        Both refusals are explicit and at publish time, never a silent fallback
+        to a widget: somebody who asked for a link and got none would go looking
+        for the link.
 
-        **`jwt` mode cannot be hosted.** The token would have to travel in the
+        **A page cannot use `jwt` mode.** The token would have to travel in the
         URL, which puts it in browser history, in `Referer` headers and in every
         chat client the link is pasted into - and the fragment trick that avoids
         some of that stops the link being "send it and it works", which is the
-        whole point of a link. `jwt` on the widget is unaffected.
+        whole point of a link. `jwt` on a widget or a socket is unaffected.
 
-        **A required variable that is not URL-safe cannot be hosted.** On a page
-        of our own the URL is the only source of a supplied value, so a variable
-        the agent is promised and cannot be given would be a promise the surface
-        structurally cannot keep.
+        **A required variable that is not URL-safe cannot be on a page.** Its URL
+        is the only source of a supplied value there, so a variable the agent is
+        promised and cannot be given would be a promise the surface structurally
+        cannot keep.
         """
         if auth_mode != "public":
             raise BadRequestError(
@@ -472,6 +481,59 @@ class AgentEmbedService:
                 ),
                 details={"variables": unreachable},
             )
+
+    @staticmethod
+    def _check_origins(kind: str, origins: list[str]) -> None:
+        """The allow-list has to match the surface, in both directions.
+
+        A widget or a socket with an empty list can never open anything: the list
+        is what admits them, so publishing one is asking for a surface that
+        refuses every visitor. Refused here rather than left as a disabled button
+        somewhere, because the reason belongs to the domain.
+
+        A page with a list is the mirror image - dead configuration, or worse,
+        somebody's belief that it is what protects the link. It is not; the key's
+        unguessability is.
+        """
+        if kind == "page":
+            if origins:
+                raise BadRequestError(
+                    message=(
+                        "A hosted page is served from this deployment's own origin, so an "
+                        "allowed-sites list has nothing to say about it. What protects the "
+                        "link is its key, the rate limit and the budget."
+                    ),
+                    details={"kind": kind},
+                )
+            return
+        if not origins:
+            raise BadRequestError(
+                message=(
+                    "Name at least one site this may be opened from. An empty list allows "
+                    "nothing, so this would be published and refuse every visitor."
+                ),
+                details={"kind": kind},
+            )
+
+    @staticmethod
+    def _parse_config(value: object, *, kind: str) -> EmbedConfig:
+        """Read a submitted config, and refuse one of a different kind.
+
+        `None` means "back to the defaults" and takes the row's own kind, which
+        is why this is not simply the schema's own validation: the union is
+        tagged, and an untagged `{}` has to be resolved against the row rather
+        than rejected as ambiguous.
+        """
+        submitted = value if isinstance(value, dict) else {}
+        if submitted.get("kind", kind) != kind:
+            raise BadRequestError(
+                message=(
+                    "An embed cannot change kind. Every tag, client and link already "
+                    "names this key - publish a new one instead."
+                ),
+                details={"kind": kind, "submitted": str(submitted.get("kind"))},
+            )
+        return _CONFIG_ADAPTER.validate_python({**submitted, "kind": kind})
 
     def _check_secret(
         self, auth_mode: str, secret: str | None, *, allow_missing: bool = False
@@ -496,18 +558,17 @@ class AgentEmbedService:
         return embed
 
     def _read(self, embed: AgentEmbed) -> EmbedRead:
-        theme = {**DEFAULT_THEME, **(embed.theme or {})}
+        config = _CONFIG_ADAPTER.validate_python(embed.config)
         return EmbedRead(
             id=embed.id,
             agent_id=embed.agent_id,
             name=embed.name,
+            kind=config.kind,
+            config=config,
             public_key=embed.public_key,
             auth_mode="jwt" if embed.auth_mode == "jwt" else "public",
             has_jwt_secret=embed.jwt_secret_encrypted is not None,
             allowed_origins=list(embed.allowed_origins or []),
-            theme=EmbedTheme.model_validate(theme),
-            hosted=embed.hosted,
-            hosted_config=HostedConfig.model_validate(embed.hosted_config or {}),
             context=embed.context,
             context_variables=[
                 EmbedVariable.model_validate(variable)
@@ -517,14 +578,14 @@ class AgentEmbedService:
             rate_limit_per_minute=embed.rate_limit_per_minute,
             snippet=self.snippet_for(embed),
             socket_url=self.socket_url_for(embed),
-            hosted_url=self.hosted_url_for(embed),
+            page_url=self.page_url_for(embed),
             created_at=embed.created_at,
             updated_at=embed.updated_at,
         )
 
     @staticmethod
-    def snippet_for(embed: AgentEmbed) -> str:
-        """The lines a customer pastes.
+    def snippet_for(embed: AgentEmbed) -> str | None:
+        """The lines a customer pastes, on a widget, and `None` on the other kinds.
 
         Assembled here rather than in the browser so the deployment's own URL is
         known in exactly one place - a snippet built client-side would carry
@@ -536,6 +597,8 @@ class AgentEmbedService:
         into a global by hand, which is a step nobody documents and everybody
         gets wrong once.
         """
+        if embed.kind != "widget":
+            return None
         base = settings.PUBLIC_BASE_URL.rstrip("/")
         tag = f'<script src="{base}/api/v1/embed/{embed.public_key}/widget.js" async></script>'
         declared = [str(variable.get("name", "")) for variable in (embed.context_variables or [])]
@@ -545,26 +608,27 @@ class AgentEmbedService:
         return f"<script>window.AgenticOSContext = {{ {keys} }};</script>\n{tag}"
 
     @staticmethod
-    def hosted_url_for(embed: AgentEmbed) -> str | None:
-        """The link, when hosting is on, and `None` when it is off.
+    def page_url_for(embed: AgentEmbed) -> str | None:
+        """The link, on a page, and `None` on the other kinds.
 
         Off the *frontend's* base URL rather than the API's, because the page is
         served by the frontend and the socket it opens is what reaches the API -
         which is also why the origin the browser reports is this host and why
         `_own_origin` reads the same setting.
         """
-        if not embed.hosted:
+        if embed.kind != "page":
             return None
         return f"{settings.FRONTEND_URL.rstrip('/')}/e/{embed.public_key}"
 
     @staticmethod
-    def socket_url_for(embed: AgentEmbed) -> str:
-        """The socket a client of one's own connects to.
+    def socket_url_for(embed: AgentEmbed) -> str | None:
+        """The socket a client connects to, and `None` on a page.
 
-        The second integration this row offers, and the honest one for anybody
-        building their own interface: a mobile app, a kiosk, a component in
-        somebody's design system. The protocol behind it is the one the widget
-        speaks, documented frame by frame in `docs/channels.md`.
+        Published on a `socket` embed because it is the whole integration, and on
+        a `widget` because the widget speaks this protocol - so "write your own
+        client instead" is a step rather than a rewrite. A page opens its socket
+        itself and nobody integrates against it, so printing the URL there would
+        be handing out an address with no use and one more thing to explain.
 
         Assembled here for the same reason `snippet_for` is - the deployment's
         own URL is known in one place - and derived from it rather than declared
@@ -575,6 +639,8 @@ class AgentEmbedService:
         customer's own backend, and a real one printed in a panel would be a
         working credential on a screen somebody shares.
         """
+        if embed.kind == "page":
+            return None
         base = settings.PUBLIC_BASE_URL.rstrip("/")
         scheme = "wss" if base.startswith("https://") else "ws"
         _, _, rest = base.partition("://")

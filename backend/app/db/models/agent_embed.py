@@ -1,9 +1,11 @@
-"""One agent, published as a widget somebody else can paste into their site.
+"""One agent, published somewhere the public can reach it.
 
-The fourth place an agent can answer, after the dashboard, a channel bot and the
-API. What makes it its own table rather than another `AgentExposure` is who is
-on the other end: an exposure binds an agent to a bot the organization owns and
-a person the organization can identify, and this binds it to *the public*.
+Three surfaces share this table - a widget pasted into somebody else's site, a
+raw socket somebody writes their own client against, and a page we serve at a
+link - because who is on the other end of all three is the same answer, and it
+is what makes this its own table rather than another `AgentExposure`: an
+exposure binds an agent to a bot the organization owns and a person the
+organization can identify, and this binds it to *the public*.
 
 That difference is the whole design:
 
@@ -14,9 +16,10 @@ we verify it, we never mint it, and we never see their password.
 
 *Origin is the perimeter.* A key in a `<script>` tag is public by construction,
 so the thing that stops anyone else running up the bill is which sites the
-browser is allowed to call from.
+browser is allowed to call from. A page of our own has no such list, because an
+allow-list is a rule about other people's sites.
 
-*Theme and context are per embed, not per agent.* The same agent answers on the
+*Config and context are per embed, not per agent.* The same agent answers on the
 pricing page and in the help centre, in different colours, told where it is.
 """
 
@@ -39,22 +42,9 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin
 
-# What a widget may be styled with. Anything not here is not configurable, which
-# is deliberate: a free-form CSS blob in a JSONB column is a stylesheet nobody
-# reviews running on somebody else's page.
-DEFAULT_THEME: dict[str, Any] = {
-    "title": "Ask us anything",
-    "subtitle": "",
-    "greeting": "Hi - what can I help you with?",
-    "placeholder": "Type your message…",
-    "accent": "#4f46e5",
-    "position": "right",
-    "launcher_label": "Chat",
-}
-
 
 class AgentEmbed(Base, TimestampMixin):
-    """A public widget for one agent."""
+    """One agent on one public surface."""
 
     __tablename__ = "agent_embeds"
 
@@ -81,8 +71,21 @@ class AgentEmbed(Base, TimestampMixin):
     )
 
     name: Mapped[str] = mapped_column(String(128), nullable=False)
-    # What the `<script>` tag carries. Public by construction - it identifies
-    # the widget, it does not authenticate anybody.
+
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    """Which surface this is: `widget`, `socket` or `page`.
+
+    Fixed at creation. A tag already pasted, a client already written and a link
+    already sent all name this row, so changing the kind would change what all
+    three do without touching any of them.
+
+    Stored here as well as inside `config`, whose discriminator it is, because a
+    `CHECK` cannot usefully read a JSONB key and neither can an index - and the
+    two rules that differ per surface are both constraints.
+    """
+
+    # What the `<script>` tag, the client or the link carries. Public by
+    # construction - it identifies the embed, it does not authenticate anybody.
     public_key: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
 
     auth_mode: Mapped[str] = mapped_column(String(16), nullable=False, default="public")
@@ -90,14 +93,22 @@ class AgentEmbed(Base, TimestampMixin):
     # the vault like every other credential. Null in `public` mode.
     jwt_secret_encrypted: Mapped[str | None] = mapped_column(String(1000), nullable=True)
 
-    # Which sites may open this widget. Empty means none: a widget that answers
-    # from anywhere is somebody else's agent running on your bill.
+    # Which sites may open this widget, or open this socket. Empty means none: an
+    # embed that answers from anywhere is somebody else's agent running on your
+    # bill. Empty on a `page` for the opposite reason - it is served from our own
+    # origin, and a list of other people's sites has nothing to say about it.
     allowed_origins: Mapped[list[str]] = mapped_column(
         JSONB, nullable=False, default=list, server_default="[]"
     )
-    theme: Mapped[dict[str, Any]] = mapped_column(
-        JSONB, nullable=False, default=lambda: dict(DEFAULT_THEME), server_default="{}"
-    )
+
+    config: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    """What this surface looks like - see `WidgetConfig`, `SocketConfig`, `PageConfig`.
+
+    One column holding a discriminated union rather than one per kind. The
+    alternative was a `theme` and a `hosted_config`, of which every row had one
+    filled and one inert, plus a boolean saying which - three columns encoding
+    what `kind` says once, and three places for them to disagree.
+    """
     # Extra instructions for this placement - "you are on the pricing page",
     # "answer in German". Appended to the agent's own, never replacing them.
     context: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -120,33 +131,6 @@ class AgentEmbed(Base, TimestampMixin):
     value omits its line and logs, rather than costing the visitor an answer.
     """
 
-    hosted: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False, server_default="false"
-    )
-    """Whether this embed is also reachable as a page we serve ourselves.
-
-    A flag on this row rather than a table of its own, because a hosted page *is*
-    an embed: the same public key, the same auth mode, the same rate bucket,
-    budget and pause switch, rendered as a page instead of as a bubble in the
-    corner of somebody else's site. A second table would be a second place for
-    "who may reach this agent" to be answered, which is how the surfaces drifted
-    apart the last time (#517).
-
-    Not a `placement` value. Placement is where a widget renders on a page; a
-    page of our own is not a position.
-    """
-
-    hosted_config: Mapped[dict[str, Any]] = mapped_column(
-        JSONB, nullable=False, default=dict, server_default="{}"
-    )
-    """What the hosted page is branded with - see `HostedConfig`.
-
-    Separate from `theme`, which describes a bubble: a launcher label and a
-    corner to sit in mean nothing on a full page, and a page needs a title in the
-    browser tab that a widget has no use for. One validated model each, rather
-    than one union with half its fields inert on either surface.
-    """
-
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     # Per visitor, per minute. The one control between a public URL and an
     # afternoon's model budget.
@@ -154,11 +138,20 @@ class AgentEmbed(Base, TimestampMixin):
 
     __table_args__ = (
         CheckConstraint("auth_mode IN ('public', 'jwt')", name="ck_embed_auth_mode"),
-        # A hosted page puts its link in chat clients, browser history and
-        # `Referer` headers, so `jwt` mode would mean a token travelling through
-        # all three. The service refuses the combination at enable time with a
-        # message; this is the half a future refactor cannot talk its way past.
-        CheckConstraint("NOT hosted OR auth_mode = 'public'", name="ck_embed_hosted_is_public"),
+        CheckConstraint("kind IN ('widget', 'socket', 'page')", name="ck_embed_kind"),
+        # A page puts its link in chat clients, browser history and `Referer`
+        # headers, so `jwt` mode would mean a token travelling through all three.
+        # The service refuses the combination at creation with a message; this is
+        # the half a future refactor cannot talk its way past.
+        CheckConstraint("kind <> 'page' OR auth_mode = 'public'", name="ck_embed_page_is_public"),
+        # An allow-list is a rule about other people's sites. A page is ours, so
+        # a list on one is either dead configuration or somebody's belief that it
+        # is what protects the link - and the link is protected by its key being
+        # unguessable, the rate bucket, the budget and the pause switch.
+        CheckConstraint(
+            "kind <> 'page' OR allowed_origins = '[]'::jsonb",
+            name="ck_embed_page_has_no_origins",
+        ),
         CheckConstraint("rate_limit_per_minute > 0", name="ck_embed_rate_limit_positive"),
         # A `jwt` embed with no secret cannot verify anything, and the failure
         # mode is the dangerous one: every token would be rejected, or worse, a

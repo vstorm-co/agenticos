@@ -30,7 +30,7 @@ from fastapi.responses import FileResponse
 from app.api.deps import DBSession, EmbedSvc
 from app.core.config import settings
 from app.db.session import get_db_context
-from app.schemas.agent_embed import PublicEmbedConfig, PublicHostedConfig
+from app.schemas.agent_embed import PublicEmbedConfig, PublicPageConfig
 from app.services import rate_limit
 from app.services.agent_embed import AgentEmbedService, EmbedDenied
 from app.services.embed_session import WIDGET_JS, EmbedSession, continuity_key
@@ -79,7 +79,7 @@ async def embed_config(
     return await service.public_config(admission.embed)
 
 
-@router.get("/{public_key}/hosted", response_model=PublicHostedConfig)
+@router.get("/{public_key}/hosted", response_model=PublicPageConfig)
 async def hosted_config(public_key: str, service: EmbedSvc) -> Any:
     """What a page of our own renders itself from.
 
@@ -101,10 +101,10 @@ async def hosted_config(public_key: str, service: EmbedSvc) -> Any:
     if not await rate_limit.hosted_admission_allowed(public_key):
         raise HTTPException(status_code=429, detail="Too many requests")
 
-    embed = await service.find_hosted(public_key)
+    embed = await service.find_page(public_key)
     if embed is None:
         raise HTTPException(status_code=404, detail="This page is not available")
-    return await service.hosted_config(embed)
+    return await service.page_config(embed)
 
 
 @router.get("/{public_key}/logo", response_class=FileResponse)
@@ -115,7 +115,7 @@ async def hosted_logo(public_key: str, service: EmbedSvc, request: Request) -> A
     with - both are uploaded through the mechanics that already exist, so there is
     no second upload path and no operator-supplied URL for a page we serve to go
     fetching. The authenticated avatar routes stay authenticated: what makes this
-    one public is the hosted flag on this embed, and nothing wider.
+    one public is this embed being a `page`, and nothing wider.
 
     Per address, unlike `/hosted` beside it: this one is fetched by the visitor's
     browser as an `<img>`, so the address is theirs. It is the most expensive
@@ -125,7 +125,7 @@ async def hosted_logo(public_key: str, service: EmbedSvc, request: Request) -> A
     if not await rate_limit.embed_admission_allowed(request):
         raise HTTPException(status_code=429, detail="Too many requests")
 
-    path = await service.hosted_logo_path(public_key)
+    path = await service.page_logo_path(public_key)
     if path is None:
         raise HTTPException(status_code=404, detail="No logo")
     return FileResponse(path)
@@ -226,11 +226,13 @@ async def embed_socket(
         embed=admission.embed,
         visitor=admission.visitor,
         websocket=websocket,
-        hosted=admission.hosted,
-        # Only a hosted connection resumes by key, and only an anonymous one: a
-        # `jwt` visitor is already named by their token.
+        # Only a page resumes by key, and only an anonymous visitor: a `jwt`
+        # visitor is already named by their token, and a widget's conversation
+        # lasts as long as its socket.
         visitor_key=(
-            continuity_key(visitor) if admission.hosted and admission.visitor is None else None
+            continuity_key(visitor)
+            if admission.embed.kind == "page" and admission.visitor is None
+            else None
         ),
     )
     await websocket.accept()

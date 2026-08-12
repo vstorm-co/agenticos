@@ -879,38 +879,62 @@ class TestExposureAttribution:
 
 
 class TestHostedEmbedConstraints:
-    """A hosted page cannot be a token-authenticated one, and the database says so.
+    """What a page is, held by the database rather than by the service alone.
 
-    The service refuses the combination at enable time with a message somebody
-    can act on. This is the other half: a hosted link travels in browser history,
-    in `Referer` headers and in every chat client it is pasted into, so a `jwt`
-    embed hosted by a future call site that forgot to ask would put a visitor
-    token through all three (#517).
+    The service refuses each of these at publish time with a message somebody can
+    act on. This is the other half, for a future call site that forgets to ask: a
+    page's link travels in browser history, in `Referer` headers and in every chat
+    client it is pasted into, so a `jwt` page would put a visitor token through all
+    three (#517) - and an allow-list on a page is either dead configuration or
+    somebody's belief that it is what protects the link.
     """
 
     @staticmethod
     def _embed(org: Organization, agent: Agent, **overrides) -> AgentEmbed:
+        kind = overrides.pop("kind", "widget")
         return AgentEmbed(
             id=uuid.uuid4(),
             organization_id=org.id,
             agent_id=agent.id,
             name="Support",
             public_key=uuid.uuid4().hex,
+            kind=kind,
+            config={"kind": kind},
             **overrides,
         )
 
-    async def test_a_public_embed_may_be_hosted(self, db):
+    async def test_a_public_page_is_accepted(self, db):
         org = await _org(db)
         agent = await _agent(db, org)
 
-        db.add(self._embed(org, agent, auth_mode="public", hosted=True))
+        db.add(self._embed(org, agent, kind="page", auth_mode="public"))
         await db.flush()
 
-    async def test_a_token_embed_may_not_be_hosted(self, db):
+    async def test_a_token_page_is_refused(self, db):
         org = await _org(db)
         agent = await _agent(db, org)
 
-        db.add(self._embed(org, agent, auth_mode="jwt", jwt_secret_encrypted="sealed", hosted=True))
+        db.add(self._embed(org, agent, kind="page", auth_mode="jwt", jwt_secret_encrypted="sealed"))
+        with pytest.raises(IntegrityError):
+            await db.flush()
+
+    async def test_a_page_carrying_an_allow_list_is_refused(self, db):
+        """An allow-list is a rule about other people's sites, and this one is
+        ours. Stored, it would read as the thing protecting the link."""
+        org = await _org(db)
+        agent = await _agent(db, org)
+
+        db.add(self._embed(org, agent, kind="page", allowed_origins=["https://acme.test"]))
+        with pytest.raises(IntegrityError):
+            await db.flush()
+
+    async def test_a_kind_nothing_serves_is_refused(self, db):
+        """Three surfaces exist. A fourth value would be a row every reader
+        branches on and nobody renders."""
+        org = await _org(db)
+        agent = await _agent(db, org)
+
+        db.add(self._embed(org, agent, kind="carrier-pigeon"))
         with pytest.raises(IntegrityError):
             await db.flush()
 
@@ -919,7 +943,7 @@ class TestHostedEmbedConstraints:
         would make "which conversation" a question with two answers."""
         org = await _org(db)
         agent = await _agent(db, org)
-        embed = self._embed(org, agent, hosted=True)
+        embed = self._embed(org, agent, kind="page")
         db.add(embed)
         await db.flush()
 
@@ -938,7 +962,7 @@ class TestHostedEmbedConstraints:
         """
         org = await _org(db)
         agent = await _agent(db, org)
-        embed = self._embed(org, agent, hosted=True)
+        embed = self._embed(org, agent, kind="page")
         db.add(embed)
         await db.flush()
 
@@ -953,7 +977,7 @@ class TestHostedEmbedConstraints:
         conversation must not be the thing that forgets which one it was."""
         org = await _org(db)
         agent = await _agent(db, org)
-        embed = self._embed(org, agent, hosted=True)
+        embed = self._embed(org, agent, kind="page")
         conversation = Conversation(id=uuid.uuid4(), organization_id=org.id, title="t")
         db.add_all([embed, conversation])
         await db.flush()
@@ -970,7 +994,7 @@ class TestHostedEmbedConstraints:
         collision across embeds must not be a collision at all."""
         org = await _org(db)
         agent = await _agent(db, org)
-        first, second = self._embed(org, agent, hosted=True), self._embed(org, agent, hosted=True)
+        first, second = self._embed(org, agent, kind="page"), self._embed(org, agent, kind="page")
         db.add_all([first, second])
         await db.flush()
 
@@ -987,7 +1011,7 @@ class TestHostedEmbedConstraints:
         visitor along with the thread it removed."""
         org = await _org(db)
         agent = await _agent(db, org)
-        embed = self._embed(org, agent, hosted=True)
+        embed = self._embed(org, agent, kind="page")
         conversation = Conversation(id=uuid.uuid4(), organization_id=org.id, title="t")
         db.add_all([embed, conversation])
         await db.flush()

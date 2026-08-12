@@ -169,7 +169,6 @@ class EmbedSession:
         embed: AgentEmbed,
         visitor: str | None,
         websocket: WebSocket,
-        hosted: bool = False,
         visitor_key: str | None = None,
     ) -> None:
         self.sessions = sessions
@@ -180,10 +179,6 @@ class EmbedSession:
         # bypass by reconnecting.
         self.visitor = visitor or "anonymous"
         self.websocket = websocket
-        # Decided at admission from the origin the browser reported, never asked
-        # for by the client. It narrows what this connection may do rather than
-        # widening it - see `_supplied_block`.
-        self.hosted = hosted
         self.visitor_key = visitor_key
         self.conversation_id: UUID | None = None
         self._context_sent = False
@@ -411,13 +406,13 @@ class EmbedSession:
             EmbedVariable.model_validate(variable)
             for variable in (self.embed.context_variables or [])
         ]
-        if self.hosted:
+        if self.embed.kind == "page":
             # On a page of our own the only place a value can come from is the
             # visitor's own URL, so `user_tier=premium` typed into the address bar
             # has to be impossible unless somebody marked that one variable
-            # URL-safe. The narrowing is here, keyed on an origin the browser
-            # reported and the server checked, rather than on anything the client
-            # asked for (#517).
+            # URL-safe. The narrowing is read off the row rather than passed in by
+            # whoever opened the socket, which is a flag a caller could get wrong
+            # in the direction that widens it (#517).
             declared = [variable for variable in declared if variable.url_safe]
         if not declared:
             return ""

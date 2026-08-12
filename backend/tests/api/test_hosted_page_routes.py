@@ -42,7 +42,7 @@ class TestTheHostedConfig:
     async def test_an_embed_nobody_hosted_answers_404(self, client_and_service):
         """404 rather than 403: a key that names nothing and a key whose page is
         not published are the same amount of information to give away."""
-        client_and_service.find_hosted = AsyncMock(return_value=None)
+        client_and_service.find_page = AsyncMock(return_value=None)
 
         assert (await _get("/api/v1/embed/some-key/hosted")).status_code == 404
 
@@ -50,8 +50,8 @@ class TestTheHostedConfig:
         """Every other route here demands an `Origin` on the allow-list. This one
         does not, because an allow-list is a rule about other people's sites and
         this page is ours - and a server-rendered page sends no `Origin` at all."""
-        client_and_service.find_hosted = AsyncMock(return_value=MagicMock())
-        client_and_service.hosted_config = AsyncMock(
+        client_and_service.find_page = AsyncMock(return_value=MagicMock())
+        client_and_service.page_config = AsyncMock(
             return_value={
                 "title": "Refunds",
                 "welcome": "",
@@ -72,6 +72,6 @@ class TestTheHostedLogo:
     async def test_a_page_with_no_logo_answers_404(self, client_and_service):
         """Not a 500, and not an empty 200: `<img>` handles a 404 and shows the
         alternative, which is what a page with no logo should look like."""
-        client_and_service.hosted_logo_path = AsyncMock(return_value=None)
+        client_and_service.page_logo_path = AsyncMock(return_value=None)
 
         assert (await _get("/api/v1/embed/some-key/logo")).status_code == 404
