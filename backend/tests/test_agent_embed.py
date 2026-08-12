@@ -828,18 +828,13 @@ class TestAReturningVisitorResumesTheirThread:
         sessions = _Sessions()
         session = self._session(sessions, visitor_key="v-1")
 
-        with (
-            patch(
-                "app.services.embed_session.embed_visitor_repo.get",
-                new=AsyncMock(return_value=None),
-            ),
-            patch(
-                "app.services.embed_session.embed_visitor_repo.create", new=AsyncMock()
-            ) as created,
-        ):
+        with patch(
+            "app.services.embed_session.embed_visitor_repo.claim",
+            new=AsyncMock(return_value=MagicMock(conversation_id=None)),
+        ) as claimed:
             await session.greet()
 
-        assert created.await_args.kwargs["visitor_key"] == "v-1"
+        assert claimed.await_args.kwargs["visitor_key"] == "v-1"
         sent = [call.args[0]["type"] for call in session.websocket.send_json.await_args_list]
         assert sent == ["ready"]
 
@@ -851,10 +846,9 @@ class TestAReturningVisitorResumesTheirThread:
 
         with (
             patch(
-                "app.services.embed_session.embed_visitor_repo.get",
+                "app.services.embed_session.embed_visitor_repo.claim",
                 new=AsyncMock(return_value=MagicMock(conversation_id=conversation_id)),
             ),
-            patch("app.services.embed_session.embed_visitor_repo.touch", new=AsyncMock()),
             patch(
                 "app.services.embed_session.conversation_repo.count_messages",
                 new=AsyncMock(return_value=2),

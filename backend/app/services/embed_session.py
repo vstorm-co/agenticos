@@ -188,19 +188,19 @@ class EmbedSession:
     async def _resume(self, db: AsyncSession, visitor_key: str) -> list[dict[str, str]]:
         """Find this visitor's thread, and read back what is in it.
 
-        The row is created on first sight rather than on the first message, so a
+        The row is claimed on first sight rather than on the first message, so a
         visitor who opens the page and says nothing still comes back to the same
-        (empty) thread instead of collecting one row per visit.
-        """
-        existing = await embed_visitor_repo.get(db, embed_id=self.embed.id, visitor_key=visitor_key)
-        if existing is None:
-            await embed_visitor_repo.create(
-                db, embed_id=self.embed.id, visitor_key=visitor_key, conversation_id=None
-            )
-            return []
+        (empty) thread instead of collecting one row per visit. Claimed in one
+        statement, because two tabs on one link share a key - see the repository.
 
-        await embed_visitor_repo.touch(db, db_visitor=existing)
-        self.conversation_id = existing.conversation_id
+        A row with no conversation on it and a row that did not exist a moment ago
+        are the same answer, and are not distinguished here: both mean nothing has
+        been said yet.
+        """
+        visitor = await embed_visitor_repo.claim(
+            db, embed_id=self.embed.id, visitor_key=visitor_key
+        )
+        self.conversation_id = visitor.conversation_id
         if self.conversation_id is None:
             return []
         # The window the model is reminded of, so what the visitor reads back and

@@ -32,7 +32,7 @@ from app.db.models.rag_document import RAGDocument
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
 from app.db.models.skill import Skill
 from app.db.models.user import User
-from app.repositories import ingestion_spend_repo
+from app.repositories import embed_visitor_repo, ingestion_spend_repo
 
 pytestmark = pytest.mark.anyio
 
@@ -927,6 +927,43 @@ class TestHostedEmbedConstraints:
             db.add(EmbedVisitor(id=uuid.uuid4(), embed_id=embed.id, visitor_key="v-1"))
         with pytest.raises(IntegrityError):
             await db.flush()
+
+    async def test_claiming_a_key_twice_is_not_a_conflict(self, db):
+        """Two tabs on one bookmarked link share a `localStorage` key.
+
+        Read-then-write had both miss, both insert, and the second commit violate
+        the constraint above - which the socket's handler turns into "Something
+        went wrong" for whichever tab lost. `claim` is one statement, so the
+        second sighting is an update and both tabs get the same row.
+        """
+        org = await _org(db)
+        agent = await _agent(db, org)
+        embed = self._embed(org, agent, hosted=True)
+        db.add(embed)
+        await db.flush()
+
+        first = await embed_visitor_repo.claim(db, embed_id=embed.id, visitor_key="v-1")
+        second = await embed_visitor_repo.claim(db, embed_id=embed.id, visitor_key="v-1")
+
+        assert first.id == second.id
+        assert second.last_seen_at is not None
+
+    async def test_a_claim_that_finds_a_thread_keeps_it(self, db):
+        """The upsert touches `last_seen_at` and nothing else. Resuming a
+        conversation must not be the thing that forgets which one it was."""
+        org = await _org(db)
+        agent = await _agent(db, org)
+        embed = self._embed(org, agent, hosted=True)
+        conversation = Conversation(id=uuid.uuid4(), organization_id=org.id, title="t")
+        db.add_all([embed, conversation])
+        await db.flush()
+
+        claimed = await embed_visitor_repo.claim(db, embed_id=embed.id, visitor_key="v-1")
+        await embed_visitor_repo.touch(db, db_visitor=claimed, conversation_id=conversation.id)
+
+        again = await embed_visitor_repo.claim(db, embed_id=embed.id, visitor_key="v-1")
+
+        assert again.conversation_id == conversation.id
 
     async def test_the_same_key_may_visit_two_embeds(self, db):
         """Nothing links the two: a browser holds one key per public key, and a
