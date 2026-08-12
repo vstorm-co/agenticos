@@ -124,12 +124,14 @@ async def hosted_logo(public_key: str, service: EmbedSvc, request: Request) -> A
     fetching. The authenticated avatar routes stay authenticated: what makes this
     one public is this embed being a `page`, and nothing wider.
 
-    Per address, unlike `/hosted` beside it: this one is fetched by the visitor's
-    browser as an `<img>`, so the address is theirs. It is the most expensive
-    route here - two queries, a stat and a file - which is the reason it carries a
-    gate at all rather than being left as the cheap read the others are.
+    Per page, like `/hosted` beside it, not per address: the browser fetches this
+    from the page's own origin, so the request that reaches here is the frontend
+    server's own `fetch` and its address is the container's - counting it would
+    put every hosted page's logo in one deployment-wide bucket. It is the most
+    expensive route here - two queries, a stat and a file - which is the reason it
+    carries a gate at all rather than being left as the cheap read the others are.
     """
-    if not await rate_limit.embed_admission_allowed(request):
+    if not await rate_limit.hosted_logo_allowed(public_key):
         raise HTTPException(status_code=429, detail="Too many requests")
 
     path = await service.page_logo_path(public_key)

@@ -166,6 +166,26 @@ async def hosted_admission_allowed(public_key: str) -> bool:
     return decision.allowed
 
 
+async def hosted_logo_allowed(public_key: str) -> bool:
+    """Whether this hosted page's logo may be served again right now.
+
+    Keyed on the page, not the address, for the same reason as
+    `hosted_admission_allowed`: the browser fetches the logo from the page's own
+    origin, so the request that reaches this deployment comes from the frontend
+    server's own `fetch` and carries its address. Per address that was one bucket
+    for every hosted page's logo at once, answered as the broken-image glyph the
+    proxy route exists to remove. Its own surface rather than sharing the config
+    one, so a page's logo fetches and its config fetches do not spend each other's
+    allowance.
+    """
+    decision = await consume(
+        surface="hosted_logo",
+        caller=f"key:{public_key}",
+        limit=Limit(attempts=settings.RATE_LIMIT_HOSTED_PAGE_PER_MINUTE),
+    )
+    return decision.allowed
+
+
 async def embed_upload_allowed(
     connection: HTTPConnection, *, public_key: str, visitor: str
 ) -> bool:

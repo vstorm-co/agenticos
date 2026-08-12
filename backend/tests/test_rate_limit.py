@@ -270,6 +270,18 @@ class TestTheHostedPageIsCountedPerPage:
 
         assert settings.RATE_LIMIT_HOSTED_PAGE_PER_MINUTE > settings.RATE_LIMIT_EMBED_PER_MINUTE
 
+    async def test_the_logo_is_counted_per_page_on_its_own_surface(self, monkeypatch):
+        """The logo is fetched server-side through the same proxy, so per address
+        it shared the deployment-wide bucket the config route did. Its own surface,
+        so a page's logo fetches and its config fetches do not spend each other's
+        allowance."""
+        monkeypatch.setattr(settings, "RATE_LIMIT_HOSTED_PAGE_PER_MINUTE", 5)
+        client = _redis([1])
+        rate_limit.configure(client)
+
+        assert await rate_limit.hosted_logo_allowed("abc123") is True
+        assert client.count_in_window.await_args.args[0] == "ratelimit:hosted_logo:key:abc123"
+
 
 class TestStoringAFileIsCountedTwice:
     """The upload is the only public route that writes bytes to a disk, and the

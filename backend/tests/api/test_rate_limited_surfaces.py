@@ -157,8 +157,7 @@ class TestTheWidgetsAdmission:
 
     async def test_the_logo_is_gated_too(self, mock_redis: MagicMock):
         """The most expensive public route here - two queries, a stat and a file -
-        and the last one to get a gate. Per address, because unlike `/hosted`
-        beside it this one is fetched by the visitor's own browser as an `<img>`.
+        and the last one to get a gate.
         """
         app.dependency_overrides[deps.get_redis] = lambda: mock_redis
         app.dependency_overrides[deps.get_db_session] = lambda: MagicMock()
@@ -168,6 +167,27 @@ class TestTheWidgetsAdmission:
             response = await client.get("/api/v1/embed/some-key/logo")
 
         assert response.status_code == 429
+
+    async def test_the_logo_is_counted_against_the_page_not_the_caller(self, mock_redis: MagicMock):
+        """The browser fetches the logo from the page's own origin, so the request
+        reaching here is the frontend server's `fetch` and its address is the
+        container's - counted per address it was one bucket for every hosted
+        page's logo at once. Its own surface, so logo and config do not spend each
+        other's allowance.
+        """
+        app.dependency_overrides[deps.get_redis] = lambda: mock_redis
+        app.dependency_overrides[deps.get_db_session] = lambda: MagicMock()
+        client_mock = _redis(used=1)
+        rate_limit.configure(client_mock)
+
+        async with AsyncClient(
+            transport=ASGITransport(app=app, raise_app_exceptions=False), base_url="http://test"
+        ) as client:
+            await client.get("/api/v1/embed/some-key/logo")
+
+        assert client_mock.count_in_window.await_args.args[0] == (
+            "ratelimit:hosted_logo:key:some-key"
+        )
 
     async def test_the_widget_script_is_gated_too(self, mock_redis: MagicMock):
         """ "Static script" is what it looks like from outside. From in here it is
