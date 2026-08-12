@@ -76,7 +76,15 @@ class RunFrames:
         self.prompt = prompt
 
     async def drive(self, agent_run: Any) -> None:
-        """Iterate the run, dispatching each node to its streaming half."""
+        """Iterate the run, dispatching each node to its streaming half.
+
+        `agent_run`, and `request_stream` / `handle_stream` below, are Pydantic AI's
+        run- and node-stream objects. Their static types are the generic,
+        context-manager-yielded streams the library does not export for
+        annotation, and each node is narrowed with `Agent.is_*_node` rather than by
+        type - so `Any` here is the boundary the narrowing runs behind, not a
+        shortcut around one.
+        """
         async for node in agent_run:
             if Agent.is_user_prompt_node(node):
                 said = node.user_prompt if isinstance(node.user_prompt, str) else self.prompt
