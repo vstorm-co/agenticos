@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
+import { getLocale } from "next-intl/server";
 import localFont from "next/font/local";
 import "./globals.css";
-import { defaultLocale } from "@/i18n";
 import { SITE } from "@/lib/seo";
 
 // Vendored, not `next/font/google`: that helper resolves a family against
@@ -84,14 +84,16 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = await getLocale();
+
   return (
     <html
-      lang={defaultLocale}
+      lang={locale}
       suppressHydrationWarning
       className={`${display.variable} ${body.variable} ${mono.variable}`}
     >
