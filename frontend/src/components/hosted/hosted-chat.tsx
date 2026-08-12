@@ -195,8 +195,15 @@ function hasContent(part: MessagePart): boolean {
  * same thread on the server.
  */
 function visitorKeyFor(publicKey: string): string {
-  const existing = window.localStorage.getItem(storageKeyFor(publicKey));
-  return existing || mintVisitorKey(publicKey);
+  try {
+    const existing = window.localStorage.getItem(storageKeyFor(publicKey));
+    if (existing) return existing;
+  } catch {
+    // "Block all cookies" makes even reading window.localStorage throw. A
+    // visitor with that setting gets a fresh thread each visit rather than the
+    // page failing to open at all.
+  }
+  return mintVisitorKey(publicKey);
 }
 
 function storageKeyFor(publicKey: string): string {
@@ -215,7 +222,12 @@ function mintVisitorKey(publicKey: string): string {
   const bytes = new Uint8Array(16);
   window.crypto.getRandomValues(bytes);
   const minted = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-  window.localStorage.setItem(storageKeyFor(publicKey), minted);
+  try {
+    window.localStorage.setItem(storageKeyFor(publicKey), minted);
+  } catch {
+    // Same setting: the key lives only for this page load, so a bookmarked link
+    // starts a new thread rather than resuming - the small failure to take.
+  }
   return minted;
 }
 

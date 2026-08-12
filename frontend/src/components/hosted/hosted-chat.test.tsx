@@ -132,6 +132,24 @@ describe("the hosted page", () => {
     expect(first).toMatch(/\?visitor=[0-9a-f]{32}$/);
   });
 
+  it("opens with a fresh key when localStorage is blocked rather than crashing", () => {
+    // "Block all cookies" makes even reading window.localStorage throw. The page
+    // must open on an in-memory key, not hand the visitor the error boundary.
+    const denied = () => {
+      throw new DOMException("denied", "SecurityError");
+    };
+    const getItem = vi.spyOn(Storage.prototype, "getItem").mockImplementation(denied);
+    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(denied);
+    try {
+      render(<HostedChat config={config()} />);
+
+      expect(socket().url).toMatch(/\?visitor=[0-9a-f]{32}$/);
+    } finally {
+      getItem.mockRestore();
+      setItem.mockRestore();
+    }
+  });
+
   it("keeps a separate key per public key", () => {
     // Two hosted pages are two conversations with two agents; one shared id
     // would put them in the same thread on the server.
