@@ -295,6 +295,16 @@ describe("removeSection", () => {
     ];
     expect(shape(removeSection(before, "s1"))).toEqual([{ divider: "One", widgets: ["runs"] }]);
   });
+
+  it("unfolds a collapsed previous section it merges the cards into", () => {
+    const before = [
+      section("s0", { ...divider("One"), collapsed: true }, [card("a", "runs")]),
+      section("s1", divider("Two"), [card("b", "spend")]),
+    ];
+    const after = removeSection(before, "s1");
+    expect(shape(after)).toEqual([{ divider: "One", widgets: ["runs", "spend"] }]);
+    expect(after[0]!.divider!.collapsed).toBe(false);
+  });
 });
 
 describe("patchDivider", () => {

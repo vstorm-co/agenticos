@@ -226,7 +226,10 @@ export function addWidgetToSection(
 /**
  * Remove a section's heading, merging its cards into the previous section (or
  * the leading group). With no previous section the cards become a new
- * headingless leading section, so removing a heading never removes cards.
+ * headingless leading section, so removing a heading never removes cards — and a
+ * collapsed receiving section is unfolded, so the merged cards are never hidden
+ * in a folded band where they read as vanished (the answer `moveWidgetBy` and
+ * the add path give too).
  */
 export function removeSection(sections: EditorSection[], sectionUid: string): EditorSection[] {
   const index = sections.findIndex((section) => section.uid === sectionUid);
@@ -237,7 +240,13 @@ export function removeSection(sections: EditorSection[], sectionUid: string): Ed
   if (section.widgets.length === 0) return next;
   const previous = next[index - 1];
   if (previous) {
-    next[index - 1] = { ...previous, widgets: [...previous.widgets, ...section.widgets] };
+    next[index - 1] = {
+      ...previous,
+      divider: previous.divider?.collapsed
+        ? { ...previous.divider, collapsed: false }
+        : previous.divider,
+      widgets: [...previous.widgets, ...section.widgets],
+    };
     return next;
   }
   return [{ uid: section.uid, divider: null, widgets: section.widgets }, ...next];
