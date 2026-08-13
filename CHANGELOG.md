@@ -17,6 +17,24 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.136] - 2026-08-13
+
+DOM key constants were sitting in the message catalog and read back through the
+translator.
+
+### Fixed
+
+- **`e.key === t("enter2")` compared a keyboard event against a translation.**
+  `Enter`, `Escape`, `Tab`, `ArrowUp` and `ArrowDown` were parked in `en.json` and
+  read back in the chat composer, the command palette, conversation rename, the
+  share dialog, the sources panel and the question prompt. `src/i18n.ts` merges
+  `en.json` under every locale, so this worked only while `pl.json` omitted those
+  keys — the first translator to render one would have broken every shortcut on
+  that screen. They are literals in the source again, and
+  `messages/catalog.test.ts` refuses a catalog value that is a DOM key constant.
+  Six of them had in the meantime been translated into `pl.json`, which is the
+  failure arriving; they are deleted. (#549)
+
 ## [0.0.135] - 2026-08-13
 
 The copy guard read a hyphen in the first word as a label separator, so half a
