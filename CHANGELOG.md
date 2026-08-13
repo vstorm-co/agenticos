@@ -17,6 +17,36 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.145] - 2026-08-13
+
+A webhook bot's files had no server to be fetched from.
+
+### Fixed
+
+- **A Mattermost webhook bot's server is recorded per delivery.** Only the
+  polling path ever told the adapter a bot's address, so an attachment on an
+  outgoing-webhook post parsed with an empty handle and the reply said the
+  file could not be downloaded. The receiver now hands the bot row's
+  `api_base_url` to the adapter after the token check and before the parse —
+  per delivery, so an operator's edit takes effect at once. Not a regression:
+  before #547 the file was dropped silently; #547 made the failure visible,
+  this makes the file reachable. (#692)
+
+## [0.0.144] - 2026-08-13
+
+A removed channel member kept the thread.
+
+### Security
+
+- **`/chat` now asks the platform whether a reader is still in the channel.**
+  A channel thread was shown to anybody whose linked account had ever spoken
+  in it, and never asked again — so somebody removed from a Slack, Telegram or
+  Mattermost channel kept the thread, including everything said after they
+  left. Each adapter now answers a per-account membership question, cached for
+  60 seconds and failing closed: an unsupported platform, a missing adapter,
+  an unsealable token or an errored call hides the thread rather than showing
+  it. The owner and an explicit share keep access on every path. (#641)
+
 ## [0.0.143] - 2026-08-13
 
 Three sweeps walked the source tree three different ways.

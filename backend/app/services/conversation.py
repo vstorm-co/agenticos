@@ -34,6 +34,7 @@ from app.schemas.conversation import (
     ToolCallCreate,
 )
 from app.schemas.conversation_share import AdminConversationList, AdminConversationRead
+from app.services.channels import membership as channel_membership
 
 logger = logging.getLogger(__name__)
 
@@ -124,19 +125,21 @@ class ConversationService:
 
         Three ways in, and a channel thread needs all three: the owner, whoever
         it was explicitly shared with, and - for a thread that came out of a room
-        - anyone a chat account of whose spoke in it, the same set `_reachable_by`
-        puts the thread in front of in the list. Ownership alone left the list and
-        the read disagreeing: a participant saw the thread and got a 404 opening
-        it, and a thread whose first speaker linked no account has no owner at all,
-        so the whole organization could read it while the list showed it only to
-        the people who were there.
+        - a participant the platform confirms is *still in the channel*, the same
+        set `_reachable_by` puts the thread in front of in the list. Having
+        spoken is not enough on its own: participation that stopped at the
+        `messages` table outlived the access the platform grants, so somebody
+        removed from the channel kept reading everything said after they left
+        (#641). `channels.membership` is the check, and it fails closed.
         """
         owner = getattr(conversation, "user_id", None)
         if owner is not None and str(owner) == str(user_id):
             return True
         if await conversation_share_repo.get_share(self.db, conversation.id, user_id):
             return True
-        return await conversation_repo.spoke_in(self.db, conversation.id, user_id)
+        return await channel_membership.confirms_participation(
+            self.db, conversation_id=conversation.id, user_id=user_id
+        )
 
     async def _may_write(self, conversation: Conversation, user_id: UUID) -> bool:
         """Whether this reader may change or delete this conversation.
@@ -165,7 +168,9 @@ class ConversationService:
         if await conversation_share_repo.get_share(self.db, conversation.id, user_id):
             return True
         if owner is None:
-            return await conversation_repo.spoke_in(self.db, conversation.id, user_id)
+            return await channel_membership.confirms_participation(
+                self.db, conversation_id=conversation.id, user_id=user_id
+            )
         return False
 
     async def _attach_authors(self, messages: list[Message]) -> None:
@@ -204,7 +209,19 @@ class ConversationService:
         The total is counted with the same narrowing as the page, so a caller
         rendering "showing 30 of N" is describing the list it was handed rather
         than the deployment.
+
+        A user's page includes the channel threads they participate in, and the
+        participation set is vetted here - against the platform's current
+        membership, through `channels.membership` - before the repository sees
+        it, so the query never widens on who merely spoke (#641).
         """
+        participant_ids: set[UUID] = (
+            await channel_membership.confirmed_participant_threads(
+                self.db, user_id=user_id, organization_id=organization_id
+            )
+            if user_id is not None
+            else set()
+        )
         items = await conversation_repo.get_conversations_by_user(
             self.db,
             user_id=user_id,
@@ -217,6 +234,7 @@ class ConversationService:
             archived_only=archived_only,
             sort_by=sort_by,
             sort_dir=sort_dir,
+            participant_conversation_ids=participant_ids,
         )
         total = await conversation_repo.count_conversations(
             self.db,
@@ -226,6 +244,7 @@ class ConversationService:
             agent_id=agent_id,
             include_archived=include_archived,
             archived_only=archived_only,
+            participant_conversation_ids=participant_ids,
         )
         await self._attach_agents(items)
         return items, total

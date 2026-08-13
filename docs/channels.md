@@ -805,13 +805,19 @@ it is about to wait.
     somebody, with no backfill: the turn points at the chat account and the
     account gains a person.
 
-    **That list says who spoke, not who is still in the channel.** Participation
-    is never re-checked against the platform, so somebody removed from the
-    channel there keeps the thread in their list here — deliberately, and
-    [#641][641] is what it would take to change. Where participation carries an
-    access decision — opening a thread, changing an ownerless one — it carries
-    that staleness with it; anything needing the live channel roster has to ask
-    the platform, never this list.
+    **Speaking is a claim; the platform decides whether it still holds.** The
+    turn record says who *spoke*, and before [#641][641] that was the whole
+    check — somebody removed from the channel kept reading the thread,
+    including everything said after they left. Now every participation claim is
+    confirmed against the platform's current membership (`getChatMember` on
+    Telegram, `conversations.members` on Slack, the per-user member lookup on
+    Mattermost) before the listing shows the thread and before it opens, behind
+    a shared Redis cache of about a minute. The check **fails closed**: a
+    platform that cannot answer, a bot that is gone, and a thread whose channel
+    nothing names any more — `/new` re-points the session at a fresh
+    conversation — all refuse participation rather than trust the claim. The
+    thread's owner and anybody it was explicitly shared with keep their access
+    regardless; the membership check gates participation and nothing else.
 
     **And it opens a thread rather than owning one.** Speaking in a room admits
     you to reading it; renaming it, archiving it, deleting it or appending a turn
@@ -824,8 +830,9 @@ it is about to wait.
     the participants *are* who may change it — the same set that may open it.
     There is nobody the write would be taken from, and the alternative was the
     whole organization: any member could delete a transcript whose list entry
-    they had never seen ([#701][701]). The [#641][641] caveat carries over to
-    the write: this is who spoke, not who is still in the channel.
+    they had never seen ([#701][701]). The write leans on the same confirmed
+    participation as the read: a claim the platform no longer backs carries
+    neither ([#641][641]).
 
 [701]: https://github.com/vstorm-co/agenticos/issues/701
 

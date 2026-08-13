@@ -22,14 +22,18 @@ from app.services.channel_bot import unseal_bot_token
 from app.services.channel_link import ChannelLinkService
 from app.services.channels import get_adapter
 from app.services.channels.attachments import ChannelAttachmentService
-from app.services.channels.base import IncomingMessage, OutgoingAttachment, OutgoingMessage
+from app.services.channels.base import (
+    IncomingMessage,
+    OutgoingAttachment,
+    OutgoingMessage,
+    channel_key,
+)
 from app.services.channels.dedupe import claim_delivery, release_delivery
 from app.services.channels.directory import BoundChannelDirectory
 from app.services.channels.live_reply import WORKING, LiveReply, channel_stream
 from app.services.channels.mentions import (
     ChannelAgentRouter,
     UnaddressedMessage,
-    channel_key,
     parse_mention,
 )
 
