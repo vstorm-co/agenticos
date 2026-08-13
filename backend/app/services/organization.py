@@ -10,7 +10,7 @@ from app.core.exceptions import (
     BadRequestError,
     NotFoundError,
 )
-from app.core.permissions import Perm, role_has
+from app.core.permissions import AuthContext, OrgRoleName, Perm, role_has
 from app.db.models.organization import Organization, OrganizationMember, OrgRole
 from app.repositories import member_repo, organization_repo
 from app.schemas.organization import (
@@ -19,7 +19,9 @@ from app.schemas.organization import (
     OrganizationRead,
     OrganizationUpdate,
 )
+from app.services import skill_library
 from app.services.file_storage import get_file_storage
+from app.services.skills import SkillService
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +135,28 @@ class OrganizationService:
             user_id=owner_id,
             role=OrgRole.OWNER.value,
         )
+        await self._seed_bundled_skills(org.id, owner_id)
         return org
+
+    async def _seed_bundled_skills(self, organization_id: UUID, owner_id: UUID) -> None:
+        """Copy every bundled skill into a brand-new organization.
+
+        Implicit rather than an Install click (#281): a spec binds a skill by
+        row id, so a bundled skill has to be a row before the Builder can offer
+        it - and gating that row behind a per-person Install button meant two
+        lists on the skills page and a step with no decision in it. Seeded as
+        the owner with organization visibility, the same shape `seed-skills`
+        writes; an organization that later deletes one is deleting an ordinary
+        skill it owns, and nothing puts it back unasked.
+        """
+        service = SkillService(self.db)
+        ctx = AuthContext(
+            user_id=owner_id,
+            organization_id=organization_id,
+            role=OrgRoleName.OWNER,
+        )
+        for bundled in skill_library.library():
+            await service.install_from_library(ctx, bundled.key)
 
     async def create_personal_org(self, user_id: UUID, email: str) -> Organization:
         """Create the Personal Organization for a newly registered user.
@@ -155,6 +178,7 @@ class OrganizationService:
             user_id=user_id,
             role=OrgRole.OWNER.value,
         )
+        await self._seed_bundled_skills(org.id, user_id)
         return org
 
     async def update(

@@ -3393,8 +3393,6 @@
     "hide": "Hide",
     "howModelRefersSkill": "How the model refers to this skill. It cannot be changed later.",
     "howRefundsTheirExceptions": "How refunds and their exceptions are handled.",
-    "install": "Install",
-    "installed": "{name} installed - it is yours to edit now",
     "loading": "Loading…",
     "markdownLoadedOnlyAfter": "Markdown. Loaded only after the description convinced the model to, so length costs nothing until it is needed.",
     "markdownYouCanFill": "Markdown. You can fill this in later - it is loaded only after the description convinced the model to.",
@@ -3414,21 +3412,17 @@
     "path": "Path",
     "preview": "Preview",
     "readConversationCameFrom": "Read the conversation it came from",
-    "readyMadeSkillCount": "{count, plural, =1 {1 ready-made skill} other {# ready-made skills}}",
-    "readyMadeSkills": "Ready-made skills",
     "remove": "Remove",
     "review": "Review",
     "save": "Save",
     "saveFile": "Save file",
     "savedAgentsCurrent": "Saved. Every agent using this skill is now current.",
     "savingReachesEveryAgent": "Saving reaches every agent bound to this skill on its next run. There is no draft and no publish step.",
-    "searchLibrary": "Search library…",
     "showWhatChangedIn": "Show what changed in {name}",
     "sizeUploadsWhenCreated": "{size} · uploads when the skill is created",
     "source": "Source",
     "support": "support",
-    "whatSoModelCan": "What is in it, so the model can decide without loading it",
-    "writtenPlatformCopiedInto": "Written for this platform and copied into your organization - yours to edit from the moment you install one."
+    "whatSoModelCan": "What is in it, so the model can decide without loading it"
   },
   "states": {
     "loading": "Loading"

@@ -8,7 +8,7 @@ import { getErrorMessage } from "@/lib/api-error";
 import { PAGE_SIZE } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
-import type { LibrarySkillList, Skill, SkillList, SkillResource } from "@/types/providers";
+import type { Skill, SkillList, SkillResource } from "@/types/providers";
 
 export interface NewSkill {
   name: string;
@@ -240,36 +240,6 @@ export function useSkillResource(skillId: string | null, resourceId: string | nu
     enabled: skillId !== null && resourceId !== null,
   });
   return { resource: data, isLoading };
-}
-
-/**
- * The skills this deployment ships with.
- *
- * Bundled in the repository rather than fetched from a registry, so the list
- * changes on redeploy and not between requests - hence the indefinite cache.
- * Installing copies: from that moment it is an ordinary skill the organization
- * owns and edits.
- */
-export function useSkillLibrary() {
-  const tErrors = useTranslations("errors");
-  const t = useTranslations("skills");
-  const queryClient = useQueryClient();
-
-  const { data, isLoading } = useQuery({
-    queryKey: qk.skills.library(),
-    queryFn: () => apiClient.get<LibrarySkillList>("/skills/library"),
-  });
-
-  const install = useMutation({
-    mutationFn: (key: string) => apiClient.post<Skill>(`/skills/library/${key}/install`, {}),
-    onSuccess: async (skill) => {
-      await queryClient.invalidateQueries({ queryKey: qk.skills.all() });
-      toast.success(t("installed", { name: skill.name }));
-    },
-    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
-  });
-
-  return { library: data?.items ?? [], isLoading, install };
 }
 
 export interface NewSkillResource {

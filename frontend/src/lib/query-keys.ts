@@ -151,7 +151,6 @@ export const qk = {
     resource: (skillId: string, resourceId: string) =>
       ["skills", skillId, "resources", resourceId] as const,
     /** What this deployment ships with - changes on redeploy, not on a mutation. */
-    library: () => ["skills", "library"] as const,
   },
   invitations: {
     all: () => ["invitations"] as const,

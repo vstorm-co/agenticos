@@ -70,7 +70,7 @@ export {
 } from "./use-sandbox-workspaces";
 export { useFileActions, useFileBytes, useFileText } from "./use-file-content";
 export { useSkillChanges } from "./use-skill-changes";
-export { useSkill, useSkillLibrary, useSkillResource, useSkills } from "./use-skills";
+export { useSkill, useSkillResource, useSkills } from "./use-skills";
 export { useSharing } from "./use-sharing";
 export { useEmbeds } from "./use-embeds";
 export { useChannelBots } from "./use-channel-bots";

@@ -19,7 +19,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.commands import command, info, success, warning
 from app.core.exceptions import AlreadyExistsError
 from app.core.permissions import AuthContext, OrgRoleName
-from app.db.models.resource_grant import Visibility
 from app.db.session import get_db_context
 from app.repositories import member_repo, organization_repo
 from app.services import skill_library
@@ -86,14 +85,7 @@ async def _run(org_id: str | None, dry_run: bool) -> None:
             )
             for skill in bundled:
                 try:
-                    # Visible to the organization rather than to the person the
-                    # seed ran as, set at install rather than by a follow-up edit:
-                    # a bundled skill is for everybody, where private is the right
-                    # default for something somebody wrote and the wrong one for
-                    # something the platform shipped.
-                    installed = await service.install_from_library(
-                        ctx, skill.key, visibility=Visibility.ORG
-                    )
+                    installed = await service.install_from_library(ctx, skill.key)
                 except AlreadyExistsError:
                     click.echo(f"    {skill.name} - already there, left alone")
                     continue

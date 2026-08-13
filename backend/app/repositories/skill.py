@@ -33,19 +33,6 @@ async def get_by_name(db: AsyncSession, name: str, *, organization_id: UUID) -> 
     return result.scalar_one_or_none()
 
 
-async def names_in_use(db: AsyncSession, *, organization_id: UUID) -> set[str]:
-    """Every skill name taken in one organization.
-
-    Unpaged and visibility-blind, which is what makes it the same question
-    :func:`get_by_name` asks one name at a time. Uniqueness is a property of the
-    organization rather than of what a caller may see: a skill a member cannot
-    read is still a name they cannot take, and a name past the hundredth row of
-    a listing is not a free one.
-    """
-    result = await db.execute(select(Skill.name).where(Skill.organization_id == organization_id))
-    return set(result.scalars().all())
-
-
 async def get_many(
     db: AsyncSession, skill_ids: list[UUID], *, organization_id: UUID
 ) -> dict[UUID, Skill]:

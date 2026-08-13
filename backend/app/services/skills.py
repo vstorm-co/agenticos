@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Sequence
 from typing import Annotated
-from uuid import NAMESPACE_URL, UUID, uuid5
+from uuid import UUID
 
 from pydantic import StringConstraints, TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,10 +26,7 @@ from app.db.updates import writable
 from app.repositories import resource_grant_repo, skill_repo
 from app.repositories.skill import SkillSort
 from app.schemas.skill import (
-    LibrarySkillList,
-    LibrarySkillRead,
     SkillList,
-    SkillResourceSummary,
     SkillResourceUpdate,
     SkillSummary,
     SkillUpdate,
@@ -234,56 +231,6 @@ class SkillService:
             suggested_categories=list(SUGGESTED_CATEGORIES),
         )
 
-    async def list_library(self, ctx: AuthContext) -> LibrarySkillList:
-        """The skills this deployment ships with, each marked installed or not.
-
-        `installed` answers exactly one question - is this name already taken in
-        this organization - because that is the only question the Install button
-        leads to. It used to be derived from `list_skills(ctx, limit=100)`, which
-        is a *page* of what *this caller may see*, and both halves of that were
-        wrong:
-
-        - a page. An organization past its alphabetically hundredth skill lost
-          every name after it, so a taken name read as free.
-        - visibility-scoped. An install lands `private`
-          (:class:`app.db.models.skill.Skill`), so a skill another member
-          installed is invisible to anyone whose `SKILLS_VIEW` scope is not
-          `ALL`. Their gallery offered an Install, and
-          :meth:`install_from_library` refused it with a 409 naming a skill they
-          cannot open.
-
-        The rule behind that refusal is `skill_repo.get_by_name` - organization
-        wide, visibility-blind - so this asks the same query rather than a
-        listing that happens to overlap with it.
-
-        The gallery drops what is installed rather than greying it out, so a name
-        somebody else took simply stops being offered. There is deliberately no
-        link to the existing skill: the caller may have no access to it, and a
-        card that leads to a 404 is a worse answer than no card.
-        """
-        taken = await skill_repo.names_in_use(self.db, organization_id=ctx.organization_id)
-        items = [
-            LibrarySkillRead(
-                key=bundled.key,
-                name=bundled.name,
-                description=bundled.description,
-                category=bundled.category,
-                content=bundled.content,
-                resources=[
-                    SkillResourceSummary(
-                        id=uuid5(NAMESPACE_URL, f"{bundled.key}/{resource.name}"),
-                        name=resource.name,
-                        description=None,
-                        size_bytes=resource.size_bytes,
-                    )
-                    for resource in bundled.resources
-                ],
-                installed=bundled.name in taken,
-            )
-            for bundled in skill_library.library()
-        ]
-        return LibrarySkillList(items=items, total=len(items))
-
     async def list_categories(self, ctx: AuthContext) -> list[str]:
         """Every distinct category in this organization, for the listing's filter."""
         return await skill_repo.list_categories(self.db, organization_id=ctx.organization_id)
@@ -399,23 +346,22 @@ class SkillService:
         )
         return updated
 
-    async def install_from_library(
-        self, ctx: AuthContext, key: str, *, visibility: Visibility = Visibility.PRIVATE
-    ) -> Skill:
+    async def install_from_library(self, ctx: AuthContext, key: str) -> Skill:
         """Copy a bundled skill into this organization, files and all.
 
         A copy, not a link. From this moment it is an ordinary skill the
         organization owns and can edit - which is the whole point of skills, and
         would be taken away by a live reference back to the shipped folder.
 
-        `visibility` is set at creation rather than by a follow-up edit: a
-        bundled skill the seed installs is for the whole organization, and one a
-        member installs is private by default like anything they wrote.
+        Always organization-visible, set at creation rather than by a follow-up
+        edit: a bundled skill is for everybody, and the only callers left are
+        the seeding paths - organization creation and `seed-skills` - since the
+        per-person Install button was dropped (#281).
 
         Raises:
             NotFoundError: If no such skill ships with this deployment.
             AlreadyExistsError: If the organization already has one by that
-                name - installing twice would otherwise produce a second skill
+                name - seeding twice would otherwise produce a second skill
                 the model cannot tell from the first.
         """
         bundled = skill_library.get(key)
@@ -428,7 +374,7 @@ class SkillService:
             description=bundled.description,
             content=bundled.content,
             category=bundled.category,
-            visibility=visibility,
+            visibility=Visibility.ORG,
         )
         for resource in bundled.resources:
             await skill_repo.create_resource(

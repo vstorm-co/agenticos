@@ -3,7 +3,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useSkill, useSkillLibrary, useSkillResource, useSkills } from "./use-skills";
+import { useSkill, useSkillResource, useSkills } from "./use-skills";
 import { apiClient } from "@/lib/api-client";
 
 vi.mock("@/lib/api-client", () => ({
@@ -392,40 +392,5 @@ describe("useSkillResource", () => {
     renderHook(() => useSkillResource(null, "r1"), { wrapper });
 
     expect(apiClient.get).not.toHaveBeenCalled();
-  });
-});
-
-describe("useSkillLibrary", () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it("reads the shelf this deployment ships", async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({ items: [{ key: "code-review" }] });
-    const { result } = renderHook(() => useSkillLibrary(), { wrapper });
-
-    await waitFor(() => expect(result.current.library).toHaveLength(1));
-
-    expect(apiClient.get).toHaveBeenCalledWith("/skills/library");
-  });
-
-  it("says an installed skill is now the organization's to edit", async () => {
-    // A copy, not a link - which is the whole point of installing one.
-    vi.mocked(apiClient.get).mockResolvedValue({ items: [] });
-    vi.mocked(apiClient.post).mockResolvedValue({ name: "code-review" });
-    const { result } = renderHook(() => useSkillLibrary(), { wrapper });
-
-    await result.current.install.mutateAsync("code-review");
-
-    expect(apiClient.post).toHaveBeenCalledWith("/skills/library/code-review/install", {});
-    expect(toastSuccess).toHaveBeenCalledWith("code-review installed - it is yours to edit now");
-  });
-
-  it("reports a failed install", async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({ items: [] });
-    vi.mocked(apiClient.post).mockRejectedValue(new Error("already installed"));
-    const { result } = renderHook(() => useSkillLibrary(), { wrapper });
-
-    await expect(result.current.install.mutateAsync("code-review")).rejects.toThrow();
-
-    expect(toastError).toHaveBeenCalledWith("already installed");
   });
 });

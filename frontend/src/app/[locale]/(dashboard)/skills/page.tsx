@@ -8,7 +8,6 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { ProposedChanges } from "@/components/skills/proposed-changes";
 import { CreateSkillDialog } from "@/components/skills/create-skill-dialog";
 import { SkillCard } from "@/components/skills/skill-card";
-import { SkillLibraryGallery } from "@/components/skills/skill-library-gallery";
 import { SkillWorkbench } from "@/components/skills/skill-workbench";
 import { categoryLabel, categorySuggestions } from "@/components/skills/category-input";
 import { EmptyState, LoadingState } from "@/components/states";
@@ -356,10 +355,6 @@ export default function SkillsPage() {
           )}
         </div>
       </SkillsCard>
-
-      {/* Below the organization's own, not above: what somebody already wrote
-          is what they came here for. */}
-      <SkillLibraryGallery canInstall={canEdit} />
 
       <Dialog
         open={selected !== null}

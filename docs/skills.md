@@ -115,8 +115,16 @@ rather than more information.
 
 **Write one.** Skills → New, in the UI. This is the normal path.
 
-**Install a bundled one.** The repository ships three as worked examples:
-`refund-policy`, `code-review` and `incident-report`.
+**The bundled ones are already there.** The repository ships three as worked
+examples — `refund-policy`, `code-review` and `incident-report` — and every
+organization starts with them: creating an organization copies the whole shipped
+library in as ordinary skills, owned by the organization's owner and visible to
+the organization. There is no Install button and no separate "ready-made" list —
+the skills page shows one list, with a `built-in` badge on anything whose name
+matches the shipped library.
+
+For an organization created before a deployment gained a new bundled skill, the
+seed command copies whatever is missing:
 
 ```bash
 uv run agenticos cmd seed-skills                    # every organization
@@ -124,32 +132,22 @@ uv run agenticos cmd seed-skills --org <org-id>     # one
 uv run agenticos cmd seed-skills --dry-run          # say what would happen, do nothing
 ```
 
+It is idempotent by name — a skill the organization already has is left exactly
+as it is, so an edited refund policy survives a reseed.
+
 `e2e/seed.setup.ts` also creates one through the UI, which is what the E2E suite
 asserts against.
 
-### Installing copies
+### Seeding copies
 
-Installing a bundled skill produces an ordinary skill owned by the organization,
-editable from that moment. It is a copy, not a link.
+A seeded skill is an ordinary skill owned by the organization, editable from the
+moment the organization exists. It is a copy, not a link.
 
 That is deliberate. The point of a skill is that a support lead can fix the refund
 policy without a deploy, and a live link back to the repository's copy would take
 exactly that away — the organization would be reading a file only an engineer can
-change.
-
-### What "installed" means on a library card
-
-A bundled skill is offered when its **name is free in the organization** — the
-same question `install_from_library` answers when it refuses a duplicate, asked
-organization-wide and without regard to who may see what.
-
-That matters because an install lands `private`. A skill one member installed is
-invisible to another whose `skills:view` scope is not the whole organization, so
-deciding the card from what the caller can *read* would offer them an Install
-that then fails with *"A skill named 'X' already exists."* The gallery drops what
-is installed rather than greying it out, so a name somebody else has taken simply
-stops being offered — and it does not link to the existing skill, which the
-caller may have no access to open.
+change. It also means deleting one is final in the ordinary way: nothing puts a
+deleted built-in back unasked, and a reseed is an explicit command.
 
 ### Why the library is bundled and not fetched
 
