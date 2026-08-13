@@ -34,7 +34,9 @@ async function openAvailability(page: Page, agent: string): Promise<Locator> {
 
 /** Publish a hosted page, and answer with the link it produced. */
 async function publishPage(page: Page, panel: Locator): Promise<string> {
-  const publish = panel.getByRole("button", { name: /Hosted page/ }).first();
+  // Anchored: a name is matched as a substring, and every row already published
+  // carries the same words on its own controls - "Edit Hosted page".
+  const publish = panel.getByRole("button", { name: /^Hosted page/ }).first();
   // Wait for the panel's query to resolve before deciding the button is absent:
   // isVisible() is immediate, so a slow embeds fetch would skip the spec as
   // "cannot publish" on a machine that was merely slow rather than unpermitted.
@@ -44,7 +46,10 @@ async function publishPage(page: Page, panel: Locator): Promise<string> {
     test.skip(true, "this user cannot publish an embed");
   }
   await publish.click();
-  const submit = panel.getByRole("button", { name: "Publish" });
+  // Exact, for the same reason: the picker's Public API card ends "Nothing to
+  // publish here.", so a substring match on this name never reaches zero once
+  // the form has unmounted and the picker is back.
+  const submit = panel.getByRole("button", { name: "Publish", exact: true });
   await submit.click();
   // The picker form unmounts on success, so the write has landed once the submit
   // is gone. Reloading before that races the mutation - .click() resolves on the
