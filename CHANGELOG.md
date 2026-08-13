@@ -17,6 +17,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.145] - 2026-08-13
+
+A webhook bot's files had no server to be fetched from.
+
+### Fixed
+
+- **A Mattermost webhook bot's server is recorded per delivery.** Only the
+  polling path ever told the adapter a bot's address, so an attachment on an
+  outgoing-webhook post parsed with an empty handle and the reply said the
+  file could not be downloaded. The receiver now hands the bot row's
+  `api_base_url` to the adapter after the token check and before the parse —
+  per delivery, so an operator's edit takes effect at once. Not a regression:
+  before #547 the file was dropped silently; #547 made the failure visible,
+  this makes the file reachable. (#692)
+
 ## [0.0.144] - 2026-08-13
 
 A removed channel member kept the thread.
