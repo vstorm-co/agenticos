@@ -17,6 +17,7 @@ opposite case, and it is written: the calls are what happened.
 
 from __future__ import annotations
 
+import logging
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -107,25 +108,48 @@ class TestReadingToolCallsOffARun:
             )
         ]
 
-    def test_a_call_the_model_was_told_to_retry_records_the_refusal(self):
-        """It happened and it failed. Dropping it would leave an argument list
-        with no outcome, which reads as "still running" for ever."""
+    def test_a_call_the_model_was_told_to_retry_records_a_notice_not_its_text(self, caplog):
+        """It happened and it failed, so dropping it would read as "still
+        running" for ever - but the retry text is written by whatever raised,
+        and `web_search` builds one out of the vendor exception it caught, so
+        storing it put the failing endpoint and its query string in a row every
+        member who can read the run sees weeks later (#695). The row names the
+        tool and the retry; the vendor's text goes to the log beside the write.
+        """
+        vendor_text = "Tavily search failed: 401 for url 'https://api.tavily.com/search?k=sk-9f2c'"
+        with caplog.at_level(logging.WARNING, logger="app.services.transcript"):
+            calls = tool_calls_in(
+                [
+                    _called("web_search", "c1", query="refunds"),
+                    ModelRequest(
+                        parts=[
+                            RetryPromptPart(
+                                content=vendor_text,
+                                tool_name="web_search",
+                                tool_call_id="c1",
+                            )
+                        ]
+                    ),
+                ]
+            )
+
+        assert calls[0].result == (
+            "The web_search call failed and the model was asked to try again. "
+            "The server log has the full error."
+        )
+        assert vendor_text in caplog.text
+
+    def test_a_return_holding_a_url_is_stored_whole(self):
+        """The success case is the tool's own answer, not a vendor's exception -
+        trimming it too would eat the results a person opens the run to read."""
         calls = tool_calls_in(
             [
-                _called("send_email", "c1", to="not-an-address"),
-                ModelRequest(
-                    parts=[
-                        RetryPromptPart(
-                            content="to is not a valid address",
-                            tool_name="send_email",
-                            tool_call_id="c1",
-                        )
-                    ]
-                ),
+                _called("web_search", "c1", query="refunds"),
+                _returned("web_search", "c1", "3 hits, best: https://example.com/refunds"),
             ]
         )
 
-        assert calls[0].result == "to is not a valid address"
+        assert calls[0].result == "3 hits, best: https://example.com/refunds"
 
     def test_a_call_that_never_came_back_has_no_result(self):
         """The run parked on it, was stopped, or broke. `None` is not the empty
@@ -181,22 +205,51 @@ class TestReadingWhatAnInheritedCallReturned:
 
         assert settled == {}
 
-    def test_a_refusal_settles_the_call_too(self):
-        """A call the model was told to retry did happen and did fail. Leaving the
-        row open would read as "still running" for ever."""
-        settled = settled_calls_in(
-            [
-                ModelRequest(
-                    parts=[
-                        RetryPromptPart(
-                            content="no such file", tool_name="execute", tool_call_id="c1"
-                        )
-                    ]
-                )
-            ]
-        )
+    def test_a_refusal_settles_the_call_with_a_notice_not_its_text(self, caplog):
+        """A call the model was told to retry did happen and did fail, so it
+        settles the row rather than leaving it "still running" for ever - but
+        with the same sentence :func:`tool_calls_in` stores, because the resume
+        shape writes to the same column the streaming shape does (#695)."""
+        vendor_text = "Client error '401 Unauthorized' for url 'https://api.tavily.com/search'"
+        with caplog.at_level(logging.WARNING, logger="app.services.transcript"):
+            settled = settled_calls_in(
+                [
+                    ModelRequest(
+                        parts=[
+                            RetryPromptPart(
+                                content=vendor_text, tool_name="web_search", tool_call_id="c1"
+                            )
+                        ]
+                    )
+                ]
+            )
 
-        assert settled == {"c1": "no such file"}
+        assert settled == {
+            "c1": (
+                "The web_search call failed and the model was asked to try again. "
+                "The server log has the full error."
+            )
+        }
+        assert vendor_text in caplog.text
+
+    def test_a_settled_retry_is_logged_once_across_both_readers(self, caplog):
+        """`agent_runner` reads one run's messages through both functions, so a
+        retry that settles an inherited call used to reach the log twice - once
+        from `tool_calls_in` collecting a result it then dropped, once from
+        here. One failure, one WARNING."""
+        vendor_text = "Client error '401 Unauthorized' for url 'https://api.tavily.com/search'"
+        messages = [
+            ModelRequest(
+                parts=[
+                    RetryPromptPart(content=vendor_text, tool_name="web_search", tool_call_id="c1")
+                ]
+            )
+        ]
+        with caplog.at_level(logging.WARNING, logger="app.services.transcript"):
+            assert tool_calls_in(messages) == []
+            assert "c1" in settled_calls_in(messages)
+
+        assert sum(vendor_text in record.getMessage() for record in caplog.records) == 1
 
 
 class TestWritingTheTranscript:
