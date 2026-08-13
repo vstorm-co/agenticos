@@ -7,7 +7,7 @@ import { RunStatusBadge } from "@/components/agents/status-badge";
 import { ROUTES } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
 import type { AgentRun } from "@/types/runs";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 interface RunSummaryProps {
   agentId: string;
@@ -59,6 +59,7 @@ function tally(runs: AgentRun[]): Tally {
  */
 export function RunSummary({ agentId, runs }: RunSummaryProps) {
   const t = useTranslations("agents");
+  const locale = useLocale();
   const stats = tally(runs);
   const activityHref = `${ROUTES.RUNS}?agent=${agentId}`;
 
@@ -96,7 +97,7 @@ export function RunSummary({ agentId, runs }: RunSummaryProps) {
           <li key={run.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 p-3 text-sm">
             <RunStatusBadge status={run.status} />
             <span className="text-muted-foreground text-xs">
-              {run.started_at ? formatDate(run.started_at) : t("notStarted")}
+              {run.started_at ? formatDate(run.started_at, locale) : t("notStarted")}
             </span>
             <span className="text-muted-foreground text-xs">{run.surface}</span>
             <span className="ml-auto font-mono text-xs">{run.model_label ?? "-"}</span>

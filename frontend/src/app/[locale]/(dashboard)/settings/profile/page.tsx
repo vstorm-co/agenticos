@@ -15,10 +15,11 @@ import { formatDate, getErrorMessage, isAppAdmin, MAX_AVATAR_SIZE_BYTES } from "
 import { useAuthStore } from "@/stores";
 import type { User } from "@/types";
 import { useChanged } from "@/hooks/use-changed";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 export default function ProfileSettingsPage() {
   const t = useTranslations("pages.settings");
+  const locale = useLocale();
   const { user } = useAuth();
   const { setUser, bumpAvatarVersion, avatarVersion } = useAuthStore();
 
@@ -141,7 +142,7 @@ export default function ProfileSettingsPage() {
             </Button>
             <p className="text-muted-foreground mt-2 text-xs">
               {isAppAdmin(user) ? t("admin") : ""}
-              {t("memberSince", { date: formatDate(user.created_at) })}
+              {t("memberSince", { date: formatDate(user.created_at, locale) })}
             </p>
           </div>
         </div>

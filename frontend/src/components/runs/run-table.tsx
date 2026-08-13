@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { ThumbsDown } from "lucide-react";
 
 import { RunStatusBadge } from "@/components/agents/status-badge";
@@ -43,6 +43,7 @@ export function RunTable({
   onSort?: (key: RunSortKey) => void;
 }) {
   const t = useTranslations("pages.runs");
+  const locale = useLocale();
   const sortable = sort !== undefined && onSort !== undefined;
   return (
     <div className="overflow-x-auto">
@@ -136,7 +137,7 @@ export function RunTable({
                 {formatRunDuration(run.started_at, run.ended_at)}
               </td>
               <td className="text-muted-foreground px-3 py-2 text-xs">
-                {run.started_at === null ? "-" : formatDate(run.started_at)}
+                {run.started_at === null ? "-" : formatDate(run.started_at, locale)}
               </td>
             </tr>
           ))}

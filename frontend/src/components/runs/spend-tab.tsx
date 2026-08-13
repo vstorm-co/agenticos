@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { ErrorState, LoadingState } from "@/components/states";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
@@ -22,15 +22,16 @@ import type { CostSummary } from "@/types/runs";
 function windowLabel(
   spend: CostSummary | undefined,
   t: ReturnType<typeof useTranslations<"pages.runs">>,
+  locale: string,
 ): string {
   if (spend?.period_days != null) return t("lastDays", { days: spend.period_days });
-  const from = formatDate(spend?.from_date);
+  const from = formatDate(spend?.from_date, locale);
   // Null means "up to now", which is a word rather than a date - and rendering
   // it through `formatDate` would put a bare dash where the end of the window
   // should be.
   return spend?.to_date == null
     ? t("fromDateToNow", { from })
-    : t("fromDateToDate", { from, to: formatDate(spend.to_date) });
+    : t("fromDateToDate", { from, to: formatDate(spend.to_date, locale) });
 }
 
 /**
@@ -48,6 +49,7 @@ function windowLabel(
  */
 export function SpendTab() {
   const t = useTranslations("pages.runs");
+  const locale = useLocale();
   const { spend, isLoading, error, refetch } = useSpend(30);
 
   if (isLoading) return <LoadingState variant="stats" rows={2} />;
@@ -106,7 +108,7 @@ export function SpendTab() {
               sent - `runs.py` refuses to answer "30 days" and a range at once -
               and a default in its place renders "Last 30 days" over a range that
               is nothing of the sort. Silently, which is what a fallback buys. */}
-          <CardDescription>{windowLabel(spend, t)}</CardDescription>
+          <CardDescription>{windowLabel(spend, t, locale)}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
           {!spend || spend.by_agent.length === 0 ? (

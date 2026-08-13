@@ -20,7 +20,7 @@ async function fetchSharedConversation(token: string) {
 
 export default async function SharedConversationPage({ params }: SharedConversationPageProps) {
   const t = await getTranslations("pages.root");
-  const { token } = await params;
+  const { token, locale } = await params;
   const data = await fetchSharedConversation(token);
 
   if (!data || !data.conversation) {
@@ -63,7 +63,7 @@ export default async function SharedConversationPage({ params }: SharedConversat
               }`}
             >
               <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-              <p className="mt-1 text-xs opacity-60">{formatDateTime(msg.created_at)}</p>
+              <p className="mt-1 text-xs opacity-60">{formatDateTime(msg.created_at, locale)}</p>
             </div>
           </div>
         ))}

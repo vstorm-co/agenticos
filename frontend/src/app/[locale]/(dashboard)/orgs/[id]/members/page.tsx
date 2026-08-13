@@ -49,7 +49,7 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 const ROLE_VARIANT: Record<OrgRole, "default" | "secondary" | "outline"> = {
   owner: "default",
   admin: "secondary",
@@ -71,6 +71,7 @@ function getInitials(nameOrEmail: string): string {
 export default function OrgMembersPage({ params }: PageProps) {
   const t = useTranslations("pages.orgs");
   const tc = useTranslations("common");
+  const locale = useLocale();
   const { id } = use(params);
   const { user } = useAuth();
   const { members, total, isLoading, fetchMembers, changeRole, removeMember } = useMembers(id);
@@ -203,7 +204,7 @@ export default function OrgMembersPage({ params }: PageProps) {
         key: "joined",
         header: t("joined"),
         cell: (m) => (
-          <span className="text-muted-foreground text-sm">{formatDate(m.joined_at)}</span>
+          <span className="text-muted-foreground text-sm">{formatDate(m.joined_at, locale)}</span>
         ),
       },
     ];
@@ -403,10 +404,10 @@ export default function OrgMembersPage({ params }: PageProps) {
                         )}
                       </>
                     ) : (
-                      <>{t("invitedOn", { date: formatDate(inv.created_at) })}</>
+                      <>{t("invitedOn", { date: formatDate(inv.created_at, locale) })}</>
                     )}
                     {inv.expires_at && (
-                      <> · {t("expiresOn", { date: formatDate(inv.expires_at) })}</>
+                      <> · {t("expiresOn", { date: formatDate(inv.expires_at, locale) })}</>
                     )}
                   </p>
                 </div>

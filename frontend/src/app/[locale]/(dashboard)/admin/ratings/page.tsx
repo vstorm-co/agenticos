@@ -37,13 +37,14 @@ import { ErrorState } from "@/components/states";
 import { ROUTES } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
 import type { MessageRatingListResponse, MessageRatingWithDetails, RatingSummary } from "@/types";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 const PAGE_SIZE = 50;
 type RatingFilter = "all" | "positive" | "negative";
 
 export default function AdminRatingsPage() {
   const t = useTranslations("pages.admin");
+  const locale = useLocale();
   const [filter, setFilter] = useState<RatingFilter>("all");
   const [commentsOnly, setCommentsOnly] = useState(false);
   const [page, setPage] = useState(0);
@@ -105,7 +106,7 @@ export default function AdminRatingsPage() {
       className: "whitespace-nowrap",
       cell: (r) => (
         <span className="text-muted-foreground font-mono text-xs tabular-nums">
-          {formatDate(r.created_at)}
+          {formatDate(r.created_at, locale)}
         </span>
       ),
     },

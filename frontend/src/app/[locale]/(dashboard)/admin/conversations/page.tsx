@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { ChevronLeft, ChevronRight, ExternalLink, Search } from "lucide-react";
 
 import {
@@ -66,6 +66,7 @@ function UserAvatar({
 export default function AdminConversationsPage() {
   const t = useTranslations("admin");
   const tc = useTranslations("common");
+  const locale = useLocale();
   const {
     conversations,
     conversationsTotal,
@@ -223,7 +224,7 @@ export default function AdminConversationsPage() {
           </SortButton>
         ),
         cell: (conv) => (
-          <span className="text-muted-foreground">{formatDate(conv.created_at)}</span>
+          <span className="text-muted-foreground">{formatDate(conv.created_at, locale)}</span>
         ),
       },
       {
