@@ -178,13 +178,18 @@ class TestTheRestOfTheSession:
         turn - so this is a seam for the route rather than a teardown."""
         session = _session()
 
-        assert await session.close() is None
+        released = await session.close()
+
+        assert released is None
+        session.websocket.send_json.assert_not_awaited()
 
     async def test_a_thread_with_no_conversation_yet_has_no_history(self):
         session = _session()
         session.conversation_id = None
 
-        assert await session._history(MagicMock()) == []
+        history = await session._history(MagicMock())
+
+        assert history == []
 
 
 class TestTheThreadAVisitorComesBackTo:
@@ -253,6 +258,7 @@ class TestWhichFilesAVisitorMayAttach:
         session = _session()
 
         with patch(f"{MODULE}.chat_file_repo.get_many", AsyncMock()) as get_many:
-            assert await session._files(MagicMock(), ()) == []
+            usable = await session._files(MagicMock(), ())
 
+        assert usable == []
         get_many.assert_not_awaited()
