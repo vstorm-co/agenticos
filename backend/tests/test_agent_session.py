@@ -1320,9 +1320,43 @@ class TestForwardingToolEvents:
             {"tool_call_id": "t1", "tool_name": "ls", "args": {}, "result": "['/a.txt']"}
         ]
 
-    async def test_a_retry_is_reported_rather_than_swallowed(self):
-        """A tool that raised sends a `RetryPromptPart` down the same stream. It
-        carries `content` too, and a card that never resolved would spin forever."""
+    async def test_a_retry_is_reported_rather_than_swallowed(self, caplog):
+        """A tool that raised sends a `RetryPromptPart` down the same stream, and a
+        card that never resolved would spin forever - so the frame still arrives,
+        naming the tool that failed. What it does not carry is the retry text: a
+        tool builds one out of whatever it caught, and `web_search` catches an
+        `httpx` error whose message holds the failing endpoint (#681).
+        """
+        session = _session()
+        vendor_text = "Tavily search failed: 401 for url 'https://api.tavily.com/search?k=sk-9f2c'"
+        collected: list[dict] = []
+
+        async def _events():
+            yield FunctionToolCallEvent(
+                part=ToolCallPart(tool_name="web_search", args={}, tool_call_id="t9")
+            )
+            yield FunctionToolResultEvent(
+                part=RetryPromptPart(content=vendor_text, tool_name="web_search", tool_call_id="t9")
+            )
+
+        with caplog.at_level(logging.WARNING, logger="app.services.agent_session"):
+            await session._stream_tool_events(_events(), collected, TurnTimeline())
+
+        [(_type, data)] = [event for event in _sent_events(session) if event[0] == "tool_result"]
+        assert data == {
+            "tool_call_id": "t9",
+            "content": (
+                "The web_search call failed and the model was asked to try again. "
+                "The server log has the full error."
+            ),
+        }
+        assert collected[0]["result"] == data["content"]
+        assert vendor_text in caplog.text
+
+    async def test_a_retry_from_an_unnamed_tool_still_says_a_call_failed(self, caplog):
+        """`RetryPromptPart.tool_name` is optional - a retry can come from output
+        validation rather than from a tool - and a sentence built around a name
+        that is `None` would read "The None call failed"."""
         session = _session()
 
         async def _events():
@@ -1330,10 +1364,18 @@ class TestForwardingToolEvents:
                 part=RetryPromptPart(content="path must be absolute", tool_call_id="t9")
             )
 
-        await session._stream_tool_events(_events(), [], TurnTimeline())
+        with caplog.at_level(logging.WARNING, logger="app.services.agent_session"):
+            await session._stream_tool_events(_events(), [], TurnTimeline())
 
         [(_type, data)] = [event for event in _sent_events(session) if event[0] == "tool_result"]
-        assert data == {"tool_call_id": "t9", "content": "path must be absolute"}
+        assert data == {
+            "tool_call_id": "t9",
+            "content": (
+                "A tool call failed and the model was asked to try again. "
+                "The server log has the full error."
+            ),
+        }
+        assert "path must be absolute" in caplog.text
 
     async def test_the_models_submit_final_answer_call_is_not_drawn_as_a_tool(self):
         """`OutputToolCallEvent` arrives on this same stream and shares a base class
