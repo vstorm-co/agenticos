@@ -4,30 +4,32 @@ A room is one conversation with several people in it, and until #639 it belonged
 to whoever spoke first - or, once an unlinked sender could be answered at all, to
 nobody, which left it invisible to everybody including the people who were in it.
 
-Participation is now a `DISTINCT` over `messages.channel_identity_id`, and what
-has to be true of it is exactly what a statement test cannot show: the correlated
-`EXISTS` lands on real rows, the same predicate reaches the count as well as the
-page, and a thread somebody never spoke in stays out of their list.
-
-**It says who spoke, not who may read** (#641). The test that pins the good half
-of that - a thread reaching somebody the moment they link - is also the test that
-pins the cost: nothing here consults the platform, so nothing here can know they
-have since been removed from the channel.
+Participation starts from `messages.channel_identity_id` - who *spoke* - and
+since #641 speaking is a claim, not access: every claim is checked against the
+platform's current membership before the listing shows the thread or the read
+opens it. These tests stub exactly that boundary - `membership.is_still_member`,
+the one call that would leave the process - and let everything under it run on
+real rows: the claims query, the session and bot joins, the same predicate
+reaching the count as well as the page.
 """
 
 from __future__ import annotations
 
 import uuid
+from unittest.mock import AsyncMock
 
 import pytest
 
 from app.core.exceptions import NotFoundError
+from app.db.models.channel_bot import ChannelBot
 from app.db.models.channel_identity import ChannelIdentity
+from app.db.models.channel_session import ChannelSession
 from app.db.models.conversation import Conversation, Message
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.repositories import conversation as conversation_repo
 from app.schemas.conversation import MessageCreate
+from app.services.channels import membership
 from app.services.conversation import ConversationService
 
 pytestmark = pytest.mark.anyio
@@ -85,6 +87,37 @@ async def _room_thread(db, organization: Organization) -> Conversation:
     return conversation
 
 
+async def _channel(
+    db, organization: Organization, conversation: Conversation, identity: ChannelIdentity
+) -> ChannelSession:
+    """The room the thread came from: a bot of the organization's, one session.
+
+    Without this row the thread has no channel anybody can ask about, and a
+    participation claim on it is refused - which one test below pins on purpose.
+    """
+    bot = ChannelBot(
+        id=uuid.uuid4(),
+        organization_id=organization.id,
+        platform="mattermost",
+        name="Support",
+        token_encrypted="sealed-elsewhere",
+        api_base_url="https://mattermost.acme.com",
+    )
+    db.add(bot)
+    await db.flush()
+    session = ChannelSession(
+        id=uuid.uuid4(),
+        bot_id=bot.id,
+        identity_id=identity.id,
+        conversation_id=conversation.id,
+        platform_chat_id="town-square",
+        chat_type="group",
+    )
+    db.add(session)
+    await db.flush()
+    return session
+
+
 async def _said(db, conversation: Conversation, identity: ChannelIdentity | None) -> None:
     db.add(
         Message(
@@ -98,33 +131,83 @@ async def _said(db, conversation: Conversation, identity: ChannelIdentity | None
     await db.flush()
 
 
+@pytest.fixture
+def still_in_the_channel(monkeypatch) -> AsyncMock:
+    """The platform's answer, stubbed at the one call that would leave the
+    process. Defaults to "still a member"; a test about removal flips it."""
+    answer = AsyncMock(return_value=True)
+    monkeypatch.setattr(membership, "is_still_member", answer)
+    return answer
+
+
+async def _listed(db, reader: User, organization: Organization) -> list[uuid.UUID]:
+    items, _total = await ConversationService(db).list_conversations(
+        user_id=reader.id, organization_id=organization.id
+    )
+    return [c.id for c in items]
+
+
 class TestWhoSeesARoomThread:
-    async def test_somebody_who_spoke_in_it_sees_it(self, db) -> None:
+    async def test_a_participant_still_in_the_channel_sees_it(
+        self, db, still_in_the_channel
+    ) -> None:
         organization = await _org(db)
         reader = await _user(db)
+        identity = await _identity(db, user=reader)
         thread = await _room_thread(db, organization)
-        await _said(db, thread, await _identity(db, user=reader))
+        await _channel(db, organization, thread, identity)
+        await _said(db, thread, identity)
 
-        listed = await conversation_repo.get_conversations_by_user(
-            db, user_id=reader.id, organization_id=organization.id
-        )
+        assert await _listed(db, reader, organization) == [thread.id]
+        asked_bot, asked_chat, asked_account = still_in_the_channel.await_args.args
+        assert asked_bot.platform == "mattermost"
+        assert asked_chat == "town-square"
+        assert asked_account == identity.platform_user_id
 
-        assert [c.id for c in listed] == [thread.id]
+    async def test_a_participant_removed_from_the_channel_loses_the_thread(
+        self, db, still_in_the_channel
+    ) -> None:
+        """The defect #641 names: they spoke, the platform removed them, and the
+        thread must leave their list rather than outlive their access."""
+        still_in_the_channel.return_value = False
+        organization = await _org(db)
+        reader = await _user(db)
+        identity = await _identity(db, user=reader)
+        thread = await _room_thread(db, organization)
+        await _channel(db, organization, thread, identity)
+        await _said(db, thread, identity)
 
-    async def test_somebody_who_never_spoke_in_it_does_not(self, db) -> None:
+        assert await _listed(db, reader, organization) == []
+
+    async def test_a_thread_whose_session_moved_on_is_not_reachable_by_participation(
+        self, db, still_in_the_channel
+    ) -> None:
+        """`/new` re-points the session at a fresh conversation, so the old
+        thread names no channel anybody can ask about - and a claim that cannot
+        be checked is refused rather than trusted."""
+        organization = await _org(db)
+        reader = await _user(db)
+        identity = await _identity(db, user=reader)
+        thread = await _room_thread(db, organization)
+        await _said(db, thread, identity)
+
+        assert await _listed(db, reader, organization) == []
+        still_in_the_channel.assert_not_awaited()
+
+    async def test_somebody_who_never_spoke_in_it_does_not_see_it(
+        self, db, still_in_the_channel
+    ) -> None:
         organization = await _org(db)
         reader = await _user(db)
         stranger = await _user(db)
+        identity = await _identity(db, user=stranger)
         thread = await _room_thread(db, organization)
-        await _said(db, thread, await _identity(db, user=stranger))
+        await _channel(db, organization, thread, identity)
+        await _said(db, thread, identity)
 
-        listed = await conversation_repo.get_conversations_by_user(
-            db, user_id=reader.id, organization_id=organization.id
-        )
+        assert await _listed(db, reader, organization) == []
 
-        assert listed == []
-
-    async def test_an_unlinked_account_reaches_nobody(self, db) -> None:
+    async def test_an_unlinked_account_reaches_nobody(self, db, still_in_the_channel) -> None:
         """The turn is recorded and attributable; it is nobody's list yet.
 
         This is the state every room thread starts in, and the reason the thread
@@ -132,53 +215,50 @@ class TestWhoSeesARoomThread:
         """
         organization = await _org(db)
         reader = await _user(db)
+        identity = await _identity(db, user=None)
         thread = await _room_thread(db, organization)
-        await _said(db, thread, await _identity(db, user=None))
+        await _channel(db, organization, thread, identity)
+        await _said(db, thread, identity)
 
-        listed = await conversation_repo.get_conversations_by_user(
-            db, user_id=reader.id, organization_id=organization.id
-        )
+        assert await _listed(db, reader, organization) == []
 
-        assert listed == []
-
-    async def test_linking_the_account_is_what_makes_it_appear(self, db) -> None:
+    async def test_linking_the_account_is_what_makes_it_appear(
+        self, db, still_in_the_channel
+    ) -> None:
         """No backfill, and none needed: the message points at the identity, and
         the identity gains a person."""
         organization = await _org(db)
         reader = await _user(db)
         identity = await _identity(db, user=None)
         thread = await _room_thread(db, organization)
+        await _channel(db, organization, thread, identity)
         await _said(db, thread, identity)
 
-        before = await conversation_repo.get_conversations_by_user(
-            db, user_id=reader.id, organization_id=organization.id
-        )
+        before = await _listed(db, reader, organization)
         identity.user_id = reader.id
         await db.flush()
-        after = await conversation_repo.get_conversations_by_user(
-            db, user_id=reader.id, organization_id=organization.id
-        )
+        after = await _listed(db, reader, organization)
 
         assert before == []
-        assert [c.id for c in after] == [thread.id]
+        assert after == [thread.id]
 
-    async def test_a_thread_appears_once_however_often_they_spoke(self, db) -> None:
-        """`EXISTS`, not a join: four turns must not be four rows in the list."""
+    async def test_a_thread_appears_once_however_often_they_spoke(
+        self, db, still_in_the_channel
+    ) -> None:
+        """Four turns are one claim, one platform question and one row."""
         organization = await _org(db)
         reader = await _user(db)
         identity = await _identity(db, user=reader)
         thread = await _room_thread(db, organization)
+        await _channel(db, organization, thread, identity)
         for _ in range(4):
             await _said(db, thread, identity)
 
-        listed = await conversation_repo.get_conversations_by_user(
-            db, user_id=reader.id, organization_id=organization.id
-        )
+        assert await _listed(db, reader, organization) == [thread.id]
+        still_in_the_channel.assert_awaited_once()
 
-        assert [c.id for c in listed] == [thread.id]
-
-    async def test_the_count_agrees_with_the_page(self, db) -> None:
-        """A total counted without the participation predicate is a number that
+    async def test_the_count_agrees_with_the_page(self, db, still_in_the_channel) -> None:
+        """A total counted without the vetted participation set is a number that
         contradicts the rows under it."""
         organization = await _org(db)
         reader = await _user(db)
@@ -189,35 +269,37 @@ class TestWhoSeesARoomThread:
             title="Mine",
         )
         db.add(owned)
+        identity = await _identity(db, user=reader)
         thread = await _room_thread(db, organization)
-        await _said(db, thread, await _identity(db, user=reader))
+        await _channel(db, organization, thread, identity)
+        await _said(db, thread, identity)
         await _said(db, thread, await _identity(db, user=await _user(db)))
 
-        listed = await conversation_repo.get_conversations_by_user(
-            db, user_id=reader.id, organization_id=organization.id
-        )
-        total = await conversation_repo.count_conversations(
-            db, user_id=reader.id, organization_id=organization.id
+        items, total = await ConversationService(db).list_conversations(
+            user_id=reader.id, organization_id=organization.id
         )
 
-        assert total == len(listed) == 2
+        assert total == len(items) == 2
 
-    async def test_another_organizations_room_is_not_reachable_by_speaking_in_it(self, db) -> None:
+    async def test_another_organizations_room_is_not_reachable_by_speaking_in_it(
+        self, db, still_in_the_channel
+    ) -> None:
         """Participation widens whose list a thread is in - never which tenant."""
         organization = await _org(db)
         other = await _org(db)
         reader = await _user(db)
+        identity = await _identity(db, user=reader)
         thread = await _room_thread(db, other)
-        await _said(db, thread, await _identity(db, user=reader))
+        await _channel(db, other, thread, identity)
+        await _said(db, thread, identity)
 
-        listed = await conversation_repo.get_conversations_by_user(
-            db, user_id=reader.id, organization_id=organization.id
-        )
+        assert await _listed(db, reader, organization) == []
 
-        assert listed == []
-
-    async def test_a_dashboard_thread_still_reaches_its_owner(self, db) -> None:
-        """The predicate widens the listing; it must not narrow the ordinary case."""
+    async def test_a_dashboard_thread_still_reaches_its_owner(
+        self, db, still_in_the_channel
+    ) -> None:
+        """The predicate widens the listing; it must not narrow the ordinary
+        case, and a dashboard-only user costs no platform call at all."""
         organization = await _org(db)
         reader = await _user(db)
         owned = Conversation(
@@ -230,27 +312,26 @@ class TestWhoSeesARoomThread:
         await db.flush()
         await _said(db, owned, None)
 
-        listed = await conversation_repo.get_conversations_by_user(
-            db, user_id=reader.id, organization_id=organization.id
-        )
-
-        assert [c.id for c in listed] == [owned.id]
+        assert await _listed(db, reader, organization) == [owned.id]
+        still_in_the_channel.assert_not_awaited()
 
 
 class TestWhoMayOpenARoomThread:
-    """The read path of the same rule. The list widened to participants (#639);
-    the detail read did not, so a participant saw the thread and got a 404
-    opening it - and a room thread has no owner, so the owner guard was skipped
-    entirely and any member of the organization could read one the list showed
-    them nothing of. Opening a thread is now allowed for exactly the set the list
-    is: the owner, a share, or somebody who spoke in it.
+    """The read path of the same rule, so the list and the read cannot disagree:
+    a participant the platform still places in the channel opens the thread, a
+    removed one gets the same 404 a stranger does, and the owner and a share are
+    doors the membership check never touches.
     """
 
-    async def test_a_participant_may_open_a_room_thread(self, db) -> None:
+    async def test_a_participant_still_in_the_channel_may_open_it(
+        self, db, still_in_the_channel
+    ) -> None:
         organization = await _org(db)
         reader = await _user(db)
+        identity = await _identity(db, user=reader)
         thread = await _room_thread(db, organization)
-        await _said(db, thread, await _identity(db, user=reader))
+        await _channel(db, organization, thread, identity)
+        await _said(db, thread, identity)
 
         opened = await ConversationService(db).get_conversation(
             thread.id, organization_id=organization.id, user_id=reader.id
@@ -258,20 +339,68 @@ class TestWhoMayOpenARoomThread:
 
         assert opened.id == thread.id
 
-    async def test_a_member_who_never_spoke_cannot_open_an_unowned_room_thread(self, db) -> None:
-        """The hole this closes: user_id is None, so the owner guard was skipped
+    async def test_a_participant_removed_from_the_channel_is_refused(
+        self, db, still_in_the_channel
+    ) -> None:
+        still_in_the_channel.return_value = False
+        organization = await _org(db)
+        reader = await _user(db)
+        identity = await _identity(db, user=reader)
+        thread = await _room_thread(db, organization)
+        await _channel(db, organization, thread, identity)
+        await _said(db, thread, identity)
+
+        with pytest.raises(NotFoundError):
+            await ConversationService(db).get_conversation(
+                thread.id, organization_id=organization.id, user_id=reader.id
+            )
+
+    async def test_the_owner_keeps_the_thread_even_after_leaving_the_channel(
+        self, db, still_in_the_channel
+    ) -> None:
+        """Ownership is the platform's business to grant and ours to keep: the
+        membership check gates participation, never the owner's own thread."""
+        still_in_the_channel.return_value = False
+        organization = await _org(db)
+        owner = await _user(db)
+        identity = await _identity(db, user=owner)
+        thread = Conversation(
+            id=uuid.uuid4(),
+            user_id=owner.id,
+            organization_id=organization.id,
+            title="Mattermost Chat",
+        )
+        db.add(thread)
+        await db.flush()
+        await _channel(db, organization, thread, identity)
+        await _said(db, thread, identity)
+
+        opened = await ConversationService(db).get_conversation(
+            thread.id, organization_id=organization.id, user_id=owner.id
+        )
+
+        assert opened.id == thread.id
+
+    async def test_a_member_who_never_spoke_cannot_open_an_unowned_room_thread(
+        self, db, still_in_the_channel
+    ) -> None:
+        """The hole #639 closed: user_id is None, so the owner guard was skipped
         and every member of the organization could read it."""
         organization = await _org(db)
         stranger = await _user(db)
+        identity = await _identity(db, user=await _user(db))
         thread = await _room_thread(db, organization)
-        await _said(db, thread, await _identity(db, user=await _user(db)))
+        await _channel(db, organization, thread, identity)
+        await _said(db, thread, identity)
 
         with pytest.raises(NotFoundError):
             await ConversationService(db).get_conversation(
                 thread.id, organization_id=organization.id, user_id=stranger.id
             )
 
-    async def test_the_owner_of_a_dashboard_thread_still_opens_it(self, db) -> None:
+    async def test_the_owner_of_a_dashboard_thread_still_opens_it(
+        self, db, still_in_the_channel
+    ) -> None:
         organization = await _org(db)
         owner = await _user(db)
         owned = Conversation(
@@ -285,8 +414,11 @@ class TestWhoMayOpenARoomThread:
         )
 
         assert opened.id == owned.id
+        still_in_the_channel.assert_not_awaited()
 
-    async def test_a_stranger_cannot_open_a_dashboard_thread_that_is_not_theirs(self, db) -> None:
+    async def test_a_stranger_cannot_open_a_dashboard_thread_that_is_not_theirs(
+        self, db, still_in_the_channel
+    ) -> None:
         organization = await _org(db)
         owner = await _user(db)
         stranger = await _user(db)
@@ -322,12 +454,16 @@ class TestWhatAParticipantMayChange:
         await db.flush()
         return conversation
 
-    async def test_a_participant_opens_the_thread_and_cannot_delete_it(self, db) -> None:
+    async def test_a_participant_opens_the_thread_and_cannot_delete_it(
+        self, db, still_in_the_channel
+    ) -> None:
         organization = await _org(db)
         owner = await _user(db)
         speaker = await _user(db)
+        identity = await _identity(db, user=speaker)
         thread = await self._owned_room(db, organization, owner)
-        await _said(db, thread, await _identity(db, user=speaker))
+        await _channel(db, organization, thread, identity)
+        await _said(db, thread, identity)
         service = ConversationService(db)
 
         opened = await service.get_conversation(
@@ -344,12 +480,16 @@ class TestWhatAParticipantMayChange:
             "the row survived the refusal"
         )
 
-    async def test_a_participant_cannot_append_a_turn_as_the_agent(self, db) -> None:
+    async def test_a_participant_cannot_append_a_turn_as_the_agent(
+        self, db, still_in_the_channel
+    ) -> None:
         organization = await _org(db)
         owner = await _user(db)
         speaker = await _user(db)
+        identity = await _identity(db, user=speaker)
         thread = await self._owned_room(db, organization, owner)
-        await _said(db, thread, await _identity(db, user=speaker))
+        await _channel(db, organization, thread, identity)
+        await _said(db, thread, identity)
 
         with pytest.raises(NotFoundError):
             await ConversationService(db).add_message(
@@ -363,11 +503,15 @@ class TestWhatAParticipantMayChange:
             "only what the speaker actually said"
         )
 
-    async def test_the_owner_of_a_room_thread_still_deletes_it(self, db) -> None:
+    async def test_the_owner_of_a_room_thread_still_deletes_it(
+        self, db, still_in_the_channel
+    ) -> None:
         organization = await _org(db)
         owner = await _user(db)
+        identity = await _identity(db, user=owner)
         thread = await self._owned_room(db, organization, owner)
-        await _said(db, thread, await _identity(db, user=owner))
+        await _channel(db, organization, thread, identity)
+        await _said(db, thread, identity)
 
         assert await ConversationService(db).delete_conversation(
             thread.id, organization_id=organization.id, user_id=owner.id

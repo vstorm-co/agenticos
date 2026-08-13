@@ -256,6 +256,25 @@ class ChannelAdapter(ABC):
         """
         raise ChannelDirectoryUnsupported(f"{self.platform} cannot list a channel's members.")
 
+    async def is_channel_member(
+        self, bot_token: str, channel_id: str, platform_user_id: str, *, api_base_url: str | None
+    ) -> bool:
+        """Whether one platform account is currently in one channel.
+
+        Asked per account rather than read off :meth:`channel_members`, because
+        that list cannot carry the answer: on Telegram it is only the
+        administrators, and on the other two it stops at `limit` - so an
+        ordinary member of a large room would read as absent. This is the
+        question `/chat`'s participant model puts to the platform before a
+        thread is shown (#641).
+
+        Raises:
+            ChannelDirectoryUnsupported: If this platform does not tell a bot.
+        """
+        raise ChannelDirectoryUnsupported(
+            f"{self.platform} cannot say whether an account is in a channel."
+        )
+
     async def search_channels(
         self, bot_token: str, channel_id: str, *, api_base_url: str | None, query: str, limit: int
     ) -> list[ChannelSummary]:
