@@ -11,7 +11,7 @@ function node(overrides: Partial<MapNode> = {}): MapNode {
     icon: MAP_ICONS.skills,
     items: ["refund-policy"],
     empty: "No skills attached",
-    side: "out",
+    side: "right",
     ...overrides,
   };
 }
@@ -52,24 +52,28 @@ describe("AgentMap", () => {
     expect(screen.getByText("No instructions written")).toBeInTheDocument();
   });
 
-  it("draws an edge for each attached box, on the side it was given", () => {
-    // Inputs feed the agent from the left and outputs hang off the right; the
-    // edges are measured, so a box that renders with no path means the map
-    // silently lost its anchor.
+  it("draws an edge for each attached box, on any of the four sides", () => {
+    // Surfaces reach in from the left, the model sits on top, tools hang off
+    // the right and delegation grows downward; the edges are measured, so a
+    // box that renders with no path means the map silently lost its anchor.
     const { container } = render(
       <AgentMap
         agentName="Support"
         instructions="Be brief."
         nodes={[
-          node({ key: "channels", title: "Channels", side: "in", items: ["slack"] }),
-          node({ key: "skills", title: "Skills", side: "out" }),
+          node({ key: "surfaces", title: "Surfaces", side: "left", items: ["chat"] }),
+          node({ key: "skills", title: "Skills", side: "right" }),
+          node({ key: "model", title: "Model", side: "top", items: ["gpt-5"] }),
+          node({ key: "delegation", title: "Delegation", side: "bottom", items: ["Sync"] }),
         ]}
       />,
     );
 
-    expect(screen.getByRole("button", { name: "Channels" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Surfaces" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Skills" })).toBeInTheDocument();
-    expect(container.querySelectorAll("path.map-flow")).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Model" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delegation" })).toBeInTheDocument();
+    expect(container.querySelectorAll("path.map-flow")).toHaveLength(4);
   });
 
   it("counts the items in a box that has any", () => {
@@ -173,20 +177,20 @@ describe("AgentMap focus", () => {
     expect(screen.getByRole("region", { name: "Details for Skills" })).toBeInTheDocument();
   });
 
-  it("focuses an input-side node as readily as an output one", async () => {
-    // Both columns are focusable; an input node is wired through the same path
-    // as an output, and only clicking one proves the left column is not inert.
+  it("focuses a left-side node as readily as a right one", async () => {
+    // Every side is focusable; a left node is wired through the same path as a
+    // right one, and only clicking one proves that column is not inert.
     render(
       <AgentMap
         agentName="Support"
         instructions="Be brief."
-        nodes={[node({ key: "channels", title: "Channels", side: "in", items: ["slack"] })]}
+        nodes={[node({ key: "surfaces", title: "Surfaces", side: "left", items: ["chat"] })]}
       />,
     );
 
-    await userEvent.click(screen.getByRole("button", { name: "Channels" }));
+    await userEvent.click(screen.getByRole("button", { name: "Surfaces" }));
 
-    expect(screen.getByRole("region", { name: "Details for Channels" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Details for Surfaces" })).toBeInTheDocument();
   });
 
   it("dims the nodes that are not focused", async () => {
