@@ -54,7 +54,7 @@ export function useSkills({
   const t = useTranslations("skills");
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.skills.list({ search, category: (categories ?? []).join(","), sort, skip, limit }),
     // The query string is built by hand because `category` repeats - the
     // server reads `?category=devops&category=data` as "either shelf" - and
@@ -114,6 +114,8 @@ export function useSkills({
     categories: data?.categories ?? [],
     suggestedCategories: data?.suggested_categories ?? [],
     isLoading,
+    error,
+    refetch,
     create,
     update,
     remove,

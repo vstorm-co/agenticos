@@ -195,6 +195,18 @@ describe("useSkills failures", () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
   });
 
+  it("surfaces a failed read for the page to render, rather than swallowing it", async () => {
+    // The page draws an error state off this, with `refetch` as its retry -
+    // without it a 502 and "no skills yet" were the same pixels.
+    vi.mocked(apiClient.get).mockRejectedValue(new Error("bad gateway"));
+    const { result } = renderHook(() => useSkills(), { wrapper });
+
+    await waitFor(() => expect(result.current.error).not.toBeNull());
+
+    expect(result.current.error?.message).toBe("bad gateway");
+    expect(result.current.skills).toEqual([]);
+  });
+
   it("leaves a failed creation to the dialog", async () => {
     vi.mocked(apiClient.post).mockRejectedValue(new Error("name taken"));
     const { result } = renderHook(() => useSkills(), { wrapper });

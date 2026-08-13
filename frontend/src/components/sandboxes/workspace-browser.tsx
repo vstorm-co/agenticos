@@ -1,20 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Download, FolderOpen } from "lucide-react";
+import { Download } from "lucide-react";
 
-import {
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  DataTable,
-  Skeleton,
-  type Column,
-} from "@/components/ui";
+import { Badge, Button, DataTable, ListCard, Skeleton, type Column } from "@/components/ui";
 import Link from "next/link";
 
 import { FileIcon, FileViewer } from "@/components/files";
@@ -145,19 +134,14 @@ export function WorkspaceBrowser() {
 
   return (
     <div className="space-y-4">
-      <Card>
-        <CardHeader className="flex-row items-start justify-between space-y-0 border-b px-5 py-4">
-          <div className="space-y-1">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <FolderOpen className="h-4 w-4" aria-hidden />
-              {t("workspacesHeading")}
-            </CardTitle>
-            <CardDescription className="text-xs">{t("whatAgentsAreKeeping")}</CardDescription>
-          </div>
-          {/* Two questions, not two designs: "which workspaces exist" is a table
-              of rows, and "who is holding a copy of that CSV" is a flat list of
-              files. The second cannot be answered by opening the first one row at
-              a time, which is what this exists for. */}
+      <ListCard
+        title={t("workspacesHeading")}
+        counted={isLoading ? null : t("whatAgentsAreKeeping")}
+        controls={
+          /* Two questions, not two designs: "which workspaces exist" is a table
+             of rows, and "who is holding a copy of that CSV" is a flat list of
+             files. The second cannot be answered by opening the first one row at
+             a time, which is what this exists for. */
           <div className="flex shrink-0 gap-1">
             <Button
               variant={flat ? "ghost" : "secondary"}
@@ -176,23 +160,23 @@ export function WorkspaceBrowser() {
               {t("allFiles")}
             </Button>
           </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {flat ? (
-            <FlatFiles />
-          ) : (
-            <DataTable<WorkspaceSummary>
-              columns={columns}
-              rows={workspaces}
-              getRowKey={(workspace) => workspace.id}
-              loading={isLoading}
-              error={error}
-              empty={t("noAgentKeepingFiles")}
-              className="rounded-none border-0 bg-transparent"
-            />
-          )}
-        </CardContent>
-      </Card>
+        }
+        contentClassName="p-0"
+      >
+        {flat ? (
+          <FlatFiles />
+        ) : (
+          <DataTable<WorkspaceSummary>
+            columns={columns}
+            rows={workspaces}
+            getRowKey={(workspace) => workspace.id}
+            loading={isLoading}
+            error={error}
+            empty={t("noAgentKeepingFiles")}
+            className="rounded-none border-0 bg-transparent"
+          />
+        )}
+      </ListCard>
     </div>
   );
 }
