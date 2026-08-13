@@ -249,6 +249,7 @@ class ChannelMessageRouter:
             # A refusal - no agent exposed, several to choose from, an unlinked
             # sender - is the platform answering, not a crash. The message says
             # what to do next.
+            await self._discard_files(db, files)
             await self._send_reply(bot, incoming, exc.message)
             return
         except Exception:
@@ -354,6 +355,7 @@ class ChannelMessageRouter:
         except UnaddressedMessage:
             return False
         except AppException as exc:
+            await self._discard_files(db, files)
             await self._send_reply(bot, incoming, exc.message)
             return True
 
@@ -412,6 +414,20 @@ class ChannelMessageRouter:
             incoming.attachments,
             user_id=identity.user_id,
         )
+
+    @staticmethod
+    async def _discard_files(db: Any, files: list[Any]) -> None:
+        """Give back what the turn stored, for a turn that was refused.
+
+        The files are fetched and stored before the agent is resolved, so a
+        refusal raised in its place - nothing exposed on this bot, a sender whose
+        account is nobody's - leaves rows nothing will ever link to a message and
+        bytes nothing will ever read (#661). The refusal is still what the sender
+        gets: nothing here is allowed to raise in its way.
+        """
+        if not files:
+            return
+        await ChannelAttachmentService(db).discard(files)
 
     @staticmethod
     def _with_notes(answer: str, *notes: list[str]) -> str:

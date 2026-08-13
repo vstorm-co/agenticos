@@ -664,6 +664,16 @@ failed — is **named in the reply**. One bad file among three does not lose the
 question that came with them, and a bot that silently ignores an attachment looks
 exactly like a bot that read it.
 
+**A turn refused before it runs gives its files back.** The bytes are fetched and
+stored before the agent is resolved, so a refusal raised in the run's place — no
+agent exposed on this bot, a sender whose chat account is nobody's — used to leave
+the rows and the files behind with no message that would ever link them:
+`chat_files` carries no organization, so an unlinked row is scoped by `user_id`
+alone and nothing collects it. Both are now deleted before the refusal is sent, and
+the refusal is sent whether or not that succeeded
+([#661](https://github.com/vstorm-co/agenticos/issues/661)). A turn that actually
+ran keeps its files — they fed it, and the run is in the transcript.
+
 **Outbound** is what the agent wrote this turn, compared against a snapshot taken
 when the workspace opened. Not a diff of everything: `/uploads` is the user's own
 file — posting it back is quoting somebody their own attachment — and `/skills` is
