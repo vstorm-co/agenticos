@@ -17,6 +17,19 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.138] - 2026-08-13
+
+An absolute date was formatted in English on every locale.
+
+### Fixed
+
+- **`formatDate` and `formatDateTime` passed a hardcoded `"en-US"`** to
+  `toLocaleDateString` / `toLocaleString`, so the month name and the day-month
+  order came from English everywhere — a Polish reader saw `Jul 31, 2026` where
+  the runtime would have given `31 lip 2026`. None of it is copy a translator can
+  reach, because the strings come from `Intl` rather than the catalog, so no
+  amount of `pl.json` would have fixed it. (#621)
+
 ## [0.0.137] - 2026-08-13
 
 An MCP consent that was refused landed on the servers page looking exactly like
