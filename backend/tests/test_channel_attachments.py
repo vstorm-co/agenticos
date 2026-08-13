@@ -33,7 +33,7 @@ from app.services.channels.attachments import (
     workspace_snapshot,
 )
 from app.services.channels.base import IncomingAttachment, IncomingMessage
-from app.services.channels.mentions import UnaddressedMessage
+from app.services.channels.mentions import AnsweredTurn, UnaddressedMessage
 from app.services.channels.router import ChannelMessageRouter
 from app.services.file_storage import LocalFileStorage
 from app.services.file_upload import FileUploadService
@@ -555,3 +555,99 @@ class TestChoosingWhatToSendBack:
         delivered = await files_written(_WithDirectories(), set())
 
         assert [a.filename for a in delivered.attachments] == ["report.csv"]
+
+
+async def _route_one_file(text: str) -> tuple[MagicMock, MagicMock, AsyncMock]:
+    """Route one message carrying one file, and report what the turn did.
+
+    Returns the platform adapter, the agent router standing in for a run, and the
+    upload the attachment service reaches - so a caller can count the downloads
+    and the stored rows one message cost. Everything a turn touches on the way is
+    replaced; the question here is how many times the file is fetched, not what
+    the agent said about it.
+    """
+    bot = MagicMock(
+        id=uuid.uuid4(),
+        organization_id=uuid.uuid4(),
+        is_active=True,
+        access_policy={},
+        api_base_url=None,
+    )
+    identity = MagicMock(id=uuid.uuid4(), user_id=uuid.uuid4())
+    session = MagicMock(conversation_id=uuid.uuid4(), turn_count=1)
+
+    adapter = _adapter()
+    adapter.begin_reply = AsyncMock(return_value=None)
+    adapter.send_message = AsyncMock()
+
+    agents = MagicMock()
+    agents.answer = AsyncMock(
+        return_value=AnsweredTurn(text="answered"),
+        side_effect=None if text.startswith("@") else UnaddressedMessage,
+    )
+    agents.answer_default = AsyncMock(return_value=AnsweredTurn(text="answered"))
+    upload = AsyncMock(return_value=MagicMock(filename="report.csv"))
+
+    incoming = IncomingMessage(
+        platform="slack",
+        bot_id=str(uuid.uuid4()),
+        platform_user_id="U1",
+        platform_chat_id="C1",
+        chat_type="group",
+        text=text,
+        message_id="m1",
+        attachments=[_attachment()],
+    )
+
+    router = "app.services.channels.router"
+    with (
+        patch(f"{router}.get_adapter", return_value=adapter),
+        patch(f"{router}.unseal_bot_token", return_value="tok"),
+        patch(f"{router}.channel_bot_repo.get_for_inbound", AsyncMock(return_value=bot)),
+        patch(
+            f"{router}.channel_identity_repo.get_by_platform_user",
+            AsyncMock(return_value=identity),
+        ),
+        patch(
+            f"{router}.channel_session_repo.get_by_bot_and_chat", AsyncMock(return_value=session)
+        ),
+        patch(f"{router}.channel_session_repo.touch", AsyncMock(return_value=session)),
+        patch(
+            f"{router}.conversation_repo.get_messages_by_conversation", AsyncMock(return_value=[])
+        ),
+        # The window is sized off a `COUNT`, and the session here is a mock. What
+        # this helper is about is which files reach the run.
+        patch(f"{router}.conversation_repo.count_messages", AsyncMock(return_value=0)),
+        patch(f"{router}.ChannelAgentRouter", return_value=agents),
+        patch.object(FileUploadService, "upload", upload),
+    ):
+        await ChannelMessageRouter()._route_inner(incoming, MagicMock())
+
+    return adapter, agents, upload
+
+
+class TestOneMessageOneStoredFile:
+    """What arrives with a message is fetched once, whichever path answers it.
+
+    The mention path runs first and needs the files; a message naming no agent
+    then fell through to the default path, which fetched and stored the same
+    files all over again - two downloads and two `ChatFile` rows per attachment,
+    only the second of each linked to the turn (#660).
+    """
+
+    async def test_a_message_naming_no_agent_stores_its_file_once(self):
+        """One download and one row - and the row is what the turn runs with. The
+        duplicate was not only wasted work: the run was handed the second set,
+        leaving the first stored against the sender and referenced by nothing."""
+        adapter, agents, upload = await _route_one_file("here is the report")
+
+        assert adapter.download_attachment.await_count == 1
+        assert upload.await_count == 1
+        assert agents.answer_default.await_args.kwargs["attachments"] == [upload.return_value]
+
+    async def test_a_mention_still_gets_the_file_it_came_with(self):
+        adapter, agents, upload = await _route_one_file("@support what is in this")
+
+        assert adapter.download_attachment.await_count == 1
+        assert agents.answer.await_args.kwargs["attachments"] == [upload.return_value]
+        agents.answer_default.assert_not_awaited()
