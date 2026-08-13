@@ -394,12 +394,10 @@ describe("signing in without a password", () => {
   });
 
   it("refuses a link that did not verify, without a session", async () => {
-    // The status survives; the *sentence* does not. This route reports
-    // `error.message`, which is `BackendApiError`'s own generic string, so an
-    // expired link reads as "Backend API error: 400 Bad Request" rather than
-    // "This link has expired". Thirty-eight generated routes do the same thing -
-    // see `docs/plans/frontend-coverage.md`. Asserted as it behaves, not as it
-    // should: a test that claimed the better sentence would be a test of nothing.
+    // The status and the sentence both survive. This route used to report
+    // `error.message`, `BackendApiError`'s own generic string, so an expired
+    // link read as "Backend API error: 400 Bad Request" rather than the
+    // reason the backend gave (#546).
     vi.mocked(backendFetch).mockRejectedValue(
       new BackendApiError(400, "Bad Request", { detail: "This link has expired" }),
     );
@@ -407,9 +405,7 @@ describe("signing in without a password", () => {
     const response = await magicLinkVerify(request({}, { token: "stale" }));
 
     expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({
-      detail: "Backend API error: 400 Bad Request",
-    });
+    await expect(response.json()).resolves.toEqual({ detail: "This link has expired" });
     expect(cookie(response, "access_token")).toBeUndefined();
   });
 

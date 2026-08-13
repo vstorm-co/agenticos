@@ -381,11 +381,20 @@ describe("the routes that read the session cookie", () => {
   });
 
   it.each(COOKIE_GATED)("passes the backend's refusal of %s through", async (_name, call) => {
-    vi.mocked(backendFetch).mockRejectedValue(new BackendApiError(403, "Forbidden", null));
+    // Status and sentence both. These routes used to answer with
+    // `BackendApiError`'s own constructor string, so every refusal on this
+    // surface read "Backend API error: 403 Forbidden" instead of the reason
+    // sitting in the body (#546).
+    vi.mocked(backendFetch).mockRejectedValue(
+      new BackendApiError(403, "Forbidden", { detail: "Only Owner or Admin can manage members" }),
+    );
 
     const response = await call(true);
 
     expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({
+      detail: "Only Owner or Admin can manage members",
+    });
   });
 
   it.each(COOKIE_GATED)("answers 500 when %s could not be forwarded", async (_name, call) => {

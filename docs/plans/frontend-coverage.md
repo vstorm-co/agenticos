@@ -93,19 +93,13 @@ between them dropped it. Fixed, and `admin-routes.test.ts` now pins each paramet
 the screen can send.
 
 
-Thirty-eight of the generated routes under `src/app/api` answer a refusal with
-`detail: error.message`. That is `BackendApiError`'s own string - `"Backend API
-error: 400 Bad Request"` - not the backend's `detail`, which is sitting right
-there in `error.data`. The routes written by hand for this platform
-(`login`, `register`, `oauth-callback`) read the envelope properly; the
-template's do not.
-
-The symptom is a user-visible one: an expired magic link, a stale password-reset
-token and a duplicate invitation all report a status code instead of the sentence
-that says what to do. The fix is one helper and thirty-eight call sites, so it
-wants its own change rather than riding along with the tests -
-`session-routes.test.ts` asserts the current behaviour with a comment naming it,
-because a test claiming the better sentence would be a test of nothing.
+The generated routes under `src/app/api` used to answer a refusal with
+`detail: error.message` - `BackendApiError`'s own string, `"Backend API error:
+400 Bad Request"` - while the backend's sentence sat unread in `error.data`.
+Fixed by #546: `backendErrorDetail` in `server-api.ts` reads the envelope, all
+fifty-five call sites go through it, and the refusal tests in
+`cookie-routes.test.ts`, `admin-routes.test.ts` and `session-routes.test.ts`
+assert the sentence as well as the status.
 
 ## Backend
 

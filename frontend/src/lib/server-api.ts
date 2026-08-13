@@ -18,6 +18,18 @@ export class BackendApiError extends Error {
   }
 }
 
+/**
+ * The backend's refusal reason, for a route handler answering an error.
+ *
+ * FastAPI puts the sentence in the body's `detail`; a validation error puts a
+ * list there, which is no sentence to show anybody, so anything but a string
+ * falls back to the error's own generic message.
+ */
+export function backendErrorDetail(error: BackendApiError): string {
+  const detail = (error.data as { detail?: unknown } | null)?.detail;
+  return typeof detail === "string" ? detail : error.message;
+}
+
 interface RequestOptions extends RequestInit {
   params?: Record<string, string>;
   /** Return raw text instead of parsing as JSON */

@@ -143,11 +143,16 @@ describe("the admin gate", () => {
   });
 
   it.each(GUARDED)("passes the backend's own refusal of %s through", async (_name, call) => {
-    vi.mocked(backendFetch).mockRejectedValue(new BackendApiError(409, "Conflict", null));
+    // Sentence included - `error.message` is the constructor's generic
+    // string, and answering with it was #546.
+    vi.mocked(backendFetch).mockRejectedValue(
+      new BackendApiError(409, "Conflict", { detail: "User already deactivated" }),
+    );
 
     const response = await call();
 
     expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({ detail: "User already deactivated" });
   });
 });
 

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { BackendApiError, backendFetch, getAuthHeaders } from "./server-api";
+import { BackendApiError, backendErrorDetail, backendFetch, getAuthHeaders } from "./server-api";
 
 /**
  * The server-side half of every proxy route.
@@ -110,6 +110,30 @@ describe("backendFetch", () => {
     const failure = await backendFetch("/api/v1/agents").catch((error: unknown) => error);
 
     expect(failure).toMatchObject({ status: 502, data: null });
+  });
+});
+
+describe("backendErrorDetail", () => {
+  it("surfaces the backend's own sentence, not the constructor's generic one", () => {
+    const error = new BackendApiError(403, "Forbidden", {
+      detail: "Only Owner or Admin can manage members",
+    });
+
+    expect(backendErrorDetail(error)).toBe("Only Owner or Admin can manage members");
+  });
+
+  it("falls back to the generic message when the refusal had no readable body", () => {
+    const error = new BackendApiError(502, "Bad Gateway", null);
+
+    expect(backendErrorDetail(error)).toBe("Backend API error: 502 Bad Gateway");
+  });
+
+  it("falls back when detail is a validation list rather than a sentence", () => {
+    const error = new BackendApiError(422, "Unprocessable Entity", {
+      detail: [{ loc: ["body", "email"], msg: "field required" }],
+    });
+
+    expect(backendErrorDetail(error)).toBe("Backend API error: 422 Unprocessable Entity");
   });
 });
 
