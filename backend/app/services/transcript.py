@@ -38,7 +38,7 @@ from pydantic_ai.messages import (
     ToolReturnPart,
 )
 
-from app.repositories import chat_file_repo
+from app.repositories import chat_file as chat_file_repo
 from app.repositories import conversation as conversation_repo
 
 if TYPE_CHECKING:
@@ -146,10 +146,10 @@ class TranscriptService:
         *,
         prompt: str | None,
         answer: str,
+        attachments: Sequence[ChatFile] = (),
         tool_calls: Sequence[RecordedToolCall] = (),
         settled: Mapping[str, str] | None = None,
         model_label: str | None = None,
-        attachments: Sequence[ChatFile] = (),
     ) -> None:
         """Write whatever this run produced, and never fail the run for it.
 
@@ -157,14 +157,17 @@ class TranscriptService:
         picks up at the tool call it stopped on, and inventing a user turn there
         would put words in somebody's mouth.
 
-        `attachments` are the files that arrived with that prompt, and they are
-        linked to the user turn written here because this is where that message
-        first exists. A channel bot stored a `ChatFile`, fed it to the agent and
-        then left `message_id` NULL for ever: `chat_files` carries no
-        organization, so an unlinked row is scoped by `user_id` alone and the
-        conversation it belongs to does not know the file exists (#690). Only
-        web chat linked them, from the one surface that writes its own
-        transcript.
+        `attachments` are the files that arrived with the turn, linked to the row
+        holding it - which is how a file becomes something the product can show.
+        Without them the only trace of a file posted in a channel was the briefing
+        `AttachmentRouter` appends to the prompt for the *model*, so what a person
+        read in `/chat` was `co tu widzisz` followed by `--- Attached file: …
+        (/uploads/…, 43 KB, image)`. The dashboard's own uploads have been rows
+        since they existed; a channel's became nothing at all.
+
+        An empty *prompt* is written when a file came with it, because a picture
+        posted with no caption is a turn: the row is what the file hangs off, and
+        without it the attachment belongs to nothing.
 
         An empty `answer` is written when the run called something, and skipped
         when it did not. A blank assistant message with nothing under it reads as
@@ -201,15 +204,19 @@ class TranscriptService:
             return
         try:
             async with self.db.begin_nested():
-                if prompt:
-                    user_message = await conversation_repo.create_message(
+                if prompt or attachments:
+                    asked = await conversation_repo.create_message(
                         self.db,
                         conversation_id=run.conversation_id,
                         role="user",
-                        content=prompt,
+                        content=prompt or "",
                         run_id=run.id,
+                        # Off the run rather than passed in: the run row already
+                        # records which chat account asked, and a second route to
+                        # the same fact is a second route to getting it wrong.
+                        channel_identity_id=run.channel_identity_id,
                     )
-                    await self._attach(user_message.id, attachments)
+                    await self._attach(asked.id, attachments)
                 for tool_call_id, result in (settled or {}).items():
                     await self._settle(run, tool_call_id=tool_call_id, result=result)
                 if answer or tool_calls:

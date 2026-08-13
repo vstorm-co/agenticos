@@ -90,12 +90,20 @@ def build_message_history(history: list[dict[str, str]]) -> list[ModelRequest | 
     model_history: list[ModelRequest | ModelResponse] = []
 
     for msg in history:
+        content = msg["content"]
+        # An empty text part is not history, it is a 400: Anthropic rejects one,
+        # and a row with no text carries nothing to the model regardless. A
+        # caption-less file is recorded as an empty user turn so the file has a
+        # row to hang off (transcript.py), but the file's bytes are not in the
+        # history this reconstructs - so the empty row is pure liability here.
+        if not content.strip():
+            continue
         if msg["role"] == "user":
-            model_history.append(ModelRequest(parts=[UserPromptPart(content=msg["content"])]))
+            model_history.append(ModelRequest(parts=[UserPromptPart(content=content)]))
         elif msg["role"] == "assistant":
-            model_history.append(ModelResponse(parts=[TextPart(content=msg["content"])]))
+            model_history.append(ModelResponse(parts=[TextPart(content=content)]))
         elif msg["role"] == "system":
-            model_history.append(ModelRequest(parts=[SystemPromptPart(content=msg["content"])]))
+            model_history.append(ModelRequest(parts=[SystemPromptPart(content=content)]))
 
     return model_history
 

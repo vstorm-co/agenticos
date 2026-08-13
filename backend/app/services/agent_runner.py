@@ -1336,23 +1336,6 @@ class RunSegment:
     settled: dict[str, str]
 
 
-def _prompt_text(user_prompt: str | list[Any] | None) -> str | None:
-    """The words to record as the user's turn, if there are any.
-
-    `None` stays `None`: a resumed run has no new prompt - it picks up at the
-    tool call it stopped on - and writing a turn there would put words in
-    somebody's mouth.
-
-    A list is a prompt an attachment was folded into, where the non-text parts
-    are the file itself. Only the text is recorded; the transcript's own file
-    rows are where an attachment belongs, and a `repr` of `BinaryContent` in the
-    message body is worse than nothing.
-    """
-    if user_prompt is None or isinstance(user_prompt, str):
-        return user_prompt
-    return "".join(part for part in user_prompt if isinstance(part, str))
-
-
 class AgentRunnerService:
     """Prepare, execute and account for agent runs."""
 
@@ -1575,6 +1558,7 @@ class AgentRunnerService:
                 conversation_id=conversation_id,
                 environment_id=environment_id,
                 exposure_id=exposure.id if exposure else None,
+                channel_identity_id=ctx.channel_identity_id,
                 surface=surface.value,
                 model_label=model_spec.label,
                 provider=model_spec.provider,
@@ -2685,6 +2669,7 @@ class AgentRunnerService:
         agent_id: UUID,
         prompt: str,
         *,
+        said: str | None = None,
         surface: RunSurface = RunSurface.API,
         conversation_id: UUID | None = None,
         channel_key: str | None = None,
@@ -2710,8 +2695,15 @@ class AgentRunnerService:
         here rather than by the caller because where an attachment *goes* depends
         on whether the agent has a workspace, and only `prepare` knows that - the
         same reason the streaming path routes them after preparing rather than
-        before. They are also what the transcript links its user turn to, so a
-        caller has nothing left to remember about a file it handed over.
+        before. They are also linked to the turn they arrived with, so a file
+        posted in a channel is a file in the transcript rather than a sentence
+        about one.
+
+        `said` is what the person actually wrote, when `prompt` is something this
+        caller assembled around it - a widget's placement note, a channel's
+        restored slash. It is what goes in the transcript; `prompt` is what goes
+        to the model. Defaults to `prompt`, which is right for every surface that
+        assembles nothing.
 
         `outbound` and `outbound_refused` are filled with what the agent produced
         and what a reply cannot carry. Lists the caller passes in rather than a
@@ -2744,10 +2736,14 @@ class AgentRunnerService:
         segment = await self._run(
             prepared,
             user_prompt=assembled,
+            # The prompt as it was *given*, not as it was assembled: the files
+            # are recorded as rows below, and a surface that prepends its own
+            # note passes what the person typed.
+            said=prompt if said is None else said,
+            attachments=attachments or (),
             message_history=message_history,
             deferred_tool_results=None,
             stream=stream,
-            attachments=attachments or (),
         )
         if outbound is not None:
             outbound.extend(prepared.outbound)
@@ -2940,6 +2936,7 @@ class AgentRunnerService:
                 # No new prompt: the conversation resumes at the tool call it stopped
                 # on, and inventing a user turn here would put words in their mouth.
                 user_prompt=None,
+                said=None,
                 message_history=ModelMessagesTypeAdapter.validate_python(state.messages),
                 deferred_tool_results=plan.results,
             )
@@ -3099,12 +3096,20 @@ class AgentRunnerService:
         prepared: PreparedRun,
         *,
         user_prompt: str | list[Any] | None,
+        said: str | None,
+        attachments: Sequence[ChatFile] = (),
         message_history: list[Any] | None,
         deferred_tool_results: DeferredToolResults | None,
         stream: RunStream | None = None,
-        attachments: Sequence[ChatFile] = (),
     ) -> RunSegment:
         """Execute the agent and account for it, however it ends.
+
+        `user_prompt` is what the model is given and `said` is what the person
+        wrote, which are not the same string on any surface that assembles one:
+        `AttachmentRouter` appends a briefing about each file, and an embedded
+        widget prepends the operator's placement note. Recording the assembled
+        version put the model's own briefing in the transcript as the user's words.
+        `said` is `None` on a resume, where nothing new was said at all.
 
         The one place a run is executed, so a parked call, a budget stop, a
         cancellation and a crash are all recorded the same way whether the run is
@@ -3118,10 +3123,6 @@ class AgentRunnerService:
         described. A thing four surfaces have to remember is a thing the fifth
         will not. The streaming chat does not come through here and keeps writing
         its own, because it has events to attach and a socket to answer on.
-
-        `attachments` travel this far for that write: the user turn is created
-        there, so there is nowhere earlier to hang the files a message arrived
-        with. Empty on a resume, which records no prompt at all.
 
         **A cancellation is one of those endings, and it needs both halves.**
         `asyncio.CancelledError` is a `BaseException`, so it reaches neither
@@ -3207,12 +3208,12 @@ class AgentRunnerService:
             # somebody opens.
             await self.transcript.record(
                 prepared.run,
-                prompt=_prompt_text(user_prompt),
+                prompt=said,
                 answer=output,
+                attachments=attachments,
                 tool_calls=called,
                 settled=settled,
                 model_label=prepared.built.model_label,
-                attachments=attachments,
             )
             # Committed here rather than left to the session context: that exit
             # rolls back on any exception, and cancellation never reaches it at

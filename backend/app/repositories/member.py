@@ -25,6 +25,36 @@ async def get(
     return result.scalar_one_or_none()
 
 
+async def get_active(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+) -> OrganizationMember | None:
+    """The membership, but only while the account behind it can still sign in.
+
+    Deactivating a user leaves their membership row exactly where it was, so
+    anything reading a role off `get` alone answers with the authority of an account
+    that is refused everywhere a person signs in. That is only a difference on the
+    paths where nobody is signed in - see `access.publisher_context`, which is the
+    one caller and the reason this exists.
+
+    Joined rather than a second read: it is answered on every turn a public surface
+    takes, and two round trips for one decision is one of them that can be true
+    while the other is stale.
+    """
+    result = await db.execute(
+        select(OrganizationMember)
+        .join(User, User.id == OrganizationMember.user_id)
+        .where(
+            OrganizationMember.organization_id == organization_id,
+            OrganizationMember.user_id == user_id,
+            User.is_active.is_(True),
+        )
+    )
+    return result.scalar_one_or_none()
+
+
 async def list_for_org(
     db: AsyncSession,
     organization_id: UUID,

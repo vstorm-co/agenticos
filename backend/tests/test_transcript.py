@@ -43,12 +43,17 @@ from app.services.transcript import (
 pytestmark = pytest.mark.anyio
 
 
-def _run(*, in_a_conversation: bool = True) -> MagicMock:
+def _run(
+    *, in_a_conversation: bool = True, channel_identity_id: uuid.UUID | None = None
+) -> MagicMock:
+    # `channel_identity_id` is named rather than left to the mock: an attribute
+    # nobody set answers with a `MagicMock`, and this one is written to a column.
     return MagicMock(
         id=uuid.uuid4(),
         agent_id=uuid.uuid4(),
         agent_version_id=uuid.uuid4(),
         conversation_id=uuid.uuid4() if in_a_conversation else None,
+        channel_identity_id=channel_identity_id,
     )
 
 
@@ -204,6 +209,59 @@ class TestWritingTheTranscript:
             repo.complete_tool_call = AsyncMock()
             yield repo
 
+    @pytest.fixture
+    def files(self):
+        """The other repository this writes through: what a turn arrived with."""
+        with patch("app.services.transcript.chat_file_repo") as repo:
+            repo.link_to_message = AsyncMock()
+            yield repo
+
+    async def test_a_file_that_arrived_with_a_turn_is_linked_to_it(self, conversations, files):
+        """The defect this closes: a file posted in a channel became nothing.
+
+        `AttachmentRouter` appends a briefing about each file to the prompt for the
+        *model*, and that briefing was the only trace of the file anywhere - so a
+        person reading the thread in `/chat` was shown `co tu widzisz` followed by
+        `--- Attached file: … (/uploads/…, 43 KB, image)`. The dashboard's own
+        uploads have been rows since they existed.
+        """
+        attachment = MagicMock(id=uuid.uuid4())
+
+        await TranscriptService(_session()).record(
+            _run(), prompt="co tu widzisz", answer="A dashboard.", attachments=[attachment]
+        )
+
+        linked = files.link_to_message.await_args.kwargs
+        asked = conversations.create_message.await_args_list[0].kwargs
+        assert linked["file_ids"] == [attachment.id]
+        assert (linked["message_id"], asked["role"]) == (
+            conversations.create_message.return_value.id,
+            "user",
+        ), "the file hangs off the turn that brought it, not off the answer"
+
+    async def test_a_file_with_no_caption_still_gets_a_turn_to_hang_off(self, conversations, files):
+        """Somebody drops an image and says nothing. That is a turn."""
+        attachment = MagicMock(id=uuid.uuid4())
+
+        await TranscriptService(_session()).record(
+            _run(), prompt="", answer="A dashboard.", attachments=[attachment]
+        )
+
+        asked = conversations.create_message.await_args_list[0].kwargs
+        assert (asked["role"], asked["content"]) == ("user", "")
+        assert files.link_to_message.await_args.kwargs["file_ids"] == [attachment.id]
+
+    async def test_a_turn_that_arrived_with_nothing_links_nothing(self, conversations, files):
+        """And does not open a savepoint to say so.
+
+        The link rides a SAVEPOINT of its own, which costs a round trip to open
+        and release. Almost every turn in a deployment carries no file, so the
+        empty list is answered before the savepoint rather than inside it.
+        """
+        await TranscriptService(_session()).record(_run(), prompt="hello", answer="hi")
+
+        files.link_to_message.assert_not_awaited()
+
     async def test_both_turns_are_written_against_the_run(self, conversations):
         run = _run()
 
@@ -219,6 +277,26 @@ class TestWritingTheTranscript:
         )
         assert (answer["role"], answer["content"], answer["run_id"]) == ("assistant", "two", run.id)
         assert answer["model_name"] == "gpt-4.1"
+
+    async def test_a_turn_from_a_channel_records_which_chat_account_wrote_it(self, conversations):
+        """A room is one thread with several people in it, so `role="user"` does
+        not say who spoke - and whose list the thread appears in is read off this.
+        """
+        identity_id = uuid.uuid4()
+        run = _run(channel_identity_id=identity_id)
+
+        await TranscriptService(_session()).record(run, prompt="hej", answer="czesc")
+
+        prompt, answer = (call.kwargs for call in conversations.create_message.await_args_list)
+        assert prompt["channel_identity_id"] == identity_id
+        assert "channel_identity_id" not in answer, "the agent has no chat account"
+
+    async def test_a_turn_typed_into_the_dashboard_records_none(self, conversations):
+        """Null is the honest value: there is no chat account behind it."""
+        await TranscriptService(_session()).record(_run(), prompt="hej", answer="czesc")
+
+        prompt = conversations.create_message.await_args_list[0].kwargs
+        assert prompt["channel_identity_id"] is None
 
     async def test_the_answer_is_attributed_to_the_version_that_ran(self, conversations):
         """An agent is rewritten between runs. Attributing last Tuesday's answer
