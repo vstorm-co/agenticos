@@ -766,6 +766,29 @@ class MattermostAdapter(ChannelAdapter):
         return response.content
 
     def _from_webhook(self, payload: dict[str, Any], bot_id: str) -> IncomingMessage | None:
+        """Normalise one outgoing-webhook body.
+
+        The addressing rule is the socket's, read off what this payload actually
+        carries. An outgoing-webhook body has no mention list - Mattermost sends
+        the post, not who it notified - so the bot's own account cannot be looked
+        for in it, and this path left `addressed` unset. The router reads unset as
+        "the platform did not say" and answers, which put the bot back in the
+        position the socket's rule took it out of: replying to colleagues talking
+        to each other in a channel it was merely invited to (#662).
+
+        What the payload does say is `trigger_word` - the word an operator
+        configured *this integration* to fire on, which is Mattermost's own record
+        that the post was for us. Empty means the webhook fired on its channel
+        filter alone, and a channel filter delivers every post exactly as the
+        socket does, so it is `False` for the same reason a `posted` event with no
+        mentions is.
+
+        The consequence worth knowing before choosing this transport: `@the-bot`
+        is not readable here, because nothing in the body says which account the
+        bot is. Set the trigger word to the bot's handle if that is how people
+        should reach it; an `@agent-slug` needs nothing, since the router reads a
+        slug out of the text.
+        """
         text = str(payload.get("text") or "").strip()
         if not text:
             return None
@@ -790,4 +813,5 @@ class MattermostAdapter(ChannelAdapter):
             platform_username=str(payload.get("user_name") or "") or None,
             platform_display_name=str(payload.get("user_name") or "") or None,
             message_id=str(payload.get("post_id") or "") or None,
+            addressed=bool(str(payload.get("trigger_word") or "").strip()),
         )
