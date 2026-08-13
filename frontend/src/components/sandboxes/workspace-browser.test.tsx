@@ -168,6 +168,24 @@ describe("WorkspaceBrowser", () => {
     expect(screen.getByText("—")).toBeVisible();
   });
 
+  it("sorts by agent, and puts a container's unmeasured size last either way", async () => {
+    state.workspaces = [
+      workspace(),
+      workspace({ id: "w-2", backend: "service", agent_name: "Builder", bytes_total: 0 }),
+    ];
+    render(<WorkspaceBrowser />);
+    const firstAgent = () =>
+      screen.getAllByRole("rowgroup")[1]!.querySelector("tr > td")!.textContent;
+
+    await userEvent.click(screen.getByRole("button", { name: "Agent" }));
+    expect(firstAgent()).toBe("Builder");
+
+    // Descending by size: the stored workspace has a number, the container
+    // has none - and an absence is not a small number, so it sorts last.
+    await userEvent.click(screen.getByRole("button", { name: "Size" }));
+    expect(firstAgent()).toBe("Analyst");
+  });
+
   it("measures a stored workspace and says a container's files are elsewhere", () => {
     state.workspaces = [
       workspace(),

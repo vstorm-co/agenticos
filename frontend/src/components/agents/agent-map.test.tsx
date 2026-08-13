@@ -193,6 +193,25 @@ describe("AgentMap focus", () => {
     expect(screen.getByRole("region", { name: "Details for Surfaces" })).toBeInTheDocument();
   });
 
+  it("focuses a top and a bottom node through the same path", async () => {
+    render(
+      <AgentMap
+        agentName="Support"
+        instructions="Be brief."
+        nodes={[
+          node({ key: "model", title: "Model", side: "top", items: ["gpt-5"] }),
+          node({ key: "delegation", title: "Delegation", side: "bottom", items: ["Sync"] }),
+        ]}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Model" }));
+    expect(screen.getByRole("region", { name: "Details for Model" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Delegation" }));
+    expect(screen.getByRole("region", { name: "Details for Delegation" })).toBeInTheDocument();
+  });
+
   it("dims the nodes that are not focused", async () => {
     render(
       <AgentMap
