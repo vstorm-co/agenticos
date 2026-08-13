@@ -5,7 +5,6 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { MCP_OAUTH_PARAMS, mcpOAuthMessage, readMcpOAuthOutcome } from "@/lib/mcp-oauth";
-import { setUrlParam } from "@/lib/utils";
 
 /**
  * Announces the outcome of an MCP OAuth consent, once, on arrival.
@@ -23,7 +22,9 @@ export function useMcpOAuthOutcome(): void {
   useEffect(() => {
     const outcome = readMcpOAuthOutcome(window.location.search);
     if (outcome === null) return;
-    for (const param of MCP_OAUTH_PARAMS) setUrlParam(param, null);
+    const url = new URL(window.location.href);
+    for (const param of MCP_OAUTH_PARAMS) url.searchParams.delete(param);
+    window.history.replaceState({}, "", url.toString());
     const say = outcome.status === "success" ? toast.success : toast.error;
     say(mcpOAuthMessage(outcome, t));
   }, [t]);

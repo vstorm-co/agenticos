@@ -43,19 +43,57 @@ describe("the MCP OAuth callback query", () => {
     );
   });
 
-  it("shows an upstream refusal as it was written, ampersands and all", () => {
+  it("quotes an upstream refusal after a refusal of its own", () => {
     expect(roundTrip(mcpOAuthUpstreamRefusal("Consent denied by you & your admin"))).toBe(
-      "Consent denied by you & your admin",
+      "Sign-in failed, and no connection was saved — Consent denied by you & your admin",
     );
   });
 
   it("treats a truncated redirect as an unnamed outcome of its own kind", () => {
-    // A stale bookmark or a URL somebody edited. Neither half may throw.
+    // A stale bookmark, or a URL somebody edited. Neither half may throw.
     expect(roundTrip("mcp_oauth=error")).toBe("Sign-in failed, and no connection was saved.");
     expect(roundTrip("mcp_oauth=success")).toBe("The server is connected.");
   });
 
   it("finds no outcome on a URL that carries none", () => {
-    expect(readMcpOAuthOutcome("?name=Linear")).toBeNull();
+    expect(readMcpOAuthOutcome("?mcp_oauth_name=Linear")).toBeNull();
+    expect(readMcpOAuthOutcome("?mcp_oauth=")).toBeNull();
+  });
+});
+
+/**
+ * What a stranger can put on this URL.
+ *
+ * The callback authenticates on the `state` token and takes no session, so the
+ * address is reachable by anybody with a link - and #657 is what promoted its
+ * query from something nobody read into a native product toast. These are the
+ * two properties that keeps honest.
+ */
+describe("a refusal written by somebody else", () => {
+  it("cannot spell one of this repository's own codes", () => {
+    // Hand-crafted: the writer never puts a code in the detail parameter, and a
+    // toast in the product's own voice is exactly what a link should not buy.
+    expect(roundTrip("mcp_oauth=error&mcp_oauth_detail=AUTHORIZATION_FAILED")).toBe(
+      "Sign-in failed, and no connection was saved — AUTHORIZATION_FAILED",
+    );
+    expect(roundTrip("mcp_oauth=error&mcp_oauth_failure=NOT_A_CODE")).toBe(
+      "Sign-in failed, and no connection was saved.",
+    );
+  });
+
+  it("reaches the toast as one line, capped, and never empty", () => {
+    const outcome = readMcpOAuthOutcome(
+      `?${mcpOAuthUpstreamRefusal(`Re-authenticate\n\nat evil.example ${"x".repeat(400)}`)}`,
+    );
+
+    expect(outcome).toMatchObject({ status: "upstream-error" });
+    const detail = outcome as { detail: string };
+    expect(detail.detail).toHaveLength(200);
+    expect(detail.detail).not.toContain("\n");
+
+    // Whitespace and control characters alone are not a reason at all.
+    expect(roundTrip(mcpOAuthUpstreamRefusal(" \n\t "))).toBe(
+      "Sign-in failed, and no connection was saved.",
+    );
   });
 });

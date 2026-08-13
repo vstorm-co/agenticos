@@ -18,32 +18,34 @@ describe("announcing an MCP OAuth outcome", () => {
   });
 
   it("names the connection the provider just authorized", () => {
-    arriveAt("?mcp_oauth=success&name=Linear");
+    arriveAt("?mcp_oauth=success&mcp_oauth_name=Linear");
 
     expect(toast.success).toHaveBeenCalledWith("Linear is connected.");
     expect(toast.error).not.toHaveBeenCalled();
   });
 
   it("still says it worked when the backend named no connection", () => {
-    arriveAt("?mcp_oauth=success&name=");
+    arriveAt("?mcp_oauth=success&mcp_oauth_name=");
 
     expect(toast.success).toHaveBeenCalledWith("The server is connected.");
   });
 
   it("resolves a refusal this repository wrote into the reader's locale", () => {
-    arriveAt("?mcp_oauth=error&reason=MISSING_AUTHORIZATION_CODE");
+    arriveAt("?mcp_oauth=error&mcp_oauth_failure=MISSING_AUTHORIZATION_CODE");
 
     expect(toast.error).toHaveBeenCalledWith("The provider sent no authorization code.");
   });
 
-  it("shows a provider's own account of a refusal as given", () => {
-    arriveAt("?mcp_oauth=error&reason=You%20said%20no");
+  it("quotes a provider's own account of a refusal", () => {
+    arriveAt("?mcp_oauth=error&mcp_oauth_detail=You%20said%20no");
 
-    expect(toast.error).toHaveBeenCalledWith("You said no");
+    expect(toast.error).toHaveBeenCalledWith(
+      "Sign-in failed, and no connection was saved — You said no",
+    );
   });
 
   it("strips what it read, so a reload does not announce it again", () => {
-    arriveAt("?mcp_oauth=success&name=Linear&keep=1");
+    arriveAt("?mcp_oauth=success&mcp_oauth_name=Linear&keep=1");
 
     expect(window.location.search).toBe("?keep=1");
     renderHook(() => useMcpOAuthOutcome());

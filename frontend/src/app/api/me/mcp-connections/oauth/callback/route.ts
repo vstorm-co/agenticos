@@ -8,9 +8,9 @@ import { backendFetch } from "@/lib/server-api";
  * (or an `error`). We forward them to the backend's state-authenticated
  * callback, then bounce the browser back to the MCP servers page with a status
  * `useMcpOAuthOutcome` turns into a toast. No auth cookie is required - the
- * `state` token authenticates the exchange. It redirected to
- * `/settings/integrations` until #657, which is itself a redirect to this page -
- * a hop for nothing, and a docstring naming a page that no longer exists.
+ * `state` token authenticates the exchange, which is also why every refusal it
+ * writes goes through `@/lib/mcp-oauth`: a stranger can reach this address with
+ * an `error` of their choosing, and that query is now rendered.
  */
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;

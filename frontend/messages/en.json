@@ -2009,6 +2009,7 @@
     "oauthConnectedUnnamed": "The server is connected.",
     "oauthFailed": "Sign-in failed, and no connection was saved.",
     "oauthMissingCode": "The provider sent no authorization code.",
+    "oauthRefusedWithReason": "Sign-in failed, and no connection was saved — {reason}",
     "organization": "the organization",
     "pasteHere": "Paste it here",
     "redirecting": "Redirecting…",
