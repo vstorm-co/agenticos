@@ -17,6 +17,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.144] - 2026-08-13
+
+A removed channel member kept the thread.
+
+### Security
+
+- **`/chat` now asks the platform whether a reader is still in the channel.**
+  A channel thread was shown to anybody whose linked account had ever spoken
+  in it, and never asked again — so somebody removed from a Slack, Telegram or
+  Mattermost channel kept the thread, including everything said after they
+  left. Each adapter now answers a per-account membership question, cached for
+  60 seconds and failing closed: an unsupported platform, a missing adapter,
+  an unsealable token or an errored call hides the thread rather than showing
+  it. The owner and an explicit share keep access on every path. (#641)
+
 ## [0.0.143] - 2026-08-13
 
 Three sweeps walked the source tree three different ways.
