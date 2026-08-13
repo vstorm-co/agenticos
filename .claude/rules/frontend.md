@@ -49,7 +49,11 @@ There is no `(marketing)` route group.
   there are no thresholds left to fall between: a node the formatter broke over three
   lines is one node, a type argument list is not JsxText at all, and a comment is
   invisible rather than blanked. The four shapes patched into the old regexes - #199,
-  #246, #249, #314 - each keep a spec, and so does #141's plain multi-line node.
+  #246, #249, #314 - each keep a spec, and so does #141's plain multi-line node. What a
+  *string literal* holds is the one rule still deciding by pattern, and #656 is what that
+  costs: a hyphen inside the first word read as the separator in `Foo / Bar`, so
+  `Sign-in failed` was a label and no sentence opening on a hyphenated word was ever
+  reported.
 - **It reads a `.ts` file as well as a `.tsx` one, and by the same rules.** A parser
   reads one by construction: there is no bracket to anchor on and so nothing to gate on
   the suffix, and a file with no JSX in it simply yields no phrases. That matters because
