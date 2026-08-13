@@ -566,7 +566,16 @@ class ConversationService:
         self,
         message_id: UUID,
         data: ToolCallCreate,
+        *,
+        parked: bool = False,
     ) -> ToolCall:
+        """Write one tool call under a message.
+
+        `parked` is a keyword rather than a field on `ToolCallCreate` for the
+        reason `MessageCreate` carries no `run_id`: the schema is bindable from
+        a request body, and whether a call is awaiting a person is the runner's
+        fact, not a caller's claim.
+        """
         await self.get_message(message_id)
         return await conversation_repo.create_tool_call(
             self.db,
@@ -575,6 +584,7 @@ class ConversationService:
             tool_name=data.tool_name,
             args=data.args,
             started_at=data.started_at or datetime.now(UTC),
+            status="awaiting_approval" if parked else "running",
         )
 
     async def complete_tool_call(

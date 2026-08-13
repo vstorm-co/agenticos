@@ -38,6 +38,7 @@ from app.core.exceptions import NotFoundError, RunExecutionError
 from app.core.permissions import ROLE_PERMS, AuthContext, OrgRoleName, Perm, Scope
 from app.db.models.resource_grant import Visibility
 from app.main import app
+from app.schemas.agent import ParkedCall
 from app.services.agent_runner import RunSegment
 from app.services.sharing import SharingService
 from app.services.stats import StatsService
@@ -237,6 +238,7 @@ CALLS: tuple[Call, ...] = (
         query="?started_from=2020-01-01T00:00:00&started_to=2020-01-02T00:00:00",
     ),
     Call("GET", "/runs/{run_id}", Perm.RUNS_VIEW),
+    Call("GET", "/runs/{run_id}/parked", Perm.APPROVALS_DECIDE),
     Call("POST", "/runs/{run_id}/resume", Perm.APPROVALS_DECIDE),
     Call("GET", "/approvals", Perm.APPROVALS_DECIDE),
     Call(
@@ -885,6 +887,67 @@ class TestSharingRoutesRefuseWithoutAGrant:
         # Reading reports the row as missing rather than forbidden, so ids
         # cannot be probed; changing it is an outright refusal.
         assert response.status_code == (404 if method == "GET" else 403)
+
+
+class TestReadingWhatARunIsParkedOn:
+    """`GET /runs/{run_id}/parked` hands a reloaded surface what the live frame had.
+
+    The `tool_approval_required` frame exists only for whoever was watching the
+    run park; reloading the conversation lost the panel and the only way to
+    finish the run was the approvals queue on another page (#601). This is the
+    same payload, read back off the rows.
+    """
+
+    async def test_the_parked_calls_come_back_with_the_approval_to_decide(
+        self, as_role: ClientFactory, synthetic_roles: None
+    ) -> None:
+        run = MagicMock(id=uuid4())
+        approval_id = uuid4()
+
+        class _Parked:
+            async def get_run(self, *args: Any, **kwargs: Any) -> Any:
+                return run
+
+            async def parked_calls(self, *args: Any, **kwargs: Any) -> list[ParkedCall]:
+                return [
+                    ParkedCall(
+                        id=approval_id,
+                        tool_call_id="call-1",
+                        tool_name="send_email",
+                        tool_args={"to": "ada@example.com"},
+                    )
+                ]
+
+        overrides = {deps.get_agent_runner_service: lambda: _Parked()}
+        async with as_role(only(Perm.APPROVALS_DECIDE), overrides) as client:
+            response = await client.get(_url(f"/runs/{run.id}/parked"))
+
+        assert response.status_code == 200
+        assert response.json() == [
+            {
+                "id": str(approval_id),
+                "tool_call_id": "call-1",
+                "tool_name": "send_email",
+                "tool_args": {"to": "ada@example.com"},
+            }
+        ]
+
+    async def test_a_run_in_another_organization_reads_as_absent(
+        self, as_role: ClientFactory, synthetic_roles: None
+    ) -> None:
+        """The service resolves the run against the caller's organization before
+        anything is read off it, so a foreign id answers the same 404 an unknown
+        one does - the response cannot be used to learn that a run exists."""
+
+        class _Elsewhere:
+            async def get_run(self, *args: Any, **kwargs: Any) -> Any:
+                raise NotFoundError(message="Run not found", details={})
+
+        overrides = {deps.get_agent_runner_service: lambda: _Elsewhere()}
+        async with as_role(only(Perm.APPROVALS_DECIDE), overrides) as client:
+            response = await client.get(_url(f"/runs/{uuid4()}/parked"))
+
+        assert response.status_code == 404
 
 
 class TestResumeConveysAFailedContinuation:

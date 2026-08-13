@@ -1120,6 +1120,31 @@ class TestConversationServiceToolCalls:
 
             assert result.tool_name == "search"
             mock_repo.create_tool_call.assert_called_once()
+            assert mock_repo.create_tool_call.call_args.kwargs["status"] == "running"
+
+    @pytest.mark.anyio
+    async def test_a_parked_tool_call_is_stored_awaiting_approval(
+        self, service: ConversationService
+    ):
+        """The status is what a reloaded conversation reads: written `running`,
+        the one call somebody has to decide about replayed as a step that ran and
+        the page said nothing about waiting (#601)."""
+        msg_id = uuid4()
+        mock_data = MagicMock()
+        mock_data.tool_call_id = str(uuid4())
+        mock_data.tool_name = "send_email"
+        mock_data.args = {"to": "ada@example.com"}
+        mock_data.started_at = None
+
+        with patch("app.services.conversation.conversation_repo") as mock_repo:
+            mock_repo.get_message_by_id = AsyncMock(return_value=MockMessage(id=msg_id))
+            mock_repo.create_tool_call = AsyncMock(
+                return_value=MockToolCall(message_id=msg_id, tool_name="send_email")
+            )
+
+            await service.start_tool_call(msg_id, mock_data, parked=True)
+
+            assert mock_repo.create_tool_call.call_args.kwargs["status"] == "awaiting_approval"
 
     @pytest.mark.anyio
     async def test_start_tool_call_verifies_message_exists(self, service: ConversationService):
