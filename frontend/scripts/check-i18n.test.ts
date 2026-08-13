@@ -481,6 +481,19 @@ describe("a .ts file", () => {
     expect(saidTs(source)).toEqual(["string 'Your profile'"]);
   });
 
+  it("refuses prose that opens with an acronym (#678)", () => {
+    expect(saidTs('const copy = "API keys are stored in the vault";\n')).toEqual([
+      "string 'API keys are stored in the vault'",
+    ]);
+    expect(saidTs('const copy = "MCP servers appear here once connected";\n')).toEqual([
+      "string 'MCP servers appear here once connected'",
+    ]);
+  });
+
+  it("keeps a short acronym label out of the report (#678)", () => {
+    expect(saidTs('const labels = ["API", "MCP server"];\n')).toEqual([]);
+  });
+
   it("refuses a label on an export const, which the keyword skip used to hide", () => {
     expect(saidTs('export const LABEL = "Provider default";\n')).toEqual([
       "string 'Provider default'",

@@ -200,11 +200,11 @@ const UNITS = new Set([
 /** A token a machine wrote: a unit, or an acronym that reads the same everywhere. */
 const MACHINE_WORD = /^[A-Z0-9_]+$/;
 /**
- * What `NOT_A_SENTENCE` kept out of the string-literal rule: a label built from title
- * case around a separator, a leading acronym, a CSS measurement.
+ * What `NOT_A_SENTENCE` keeps out of the string-literal rule: a label built from title
+ * case around a separator, a short acronym label, a CSS measurement.
  */
 const NOT_A_SENTENCE =
-  /^(?:[A-Z][a-z]+(?:\s[A-Z][a-z]+)*\s?[-/]\s?|[A-Z]{2,}\s|.*\b(?:px|rem|vh|vw|deg)\b)/;
+  /^(?:[A-Z][a-z]+(?:\s[A-Z][a-z]+)*\s?[-/]\s?|[A-Z]{2,}\s+[a-z][A-Za-z-]*$|.*\b(?:px|rem|vh|vw|deg)\b)/;
 
 export interface Offence {
   line: number;
