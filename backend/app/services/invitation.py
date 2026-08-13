@@ -182,7 +182,9 @@ class InvitationService:
             )
 
         if invite.expires_at and invite.expires_at < datetime.now(UTC):
-            await invitation_repo.revoke(self.db, invite)
+            # Expired, not revoked: `revoked` records a withdrawal somebody
+            # made, and this row timed out with nobody acting on it (#456).
+            await invitation_repo.expire(self.db, invite)
             raise BadRequestError(message="Invitation has expired")
 
         accepting_user = await user_repo.get_by_id(self.db, accepting_user_id)
@@ -244,6 +246,21 @@ class InvitationService:
             invite.organization_id,
         )
         return invite
+
+    async def expire_stale(self) -> int:
+        """Mark every PENDING invitation past its expiry as EXPIRED.
+
+        An invitation ordinarily times out by nobody clicking it, so no request
+        path can be relied on to write `EXPIRED` - without a schedule the row
+        stays `pending` for ever and the pending list keeps offering it. The
+        sweep reads across every organization because a schedule has no tenant
+        to be scoped to; all it writes is a status the row already promised.
+
+        Returns:
+            How many invitations were expired. Zero on the ordinary sweep,
+            which is why the flow logs only when it is not.
+        """
+        return await invitation_repo.expire_stale(self.db)
 
     async def revoke_by_id(
         self, organization_id: UUID, invitation_id: UUID, requester_id: UUID

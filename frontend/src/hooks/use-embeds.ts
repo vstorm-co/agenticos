@@ -52,6 +52,16 @@ export function useEmbeds(agentId: string | null) {
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
+  const uploadLogo = useMutation({
+    mutationFn: ({ id, file }: { id: string; file: File }) =>
+      apiClient.upload<Embed>(`/agents/embeds/${id}/logo`, file),
+    onSuccess: async () => {
+      await invalidate();
+      toast.success(t("logoUploaded"));
+    },
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+  });
+
   const remove = useMutation({
     mutationFn: (id: string) => apiClient.delete<void>(`/agents/embeds/${id}`),
     onSuccess: async () => {
@@ -62,5 +72,5 @@ export function useEmbeds(agentId: string | null) {
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
-  return { embeds: data?.items ?? [], isLoading, create, update, remove };
+  return { uploadLogo, embeds: data?.items ?? [], isLoading, create, update, remove };
 }

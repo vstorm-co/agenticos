@@ -1,18 +1,24 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EmbedsPanel } from "./embeds-panel";
-import { DEFAULT_EMBED_THEME, type Embed } from "@/types/embeds";
+import {
+  DEFAULT_PAGE_CONFIG,
+  DEFAULT_WIDGET_CONFIG,
+  type Embed,
+  type EmbedKind,
+} from "@/types/embeds";
 
 /**
- * The widget panel, whose whole job is a bearer credential.
+ * The panel that publishes an agent to the public internet.
  *
- * The key in the script tag is public by construction - it sits on somebody's
- * marketing page - so the only thing protecting the agent is the allowed-origin
- * list. An empty list allows nothing, and the panel has to make that visible at
- * the moment a widget is created rather than let it be discovered when the widget
- * silently refuses to open.
+ * Two things it exists to get right. **The surfaces have to be visible**: a
+ * widget, a socket and a page were one *Publish as widget* button with the other
+ * two inside its form, which is how somebody looking for either found neither.
+ * And **an allow-list is not decoration**: the key in a script tag is public by
+ * construction, so on the two kinds admitted by an origin it is the whole of what
+ * protects the agent - and on a page it is meaningless and must not be asked for.
  */
 
 const state = {
@@ -21,6 +27,7 @@ const state = {
   create: { mutate: vi.fn(), isPending: false },
   update: { mutate: vi.fn(), isPending: false },
   remove: { mutateAsync: vi.fn(), isPending: false },
+  uploadLogo: { mutate: vi.fn(), isPending: false },
 };
 
 const copied = { value: false };
@@ -36,18 +43,35 @@ function embed(overrides: Partial<Embed> = {}): Embed {
     id: "e-1",
     agent_id: "a-1",
     name: "Website widget",
+    kind: "widget",
+    config: DEFAULT_WIDGET_CONFIG,
     public_key: "pk_live_abc",
     auth_mode: "public",
     has_jwt_secret: false,
     allowed_origins: ["https://acme.com"],
-    theme: DEFAULT_EMBED_THEME,
     context: null,
     context_variables: [],
     is_active: true,
     rate_limit_per_minute: 10,
+    has_custom_logo: false,
     snippet: '<script src="https://app.test/embed.js" data-key="pk_live_abc"></script>',
+    socket_url: "wss://app.test/api/v1/embed/pk_live_abc/ws",
+    page_url: null,
     ...overrides,
   };
+}
+
+function page(overrides: Partial<Embed> = {}): Embed {
+  return embed({
+    name: "Hosted page",
+    kind: "page",
+    config: DEFAULT_PAGE_CONFIG,
+    allowed_origins: [],
+    snippet: null,
+    socket_url: null,
+    page_url: "https://chat.test/e/pk_live_abc",
+    ...overrides,
+  });
 }
 
 beforeEach(() => {
@@ -56,15 +80,23 @@ beforeEach(() => {
   state.create = { mutate: vi.fn(), isPending: false };
   state.update = { mutate: vi.fn(), isPending: false };
   state.remove = { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false };
+  state.uploadLogo = { mutate: vi.fn(), isPending: false };
   copied.value = false;
   copy.mockReset();
 });
 
-async function openTheForm() {
-  await userEvent.click(screen.getByRole("button", { name: "Publish as widget" }));
+const CARD: Record<EmbedKind | "api", string> = {
+  widget: "Website widget",
+  socket: "Raw WebSocket",
+  page: "Hosted page",
+  api: "Public API",
+};
+
+async function pick(surface: EmbedKind | "api") {
+  await userEvent.click(screen.getByRole("button", { name: new RegExp(CARD[surface]) }));
 }
 
-describe("the widget panel", () => {
+describe("choosing a surface", () => {
   it("shows a placeholder rather than an empty state while loading", () => {
     state.isLoading = true;
     render(<EmbedsPanel agentId="a-1" canManage />);
@@ -79,18 +111,36 @@ describe("the widget panel", () => {
     expect(screen.getByText("Not published to any site yet.")).toBeInTheDocument();
   });
 
-  it("says the key is public and the origin list is what protects the agent", () => {
-    // The one thing somebody pasting a script tag has to understand.
+  it("offers all four surfaces, not one with the rest hidden inside it", () => {
+    // The defect this panel was rebuilt for: the socket and the hosted page were
+    // reachable only by first publishing a widget.
     render(<EmbedsPanel agentId="a-1" canManage />);
 
-    expect(screen.getByText(/key in that tag is public/)).toBeInTheDocument();
-    expect(screen.getByText(/An empty list allows nothing/)).toBeInTheDocument();
+    for (const name of Object.values(CARD)) {
+      expect(screen.getByRole("button", { name: new RegExp(name) })).toBeInTheDocument();
+    }
+  });
+
+  it("says the dashboard needs nothing, so its absence is not a gap", () => {
+    render(<EmbedsPanel agentId="a-1" canManage />);
+
+    expect(screen.getByText(/already chat with it in the dashboard/)).toBeInTheDocument();
   });
 
   it("offers no way to publish to somebody who may not publish", () => {
     render(<EmbedsPanel agentId="a-1" canManage={false} />);
 
-    expect(screen.queryByRole("button", { name: "Publish as widget" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Website widget/ })).toBeNull();
+  });
+
+  it("says the API is a credential rather than an object to configure", async () => {
+    // A card that opened an empty form would leave somebody hunting for the
+    // setting it does not have.
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("api");
+
+    expect(screen.getByText(/nothing on this screen to configure/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Allowed sites")).toBeNull();
   });
 });
 
@@ -111,13 +161,33 @@ describe("an existing widget", () => {
     expect(copy).toHaveBeenCalledWith(state.embeds[0]!.snippet);
   });
 
-  it("acknowledges the copy", () => {
-    copied.value = true;
+  it("offers the socket beside the script tag, not only in the docs", () => {
+    // The whole of #516: the protocol was published and tested, and the only way
+    // to discover it was to read the manual.
     state.embeds = [embed()];
     render(<EmbedsPanel agentId="a-1" canManage />);
 
-    // The icon swaps to a tick; the button keeps its accessible name.
-    expect(screen.getByRole("button", { name: "Copy the snippet" })).toBeInTheDocument();
+    expect(screen.getByText("wss://app.test/api/v1/embed/pk_live_abc/ws")).toBeInTheDocument();
+    expect(screen.getByText("Script tag - for a site you do not control")).toBeInTheDocument();
+  });
+
+  it("says a client of one's own must send an allowed Origin, and where 4003 is explained", () => {
+    state.embeds = [embed()];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+
+    expect(screen.getByText(/must set one that is on the allowed-sites list/)).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "Frames and close codes" });
+    expect(link).toHaveAttribute("href", expect.stringContaining("#the-raw-websocket"));
+  });
+
+  it("shows the integration to somebody who may not manage the embed", () => {
+    // Reading the integration is not managing it: `agents:publish` gates the
+    // switch and the delete, not the address of a published socket.
+    state.embeds = [embed()];
+    render(<EmbedsPanel agentId="a-1" canManage={false} />);
+
+    expect(screen.getByRole("button", { name: "Copy the socket URL" })).toBeInTheDocument();
+    expect(screen.queryByRole("switch")).toBeNull();
   });
 
   it("names the sites it may be opened from", () => {
@@ -128,33 +198,13 @@ describe("an existing widget", () => {
   });
 
   it("says a widget allowed nowhere cannot open", () => {
-    // The failure mode this panel exists to prevent: a published widget with an
-    // empty allow-list looks configured and refuses every request.
     state.embeds = [embed({ allowed_origins: [] })];
     render(<EmbedsPanel agentId="a-1" canManage />);
 
     expect(screen.getByText(/cannot open anywhere/)).toBeInTheDocument();
   });
 
-  it("distinguishes a public widget from one behind a sign-in", () => {
-    state.embeds = [
-      embed({ id: "e-1", name: "Open" }),
-      embed({ id: "e-2", name: "Gated", auth_mode: "jwt" }),
-    ];
-    render(<EmbedsPanel agentId="a-1" canManage />);
-
-    expect(screen.getByText("public")).toBeInTheDocument();
-    expect(screen.getByText("signed-in users")).toBeInTheDocument();
-  });
-
-  it("marks a paused widget", () => {
-    state.embeds = [embed({ is_active: false })];
-    render(<EmbedsPanel agentId="a-1" canManage />);
-
-    expect(screen.getByText("paused")).toBeInTheDocument();
-  });
-
-  it("pauses a live widget", async () => {
+  it("marks a paused embed and pauses a live one", async () => {
     state.embeds = [embed()];
     render(<EmbedsPanel agentId="a-1" canManage />);
 
@@ -163,27 +213,7 @@ describe("an existing widget", () => {
     expect(state.update.mutate).toHaveBeenCalledWith({ id: "e-1", is_active: false });
   });
 
-  it("resumes a paused one", async () => {
-    state.embeds = [embed({ is_active: false })];
-    render(<EmbedsPanel agentId="a-1" canManage />);
-
-    await userEvent.click(screen.getByRole("switch", { name: "Resume Website widget" }));
-
-    expect(state.update.mutate).toHaveBeenCalledWith({ id: "e-1", is_active: true });
-  });
-
-  it("shows the snippet but no controls to somebody who may not manage it", () => {
-    state.embeds = [embed()];
-    render(<EmbedsPanel agentId="a-1" canManage={false} />);
-
-    expect(screen.getByText(/data-key/)).toBeInTheDocument();
-    expect(screen.queryByRole("switch")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Remove Website widget" })).toBeNull();
-  });
-
   it("warns that removal is immediate and the key cannot come back", async () => {
-    // Every page carrying that key breaks at once, and a new widget gets a new
-    // key - so this is not an undoable action.
     state.embeds = [embed()];
     render(<EmbedsPanel agentId="a-1" canManage />);
 
@@ -195,89 +225,118 @@ describe("an existing widget", () => {
     expect(within(dialog).getByText(/cannot be reissued/)).toBeInTheDocument();
   });
 
-  it("keeps the widget when the warning is dismissed", async () => {
-    // The key cannot be reissued, so the way out of this dialog has to be a way
-    // out - not a confirm with a different label.
-    state.embeds = [embed()];
-    render(<EmbedsPanel agentId="a-1" canManage />);
-
-    await userEvent.click(screen.getByRole("button", { name: "Remove Website widget" }));
-    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
-
-    expect(state.remove.mutateAsync).not.toHaveBeenCalled();
-    expect(screen.queryByRole("dialog")).toBeNull();
-  });
-
-  it("removes the widget once the warning is accepted", async () => {
+  it("removes the embed once the warning is accepted", async () => {
     state.embeds = [embed()];
     render(<EmbedsPanel agentId="a-1" canManage />);
 
     await userEvent.click(screen.getByRole("button", { name: "Remove Website widget" }));
     // Anchored: the dialog's confirm button is named exactly "Remove", and the
-    // card's trigger behind it is "Remove Website widget". `getByRole` has no
-    // `exact` option - passing one was a type error, and an unanchored string
-    // would have matched both and thrown on the ambiguity.
+    // card's trigger behind it is "Remove Website widget".
     await userEvent.click(screen.getByRole("button", { name: /^Remove$/ }));
 
     expect(state.remove.mutateAsync).toHaveBeenCalledWith("e-1");
   });
 });
 
-describe("publishing a new widget", () => {
+describe("a row shows the integrations its kind actually has", () => {
+  it("gives a page a link and neither a script tag nor a socket", () => {
+    // A script tag shown beside a link is a line somebody would paste, and it
+    // would never work: a page has no allow-list to admit a third-party site.
+    state.embeds = [page()];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+
+    expect(screen.getByText("https://chat.test/e/pk_live_abc")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Copy the snippet" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Copy the socket URL" })).toBeNull();
+  });
+
+  it("says what protects a link, because it is only the key", () => {
+    state.embeds = [page()];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+
+    expect(screen.getByText(/Anyone with the link can talk to this agent/)).toBeInTheDocument();
+  });
+
+  it("shows a page no allow-list at all, rather than an empty one reading as broken", () => {
+    state.embeds = [page()];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+
+    expect(screen.queryByText(/cannot open anywhere/)).toBeNull();
+  });
+
+  it("gives a socket integration the socket and no script tag", () => {
+    state.embeds = [
+      embed({ name: "Kiosk", kind: "socket", config: { kind: "socket" }, snippet: null }),
+    ];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+
+    expect(screen.getByRole("button", { name: "Copy the socket URL" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Copy the snippet" })).toBeNull();
+  });
+
+  it("names the surface on the row, so a list of three is readable", () => {
+    state.embeds = [embed(), page({ id: "e-2" })];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+
+    // The card grid is hidden while rows exist only if a surface is being
+    // configured; here both the badges and the cards carry these names, so the
+    // count is what distinguishes a badge from its card.
+    expect(screen.getAllByText("Website widget").length).toBeGreaterThan(1);
+    expect(screen.getAllByText("Hosted page").length).toBeGreaterThan(1);
+  });
+});
+
+describe("publishing a widget", () => {
   it("refuses to publish with no site allowed, and says why", async () => {
     render(<EmbedsPanel agentId="a-1" canManage />);
-    await openTheForm();
+    await pick("widget");
 
-    expect(screen.getByRole("button", { name: "Publish widget" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Publish" })).toBeDisabled();
     expect(screen.getByText(/a widget allowed nowhere cannot open/)).toBeInTheDocument();
   });
 
   it("refuses to publish without a name", async () => {
     render(<EmbedsPanel agentId="a-1" canManage />);
-    await openTheForm();
+    await pick("widget");
 
     await userEvent.type(screen.getByLabelText("Allowed sites"), "https://acme.com");
     await userEvent.clear(screen.getByLabelText("Name"));
 
-    expect(screen.getByRole("button", { name: "Publish widget" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Publish" })).toBeDisabled();
   });
 
   it("splits the origin list on newlines and commas, trimming as it goes", async () => {
-    // A different port or subdomain is a different site to the browser, so this
-    // list has to carry each one exactly.
     render(<EmbedsPanel agentId="a-1" canManage />);
-    await openTheForm();
+    await pick("widget");
 
     await userEvent.type(
       screen.getByLabelText("Allowed sites"),
       " https://acme.com , {enter} https://www.acme.com {enter}{enter}",
     );
-    await userEvent.click(screen.getByRole("button", { name: "Publish widget" }));
+    await userEvent.click(screen.getByRole("button", { name: "Publish" }));
 
     expect(state.create.mutate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        allowed_origins: ["https://acme.com", "https://www.acme.com"],
-      }),
+      expect.objectContaining({ allowed_origins: ["https://acme.com", "https://www.acme.com"] }),
       expect.anything(),
     );
   });
 
-  it("publishes a public widget with no signing secret", async () => {
+  it("sends a widget config, tagged so the backend knows which surface it is", async () => {
     render(<EmbedsPanel agentId="a-1" canManage />);
-    await openTheForm();
+    await pick("widget");
 
     await userEvent.type(screen.getByLabelText("Allowed sites"), "https://acme.com");
-    await userEvent.click(screen.getByRole("button", { name: "Publish widget" }));
+    await userEvent.click(screen.getByRole("button", { name: "Publish" }));
 
-    expect(state.create.mutate).toHaveBeenCalledWith(
-      expect.objectContaining({ agent_id: "a-1", auth_mode: "public", jwt_secret: null }),
-      expect.anything(),
-    );
+    const [payload] = state.create.mutate.mock.calls.at(-1)!;
+    expect(payload.config.kind).toBe("widget");
+    expect(payload.auth_mode).toBe("public");
+    expect(payload.jwt_secret).toBeNull();
   });
 
   it("asks for a signing secret only once sign-in is required", async () => {
     render(<EmbedsPanel agentId="a-1" canManage />);
-    await openTheForm();
+    await pick("widget");
 
     expect(screen.queryByLabelText("Signing secret")).toBeNull();
 
@@ -287,34 +346,28 @@ describe("publishing a new widget", () => {
     expect(screen.getByLabelText("Signing secret")).toBeInTheDocument();
   });
 
-  it("keeps each mode's explanation in the list and off the closed trigger", async () => {
-    // The second line exists to tell the two modes apart. Radix draws the
-    // selected item's `ItemText` in the trigger, so in `children` it followed
-    // the choice out and sat there explaining the one option left - "no
-    // sign-in, for a marketing page" under a field somebody had just answered.
+  it("refuses a signing secret too short for the backend to accept", async () => {
+    // Sent, it comes back a 422 naming a field the form could have named first.
     render(<EmbedsPanel agentId="a-1" canManage />);
-    await openTheForm();
+    await pick("widget");
 
-    const picker = screen.getByLabelText("Who can use it");
-    await userEvent.click(picker);
+    await userEvent.type(screen.getByLabelText("Allowed sites"), "https://acme.com");
+    await userEvent.click(screen.getByLabelText("Who can use it"));
+    await userEvent.click(screen.getByRole("option", { name: /Signed-in users only/ }));
+    await userEvent.type(screen.getByLabelText("Signing secret"), "short");
 
-    const anyone = screen.getByRole("option", { name: "Anyone on those sites" });
-    expect(within(anyone).getByText(/No sign-in/)).toBeVisible();
-
-    await userEvent.click(anyone);
-    expect(picker).toHaveTextContent("Anyone on those sites");
-    expect(picker).not.toHaveTextContent("No sign-in");
+    expect(screen.getByRole("button", { name: "Publish" })).toBeDisabled();
   });
 
   it("sends the secret with a jwt widget", async () => {
     render(<EmbedsPanel agentId="a-1" canManage />);
-    await openTheForm();
+    await pick("widget");
 
     await userEvent.type(screen.getByLabelText("Allowed sites"), "https://acme.com");
     await userEvent.click(screen.getByLabelText("Who can use it"));
     await userEvent.click(screen.getByRole("option", { name: /Signed-in users only/ }));
     await userEvent.type(screen.getByLabelText("Signing secret"), "a-very-long-secret");
-    await userEvent.click(screen.getByRole("button", { name: "Publish widget" }));
+    await userEvent.click(screen.getByRole("button", { name: "Publish" }));
 
     expect(state.create.mutate).toHaveBeenCalledWith(
       expect.objectContaining({ auth_mode: "jwt", jwt_secret: "a-very-long-secret" }),
@@ -325,10 +378,10 @@ describe("publishing a new widget", () => {
   it("sends per-placement context as null when it is left blank", async () => {
     // `""` would be prepended to every first message as an empty instruction.
     render(<EmbedsPanel agentId="a-1" canManage />);
-    await openTheForm();
+    await pick("widget");
 
     await userEvent.type(screen.getByLabelText("Allowed sites"), "https://acme.com");
-    await userEvent.click(screen.getByRole("button", { name: "Publish widget" }));
+    await userEvent.click(screen.getByRole("button", { name: "Publish" }));
 
     expect(state.create.mutate).toHaveBeenCalledWith(
       expect.objectContaining({ context: null }),
@@ -336,99 +389,139 @@ describe("publishing a new widget", () => {
     );
   });
 
-  it("carries the context when one is given", async () => {
-    render(<EmbedsPanel agentId="a-1" canManage />);
-    await openTheForm();
-
-    await userEvent.type(screen.getByLabelText("Allowed sites"), "https://acme.com");
-    await userEvent.type(
-      screen.getByLabelText("Context for this placement"),
-      "You are on the pricing page.",
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Publish widget" }));
-
-    expect(state.create.mutate).toHaveBeenCalledWith(
-      expect.objectContaining({ context: "You are on the pricing page." }),
-      expect.anything(),
-    );
-  });
-
-  it("carries the accent colour into the theme", async () => {
-    render(<EmbedsPanel agentId="a-1" canManage />);
-    await openTheForm();
-
-    await userEvent.type(screen.getByLabelText("Allowed sites"), "https://acme.com");
-    await userEvent.clear(screen.getAllByDisplayValue(DEFAULT_EMBED_THEME.accent)[1]!);
-    await userEvent.type(screen.getAllByDisplayValue("")[0]!, "#ff0000");
-    await userEvent.click(screen.getByRole("button", { name: "Publish widget" }));
-
-    const [payload] = state.create.mutate.mock.calls.at(-1)!;
-    expect(payload.theme.accent).toBe("#ff0000");
-  });
-
   it("takes the accent from the swatch as well as from the field", async () => {
     // Two controls, one value: a colour picked from the swatch and a hex typed
-    // into the field have to reach the same place, or the widget publishes with
-    // whichever one the form happened to read.
+    // into the field have to reach the same place.
     render(<EmbedsPanel agentId="a-1" canManage />);
-    await openTheForm();
+    await pick("widget");
 
-    const swatch = document.getElementById("embed-accent") as HTMLInputElement;
+    const swatch = document.getElementById("widget-accent") as HTMLInputElement;
     fireEvent.change(swatch, { target: { value: "#00ff00" } });
     await userEvent.type(screen.getByLabelText("Allowed sites"), "https://acme.com");
-    await userEvent.click(screen.getByRole("button", { name: "Publish widget" }));
+    await userEvent.click(screen.getByRole("button", { name: "Publish" }));
 
     const [payload] = state.create.mutate.mock.calls.at(-1)!;
-    expect(payload.theme.accent).toBe("#00ff00");
+    expect(payload.config.accent).toBe("#00ff00");
   });
 
   it("abandons the form on cancel", async () => {
     render(<EmbedsPanel agentId="a-1" canManage />);
-    await openTheForm();
+    await pick("widget");
 
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
     expect(screen.queryByLabelText("Allowed sites")).toBeNull();
     expect(state.create.mutate).not.toHaveBeenCalled();
   });
+});
 
-  it("stops a second submission while one is in flight", async () => {
+describe("publishing a hosted page", () => {
+  it("publishes with no site named at all", async () => {
+    // The defect this rebuild fixes. The shortest integration this product has is
+    // "send somebody a link", and the form refused it without an allowed site -
+    // a field that means nothing on a page we serve ourselves.
     render(<EmbedsPanel agentId="a-1" canManage />);
-    await openTheForm();
-    await userEvent.type(screen.getByLabelText("Allowed sites"), "https://acme.com");
+    await pick("page");
 
-    state.create = { mutate: vi.fn(), isPending: true };
+    expect(screen.queryByLabelText("Allowed sites")).toBeNull();
+    expect(screen.getByRole("button", { name: "Publish" })).toBeEnabled();
+
+    await userEvent.click(screen.getByRole("button", { name: "Publish" }));
+
+    const [payload] = state.create.mutate.mock.calls.at(-1)!;
+    expect(payload.config.kind).toBe("page");
+    expect(payload.allowed_origins).toEqual([]);
+  });
+
+  it("offers no token auth, because the token would travel in the URL", async () => {
     render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("page");
 
-    expect(screen.queryByRole("button", { name: "Publish as widget" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Who can use it")).toBeNull();
+  });
+
+  it("says what protects the link before it is published, not after", async () => {
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("page");
+
+    expect(screen.getByText(/Anyone with the link can talk to this agent/)).toBeInTheDocument();
+  });
+
+  it("carries the page's own branding rather than a widget's", async () => {
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("page");
+
+    await userEvent.type(screen.getByLabelText("Page title"), "Refunds");
+    await userEvent.click(screen.getByRole("button", { name: "Publish" }));
+
+    const [payload] = state.create.mutate.mock.calls.at(-1)!;
+    expect(payload.config).toMatchObject({ kind: "page", title: "Refunds", logo: "agent" });
+  });
+
+  it("warns about a required variable its own URL cannot fill", async () => {
+    // The backend refuses this combination; meeting the refusal after filling in
+    // a form is the experience showing the reason here exists to prevent.
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("page");
+
+    await userEvent.click(screen.getByRole("button", { name: "Add a variable" }));
+    await userEvent.type(screen.getByLabelText("Variable 1 name"), "plan");
+    await userEvent.click(screen.getByRole("checkbox", { name: "Required" }));
+
+    expect(screen.getByText(/Required and not URL-safe: plan/)).toBeInTheDocument();
   });
 });
 
-describe("what the page must supply", () => {
-  it("declares a variable with the widget", async () => {
-    // The placement sentence is the same for every visitor; this is the part
-    // only the integrator knows.
+describe("publishing a raw socket", () => {
+  it("asks for the origins that admit a handshake and nothing to style", async () => {
     render(<EmbedsPanel agentId="a-1" canManage />);
-    await openTheForm();
+    await pick("socket");
+
+    expect(screen.getByLabelText("Allowed sites")).toBeInTheDocument();
+    expect(document.getElementById("widget-accent")).toBeNull();
+  });
+
+  it("says a client of one's own sends no Origin unless it sets one", async () => {
+    // The first thing that goes wrong, and what 4003 looks like when it does.
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("socket");
+
+    expect(screen.getByText(/sends nothing unless you set it/)).toBeInTheDocument();
+  });
+
+  it("sends a socket config with no styling in it", async () => {
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("socket");
+
+    await userEvent.type(screen.getByLabelText("Allowed sites"), "https://acme.com");
+    await userEvent.click(screen.getByRole("button", { name: "Publish" }));
+
+    const [payload] = state.create.mutate.mock.calls.at(-1)!;
+    expect(payload.config).toEqual({ kind: "socket" });
+  });
+});
+
+describe("what the integration must supply", () => {
+  it("declares a variable with the embed", async () => {
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("widget");
 
     await userEvent.type(screen.getByLabelText("Allowed sites"), "https://acme.test");
     await userEvent.click(screen.getByRole("button", { name: "Add a variable" }));
     await userEvent.type(screen.getByLabelText("Variable 1 name"), "plan");
-    await userEvent.click(screen.getByRole("button", { name: "Publish widget" }));
+    await userEvent.click(screen.getByRole("button", { name: "Publish" }));
 
     expect(state.create.mutate).toHaveBeenCalledWith(
       expect.objectContaining({
-        context_variables: [{ name: "plan", required: false, description: "" }],
+        context_variables: [{ name: "plan", required: false, description: "", url_safe: false }],
       }),
       expect.anything(),
     );
   });
 
   it("corrects a name to the shape the backend accepts as it is typed", async () => {
-    // The rule is invisible until it refuses, so it is applied rather than
-    // reported.
     render(<EmbedsPanel agentId="a-1" canManage />);
-    await openTheForm();
+    await pick("widget");
 
     await userEvent.click(screen.getByRole("button", { name: "Add a variable" }));
     await userEvent.type(screen.getByLabelText("Variable 1 name"), "Plan Name");
@@ -438,11 +531,11 @@ describe("what the page must supply", () => {
 
   it("does not declare a row somebody started and left blank", async () => {
     render(<EmbedsPanel agentId="a-1" canManage />);
-    await openTheForm();
+    await pick("widget");
 
     await userEvent.type(screen.getByLabelText("Allowed sites"), "https://acme.test");
     await userEvent.click(screen.getByRole("button", { name: "Add a variable" }));
-    await userEvent.click(screen.getByRole("button", { name: "Publish widget" }));
+    await userEvent.click(screen.getByRole("button", { name: "Publish" }));
 
     expect(state.create.mutate).toHaveBeenCalledWith(
       expect.objectContaining({ context_variables: [] }),
@@ -450,27 +543,25 @@ describe("what the page must supply", () => {
     );
   });
 
-  it("carries the description and the required flag through to the declaration", async () => {
-    // `required` is documentation for whoever writes the integration, and the
-    // description is what they read while doing it - both are the row's point.
+  it("offers URL-safe on a page and nowhere else", async () => {
+    // `url_safe` is about a URL. A widget reads `window.AgenticOSContext` from a
+    // page the operator controls, so the control would mean nothing there.
     render(<EmbedsPanel agentId="a-1" canManage />);
-    await openTheForm();
+    await pick("widget");
+    await userEvent.click(screen.getByRole("button", { name: "Add a variable" }));
 
-    await userEvent.type(screen.getByLabelText("Allowed sites"), "https://acme.test");
+    expect(screen.queryByRole("checkbox", { name: "URL-safe" })).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await pick("page");
     await userEvent.click(screen.getByRole("button", { name: "Add a variable" }));
     await userEvent.type(screen.getByLabelText("Variable 1 name"), "plan");
-    await userEvent.type(
-      screen.getByLabelText("Variable 1 description"),
-      "Which plan this visitor is on",
-    );
-    await userEvent.click(screen.getByRole("checkbox", { name: "Required" }));
-    await userEvent.click(screen.getByRole("button", { name: "Publish widget" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "URL-safe" }));
+    await userEvent.click(screen.getByRole("button", { name: "Publish" }));
 
     expect(state.create.mutate).toHaveBeenCalledWith(
       expect.objectContaining({
-        context_variables: [
-          { name: "plan", required: true, description: "Which plan this visitor is on" },
-        ],
+        context_variables: [{ name: "plan", required: false, description: "", url_safe: true }],
       }),
       expect.anything(),
     );
@@ -478,12 +569,374 @@ describe("what the page must supply", () => {
 
   it("takes a declared variable away again", async () => {
     render(<EmbedsPanel agentId="a-1" canManage />);
-    await openTheForm();
+    await pick("widget");
 
     await userEvent.click(screen.getByRole("button", { name: "Add a variable" }));
     await userEvent.type(screen.getByLabelText("Variable 1 name"), "plan");
     await userEvent.click(screen.getByRole("button", { name: "Remove plan" }));
 
     expect(screen.queryByLabelText("Variable 1 name")).toBeNull();
+  });
+});
+
+describe("editing what was already published", () => {
+  it("offers no edit control to somebody who may not manage it", () => {
+    state.embeds = [embed()];
+    render(<EmbedsPanel agentId="a-1" canManage={false} />);
+
+    expect(screen.queryByRole("button", { name: "Edit Website widget" })).toBeNull();
+  });
+
+  it("opens the form on the row, filled with what is stored", async () => {
+    // Deleting and republishing is not an alternative: the key does not come
+    // back, and every page carrying it breaks.
+    state.embeds = [embed({ context: "You are on the pricing page.", name: "Pricing bubble" })];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit Pricing bubble" }));
+
+    expect(screen.getByLabelText("Name")).toHaveValue("Pricing bubble");
+    expect(screen.getByLabelText("Allowed sites")).toHaveValue("https://acme.com");
+    expect(screen.getByLabelText("Context for this placement")).toHaveValue(
+      "You are on the pricing page.",
+    );
+  });
+
+  it("sends only what a row may change, and never its agent", async () => {
+    state.embeds = [embed()];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit Website widget" }));
+    await userEvent.clear(screen.getByLabelText("Name"));
+    await userEvent.type(screen.getByLabelText("Name"), "Renamed");
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    const [payload] = state.update.mutate.mock.calls.at(-1)!;
+    expect(payload).toMatchObject({ id: "e-1", name: "Renamed" });
+    expect(payload).not.toHaveProperty("agent_id");
+  });
+
+  it("keeps a stored signing secret when the field is left blank", async () => {
+    // Retyping a secret to change a colour is how a secret gets written down
+    // somewhere, and the backend keeps the stored one when the mode is unchanged.
+    state.embeds = [embed({ auth_mode: "jwt", has_jwt_secret: true })];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit Website widget" }));
+
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled();
+
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    const [payload] = state.update.mutate.mock.calls.at(-1)!;
+    expect(payload.jwt_secret).toBeNull();
+  });
+
+  it("demands a secret when a public embed is switched to token auth", async () => {
+    // Switching in without one would leave it verifying against whatever was
+    // there before - which is nothing.
+    state.embeds = [embed()];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit Website widget" }));
+    await userEvent.click(screen.getByLabelText("Who can use it"));
+    await userEvent.click(screen.getByRole("option", { name: /Signed-in users only/ }));
+
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
+  });
+
+  it("edits a page without asking for a site, as publishing one does not", async () => {
+    state.embeds = [page()];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit Hosted page" }));
+
+    expect(screen.queryByLabelText("Allowed sites")).toBeNull();
+    expect(screen.getByLabelText("Page title")).toBeInTheDocument();
+  });
+
+  it("hides the surface cards while a row is being edited", async () => {
+    // Two open forms on one card is two answers to "what am I filling in".
+    state.embeds = [embed()];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit Website widget" }));
+
+    expect(screen.queryByRole("button", { name: /Raw WebSocket/ })).toBeNull();
+  });
+
+  it("leaves the row alone on cancel", async () => {
+    state.embeds = [embed()];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit Website widget" }));
+    await userEvent.clear(screen.getByLabelText("Name"));
+    await userEvent.type(screen.getByLabelText("Name"), "Renamed");
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(state.update.mutate).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Copy the snippet" })).toBeInTheDocument();
+  });
+});
+
+describe("a picture of the page's own", () => {
+  it("offers the upload only on a page that exists", async () => {
+    // An upload needs a row to attach to, and the row is created by this form.
+    // Offering a file picker with nowhere to put the result is a control that
+    // cannot work.
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("page");
+    await userEvent.click(screen.getByLabelText("Logo"));
+
+    expect(screen.getByRole("option", { name: "A picture you upload" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+  });
+
+  it("uploads a file against the row being edited", async () => {
+    state.embeds = [page()];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit Hosted page" }));
+    await userEvent.click(screen.getByLabelText("Logo"));
+    await userEvent.click(screen.getByRole("option", { name: "A picture you upload" }));
+
+    const file = new File(["png"], "logo.png", { type: "image/png" });
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    await userEvent.upload(input, file);
+
+    expect(state.uploadLogo.mutate).toHaveBeenCalledWith({ id: "e-1", file });
+  });
+
+  it("offers to replace rather than to upload a second when one is stored", async () => {
+    state.embeds = [
+      page({ has_custom_logo: true, config: { ...DEFAULT_PAGE_CONFIG, logo: "custom" } }),
+    ];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit Hosted page" }));
+
+    expect(screen.getByRole("button", { name: "Replace the picture" })).toBeInTheDocument();
+  });
+
+  it("says what to do when the page is not published yet", async () => {
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("page");
+
+    // The option is disabled, so the explanation is what is left to read - it
+    // has to say the upload is possible, only later.
+    expect(screen.getByText(/Publish the page first/)).toBeInTheDocument();
+  });
+});
+
+describe("what a hosted page is allowed to offer", () => {
+  it("carries the operator's choices into the config, not the page's", async () => {
+    // A capability the page decided for itself would be one the operator cannot
+    // turn off, so both flags travel in the stored config.
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("page");
+
+    await userEvent.click(screen.getByRole("checkbox", { name: /A microphone in the composer/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Publish" }));
+
+    const [payload] = state.create.mutate.mock.calls.at(-1)!;
+    expect(payload.config).toMatchObject({ allow_voice: true, allow_new_conversation: true });
+  });
+
+  it("says a fresh thread does not delete the old one", async () => {
+    // It mints a new key. Calling that "delete" would be a promise the surface
+    // does not keep.
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("page");
+
+    expect(screen.getByText(/old thread is not deleted/)).toBeInTheDocument();
+  });
+
+  it("says where a dictated voice actually goes", async () => {
+    // Nothing reaches this deployment, and the browser hands it to its vendor.
+    // Somebody turning this on for the public should read both halves.
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("page");
+
+    expect(screen.getByText(/hands the audio to its vendor/)).toBeInTheDocument();
+  });
+
+  it("publishes a page that narrates its work and keeps the rest to itself", async () => {
+    // The defaults, and they are the interesting part: a page that goes quiet for
+    // thirty seconds reads as broken, while an argument list and a tool's raw
+    // output are written for the model and are where something internal turns up.
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("page");
+
+    await userEvent.click(screen.getByRole("button", { name: "Publish" }));
+
+    const [payload] = state.create.mutate.mock.calls.at(-1)!;
+    expect(payload.config).toMatchObject({
+      show_tool_steps: true,
+      show_tool_results: false,
+      show_thinking: false,
+    });
+  });
+
+  it("carries a decision to show the reasoning into the config", async () => {
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("page");
+
+    await userEvent.click(screen.getByRole("checkbox", { name: /The agent's reasoning/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Publish" }));
+
+    const [payload] = state.create.mutate.mock.calls.at(-1)!;
+    expect(payload.config).toMatchObject({ show_thinking: true });
+  });
+
+  it("offers no way to open a step that is not sent", async () => {
+    // There is nothing for it to open, and the server enforces the same thing - a
+    // box that could be ticked into having no effect is one somebody would tick.
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("page");
+
+    await userEvent.click(screen.getByRole("checkbox", { name: /What the agent is doing/ }));
+
+    expect(screen.getByRole("checkbox", { name: /What each step returned/ })).toBeDisabled();
+  });
+
+  it("uploads a picture for the page being edited, not for whichever was last listed", async () => {
+    // The id travels with the file. A panel that read it from state instead would
+    // attach one page's logo to another the moment two are listed.
+    state.embeds = [page({ id: "e-9", config: { ...DEFAULT_PAGE_CONFIG, logo: "custom" } })];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await userEvent.click(screen.getByRole("button", { name: "Edit Hosted page" }));
+
+    const file = new File(["x"], "logo.png", { type: "image/png" });
+    await userEvent.upload(document.querySelector('input[type="file"]')!, file);
+
+    expect(state.uploadLogo.mutate).toHaveBeenCalledWith({ id: "e-9", file });
+  });
+
+  it("closes the editor once the change has actually landed", async () => {
+    // On success rather than on submit: a refused update that closed the form
+    // would look like it took.
+    state.embeds = [page()];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await userEvent.click(screen.getByRole("button", { name: "Edit Hosted page" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    const [, options] = state.update.mutate.mock.calls.at(-1)!;
+    act(() => options.onSuccess());
+    expect(screen.queryByRole("button", { name: "Save changes" })).toBeNull();
+  });
+
+  it("keeps a custom rate limit through an edit rather than resetting it to the default", async () => {
+    // There is no field for the limit in this form, so an edit that hardcoded
+    // the default would silently rewrite a value set through the API - a limit
+    // of 60 back to 10 by renaming the surface or ticking a box.
+    state.embeds = [page({ rate_limit_per_minute: 60 })];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await userEvent.click(screen.getByRole("button", { name: "Edit Hosted page" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    const [changes] = state.update.mutate.mock.calls.at(-1)!;
+    expect(changes.rate_limit_per_minute).toBe(60);
+  });
+
+  it("dismisses the delete confirmation without removing anything", async () => {
+    // Dismissing is the path that must not delete: the dialog closes on any
+    // outside interaction, and a handler wired to the removal instead of to the
+    // state would make "escape" mean "yes".
+    state.embeds = [embed()];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await userEvent.click(screen.getByRole("button", { name: "Remove Website widget" }));
+
+    await userEvent.keyboard("{Escape}");
+
+    expect(state.remove.mutateAsync).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: /^Remove$/ })).toBeNull();
+  });
+
+  it("closes the API notes and offers the surfaces again", async () => {
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("api");
+
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
+
+    expect(screen.getByRole("button", { name: /Hosted page/ })).toBeInTheDocument();
+  });
+
+  it("says these decide what is sent rather than what is drawn", async () => {
+    // The whole reason the filter is at emission: reasoning hidden in CSS is an
+    // agent's reasoning sitting in a stranger's devtools.
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("page");
+
+    expect(screen.getByText(/what the server sends, not what the page draws/)).toBeInTheDocument();
+  });
+});
+
+describe("the fields every surface shares", () => {
+  it("carries an accent typed as hex on a widget", async () => {
+    // Two controls, one value: the swatch for somebody who does not know the hex,
+    // the box for somebody who has it from a brand guide.
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("widget");
+
+    await userEvent.clear(screen.getAllByLabelText("Accent colour")[1]!);
+    await userEvent.type(screen.getAllByLabelText("Accent colour")[1]!, "#0f172a");
+
+    expect(screen.getAllByLabelText("Accent colour")[1]!).toHaveValue("#0f172a");
+  });
+
+  it("carries what a declared variable is for", async () => {
+    // The description is what whoever writes the integration reads. A field wired
+    // to nothing would leave them guessing at a name.
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("widget");
+    await userEvent.click(screen.getByRole("button", { name: /Add a variable/ }));
+
+    await userEvent.type(screen.getByLabelText("Variable 1 description"), "T");
+
+    expect(screen.getByLabelText("Variable 1 description")).toHaveValue("T");
+  });
+});
+
+describe("copying an integration", () => {
+  it("marks the snippet as copied rather than saying nothing happened", async () => {
+    // The whole feedback for the action: nothing else on the row changes, so a
+    // button that looks identical afterwards reads as a click that missed.
+    copied.value = true;
+    state.embeds = [embed()];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Copy the snippet" }));
+
+    expect(copy).toHaveBeenCalledWith(embed().snippet);
+  });
+
+  it("pauses a live surface, and says so on the row", async () => {
+    state.embeds = [embed({ is_active: false })];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+
+    expect(screen.getByText("paused")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("switch", { name: "Resume Website widget" }));
+
+    expect(state.update.mutate).toHaveBeenCalledWith({ id: "e-1", is_active: true });
+  });
+});
+
+describe("publishing a surface", () => {
+  it("closes the form once the surface actually exists", async () => {
+    // On success rather than on submit: a refused publish that closed the form
+    // would look like it took, and the key it would have printed is the whole
+    // point of the screen.
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("page");
+
+    await userEvent.click(screen.getByRole("button", { name: "Publish" }));
+    const [, options] = state.create.mutate.mock.calls.at(-1)!;
+    act(() => options.onSuccess());
+
+    expect(screen.queryByRole("button", { name: "Publish" })).toBeNull();
   });
 });

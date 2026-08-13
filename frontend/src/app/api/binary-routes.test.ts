@@ -13,6 +13,7 @@ import { POST as uploadFile } from "./files/upload/route";
 import { GET as readFile } from "./files/[id]/route";
 import { GET as callback } from "./me/mcp-connections/oauth/callback/route";
 import { GET as orgAvatar, POST as setOrgAvatar } from "./orgs/[id]/avatar/route";
+import { GET as hostedLogo } from "./embed/[publicKey]/logo/route";
 import { GET as userAvatar } from "./users/avatar/[userId]/route";
 import { POST as setOwnAvatar } from "./users/me/avatar/route";
 import { backendFetch } from "@/lib/server-api";
@@ -571,5 +572,98 @@ describe("finishing an MCP OAuth flow", () => {
     const response = await callback(callbackRequest("code=abc&state=xyz"));
 
     expect(redirected(response)).toMatchObject({ status: "error", reason: "AUTHORIZATION_FAILED" });
+  });
+});
+
+describe("a hosted page's logo", () => {
+  const KEY = "W-Buc9zD7bZOzro8FYEOmOpGrNxFGuN7";
+
+  function logo(key = KEY) {
+    return hostedLogo(request(`http://localhost:3000/api/embed/${key}/logo`, { signedIn: false }), {
+      params: Promise.resolve({ publicKey: key }),
+    });
+  }
+
+  it("serves the image from this origin rather than from the API", async () => {
+    // The whole reason the route exists. `img-src 'self' blob: data: https:`
+    // excludes an API on plain `http` - every development checkout, and any
+    // deployment that terminates TLS elsewhere - so a page pointing an `<img>` at
+    // the API rendered a broken glyph in its header and in every turn's gutter.
+    serve("PNGBYTES", { headers: { "content-type": "image/png" } });
+
+    const response = await logo();
+
+    expect(response.status).toBe(200);
+    await expect(response.text()).resolves.toBe("PNGBYTES");
+    expect(fetchMock.mock.calls[0]![0]).toBe(`http://localhost:8000/api/v1/embed/${KEY}/logo`);
+  });
+
+  it("needs no session, because the page it is on has none", async () => {
+    serve("PNGBYTES", { headers: { "content-type": "image/png" } });
+
+    await logo();
+
+    const headers = (fetchMock.mock.calls[0]![1] ?? {}) as { headers?: Record<string, string> };
+    expect(headers.headers?.cookie).toBeUndefined();
+  });
+
+  it.each(["text/html", "image/svg+xml", "application/xhtml+xml", ""])(
+    "refuses to pass on %s, because this origin is the one the page runs on",
+    async (type) => {
+      // The backend pins the type too, and this is the second half rather than a
+      // duplicate: whatever this route answers is served from the origin the hosted
+      // page runs on, under `script-src 'self' 'unsafe-inline'`. Echoing `text/html`
+      // there is a script on that origin, not a picture on the page - and the file
+      // behind it was accepted on a `Content-Type` some client declared, never on
+      // its bytes. An unnamed type included: a default of `image/png` over unknown
+      // bytes is a guess this route has no reason to make.
+      serve("<script>fetch('/api/v1/users/me')</script>", { headers: { "content-type": type } });
+
+      expect((await logo()).status).toBe(502);
+    },
+  );
+
+  it("pins the type it passes on and turns sniffing off", async () => {
+    serve("PNGBYTES", { headers: { "content-type": "image/png; charset=binary" } });
+
+    const response = await logo();
+
+    expect(response.headers.get("content-type")).toBe("image/png");
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+  });
+
+  it("lets a browser hold it briefly, because the Builder can change it", async () => {
+    serve("bytes", { headers: { "content-type": "image/png" } });
+
+    expect((await logo()).headers.get("cache-control")).toBe("public, max-age=300");
+  });
+
+  it("refuses a key outside the alphabet one is minted from, without a round trip", async () => {
+    // The segment is client-controlled and this route checks no cookie, so a
+    // malformed one must never reach the network - `%2F` decodes into the param and
+    // `fetch` then normalises `..`, which is how such a route became a way to read
+    // the backend's own endpoints.
+    serve("bytes");
+
+    const response = await logo("x%2F..%2F..%2Fopenapi.json");
+
+    expect(response.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("answers with nothing at all for a page that shows no logo", async () => {
+    serve(null, { status: 404 });
+
+    const response = await logo();
+
+    expect(response.status).toBe(404);
+    await expect(response.text()).resolves.toBe("");
+  });
+
+  it("answers 502 when the backend could not be reached", async () => {
+    fetchMock = vi.fn().mockRejectedValue(new Error("ECONNREFUSED"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    expect((await logo()).status).toBe(502);
   });
 });

@@ -16,9 +16,11 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic import ValidationError
 
 from app.core.exceptions import AuthenticationError, AuthorizationError, BadRequestError
 from app.db.models.organization import InvitationStatus, OrgRole
+from app.schemas.organization import InvitationCreate, InviteLinkCreate
 from app.services.invitation import InvitationService
 
 MODULE = "app.services.invitation"
@@ -119,6 +121,30 @@ class TestMinting:
         assert create.call_args.kwargs["email_domain"] == "acme.com"
 
 
+class TestRoleOffered:
+    """Both create schemas refuse a role an invitation may not grant (#551).
+
+    The service's only ceiling is on Admins, so an Owner's request reaches the
+    membership row unchecked - the schema is where "no owner links, no made-up
+    roles" holds for every requester.
+    """
+
+    @pytest.mark.parametrize("role", ["owner", "ceo"])
+    def test_a_link_offering_an_ungrantable_role_is_refused(self, role):
+        with pytest.raises(ValidationError):
+            InviteLinkCreate(role=role)
+
+    @pytest.mark.parametrize("role", ["owner", "ceo"])
+    def test_an_email_invitation_offering_an_ungrantable_role_is_refused(self, role):
+        with pytest.raises(ValidationError):
+            InvitationCreate(email="new@acme.com", role=role)
+
+    @pytest.mark.parametrize("role", ["admin", "member", "viewer"])
+    def test_a_grantable_role_passes_both_schemas(self, role):
+        assert InviteLinkCreate(role=role).role == role
+        assert InvitationCreate(email="new@acme.com", role=role).role == role
+
+
 class TestAccepting:
     async def _accept(self, invite, user):
         """Run one acceptance with every repository call stubbed.
@@ -206,7 +232,7 @@ class TestAccepting:
         invite = _link(expires_at=datetime.now(UTC) - timedelta(days=1))
         with (
             patch(f"{MODULE}.invitation_repo.get_by_token", new=AsyncMock(return_value=invite)),
-            patch(f"{MODULE}.invitation_repo.revoke", new=AsyncMock()),
+            patch(f"{MODULE}.invitation_repo.expire", new=AsyncMock()),
             pytest.raises(BadRequestError, match="expired"),
         ):
             await InvitationService(MagicMock()).accept("tok", uuid.uuid4())

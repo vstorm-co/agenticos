@@ -76,9 +76,10 @@ const AUTH_CHOICES: { value: DraftAuth; labelKey: string; hintKey: string }[] = 
   { value: "oauth", labelKey: "authOauth", hintKey: "authOauthHint" },
 ];
 
+/** Keys, like `AUTH_CHOICES` above: a module constant has no translator to reach. */
 const SCOPE_LABEL: Record<Scope, string> = {
-  organization: "Organization",
-  personal: "You",
+  organization: "scopeOrganization",
+  personal: "scopeYou",
 };
 
 /**
@@ -661,7 +662,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                         )}
                       >
                         <Icon className="h-3.5 w-3.5" />
-                        {SCOPE_LABEL[scope]}
+                        {t(SCOPE_LABEL[scope])}
                       </button>
                     );
                   })}
@@ -860,10 +861,10 @@ function ScopeChip({
             ? "border-destructive/40 bg-destructive/10 text-foreground"
             : "border-border text-muted-foreground",
       )}
-      title={`${SCOPE_LABEL[scope]}: ${t(MCP_STATE_LABEL[state])}`}
+      title={`${t(SCOPE_LABEL[scope])}: ${t(MCP_STATE_LABEL[state])}`}
     >
       <Icon className="h-3 w-3 shrink-0" aria-hidden />
-      {SCOPE_LABEL[scope]}
+      {t(SCOPE_LABEL[scope])}
       <span aria-hidden>·</span>
       {t(MCP_STATE_LABEL[state])}
     </span>
@@ -913,7 +914,7 @@ function ConnectionMenu({
   const t = useTranslations("mcp");
   const state = connectionState(connection);
   const busy = busyId === connection.id || busyId === row.key;
-  const owner = SCOPE_LABEL[scope];
+  const owner = t(SCOPE_LABEL[scope]);
   const Icon = scope === "organization" ? Building2 : User;
 
   return (

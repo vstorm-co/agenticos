@@ -178,7 +178,7 @@ class PyMuPDFParser(BaseDocumentParser):
     # routed them, and saying so here keeps `is_extension_allowed` honest.
     allowed = sorted(PYMUPDF_PDF_FORMATS)
 
-    def __init__(self, enable_ocr: bool = False, image_describer: Any = None):
+    def __init__(self, enable_ocr: bool = False, image_describer: BaseImageDescriber | None = None):
         self.enable_ocr = enable_ocr
         self._image_describer = image_describer
 
@@ -225,23 +225,22 @@ class PyMuPDFParser(BaseDocumentParser):
         except Exception:
             return ""
 
-    def _ocr_page(self, page: Any, image_describer: Any = None) -> str:
-        """OCR a scanned page by rendering it as image and sending to LLM vision."""
+    async def _ocr_page(self, page: Any, image_describer: BaseImageDescriber | None = None) -> str:
+        """OCR a scanned page by rendering it as an image and sending it to LLM vision.
+
+        Awaited on the caller's loop: a second loop via `run_until_complete`
+        raised `RuntimeError` inside an already-running loop, so every
+        scanned page OCR'd to `""` and the document indexed empty (#550).
+        """
         if not image_describer:
             return ""
         try:
             pix = page.get_pixmap(dpi=200)
             image_bytes = pix.tobytes("png")
-            loop = asyncio.new_event_loop()
-            try:
-                return str(
-                    loop.run_until_complete(image_describer.describe(image_bytes, "image/png"))
-                )
-            finally:
-                loop.close()
         except Exception as e:
-            logger.warning("LLM OCR failed for page %d: %s", page.number + 1, e)
+            logger.warning("Rendering page %d as an image for OCR failed: %s", page.number + 1, e)
             return ""
+        return await image_describer.describe(image_bytes, "image/png")
 
     def _extract_images(self, doc: Any, page: Any) -> list["DocumentImage"]:
         """Extract images from page for LLM description."""
@@ -267,7 +266,7 @@ class PyMuPDFParser(BaseDocumentParser):
                 logger.warning("Skipping an unreadable image on page %d", page.number + 1)
         return images
 
-    def _parse_pdf_file(self, filepath: Path) -> Document:
+    async def _parse_pdf_file(self, filepath: Path) -> Document:
         """Parse PDF with smart extraction pipeline."""
         doc: Any = pymupdf.open(filepath)  # type: ignore[no-untyped-call]
 
@@ -285,7 +284,7 @@ class PyMuPDFParser(BaseDocumentParser):
                 text = text + "\n\n" + tables_md if text.strip() else tables_md
 
             if self.enable_ocr and len(text.strip()) < self.MIN_TEXT_LENGTH:
-                ocr_text = self._ocr_page(page, self._image_describer)
+                ocr_text = await self._ocr_page(page, self._image_describer)
                 if len(ocr_text.strip()) > len(text.strip()):
                     text = ocr_text
                     logger.info("OCR fallback used for page %d", page.number + 1)
@@ -318,7 +317,7 @@ class PyMuPDFParser(BaseDocumentParser):
     async def parse(self, filepath: Path) -> Document:
         if not self.is_extension_allowed(filepath):
             raise ValueError(f"Extension {filepath.suffix} not supported by PyMuPDFParser")
-        return self._parse_pdf_file(filepath)
+        return await self._parse_pdf_file(filepath)
 
 
 class LlamaParseParser(BaseDocumentParser):

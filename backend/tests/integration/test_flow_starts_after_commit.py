@@ -15,13 +15,14 @@ visible to anyone but the request. Under `READ COMMITTED` that answer is a fact
 about the ordering, not a bet on timing. The third is the failure path: a
 request that raises dispatches nothing at all.
 
-What makes it deterministic in both directions is the wait in the route: after
-handing the work over, the route pauses for a moment for the flow to take its
-reading. `spawn` fills that pause - the task exists, so the loop runs it, and it
-reads an uncommitted database every time. `spawn_after_commit` leaves it empty:
-there is no task to run until the commit, so the wait times out, the route
-returns, the session commits, and only then does the flow read. One route, two
-handoffs, opposite answers.
+What makes it deterministic in both directions is what the route does after
+handing the work over: it awaits whatever tasks the handoff created, and nothing
+else. `spawn` creates one, so the flow takes its reading inside the request and
+finds an uncommitted database every time. `spawn_after_commit` creates none, so
+there is nothing to await, the route returns, the session commits, and only then
+does the flow read. One route, two handoffs, opposite answers - and neither of
+them a bet on the loop scheduling a task inside a fixed grace, which is what made
+this file flake under `make test`'s four workers and coverage (#680).
 """
 
 import asyncio
@@ -51,11 +52,9 @@ _DROP = "DROP TABLE IF EXISTS dispatch_ordering_probe"
 _INSERT = "INSERT INTO dispatch_ordering_probe (id) VALUES (:id)"
 _SELECT = "SELECT 1 FROM dispatch_ordering_probe WHERE id = :id"
 
-# How long the route holds after handing the work over, and how long the test
-# waits afterwards for a flow that has not run yet. The first is paid once by
-# the deferred case, where nothing fills it; the second is only ever reached by
-# a failure.
-_GRACE = 0.25
+# The only clock left in this file, and a passing run never spends it: every
+# wait below is on a task or an event that has already been created, so the
+# deadline is a guard against hanging rather than a window to fit inside.
 _PATIENCE = 5.0
 
 Handoff = Callable[[AsyncSession, Coroutine[Any, Any, None]], None]
@@ -94,6 +93,27 @@ def _spawn_now(session: AsyncSession, coro: Coroutine[Any, Any, None]) -> None:
 def _spawn_deferred(session: AsyncSession, coro: Coroutine[Any, Any, None]) -> None:
     """The handoff this file exists to pin."""
     spawn_after_commit(session, coro, name="probe-flow")
+
+
+@contextlib.asynccontextmanager
+async def _awaiting_whatever_it_starts() -> AsyncGenerator[None, None]:
+    """Let the tasks created inside the block run to completion before going on.
+
+    This is the ordering probe itself. Which tasks to wait for is settled by
+    diffing the loop's own set across the block rather than by taking the
+    handoff's word for it, so a `spawn_after_commit` that began spawning
+    immediately is waited for here and caught, instead of being agreed with.
+
+    It replaces a fixed 250ms grace, which was a bet that the loop would
+    schedule the task inside it. Under `make test` - four xdist workers and
+    coverage instrumentation on one machine - that bet loses often enough to
+    turn the ordering property red for reasons that are not the diff (#680).
+    """
+    before = asyncio.all_tasks()
+    yield
+    started = asyncio.all_tasks() - before
+    if started:
+        await asyncio.wait(started, timeout=_PATIENCE)
 
 
 async def _drive(app: FastAPI) -> int:
@@ -156,12 +176,10 @@ async def _dispatch(handoff: Handoff, engine: AsyncEngine) -> bool:
 
     async def dispatch(db: DBSession) -> Response:
         await db.execute(text(_INSERT), {"id": row_id})
-        handoff(db, flow())
         # Standing in for the several suspension points a real endpoint has
-        # left before its commit, and bounded so the correct handoff - which
-        # cannot fill it - does not hang here.
-        with contextlib.suppress(TimeoutError):
-            await asyncio.wait_for(read.wait(), _GRACE)
+        # left before its commit.
+        async with _awaiting_whatever_it_starts():
+            handoff(db, flow())
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     answered = await _drive(_application(dispatch))
@@ -217,9 +235,9 @@ async def test_a_request_that_fails_dispatches_nothing(probe_table: AsyncEngine,
         spawn_after_commit(db, flow(), name="probe-flow")
         raise NotFoundError(message="decided after the write", details={"row_id": row_id})
 
-    with caplog.at_level(logging.WARNING, logger="app.core.background"):
-        answered = await _drive(_application(dispatch))
-    await asyncio.sleep(_GRACE)
+    async with _awaiting_whatever_it_starts():
+        with caplog.at_level(logging.WARNING, logger="app.core.background"):
+            answered = await _drive(_application(dispatch))
 
     assert answered == status.HTTP_404_NOT_FOUND
     assert not started.is_set(), "a flow ran for a row the database threw away"

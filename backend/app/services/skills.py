@@ -20,7 +20,9 @@ from app.core import catalog
 from app.core.audit import record_audit
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
+from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill, SkillResource
+from app.db.updates import writable
 from app.repositories import resource_grant_repo, skill_repo
 from app.repositories.skill import SkillSort
 from app.schemas.skill import (
@@ -28,7 +30,9 @@ from app.schemas.skill import (
     LibrarySkillRead,
     SkillList,
     SkillResourceSummary,
+    SkillResourceUpdate,
     SkillSummary,
+    SkillUpdate,
 )
 from app.services import skill_library
 from app.services.access import SKILL, resolve_access, visible_resource_ids
@@ -332,6 +336,7 @@ class SkillService:
         description: str,
         content: str,
         category: str | None = None,
+        visibility: Visibility = Visibility.PRIVATE,
     ) -> Skill:
         """Create a skill.
 
@@ -357,6 +362,7 @@ class SkillService:
             description=description,
             content=content,
             category=category,
+            visibility=visibility.value,
         )
         await record_audit(
             self.db,
@@ -369,7 +375,7 @@ class SkillService:
         )
         return skill
 
-    async def update(self, ctx: AuthContext, skill_id: UUID, update_data: dict) -> Skill:
+    async def update(self, ctx: AuthContext, skill_id: UUID, data: SkillUpdate) -> Skill:
         """Edit a skill, bumping its version.
 
         The version is informational - agents bind to a skill, not a version, so
@@ -377,7 +383,7 @@ class SkillService:
         fix the policy once.
         """
         skill = await self.get(ctx, skill_id, perm=Perm.SKILLS_EDIT)
-        update_data = {**update_data, "version": skill.version + 1}
+        update_data = {**writable(data, over=Skill), "version": skill.version + 1}
         updated = await skill_repo.update(self.db, skill=skill, update_data=update_data)
         await record_audit(
             self.db,
@@ -393,12 +399,18 @@ class SkillService:
         )
         return updated
 
-    async def install_from_library(self, ctx: AuthContext, key: str) -> Skill:
+    async def install_from_library(
+        self, ctx: AuthContext, key: str, *, visibility: Visibility = Visibility.PRIVATE
+    ) -> Skill:
         """Copy a bundled skill into this organization, files and all.
 
         A copy, not a link. From this moment it is an ordinary skill the
         organization owns and can edit - which is the whole point of skills, and
         would be taken away by a live reference back to the shipped folder.
+
+        `visibility` is set at creation rather than by a follow-up edit: a
+        bundled skill the seed installs is for the whole organization, and one a
+        member installs is private by default like anything they wrote.
 
         Raises:
             NotFoundError: If no such skill ships with this deployment.
@@ -416,6 +428,7 @@ class SkillService:
             description=bundled.description,
             content=bundled.content,
             category=bundled.category,
+            visibility=visibility,
         )
         for resource in bundled.resources:
             await skill_repo.create_resource(
@@ -562,14 +575,14 @@ class SkillService:
         return resource
 
     async def update_resource(
-        self, ctx: AuthContext, skill_id: UUID, resource_id: UUID, update_data: dict
+        self, ctx: AuthContext, skill_id: UUID, resource_id: UUID, data: SkillResourceUpdate
     ) -> SkillResource:
         skill = await self.get(ctx, skill_id, perm=Perm.SKILLS_EDIT)
         resource = await skill_repo.get_resource(self.db, resource_id, skill_id=skill.id)
         if resource is None:
             raise NotFoundError(message="File not found", details={"resource_id": str(resource_id)})
         updated = await skill_repo.update_resource(
-            self.db, resource=resource, update_data=update_data
+            self.db, resource=resource, update_data=writable(data, over=SkillResource)
         )
         await self._bump_version(skill)
         await record_audit(
