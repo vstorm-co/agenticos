@@ -69,13 +69,15 @@ class TestThePublicRunApi:
         assert response.json()["error"]["code"] == "RATE_LIMIT_EXCEEDED"
 
     async def test_the_refusal_says_when_to_come_back(self, signed_in):
-        """A 429 with no interval is a client's excuse to retry immediately."""
+        """A 429 with no interval is a client's excuse to retry immediately - in
+        the Retry-After header a standard client reads, as well as the body."""
         rate_limit.configure(_redis(used=999))
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(f"/api/v1/agents/{uuid4()}/run", json={"prompt": "hello"})
 
         assert response.json()["error"]["details"]["retry_after_seconds"] == 60
+        assert response.headers["Retry-After"] == "60"
 
     async def test_the_allowance_is_counted_against_the_caller_not_their_address(self, signed_in):
         """An office behind one NAT is not one caller. Keyed on the address, the
@@ -122,6 +124,7 @@ class TestTheWidgetsAdmission:
             response = await client.get("/api/v1/embed/some-key/config")
 
         assert response.status_code == 429
+        assert response.headers["Retry-After"] == "60"
 
     async def test_the_hosted_page_is_counted_against_the_page_not_the_caller(
         self, mock_redis: MagicMock

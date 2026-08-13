@@ -53,6 +53,11 @@ WS_DENIED = 4003
 # gives up on a limit.
 WS_TOO_MANY = 4029
 
+# Every limit on this surface is per minute, so a refused caller may come back in
+# one. In the header rather than only a body field, because standard clients,
+# fetch wrappers and CDNs back off on Retry-After and not on a custom key.
+_RETRY_AFTER = {"Retry-After": "60"}
+
 
 @router.get("/{public_key}/config", response_model=PublicEmbedConfig)
 async def embed_config(
@@ -69,7 +74,7 @@ async def embed_config(
     and, more to the point, would make the allow-list decorative.
     """
     if not await rate_limit.embed_admission_allowed(request):
-        raise HTTPException(status_code=429, detail="Too many requests")
+        raise HTTPException(status_code=429, detail="Too many requests", headers=_RETRY_AFTER)
 
     try:
         admission = await service.admit(public_key, origin=origin, token=None)
@@ -106,7 +111,7 @@ async def hosted_config(public_key: str, service: EmbedSvc) -> Any:
     `rate_limit.hosted_admission_allowed`.
     """
     if not await rate_limit.hosted_admission_allowed(public_key):
-        raise HTTPException(status_code=429, detail="Too many requests")
+        raise HTTPException(status_code=429, detail="Too many requests", headers=_RETRY_AFTER)
 
     embed = await service.find_page(public_key)
     if embed is None:
@@ -132,7 +137,7 @@ async def hosted_logo(public_key: str, service: EmbedSvc, request: Request) -> A
     carries a gate at all rather than being left as the cheap read the others are.
     """
     if not await rate_limit.hosted_logo_allowed(public_key):
-        raise HTTPException(status_code=429, detail="Too many requests")
+        raise HTTPException(status_code=429, detail="Too many requests", headers=_RETRY_AFTER)
 
     path = await service.page_logo_path(public_key)
     if path is None:
@@ -155,7 +160,7 @@ async def embed_widget(public_key: str, db: DBSession, request: Request) -> Resp
     is a browser's courtesy rather than a ceiling anybody has to respect.
     """
     if not await rate_limit.embed_admission_allowed(request):
-        raise HTTPException(status_code=429, detail="Too many requests")
+        raise HTTPException(status_code=429, detail="Too many requests", headers=_RETRY_AFTER)
 
     service = AgentEmbedService(db)
     embed = await service.find_public(public_key)
@@ -219,7 +224,9 @@ async def embed_upload(
     if key is None:
         raise HTTPException(status_code=400, detail="A visitor key is required")
     if not await rate_limit.embed_upload_allowed(request, public_key=public_key, visitor=key):
-        raise HTTPException(status_code=429, detail="Too many uploads. Try again shortly.")
+        raise HTTPException(
+            status_code=429, detail="Too many uploads. Try again shortly.", headers=_RETRY_AFTER
+        )
 
     embed = await service.find_page(public_key)
     if embed is None:
