@@ -17,6 +17,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.129] - 2026-08-13
+
+An MCP OAuth failure put the token endpoint, and whatever its query string held,
+into a toast in the browser.
+
+### Fixed
+
+- **Three refusals in the MCP OAuth flow interpolated whatever raised.** `httpx`
+  puts the failing request in its message, and the two requests this flow makes
+  are a client registration and a token grant — so a broken provider reached the
+  member's screen as the endpoint it failed on, rendered as a toast since #657 via
+  `McpOAuthCallbackResult(ok=False, error=str(exc))`. Each refusal now names the
+  stage it failed at and what the reader can do about it; the client's own text
+  stays in the `logger.exception` beside the raise. (#686)
+
 ## [0.0.128] - 2026-08-13
 
 A test that proved `spawn_after_commit` was needed proved it on a 250ms
