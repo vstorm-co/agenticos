@@ -199,7 +199,10 @@ async def persist_user_turn(
     caller closes that gap once the run row is open.
 
     Raises:
-        BadRequestError: If `requested_conversation_id` is not a UUID.
+        BadRequestError: If `requested_conversation_id` is not a UUID, or a
+            file in `file_ids` is already attached to a message.
+        NotFoundError: If a file in `file_ids` is not the caller's own -
+            another user's id answers like one that does not exist (#706).
         AuthorizationError: If the requested conversation is not this
             organization's. A database failure is logged and swallowed - a lost
             message must not abort a turn - but a refusal must abort, and a
@@ -250,7 +253,12 @@ async def persist_user_turn(
             message_id = user_msg.id
             if file_ids:
                 try:
-                    await conv_service.link_files_to_message(user_msg.id, file_ids)
+                    await conv_service.link_files_to_message(user_msg.id, file_ids, user_id=user.id)
+                except AppException:
+                    # A refusal - an id that is not the caller's own unlinked
+                    # upload - must abort the turn, not read as a transient
+                    # persistence failure (#706).
+                    raise
                 except Exception as e:
                     logger.warning("Failed to link files: %s", e)
     except AppException:

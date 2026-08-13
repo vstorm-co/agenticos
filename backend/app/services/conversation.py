@@ -601,12 +601,39 @@ class ConversationService:
             success=data.success,
         )
 
-    async def link_files_to_message(self, message_id: UUID, file_ids: list[str]) -> None:
+    async def link_files_to_message(
+        self, message_id: UUID, file_ids: list[str], *, user_id: UUID
+    ) -> None:
+        """Attach `user_id`'s own unlinked files to a message, refusing anything else.
+
+        The ids come off a socket payload, so each must resolve to the caller's
+        own *unlinked* row: a foreign id would render another user's filename in
+        this conversation and silently pull the file off the message it already
+        hangs on (#706). Refused, never narrowed - a turn that quietly dropped an
+        attachment would read as an agent ignoring the file it was asked about.
+        A file that is not the caller's answers exactly like one that does not
+        exist, so an id cannot be probed for whether it is taken.
+        """
+        ids = [UUID(fid) for fid in file_ids]
+        if not ids:
+            return
+        rows = await chat_file_repo.get_many(self.db, ids, user_id=user_id)
+        found = {row.id for row in rows}
+        missing = sorted(fid for fid in set(ids) if fid not in found)
+        if missing:
+            raise NotFoundError(message="File not found", details={"file_ids": missing})
+        taken = sorted(row.id for row in rows if row.message_id is not None)
+        if taken:
+            raise BadRequestError(
+                message="File is already attached to a message",
+                details={"file_ids": taken},
+            )
         await chat_file_repo.link_to_message(
-            self.db,
-            message_id=message_id,
-            file_ids=[UUID(fid) for fid in file_ids],
+            self.db, message_id=message_id, file_ids=ids, user_id=user_id
         )
 
-    async def list_attached_files(self, file_ids: list[str]) -> list[Any]:
-        return await chat_file_repo.get_many(self.db, [UUID(fid) for fid in file_ids])
+    async def list_attached_files(self, file_ids: list[str], *, user_id: UUID) -> list[Any]:
+        """The caller's rows behind the ids a client sent; anybody else's resolve to nothing (#706)."""
+        return await chat_file_repo.get_many(
+            self.db, [UUID(fid) for fid in file_ids], user_id=user_id
+        )

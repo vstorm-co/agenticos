@@ -1191,7 +1191,12 @@ class TestConversationServiceToolCalls:
 
 
 class TestConversationServiceLinkFiles:
-    """Tests for link_files_to_message."""
+    """A message may take only the caller's own unlinked files (#706).
+
+    The ids arrive off a socket payload, so before this rule a turn naming
+    another user's file id rendered their filename in its own conversation and
+    silently pulled the file off the message it already hung on.
+    """
 
     @pytest.fixture
     def mock_db(self) -> AsyncMock:
@@ -1204,27 +1209,72 @@ class TestConversationServiceLinkFiles:
         return ConversationService(mock_db)
 
     @pytest.mark.anyio
-    async def test_link_files_empty_list_returns_early(self, service: ConversationService):
-        """link_files_to_message returns immediately for empty file list."""
-        await service.link_files_to_message(uuid4(), [])
+    async def test_link_files_empty_list_links_nothing(self, service: ConversationService):
+        """link_files_to_message issues no UPDATE for an empty file list."""
+        with patch("app.services.conversation.chat_file_repo") as repo:
+            repo.get_many = AsyncMock(return_value=[])
+            repo.link_to_message = AsyncMock()
 
-        # Should not call db.execute for empty list
-        service.db.execute.assert_not_called()
+            await service.link_files_to_message(uuid4(), [], user_id=uuid4())
+
+        repo.link_to_message.assert_not_awaited()
 
     @pytest.mark.anyio
-    async def test_link_files_calls_db(self, service: ConversationService):
-        """link_files_to_message executes update and flushes."""
+    async def test_the_callers_own_unlinked_files_are_linked_as_the_caller(
+        self, service: ConversationService
+    ):
+        """The owner rides into the repository, where the UPDATE's WHERE carries it."""
         msg_id = uuid4()
-        file_ids = [str(uuid4()), str(uuid4())]
+        user_id = uuid4()
+        ids = [uuid4(), uuid4()]
 
-        with (
-            patch("app.db.models.chat_file.ChatFile") as mock_chat_file,
-            patch("sqlalchemy.update") as mock_sa_update,
-        ):
-            mock_chat_file.id.in_ = MagicMock()
-            mock_sa_update.return_value.where.return_value.values.return_value = "stmt"
+        with patch("app.services.conversation.chat_file_repo") as repo:
+            repo.get_many = AsyncMock(
+                return_value=[MagicMock(id=fid, message_id=None) for fid in ids]
+            )
+            repo.link_to_message = AsyncMock()
 
-            await service.link_files_to_message(msg_id, file_ids)
+            await service.link_files_to_message(msg_id, [str(fid) for fid in ids], user_id=user_id)
 
-            service.db.execute.assert_called_once()
-            service.db.flush.assert_called_once()
+        linked = repo.link_to_message.await_args.kwargs
+        assert (linked["message_id"], linked["file_ids"], linked["user_id"]) == (
+            msg_id,
+            ids,
+            user_id,
+        )
+
+    @pytest.mark.anyio
+    async def test_a_file_that_is_not_the_callers_is_refused_as_missing(
+        self, service: ConversationService
+    ):
+        """Missing, not forbidden: "not yours" would confirm the id exists. And
+        refused before the UPDATE, so nothing is silently narrowed."""
+        theirs = uuid4()
+
+        with patch("app.services.conversation.chat_file_repo") as repo:
+            repo.get_many = AsyncMock(return_value=[])
+            repo.link_to_message = AsyncMock()
+
+            with pytest.raises(NotFoundError) as refusal:
+                await service.link_files_to_message(uuid4(), [str(theirs)], user_id=uuid4())
+
+        assert refusal.value.details == {"file_ids": [theirs]}
+        repo.link_to_message.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_file_already_on_a_message_is_refused_not_moved(
+        self, service: ConversationService
+    ):
+        """Re-linking is refused outright: the silent move is how a victim's own
+        transcript lost its attachment, and no legitimate caller re-links."""
+        spent = uuid4()
+
+        with patch("app.services.conversation.chat_file_repo") as repo:
+            repo.get_many = AsyncMock(return_value=[MagicMock(id=spent, message_id=uuid4())])
+            repo.link_to_message = AsyncMock()
+
+            with pytest.raises(BadRequestError) as refusal:
+                await service.link_files_to_message(uuid4(), [str(spent)], user_id=uuid4())
+
+        assert refusal.value.details == {"file_ids": [spent]}
+        repo.link_to_message.assert_not_awaited()
