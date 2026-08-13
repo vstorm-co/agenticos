@@ -17,6 +17,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.146] - 2026-08-13
+
+A thread nobody owned was everybody's to delete.
+
+### Security
+
+- **An unowned room thread is writable only by its participants.** A channel
+  thread's owner is its first *linked* speaker, so a room where nobody linked
+  an account had no owner — and the write check answered yes to any member of
+  the organization: renaming it, archiving it, deleting the transcript, or
+  appending a `role: "assistant"` turn the model reads back as its own words,
+  including for threads their own list never showed them. The write now stops
+  at the same membership-confirmed participation the read admits; an owned
+  thread still refuses its participants the write. (#701)
+
 ## [0.0.145] - 2026-08-13
 
 A webhook bot's files had no server to be fetched from.
