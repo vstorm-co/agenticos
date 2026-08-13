@@ -21,6 +21,11 @@ regression, and the quietest to ship.
 *Silence where the platform did not say.* Slack and Telegram deliver on their own
 subscription rules, so reading "no mention data" as "ignore" would take a working
 bot on either of them off the air.
+
+And the rule belongs to the *bot*, not to one way of reaching it: Mattermost's
+outgoing webhook hands over a watched channel's posts the same way the socket
+does, and answered all of them for as long as it said nothing about who they
+named (#662).
 """
 
 from __future__ import annotations
@@ -165,3 +170,56 @@ class TestReadingMattermostsOwnMentionList:
 
         assert adapter._addressed({"mentions": "not json"}, "bot-1") is False
         assert adapter._addressed({"mentions": json.dumps({"id": "bot-user"})}, "bot-1") is False
+
+
+class TestTheOutgoingWebhookTransportObeysTheSameRule:
+    """The rule was the socket's alone, so the other half of the same adapter
+    answered everything it was handed (#662). An outgoing-webhook body carries no
+    mention list, so what stands in for one is `trigger_word`: the word an operator
+    told *this integration* to fire on. Empty means the webhook fired on its
+    channel filter, which delivers every post exactly as the socket does.
+    """
+
+    @staticmethod
+    def _delivered(**payload: str) -> IncomingMessage:
+        body = {
+            "token": "t",
+            "user_id": "u1",
+            "user_name": "kacper",
+            "channel_id": "c1",
+            "channel_name": "town-square",
+            "post_id": "p1",
+            "text": "standup at 10 then",
+            **payload,
+        }
+        incoming = MattermostAdapter().parse_incoming(body, "bot-1")
+        assert incoming is not None
+        return incoming
+
+    def test_a_channel_post_that_fired_no_trigger_word_is_overheard(self) -> None:
+        """The defect: Mattermost hands over every post in a watched channel and
+        the bot answered each one, having said nothing about whether it was named."""
+        delivered = self._delivered()
+
+        assert delivered.addressed is False
+        assert ChannelMessageRouter._is_overheard(delivered) is True
+
+    def test_a_trigger_word_is_mattermosts_own_record_that_the_post_was_for_us(self) -> None:
+        delivered = self._delivered(trigger_word="@ops", text="@ops standup at 10 then")
+
+        assert delivered.addressed is True
+        assert ChannelMessageRouter._is_overheard(delivered) is False
+
+    def test_an_agent_handle_reaches_the_bot_without_one(self) -> None:
+        """A slug is a name in this product, not a trigger word somebody had to
+        configure, so it is read out of the text on either transport."""
+        delivered = self._delivered(text="@sales what is the refund window")
+
+        assert delivered.addressed is False
+        assert ChannelMessageRouter._is_overheard(delivered) is False
+
+    def test_a_direct_message_is_answered_without_one(self) -> None:
+        """There is nobody else in the room, and no trigger word to type."""
+        delivered = self._delivered(channel_name="u1__u2")
+
+        assert ChannelMessageRouter._is_overheard(delivered) is False
