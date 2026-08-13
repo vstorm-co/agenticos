@@ -17,6 +17,27 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.124] - 2026-08-13
+
+A Mattermost bot reached through an outgoing webhook answered every post in a
+channel it was merely invited to.
+
+### Fixed
+
+- **The outgoing-webhook path left `addressed` unset**, and the router reads unset
+  as "the platform did not say" and answers. So the transport put the bot back in
+  the position the event stream's rule took it out of: replying to colleagues
+  talking to each other. The body carries no mention list — Mattermost sends the
+  post, not who it notified — so what is read instead is `trigger_word`, the
+  platform's own record that the post was for this integration. Empty means the
+  webhook fired on its channel filter alone, which delivers every post exactly as
+  the socket does, so it is `False` for the same reason a `posted` event with no
+  mentions is. Worth knowing before choosing this transport: `@the-bot` is not
+  readable here, because nothing in the body says which account the bot is — set
+  the trigger word to the bot's handle if that is how people should reach it. An
+  `@agent-slug` needs nothing, since the router reads a slug out of the text.
+  (#662)
+
 ## [0.0.123] - 2026-08-13
 
 The embed session — one visitor's turn on a public URL — was the last surface
