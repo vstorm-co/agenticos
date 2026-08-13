@@ -23,7 +23,7 @@ import { getErrorMessage } from "@/lib/api-error";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { DataTable, type Column } from "@/components/ui";
+import { DataTable, PaginationBar, type Column } from "@/components/ui";
 import {
   Select,
   SelectContent,
@@ -94,7 +94,6 @@ export default function AdminRatingsPage() {
     window.open(`/api/admin/ratings/export?${params}`, "_blank");
   };
 
-  const totalPages = ratings ? Math.ceil(ratings.total / PAGE_SIZE) : 0;
   const approvalRate =
     summary && summary.total_ratings > 0
       ? Math.round((summary.like_count / summary.total_ratings) * 100)
@@ -318,31 +317,13 @@ export default function AdminRatingsPage() {
         }
       />
 
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <span className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
-            {t("pageOfTotal", { page: page + 1, totalPages, total: ratings?.total ?? 0 })}
-          </span>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page === 0}
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-            >
-              {t("previous")}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= totalPages - 1}
-              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-            >
-              {t("next")}
-            </Button>
-          </div>
-        </div>
-      )}
+      <PaginationBar
+        page={page}
+        pageSize={PAGE_SIZE}
+        total={ratings?.total ?? 0}
+        isLoading={ratingsPending}
+        onPage={setPage}
+      />
     </div>
   );
 }

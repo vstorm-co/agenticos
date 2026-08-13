@@ -7,7 +7,7 @@ import { Activity, ThumbsDown } from "lucide-react";
 
 import { getErrorMessage } from "@/lib/api-error";
 import { FocusedRun } from "@/components/runs/focused-run";
-import { RunTable, type RunSort, type RunSortKey } from "@/components/runs/run-table";
+import { RunTable, type RunSort } from "@/components/runs/run-table";
 import { VersionStrip } from "@/components/runs/version-strip";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
@@ -83,13 +83,6 @@ export function RunHistoryTab({
     tookOverMs: minDurationMs ?? undefined,
     rated: ratedDown ? "down" : undefined,
   });
-
-  const toggleSort = (key: RunSortKey) =>
-    setSort((current) =>
-      current.by === key
-        ? { by: key, dir: current.dir === "asc" ? "desc" : "asc" }
-        : { by: key, dir: "desc" },
-    );
 
   const showSlow = () => {
     setSort({ by: "duration", dir: "desc" });
@@ -206,7 +199,7 @@ export function RunHistoryTab({
                   />
                 )
               ) : (
-                <RunTable runs={runs} sort={sort} onSort={toggleSort} />
+                <RunTable runs={runs} sort={sort} onSort={setSort} />
               )}
             </div>
           )}

@@ -68,16 +68,6 @@ export {
   DropdownMenuRadioGroup,
 } from "./dropdown-menu";
 export { Popover, PopoverTrigger, PopoverContent, PopoverAnchor } from "./popover";
-export {
-  Table,
-  TableHeader,
-  TableBody,
-  TableFooter,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableCaption,
-} from "./table";
 export { Checkbox } from "./checkbox";
 export { Spinner } from "./spinner";
 export { QuestionPrompt } from "./question-prompt";

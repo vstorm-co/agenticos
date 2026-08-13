@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { AlertTriangle, Activity } from "lucide-react";
 
 import {
@@ -11,14 +11,10 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  DataTable,
   Skeleton,
   Switch,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  type Column,
 } from "@/components/ui";
 import { useSandboxEvents, useSandboxSessions } from "@/hooks";
 import type { SandboxConnectionRecord, SandboxSession } from "@/lib/sandbox-connections-api";
@@ -72,6 +68,65 @@ export function SessionsPanel({ connection }: SessionsPanelProps) {
   const [watching, setWatching] = useState<string | null>(null);
   const { listing, isLoading, error } = useSandboxSessions(connection?.id ?? null, usage);
 
+  const columns = useMemo<Column<SandboxSession>[]>(
+    () => [
+      {
+        key: "session",
+        header: t("session"),
+        cell: (session) => <span className="font-mono text-xs">{session.session_id}</span>,
+      },
+      {
+        key: "runtime",
+        header: t("runtime"),
+        cell: (session) => <span className="text-muted-foreground text-xs">{session.runtime}</span>,
+      },
+      {
+        key: "sharedBy",
+        header: t("sharedBy"),
+        cell: (session) => (
+          <span className="text-muted-foreground text-xs">{belongsTo(session)}</span>
+        ),
+      },
+      {
+        key: "state",
+        header: t("state"),
+        cell: (session) => (
+          // Hibernated is not dead: the sandbox was stopped to free
+          // a slot and its files and log are still there.
+          <Badge variant={session.alive ? "secondary" : "outline"}>{session.state}</Badge>
+        ),
+      },
+      {
+        key: "idle",
+        header: t("idle"),
+        cell: (session) => (
+          <span className="text-muted-foreground text-xs">{idle(session.idle_seconds)}</span>
+        ),
+      },
+      {
+        key: "memory",
+        header: t("memory"),
+        cell: (session) => <span className="text-muted-foreground text-xs">{memory(session)}</span>,
+      },
+      {
+        key: "activity",
+        header: t("activity"),
+        align: "right",
+        cell: (session) => (
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label={t("activityOf", { id: session.session_id })}
+            onClick={() => setWatching(watching === session.session_id ? null : session.session_id)}
+          >
+            {watching === session.session_id ? t("hide2") : t("show")}
+          </Button>
+        ),
+      },
+    ],
+    [t, watching],
+  );
+
   if (connection === null) return null;
 
   const sessions = listing?.sessions ?? [];
@@ -96,74 +151,22 @@ export function SessionsPanel({ connection }: SessionsPanelProps) {
         </label>
       </CardHeader>
       <CardContent className="space-y-3 p-5">
-        {isLoading && <Skeleton className="h-20 w-full" />}
-
-        {error !== null && (
-          <div className="text-destructive flex items-start gap-2 text-sm">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-            <p>{error}</p>
-          </div>
-        )}
-
-        {error === null && !isLoading && sessions.length === 0 && (
-          <p className="text-muted-foreground text-sm">{t("nothingRunningSandboxOpens")}</p>
-        )}
-
-        {sessions.length > 0 && (
-          <div className="overflow-x-auto px-5 pb-2">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("session")}</TableHead>
-                  <TableHead>{t("runtime")}</TableHead>
-                  <TableHead>{t("sharedBy")}</TableHead>
-                  <TableHead>{t("state")}</TableHead>
-                  <TableHead>{t("idle")}</TableHead>
-                  <TableHead>{t("memory")}</TableHead>
-                  <TableHead className="text-right">{t("activity")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sessions.map((session) => (
-                  <TableRow key={session.session_id}>
-                    <TableCell className="font-mono text-xs">{session.session_id}</TableCell>
-                    <TableCell className="text-muted-foreground text-xs">
-                      {session.runtime}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-xs">
-                      {belongsTo(session)}
-                    </TableCell>
-                    <TableCell>
-                      {/* Hibernated is not dead: the sandbox was stopped to free
-                          a slot and its files and log are still there. */}
-                      <Badge variant={session.alive ? "secondary" : "outline"}>
-                        {session.state}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-xs">
-                      {idle(session.idle_seconds)}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-xs">
-                      {memory(session)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        aria-label={t("activityOf", { id: session.session_id })}
-                        onClick={() =>
-                          setWatching(watching === session.session_id ? null : session.session_id)
-                        }
-                      >
-                        {watching === session.session_id ? t("hide2") : t("show")}
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
+        <DataTable<SandboxSession>
+          columns={columns}
+          rows={sessions}
+          getRowKey={(session) => session.session_id}
+          loading={isLoading}
+          error={
+            error === null ? undefined : (
+              <span className="inline-flex items-start gap-2 text-left">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                {error}
+              </span>
+            )
+          }
+          empty={t("nothingRunningSandboxOpens")}
+          className="rounded-none border-0 bg-transparent"
+        />
 
         {watching !== null && <ActivityLog connectionId={connection.id} sessionId={watching} />}
       </CardContent>

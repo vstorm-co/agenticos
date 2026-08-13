@@ -227,12 +227,13 @@ describe("WorkspaceBrowser", () => {
     expect(screen.getByText("403 Forbidden")).toBeVisible();
   });
 
-  it("draws a placeholder while the list loads", () => {
+  it("claims neither emptiness nor failure while the list loads", () => {
     state.workspaces = [];
     state.listLoading = true;
     render(<WorkspaceBrowser />);
 
-    expect(document.querySelector(".h-10")).not.toBeNull();
+    expect(screen.queryByText(/No agent is keeping files yet/)).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("opens a workspace as its own page rather than a panel under the table", () => {

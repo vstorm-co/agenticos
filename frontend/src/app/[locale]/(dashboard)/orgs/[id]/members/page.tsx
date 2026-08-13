@@ -150,6 +150,8 @@ export default function OrgMembersPage({ params }: PageProps) {
       {
         key: "member",
         header: t("member"),
+        sortable: true,
+        sortValue: (m) => (m.full_name || m.email).toLowerCase(),
         cell: (m) => {
           const isSelf = m.user_id === user?.id;
           return (
@@ -173,6 +175,8 @@ export default function OrgMembersPage({ params }: PageProps) {
       {
         key: "role",
         header: t("role2"),
+        sortable: true,
+        sortValue: (m) => m.role,
         cell: (m) => {
           const isSelf = m.user_id === user?.id;
           const isOwner = m.role === "owner";
@@ -205,6 +209,8 @@ export default function OrgMembersPage({ params }: PageProps) {
       {
         key: "joined",
         header: t("joined"),
+        sortable: true,
+        sortValue: (m) => m.joined_at,
         cell: (m) => (
           <span className="text-muted-foreground text-sm">{formatDate(m.joined_at, locale)}</span>
         ),

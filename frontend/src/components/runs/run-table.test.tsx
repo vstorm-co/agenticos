@@ -115,25 +115,31 @@ describe("a sortable run table", () => {
     expect(screen.queryByRole("button")).toBeNull();
   });
 
-  it("sorts by duration when the Took header is used", async () => {
+  it("sorts by duration when the Took header is used, slowest first", async () => {
     const onSort = vi.fn();
-    // Sorted by start time, so the Took header is the inactive one - it reads
-    // "sort by", where the active Started header reads "sorted descending".
     render(<RunTable runs={[run()]} sort={{ by: "started_at", dir: "desc" }} onSort={onSort} />);
 
-    await userEvent.click(screen.getByRole("button", { name: /sort by/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Took" }));
 
-    expect(onSort).toHaveBeenCalledWith("duration");
+    expect(onSort).toHaveBeenCalledWith({ by: "duration", dir: "desc" });
   });
 
   it("sorts by start time when the Started header is used", async () => {
     const onSort = vi.fn();
     render(<RunTable runs={[run()]} sort={{ by: "duration", dir: "desc" }} onSort={onSort} />);
 
-    // The Started header is the one not currently active, so it reads "sort by".
-    await userEvent.click(screen.getByRole("button", { name: /sort by/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Started" }));
 
-    expect(onSort).toHaveBeenCalledWith("started_at");
+    expect(onSort).toHaveBeenCalledWith({ by: "started_at", dir: "desc" });
+  });
+
+  it("flips the direction when the sorted header is pressed again", async () => {
+    const onSort = vi.fn();
+    render(<RunTable runs={[run()]} sort={{ by: "duration", dir: "desc" }} onSort={onSort} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Took" }));
+
+    expect(onSort).toHaveBeenCalledWith({ by: "duration", dir: "asc" });
   });
 
   it("marks a run somebody rated down, and says nothing on one nobody did", () => {

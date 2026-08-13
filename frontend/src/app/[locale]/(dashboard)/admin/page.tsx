@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
@@ -17,7 +18,7 @@ import type { LucideIcon } from "lucide-react";
 
 import { StatCard } from "@/components/dashboard/stat-card";
 import { LoadingState } from "@/components/states";
-import { Badge } from "@/components/ui";
+import { Badge, DataTable, type Column } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
 import { qk } from "@/lib/query-keys";
@@ -96,6 +97,61 @@ export default function AdminOverviewPage() {
   const events = eventsQuery.data;
   const orgs = orgsQuery.data;
 
+  const orgColumns = useMemo<Column<AdminOrganization>[]>(
+    () => [
+      {
+        key: "name",
+        header: t("name"),
+        sortable: true,
+        sortValue: (org) => org.name.toLowerCase(),
+        cell: (org) => (
+          <>
+            <span className="text-foreground font-medium">{org.name}</span>
+            {org.is_personal && (
+              <Badge variant="outline" className="ml-2 text-[10px]">
+                {t("personal")}
+              </Badge>
+            )}
+          </>
+        ),
+      },
+      {
+        key: "slug",
+        header: t("slug"),
+        cell: (org) => <span className="text-muted-foreground font-mono text-xs">{org.slug}</span>,
+      },
+      {
+        key: "members",
+        header: t("members"),
+        align: "right",
+        sortable: true,
+        sortValue: (org) => org.member_count,
+        cell: (org) => <span className="tabular-nums">{org.member_count}</span>,
+      },
+      {
+        key: "agents",
+        header: t("agents2"),
+        align: "right",
+        sortable: true,
+        sortValue: (org) => org.agent_count,
+        cell: (org) => <span className="tabular-nums">{org.agent_count}</span>,
+      },
+      {
+        key: "created",
+        header: t("created"),
+        align: "right",
+        sortable: true,
+        sortValue: (org) => org.created_at,
+        cell: (org) => (
+          <span className="text-muted-foreground text-xs">
+            {formatDate(org.created_at, locale)}
+          </span>
+        ),
+      },
+    ],
+    [t, locale],
+  );
+
   return (
     <div className="space-y-6">
       {statsQuery.isLoading ? (
@@ -167,51 +223,15 @@ export default function AdminOverviewPage() {
           <h2 className="text-foreground text-sm font-semibold">{t("organizations2")}</h2>
           <p className="text-muted-foreground text-xs">{t("everyTenantDeploymentOnly")}</p>
         </div>
-        {orgs === undefined ? (
-          <div className="p-5">
-            <LoadingState variant="skeleton-list" rows={4} />
-          </div>
-        ) : orgs.length === 0 ? (
-          <div className="text-muted-foreground px-5 py-12 text-center text-sm">
-            {t("noOrganizationsYet")}
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[36rem] text-sm">
-              <thead>
-                <tr className="border-border text-muted-foreground border-b text-left text-xs">
-                  <th className="px-5 py-2.5 font-medium">{t("name")}</th>
-                  <th className="px-3 py-2.5 font-medium">{t("slug")}</th>
-                  <th className="px-3 py-2.5 text-right font-medium">{t("members")}</th>
-                  <th className="px-3 py-2.5 text-right font-medium">{t("agents2")}</th>
-                  <th className="px-5 py-2.5 text-right font-medium">{t("created")}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-border divide-y">
-                {orgs.map((org) => (
-                  <tr key={org.id}>
-                    <td className="px-5 py-3">
-                      <span className="text-foreground font-medium">{org.name}</span>
-                      {org.is_personal && (
-                        <Badge variant="outline" className="ml-2 text-[10px]">
-                          {t("personal")}
-                        </Badge>
-                      )}
-                    </td>
-                    <td className="text-muted-foreground px-3 py-3 font-mono text-xs">
-                      {org.slug}
-                    </td>
-                    <td className="px-3 py-3 text-right tabular-nums">{org.member_count}</td>
-                    <td className="px-3 py-3 text-right tabular-nums">{org.agent_count}</td>
-                    <td className="text-muted-foreground px-5 py-3 text-right text-xs">
-                      {formatDate(org.created_at, locale)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <DataTable<AdminOrganization>
+          columns={orgColumns}
+          rows={orgs}
+          getRowKey={(org) => org.id}
+          loading={orgs === undefined}
+          skeletonRows={4}
+          empty={t("noOrganizationsYet")}
+          className="rounded-none border-0 bg-transparent [&_table]:min-w-[36rem]"
+        />
       </section>
 
       <section className="border-border bg-card rounded-xl border">
