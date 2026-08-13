@@ -42,6 +42,29 @@ logger = logging.getLogger(__name__)
 _PICK_AN_AGENT = "Pick an agent to chat with. If none is listed, publish one in the Builder first."
 
 
+def _turn_failed(exc: Exception) -> str:
+    """What a crashed turn is allowed to tell the client.
+
+    The `error` frame used to carry `str(exc)` of whatever came out of the run.
+    A provider SDK puts the failing request in its message, so that routinely
+    means an endpoint, an internal host, or a URL with a key still in its query
+    string - the leak #342 fixed in an HTTP body, reaching a member's chat panel
+    and their browser console instead (#659).
+
+    So the exception's own text stays in the `logger.exception` beside the send
+    and goes no further, and the frame names only what the reader can act on.
+    The class still goes out: it separates an upstream that timed out from one
+    that refused a credential, and a class name has never carried a URL. Our own
+    refusals do not come here at all - an `AppException` and a `BudgetExceeded`
+    are caught above and passed through whole, because their messages are
+    written in this repository.
+    """
+    return (
+        f"The agent could not finish this turn ({type(exc).__name__}). "
+        "Try again; the server log has the full error."
+    )
+
+
 class AgentSession:
     """One WebSocket session with the AI agent."""
 
@@ -339,9 +362,9 @@ class AgentSession:
             # place.
             logger.info("Agent turn refused: %s", exc)
             await send_event(self.websocket, "error", {"message": str(exc)})
-        except Exception as e:
+        except Exception as exc:
             logger.exception("Error processing agent request")
-            await send_event(self.websocket, "error", {"message": str(e)})
+            await send_event(self.websocket, "error", {"message": _turn_failed(exc)})
         finally:
             if not answered:
                 await self._persist_partial_turn(
