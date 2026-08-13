@@ -338,12 +338,14 @@ in either of them is marked by a count that never looked at the row causing it. 
 other two — it counts trees, so one parent with three unpriced delegates reads `1`
 while three figures below it are a floor.
 
-A tree that **straddles the start of the window** is the one case the marker misses:
-the delegate's row is inside the window and its parent's row is not, so By provider
-and By key are a floor and the count above them reads `0`. Rare — it needs a
-delegation that outlives the window's edge — and it is the only remaining way this
-page shows a floor with nothing over it saying so
-([#620](https://github.com/vstorm-co/agenticos/issues/620)).
+A tree that **straddles the start of the window** — the delegate's row inside it,
+its parent's row before it — is counted through the delegate: the parent row that
+would otherwise carry the mark is outside every aggregate on the page, while the
+delegate's own spend is inside both splits. It lands on the agent the delegate ran
+as, once per straddling tree however many delegations crossed the edge, and only
+when the delegate's own requests went unpriced — a priced delegation under an
+unpriced out-of-window parent raises no caveat, because the window's own money is
+exact ([#620](https://github.com/vstorm-co/agenticos/issues/620)).
 
 A row is **one per agent**, with `agent_name` on it. It used to be one per agent
 *and model*, carrying only `model_label` — so the tab listed model names where a
