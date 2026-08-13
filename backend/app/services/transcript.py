@@ -38,12 +38,14 @@ from pydantic_ai.messages import (
     ToolReturnPart,
 )
 
+from app.repositories import chat_file as chat_file_repo
 from app.repositories import conversation as conversation_repo
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from app.db.models.agent_run import AgentRun
+    from app.db.models.chat_file import ChatFile
 
 logger = logging.getLogger(__name__)
 
@@ -144,6 +146,7 @@ class TranscriptService:
         *,
         prompt: str | None,
         answer: str,
+        attachments: Sequence[ChatFile] = (),
         tool_calls: Sequence[RecordedToolCall] = (),
         settled: Mapping[str, str] | None = None,
         model_label: str | None = None,
@@ -153,6 +156,18 @@ class TranscriptService:
         `prompt` is `None` where there is nothing new to record: a resumed run
         picks up at the tool call it stopped on, and inventing a user turn there
         would put words in somebody's mouth.
+
+        `attachments` are the files that arrived with the turn, linked to the row
+        holding it - which is how a file becomes something the product can show.
+        Without them the only trace of a file posted in a channel was the briefing
+        `AttachmentRouter` appends to the prompt for the *model*, so what a person
+        read in `/chat` was `co tu widzisz` followed by `--- Attached file: …
+        (/uploads/…, 43 KB, image)`. The dashboard's own uploads have been rows
+        since they existed; a channel's became nothing at all.
+
+        An empty *prompt* is written when a file came with it, because a picture
+        posted with no caption is a turn: the row is what the file hangs off, and
+        without it the attachment belongs to nothing.
 
         An empty `answer` is written when the run called something, and skipped
         when it did not. A blank assistant message with nothing under it reads as
@@ -189,13 +204,22 @@ class TranscriptService:
             return
         try:
             async with self.db.begin_nested():
-                if prompt:
-                    await conversation_repo.create_message(
+                if prompt or attachments:
+                    asked = await conversation_repo.create_message(
                         self.db,
                         conversation_id=run.conversation_id,
                         role="user",
-                        content=prompt,
+                        content=prompt or "",
                         run_id=run.id,
+                        # Off the run rather than passed in: the run row already
+                        # records which chat account asked, and a second route to
+                        # the same fact is a second route to getting it wrong.
+                        channel_identity_id=run.channel_identity_id,
+                    )
+                    await chat_file_repo.link_to_message(
+                        self.db,
+                        message_id=asked.id,
+                        file_ids=[attachment.id for attachment in attachments],
                     )
                 for tool_call_id, result in (settled or {}).items():
                     await self._settle(run, tool_call_id=tool_call_id, result=result)

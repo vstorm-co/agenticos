@@ -114,7 +114,7 @@ async def get_skill(skill_id: UUID, service: SkillSvc, ctx: Auth) -> Any:
 @router.patch("/{skill_id}", response_model=SkillRead)
 async def update_skill(skill_id: UUID, data: SkillUpdate, service: SkillSvc, ctx: Auth) -> Any:
     """Edit a skill. Every agent bound to it is current on the next run."""
-    return await service.update(ctx, skill_id, data.model_dump(exclude_unset=True))
+    return await service.update(ctx, skill_id, data)
 
 
 @router.delete(
@@ -191,9 +191,7 @@ async def update_resource(
     service: SkillSvc,
     ctx: Auth,
 ) -> Any:
-    return await service.update_resource(
-        ctx, skill_id, resource_id, data.model_dump(exclude_unset=True)
-    )
+    return await service.update_resource(ctx, skill_id, resource_id, data)
 
 
 @router.delete(
