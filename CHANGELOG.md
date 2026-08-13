@@ -17,6 +17,60 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.113] - 2026-08-13
+
+Every surface — web chat, the embed widget, a channel bot, and the hosted page
+this adds — now runs the same turn loop, remembers its conversation and is rate
+limited. The three W2 surface issues were one thread of work, and doing them
+apart is how the surfaces drifted in the first place.
+
+### Added
+
+- **A hosted chat page.** `/e/{publicKey}` serves an agent as a page rather than
+  a snippet somebody has to embed: `hosted_config` holds the copy, the accent and
+  the logo, a visitor keeps their thread across reloads, and a published page can
+  be edited afterwards. Migrations `0022`, `0023` and `0025`. (#517)
+- **The embed WebSocket is offered as an integration, not only documented.**
+  `socket_url_for` sits beside `snippet_for` and rides the same read schema, so
+  the panel publishes both with the `Origin` rule beside them. It carries no
+  `?token=` — in `jwt` mode a token is minted per visitor, and one printed in a
+  panel is a working credential on a shared screen. (#516)
+- **A run records which channel identity asked for it.**
+  `agent_runs.channel_identity_id`, migration `0024`. (#639)
+
+### Fixed
+
+- **A thread past 200 messages sent the model its *first* 200.** The window read
+  from the start of the conversation rather than the end, so the longer a thread
+  ran the staler the context it was answered from. `count_messages` plus `skip`
+  makes the window the last 200. (#636, #638)
+- **A group channel refused every sender who had never linked an account.** A room
+  now admits an unlinked speaker and the turn runs as the binding's creator; a DM
+  is unchanged, and `require_link: true` is the opt-out. (#639)
+- **An update sending `null` answered 500 on a `NOT NULL` column.**
+  `app/db/updates.py` lets the column decide instead of a hand-kept list, applied
+  to every `*Update` and guarded over `app/services/**` and `app/api/**`. (#637)
+- **The cookie banner covered Send on a hosted page.** Not rendered on `/e/**` or
+  `/shared/**` — neither has an optional cookie to consent to. (#644)
+- **The widget was the only surface passing no `message_history`**, so it forgot
+  the conversation between turns. It now streams the frames the web chat does,
+  and `EmbedSession` takes a session factory and opens one per turn, so an idle
+  socket holds no pooled connection. (#39)
+
+### Changed
+
+- **One copy of "an anonymous surface runs as its publisher".**
+  `access.publisher_context` is read by the embed session and by channels; there
+  were two implementations that had already begun to disagree. (#640)
+- **A channel thread has participants.** `/chat` shows a room's thread to
+  everybody whose linked account has spoken in it, as a `DISTINCT` over
+  `messages.channel_identity_id`. Reading and writing became two questions in the
+  process: speaking in a room is a claim on being shown the thread, never on
+  deleting or renaming it. Migrations `0026` and `0027`. That record says who
+  spoke and is never re-checked against the platform, so somebody removed from a
+  channel keeps reading the thread here — deliberately not closed, and #641 says
+  why.
+
 ## [0.0.112] - 2026-08-12
 
 The copy guard reads the frontend with a TypeScript parser instead of five
