@@ -107,7 +107,7 @@ export function CategoryInput({
         maxLength={maxLength}
         onBlur={() => setNaming(false)}
         onKeyDown={(event) => {
-          if (event.key === t("enter") || event.key === t("escape")) setNaming(false);
+          if (event.key === "Enter" || event.key === "Escape") setNaming(false);
         }}
       />
     );

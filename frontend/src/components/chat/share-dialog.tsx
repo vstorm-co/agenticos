@@ -156,7 +156,7 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
                 }}
                 onFocus={() => setSuggestionsOpen(true)}
                 onBlur={() => setSuggestionsOpen(false)}
-                onKeyDown={(e) => e.key === t("enter8") && handleShare()}
+                onKeyDown={(e) => e.key === "Enter" && handleShare()}
               />
               {suggestionsOpen && suggestions.length > 0 && (
                 <div

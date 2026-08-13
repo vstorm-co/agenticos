@@ -96,6 +96,19 @@ const SOURCE = new RegExp(
 const NOUN = /\{\s*noun\s*[},]/;
 
 /**
+ * A `KeyboardEvent.key` constant, whole. Fifteen of these were parked in the
+ * catalog and read back as `e.key === t("enter2")`, which worked only while
+ * `pl.json` omitted them - `i18n.ts` merges `en.json` under every locale, so
+ * the first translator to render `enter3` as "Wejście" silently killed
+ * Enter-to-submit under `pl`, with no error anywhere (#549). A key name is
+ * what the browser puts on the event, not copy; components compare the DOM
+ * literal, and no message may hold one as its whole value. The list stops at
+ * the names that cannot also be a label: `Delete`, `Home` and `End` are real
+ * copy (`pages.kb.delete` is a confirm button, "Usuń" under `pl`).
+ */
+const DOM_KEY = /^(?:Enter|Escape|Tab|Arrow(?:Up|Down|Left|Right))$/;
+
+/**
  * The punctuation a sentence never opens on, and so the signature of half of one.
  *
  * The cheapest of the three rules and the only one that finds a split sentence
@@ -166,6 +179,12 @@ describe.each([
     expect(offenders).toEqual([]);
   });
 
+  it("holds no DOM KeyboardEvent.key constant", () => {
+    const offenders = all.filter(([, value]) => DOM_KEY.test(value)).map(([key]) => key);
+
+    expect(offenders).toEqual([]);
+  });
+
   it("opens no tag it does not close", () => {
     const offenders = all.filter(([, value]) => unclosedTags(value).length > 0).map(([key]) => key);
 
@@ -215,6 +234,14 @@ describe("the rules themselves", () => {
     expect(SOURCE.test(". Pick one it does, or the agent fails on its first tool call.")).toBe(
       false,
     );
+  });
+
+  it("tells a key constant from copy that names a key", () => {
+    expect(DOM_KEY.test("Enter")).toBe(true);
+    expect(DOM_KEY.test("ArrowDown")).toBe(true);
+    expect(DOM_KEY.test("Tab")).toBe(true);
+    expect(DOM_KEY.test("Press Enter to send")).toBe(false);
+    expect(DOM_KEY.test("Enter an amount in dollars, or leave it empty for no limit.")).toBe(false);
   });
 
   it("reads an unclosed tag as one, and a closed pair as rich text", () => {
