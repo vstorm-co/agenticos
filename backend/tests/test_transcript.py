@@ -293,16 +293,40 @@ class TestWritingTheTranscript:
         ), "the file hangs off the turn that brought it, not off the answer"
 
     async def test_a_file_with_no_caption_still_gets_a_turn_to_hang_off(self, conversations, files):
-        """Somebody drops an image and says nothing. That is a turn."""
-        attachment = MagicMock(id=uuid.uuid4())
+        """Somebody drops an image and says nothing. That is a turn, and its body
+        names what arrived: a blank user message reads as somebody sending
+        nothing (#704)."""
+        attachment = MagicMock(id=uuid.uuid4(), file_type="image", filename="screenshot.png")
 
         await TranscriptService(_session()).record(
             _run(), prompt="", answer="A dashboard.", attachments=[attachment]
         )
 
         asked = conversations.create_message.await_args_list[0].kwargs
-        assert (asked["role"], asked["content"]) == ("user", "")
+        assert (asked["role"], asked["content"]) == ("user", "Attached image: screenshot.png")
         assert files.link_to_message.await_args.kwargs["file_ids"] == [attachment.id]
+
+    async def test_a_captionless_turn_names_every_file_it_brought(self, conversations, files):
+        image = MagicMock(id=uuid.uuid4(), file_type="image", filename="photo.jpg")
+        sheet = MagicMock(id=uuid.uuid4(), file_type="spreadsheet", filename="q3.xlsx")
+
+        await TranscriptService(_session()).record(
+            _run(), prompt="", answer="Looked at both.", attachments=[image, sheet]
+        )
+
+        asked = conversations.create_message.await_args_list[0].kwargs
+        assert asked["content"] == "Attached image: photo.jpg\nAttached file: q3.xlsx"
+
+    async def test_a_caption_is_the_users_words_and_is_never_replaced(self, conversations, files):
+        """The naming is for a turn that said nothing; a caption stays verbatim."""
+        attachment = MagicMock(id=uuid.uuid4(), file_type="image", filename="photo.jpg")
+
+        await TranscriptService(_session()).record(
+            _run(), prompt="co tu widzisz", answer="A dashboard.", attachments=[attachment]
+        )
+
+        asked = conversations.create_message.await_args_list[0].kwargs
+        assert asked["content"] == "co tu widzisz"
 
     async def test_a_turn_that_arrived_with_nothing_links_nothing(self, conversations, files):
         """And does not open a savepoint to say so.
