@@ -216,11 +216,7 @@ class TranscriptService:
                         # the same fact is a second route to getting it wrong.
                         channel_identity_id=run.channel_identity_id,
                     )
-                    await chat_file_repo.link_to_message(
-                        self.db,
-                        message_id=asked.id,
-                        file_ids=[attachment.id for attachment in attachments],
-                    )
+                    await self._attach(asked.id, attachments)
                 for tool_call_id, result in (settled or {}).items():
                     await self._settle(run, tool_call_id=tool_call_id, result=result)
                 if answer or tool_calls:
@@ -241,6 +237,31 @@ class TranscriptService:
                 "transcript_write_failed",
                 extra={"run_id": str(run.id), "conversation_id": str(run.conversation_id)},
             )
+
+    async def _attach(self, message_id: UUID, attachments: Sequence[ChatFile]) -> None:
+        """Link the turn's files to its user message, at no risk to the rest.
+
+        In a SAVEPOINT of its own inside the transcript's, because this is the
+        only write here that touches rows the conversation does not own: a
+        failure rolls back the link alone, where sharing the outer savepoint
+        would cost a run that has already spent money its answer and its tool
+        calls over a file. Web chat makes the same trade for the same write, in
+        `persist_user_turn`.
+
+        Nothing when nothing was attached - a SAVEPOINT and its release on every
+        turn in the deployment is a real cost for a list that is usually empty.
+        """
+        if not attachments:
+            return
+        try:
+            async with self.db.begin_nested():
+                await chat_file_repo.link_to_message(
+                    self.db,
+                    message_id=message_id,
+                    file_ids=[attachment.id for attachment in attachments],
+                )
+        except Exception:
+            logger.exception("transcript_file_link_failed", extra={"message_id": str(message_id)})
 
     async def _settle(self, run: AgentRun, *, tool_call_id: str, result: str) -> None:
         """Close a call this run left open, if the row is still open.
