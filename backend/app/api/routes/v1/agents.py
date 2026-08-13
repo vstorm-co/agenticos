@@ -27,7 +27,7 @@ from fastapi.responses import FileResponse
 
 from app.agents.capabilities import all_capabilities
 from app.agents.spec import AgentSpec
-from app.api.deps import AgentRegistrySvc, AgentRunnerSvc, Auth, require
+from app.api.deps import AgentRegistrySvc, AgentRunnerSvc, Auth, limit_agent_run, require
 from app.core.permissions import Perm
 from app.db.models.agent_run import RunSurface
 from app.schemas.agent import (
@@ -385,6 +385,10 @@ async def delete_agent(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> 
 @router.post(
     "/{agent_id}/run",
     response_model=AgentRunResult,
+    # Not a permission gate - see the boundary about `require(...)` on
+    # per-resource routes. A rate limit is about the caller, not about the row,
+    # and this is the one route on this surface a stranger with a token reaches.
+    dependencies=[Depends(limit_agent_run)],
 )
 async def run_agent(
     agent_id: UUID,

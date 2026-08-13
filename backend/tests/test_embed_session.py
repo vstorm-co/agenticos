@@ -1,344 +1,258 @@
-"""One visitor's turn on a public widget, and what the session refuses.
+"""What a visitor's frame is allowed to ask of a public socket.
 
-A widget is a URL with a model behind it and nobody signed in, so almost
-everything here is a refusal: a frame that is not a message, a paste bomb, a
-visitor asking faster than the operator allowed, a run the platform would not
-start. None of them may close the socket, because the conversation goes with it.
+`test_embed_frames.py` covers what comes *out* of a turn. This covers what goes
+*in*: the frames `handle` refuses before a run is ever started, and the two
+endings that produce no words. Both halves matter more here than on the
+dashboard, because the caller is a stranger on somebody else's page — every
+refusal below is a request that reached the server and cost nothing.
 
-The other half is identity. An anonymous visitor has no role, so the turn runs
-as the member who published the widget - and as a `viewer` when that member has
-left the organization, since their departure must not silently widen what a
-public page can reach.
-
-The frame shapes are asserted here rather than in `tests/test_embed_widget.py`,
-which reads the script; this reads the server that answers it.
+The turn itself is stubbed throughout. What is being asserted is the guard, not
+the run behind it.
 """
 
 from __future__ import annotations
 
 import uuid
-from collections.abc import Callable, Iterator
-from typing import Any, cast
-from unittest.mock import AsyncMock, MagicMock
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from app.core.exceptions import BadRequestError
-from app.core.permissions import AuthContext, OrgRoleName
-from app.services.embed_session import MAX_MESSAGE_CHARS, EmbedSession, _buckets
+from app.db.models.agent_run import RunStatus
+from app.services.embed_session import MAX_MESSAGE_CHARS, EmbedSession
 
 pytestmark = pytest.mark.anyio
 
 MODULE = "app.services.embed_session"
 
 
-@pytest.fixture(autouse=True)
-def _empty_buckets() -> Iterator[None]:
-    """The rolling window is a module-level dict; a leftover count is another test's."""
-    _buckets.clear()
-    yield
-    _buckets.clear()
-
-
 def _embed(**overrides: Any) -> MagicMock:
-    embed = MagicMock()
-    embed.id = uuid.uuid4()
-    embed.organization_id = uuid.uuid4()
-    embed.agent_id = uuid.uuid4()
-    embed.owner_user_id = uuid.uuid4()
-    embed.name = "Support"
-    embed.context = None
-    embed.context_variables = []
-    embed.rate_limit_per_minute = 10
-    for key, value in overrides.items():
-        setattr(embed, key, value)
-    return embed
+    fields: dict[str, Any] = {
+        "id": uuid.uuid4(),
+        "organization_id": uuid.uuid4(),
+        "agent_id": uuid.uuid4(),
+        "owner_user_id": uuid.uuid4(),
+        "name": "Support",
+        "kind": "page",
+        "config": {"kind": "page"},
+        "rate_limit_per_minute": 10,
+    }
+    return MagicMock(**{**fields, **overrides})
 
 
-def _variable(name: str, *, required: bool = False) -> dict[str, Any]:
-    return {"name": name, "required": required, "description": ""}
+def _session(embed: MagicMock | None = None, *, visitor: str | None = None) -> EmbedSession:
+    @asynccontextmanager
+    async def sessions() -> AsyncIterator[MagicMock]:
+        yield MagicMock()
+
+    websocket = MagicMock()
+    websocket.send_json = AsyncMock()
+    return EmbedSession(
+        sessions=sessions,
+        embed=embed if embed is not None else _embed(),
+        visitor=visitor,
+        websocket=websocket,
+    )
 
 
-@pytest.fixture
-def execute(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
-    run = AsyncMock(return_value=("Our pricing starts at $10.", MagicMock()))
-    runner = MagicMock()
-    runner.return_value.execute = run
-    monkeypatch.setattr(f"{MODULE}.AgentRunnerService", runner)
-    return run
+def _sent(session: EmbedSession) -> list[tuple[str, dict[str, Any]]]:
+    return [
+        (call.args[0]["type"], call.args[0]["data"])
+        for call in session.websocket.send_json.await_args_list
+    ]
 
 
-@pytest.fixture
-def create_conversation(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
-    create = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
-    monkeypatch.setattr(f"{MODULE}.conversation_repo.create_conversation", create)
-    return create
+def _errors(session: EmbedSession) -> list[str]:
+    return [data["message"] for kind, data in _sent(session) if kind == "error"]
 
 
-@pytest.fixture
-def membership(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
-    get = AsyncMock(return_value=MagicMock(role=OrgRoleName.BUILDER.value))
-    monkeypatch.setattr(f"{MODULE}.member_repo.get", get)
-    return get
+class TestWhatIsRefusedBeforeATurnStarts:
+    """Every one of these is a request from a stranger. None reaches a model."""
+
+    async def test_a_frame_that_is_not_a_message_is_ignored(self):
+        """A client may send a kind this server predates - somebody's browser is
+        older than this deployment - and closing the socket on it would take the
+        conversation with it."""
+        session = _session()
+
+        with patch.object(EmbedSession, "_turn_frames", AsyncMock()) as turn:
+            await session.handle({"type": "ping"})
+
+        turn.assert_not_awaited()
+        assert _sent(session) == []
+
+    async def test_a_message_with_neither_text_nor_a_file_starts_nothing(self):
+        session = _session()
+
+        with patch.object(EmbedSession, "_turn_frames", AsyncMock()) as turn:
+            await session.handle({"type": "message", "text": "   "})
+
+        turn.assert_not_awaited()
+        assert _sent(session) == []
+
+    async def test_a_message_past_the_character_cap_is_refused_not_truncated(self):
+        """Truncating would send the model half a question and answer it
+        confidently, which is worse than saying no."""
+        session = _session()
+
+        with patch.object(EmbedSession, "_turn_frames", AsyncMock()) as turn:
+            await session.handle({"type": "message", "text": "x" * (MAX_MESSAGE_CHARS + 1)})
+
+        turn.assert_not_awaited()
+        assert _errors(session) == ["That message is too long. Try a shorter one."]
+
+    async def test_a_visitor_past_the_rate_limit_is_refused(self):
+        """The cap is the operator's, per visitor, and it is the only thing
+        standing between a public URL and their monthly bill."""
+        session = _session()
+
+        with (
+            patch(f"{MODULE}._allowed", return_value=False),
+            patch.object(EmbedSession, "_turn_frames", AsyncMock()) as turn,
+        ):
+            await session.handle({"type": "message", "text": "hello"})
+
+        turn.assert_not_awaited()
+        assert _errors(session) == ["You are sending messages too quickly."]
 
 
-OpenSession = Callable[..., EmbedSession]
+class TestHowATurnEnds:
+    async def test_a_turn_that_answered_says_only_that_it_is_complete(self):
+        session = _session()
+
+        with patch.object(EmbedSession, "_turn_frames", AsyncMock(return_value=None)):
+            await session.handle({"type": "message", "text": "hello"})
+
+        assert _errors(session) == []
+        assert ("complete", {}) in _sent(session)
+
+    async def test_a_turn_with_no_words_says_why_and_still_completes(self):
+        """A client stops drawing the turn on `complete`, so a refusal that
+        omitted it would leave the caret pulsing under the notice."""
+        session = _session()
+
+        with patch.object(EmbedSession, "_turn_frames", AsyncMock(return_value="No answer.")):
+            await session.handle({"type": "message", "text": "hello"})
+
+        assert _errors(session) == ["No answer."]
+        assert _sent(session)[-1] == ("complete", {})
+
+    async def test_a_refused_run_tells_the_visitor_nothing_about_the_server(self):
+        """The exception is this deployment's business: an `AppException` here
+        names an agent, a model profile or an organization, and the caller is a
+        stranger on somebody else's page."""
+        session = _session()
+
+        with patch.object(
+            EmbedSession, "_answer", AsyncMock(side_effect=BadRequestError(message="no profile"))
+        ):
+            unanswered = await session._turn_frames("hello", ())
+
+        assert unanswered == "This assistant is unavailable."
+
+    async def test_a_run_that_produced_no_text_is_named_by_why(self):
+        """`_no_answer` holds the one copy of those sentences - a budget stop is
+        not raised out of `_answer`, it is a status on the row."""
+        session = _session()
+        run = MagicMock(status=RunStatus.BUDGET_EXCEEDED, awaiting_approval_run_id=None)
+
+        with patch.object(EmbedSession, "_answer", AsyncMock(return_value=("", run))):
+            unanswered = await session._turn_frames("hello", ())
+
+        assert unanswered is not None
 
 
-@pytest.fixture
-def open_session(
-    execute: AsyncMock, create_conversation: AsyncMock, membership: AsyncMock
-) -> OpenSession:
-    def _open(embed: MagicMock | None = None, *, visitor: str | None = None) -> EmbedSession:
-        return EmbedSession(
-            db=MagicMock(),
-            embed=embed if embed is not None else _embed(),
-            visitor=visitor,
-            websocket=AsyncMock(),
-        )
+class TestTheRestOfTheSession:
+    async def test_fail_reaches_the_visitor_as_an_error_frame(self):
+        session = _session()
 
-    return _open
+        await session.fail("This assistant is unavailable.")
 
+        assert _errors(session) == ["This assistant is unavailable."]
 
-def _frames(session: EmbedSession) -> list[dict[str, Any]]:
-    sent = cast(AsyncMock, session.websocket.send_json)
-    return [call.args[0] for call in sent.await_args_list]
+    async def test_closing_releases_nothing_because_it_owns_nothing(self):
+        """The session holds no task and no client - the factory hands one out per
+        turn - so this is a seam for the route rather than a teardown."""
+        session = _session()
 
+        assert await session.close() is None
 
-def _prompt_of(execute: AsyncMock) -> str:
-    return execute.call_args.args[2]
+    async def test_a_thread_with_no_conversation_yet_has_no_history(self):
+        session = _session()
+        session.conversation_id = None
+
+        assert await session._history(MagicMock()) == []
 
 
-def _context_of(execute: AsyncMock) -> AuthContext:
-    return execute.call_args.args[0]
+class TestTheThreadAVisitorComesBackTo:
+    async def test_a_continuity_key_with_no_row_behind_it_still_gets_a_thread(self):
+        """The row is written at `greet`, so its absence means a key nobody here
+        issued - a stale one, or one somebody typed. The turn is answered anyway
+        and simply does not come back to the same thread: refusing a stranger
+        their answer over a cookie is the worse trade.
+        """
+        session = _session()
+        session.visitor_key = "vk-from-nowhere"
+        session.conversation_id = None
+        conversation = MagicMock(id=uuid.uuid4())
+
+        runner = MagicMock()
+        runner.return_value.execute = AsyncMock(return_value=("hello", MagicMock()))
+
+        with (
+            patch.object(EmbedSession, "_context", AsyncMock(return_value=MagicMock())),
+            patch.object(EmbedSession, "_history", AsyncMock(return_value=[])),
+            patch.object(EmbedSession, "_files", AsyncMock(return_value=[])),
+            patch(f"{MODULE}.AgentRunnerService", runner),
+            patch(
+                f"{MODULE}.conversation_repo.create_conversation",
+                AsyncMock(return_value=conversation),
+            ),
+            patch(f"{MODULE}.embed_visitor_repo.get", AsyncMock(return_value=None)),
+            patch(f"{MODULE}.embed_visitor_repo.link_conversation", AsyncMock()) as link,
+        ):
+            await session._turn(MagicMock(), "hello")
+
+        assert session.conversation_id == conversation.id
+        link.assert_not_awaited()
 
 
-class TestWhatTheVisitorIsSent:
-    async def test_a_visitor_with_no_token_is_greeted_as_anonymous(
-        self, open_session: OpenSession
-    ) -> None:
-        session = open_session()
+class TestWhichFilesAVisitorMayAttach:
+    """A file is usable when it belongs to the embed's owner and is not already on
+    a message. Anything else is somebody else's row, or one already spent."""
 
-        await session.greet()
-
-        assert _frames(session) == [{"type": "ready", "visitor": False}]
-
-    async def test_a_visitor_the_page_signed_is_greeted_as_known(
-        self, open_session: OpenSession
-    ) -> None:
-        """The widget draws itself differently for somebody it can name."""
-        session = open_session(visitor="customer-7")
-
-        await session.greet()
-
-        assert _frames(session) == [{"type": "ready", "visitor": True}]
-
-    async def test_an_answer_arrives_behind_a_typing_frame(self, open_session: OpenSession) -> None:
-        session = open_session()
-
-        await session.handle({"type": "message", "text": "what does it cost?"})
-
-        assert _frames(session) == [
-            {"type": "typing"},
-            {"type": "message", "role": "assistant", "text": "Our pricing starts at $10."},
+    async def test_files_that_are_all_usable_are_passed_through_silently(self):
+        session = _session()
+        rows = [
+            MagicMock(user_id=session.embed.owner_user_id, message_id=None),
+            MagicMock(user_id=session.embed.owner_user_id, message_id=None),
         ]
+        attached = [uuid.uuid4(), uuid.uuid4()]
 
-    async def test_a_run_that_answered_nothing_still_closes_the_turn(
-        self, open_session: OpenSession, execute: AsyncMock
-    ) -> None:
-        """A budget stop ends here: the runner records the status and returns an
-        empty answer rather than raising, so the visitor is owed a frame that
-        replaces the typing bubble instead of one that never arrives."""
-        execute.return_value = ("", MagicMock())
-        session = open_session()
+        with patch(f"{MODULE}.chat_file_repo.get_many", AsyncMock(return_value=rows)):
+            usable = await session._files(MagicMock(), attached)
 
-        await session.handle({"type": "message", "text": "hello"})
+        assert usable == rows
 
-        assert _frames(session)[-1] == {"type": "message", "role": "assistant", "text": "…"}
+    async def test_an_id_that_resolves_to_nothing_usable_is_dropped_not_refused(self):
+        """Refusing somebody their answer over a stale id in a composer is the
+        worse trade, so the turn goes ahead without it."""
+        session = _session()
+        mine = MagicMock(user_id=session.embed.owner_user_id, message_id=None)
+        spent = MagicMock(user_id=session.embed.owner_user_id, message_id=uuid.uuid4())
 
-    async def test_the_socket_going_away_does_not_take_the_turn_with_it(
-        self, open_session: OpenSession, execute: AsyncMock
-    ) -> None:
-        """The visitor closed the tab mid-answer. There is nothing to recover and
-        nobody to tell, and raising here would log a failure for a working turn."""
-        session = open_session()
-        session.websocket.send_json = AsyncMock(side_effect=RuntimeError("socket is closed"))
+        with patch(f"{MODULE}.chat_file_repo.get_many", AsyncMock(return_value=[mine, spent])):
+            usable = await session._files(MagicMock(), [uuid.uuid4(), uuid.uuid4()])
 
-        await session.handle({"type": "message", "text": "hello"})
+        assert usable == [mine]
 
-        assert execute.await_count == 1
+    async def test_a_turn_carrying_no_ids_asks_the_repository_nothing(self):
+        session = _session()
 
-    async def test_a_failure_the_route_caught_reaches_the_visitor_as_an_error(
-        self, open_session: OpenSession
-    ) -> None:
-        session = open_session()
+        with patch(f"{MODULE}.chat_file_repo.get_many", AsyncMock()) as get_many:
+            assert await session._files(MagicMock(), ()) == []
 
-        await session.fail("Something went wrong. Please try again.")
-
-        assert _frames(session) == [
-            {"type": "error", "message": "Something went wrong. Please try again."}
-        ]
-
-    async def test_closing_a_session_mid_conversation_releases_nothing(
-        self, open_session: OpenSession
-    ) -> None:
-        """The route closes in a `finally`, on every disconnect. The session owns
-        no task and no client, so this must complete rather than raise."""
-        session = open_session()
-        await session.handle({"type": "message", "text": "hello"})
-
-        await session.close()
-
-        assert _frames(session)[-1]["type"] == "message"
-
-
-class TestWhatTheTurnRefuses:
-    async def test_a_frame_that_is_not_a_message_is_ignored(
-        self, open_session: OpenSession, execute: AsyncMock
-    ) -> None:
-        """A widget cached in somebody's browser may be older than this server.
-        Refusing its frame would close the socket and take the conversation."""
-        session = open_session()
-
-        await session.handle({"type": "seen", "id": "42"})
-
-        assert _frames(session) == []
-        assert execute.await_count == 0
-
-    async def test_a_message_with_no_text_is_not_a_turn(
-        self, open_session: OpenSession, execute: AsyncMock
-    ) -> None:
-        session = open_session()
-
-        await session.handle({"type": "message", "text": "   "})
-
-        assert _frames(session) == []
-        assert execute.await_count == 0
-
-    async def test_a_paste_bomb_is_refused_before_the_model_sees_it(
-        self, open_session: OpenSession, execute: AsyncMock
-    ) -> None:
-        """A public URL with a model behind it is somebody else's bill."""
-        session = open_session()
-
-        await session.handle({"type": "message", "text": "x" * (MAX_MESSAGE_CHARS + 1)})
-
-        assert _frames(session) == [
-            {"type": "error", "message": "That message is too long. Try a shorter one."}
-        ]
-        assert execute.await_count == 0
-
-    async def test_a_visitor_past_their_allowance_is_told_they_are_too_quick(
-        self, open_session: OpenSession, execute: AsyncMock
-    ) -> None:
-        session = open_session(_embed(rate_limit_per_minute=1))
-
-        await session.handle({"type": "message", "text": "first"})
-        await session.handle({"type": "message", "text": "second"})
-
-        assert execute.await_count == 1
-        assert _frames(session)[-1] == {
-            "type": "error",
-            "message": "You are sending messages too quickly.",
-        }
-
-    async def test_a_refused_run_says_nothing_about_why(
-        self, open_session: OpenSession, execute: AsyncMock
-    ) -> None:
-        """The visitor is on somebody else's marketing page. What the platform
-        refused - an archived agent, a deleted model profile - is the operator's
-        to read in a log, not a stranger's to read in a bubble."""
-        execute.side_effect = BadRequestError(
-            message="Agent 'support' has no published version",
-            details={"agent_id": str(uuid.uuid4())},
-        )
-        session = open_session()
-
-        await session.handle({"type": "message", "text": "hello"})
-
-        assert _frames(session)[-1] == {
-            "type": "error",
-            "message": "This assistant is unavailable.",
-        }
-        assert not any("published" in str(frame) for frame in _frames(session))
-
-
-class TestWhatTheTurnRunsAs:
-    async def test_a_turn_runs_as_the_member_who_published_the_widget(
-        self, open_session: OpenSession, execute: AsyncMock
-    ) -> None:
-        """A visitor has no role, and an agent needs one to resolve what it may
-        reach. The publisher's is the only honest answer available."""
-        embed = _embed()
-        session = open_session(embed)
-
-        await session.handle({"type": "message", "text": "hello"})
-
-        ctx = _context_of(execute)
-        assert ctx.user_id == embed.owner_user_id
-        assert ctx.organization_id == embed.organization_id
-        assert ctx.role == OrgRoleName.BUILDER.value
-
-    async def test_an_owner_who_has_left_narrows_the_turn_to_a_viewer(
-        self, open_session: OpenSession, execute: AsyncMock, membership: AsyncMock
-    ) -> None:
-        """Their departure must not silently widen what a public widget can do."""
-        membership.return_value = None
-        session = open_session()
-
-        await session.handle({"type": "message", "text": "hello"})
-
-        assert _context_of(execute).role == OrgRoleName.VIEWER.value
-
-    async def test_a_widget_with_no_owner_runs_as_a_viewer(
-        self, open_session: OpenSession, execute: AsyncMock, membership: AsyncMock
-    ) -> None:
-        """Nobody to look up: the owner's account is gone, and the widget is
-        still on a page somewhere."""
-        session = open_session(_embed(owner_user_id=None))
-
-        await session.handle({"type": "message", "text": "hello"})
-
-        assert membership.await_count == 0
-        ctx = _context_of(execute)
-        assert ctx.user_id is None
-        assert ctx.role == OrgRoleName.VIEWER.value
-
-    async def test_the_conversation_records_that_nobody_signed_in(
-        self, open_session: OpenSession, create_conversation: AsyncMock
-    ) -> None:
-        """The publisher's role is what the run carries; the transcript still
-        belongs to no user, which is the honest record of an anonymous visit."""
-        embed = _embed()
-        session = open_session(embed)
-
-        await session.handle({"type": "message", "text": "hello"})
-
-        assert create_conversation.call_args.kwargs["user_id"] is None
-        assert create_conversation.call_args.kwargs["organization_id"] == embed.organization_id
-
-
-class TestWhatThePageMaySupply:
-    async def test_a_context_that_is_not_an_object_supplies_nothing(
-        self, open_session: OpenSession, execute: AsyncMock
-    ) -> None:
-        """The frame comes from a page a visitor can edit. A string where an
-        object was expected is dropped, not coerced into a line of the block."""
-        session = open_session(_embed(context_variables=[_variable("plan")]))
-
-        await session.handle({"type": "message", "text": "hello", "context": "plan=admin"})
-
-        assert _prompt_of(execute) == "hello"
-
-    async def test_a_declared_value_nobody_promised_is_simply_absent(
-        self, open_session: OpenSession, execute: AsyncMock
-    ) -> None:
-        """An optional variable the page did not send costs neither a warning
-        nor a line saying it is missing - the block holds what arrived."""
-        session = open_session(_embed(context_variables=[_variable("plan"), _variable("locale")]))
-
-        await session.handle({"type": "message", "text": "hello", "context": {"plan": "pro"}})
-
-        prompt = _prompt_of(execute)
-        assert "plan: pro" in prompt
-        assert "locale" not in prompt
+        get_many.assert_not_awaited()

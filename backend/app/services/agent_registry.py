@@ -61,6 +61,7 @@ from app.services.access import (
     resolve_access,
     visible_resource_ids,
 )
+from app.services.channels.base import ROOM_HANDLES
 from app.services.file_storage import IMAGE_MIME_TYPES, MAX_AVATAR_SIZE, get_file_storage
 from app.services.sandbox_workspace import sandbox_config
 
@@ -376,10 +377,17 @@ def slugify(name: str) -> str:
     Used in agent URLs and as the `@handle` on chat platforms, so it must stay
     stable and unambiguous - which is why it is generated once at creation and
     then owned by the row, not recomputed when the name changes.
+
+    An agent named "Channel" or "Everyone" gets a suffix rather than the bare
+    handle. Those address the *room* on every chat platform, so `parse_mention`
+    refuses them before they can reach an agent - and a handle nothing can ever
+    say is worse than an ugly one, because nothing about the agent would look
+    wrong.
     """
     slug = _SLUG_ALLOWED.sub("-", name.strip().lower())
     slug = _SLUG_TRIM.sub("-", slug).strip("-")
-    return slug[:64] or "agent"
+    slug = slug[:64] or "agent"
+    return f"{slug}-agent" if slug in ROOM_HANDLES else slug
 
 
 class AgentRegistryService:

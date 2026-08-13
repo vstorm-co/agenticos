@@ -35,6 +35,7 @@ from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundErr
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent_exposure import AgentExposure, ExposureSurface
 from app.db.models.channel_bot import ChannelBot
+from app.db.updates import writable
 from app.repositories import agent_environment_repo, agent_exposure_repo, channel_bot_repo
 from app.schemas.agent_exposure import (
     ExposureCreate,
@@ -329,7 +330,7 @@ class AgentExposureService:
                 cannot answer.
         """
         exposure = await self._owned(ctx, agent_id, exposure_id)
-        changes = data.model_dump(exclude_unset=True)
+        changes = writable(data, over=AgentExposure)
         if changes.get("environment_id") is not None:
             await self._environment_of(ctx, agent_id, changes["environment_id"])
         if changes.get("tools") is not None:

@@ -6,20 +6,6 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import WebSocket, WebSocketDisconnect
-from pydantic_ai import (
-    Agent,
-    FinalResultEvent,
-    FunctionToolCallEvent,
-    FunctionToolResultEvent,
-    PartDeltaEvent,
-    PartStartEvent,
-    TextPartDelta,
-)
-from pydantic_ai.messages import (
-    TextPart,
-    ThinkingPart,
-    ThinkingPartDelta,
-)
 
 from app.agents.ask_user import QuestionItem, render_answer
 from app.agents.capabilities.budget import BudgetExceeded
@@ -39,13 +25,13 @@ from app.services.agent import (
 from app.services.agent_chat import (
     ChatAgentRunner,
     OpenedRun,
-    display_output,
     requested_agent_id,
     requested_environment_id,
     requested_model_profile_id,
 )
 from app.services.attachments import load_attached_files
 from app.services.chat_timeline import TurnTimeline
+from app.services.run_stream import RunFrames
 from app.services.usage_report import usage_frame
 
 logger = logging.getLogger(__name__)
@@ -54,6 +40,29 @@ logger = logging.getLogger(__name__)
 # the general assistant the template shipped is gone, and guessing an agent on
 # the user's behalf would mean something they never picked answering them.
 _PICK_AN_AGENT = "Pick an agent to chat with. If none is listed, publish one in the Builder first."
+
+
+def _turn_failed(exc: Exception) -> str:
+    """What a crashed turn is allowed to tell the client.
+
+    The `error` frame used to carry `str(exc)` of whatever came out of the run.
+    A provider SDK puts the failing request in its message, so that routinely
+    means an endpoint, an internal host, or a URL with a key still in its query
+    string - the leak #342 fixed in an HTTP body, reaching a member's chat panel
+    and their browser console instead (#659).
+
+    So the exception's own text stays in the `logger.exception` beside the send
+    and goes no further, and the frame names only what the reader can act on.
+    The class still goes out: it separates an upstream that timed out from one
+    that refused a credential, and a class name has never carried a URL. Our own
+    refusals do not come here at all - an `AppException` and a `BudgetExceeded`
+    are caught above and passed through whole, because their messages are
+    written in this repository.
+    """
+    return (
+        f"The agent could not finish this turn ({type(exc).__name__}). "
+        "Try again; the server log has the full error."
+    )
 
 
 class AgentSession:
@@ -226,13 +235,12 @@ class AgentSession:
             # knows that - so the routing happens one layer down.
             attachments = await self._attached_files(file_ids)
 
-            async def stream(agent_run: Any) -> None:
-                await self._stream_agent_run(
-                    agent_run,
-                    user_message,
-                    collected_tool_calls,
-                    timeline,
-                )
+            frames = RunFrames(
+                emit=self._frame,
+                timeline=timeline,
+                tool_calls=collected_tool_calls,
+                prompt=user_message,
+            )
 
             # One session for the whole turn: the run row, the approvals it
             # parks and the cost it books are a single unit of work, and
@@ -250,7 +258,7 @@ class AgentSession:
                     ),
                     prompt_message_id=prompt.message_id,
                     ask_user=self._ask_one,
-                    stream=stream,
+                    stream=frames.drive,
                     on_run_open=opened.append,
                     subagent_events=self._subagent_event,
                     # The chat may run a published agent on another of the
@@ -289,6 +297,10 @@ class AgentSession:
                     agent_version_id=agent_version_id,
                     usage=turn.usage,
                     run_id=turn.run_id,
+                    # Stored as `awaiting_approval`, so reloading the page keeps
+                    # saying the step is waiting on a person (#601). The frame
+                    # below carries the same calls to whoever is watching live.
+                    parked_tool_call_ids={parked.tool_call_id for parked in turn.parked},
                 )
                 # Written, so the `finally` below has nothing left to save. It
                 # cannot read `turn` to work that out - the whole point of it is
@@ -354,9 +366,9 @@ class AgentSession:
             # place.
             logger.info("Agent turn refused: %s", exc)
             await send_event(self.websocket, "error", {"message": str(exc)})
-        except Exception as e:
+        except Exception as exc:
             logger.exception("Error processing agent request")
-            await send_event(self.websocket, "error", {"message": str(e)})
+            await send_event(self.websocket, "error", {"message": _turn_failed(exc)})
         finally:
             if not answered:
                 await self._persist_partial_turn(
@@ -484,152 +496,11 @@ class AgentSession:
         async with get_db_context() as file_db:
             return await load_attached_files(file_db, file_ids)
 
-    async def _stream_agent_run(
-        self,
-        agent_run: Any,
-        user_message: str,
-        collected_tool_calls: list[dict[str, Any]],
-        timeline: TurnTimeline,
-    ) -> None:
-        """Drive the agent_run iterator, dispatching each node to its streaming helper."""
-        async for node in agent_run:
-            if Agent.is_user_prompt_node(node):
-                prompt_text = (
-                    node.user_prompt if isinstance(node.user_prompt, str) else user_message
-                )
-                await send_event(self.websocket, "user_prompt_processed", {"prompt": prompt_text})
-            elif Agent.is_model_request_node(node):
-                await send_event(self.websocket, "model_request_start", {})
-                async with node.stream(agent_run.ctx) as request_stream:
-                    await self._stream_request_events(request_stream, timeline)
-            elif Agent.is_call_tools_node(node):
-                await send_event(self.websocket, "call_tools_start", {})
-                async with node.stream(agent_run.ctx) as handle_stream:
-                    await self._stream_tool_events(handle_stream, collected_tool_calls, timeline)
-            else:
-                # The end node, and the only kind left. Iterating an `AgentRun`
-                # yields a user-prompt, a model-request or a call-tools node, or
-                # `End` - `AgentRun._task_to_node` has no fourth answer, and the
-                # graph's one other node is reachable only through
-                # `agent_run.next()`, which this does not use. `End` also means
-                # the graph run holds its `EndMarker`, so `agent_run.result` is
-                # populated there. `is_end_node(node) and agent_run.result is not
-                # None` was therefore a condition that could not be false, and
-                # had it ever been it would have dropped the frame carrying the
-                # answer without saying anything. Whatever made it false now
-                # raises instead, and reaches the client as `error`.
-                await send_event(
-                    self.websocket,
-                    "final_result",
-                    {"output": display_output(agent_run.result.output)},
-                )
+    async def _frame(self, kind: str, payload: dict[str, Any]) -> None:
+        """Where this surface's frames go: to the member who is watching.
 
-    async def _stream_request_events(self, request_stream: Any, timeline: TurnTimeline) -> None:
-        """Forward model-request events (text/thinking/tool deltas + final-result start).
-
-        `timeline` records exactly what was sent as `text_delta` and
-        `thinking_delta`, and where each block sat, so a turn that never finishes
-        can still be written down as what the person watching it actually saw -
-        and a turn that does finish reloads in the order it was watched in.
+        The sink `RunFrames` is handed. Unfiltered, because a signed-in member of
+        the organization that owns the agent may see everything it did - which is
+        exactly the decision a public surface makes differently.
         """
-        async for event in request_stream:
-            if isinstance(event, PartStartEvent):
-                await send_event(
-                    self.websocket,
-                    "part_start",
-                    {"index": event.index, "part_type": type(event.part).__name__},
-                )
-                if isinstance(event.part, TextPart) and event.part.content:
-                    timeline.add_text(event.part.content)
-                    await send_event(
-                        self.websocket,
-                        "text_delta",
-                        {"index": event.index, "content": event.part.content},
-                    )
-                elif isinstance(event.part, ThinkingPart) and event.part.content:
-                    timeline.add_thinking(event.part.content)
-                    await send_event(
-                        self.websocket,
-                        "thinking_delta",
-                        {"index": event.index, "content": event.part.content},
-                    )
-            elif isinstance(event, PartDeltaEvent):
-                delta = event.delta
-                if isinstance(delta, TextPartDelta):
-                    timeline.add_text(delta.content_delta)
-                    await send_event(
-                        self.websocket,
-                        "text_delta",
-                        {"index": event.index, "content": delta.content_delta},
-                    )
-                elif isinstance(delta, ThinkingPartDelta):
-                    # Only when there is something to show. A reasoning delta can
-                    # carry a `signature_delta` alone - the provider's proof it
-                    # produced the reasoning - and forwarding that would put
-                    # base64 in the reasoning pane and in the stored trace.
-                    if delta.content_delta:
-                        timeline.add_thinking(delta.content_delta)
-                        await send_event(
-                            self.websocket,
-                            "thinking_delta",
-                            {"index": event.index, "content": delta.content_delta},
-                        )
-                else:
-                    # A tool-call delta, and the only kind left:
-                    # `ModelResponsePartDelta` is text, thinking or tool-call, so
-                    # an `isinstance` here was a third condition that could not be
-                    # false.
-                    await send_event(
-                        self.websocket,
-                        "tool_call_delta",
-                        {"index": event.index, "args_delta": delta.args_delta},
-                    )
-            elif isinstance(event, FinalResultEvent):
-                await send_event(
-                    self.websocket,
-                    "final_result_start",
-                    {"tool_name": event.tool_name},
-                )
-
-    async def _stream_tool_events(
-        self,
-        handle_stream: Any,
-        collected_tool_calls: list[dict[str, Any]],
-        timeline: TurnTimeline,
-    ) -> None:
-        """Forward tool-call/result events; collect tool calls (with results) for persistence.
-
-        The call is recorded on `timeline` when it is *requested*, which is where it
-        sat in the turn. Recording it on its result instead would reorder any two
-        calls that did not come back in the order they were made.
-        """
-        pending: dict[str, dict[str, Any]] = {}
-        async for tool_event in handle_stream:
-            if isinstance(tool_event, FunctionToolCallEvent):
-                tc = {
-                    "tool_call_id": tool_event.part.tool_call_id,
-                    "tool_name": tool_event.part.tool_name,
-                    "args": tool_event.part.args_as_dict(raise_if_invalid=False),
-                }
-                collected_tool_calls.append(tc)
-                timeline.add_tool(tool_event.part.tool_call_id)
-                pending[tool_event.part.tool_call_id] = tc
-                await send_event(self.websocket, "tool_call", tc)
-            elif isinstance(tool_event, FunctionToolResultEvent):
-                # `.part`, not `.result`. Pydantic AI 2 renamed the field when
-                # `ToolResultEvent` became the shared base of the function and
-                # output events; reading the old name raised `AttributeError`
-                # inside the stream, which reached the user as
-                # "❌ Error: 'FunctionToolResultEvent' object has no attribute
-                # 'result'" on every tool call in web chat. A `RetryPromptPart`
-                # arrives here too and also carries `content` - the retry message -
-                # so a failed call is reported rather than swallowed.
-                content = str(tool_event.part.content)
-                tc = pending.get(tool_event.tool_call_id)
-                if tc is not None:
-                    tc["result"] = content
-                await send_event(
-                    self.websocket,
-                    "tool_result",
-                    {"tool_call_id": tool_event.tool_call_id, "content": content},
-                )
+        await send_event(self.websocket, kind, payload)

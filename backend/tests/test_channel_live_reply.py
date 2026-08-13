@@ -257,6 +257,52 @@ class TestTheFinalEditNeverLosesTheAnswer:
         send_reply.assert_not_awaited()
 
 
+class TestTheMentionPlaceholderOpensOnlyIfSomethingIsSaid:
+    """A handle that names a colleague, not an agent of ours, raises before a
+    token is streamed. The eager placeholder used to be posted before that was
+    known, so the bot left a "…" hanging under two people's conversation
+    (agenticos#634). Opened lazily, the first push is what posts it, and a run
+    that streams nothing posts nothing.
+    """
+
+    @staticmethod
+    def _router() -> object:
+        from app.services.channels.router import ChannelMessageRouter
+
+        return ChannelMessageRouter()
+
+    async def test_a_reply_that_never_pushes_opens_no_placeholder(self):
+        adapter = MagicMock(begin_reply=AsyncMock(return_value="h1"), update_reply=AsyncMock())
+
+        with (
+            patch("app.services.channels.router.get_adapter", return_value=adapter),
+            patch("app.services.channels.router.unseal_bot_token", return_value="tok"),
+        ):
+            _live, handle_of = self._router()._lazy_reply(
+                MagicMock(api_base_url=None),
+                MagicMock(platform="mattermost", platform_chat_id="c1"),
+            )
+
+        adapter.begin_reply.assert_not_awaited()
+        assert handle_of() is None
+
+    async def test_the_first_push_posts_the_placeholder_and_captures_the_handle(self):
+        adapter = MagicMock(begin_reply=AsyncMock(return_value="h1"), update_reply=AsyncMock())
+
+        with (
+            patch("app.services.channels.router.get_adapter", return_value=adapter),
+            patch("app.services.channels.router.unseal_bot_token", return_value="tok"),
+        ):
+            live, handle_of = self._router()._lazy_reply(
+                MagicMock(api_base_url=None),
+                MagicMock(platform="mattermost", platform_chat_id="c1"),
+            )
+            await live.add("the answer as it arrives")
+
+        adapter.begin_reply.assert_awaited_once()
+        assert handle_of() == "h1"
+
+
 class TestAnEmptyAnswerTellsItsReasonsApart:
     """An empty turn is not always a parked approval. Budget and a bare empty
     answer must not be told "that needs approval", which points at a decision

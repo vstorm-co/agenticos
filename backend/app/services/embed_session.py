@@ -5,6 +5,14 @@ do* - the spec, the budget, the approval gate, the tenant - is already decided
 by `AgentRunnerService`; this only carries frames in and out and keeps a
 transcript so a run is findable afterwards.
 
+**The turn loop is `app.services.run_stream`, the same one the dashboard's chat
+drives.** It used to await the whole answer and send a single frame, which is why
+a hosted page showed a lump of text after thirty seconds of nothing - not because
+a public socket cannot carry more. What this surface adds is a *filter*: the sink
+in `_emit` drops every frame kind the operator has not agreed to show. Filtering
+there rather than in a renderer is the whole point, because reasoning hidden in
+CSS is an agent's reasoning sitting in a stranger's devtools.
+
 Three things it owns, because nothing else can:
 
 *Identity.* A visitor is anonymous by construction. The run is attributed to the
@@ -16,16 +24,45 @@ signed in.
 is per visitor per minute, in this process - good enough for the failure it
 exists to stop, which is one page hammering one socket.
 
+*A connection per turn, not per browser.* The session is handed a factory and
+opens a session inside each turn, because a widget's socket stays open for as
+long as somebody leaves the tab open. Holding one pooled connection for that
+long meant fifteen idle visitors exhausted the pool and took the whole API down
+with them (agenticos#39) - the dashboard chat had never been exposed to it
+because it opens one per turn too.
+
 *Context.* The embed's own note ("you are on the pricing page") is prepended to
 the visitor's first message rather than injected into the agent's instructions:
 the instructions belong to the published version, and a widget must not be able
 to rewrite what an agent is.
+
+The same session serves the **hosted page** (#517), which is an embed rendered as
+a page of ours rather than a bubble on somebody else's site. Two things differ,
+both narrowing rather than widening:
+
+*What a value may be.* A widget reads `window.AgenticOSContext` from a page the
+operator controls; a hosted page has only the visitor's own URL. So on a hosted
+connection a declared variable is accepted only if it is marked `url_safe` -
+otherwise `user_tier=premium` in the address bar would be a line in an agent's
+instructions. `hosted` is decided at admission from the origin the browser
+reported, never asked for by the client.
+
+*What coming back means.* A widget's conversation lives as long as its socket. A
+bookmarked link is a stronger promise, so a hosted page carries a `visitor_key`
+from `localStorage`, `embed_visitors` maps it to a conversation, and `greet`
+replays what is in it. The key is a bearer credential for that thread - see the
+model.
 """
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
+import re
 import time
+from collections.abc import Callable, Sequence
+from contextlib import AbstractAsyncContextManager
 from typing import Any
 from uuid import UUID
 
@@ -33,12 +70,16 @@ from fastapi import WebSocket
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AppException
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext
 from app.db.models.agent_embed import AgentEmbed
-from app.db.models.agent_run import RunSurface
-from app.repositories import conversation_repo, member_repo
-from app.schemas.agent_embed import EmbedVariable
+from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
+from app.db.models.chat_file import ChatFile
+from app.repositories import chat_file_repo, conversation_repo, embed_visitor_repo
+from app.schemas.agent_embed import EmbedVariable, PageConfig
+from app.services.access import publisher_context
+from app.services.agent import build_message_history
 from app.services.agent_runner import AgentRunnerService
+from app.services.run_stream import RunFrames
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +117,163 @@ _WINDOW_SECONDS = 60.0
 # and short enough that a paste-bomb is not a model bill.
 MAX_MESSAGE_CHARS = 4000
 
+# How much of the thread the model is reminded of. Bounded rather than the whole
+# conversation because this surface is public: an operator's budget should not be
+# a function of how long a stranger is willing to keep typing.
+HISTORY_MESSAGES = 40
+
+# How many files may ride on one message. Small on purpose: the per-minute limit
+# bounds how fast a stranger fills a disk, and this bounds how much of one turn's
+# prompt is somebody else's document.
+MAX_FILES_PER_TURN = 3
+# How long one frame may take to reach the socket before the turn gives up on the
+# reader. A client reading a byte a second parks the write buffer, and an unbounded
+# `send_json` would hold the per-turn session and the open provider stream for as
+# long as it cared to - #39's pool-exhaustion vector, from the reader's end.
+# Generous, because a legitimate stream pauses; it bounds a stall, not a pause. What
+# makes it bound the *turn* rather than the frame is `_emit` latching on it.
+SEND_TIMEOUT_SECONDS = 30.0
+
+# 1011: the server is ending this connection because it cannot go on with it. Not a
+# 4029 or a 4003 - the visitor did nothing wrong and there is nothing to retry
+# differently - and not a 1000, which would say this was a normal finish.
+WS_INTERNAL_ERROR = 1011
+
+# What a continuity key has to look like to be one: the 128 random bits the
+# hosted page mints, as lower-case hex. The upper bound is the column's width.
+_CONTINUITY_KEY = re.compile(r"^[0-9a-f]{32,64}$")
+
+
+def _attached_ids(value: Any) -> list[UUID]:
+    """The file ids a frame names, dropping anything that is not one.
+
+    Dropped rather than refused, for the reason a malformed continuity key is:
+    what a client sends is not the visitor's fault, and losing an attachment beats
+    losing the question that came with it. A value that is not a list at all is no
+    attachments, which is what every client that sends nothing produces.
+    """
+    if not isinstance(value, list):
+        return []
+    ids: list[UUID] = []
+    for entry in value:
+        try:
+            ids.append(UUID(str(entry)))
+        except ValueError:
+            logger.info("embed_file_id_rejected")
+    return ids
+
+
+def continuity_key(value: str | None) -> str | None:
+    """The visitor key this connection may resume by, or `None` for a fresh thread.
+
+    Whoever holds a key resumes the thread it names, including everything already
+    said in it, so what counts as a key is checked rather than assumed. This socket
+    is a published integration (#516): a client of somebody's own that keys on a
+    customer id, an email or a counter would hand every one of its users a
+    conversation the next person can walk into by guessing.
+
+    An unusable key is **dropped rather than refused**, and the reason is the one
+    already written down for a missing required variable: a visitor must not lose
+    their answer to an integrator's mistake. Losing continuity is the small
+    failure; a socket that will not open is the large one, and a stale value in
+    somebody's `localStorage` would be enough to cause it.
+    """
+    if value is None:
+        return None
+    if _CONTINUITY_KEY.match(value) is None:
+        logger.info("embed_visitor_key_rejected", extra={"length": len(value)})
+        return None
+    return value
+
+
+SessionFactory = Callable[[], AbstractAsyncContextManager[AsyncSession]]
+"""What opens one database session, for the duration of one turn.
+
+Injected rather than imported so a socket that is open and idle - which is what a
+widget mostly is - holds no pooled connection at all. `app.db.session
+.get_db_context` is what the route passes.
+"""
+
+
+_ALWAYS = frozenset(
+    {
+        "model_request_start",
+        "part_start",
+        "text_delta",
+        "final_result",
+        "complete",
+        "error",
+        "ready",
+        "history",
+    }
+)
+"""Frames a public surface sends whatever its operator decided.
+
+`user_prompt_processed` is deliberately absent, and it is the one frame that
+would be a leak rather than a choice: it carries the prompt *as assembled*, which
+on this surface is the operator's placement note and the supplied block above what
+the visitor typed. The dashboard sends it to a member of the organization that
+wrote both.
+"""
+
+_PART_GOVERNED_BY = {"ThinkingPart": "thinking_delta", "ToolCallPart": "tool_call"}
+"""Which frame kind decides whether a `part_start` may announce this part.
+
+`part_start` is in `_ALWAYS`, because a client switching on the dashboard's
+vocabulary needs the frame that opens a turn. Its payload names the *kind* of part
+though, so on a page showing neither the reasoning nor the steps it still said
+`{"part_type": "ThinkingPart"}` and one frame per tool call - no content, and a
+narration of how long the agent thought and how many tools it used, on a surface
+whose whole contract is that neither left the server. A part nothing else here will
+carry is not announced either.
+"""
+
+_THINKING = frozenset({"thinking_delta"})
+_STEPS = frozenset({"call_tools_start", "tool_call", "final_result_start"})
+_DETAIL = frozenset({"tool_call_delta", "tool_result"})
+"""What a step opens into: the arguments as they stream, and what came back.
+
+Grouped with the arguments rather than with the step for the reason the dashboard
+puts them behind one disclosure - "the agent searched the knowledge base" and
+"here is the passage it found" are different claims about what a stranger may
+read, and the second is where something internal actually turns up.
+"""
+
+
+def visible_frames(embed: AgentEmbed) -> frozenset[str]:
+    """Which frame kinds this embed's operator has agreed to send.
+
+    A page carries the three switches; a widget and a socket integration carry
+    none, so they get `PageConfig()` - the defaults, read from the schema rather
+    than repeated here, because a second copy of "off by default" is a copy that
+    can disagree with the one somebody reads in the Builder.
+    """
+    page = PageConfig.model_validate(embed.config) if embed.kind == "page" else PageConfig()
+    kinds = set(_ALWAYS)
+    if page.show_thinking:
+        kinds |= _THINKING
+    if page.show_tool_steps:
+        kinds |= _STEPS
+        if page.show_tool_results:
+            kinds |= _DETAIL
+    return frozenset(kinds)
+
+
+def _no_answer(run: AgentRun) -> str:
+    """What to say when a turn ended with no words, told apart by why.
+
+    The same three endings `channels/router._empty_answer` distinguishes, and the
+    same reasoning - except that a parked run is not offered the link to the
+    decision. On a channel the person reading it is a member of the organization
+    who can open `/runs`; here they are a stranger holding a link, and a URL into
+    somebody's console is not an answer to them.
+    """
+    if run.status == RunStatus.AWAITING_APPROVAL.value:
+        return "That needs somebody to approve it before it can run."
+    if run.status == RunStatus.BUDGET_EXCEEDED.value:
+        return "This assistant has reached its usage limit."
+    return "Sorry, I could not produce an answer to that. Please try again."
+
 
 def _allowed(key: tuple[str, str], limit: int) -> bool:
     count, started = _buckets.get(key, (0, 0.0))
@@ -95,12 +293,13 @@ class EmbedSession:
     def __init__(
         self,
         *,
-        db: AsyncSession,
+        sessions: SessionFactory,
         embed: AgentEmbed,
         visitor: str | None,
         websocket: WebSocket,
+        visitor_key: str | None = None,
     ) -> None:
-        self.db = db
+        self.sessions = sessions
         self.embed = embed
         # Anonymous visitors share a bucket per widget, which is the right
         # granularity: without a token there is nothing to tell them apart by,
@@ -108,19 +307,75 @@ class EmbedSession:
         # bypass by reconnecting.
         self.visitor = visitor or "anonymous"
         self.websocket = websocket
-        self.runner = AgentRunnerService(db)
+        self.visitor_key = visitor_key
+        # Resolved once at admission rather than per frame: it is read off the row
+        # the connection was opened against, and a mid-turn change to what a page
+        # shows must not apply to a turn already half-streamed.
+        self.shows = visible_frames(embed)
         self.conversation_id: UUID | None = None
-        self._context_sent = False
         # What the page said about this visitor, as it last said it. Empty until
         # a frame carries it, which is every widget that declares nothing.
         self._supplied: dict[str, Any] = {}
-        # The supplied block as it was last sent to the agent, so a change in it
-        # is re-sent even after the placement context has gone once.
-        self._supplied_sent: str = ""
+        # Set once a send has timed out, and never cleared: see `_emit`.
+        self._stalled = False
 
     async def greet(self) -> None:
-        """Tell the widget it is connected. The greeting itself is client-side."""
-        await self._send({"type": "ready", "visitor": self.visitor != "anonymous"})
+        """Tell the client it is connected, and hand a returning visitor their thread.
+
+        The widget's greeting is client-side and stays that way. What is *not*
+        client-side is the thread a bookmarked hosted link comes back to: the page
+        cannot know what was said before it was closed, so the socket says it once,
+        here, and never again.
+
+        A connection with no `visitor_key` opens no session at all - which is
+        every widget - so an idle socket still holds no connection.
+        """
+        await self._emit("ready", {"visitor": self.visitor != "anonymous"})
+        if self.visitor_key is None:
+            return
+        async with self.sessions() as db:
+            said = await self._resume(db, self.visitor_key)
+        if said:
+            await self._emit("history", {"messages": said})
+
+    async def _resume(self, db: AsyncSession, visitor_key: str) -> list[dict[str, str]]:
+        """Find this visitor's thread, and read back what is in it.
+
+        The row is claimed on first sight rather than on the first message, so a
+        visitor who opens the page and says nothing still comes back to the same
+        (empty) thread instead of collecting one row per visit. Claimed in one
+        statement, because two tabs on one link share a key - see the repository.
+
+        A row with no conversation on it and a row that did not exist a moment ago
+        are the same answer, and are not distinguished here: both mean nothing has
+        been said yet.
+        """
+        visitor = await embed_visitor_repo.claim(
+            db, embed_id=self.embed.id, visitor_key=visitor_key
+        )
+        self.conversation_id = visitor.conversation_id
+        if self.conversation_id is None:
+            return []
+        # The window the model is reminded of, so what the visitor reads back and
+        # what the agent remembers are the same conversation.
+        total = await conversation_repo.count_messages(db, self.conversation_id)
+        messages = await conversation_repo.get_messages_by_conversation(
+            db,
+            conversation_id=self.conversation_id,
+            skip=max(0, total - HISTORY_MESSAGES),
+            limit=HISTORY_MESSAGES,
+        )
+        # `at` as well as the words: the page prints a time under each turn the way
+        # web chat does, and a reloaded thread whose turns had none would lose it on
+        # exactly the visit continuity exists for.
+        return [
+            {
+                "role": message.role,
+                "text": message.content,
+                "at": message.created_at.isoformat(),
+            }
+            for message in messages
+        ]
 
     async def handle(self, frame: dict[str, Any]) -> None:
         """Process one inbound frame.
@@ -141,79 +396,201 @@ class EmbedSession:
         if isinstance(supplied, dict):
             self._supplied = supplied
 
-        text = str(frame.get("text") or "").strip()
-        if not text:
-            return
-        if len(text) > MAX_MESSAGE_CHARS:
-            await self._send(
-                {"type": "error", "message": "That message is too long. Try a shorter one."}
+        attached = _attached_ids(frame.get("file_ids"))
+        if len(attached) > MAX_FILES_PER_TURN:
+            await self._emit(
+                "error",
+                {"message": f"You can attach up to {MAX_FILES_PER_TURN} files to one message."},
             )
             return
 
-        if not _allowed((str(self.embed.id), self.visitor), self.embed.rate_limit_per_minute):
-            await self._send({"type": "error", "message": "You are sending messages too quickly."})
+        text = str(frame.get("text") or "").strip()
+        if not text and not attached:
+            return
+        if len(text) > MAX_MESSAGE_CHARS:
+            await self._emit("error", {"message": "That message is too long. Try a shorter one."})
             return
 
-        await self._send({"type": "typing"})
+        if not _allowed((str(self.embed.id), self.visitor), self.embed.rate_limit_per_minute):
+            await self._emit("error", {"message": "You are sending messages too quickly."})
+            return
+
+        unanswered = await self._turn_frames(text, attached)
+        if unanswered is not None:
+            await self._emit("error", {"message": unanswered})
+        # Last, on every path that produced frames, so a client stops drawing the
+        # turn whether it ended with an answer or with a refusal. It carries
+        # nothing: the dashboard's `complete` reports what the turn cost, and what
+        # a run cost is the operator's business rather than the visitor's.
+        await self._emit("complete", {})
+
+    async def _turn_frames(self, text: str, attached: Sequence[UUID]) -> str | None:
+        """Run one turn, and answer with the sentence to say if it produced no words.
+
+        Three endings have none, and they are not the same sentence. A run parked
+        on an approval is waiting for a person the visitor cannot reach; a run
+        stopped at its budget has hit a ceiling somebody can raise; anything else
+        is an apology, because sending a stranger to a queue over a decision that
+        was never raised is worse than saying nothing useful.
+
+        An exception that is neither of the two named refusals propagates: the
+        route logs it and closes the socket, which is what it did before.
+        """
         try:
-            answer = await self._answer(text)
-        # A budget stop does not arrive here: the runner records it as a
-        # `BUDGET_EXCEEDED` status and returns, so an `except BudgetExceeded`
-        # was a branch nothing could reach (#663).
+            answer, run = await self._answer(text, attached)
         except AppException:
             logger.exception("embed_run_refused", extra={"embed_id": str(self.embed.id)})
-            await self._send({"type": "error", "message": "This assistant is unavailable."})
-            return
-
-        await self._send({"type": "message", "role": "assistant", "text": answer})
+            return "This assistant is unavailable."
+        # A budget stop is not raised out of `_answer`: the runner records it as a
+        # `BUDGET_EXCEEDED` status and returns, and `_no_answer` names it - the one
+        # copy of that sentence, where an `except BudgetExceeded` here was a branch
+        # nothing could reach.
+        return None if answer else _no_answer(run)
 
     async def fail(self, message: str) -> None:
-        await self._send({"type": "error", "message": message})
+        await self._emit("error", {"message": message})
 
     async def close(self) -> None:
         """Nothing to release: the session owns no task and no client."""
         return
 
-    async def _answer(self, text: str) -> str:
-        ctx = await self._context()
+    async def _answer(self, text: str, attached: Sequence[UUID] = ()) -> tuple[str, AgentRun]:
+        """One turn, on one session of its own.
+
+        The session spans the whole turn - the conversation row, the run row, the
+        cost it books and the transcript it writes are a single unit of work - and
+        nothing outside it, because between turns there is nobody to serve and a
+        held connection is one the rest of the deployment cannot have.
+        """
+        async with self.sessions() as db:
+            return await self._turn(db, text, attached)
+
+    async def _turn(
+        self, db: AsyncSession, text: str, attached: Sequence[UUID] = ()
+    ) -> tuple[str, AgentRun]:
+        ctx = await self._context(db)
         if self.conversation_id is None:
             conversation = await conversation_repo.create_conversation(
-                self.db,
+                db,
                 organization_id=self.embed.organization_id,
                 user_id=None,
                 title=f"{self.embed.name} - {self.visitor}",
             )
             self.conversation_id = conversation.id
+            if self.visitor_key is not None:
+                # The row exists from `greet`; what is new is the thread it names.
+                # Attached on the first turn rather than at connect because a
+                # conversation is only created when somebody actually says
+                # something. Linked conditionally and the winner adopted, so two
+                # tabs on one key answer into one thread rather than the second
+                # detaching the first - `link_conversation` has the race.
+                visitor = await embed_visitor_repo.get(
+                    db, embed_id=self.embed.id, visitor_key=self.visitor_key
+                )
+                if visitor is not None:
+                    self.conversation_id = await embed_visitor_repo.link_conversation(
+                        db, db_visitor=visitor, conversation_id=self.conversation_id
+                    )
 
-        # The placement context is the operator's and never changes, so it goes
-        # once. The supplied block is the page's and does change - a single-page
-        # app signs the visitor in on turn 2 - so it is re-sent whenever it
-        # differs from what was last sent, which is why `self._supplied` is
-        # refreshed every frame. Latching both on the first turn froze the
-        # supplied block, and its `required`-variable warning, at whatever turn 1
-        # happened to hold.
+        # Prepended to every turn, not latched to the first. The transcript
+        # records only `said` (below), so the history each turn is rebuilt from
+        # carries neither of these - a note sent once would reach the model on
+        # turn 1 and be gone from turn 2 on, taking the placement context and the
+        # visitor's supplied variables with it. `self._supplied` is refreshed on
+        # every frame, so a single-page app signing the visitor in on turn 2 is
+        # reflected here, and a page that stops supplying a value stops sending it.
         parts: list[str] = []
-        if self.embed.context and not self._context_sent:
+        if self.embed.context:
             parts.append(f"[Context for this placement: {self.embed.context}]")
-            self._context_sent = True
         supplied_block = self._supplied_block()
-        if supplied_block and supplied_block != self._supplied_sent:
+        if supplied_block:
             parts.append(supplied_block)
-            self._supplied_sent = supplied_block
         prompt = "\n\n".join([*parts, text]) if parts else text
 
-        answer, _run = await self.runner.execute(
+        # The same loop the dashboard's chat drives, through this surface's own
+        # sink - which is what makes the page stream at all, and what makes it
+        # stream only what its operator agreed to show (`_emit`). The visitor's
+        # own words, not the assembled prompt, for the frame that echoes one.
+        frames = RunFrames(emit=self._emit, prompt=text)
+        answer, run = await AgentRunnerService(db).execute(
             ctx,
             self.embed.agent_id,
             prompt,
+            # What the visitor typed, without the placement note and the supplied
+            # block prepended above. Those are addressed to the model; a transcript
+            # that held them would show the operator's briefing as the visitor's
+            # own words, and the first turn of every conversation would read as
+            # somebody reciting their own user tier.
+            said=text,
             # Not `WEB`. A widget on somebody else's public site and an employee
             # in the dashboard are not the same thing to anyone asking how this
             # product is used, and stamping both the same made every embedded
             # run indistinguishable from web chat (#208).
             surface=RunSurface.EMBED,
             conversation_id=self.conversation_id,
+            message_history=await self._history(db),
+            attachments=await self._files(db, attached),
+            stream=frames.drive,
         )
-        return answer or "…"
+        return answer, run
+
+    async def _files(self, db: AsyncSession, attached: Sequence[UUID]) -> list[ChatFile]:
+        """The rows behind the ids this frame named, narrowed to ones it may use.
+
+        Two conditions, and between them they are what stops a frame from
+        attaching a file that is not this visitor's to attach. The row must belong
+        to the member who published this embed - which is who
+        `accept_upload` attributes an upload to - and it must not already hang off
+        a message, so a file cannot be replayed into a second turn or into somebody
+        else's thread.
+
+        That is proportionate rather than complete, and the reason it is enough is
+        the id: `uuid4` is 122 random bits, so "an id from another visitor" is a
+        value nobody can produce without having been handed it. Anything narrower
+        would need a column recording which visitor uploaded what, which is a row
+        that exists to re-state what the message it ends up on already says.
+
+        A dropped id is logged and the turn goes ahead. The alternative is refusing
+        somebody their answer over a stale id in a composer.
+        """
+        if not attached:
+            return []
+        rows = await chat_file_repo.get_many(db, attached)
+        usable = [
+            row
+            for row in rows
+            if row.user_id == self.embed.owner_user_id and row.message_id is None
+        ]
+        if len(usable) != len(attached):
+            logger.info(
+                "embed_attachment_refused",
+                extra={"embed_id": str(self.embed.id), "asked": len(attached)},
+            )
+        return usable
+
+    async def _history(self, db: AsyncSession) -> list[Any]:
+        """What this visitor and the agent have already said to each other.
+
+        The embed was the one surface that passed none, so a widget forgot the
+        previous question the moment it answered it: the conversation row grouped
+        the turns for whoever read it afterwards, and the model saw a stranger
+        every time. Web chat, the API and all three channels carry theirs (#39).
+
+        The most recent window rather than the first page of one. The repository
+        orders oldest-first, so `limit` alone would hand a long thread its opening
+        exchanges and drop what was just said - which is the failure this is
+        supposed to prevent, arriving later and harder to see.
+        """
+        if self.conversation_id is None:
+            return []
+        total = await conversation_repo.count_messages(db, self.conversation_id)
+        messages = await conversation_repo.get_messages_by_conversation(
+            db,
+            conversation_id=self.conversation_id,
+            skip=max(0, total - HISTORY_MESSAGES),
+            limit=HISTORY_MESSAGES,
+        )
+        return build_message_history([{"role": m.role, "content": m.content} for m in messages])
 
     def _supplied_block(self) -> str:
         """What the page told us about this visitor, as data the model may read.
@@ -239,6 +616,14 @@ class EmbedSession:
             EmbedVariable.model_validate(variable)
             for variable in (self.embed.context_variables or [])
         ]
+        if self.embed.kind == "page":
+            # On a page of our own the only place a value can come from is the
+            # visitor's own URL, so `user_tier=premium` typed into the address bar
+            # has to be impossible unless somebody marked that one variable
+            # URL-safe. The narrowing is read off the row rather than passed in by
+            # whoever opened the socket, which is a flag a caller could get wrong
+            # in the direction that widens it (#517).
+            declared = [variable for variable in declared if variable.url_safe]
         if not declared:
             return ""
 
@@ -261,34 +646,73 @@ class EmbedSession:
             return ""
         return SUPPLIED_HEADER + "\n" + "\n".join(lines)
 
-    async def _context(self) -> AuthContext:
-        """The role this run carries.
+    async def _context(self, db: AsyncSession) -> AuthContext:
+        """The role this run carries: the member who published the widget.
 
-        The widget's owner, because an anonymous visitor has no role and an
-        agent needs one to resolve what it may reach. Falling back to `viewer`
-        when the owner has left the organization: their departure must not
-        silently widen what a public widget can do.
+        One line, because the rule and its `viewer` fallback are the same ones a
+        channel binding answers with - see `access.publisher_context`, which is
+        where the reasoning lives so the two cannot drift apart (#640).
         """
-        role = OrgRoleName.VIEWER.value
-        if self.embed.owner_user_id is not None:
-            membership = await member_repo.get(
-                self.db,
-                organization_id=self.embed.organization_id,
-                user_id=self.embed.owner_user_id,
-            )
-            if membership is not None:
-                role = membership.role
-        return AuthContext(
-            user_id=self.embed.owner_user_id,
+        return await publisher_context(
+            db,
             organization_id=self.embed.organization_id,
-            role=role,
+            publisher_user_id=self.embed.owner_user_id,
         )
 
-    async def _send(self, payload: dict[str, Any]) -> None:
+    def _announces(self, part_type: Any) -> bool:
+        """Whether a `part_start` may say this kind of part has begun.
+
+        A part whose content this surface will not carry is not announced either: a
+        page showing no reasoning and no steps was still sending
+        `{"part_type": "ThinkingPart"}` and one frame per tool call, which narrates
+        how long the agent thought and how many tools it reached for. A part type
+        nothing governs - `TextPart`, and anything a future version of the runtime
+        adds - is announced, because the answer itself is what this surface is for.
+        """
+        governing = _PART_GOVERNED_BY.get(str(part_type))
+        return governing is None or governing in self.shows
+
+    async def _emit(self, kind: str, payload: dict[str, Any]) -> None:
+        """One frame out, in the envelope every socket on this platform uses.
+
+        The sink `RunFrames` is handed, and where the operator's decision is
+        enforced: a frame this embed does not show is never written to the socket.
+        Arguments are the one payload narrowed rather than dropped - a step says
+        the agent searched the knowledge base whether or not a stranger may read
+        what it searched for.
+
+        **A stall is latched, not retried per frame.** A fresh bound on every send
+        is not a bound on the turn: a reader whose buffer never drains costs
+        `frames * SEND_TIMEOUT_SECONDS`, so an answer arriving in two hundred deltas
+        held the per-turn session and the open provider stream for an hour and a
+        half - #39's pool-exhaustion vector slowed down rather than closed. It is
+        also not a socket worth keeping: `wait_for` cancels `send_json` mid-write,
+        and continuing to write after that hands the visitor a stream with a hole
+        in it and no `error` frame to explain it. So the first timeout ends the
+        connection, and the run settles the way it does for a closed tab.
+        """
+        if self._stalled or kind not in self.shows:
+            return
+        if kind == "part_start" and not self._announces(payload.get("part_type")):
+            return
+        if kind == "tool_call" and "tool_result" not in self.shows:
+            payload = {key: value for key, value in payload.items() if key != "args"}
         try:
-            await self.websocket.send_json(payload)
+            await asyncio.wait_for(
+                self.websocket.send_json({"type": kind, "data": payload}),
+                timeout=SEND_TIMEOUT_SECONDS,
+            )
+        except TimeoutError:
+            # Reported rather than debugged: a reader this slow is the one thing
+            # here that looks like a healthy turn from every other angle.
+            self._stalled = True
+            logger.info("embed_send_stalled", extra={"embed_id": str(self.embed.id)})
+            with contextlib.suppress(Exception):
+                await self.websocket.close(code=WS_INTERNAL_ERROR)
         except Exception:
-            # The visitor closed the tab. Nothing to recover and nobody to tell.
+            # A closed tab, where send raises. There is nobody to wait for, and the
+            # turn must not hang on one that stopped reading, so the frame is
+            # dropped and `_run`'s own `finally` still records what it cost.
             logger.debug("embed_send_failed", extra={"embed_id": str(self.embed.id)})
 
 
@@ -366,20 +790,63 @@ WIDGET_JS = """(function () {
       var token = window.AgenticOSToken;
       if (token) url += "?token=" + encodeURIComponent(token);
       socket = new WebSocket(url);
+      // The dashboard's own frame vocabulary, of which this reads five. A widget
+      // is a bubble in the corner of somebody else's page: an answer arriving a
+      // word at a time is worth having there, and a narration of tool steps is
+      // not, so `tool_call`, `tool_result` and the reasoning deltas are ignored
+      // on purpose rather than absent. The hosted page draws them.
+      var answer = "";
       socket.onmessage = function (event) {
         var frame = JSON.parse(event.data);
-        if (frame.type === "typing") { pending = bubble("assistant", "…"); return; }
-        if (frame.type === "message") {
-          if (pending) { pending.textContent = frame.text; pending = null; }
-          else bubble("assistant", frame.text);
+        var data = frame.data || {};
+        if (frame.type === "model_request_start") {
+          if (!pending) { pending = bubble("assistant", "…"); answer = ""; }
+          return;
         }
+        if (frame.type === "text_delta") {
+          if (!pending) pending = bubble("assistant", "");
+          answer += data.content;
+          pending.textContent = answer;
+          log.scrollTop = log.scrollHeight;
+        }
+        if (frame.type === "final_result") {
+          // What the run ended with, which is the answer the transcript holds.
+          // Assigned rather than appended: the deltas are the same words, and a
+          // provider that sent none leaves this as the only copy of them.
+          if (data.output) { if (!pending) pending = bubble("assistant", ""); pending.textContent = data.output; }
+        }
+        if (frame.type === "complete") { pending = null; answer = ""; }
         if (frame.type === "error") {
-          if (pending) { pending.remove(); pending = null; }
-          bubble("assistant", frame.message);
+          if (pending && !answer) { pending.remove(); }
+          pending = null;
+          answer = "";
+          bubble("assistant", data.message);
         }
       };
       socket.onclose = function (event) {
-        if (event.code === 4003) bubble("assistant", "This assistant is not available on this page.");
+        // A half-written answer is settled first, whatever the code: `pending` is
+        // the bubble the deltas were landing in, and an unfinished one left on
+        // screen reads as an answer the agent gave rather than one it was cut off
+        // mid-sentence. An empty one is removed - there is nothing to keep.
+        if (pending && !answer) pending.remove();
+        pending = null;
+        answer = "";
+        if (event.code === 4003) {
+          // The one code that must not be retried: the answer will not change, so
+          // the socket is deliberately left in place and reopening the launcher
+          // does not reconnect.
+          bubble("assistant", "This assistant is not available on this page.");
+          return;
+        }
+        // Everything else may be tried again, but only when the visitor asks:
+        // clearing the socket is what lets reopening the launcher reconnect, and
+        // it is a reconnect per click rather than a loop.
+        socket = null;
+        if (event.code === 4029) bubble("assistant", "Too many messages just now - please wait a moment and try again.");
+        // A network blip, a deploy restarting the server, or the 1011 a reader too
+        // slow to keep up gets. Said rather than left silent: the box stops working
+        // either way, and #634 removed exactly this silence for 4029.
+        else bubble("assistant", "The connection dropped. Close this and open it again to carry on.");
       };
     }
 
