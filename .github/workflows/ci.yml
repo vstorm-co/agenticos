@@ -129,9 +129,17 @@ jobs:
           set -euo pipefail
           gh api --paginate \
             "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
-            --jq '.[] | .filename, (.previous_filename // empty)' \
-            > "$RUNNER_TEMP/changed.txt"
-          python3 scripts/ci_changed_scope.py "$RUNNER_TEMP/changed.txt" >> "$GITHUB_OUTPUT"
+            > "$RUNNER_TEMP/files.json"
+          jq -r '.[] | .filename, (.previous_filename // empty)' \
+            < "$RUNNER_TEMP/files.json" > "$RUNNER_TEMP/changed.txt"
+          # The same answer, kept whole: `patch` is what lets a version-only bump
+          # skip the matrix, and it has to be the diff rather than the path,
+          # because those three files also hold the dependency and coverage lists.
+          # `--paginate` concatenates pages as separate arrays, so they are
+          # flattened into one.
+          jq -s 'add // []' < "$RUNNER_TEMP/files.json" > "$RUNNER_TEMP/patches.json"
+          python3 scripts/ci_changed_scope.py \
+            "$RUNNER_TEMP/changed.txt" "$RUNNER_TEMP/patches.json" >> "$GITHUB_OUTPUT"
 
   lint:
     # Never gated. It is one billed minute, `make lint-spelling` reads every
