@@ -17,6 +17,30 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.114] - 2026-08-13
+
+The security page described an authorization model that was deleted three
+months ago.
+
+### Fixed
+
+- **`SECURITY.md` documented `RoleChecker` and `UserRole.USER` / `UserRole.ADMIN`
+  as the authorization model.** The `users.role` column went in migration `0066`;
+  authority inside an organization is a membership row plus the permission
+  catalog, and has been since. A security page is read by somebody deciding
+  whether to trust a deployment, so being three months stale there costs more
+  than elsewhere. It now describes the three layers and points at
+  `docs/permissions.md`.
+- **The hardening checklist named no rate limits at all**, which left an operator
+  no way to know the public surfaces have them. It now lists the per-surface
+  limits — the embed widget's per-visitor cap and each channel bot's
+  `rate_limit_rpm` — and says plainly that the console's own routes are not
+  metered.
+- **The audit-log entry named a table that does not exist.**
+  `app_admin_audit_log` is `app_admin_audit_logs`, and organization-level actions
+  carry a trail of their own gated by `audit:read`, which the page did not
+  mention. (`docs/governance.md`)
+
 ## [0.0.113] - 2026-08-13
 
 Every surface — web chat, the embed widget, a channel bot, and the hosted page
