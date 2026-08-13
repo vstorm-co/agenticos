@@ -17,6 +17,29 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.137] - 2026-08-13
+
+An MCP consent that was refused landed on the servers page looking exactly like
+one that was accepted.
+
+### Fixed
+
+- **Nothing read the outcome the OAuth callback redirected with.** The provider
+  sends the browser to a route that has no way to answer the person — a JSON body
+  on a page nobody navigated to is a dead end — so every outcome ends as a redirect
+  carrying its result in the query. That contract was written in the route handler
+  and consumed by no page. The MCP servers page now announces it, and the redirect
+  lands there rather than on `/settings/integrations`, which is itself a redirect.
+  (#657)
+- **A refusal of ours and a refusal from somewhere else travel separately.** The
+  callback takes no session by design — the `state` token authenticates the
+  exchange — so anybody can put a browser on that address with a refusal of their
+  choosing, and that query is now rendered. Ours goes under `mcp_oauth_failure` and
+  is looked up in a fixed table, so a stranger cannot spell one and have the
+  product say it in its own voice; anything else is stripped of control
+  characters, capped at 200 characters and shown quoted after a sentence this
+  repository wrote. (#657)
+
 ## [0.0.136] - 2026-08-13
 
 DOM key constants were sitting in the message catalog and read back through the
