@@ -28,6 +28,7 @@ import {
   useSecretPurposes,
   useSecrets,
 } from "@/hooks";
+import { modelDetail } from "@/lib/model-profiles";
 import { getErrorMessage } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
@@ -86,6 +87,7 @@ export function ChatModelPicker({ value, onChange }: ChatModelPickerProps) {
   const provider = providers.find((entry) => entry.id === providerId);
   const { models: suggestions } = useProviderModels(providerId);
   const active = profiles.find((profile) => profile.id === value) ?? null;
+  const activeDetail = active ? modelDetail(active) : null;
 
   // Before the fields, not on the button: a disabled submit under three filled-in
   // fields still says "you could do this", and the answer here is that somebody
@@ -146,9 +148,9 @@ export function ChatModelPicker({ value, onChange }: ChatModelPickerProps) {
           <ProviderIcon provider={active.provider} />
           <span className="min-w-0 flex-1 truncate">
             <span className="font-medium">{active.label}</span>
-            <span className="text-muted-foreground block truncate font-mono">
-              {active.provider} · {active.model}
-            </span>
+            {activeDetail !== null && (
+              <span className="text-muted-foreground block truncate font-mono">{activeDetail}</span>
+            )}
           </span>
           <Check className="text-foreground h-3.5 w-3.5 shrink-0" aria-hidden />
         </p>

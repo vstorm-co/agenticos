@@ -13,24 +13,40 @@ does that, and the same frames the dashboard chat already speaks work unchanged.
 from __future__ import annotations
 
 import logging
-from typing import Any
+import mimetypes
+from typing import Annotated, Any
 
 from fastapi import (
     APIRouter,
+    Depends,
+    File,
     Header,
     HTTPException,
     Query,
     Response,
+    UploadFile,
     WebSocket,
     WebSocketDisconnect,
+    status,
 )
+from fastapi.responses import FileResponse
 
-from app.api.deps import DBSession, EmbedSvc
+from app.api.deps import (
+    DBSession,
+    EmbedSvc,
+    limit_embed_admission,
+    limit_embed_script,
+    limit_embed_upload,
+    limit_hosted_config,
+    limit_hosted_logo,
+)
 from app.core.config import settings
 from app.db.session import get_db_context
-from app.schemas.agent_embed import PublicEmbedConfig
+from app.schemas.agent_embed import PublicEmbedConfig, PublicPageConfig, PublicUpload
+from app.services import rate_limit
 from app.services.agent_embed import AgentEmbedService, EmbedDenied
-from app.services.embed_session import WIDGET_JS, EmbedSession
+from app.services.embed_session import WIDGET_JS, EmbedSession, continuity_key
+from app.services.file_storage import IMAGE_MIME_TYPES
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +57,18 @@ router = APIRouter()
 # nothing about whether a token would have helped.
 WS_DENIED = 4003
 
+# Not folded into 4003. "You are not allowed here" and "you are allowed here but
+# arriving too fast" ask a client for opposite things - stop for ever, and retry
+# later - so a client that cannot tell them apart either hammers a refusal or
+# gives up on a limit.
+WS_TOO_MANY = 4029
 
-@router.get("/{public_key}/config", response_model=PublicEmbedConfig)
+
+@router.get(
+    "/{public_key}/config",
+    response_model=PublicEmbedConfig,
+    dependencies=[Depends(limit_embed_admission)],
+)
 async def embed_config(
     public_key: str,
     service: EmbedSvc,
@@ -56,17 +82,97 @@ async def embed_config(
     and, more to the point, would make the allow-list decorative.
     """
     try:
-        embed, _ = await service.admit(public_key, origin=origin, token=None)
+        admission = await service.admit(public_key, origin=origin, token=None)
+        # Inside the same refusal, because a key of another kind has no widget
+        # config to answer with and saying which it is would be saying more than
+        # a refusal should.
+        config = await service.public_config(admission.embed)
     except EmbedDenied:
         raise HTTPException(status_code=403, detail="This widget is not available here") from None
 
     if origin:
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Vary"] = "Origin"
-    return await service.public_config(embed)
+    return config
 
 
-@router.get("/{public_key}/widget.js", response_class=Response)
+@router.get(
+    "/{public_key}/hosted",
+    response_model=PublicPageConfig,
+    dependencies=[Depends(limit_hosted_config)],
+)
+async def hosted_config(public_key: str, service: EmbedSvc) -> Any:
+    """What a page of our own renders itself from.
+
+    No origin check, unlike every other route here, and that is the stance rather
+    than an oversight: an allow-list is a rule about *other people's* sites, and
+    this page is ours. What protects a hosted link in `public` mode is the key's
+    unguessability, the embed's rate bucket, its budget and its pause switch -
+    nothing else, which is why it is said in `docs/channels.md` too.
+
+    404 rather than 403 when hosting is off, for the same reason the widget script
+    does: a key that names nothing and a key whose page is not published are the
+    same amount of information to give away.
+
+    **The only route here limited per page rather than per address.** This one is
+    called by the frontend server, not by the browser, so the address belongs to
+    a container and counting it put the whole deployment in one bucket - see
+    `rate_limit.hosted_admission_allowed`.
+    """
+    embed = await service.find_page(public_key)
+    if embed is None:
+        raise HTTPException(status_code=404, detail="This page is not available")
+    return await service.page_config(embed)
+
+
+@router.get(
+    "/{public_key}/logo",
+    response_class=FileResponse,
+    dependencies=[Depends(limit_hosted_logo)],
+)
+async def hosted_logo(public_key: str, service: EmbedSvc) -> Any:
+    """The one image a hosted page may hand out without a session.
+
+    The agent's avatar or the organization's, whichever the page was configured
+    with - both are uploaded through the mechanics that already exist, so there is
+    no second upload path and no operator-supplied URL for a page we serve to go
+    fetching. The authenticated avatar routes stay authenticated: what makes this
+    one public is this embed being a `page`, and nothing wider.
+
+    Per page, like `/hosted` beside it, not per address: the browser fetches this
+    from the page's own origin, so the request that reaches here is the frontend
+    server's own `fetch` and its address is the container's - counting it would
+    put every hosted page's logo in one deployment-wide bucket. It is the most
+    expensive route here - two queries, a stat and a file - which is the reason it
+    carries a gate at all rather than being left as the cheap read the others are.
+
+    **The type is decided here, not by the name on disk.** A stored file keeps the
+    extension whoever uploaded it chose, and the upload paths that produced these
+    files - a page's own logo, an agent's avatar, an organization's - validated the
+    `Content-Type` header the client *declared* rather than the bytes. So a file
+    named `x.html` reaches this route, and a bare `FileResponse` would let
+    Starlette guess `text/html` from the suffix and serve a script from the origin
+    the hosted page is on, where the frontend proxies this under
+    `script-src 'self' 'unsafe-inline'`. Refused rather than corrected: this route
+    hands out one image, and anything that is not one is not this page's logo.
+    """
+    path = await service.page_logo_path(public_key)
+    if path is None:
+        raise HTTPException(status_code=404, detail="No logo")
+    media_type = mimetypes.guess_type(path)[0]
+    if media_type not in IMAGE_MIME_TYPES:
+        logger.warning(
+            "hosted_logo_not_an_image", extra={"public_key": public_key, "media_type": media_type}
+        )
+        raise HTTPException(status_code=404, detail="No logo")
+    return FileResponse(path, media_type=media_type, headers={"X-Content-Type-Options": "nosniff"})
+
+
+@router.get(
+    "/{public_key}/widget.js",
+    response_class=Response,
+    dependencies=[Depends(limit_embed_script)],
+)
 async def embed_widget(public_key: str, db: DBSession) -> Response:
     """The script a customer pastes into their page.
 
@@ -74,6 +180,15 @@ async def embed_widget(public_key: str, db: DBSession) -> Response:
     second host, and so the script always matches the server it talks to. It is
     handed out to anyone who asks: it contains no secret, and the origin check
     happens when it opens a socket, not when it is downloaded.
+
+    Gated per address like the rest, which it was not until the surface count in
+    `rate_limit` was made honest. "Static script" is what it looks like from
+    outside; from in here it is a row read per request, and the five-minute cache
+    is a browser's courtesy rather than a ceiling anybody has to respect.
+
+    On its own counter rather than admission's, because a page load fetches this
+    *and* a config *and* opens a socket: one bucket for all three made an operator's
+    twenty admissions a minute about seven page loads. See `embed_script_allowed`.
     """
     service = AgentEmbedService(db)
     embed = await service.find_public(public_key)
@@ -96,24 +211,109 @@ async def embed_widget(public_key: str, db: DBSession) -> Response:
     )
 
 
+@router.post(
+    "/{public_key}/files",
+    response_model=PublicUpload,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(limit_embed_upload)],
+)
+async def embed_upload(
+    public_key: str,
+    service: EmbedSvc,
+    file: Annotated[UploadFile, File()],
+    visitor: Annotated[str, Header(alias="X-Visitor-Key", max_length=64)],
+) -> Any:
+    """A file from a stranger, on a page whose operator allowed it.
+
+    **The only route on this surface that stores anything**, which is why it is
+    the only one with three gates rather than one. The limit is counted per address
+    *and* per visitor key: the key is minted by the browser, so counting only that
+    bounds nothing - a script varies it per file - and counting only the address
+    lets one browser on a shared one spend everybody's. The cap and the MIME
+    allowlist are the service's, and the row belongs to whoever published the page -
+    see `AgentEmbedService.accept_upload`.
+
+    Counted before the key is looked up, like admission next door, so probing for
+    live keys with a body attached is not free.
+
+    404 for every refusal that is about the *page* - unknown key, not a page, not
+    accepting files, no owner to attribute a file to - because a visitor is owed
+    "not here" and nothing about somebody else's configuration. What they sent is
+    a different matter and is answered plainly: too large, or a type nothing here
+    can read.
+
+    It answers the id and nothing else. The parse, the size and the storage path
+    are the operator's to read in the transcript, not the visitor's to read back.
+
+    The continuity key travels as a header rather than a query parameter: the
+    model's own docstring calls it a bearer credential for the whole transcript,
+    and a query string lands in access logs and any intermediary's. The socket
+    handshake cannot avoid a query; this route can.
+    """
+    if continuity_key(visitor) is None:
+        raise HTTPException(status_code=400, detail="A visitor key is required")
+
+    embed = await service.find_page(public_key)
+    if embed is None:
+        raise HTTPException(status_code=404, detail="This page is not available")
+    try:
+        stored = await service.accept_upload(
+            embed,
+            data=await file.read(),
+            filename=file.filename or "attachment",
+            content_type=file.content_type,
+        )
+    except EmbedDenied:
+        raise HTTPException(status_code=404, detail="This page is not available") from None
+    return PublicUpload(id=stored.id, filename=stored.filename)
+
+
 @router.websocket("/{public_key}/ws")
 async def embed_socket(
     websocket: WebSocket,
     public_key: str,
     token: str | None = Query(default=None),
+    visitor: str | None = Query(default=None, max_length=64),
 ) -> None:
     """One visitor's conversation with an embedded agent.
 
     The token arrives as a query parameter because browsers cannot set headers
     on a WebSocket handshake. It is the customer's own signed token, not ours,
     and it never leaves this process.
+
+    `visitor` is the hosted page's own continuity key, kept in `localStorage` so a
+    bookmarked link reopens the thread it left. It is a bearer credential for that
+    conversation and is treated as one: it is only read for a hosted connection,
+    and in `jwt` mode it is ignored outright, because the token's subject already
+    answers who this is and a second answer would be a weaker one.
+
+    The shape is checked rather than assumed, because this socket is a published
+    integration (#516) and a client of somebody's own may reach it. Whoever holds
+    a key resumes the thread it names, so `visitor=1` would be a conversation
+    anybody can walk into, and a client keying on a customer id rather than on
+    random bytes is the mistake that invites. Anything that is not the 128 random
+    bits our page mints is dropped - see `_continuity_key`.
+
+    **Admission gets a session; the conversation does not.** This socket stays
+    open for as long as a visitor leaves the tab open, and the session below is
+    closed before the first frame is read - the turn loop opens one per turn, the
+    way the dashboard chat does. Held open across the conversation, fifteen idle
+    widget visitors exhausted the connection pool and took the API down with them
+    (#39).
     """
     origin = websocket.headers.get("origin")
+
+    # The one admission gate that is not `limit_embed_admission`: a refusal here is
+    # a close code, not a status, so there is no exception handler to raise into.
+    if not (await rate_limit.embed_admission_allowed(websocket)).allowed:
+        await websocket.accept()
+        await websocket.close(code=WS_TOO_MANY, reason="Too many connections. Try again shortly.")
+        return
 
     async with get_db_context() as db:
         service = AgentEmbedService(db)
         try:
-            embed, visitor = await service.admit(public_key, origin=origin, token=token)
+            admission = await service.admit(public_key, origin=origin, token=token)
         except EmbedDenied:
             # Accepted first, then closed with a code: a handshake rejected
             # outright gives the browser no way to tell "refused" from "server
@@ -122,17 +322,30 @@ async def embed_socket(
             await websocket.close(code=WS_DENIED, reason="This widget is not available here")
             return
 
-        session = EmbedSession(db=db, embed=embed, visitor=visitor, websocket=websocket)
-        await websocket.accept()
-        try:
-            await session.greet()
-            while True:
-                frame = await websocket.receive_json()
-                await session.handle(frame)
-        except WebSocketDisconnect:
-            pass
-        except Exception:
-            logger.exception("embed_session_failed", extra={"embed_id": str(embed.id)})
-            await session.fail("Something went wrong. Please try again.")
-        finally:
-            await session.close()
+    session = EmbedSession(
+        sessions=get_db_context,
+        embed=admission.embed,
+        visitor=admission.visitor,
+        websocket=websocket,
+        # Only a page resumes by key, and only an anonymous visitor: a `jwt`
+        # visitor is already named by their token, and a widget's conversation
+        # lasts as long as its socket.
+        visitor_key=(
+            continuity_key(visitor)
+            if admission.embed.kind == "page" and admission.visitor is None
+            else None
+        ),
+    )
+    await websocket.accept()
+    try:
+        await session.greet()
+        while True:
+            frame = await websocket.receive_json()
+            await session.handle(frame)
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        logger.exception("embed_session_failed", extra={"embed_id": str(admission.embed.id)})
+        await session.fail("Something went wrong. Please try again.")
+    finally:
+        await session.close()

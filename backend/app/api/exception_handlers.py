@@ -138,6 +138,13 @@ async def app_exception_handler(request: HTTPConnection, exc: AppException) -> J
     headers: dict[str, str] = {}
     if exc.status_code == 401:
         headers["WWW-Authenticate"] = "Bearer"
+    # The interval a 429 carries in its body belongs in the header too: standard
+    # clients, fetch wrappers and CDNs back off on Retry-After, not on a custom
+    # field they have no reason to read.
+    if exc.status_code == 429:
+        retry_after = exc.details.get("retry_after_seconds")
+        if isinstance(retry_after, int):
+            headers["Retry-After"] = str(retry_after)
 
     return _envelope(
         status_code=exc.status_code,

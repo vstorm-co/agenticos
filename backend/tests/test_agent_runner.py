@@ -2136,6 +2136,74 @@ class TestWhoTheRunSaysItIs:
 
         assert create_run.call_args.kwargs["user_id"] is None
 
+    @pytest.mark.anyio
+    async def test_a_channel_run_records_the_chat_account_that_asked(self):
+        """Who asked and who it ran as are different questions in a room (#639).
+
+        The row carries both, so a turn from a chat account nobody has linked is
+        still attributable - and becomes attributable to a *person* the moment
+        that account is linked, without rewriting the run.
+        """
+        identity_id = uuid.uuid4()
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        ctx = AuthContext(
+            user_id=uuid.uuid4(),
+            organization_id=uuid.uuid4(),
+            role=OrgRoleName.VIEWER,
+            channel_identity_id=identity_id,
+        )
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(
+                    return_value=(agent, AgentSpec(name="Support"), agent.current_version_id)
+                ),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ) as create_run,
+            patch("app.services.agent_runner.build_agent"),
+        ):
+            await service.prepare(ctx, agent.id, surface=RunSurface.MATTERMOST)
+
+        assert create_run.call_args.kwargs["channel_identity_id"] == identity_id
+
+    @pytest.mark.anyio
+    async def test_a_run_from_anywhere_else_records_no_chat_account(self):
+        """The dashboard, the playground and the API are reached as a person."""
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(
+                    return_value=(agent, AgentSpec(name="Support"), agent.current_version_id)
+                ),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ) as create_run,
+            patch("app.services.agent_runner.build_agent"),
+        ):
+            await service.prepare(_ctx(), agent.id)
+
+        assert create_run.call_args.kwargs["channel_identity_id"] is None
+
 
 def _exposure(*, organization_id=None, environment_id=None, surface="web", prompt=None, tools=None):
     """A binding row.

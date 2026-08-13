@@ -117,6 +117,21 @@ There is no `(marketing)` route group.
   renders English instead of the key. A module-level table of labels cannot call a
   translator, so it holds *keys* and the component translates at the point of use;
   a pure helper either answers with a key or takes `t`.
+- **The product's own nouns stay English in every locale**, and this is the list:
+  **agent, spec, capability, skill, embed, budget, run, prompt, provider, token,
+  vault, workspace, sandbox, MCP**. They name things a client also meets in
+  `docs/`, in the API and in the YAML a spec exports into their own repository, so
+  translating them in the UI and nowhere else makes two vocabularies for one
+  product - a Polish reader looking up *zdolność* finds nothing. Inflect them
+  rather than replacing them (`agenta`, `w spec`, `runy`), and translate everything
+  around them. Decided before the first namespace rather than after the third
+  (#643); a word joining the list belongs here, not in one `pl.json` entry.
+- **Translate a namespace, not a branch.** Seventy Polish strings among four
+  hundred English ones in one dialog is worse than a consistently English one, so
+  the unit of work is the namespace a person reads on one screen - which is why
+  #634 finished `hosted` (12 keys, what a Polish visitor lands on) and left
+  `agents` (509) whole. Polish also makes the count rule bite harder than English
+  does: `one`/`few`/`many`/`other` where `en.json` needed `=1`/`other`.
 - **The locale lives in a cookie, and a switch goes through `@/lib/locale-navigation`.**
   `localePrefix: "as-needed"` means an unprefixed path *is* English, and 49 files import
   a plain `next/link` - so a switch that only rewrites the URL survives exactly one
