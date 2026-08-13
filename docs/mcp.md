@@ -79,6 +79,14 @@ Every URL reached in that flow is SSRF-checked, not just the one somebody typed:
 discovery means the *remote server* chooses most of the addresses we call, and
 those deserve the same policy as a webhook.
 
+A step that fails says **which step gave up and what class of thing raised**,
+never what the upstream client wrote. `httpx` puts the failing request in its
+message and the two requests here are a client registration and a token grant,
+so quoting it would carry a token endpoint — reached with credentials — into the
+browser; a pydantic error over an unreadable token response echoes the payload it
+rejected, which is the tokens. Both stay in the server log, which is where an
+operator already looks.
+
 !!! warning "An organization's OAuth connection is still someone's grant"
 
     `POST /mcp-connections/oauth/start` produces a connection the organization
