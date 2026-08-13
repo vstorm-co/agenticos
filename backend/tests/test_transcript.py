@@ -348,6 +348,46 @@ class TestWritingTheTranscript:
         conversations.create_tool_call.assert_awaited_once()
         conversations.complete_tool_call.assert_not_awaited()
 
+    async def test_a_parked_call_is_written_awaiting_approval_not_running(self, conversations):
+        """The parked state lives on `agent_runs` and the `approvals` rows, so the
+        transcript row was the one place a reloaded conversation could not see it:
+        the one call somebody has to decide about read as a step that ran (#601)."""
+        await TranscriptService(_session()).record(
+            _run(),
+            prompt="email ada",
+            answer="",
+            tool_calls=[
+                RecordedToolCall(
+                    tool_call_id="c1", tool_name="search", args={"q": "ada"}, result="1 hit"
+                ),
+                RecordedToolCall(
+                    tool_call_id="c2", tool_name="send_email", args={"to": "ada@example.com"}
+                ),
+            ],
+            parked=frozenset({"c2"}),
+        )
+
+        statuses = {
+            call.kwargs["tool_call_id"]: call.kwargs["status"]
+            for call in conversations.create_tool_call.await_args_list
+        }
+        assert statuses == {"c1": "running", "c2": "awaiting_approval"}
+
+    async def test_a_call_that_merely_never_returned_is_not_marked_as_waiting(self, conversations):
+        """A run that broke or was stopped mid-call also leaves a call with no
+        result, and nobody can approve it into finishing - `awaiting_approval` is
+        only for the calls the run parked on."""
+        await TranscriptService(_session()).record(
+            _run(),
+            prompt="charge it",
+            answer="",
+            tool_calls=[
+                RecordedToolCall(tool_call_id="c1", tool_name="charge_card", args={"amount": 500})
+            ],
+        )
+
+        assert conversations.create_tool_call.await_args.kwargs["status"] == "running"
+
     async def test_a_resumed_run_writes_no_user_turn(self, conversations):
         """It picks up at the tool call it stopped on. There is no new question,
         and inventing one would put words in somebody's mouth."""
