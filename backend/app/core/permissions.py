@@ -263,6 +263,37 @@ def role_has(role: str, permission: Perm) -> bool:
     return ROLE_PERMS.get(role, {}).get(permission, Scope.NONE) is not Scope.NONE
 
 
+def _reaches(holder: dict[Perm, Scope], offered: dict[Perm, Scope]) -> bool:
+    """Whether `holder` holds everything `offered` does, at least as widely."""
+    return all(holder.get(perm, Scope.NONE) >= scope for perm, scope in offered.items())
+
+
+def assignable_roles(role: str) -> frozenset[str]:
+    """The roles a member holding `role` may hand out.
+
+    A role may only assign one whose authority it *strictly* exceeds: every
+    permission the offered role holds, held at least as widely by the assigner,
+    and something the assigner holds that the offered role does not. So nobody
+    assigns their own level - promoting a peer to it is an ownership decision,
+    not a management one - and nobody at all assigns `owner`, since no role
+    outranks it. Ownership moves through
+    :meth:`app.services.member.MemberService.transfer_ownership`, which demotes
+    the outgoing owner in the same breath.
+
+    Derived from the catalog rather than from a role name, which is the whole
+    point: the ceiling this replaced compared against the literal `"admin"`, so
+    a custom role (Phase 2) holding `roles:manage` passed it unseen and could
+    mint a second owner (#672). An unknown role holds nothing and so may assign
+    nothing.
+    """
+    held = ROLE_PERMS.get(role, {})
+    return frozenset(
+        name
+        for name, perms in ROLE_PERMS.items()
+        if _reaches(held, perms) and not _reaches(perms, held)
+    )
+
+
 # The role an anonymous context carries. Deliberately not a member of
 # :class:`OrgRoleName` and deliberately not a key of `ROLE_PERMS`, so it
 # cannot pick up permissions from a later edit to either.
