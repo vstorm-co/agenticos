@@ -153,7 +153,7 @@ class ConversationService:
         A thread with no owner recorded stays writable by the organization, which
         is what it was before participation existed. Narrowing that is a product
         decision about who tidies up a room nobody linked an account in, not a
-        hole this opened, so it is #645 rather than a second rule here.
+        hole this opened, so it is #701 rather than a second rule here.
         """
         owner = getattr(conversation, "user_id", None)
         if owner is None:

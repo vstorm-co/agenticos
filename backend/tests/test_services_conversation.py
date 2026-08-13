@@ -440,7 +440,7 @@ class TestParticipationDoesNotCarryTheWrite:
     ):
         """A room nobody linked an account in has no owner, and stays writable by
         the organization - which is what it was before participation existed.
-        Narrowing it is #645, not something this refusal should decide quietly."""
+        Narrowing it is #701, not something this refusal should decide quietly."""
         conversation = MockConversation(id=uuid4(), user_id=None)
 
         with patch("app.services.conversation.conversation_repo") as mock_repo:
