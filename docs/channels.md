@@ -412,6 +412,13 @@ row — with three narrowings in front of it:
 | **A limit per address and per visitor** | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE`, in the shared Redis, and **both** have to allow it. Counting only the continuity key bounds nothing: the browser mints it and any 32 hex characters is a valid one, so a script varies it per file. Counting only the address lets one browser on a shared one spend everybody's |
 | **Three files to a message** | Which bounds how much of one turn's prompt is somebody else's document |
 
+Those three bound what gets *stored*. What bounds what a stranger can make this
+deployment *receive* is one layer above all of them, because the multipart body is
+parsed before the route runs: a request declaring more than the whole-request
+ceiling is answered 413 without being read. See
+[configuration](configuration.md#the-size-of-a-request-as-opposed-to-the-size-of-a-file),
+including what it does not cover.
+
 **The row belongs to the member who published the page**, because
 `chat_files.user_id` is `NOT NULL` and a visitor has no account — the same answer
 already given for who a public turn *runs* as. A page whose publisher's account is

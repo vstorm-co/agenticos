@@ -22,6 +22,7 @@ from app.core.logfire_setup import instrument_redis
 from app.core.logfire_setup import instrument_httpx
 from app.core.logfire_setup import instrument_pydantic_ai
 from app.core.logging import setup_logging
+from app.core.body_limit import BodySizeLimitMiddleware
 from app.core.middleware import RequestIDMiddleware
 from app.core.watchdog import EventLoopWatchdog
 from app.core.cache import setup_cache
@@ -266,6 +267,11 @@ OS for your agents.
     # idempotent via a module-level guard in logfire_setup.py.
     setup_logfire()
     instrument_app(app)
+
+    # Outermost of the three, because it exists to answer before anything reads the
+    # body - a middleware under CORS or the session would run after the request had
+    # already been received.
+    app.add_middleware(BodySizeLimitMiddleware)
 
     app.add_middleware(RequestIDMiddleware)
 

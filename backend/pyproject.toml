@@ -378,6 +378,9 @@ include = [
     "app/core/secret_kinds.py",
     "app/core/vault.py",
     "app/core/background.py",
+    # The one size limit that runs before a body is read. Every other one in this
+    # codebase measures bytes that have already arrived.
+    "app/core/body_limit.py",
     # The worker's judgement of its own event loop. It decides to `SIGKILL` the
     # process it runs in, on the two stacks that have no supervisor reading a
     # beat from outside - so a wrong verdict is a restart loop in production.
@@ -528,6 +531,9 @@ include = [
     "app/core/secret_kinds.py",
     "app/core/vault.py",
     "app/core/background.py",
+    # The one size limit that runs before a body is read. Every other one in this
+    # codebase measures bytes that have already arrived.
+    "app/core/body_limit.py",
     # The worker's judgement of its own event loop. It decides to `SIGKILL` the
     # process it runs in, on the two stacks that have no supervisor reading a
     # beat from outside - so a wrong verdict is a restart loop in production.

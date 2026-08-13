@@ -43,8 +43,29 @@ explicitly is also what lets stored secrets survive a `SECRET_KEY` rotation.
 | `TIMEZONE` | `UTC` | IANA timezone (e.g. `UTC`, `Europe/Warsaw`, `America/New_York`) |
 | `MODELS_CACHE_DIR` | `./models_cache` | Directory for cached ML models |
 | `MEDIA_DIR` | `./media` | Directory for uploaded files |
-| `MAX_UPLOAD_SIZE_MB` | `50` | Knowledge-base document cap. Chat and embed uploads are bounded by the hardcoded `MAX_UPLOAD_SIZE` (10 MiB in `file_storage.py`), not by this |
+| `MAX_UPLOAD_SIZE_MB` | `50` | Knowledge-base document cap, and the number the whole-request ceiling below is derived from. Chat and embed uploads are bounded by the hardcoded `MAX_UPLOAD_SIZE` (10 MiB in `file_storage.py`), not by this |
 | `EMBED_MAX_UPLOAD_SIZE_MB` | `5` | What a **stranger** may upload to a hosted page. A ceiling on top of the chat path's `MAX_UPLOAD_SIZE`, never a way past it |
+
+### The size of a request, as opposed to the size of a file
+
+Every limit above is measured on bytes that have already arrived. FastAPI parses a
+multipart body to resolve the `UploadFile` parameter *before* the handler runs, so
+by the time one of those caps is compared against `len(data)` the body has been
+spooled to a temporary file and read into memory. Behind a session that is not much
+of a risk; on `POST /api/v1/embed/{key}/files`, which a stranger holding a link may
+reach, it is.
+
+So a request declaring a `Content-Length` larger than `MAX_UPLOAD_SIZE_MB` plus a
+5 MiB allowance for the multipart envelope is answered **413** before its body is
+read. There is no setting: it follows `MAX_UPLOAD_SIZE_MB`, because a second number
+to keep in step with the first is a number that ends up below it.
+
+**It is the cheap half of the answer, not the whole one.** `Content-Length` is set
+by the caller, and a chunked request declares none at all — those are let through
+and bounded by the per-route caps, which measure real bytes. A deployment that wants
+the guarantee rather than the courtesy sets `client_max_body_size` (nginx) or the
+equivalent on whatever terminates its connections; the compose files run uvicorn
+with no such limit of its own.
 
 ## Authentication
 
