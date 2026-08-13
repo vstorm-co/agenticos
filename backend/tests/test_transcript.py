@@ -232,6 +232,25 @@ class TestReadingWhatAnInheritedCallReturned:
         }
         assert vendor_text in caplog.text
 
+    def test_a_settled_retry_is_logged_once_across_both_readers(self, caplog):
+        """`agent_runner` reads one run's messages through both functions, so a
+        retry that settles an inherited call used to reach the log twice - once
+        from `tool_calls_in` collecting a result it then dropped, once from
+        here. One failure, one WARNING."""
+        vendor_text = "Client error '401 Unauthorized' for url 'https://api.tavily.com/search'"
+        messages = [
+            ModelRequest(
+                parts=[
+                    RetryPromptPart(content=vendor_text, tool_name="web_search", tool_call_id="c1")
+                ]
+            )
+        ]
+        with caplog.at_level(logging.WARNING, logger="app.services.transcript"):
+            assert tool_calls_in(messages) == []
+            assert "c1" in settled_calls_in(messages)
+
+        assert sum(vendor_text in record.getMessage() for record in caplog.records) == 1
+
 
 class TestWritingTheTranscript:
     @pytest.fixture

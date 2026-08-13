@@ -133,6 +133,13 @@ def tool_calls_in(messages: Sequence[ModelMessage]) -> list[RecordedToolCall]:
     A `RetryPromptPart` counts as a result. A call the model was told to retry
     did happen and did fail, and dropping it would leave the transcript showing
     an argument list with no outcome - which reads as "still running" for ever.
+
+    A result whose call is not here is skipped rather than collected and then
+    dropped: it is :func:`settled_calls_in`'s to store, and reading it in both
+    places logged a settled retry's vendor text twice. Gating on `calls` is
+    sound because a result part sits in the `ModelRequest` that answers its
+    call's `ModelResponse`, so the call - when it is in these messages at all -
+    has always been seen first.
     """
     calls: dict[str, RecordedToolCall] = {}
     results: dict[str, str] = {}
@@ -144,7 +151,7 @@ def tool_calls_in(messages: Sequence[ModelMessage]) -> list[RecordedToolCall]:
                     tool_name=part.tool_name,
                     args=part.args_as_dict(raise_if_invalid=False),
                 )
-            elif isinstance(part, ToolReturnPart | RetryPromptPart):
+            elif isinstance(part, ToolReturnPart | RetryPromptPart) and part.tool_call_id in calls:
                 results[part.tool_call_id] = _result_text(part)
     return [
         RecordedToolCall(
