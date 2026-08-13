@@ -17,6 +17,30 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.120] - 2026-08-13
+
+Reloading a conversation whose run is parked on an approval showed nothing to
+say so, at either end.
+
+### Added
+
+- **`GET /runs/{run_id}/parked`** answers a run's pending calls — the approval row
+  to decide, the tool call id, the tool and its arguments — the same payload the
+  live `tool_approval_required` frame carries. Gated on `approvals:decide`. (#601)
+
+### Fixed
+
+- **The step a run parked on rendered as though it had run.** The transcript now
+  stores those calls with `status="awaiting_approval"` rather than `running`, taken
+  off the runner's paused state for every non-streaming surface and off
+  `turn.parked` in web chat. The row does not read "waiting" for ever: a resume
+  settles it with what the call returned, an expiry with the timeout notice, and
+  both paths already existed. (#601)
+- **The approval panel never came back after a reload**, so the only way to finish
+  a parked run was the approvals queue on another page. This had always been true
+  of every non-streaming surface; #509 removed the stored notice that had been
+  covering for both halves, which is what made it visible. (#601)
+
 ## [0.0.119] - 2026-08-13
 
 A channel turn refused before it ran left the files it had already stored behind,
