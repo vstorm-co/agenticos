@@ -17,6 +17,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.150] - 2026-08-13
+
+The streaming socket was the last surface still writing blank user turns.
+
+### Fixed
+
+- **A blank streaming turn's user message names its files.** 0.0.148 fixed the
+  blank-turn class for every surface that reaches the transcript's `record` —
+  channels, the embed widget, the HTTP API — but the dashboard's streaming
+  socket writes its own user turn and stored the message verbatim, blank
+  included; only the composer's client-side substitution hid it, so any raw
+  WebSocket client sending `{"message": "", "file_ids": [...]}` stored an
+  empty bubble. Both write sites now compose the same one-line-per-file body,
+  loaded through the owner-scoped file read from 0.0.149. A typed message is
+  never replaced. (#750)
+
 ## [0.0.149] - 2026-08-13
 
 A chat turn could attach another user's file by naming its id.
