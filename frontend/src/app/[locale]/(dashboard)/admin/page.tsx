@@ -9,7 +9,6 @@ import {
   Building2,
   MessageSquare,
   MessagesSquare,
-  RefreshCw,
   Star,
   UserPlus,
   Users,
@@ -18,7 +17,7 @@ import type { LucideIcon } from "lucide-react";
 
 import { StatCard } from "@/components/dashboard/stat-card";
 import { LoadingState } from "@/components/states";
-import { Badge, Button } from "@/components/ui";
+import { Badge } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
 import { qk } from "@/lib/query-keys";
@@ -96,25 +95,9 @@ export default function AdminOverviewPage() {
   const stats = statsQuery.data;
   const events = eventsQuery.data;
   const orgs = orgsQuery.data;
-  const refreshing = statsQuery.isFetching || eventsQuery.isFetching || orgsQuery.isFetching;
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => {
-            statsQuery.refetch();
-            eventsQuery.refetch();
-            orgsQuery.refetch();
-          }}
-        >
-          <RefreshCw className={refreshing ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
-          {t("refresh")}
-        </Button>
-      </div>
-
       {statsQuery.isLoading ? (
         <LoadingState variant="stats" rows={6} />
       ) : (

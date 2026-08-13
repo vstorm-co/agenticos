@@ -2310,7 +2310,6 @@
       "ratingsRequestFailed": "The ratings request failed.",
       "ratingsSummaryRequestFailed": "The ratings summary request failed.",
       "recentActivity": "Recent activity",
-      "refresh": "Refresh",
       "refresh2": "Refresh",
       "responseRatings": "Response ratings",
       "resultCount": "{count, plural, =1 {1 result} other {# results}}",
