@@ -173,7 +173,6 @@ export function useAuth() {
         const response = await apiClient.post<{
           user: User;
           access_token: string;
-          message: string;
         }>("/auth/login", credentials);
         adoptUser(queryClient, setUser, response.user);
         useAuthStore.getState().setAccessToken(response.access_token);
@@ -226,9 +225,7 @@ export function useAuth() {
 
   const refreshToken = useCallback(async () => {
     try {
-      const refreshResponse = await apiClient.post<{ access_token: string; message: string }>(
-        "/auth/refresh",
-      );
+      const refreshResponse = await apiClient.post<{ access_token: string }>("/auth/refresh");
       useAuthStore.getState().setAccessToken(refreshResponse.access_token);
       const userData = await apiClient.get<User>("/auth/me");
       adoptUser(queryClient, setUser, userData);

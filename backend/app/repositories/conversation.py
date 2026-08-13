@@ -5,13 +5,14 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, distinct, func, select
+from sqlalchemy import ColumnElement, distinct, func, or_, select
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
+from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.user import User
 from app.repositories._search import contains_ci
@@ -222,6 +223,76 @@ def _list_filters(
     return filters
 
 
+async def authors_of(db: AsyncSession, identity_ids: list[UUID]) -> dict[UUID, ChannelIdentity]:
+    """The chat accounts behind a page of messages, keyed by id.
+
+    One query for the whole transcript rather than one per turn, for the reason
+    :func:`agents_in_conversations` gives: a thread is a hundred messages and the
+    alternative is a hundred round trips to render a hundred names.
+
+    An empty list asks nothing - a dashboard thread has no chat accounts in it at
+    all, which is the common case.
+    """
+    if not identity_ids:
+        return {}
+    result = await db.execute(
+        select(ChannelIdentity).where(ChannelIdentity.id.in_(set(identity_ids)))
+    )
+    return {identity.id: identity for identity in result.scalars().all()}
+
+
+def _reachable_by(user_id: UUID) -> ColumnElement[bool]:
+    """Whose conversation list a thread appears in.
+
+    Theirs if they own it, and theirs if a chat account of theirs has spoken in
+    it - which is what puts a channel thread in front of everybody who was in the
+    room rather than only whoever happened to speak first. A channel thread has no
+    owner at all when the first speaker had linked no account, so ownership alone
+    left it invisible to everybody (#639).
+
+    **This is who spoke, not who may read.** Participation is never re-checked
+    against the platform, so somebody removed from the channel keeps the thread in
+    their list - deliberately, and #641 is what it would take to change. Nothing
+    may use this as an authorization check without asking the platform first.
+
+    The same correlation care as :func:`_list_filters`: only `conversations` may be
+    correlated, or the subquery loses its FROM clause and raises.
+    """
+    spoke_in_it = (
+        select(Message.id)
+        .select_from(Message)
+        .join(ChannelIdentity, ChannelIdentity.id == Message.channel_identity_id)
+        .where(
+            Message.conversation_id == Conversation.id,
+            ChannelIdentity.user_id == user_id,
+        )
+        .correlate(Conversation)
+        .exists()
+    )
+    return or_(Conversation.user_id == user_id, spoke_in_it)
+
+
+async def spoke_in(db: AsyncSession, conversation_id: UUID, user_id: UUID) -> bool:
+    """Whether a chat account of this user's has spoken in this conversation.
+
+    The read-side counterpart of `_reachable_by`'s `spoke_in_it`: a channel
+    thread appears in the list of everyone who was in the room, so opening it has
+    to be allowed for the same set - otherwise a participant sees the thread and
+    gets a 404 opening it. The same #641 caveat carries over: this is who spoke,
+    not a live check against the platform's current membership.
+    """
+    result = await db.execute(
+        select(Message.id)
+        .join(ChannelIdentity, ChannelIdentity.id == Message.channel_identity_id)
+        .where(
+            Message.conversation_id == conversation_id,
+            ChannelIdentity.user_id == user_id,
+        )
+        .limit(1)
+    )
+    return result.first() is not None
+
+
 def _sort_columns() -> dict[str, Any]:
     """The columns a conversation listing can be ordered by, before the extras.
 
@@ -272,7 +343,7 @@ async def get_conversations_by_user(
     """
     query = select(Conversation).where(Conversation.organization_id == organization_id)
     if user_id:
-        query = query.where(Conversation.user_id == user_id)
+        query = query.where(_reachable_by(user_id))
     for condition in _list_filters(
         search=search,
         agent_id=agent_id,
@@ -361,7 +432,7 @@ async def count_conversations(
         Conversation.organization_id == organization_id
     )
     if user_id:
-        query = query.where(Conversation.user_id == user_id)
+        query = query.where(_reachable_by(user_id))
     for condition in _list_filters(
         search=search,
         agent_id=agent_id,
@@ -445,12 +516,18 @@ async def get_messages_by_conversation(
     limit: int = 100,
     include_tool_calls: bool = False,
 ) -> list[Message]:
-    """Get messages for a conversation with pagination."""
+    """Get messages for a conversation, in the order they were written.
+
+    Ordered by `ordinal` rather than `created_at`: one turn writes the question
+    and the answer in a single transaction, and `func.now()` gives both the same
+    timestamp - so this used to return the answer above the question whenever the
+    planner felt like it. See `Message.ordinal`.
+    """
     query = select(Message).where(Message.conversation_id == conversation_id)
     if include_tool_calls:
         query = query.options(selectinload(Message.tool_calls))
     query = query.options(selectinload(Message.files))
-    query = query.order_by(Message.created_at.asc()).offset(skip).limit(limit)
+    query = query.order_by(Message.ordinal.asc()).offset(skip).limit(limit)
     result = await db.execute(query)
     return list(result.scalars().all())
 
@@ -481,7 +558,7 @@ async def get_messages_by_run(
     if include_tool_calls:
         query = query.options(selectinload(Message.tool_calls))
     query = query.options(selectinload(Message.files))
-    query = query.order_by(Message.created_at.asc()).offset(skip).limit(limit)
+    query = query.order_by(Message.ordinal.asc()).offset(skip).limit(limit)
     result = await db.execute(query)
     return list(result.scalars().all())
 
@@ -509,12 +586,14 @@ async def create_message(
     agent_id: UUID | None = None,
     agent_version_id: UUID | None = None,
     run_id: UUID | None = None,
+    channel_identity_id: UUID | None = None,
 ) -> Message:
     """Create a new message."""
     message = Message(
         conversation_id=conversation_id,
         role=role,
         content=content,
+        channel_identity_id=channel_identity_id,
         thinking=thinking,
         parts=parts,
         model_name=model_name,
@@ -611,15 +690,23 @@ async def create_tool_call(
     tool_name: str,
     args: dict[str, Any],
     started_at: datetime,
+    status: str = "running",
 ) -> ToolCall:
-    """Create a new tool call record."""
+    """Create a new tool call record.
+
+    `status` is `awaiting_approval` for a call the run parked on: the parked
+    state otherwise lives only on `agent_runs` and the `approvals` rows, so a
+    reloaded conversation read the one call somebody has to decide about as a
+    step that ran (#601). `complete_tool_call` closes the row whichever way the
+    call ends - a resume, a rejection replayed, or an expiry.
+    """
     tool_call = ToolCall(
         message_id=message_id,
         tool_call_id=tool_call_id,
         tool_name=tool_name,
         args=args,
         started_at=started_at,
-        status="running",
+        status=status,
     )
     db.add(tool_call)
     await db.flush()

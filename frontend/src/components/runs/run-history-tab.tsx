@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Activity, ThumbsDown } from "lucide-react";
 
+import { getErrorMessage } from "@/lib/api-error";
 import { FocusedRun } from "@/components/runs/focused-run";
 import { RunTable, type RunSort, type RunSortKey } from "@/components/runs/run-table";
 import { VersionStrip } from "@/components/runs/version-strip";
@@ -12,7 +13,6 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
 import { usePermissions, useRuns } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
-import { getErrorMessage } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 
 /**
@@ -63,6 +63,7 @@ export function RunHistoryTab({
   startedFrom?: string | null;
   startedTo?: string | null;
 }) {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("pages.runs");
   const { can } = usePermissions();
   const canView = can(Perm.runsView);
@@ -187,7 +188,7 @@ export function RunHistoryTab({
               ) : error ? (
                 <ErrorState
                   title={t("runHistoryCouldNot")}
-                  description={getErrorMessage(error, t("theseRunsHappenedThe"))}
+                  description={getErrorMessage(error, tErrors, t("theseRunsHappenedThe"))}
                   cta={{ label: t("tryAgain"), onClick: () => void refetch() }}
                 />
               ) : runs.length === 0 ? (

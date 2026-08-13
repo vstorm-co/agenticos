@@ -11,8 +11,9 @@ test.use({ storageState: AUTH_STATE });
  * platform like this breaks: each part passes its own tests while the seams
  * between them rot. This is the only test that proves a key stored in the vault
  * is the key a model resolves, that a model created in the Builder is the model
- * a run bills against, and that the run the chat started against the agent the
- * Builder published is the run Activity reports.
+ * a run bills against, that the run the chat started against the agent the
+ * Builder published is the run Activity reports, and that a stranger with the
+ * hosted link reaches that same frozen version (#517).
  *
  * The model that answers is `e2e/stub-model-server.ts`, an OpenAI-compatible
  * server Playwright starts beside the app. That is not a compromise for cost -
@@ -48,7 +49,7 @@ const PROVIDER_LABEL = "OpenAI";
 /** Priced by the bundled snapshot, which is what turns usage into a number. */
 const PROVIDER_MODEL = "gpt-4.1-mini";
 
-test("an agent goes from a stored key to a run with a cost", async ({ page }) => {
+test("an agent goes from a stored key to a run with a cost", async ({ page, browser }) => {
   // A whole agent run sits in the middle of this; the default timeout is for
   // clicks.
   test.setTimeout(240_000);
@@ -230,7 +231,70 @@ test("an agent goes from a stored key to a run with a cost", async ({ page }) =>
   await expect(composer).toHaveValue("");
   await expect(page.getByRole("main").getByText(answerToken)).toBeVisible({ timeout: 120_000 });
 
-  // 7. the run in Activity
+  // 7. the same agent, reached by a link and nothing else
+  //
+  // #517's own bar: publishing produces a URL, and opening it signed into
+  // nothing answers a question. Reusing this journey's agent is the point rather
+  // than a shortcut - the token can only have come from the instructions
+  // published in step 5, so seeing it again here proves the hosted page reached
+  // the *same frozen version* through the same runner, which is the claim the
+  // whole surface rests on.
+  // The origin Playwright is actually on, read off the page rather than rebuilt
+  // from the config: it has to be the origin the backend admits a hosted page
+  // from, and a second copy of the port is a second thing to disagree.
+  const origin = new URL(page.url()).origin;
+
+  await page.goto(`/agents/${agentId}`);
+  await page.getByRole("tab", { name: "Availability" }).click();
+  const availability = page.getByRole("tabpanel");
+  const publishPage = availability.getByRole("button", { name: /^Hosted page/ });
+  if (!(await publishPage.isVisible())) {
+    test.skip(true, "this user cannot publish an embed");
+  }
+  await publishPage.click();
+
+  // The form is open once its own field is on screen. Waited for rather than
+  // assumed: `getByLabel("Allowed sites")` is absent from the picker too, so it
+  // asserts nothing about the click having landed, and the submit below would
+  // then find the picker's Public API card - whose name ends "Nothing to publish
+  // here", which a substring match on `Publish` counts (#634).
+  await expect(availability.getByLabel("Name")).toBeVisible();
+
+  // No allowed site, and that is the assertion rather than an omission: an
+  // allow-list is a rule about other people's sites, and this page is ours. The
+  // form used to demand one before it would publish anything, which made the
+  // shortest integration this product has - send somebody a link - impossible to
+  // create without inventing a site.
+  await expect(availability.getByLabel("Allowed sites")).toHaveCount(0);
+  await availability.getByRole("button", { name: "Publish", exact: true }).click();
+
+  // Reloaded before the link is read. The list's refetch after a write is
+  // sometimes answered with the pre-write list (#230), and this step needs the
+  // row itself - the link is what is under test, so a toast will not do.
+  await page.reload();
+  await page.getByRole("tab", { name: "Availability" }).click();
+  const link = page.getByText(new RegExp(`^${origin}/e/`)).first();
+  await expect(link).toBeVisible({ timeout: 30_000 });
+  const hostedUrl = (await link.textContent())?.trim() ?? "";
+  expect(hostedUrl).toMatch(new RegExp(`^${origin}/e/[A-Za-z0-9_-]+$`));
+
+  // A context of its own, with no storage state: nobody is signed in, no
+  // organization header, none of the console. That is the whole claim, and
+  // reusing `page` would have proved nothing about it.
+  const stranger = await browser.newContext();
+  const hosted = await stranger.newPage();
+  try {
+    await hosted.goto(hostedUrl);
+    const ask = hosted.getByRole("textbox", { name: "Ask a question…" });
+    await expect(ask).toBeEnabled({ timeout: 30_000 });
+    await ask.fill("Say the word.");
+    await hosted.getByRole("button", { name: "Send" }).click();
+    await expect(hosted.getByText(answerToken)).toBeVisible({ timeout: 120_000 });
+  } finally {
+    await stranger.close();
+  }
+
+  // 8. the run in Activity
   await page.goto("/runs");
   await expect(pageHeading(page, "Activity")).toBeVisible();
   await page.getByRole("tab", { name: "Runs", exact: true }).click();
@@ -255,7 +319,9 @@ test("an agent goes from a stored key to a run with a cost", async ({ page }) =>
   // failing at teardown for reasons nobody is investigating.
   //
   // In dependency order - the agent names the profile, the profile names the
-  // key - because the API refuses to orphan either.
+  // key - because the API refuses to orphan either. The embed published in step
+  // 7 needs no line of its own: `agent_embeds.agent_id` is `ON DELETE CASCADE`,
+  // and the visitor row cascades from the embed.
   for (const path of [
     `/api/agents/${agentId}`,
     `/api/providers/model-profiles/${await idOf(page, "/api/providers/model-profiles", "label", modelLabel)}`,

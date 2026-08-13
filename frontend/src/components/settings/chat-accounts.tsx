@@ -4,11 +4,11 @@ import { useEffect, useState } from "react";
 import { MessageSquare, Unlink } from "lucide-react";
 import { toast } from "sonner";
 
+import { getErrorMessage } from "@/lib/api-error";
 import { Button } from "@/components/ui";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { SectionCard } from "@/components/settings/settings-section";
 import { listLinkedAccounts, unlinkAccount, type ChannelIdentity } from "@/lib/channel-link-api";
-import { getErrorMessage } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 
 const PLATFORM_LABEL: Record<string, string> = {
@@ -27,6 +27,7 @@ const PLATFORM_LABEL: Record<string, string> = {
  * started from one spends this person's budget and carries their permissions.
  */
 export function ChatAccounts() {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("pages.settings");
   const [accounts, setAccounts] = useState<ChannelIdentity[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -40,7 +41,7 @@ export function ChatAccounts() {
       .catch((cause) => {
         if (!cancelled) {
           setAccounts([]);
-          toast.error(getErrorMessage(cause));
+          toast.error(getErrorMessage(cause, tErrors));
         }
       });
     return () => {
@@ -54,7 +55,7 @@ export function ChatAccounts() {
       await unlinkAccount(identity.id);
       setAccounts((current) => (current ?? []).filter((row) => row.id !== identity.id));
     } catch (cause) {
-      toast.error(getErrorMessage(cause));
+      toast.error(getErrorMessage(cause, tErrors));
     } finally {
       setBusy(null);
     }

@@ -12,10 +12,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui";
+import { getErrorMessage } from "@/lib/api-error";
 import { usePermissions } from "@/hooks";
 import { apiClient } from "@/lib/api-client";
 import { saveBlob } from "@/lib/file-access";
-import { getErrorMessage } from "@/lib/utils";
 import type { Permission } from "@/types/permissions";
 
 /** What one endpoint calls the two bounds of the window it exports. */
@@ -62,6 +62,7 @@ function filenameFrom(response: Response, fallback: string): string {
  * the presets are the smallest control that always sends one.
  */
 export function ExportMenu({ permission, endpoint, kind, params, rangeParams }: ExportMenuProps) {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("pages.runs");
   const { can } = usePermissions();
   const [busy, setBusy] = useState(false);
@@ -81,7 +82,7 @@ export function ExportMenu({ permission, endpoint, kind, params, rangeParams }: 
       const response = await apiClient.raw(endpoint, { params: query });
       saveBlob(await response.blob(), filenameFrom(response, `${kind}_export.csv`));
     } catch (error) {
-      toast.error(getErrorMessage(error, t("exportFailed")));
+      toast.error(getErrorMessage(error, tErrors, t("exportFailed")));
     } finally {
       setBusy(false);
     }

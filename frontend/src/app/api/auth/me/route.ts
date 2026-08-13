@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { backendFetch, BackendApiError } from "@/lib/server-api";
+import { BackendApiError, backendFetch, bffRefusal } from "@/lib/server-api";
 import type { User } from "@/types";
 
 const ACCESS_MAXAGE = 60 * 15; // 15 min
@@ -38,14 +38,14 @@ export async function GET(request: NextRequest) {
     } catch (error) {
       if (!(error instanceof BackendApiError) || error.status !== 401) {
         const status = error instanceof BackendApiError ? error.status : 500;
-        return NextResponse.json({ detail: "Failed to get user" }, { status });
+        return bffRefusal("FAILED_TO_GET_USER", status);
       }
       // 401 → fall through and try to refresh.
     }
   }
 
   if (!refreshToken) {
-    return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
+    return bffRefusal("NOT_AUTHENTICATED", 401);
   }
 
   try {
@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
     return response;
   } catch {
     // Refresh failed → truly logged out. Clear cookies.
-    const response = NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
+    const response = bffRefusal("NOT_AUTHENTICATED", 401);
     response.cookies.set("access_token", "", cookieOpts(0));
     response.cookies.set("refresh_token", "", cookieOpts(0));
     return response;

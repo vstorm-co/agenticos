@@ -5,8 +5,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { getErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
-import { getErrorMessage } from "@/lib/utils";
 import {
   applySkillChange,
   discardSkillChange,
@@ -32,6 +32,7 @@ interface UseSkillChangesResult {
  * the old body would be showing something no agent is following any more.
  */
 export function useSkillChanges(status: ProposalStatus = "pending"): UseSkillChangesResult {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("skills");
   const queryClient = useQueryClient();
 
@@ -57,7 +58,7 @@ export function useSkillChanges(status: ProposalStatus = "pending"): UseSkillCha
       await invalidate();
       toast.success(t("changeApplied", { name: change.name }));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   const discarded = useMutation({
@@ -66,7 +67,7 @@ export function useSkillChanges(status: ProposalStatus = "pending"): UseSkillCha
       await invalidate();
       toast.success(t("changeDiscarded", { name: change.name }));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   return {

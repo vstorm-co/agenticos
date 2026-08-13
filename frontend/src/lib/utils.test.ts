@@ -11,7 +11,6 @@ import {
   formatDate,
   formatDateTime,
   formatRunDuration,
-  getErrorMessage,
   getPasswordStrength,
   isAppAdmin,
   setUrlParam,
@@ -85,20 +84,6 @@ describe("isAppAdmin", () => {
     // `users.role` was dropped in migration 0066. Anything still sending it is
     // sending a field the backend does not have, and it must not decide this.
     expect(isAppAdmin({ role: "admin" } as { is_app_admin?: boolean })).toBe(false);
-  });
-});
-
-describe("getErrorMessage", () => {
-  it("uses the error's own sentence, which is the server's refusal", () => {
-    expect(getErrorMessage(new Error("Missing required permission"))).toBe(
-      "Missing required permission",
-    );
-  });
-
-  it("falls back for something thrown that is not an error", () => {
-    // A rejected fetch can throw a string or an event; neither is worth showing.
-    expect(getErrorMessage("boom")).toBe("An unexpected error occurred");
-    expect(getErrorMessage(undefined, "Could not save")).toBe("Could not save");
   });
 });
 

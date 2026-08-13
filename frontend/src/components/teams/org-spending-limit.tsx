@@ -46,6 +46,7 @@ export function OrgSpendingLimit({ org }: { org: Organization }) {
 }
 
 function SpendingLimitForm({ org }: { org: Organization }) {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("teams");
   const { setMonthlyBudget } = useOrganizations();
   const { spend } = useSpend();
@@ -80,7 +81,7 @@ function SpendingLimitForm({ org }: { org: Organization }) {
       setError(null);
       toast.success(parsed === null ? t("monthlyLimitRemoved") : t("monthlyLimitUpdated"));
     } catch (failure) {
-      const problem = submitFailure(failure, { fields: [FIELD] });
+      const problem = submitFailure(failure, { fields: [FIELD] }, tErrors);
       setError(problem.fields[FIELD] ?? null);
       if (problem.toast) toast.error(problem.toast);
     } finally {

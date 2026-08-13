@@ -43,6 +43,7 @@ export function IngestionDialog({
   collectionName,
   onSave,
 }: IngestionDialogProps) {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("kb");
   const [draft, setDraft] = useState<IngestionConfig>(config);
   const [isSaving, setIsSaving] = useState(false);
@@ -73,7 +74,7 @@ export function IngestionDialog({
       await onSave(draft);
       onOpenChange(false);
     } catch (error) {
-      const failure = submitFailure(error, { fields: [...INGESTION_FORM_FIELDS] });
+      const failure = submitFailure(error, { fields: [...INGESTION_FORM_FIELDS] }, tErrors);
       setErrors(failure.fields);
       if (failure.toast) toast.error(failure.toast);
     } finally {

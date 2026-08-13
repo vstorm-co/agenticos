@@ -140,6 +140,13 @@ function entries(catalog: unknown, prefix = ""): [string, string][] {
  * `en.json` and translating downwards, which is exactly how a class list would
  * arrive in a second file having been fixed in the first.
  */
+/** Tags a message opens without closing - see the assertion that uses it. */
+function unclosedTags(value: string): string[] {
+  return [...value.matchAll(/<([a-zA-Z][a-zA-Z0-9]*)>/g)]
+    .map(([, tag]) => tag!)
+    .filter((tag) => !value.includes(`</${tag}>`));
+}
+
 describe.each([
   ["en.json", en],
   ["pl.json", pl],
@@ -175,6 +182,18 @@ describe.each([
   it("holds no DOM KeyboardEvent.key constant", () => {
     const offenders = all.filter(([, value]) => DOM_KEY.test(value)).map(([key]) => key);
 
+    expect(offenders).toEqual([]);
+  });
+
+  it("opens no tag it does not close", () => {
+    const offenders = all.filter(([, value]) => unclosedTags(value).length > 0).map(([key]) => key);
+
+    // next-intl parses `<x>…</x>` as rich text, so an angle bracket around a
+    // word is a *tag* and not prose. Unclosed, the message fails to parse and
+    // `t()` renders the key path - `agents.surfacePageBody` in the middle of a
+    // card, where "A link we serve, at /e/<key>" was meant to be. It is the one
+    // failure that survives a green suite, because rendering a key throws
+    // nothing.
     expect(offenders).toEqual([]);
   });
 
@@ -223,6 +242,13 @@ describe("the rules themselves", () => {
     expect(DOM_KEY.test("Tab")).toBe(true);
     expect(DOM_KEY.test("Press Enter to send")).toBe(false);
     expect(DOM_KEY.test("Enter an amount in dollars, or leave it empty for no limit.")).toBe(false);
+  });
+
+  it("reads an unclosed tag as one, and a closed pair as rich text", () => {
+    expect(unclosedTags("A link we serve, at /e/<key>.")).toEqual(["key"]);
+    expect(unclosedTags("Files will be added to <strong>{name}</strong>")).toEqual([]);
+    expect(unclosedTags("Use <code>--force</code> and read <em>this</em> first")).toEqual([]);
+    expect(unclosedTags("a < b, and 3 > 2")).toEqual([]);
   });
 
   it("tells the tail of a sentence from a whole one", () => {

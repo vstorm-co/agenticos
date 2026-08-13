@@ -84,7 +84,7 @@ class ToolCallRead(ToolCallBase):
     id: UUID
     message_id: UUID
     result: str | None = None
-    status: Literal["pending", "running", "completed", "failed"] = "pending"
+    status: Literal["pending", "running", "completed", "failed", "awaiting_approval"] = "pending"
     started_at: datetime
     completed_at: datetime | None = None
     duration_ms: int | None = None
@@ -145,6 +145,25 @@ class MessageFileRead(BaseSchema):
     file_type: str
 
 
+class MessageAuthor(BaseSchema):
+    """The chat account a message came from.
+
+    Enough to put a name against a turn in a thread several people spoke in, and
+    nothing more: the platform's own id for them is not here, because a reader
+    rendering a name has no use for it and it is the half that identifies them on
+    somebody else's system.
+
+    `user_id` is present so a client can tell its own turns from everybody else's
+    without a second request. It is null until that chat account is linked, which
+    is most of them.
+    """
+
+    platform: str
+    display_name: str | None = Field(default=None, validation_alias="platform_display_name")
+    username: str | None = Field(default=None, validation_alias="platform_username")
+    user_id: UUID | None = None
+
+
 class MessageRead(MessageBase, TimestampSchema):
     """Schema for reading a message (API response)."""
 
@@ -195,6 +214,15 @@ class MessageRead(MessageBase, TimestampSchema):
     rating_count: dict[str, int] | None = Field(
         default=None,
         description="Aggregate counts {likes: N, dislikes: N}",
+    )
+    author: MessageAuthor | None = Field(
+        default=None,
+        description=(
+            "Who wrote this turn, when it arrived from a chat account rather than "
+            "from somebody signed in. Null on every assistant turn and on anything "
+            "typed into the dashboard - a thread with no authors anywhere is a "
+            "one-person thread, which is what a client should render as today."
+        ),
     )
 
 

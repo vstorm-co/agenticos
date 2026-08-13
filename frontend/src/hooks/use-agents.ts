@@ -5,9 +5,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
-import { problemList } from "@/lib/api-error";
+import { getErrorMessage, problemList } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
-import { getErrorMessage } from "@/lib/utils";
 import type {
   Agent,
   AgentDetail,
@@ -36,6 +35,7 @@ export interface PromoteSpecialist {
  * server did is how a Builder starts showing a draft as published.
  */
 export function useAgents({ includeArchived = false }: { includeArchived?: boolean } = {}) {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
   const queryClient = useQueryClient();
 
@@ -80,7 +80,7 @@ export function useAgents({ includeArchived = false }: { includeArchived?: boole
       await invalidate();
       toast.success(t("createdDraft", { name: agent.name }));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   /**
@@ -109,7 +109,7 @@ export function useAgents({ includeArchived = false }: { includeArchived?: boole
       await invalidate();
       toast.success(t("archived"));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   const unarchive = useMutation({
@@ -122,7 +122,7 @@ export function useAgents({ includeArchived = false }: { includeArchived?: boole
           : t("backAsDraft", { name: agent.name }),
       );
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   const remove = useMutation({
@@ -131,7 +131,7 @@ export function useAgents({ includeArchived = false }: { includeArchived?: boole
       await invalidate();
       toast.success(t("deleted"));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   return {
@@ -155,6 +155,8 @@ export function useAgents({ includeArchived = false }: { includeArchived?: boole
 
 /** One agent, with the spec currently being edited. */
 export function useAgent(agentId: string | null) {
+  const tErrors = useTranslations("errors");
+
   const queryClient = useQueryClient();
   const t = useTranslations("agents");
 
@@ -181,7 +183,7 @@ export function useAgent(agentId: string | null) {
   const saveDraft = useMutation({
     mutationFn: (spec: AgentSpec) => apiClient.put<Agent>(`/agents/${agentId}/draft`, { spec }),
     onSuccess: invalidate,
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   /**
@@ -201,9 +203,9 @@ export function useAgent(agentId: string | null) {
       // always thrown away and replaced with one line. `problemList` reads the
       // envelope; the fallback is for the failures that are not a verdict on
       // the spec at all - a refused permission, a dropped connection.
-      return problemList(error) ?? [getErrorMessage(error)];
+      return problemList(error) ?? [getErrorMessage(error, tErrors)];
     }
-  }, [agentId]);
+  }, [agentId, tErrors]);
 
   const publish = useMutation({
     mutationFn: (note: string | null) =>
@@ -213,7 +215,7 @@ export function useAgent(agentId: string | null) {
       await invalidateEnvironments();
       toast.success(t("publishedVersion", { version: version.version }));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   const rollback = useMutation({
@@ -226,7 +228,7 @@ export function useAgent(agentId: string | null) {
       // backwards, so run history keeps telling the truth about what was live.
       toast.success(t("rolledBack", { version: version.version }));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   /**
@@ -243,7 +245,7 @@ export function useAgent(agentId: string | null) {
       await invalidate();
       toast.success(t("avatarUpdated"));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   return { agent: data, isLoading, saveDraft, validate, publish, rollback, setAvatar };

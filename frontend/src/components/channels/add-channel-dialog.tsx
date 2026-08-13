@@ -69,6 +69,7 @@ export function AddChannelDialog({
   onSubmit,
   isPending,
 }: AddChannelDialogProps) {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("pages.channels");
   const [platform, setPlatform] = useState<ChannelPlatform>("mattermost");
   const [name, setName] = useState("");
@@ -128,10 +129,14 @@ export function AddChannelDialog({
       onOpenChange(false);
       reset();
     } catch (error) {
-      const failure = submitFailure(error, {
-        fields: ["name", "token", "api_base_url", "webhook_secret"],
-        identifiedBy: "name",
-      });
+      const failure = submitFailure(
+        error,
+        {
+          fields: ["name", "token", "api_base_url", "webhook_secret"],
+          identifiedBy: "name",
+        },
+        tErrors,
+      );
       setErrors(failure.fields);
       if (failure.toast) toast.error(failure.toast);
     }
