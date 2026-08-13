@@ -1246,6 +1246,28 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("GET", f"{V1}/embed/{{public_key}}/config"),
         ("GET", f"{V1}/embed/{{public_key}}/widget.js"),
         ("WEBSOCKET", f"{V1}/embed/{{public_key}}/ws"),
+        # The hosted page (#517), and the difference is worth writing down
+        # rather than filing under the three above: it has **no origin check**.
+        # An allow-list is a rule about other people's sites, and this page is
+        # ours, so what protects a hosted link in `public` mode is the key's
+        # unguessability, the embed's rate bucket, its budget and its pause
+        # switch - nothing else. `jwt` mode cannot be hosted at all, refused by
+        # the service and by a CHECK constraint, because the token would have to
+        # travel in the URL. `/logo` serves one image the operator already
+        # uploaded through the authenticated avatar paths, which stay
+        # authenticated; hosting adds a way to read that one file and no way to
+        # write any.
+        ("GET", f"{V1}/embed/{{public_key}}/hosted"),
+        ("GET", f"{V1}/embed/{{public_key}}/logo"),
+        # The one open route on this surface that *writes*, and the only one whose
+        # exemption is about more than a read. It exists because a page whose
+        # operator ticked "a visitor may attach a file" has to accept bytes from
+        # somebody with no account; what bounds it is the page's own switch, a cap
+        # of this surface's own, the MIME allowlist every upload goes through, and
+        # a per-visitor-per-page limit in the shared Redis. The row is attributed
+        # to whoever published the page, because `chat_files.user_id` is NOT NULL
+        # and a stranger has nobody to be.
+        ("POST", f"{V1}/embed/{{public_key}}/files"),
     }
 )
 

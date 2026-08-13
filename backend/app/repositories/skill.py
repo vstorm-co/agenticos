@@ -167,6 +167,7 @@ async def create(
     description: str,
     content: str,
     category: str | None = None,
+    visibility: str = Visibility.PRIVATE.value,
 ) -> Skill:
     skill = Skill(
         organization_id=organization_id,
@@ -175,6 +176,7 @@ async def create(
         description=description,
         content=content,
         category=category,
+        visibility=visibility,
     )
     db.add(skill)
     await db.flush()
