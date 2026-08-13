@@ -18,7 +18,7 @@ import type { LucideIcon } from "lucide-react";
 
 import { StatCard } from "@/components/dashboard/stat-card";
 import { LoadingState } from "@/components/states";
-import { Badge, DataTable, type Column } from "@/components/ui";
+import { Badge, DataTable, ListCard, type Column } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
 import { qk } from "@/lib/query-keys";
@@ -46,7 +46,7 @@ export default function AdminOverviewPage() {
   const tTime = useTranslations("time");
   const locale = useLocale();
   const statsQuery = useQuery({
-    queryKey: ["admin", "stats"],
+    queryKey: qk.admin.stats(),
     queryFn: async (): Promise<AdminStats> => {
       const data = await apiClient.get<AdminStats>("/admin/stats").catch(() => null);
       if (data) return data;
@@ -72,7 +72,7 @@ export default function AdminOverviewPage() {
   });
 
   const eventsQuery = useQuery({
-    queryKey: ["admin", "events"],
+    queryKey: qk.admin.events(),
     queryFn: async (): Promise<RecentEvent[]> => {
       const events = await apiClient
         .get<{ items: RecentEvent[] }>("/admin/events")
@@ -218,11 +218,11 @@ export default function AdminOverviewPage() {
         />
       </section>
 
-      <section className="border-border bg-card rounded-xl border">
-        <div className="border-border border-b px-5 py-4">
-          <h2 className="text-foreground text-sm font-semibold">{t("organizations2")}</h2>
-          <p className="text-muted-foreground text-xs">{t("everyTenantDeploymentOnly")}</p>
-        </div>
+      <ListCard
+        title={t("organizations2")}
+        counted={t("everyTenantDeploymentOnly")}
+        contentClassName="p-0"
+      >
         <DataTable<AdminOrganization>
           columns={orgColumns}
           rows={orgs}
@@ -232,13 +232,13 @@ export default function AdminOverviewPage() {
           empty={t("noOrganizationsYet")}
           className="rounded-none border-0 bg-transparent [&_table]:min-w-[36rem]"
         />
-      </section>
+      </ListCard>
 
-      <section className="border-border bg-card rounded-xl border">
-        <div className="border-border border-b px-5 py-4">
-          <h2 className="text-foreground text-sm font-semibold">{t("recentActivity")}</h2>
-          <p className="text-muted-foreground text-xs">{t("workspaceWideEventsAcross")}</p>
-        </div>
+      <ListCard
+        title={t("recentActivity")}
+        counted={t("workspaceWideEventsAcross")}
+        contentClassName="p-0"
+      >
         {events === undefined ? (
           <div className="p-5">
             <LoadingState variant="skeleton-list" rows={5} />
@@ -269,7 +269,7 @@ export default function AdminOverviewPage() {
             })}
           </ul>
         )}
-      </section>
+      </ListCard>
     </div>
   );
 }
