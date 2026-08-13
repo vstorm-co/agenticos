@@ -151,19 +151,27 @@ class ConversationService:
         channel could delete the room's transcript, or append a
         `role: "assistant"` turn that everybody reads in `/chat` and the model is
         handed back as its own words on the next turn. Speaking in a room is a
-        claim on being shown the thread, never a claim on the row.
+        claim on being shown the thread, never a claim on a row somebody owns.
 
-        A thread with no owner recorded stays writable by the organization, which
-        is what it was before participation existed. Narrowing that is a product
-        decision about who tidies up a room nobody linked an account in, not a
-        hole this opened, so it is #701 rather than a second rule here.
+        A thread with no owner recorded - a room where nobody has linked an
+        account - is writable by its participants, the same set `_may_read`
+        admits (#701). It used to be writable by the whole organization, which is
+        what it was before participation existed: any member could delete a
+        transcript the list showed them nothing of, or append a
+        `role: "assistant"` turn to it. There is no owner to defer to, so the
+        people who were in the room are who tidies it up; participation carries
+        the write only while there is nobody it would be taken from.
         """
         owner = getattr(conversation, "user_id", None)
+        if owner is not None and str(owner) == str(user_id):
+            return True
+        if await conversation_share_repo.get_share(self.db, conversation.id, user_id):
+            return True
         if owner is None:
-            return True
-        if str(owner) == str(user_id):
-            return True
-        return bool(await conversation_share_repo.get_share(self.db, conversation.id, user_id))
+            return await channel_membership.confirms_participation(
+                self.db, conversation_id=conversation.id, user_id=user_id
+            )
+        return False
 
     async def _attach_authors(self, messages: list[Message]) -> None:
         """Put a name on each turn that came from a chat account.
@@ -502,8 +510,9 @@ class ConversationService:
         `role: "assistant"` - to any conversation in the deployment, and it
         would render to its owner as the agent's own words. See `UNSCOPED`.
 
-        `user_id` narrows that to the owner or somebody the conversation was
-        shared with - `_may_write`, not `_may_read`, because a `role: "assistant"`
+        `user_id` narrows that to the owner, somebody the conversation was
+        shared with or, on a thread with no owner, somebody who spoke in it -
+        `_may_write`, not `_may_read`, because a `role: "assistant"`
         turn appended by a room's participant is read as the agent's own words by
         everybody in the thread and by the model on the next turn. It is optional
         because one caller has no user to check: the assistant turn is written by
