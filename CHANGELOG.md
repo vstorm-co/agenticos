@@ -17,6 +17,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.148] - 2026-08-13
+
+A photo sent with no caption read as somebody sending nothing.
+
+### Fixed
+
+- **A caption-less turn's user message names its files.** A channel turn whose
+  attachment produced no prompt text wrote a blank user message, so the thread
+  in `/chat` jumped straight to the answer with the file card as the only
+  trace of the question. The transcript now composes the empty turn's body
+  from its attachments — `Attached image: photo.jpg`, one line per file —
+  reusing the vocabulary the model's briefing already uses. A caption is never
+  replaced, and a resume still writes no user turn at all. (#704)
+
 ## [0.0.147] - 2026-08-13
 
 A failed tool's raw error was stored where every reader of the run can see it.
