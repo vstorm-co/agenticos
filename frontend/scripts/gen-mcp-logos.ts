@@ -23,8 +23,8 @@ const OUT = join(here, "..", "src", "lib", "mcp-logos.generated.ts");
  * with: `tool-steps.ts` derives a step's `logoDomain` from the connection's URL. The
  * deleted table held brand domains instead - `linear.app` where the lookup asks for
  * `mcp.linear.app` - so most baked logos were never found and the badge fell through to
- * the live favicon service. The committed `mcp-logos.generated.ts` still holds those
- * brand-domain keys; re-running this is what replaces them.
+ * the live favicon service (#614). `mcp-catalog.test.ts` holds the invariant: every
+ * catalog URL host is a key in the generated map.
  */
 const CATALOG = join(here, "..", "..", "backend", "app", "core", "catalog", "mcp_servers.json");
 
@@ -60,13 +60,30 @@ async function fetchDataUri(domain: string): Promise<string | null> {
   }
 }
 
+/**
+ * The logo for `host`, walking up its parent domains on a miss.
+ *
+ * An MCP endpoint host rarely serves a favicon of its own - `mcp.linear.app`
+ * answers 404 where `linear.app` is the brand icon - so a miss retries with one
+ * leading label stripped, down to the registrable domain. The map's key stays
+ * the host either way, because the host is what the lookup asks with (#614).
+ */
+async function fetchLogoFor(host: string): Promise<string | null> {
+  const labels = host.split(".");
+  for (let start = 0; start <= labels.length - 2; start++) {
+    const uri = await fetchDataUri(labels.slice(start).join("."));
+    if (uri) return uri;
+  }
+  return null;
+}
+
 const entries = JSON.parse(await readFile(CATALOG, "utf8")) as CatalogEntry[];
 const hosts = entries.map((entry) => hostOf(entry.url)).filter((host) => host !== null);
 const domains = [...new Set(hosts)].sort();
 const logos: Record<string, string> = {};
 const failed: string[] = [];
 for (const domain of domains) {
-  const uri = await fetchDataUri(domain);
+  const uri = await fetchLogoFor(domain);
   if (uri) {
     logos[domain] = uri;
     console.log(`  ✓ ${domain} (${Math.round(uri.length / 1024)} KB)`);
