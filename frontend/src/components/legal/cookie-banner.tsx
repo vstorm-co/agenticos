@@ -6,6 +6,8 @@ import Link from "next/link";
 import { Cookie, X } from "lucide-react";
 
 import { ROUTES } from "@/lib/constants";
+import { usePathname } from "@/lib/locale-navigation";
+import { isPublicSurface } from "@/lib/public-surfaces";
 import { useTranslations } from "next-intl";
 
 const STORAGE_KEY = "cookie.consent";
@@ -43,6 +45,11 @@ export function CookieBanner() {
   // signed-in employee's session may record is the operator's own policy, not a
   // question a browser prompt can settle.
   const { isAuthenticated } = useAuthStore();
+  // Nor on a page served to somebody who is not a member. There is no optional
+  // cookie there to consent to - a hosted page stores one key, the visitor's own
+  // continuity key, which is what brings a bookmarked link back to its thread - so
+  // the prompt's only effect was to sit over the composer and cover Send (#644).
+  const surface = isPublicSurface(usePathname());
   const [show, setShow] = useState(false);
   const [showPrefs, setShowPrefs] = useState(false);
   const [analytics, setAnalytics] = useState(true);
@@ -51,7 +58,7 @@ export function CookieBanner() {
   useEffect(() => {
     const decide = () => {
       const consent = readConsent();
-      setShow(!consent && !isAuthenticated);
+      setShow(!consent && !isAuthenticated && !surface);
     };
     decide();
     window.addEventListener("storage", decide);
@@ -60,7 +67,7 @@ export function CookieBanner() {
       window.removeEventListener("storage", decide);
       window.removeEventListener("cookie-consent-change", decide);
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, surface]);
 
   const close = () => setShow(false);
 

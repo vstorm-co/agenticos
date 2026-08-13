@@ -25,7 +25,7 @@ must not make the run inside it unaccountable.
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -38,12 +38,14 @@ from pydantic_ai.messages import (
     ToolReturnPart,
 )
 
+from app.repositories import chat_file as chat_file_repo
 from app.repositories import conversation as conversation_repo
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from app.db.models.agent_run import AgentRun
+    from app.db.models.chat_file import ChatFile
 
 logger = logging.getLogger(__name__)
 
@@ -144,8 +146,10 @@ class TranscriptService:
         *,
         prompt: str | None,
         answer: str,
+        attachments: Sequence[ChatFile] = (),
         tool_calls: Sequence[RecordedToolCall] = (),
         settled: Mapping[str, str] | None = None,
+        parked: Collection[str] = (),
         model_label: str | None = None,
     ) -> None:
         """Write whatever this run produced, and never fail the run for it.
@@ -153,6 +157,18 @@ class TranscriptService:
         `prompt` is `None` where there is nothing new to record: a resumed run
         picks up at the tool call it stopped on, and inventing a user turn there
         would put words in somebody's mouth.
+
+        `attachments` are the files that arrived with the turn, linked to the row
+        holding it - which is how a file becomes something the product can show.
+        Without them the only trace of a file posted in a channel was the briefing
+        `AttachmentRouter` appends to the prompt for the *model*, so what a person
+        read in `/chat` was `co tu widzisz` followed by `--- Attached file: …
+        (/uploads/…, 43 KB, image)`. The dashboard's own uploads have been rows
+        since they existed; a channel's became nothing at all.
+
+        An empty *prompt* is written when a file came with it, because a picture
+        posted with no caption is a turn: the row is what the file hangs off, and
+        without it the attachment belongs to nothing.
 
         An empty `answer` is written when the run called something, and skipped
         when it did not. A blank assistant message with nothing under it reads as
@@ -170,6 +186,14 @@ class TranscriptService:
         the call it belongs to (:func:`settled_calls_in`). So the one call somebody
         deliberately reviewed used to be the one call the transcript showed
         finishing with nothing under it.
+
+        `parked` names the calls this run just stopped on, and their rows are
+        written `awaiting_approval` rather than `running`. The parked state
+        otherwise lives only on `agent_runs` and the `approvals` rows, so a
+        reloaded conversation read the one call somebody has to decide about as
+        a step that ran (#601). The row is not left that way for ever: a resume
+        settles it with what the call returned, and an expiry settles it with
+        the timeout notice (:meth:`ApprovalService._settle_expired_run`).
 
         Never raises, and never poisons the session it shares with the caller.
         The answer has already been produced and the money already spent; losing
@@ -189,14 +213,19 @@ class TranscriptService:
             return
         try:
             async with self.db.begin_nested():
-                if prompt:
-                    await conversation_repo.create_message(
+                if prompt or attachments:
+                    asked = await conversation_repo.create_message(
                         self.db,
                         conversation_id=run.conversation_id,
                         role="user",
-                        content=prompt,
+                        content=prompt or "",
                         run_id=run.id,
+                        # Off the run rather than passed in: the run row already
+                        # records which chat account asked, and a second route to
+                        # the same fact is a second route to getting it wrong.
+                        channel_identity_id=run.channel_identity_id,
                     )
+                    await self._attach(asked.id, attachments)
                 for tool_call_id, result in (settled or {}).items():
                     await self._settle(run, tool_call_id=tool_call_id, result=result)
                 if answer or tool_calls:
@@ -205,6 +234,7 @@ class TranscriptService:
                         run,
                         answer=answer,
                         tool_calls=tool_calls,
+                        parked=parked,
                         model_label=model_label,
                     )
         except Exception:
@@ -217,6 +247,31 @@ class TranscriptService:
                 "transcript_write_failed",
                 extra={"run_id": str(run.id), "conversation_id": str(run.conversation_id)},
             )
+
+    async def _attach(self, message_id: UUID, attachments: Sequence[ChatFile]) -> None:
+        """Link the turn's files to its user message, at no risk to the rest.
+
+        In a SAVEPOINT of its own inside the transcript's, because this is the
+        only write here that touches rows the conversation does not own: a
+        failure rolls back the link alone, where sharing the outer savepoint
+        would cost a run that has already spent money its answer and its tool
+        calls over a file. Web chat makes the same trade for the same write, in
+        `persist_user_turn`.
+
+        Nothing when nothing was attached - a SAVEPOINT and its release on every
+        turn in the deployment is a real cost for a list that is usually empty.
+        """
+        if not attachments:
+            return
+        try:
+            async with self.db.begin_nested():
+                await chat_file_repo.link_to_message(
+                    self.db,
+                    message_id=message_id,
+                    file_ids=[attachment.id for attachment in attachments],
+                )
+        except Exception:
+            logger.exception("transcript_file_link_failed", extra={"message_id": str(message_id)})
 
     async def _settle(self, run: AgentRun, *, tool_call_id: str, result: str) -> None:
         """Close a call this run left open, if the row is still open.
@@ -242,6 +297,7 @@ class TranscriptService:
         *,
         answer: str,
         tool_calls: Sequence[RecordedToolCall],
+        parked: Collection[str],
         model_label: str | None,
     ) -> None:
         """The assistant turn and the calls it made, attributed to the version.
@@ -269,6 +325,7 @@ class TranscriptService:
                 tool_name=call.tool_name,
                 args=call.args,
                 started_at=now,
+                status="awaiting_approval" if call.tool_call_id in parked else "running",
             )
             if call.result is not None:
                 await conversation_repo.complete_tool_call(

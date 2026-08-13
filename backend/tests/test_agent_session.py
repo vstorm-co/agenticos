@@ -100,6 +100,7 @@ from app.services.agent_chat import ChatTurn, OpenedRun
 from app.services.agent_runner import ParkedApproval, PreparedRun
 from app.services.agent_session import AgentSession
 from app.services.chat_timeline import TurnTimeline
+from app.services.run_stream import RunFrames
 from app.services.usage_report import UsageReport
 
 pytestmark = pytest.mark.anyio
@@ -113,6 +114,22 @@ def _session() -> AgentSession:
     user = MagicMock()
     organization = MagicMock()
     return AgentSession(websocket, user, organization)
+
+
+def _frames(
+    session: AgentSession,
+    *,
+    timeline: TurnTimeline | None = None,
+    tool_calls: list[dict[str, Any]] | None = None,
+    prompt: str = "",
+) -> RunFrames:
+    """The shared streaming loop, aimed at this session's socket.
+
+    The loop is `app.services.run_stream` since both sockets drive one
+    implementation; what these tests are about is unchanged - the frames a chat
+    client reads, in the order they arrive, through this surface's own sink.
+    """
+    return RunFrames(emit=session._frame, timeline=timeline, tool_calls=tool_calls, prompt=prompt)
 
 
 def _sent_events(session: AgentSession) -> list[tuple[str, dict]]:
@@ -531,6 +548,19 @@ class TestATurnThatFinished:
             },
         )
 
+    async def test_a_parked_turn_stores_which_calls_are_waiting(self):
+        """The panel above is live state; the stored turn is what a reload gets.
+        Without the parked ids the row is written `running`, which replays as a
+        step that ran - so the page said nothing about waiting and the only way
+        to find the decision was the approvals queue on another page (#601)."""
+        session = _session()
+        turn = _finished_turn(output="", parked=_parked_call())
+
+        with _chat(AsyncMock(return_value=turn)) as chat:
+            await session.process_message(_message())
+
+        assert chat.answer.await_args.kwargs["parked_tool_call_ids"] == {"call-1"}
+
     async def test_a_parked_turn_stores_no_notice_in_the_agents_own_voice(self):
         """Whatever this turn ends with becomes the assistant message's `content`,
         so a sentence about the approvals queue is stored as something the agent
@@ -637,16 +667,41 @@ class TestATurnThatDidNotFinish:
             {"message": "Organization monthly budget exhausted: $20.0100 spent of $20.00 limit"},
         )
 
-    async def test_an_unexpected_failure_still_reaches_the_client(self):
+    @pytest.mark.parametrize(
+        ("failure", "named"), [(RuntimeError, "RuntimeError"), (TimeoutError, "TimeoutError")]
+    )
+    async def test_an_unexpected_failure_still_reaches_the_client(self, failure, named, caplog):
         """A provider that answered 500 is not a refusal and not a bug in the
-        spec, and the person sitting there gets told either way."""
-        session = _session()
+        spec, and the person sitting there gets told either way - by a sentence
+        written here. A provider client puts the failing request in its message
+        and that URL carries a key in its query string, so the exception's own
+        text stays in the log and only its class reaches the panel (#659).
 
-        with _chat(AsyncMock(side_effect=RuntimeError("the provider answered 503"))):
+        Two classes, because the class is the whole of what the frame still
+        carries: it is what separates an upstream that timed out from one that
+        refused a credential, and a sentence that named a fixed class would say
+        nothing while passing.
+        """
+        session = _session()
+        vendor_text = "503 from https://api.example.com/v1/chat?api_key=sk-live-9f2c"
+
+        with (
+            _chat(AsyncMock(side_effect=failure(vendor_text))),
+            caplog.at_level(logging.ERROR, logger="app.services.agent_session"),
+        ):
             await session.process_message(_message())
 
         assert _frame_types(session) == ["user_prompt", "error"]
-        assert _sent_events(session)[-1] == ("error", {"message": "the provider answered 503"})
+        assert _sent_events(session)[-1] == (
+            "error",
+            {
+                "message": (
+                    f"The agent could not finish this turn ({named}). "
+                    "Try again; the server log has the full error."
+                )
+            },
+        )
+        assert vendor_text in caplog.text
 
     async def test_a_disconnect_is_not_reported_to_the_socket_that_left(self):
         """A `WebSocketDisconnect` surfacing from inside the turn is re-raised
@@ -933,7 +988,7 @@ class TestStreamingAModelResponse:
                 yield event
 
         collected = timeline if timeline is not None else TurnTimeline()
-        await session._stream_request_events(_events(), collected)
+        await _frames(session, timeline=collected).request(_events())
         return collected.thinking
 
     async def test_a_part_that_starts_with_text_already_in_it_forwards_that_text(self):
@@ -1228,7 +1283,9 @@ class TestDrivingTheRun:
         timeline = TurnTimeline()
 
         async with _answering_agent(tools=[count_open]).iter("how many are open?") as agent_run:
-            await session._stream_agent_run(agent_run, "how many are open?", tool_calls, timeline)
+            await _frames(
+                session, timeline=timeline, tool_calls=tool_calls, prompt="how many are open?"
+            ).drive(agent_run)
 
         # The same words that went out as `text_delta`, kept so a turn that never
         # finishes can still be written down as what its reader saw.
@@ -1262,7 +1319,7 @@ class TestDrivingTheRun:
         prompt = ["have a look at this", BinaryContent(data=b"\x89PNG", media_type="image/png")]
 
         async with _answering_agent().iter(prompt) as agent_run:
-            await session._stream_agent_run(agent_run, "have a look at this", [], TurnTimeline())
+            await _frames(session, prompt="have a look at this").drive(agent_run)
 
         assert _sent_events(session)[0] == (
             "user_prompt_processed",
@@ -1294,7 +1351,7 @@ class TestForwardingToolEvents:
                 )
             )
 
-        await session._stream_tool_events(_events(), collected, TurnTimeline())
+        await _frames(session, tool_calls=collected).tools(_events())
 
         assert [event for event in _sent_events(session) if event[0] == "tool_result"] == [
             ("tool_result", {"tool_call_id": "t1", "content": "wrote /a.txt"})
@@ -1314,15 +1371,49 @@ class TestForwardingToolEvents:
                 part=ToolReturnPart(tool_name="ls", content=["/a.txt"], tool_call_id="t1")
             )
 
-        await session._stream_tool_events(_events(), collected, TurnTimeline())
+        await _frames(session, tool_calls=collected).tools(_events())
 
         assert collected == [
             {"tool_call_id": "t1", "tool_name": "ls", "args": {}, "result": "['/a.txt']"}
         ]
 
-    async def test_a_retry_is_reported_rather_than_swallowed(self):
-        """A tool that raised sends a `RetryPromptPart` down the same stream. It
-        carries `content` too, and a card that never resolved would spin forever."""
+    async def test_a_retry_is_reported_rather_than_swallowed(self, caplog):
+        """A tool that raised sends a `RetryPromptPart` down the same stream, and a
+        card that never resolved would spin forever - so the frame still arrives,
+        naming the tool that failed. What it does not carry is the retry text: a
+        tool builds one out of whatever it caught, and `web_search` catches an
+        `httpx` error whose message holds the failing endpoint (#681).
+        """
+        session = _session()
+        vendor_text = "Tavily search failed: 401 for url 'https://api.tavily.com/search?k=sk-9f2c'"
+        collected: list[dict] = []
+
+        async def _events():
+            yield FunctionToolCallEvent(
+                part=ToolCallPart(tool_name="web_search", args={}, tool_call_id="t9")
+            )
+            yield FunctionToolResultEvent(
+                part=RetryPromptPart(content=vendor_text, tool_name="web_search", tool_call_id="t9")
+            )
+
+        with caplog.at_level(logging.WARNING, logger="app.services.run_stream"):
+            await _frames(session, tool_calls=collected).tools(_events())
+
+        [(_type, data)] = [event for event in _sent_events(session) if event[0] == "tool_result"]
+        assert data == {
+            "tool_call_id": "t9",
+            "content": (
+                "The web_search call failed and the model was asked to try again. "
+                "The server log has the full error."
+            ),
+        }
+        assert collected[0]["result"] == data["content"]
+        assert vendor_text in caplog.text
+
+    async def test_a_retry_from_an_unnamed_tool_still_says_a_call_failed(self, caplog):
+        """`RetryPromptPart.tool_name` is optional - a retry can come from output
+        validation rather than from a tool - and a sentence built around a name
+        that is `None` would read "The None call failed"."""
         session = _session()
 
         async def _events():
@@ -1330,10 +1421,18 @@ class TestForwardingToolEvents:
                 part=RetryPromptPart(content="path must be absolute", tool_call_id="t9")
             )
 
-        await session._stream_tool_events(_events(), [], TurnTimeline())
+        with caplog.at_level(logging.WARNING, logger="app.services.run_stream"):
+            await _frames(session).tools(_events())
 
         [(_type, data)] = [event for event in _sent_events(session) if event[0] == "tool_result"]
-        assert data == {"tool_call_id": "t9", "content": "path must be absolute"}
+        assert data == {
+            "tool_call_id": "t9",
+            "content": (
+                "A tool call failed and the model was asked to try again. "
+                "The server log has the full error."
+            ),
+        }
+        assert "path must be absolute" in caplog.text
 
     async def test_the_models_submit_final_answer_call_is_not_drawn_as_a_tool(self):
         """`OutputToolCallEvent` arrives on this same stream and shares a base class
@@ -1349,7 +1448,7 @@ class TestForwardingToolEvents:
                 )
             )
 
-        await session._stream_tool_events(_events(), collected, TurnTimeline())
+        await _frames(session, tool_calls=collected).tools(_events())
 
         assert _sent_events(session) == []
         assert collected == []

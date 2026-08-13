@@ -10,6 +10,15 @@ from app.agents.capabilities.channel_tools import (
     ChannelSummary,
 )
 
+# Handles every chat platform reserves for addressing the room, rather than one
+# member of it. They match the shape of an agent slug, so `@channel deploying at
+# five` parsed as a mention of an agent called `channel` - and because a
+# channel-wide mention puts every member including the bot in the platform's own
+# mention list, the bot read itself as named and answered "no agent here answers
+# to @channel" under every announcement. Here rather than in `mentions`, because
+# `agent_registry.slugify` reads the same set and cannot import that module.
+ROOM_HANDLES = frozenset({"channel", "all", "here", "everyone"})
+
 # Surface a conversation is happening on. "web" is the chat UI / API; the
 # others are messaging platforms. Extend this when adding new channels.
 ChannelType = Literal["web", "slack", "telegram", "mattermost"]
@@ -98,6 +107,20 @@ class IncomingMessage:
     platform_username: str | None = None
     platform_display_name: str | None = None
     message_id: str | None = None
+    addressed: bool | None = None
+    """Whether this message named the bot, where the platform says.
+
+    `None` means it did not say, and the two are not the same answer: a platform
+    that reports mentions lets a bot sit in a busy channel and only speak when
+    somebody asks it, while `None` leaves the behaviour a bot had before - answer
+    whatever arrives, because what arrives is what that platform chose to deliver.
+
+    Only Mattermost sets it today, and it is the surface the difference was
+    reported on: its socket delivers *every* post in every channel the bot is in,
+    so a default agent answering all of them is a bot that talks over a team
+    (agenticos#634). Slack and Telegram deliver on their own subscription rules.
+    """
+
     attachments: list[IncomingAttachment] = field(default_factory=list)
     """Files sent with this message, unfetched.
 

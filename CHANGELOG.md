@@ -17,6 +17,178 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.119] - 2026-08-13
+
+A channel turn refused before it ran left the files it had already stored behind,
+owned by nothing.
+
+### Fixed
+
+- **The bytes are stored before the agent is resolved, so whatever refuses in its
+  place has to give them back.** A turn that never produced a run left `chat_files`
+  rows nothing points at — and that table carries no organization, so an unlinked
+  row is scoped by `user_id` alone and no sweep collects it. Both refusal paths now
+  discard what the turn stored: the one that stores first and refuses second, and
+  the one where a handle names no agent of ours. A file that cannot be deleted
+  costs neither the other files nor the reply, because a cleanup that raised would
+  replace a refusal somebody can act on with a bot that answered nothing at all.
+  (#661, #690)
+
+## [0.0.118] - 2026-08-13
+
+A crashed turn told the chat panel whatever the provider's SDK had put in its
+exception.
+
+### Fixed
+
+- **The `error` frame carried `str(exc)` of whatever came out of the run.** A
+  provider SDK puts the failing request in its message, so that routinely meant an
+  endpoint, an internal host, or a URL with a key still in its query string —
+  reaching a member's chat panel and their browser console rather than an HTTP
+  body, which is where #342 fixed the same leak. The exception's text now stays in
+  the `logger.exception` beside the send, and the frame names only what the reader
+  can act on. The class still goes out, because it separates an upstream that
+  timed out from one that refused a credential and a class name has never carried
+  a URL. Our own refusals do not come through here at all — an `AppException` and
+  a `BudgetExceeded` are caught above and passed through whole, since their
+  messages are written in this repository. (#659)
+
+## [0.0.117] - 2026-08-13
+
+A failed run stored the provider's own error text in a column that run history
+renders for weeks.
+
+### Fixed
+
+- **`agent_runs.error` held `str(exc)` of whatever came out of the run.** It is a
+  stored column on `AgentRunRead`, rendered in run history to every member who can
+  read it, and what raises there is a model client with `httpx` underneath — so
+  that routinely meant an endpoint, an internal host, or a URL with a key still in
+  its query string, sitting in a row somebody opens weeks later. The same rule as
+  #342 in an HTTP body, #423 in the ingestion columns and #659 in the chat frame,
+  with the longest life of the four. Our own refusals are kept whole, because an
+  `AppException` raised inside the run is written in this repository and its
+  message is the most useful thing an operator can be shown. Anything else stores
+  its type, plus the status code when a provider answered one — 401 a credential,
+  404 a model the profile names and the provider does not have, 429 a rate limit —
+  where a bare class name would make all four `ModelHTTPError`. A group is
+  unwrapped to its first leaf first, so an MCP toolset or a delegated run does not
+  spend that status code on an `ExceptionGroup` that diagnoses nothing. (#676)
+
+## [0.0.116] - 2026-08-13
+
+A failing tool named a search provider's endpoint, with the key still in the
+query string, to everyone watching the run.
+
+### Fixed
+
+- **A `tool_result` frame carried whatever the tool that raised had put in its
+  `ModelRetry`.** `web_search` builds one out of the `httpx` or SDK exception it
+  caught, so a broken key put `401 Unauthorized for url
+  'https://api.tavily.com/search?…'` — an endpoint, a host and whatever the query
+  string held — into the chat panel and the browser console of everyone watching.
+  An MCP tool's retry is a third party's string entirely, which is why the frame
+  is trimmed where it is sent rather than at each raise. The frame still names the
+  tool, because a card that resolves saying which step failed is the difference
+  from one that spins for ever, and the tool's own text goes to the log beside the
+  send. The model reads the retry whole either way — Pydantic AI puts the part
+  into the next request itself. Applied in `run_stream.py`, so the widget, a
+  hosted page and a channel are covered by the same sentence web chat is. (#681)
+
+## [0.0.115] - 2026-08-13
+
+A file link that fails no longer takes the transcript of a paid run with it.
+
+### Fixed
+
+- **The write linking a channel turn's files to its message shared the
+  transcript's SAVEPOINT**, so an exception from it rolled back the user turn,
+  the settled tool calls and the assistant message — for a run that had already
+  spent money, over a file. It now has a savepoint of its own inside that one:
+  it is the only write there touching rows the conversation does not own, and a
+  failure costs the link alone. Web chat has always made this trade for the same
+  write, in `persist_user_turn`. The savepoint is skipped outright when nothing
+  was attached, because opening and releasing one on every turn in the deployment
+  is a real cost for a list that is almost always empty. (#690)
+
+## [0.0.114] - 2026-08-13
+
+The security page described an authorization model that was deleted three
+months ago.
+
+### Fixed
+
+- **`SECURITY.md` documented `RoleChecker` and `UserRole.USER` / `UserRole.ADMIN`
+  as the authorization model.** The `users.role` column went in migration `0066`;
+  authority inside an organization is a membership row plus the permission
+  catalog, and has been since. A security page is read by somebody deciding
+  whether to trust a deployment, so being three months stale there costs more
+  than elsewhere. It now describes the three layers and points at
+  `docs/permissions.md`.
+- **The hardening checklist named no rate limits at all**, which left an operator
+  no way to know the public surfaces have them. It now lists the per-surface
+  limits — the embed widget's per-visitor cap and each channel bot's
+  `rate_limit_rpm` — and says plainly that the console's own routes are not
+  metered.
+- **The audit-log entry named a table that does not exist.**
+  `app_admin_audit_log` is `app_admin_audit_logs`, and organization-level actions
+  carry a trail of their own gated by `audit:read`, which the page did not
+  mention. (`docs/governance.md`)
+
+## [0.0.113] - 2026-08-13
+
+Every surface — web chat, the embed widget, a channel bot, and the hosted page
+this adds — now runs the same turn loop, remembers its conversation and is rate
+limited. The three W2 surface issues were one thread of work, and doing them
+apart is how the surfaces drifted in the first place.
+
+### Added
+
+- **A hosted chat page.** `/e/{publicKey}` serves an agent as a page rather than
+  a snippet somebody has to embed: `hosted_config` holds the copy, the accent and
+  the logo, a visitor keeps their thread across reloads, and a published page can
+  be edited afterwards. Migrations `0022`, `0023` and `0025`. (#517)
+- **The embed WebSocket is offered as an integration, not only documented.**
+  `socket_url_for` sits beside `snippet_for` and rides the same read schema, so
+  the panel publishes both with the `Origin` rule beside them. It carries no
+  `?token=` — in `jwt` mode a token is minted per visitor, and one printed in a
+  panel is a working credential on a shared screen. (#516)
+- **A run records which channel identity asked for it.**
+  `agent_runs.channel_identity_id`, migration `0024`. (#639)
+
+### Fixed
+
+- **A thread past 200 messages sent the model its *first* 200.** The window read
+  from the start of the conversation rather than the end, so the longer a thread
+  ran the staler the context it was answered from. `count_messages` plus `skip`
+  makes the window the last 200. (#636, #638)
+- **A group channel refused every sender who had never linked an account.** A room
+  now admits an unlinked speaker and the turn runs as the binding's creator; a DM
+  is unchanged, and `require_link: true` is the opt-out. (#639)
+- **An update sending `null` answered 500 on a `NOT NULL` column.**
+  `app/db/updates.py` lets the column decide instead of a hand-kept list, applied
+  to every `*Update` and guarded over `app/services/**` and `app/api/**`. (#637)
+- **The cookie banner covered Send on a hosted page.** Not rendered on `/e/**` or
+  `/shared/**` — neither has an optional cookie to consent to. (#644)
+- **The widget was the only surface passing no `message_history`**, so it forgot
+  the conversation between turns. It now streams the frames the web chat does,
+  and `EmbedSession` takes a session factory and opens one per turn, so an idle
+  socket holds no pooled connection. (#39)
+
+### Changed
+
+- **One copy of "an anonymous surface runs as its publisher".**
+  `access.publisher_context` is read by the embed session and by channels; there
+  were two implementations that had already begun to disagree. (#640)
+- **A channel thread has participants.** `/chat` shows a room's thread to
+  everybody whose linked account has spoken in it, as a `DISTINCT` over
+  `messages.channel_identity_id`. Reading and writing became two questions in the
+  process: speaking in a room is a claim on being shown the thread, never on
+  deleting or renaming it. Migrations `0026` and `0027`. That record says who
+  spoke and is never re-checked against the platform, so somebody removed from a
+  channel keeps reading the thread here — deliberately not closed, and #641 says
+  why.
+
 ## [0.0.112] - 2026-08-12
 
 The copy guard reads the frontend with a TypeScript parser instead of five

@@ -265,4 +265,20 @@ describe("a stored tool call that never finished", () => {
 
     expect(message.toolCalls?.map((call) => call.status)).toEqual(["completed", "error"]);
   });
+
+  it("keeps a parked call saying it waits for approval", () => {
+    // Not an unwritten outcome: the run parked on this call and a person can
+    // still decide it. Mapped to `unfinished` the one step somebody has to act
+    // on read as a step that ran, and the reloaded page said nothing about
+    // waiting (#601).
+    const message = conversationMessageToChatMessage(
+      raw({
+        tool_calls: [
+          { tool_call_id: "tc-1", tool_name: "send_email", args: {}, status: "awaiting_approval" },
+        ],
+      }),
+    );
+
+    expect(message.toolCalls?.map((call) => call.status)).toEqual(["awaiting_approval"]);
+  });
 });

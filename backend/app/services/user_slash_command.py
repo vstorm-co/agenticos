@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.db.models.user_slash_command import UserSlashCommand
+from app.db.updates import writable
 from app.repositories import user_slash_command_repo
 from app.schemas.user_slash_command import (
     UserSlashCommandCustomCreate,
@@ -90,7 +91,7 @@ class UserSlashCommandService:
         self, *, user_id: UUID, command_id: UUID, data: UserSlashCommandUpdate
     ) -> UserSlashCommand:
         db_cmd = await self._get_owned(user_id=user_id, command_id=command_id)
-        update_data = data.model_dump(exclude_unset=True)
+        update_data = writable(data, over=UserSlashCommand)
         if not update_data:
             return db_cmd
 

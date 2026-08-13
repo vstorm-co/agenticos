@@ -292,6 +292,16 @@ class AuthContext:
     role: str
     is_app_admin: bool = False
 
+    channel_identity_id: UUID | None = None
+    """The chat account that asked, when the asker is not a person.
+
+    Beside `user_id` rather than instead of it, because in a group chat the two
+    are different answers: the turn runs as the binding's creator, and this is
+    who typed it. It decides nothing - no permission reads it - and travels here
+    only because every consumer that opens a run already holds this object
+    (#639).
+    """
+
     @classmethod
     def anonymous(cls, organization_id: UUID) -> AuthContext:
         """A context for a visitor nobody can name.
