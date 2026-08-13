@@ -17,6 +17,30 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.128] - 2026-08-13
+
+A test that proved `spawn_after_commit` was needed proved it on a 250ms
+stopwatch.
+
+### Fixed
+
+- **`test_spawning_inside_the_request_starts_before_the_row_exists` waited a fixed
+  `_GRACE = 0.25s`** for the spawned flow to take its reading, and asserted the
+  reading happened inside that window. Under `make test` — four xdist workers plus
+  coverage instrumentation on one machine — 250ms guarantees nothing, so the test
+  failed once and passed on a clean re-run and in CI. It now waits on a signal from
+  the task itself, which is what it was trying to time. (#680)
+
+### Changed
+
+- **A release that only bumps the version no longer runs `test`, `test-frontend`
+  and `e2e`.** `scripts/ci_changed_scope.py` reads the diff of
+  `backend/pyproject.toml`, `backend/uv.lock` and `frontend/package.json` rather
+  than their paths, because those files also hold the dependency lists, the
+  coverage `include` lists and the ruff and ty configuration. An absent patch, a
+  diff of context lines, or one line that is not a version assignment still runs
+  everything. #317 claimed this; it is now true. (#317)
+
 ## [0.0.127] - 2026-08-13
 
 An invitation nobody clicked stayed pending for ever, and one clicked too late
