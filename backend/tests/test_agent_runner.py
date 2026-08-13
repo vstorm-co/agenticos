@@ -1034,6 +1034,20 @@ class TestWhatAFailedRunIsAllowedToSay:
         assert summary.startswith("The run did not finish (ModelHTTPError, HTTP 404) - ")
         assert "sk-live-9f2c" not in summary
 
+    def test_a_task_group_is_unwrapped_to_the_failure_it_is_hiding(self):
+        """MCP toolsets and delegated runs sit on anyio task groups, so their
+        failures arrive as an `ExceptionGroup` - whose own name diagnoses
+        nothing, and which would spend the status code on exactly the failures
+        most likely to carry one."""
+        raised = ExceptionGroup(
+            "unhandled errors in a TaskGroup",
+            [ModelHTTPError(status_code=401, model_name="gpt-5", body="bad key")],
+        )
+
+        assert run_failure_summary(raised).startswith(
+            "The run did not finish (ModelHTTPError, HTTP 401) - "
+        )
+
     def test_our_own_refusal_is_kept_whole_because_we_wrote_it(self):
         """A message written in this repository, and the most useful thing an
         operator can be shown - replacing "No model profile is configured for

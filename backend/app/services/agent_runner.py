@@ -1366,11 +1366,14 @@ def run_failure_summary(exc: Exception) -> str:
     later. Same rule as #342 in an HTTP body, #423 in the ingestion columns and
     #659 in the chat frame, with the longest life of the four (#676).
 
-    Ours is kept whole. An `AppException` is written in this repository, and its
-    message is the most useful thing an operator can be shown - "No model
-    profile is configured for this agent" beats any sentence composed here.
-    `BudgetExceeded` never reaches this function: it is caught above and its
-    ceiling is the point of it.
+    Ours is kept whole. An `AppException` raised inside the run is written in
+    this repository, and its message is the most useful thing an operator can be
+    shown - "No model profile is configured for this agent" beats any sentence
+    composed here. (The one place that folds a foreign `__str__` into an
+    `AppException` is `sandbox_workspace._reason`, deliberately and for a route's
+    answer; it runs outside both `try` blocks that call this.) `BudgetExceeded`
+    never reaches this function: it is caught above and its ceiling is the point
+    of it.
 
     Anything else is a foreign `__str__` and only its *type* is safe to store,
     plus the status code when a provider answered one. That code is what keeps
@@ -1378,12 +1381,21 @@ def run_failure_summary(exc: Exception) -> str:
     404 a model the profile names and the provider does not have, 429 a rate
     limit, 400 a request the model refused - where a bare class name would make
     all four `ModelHTTPError`. An `int` has never carried a URL.
+
+    A group is unwrapped to its first leaf first, the same unwrapping
+    `failure_summary` and `probe_error_message` do. MCP toolsets and delegated
+    runs sit on anyio task groups, so their failures arrive as an
+    `ExceptionGroup` whose own name diagnoses nothing at all - which would spend
+    the status code above on the failures most likely to carry one.
     """
-    if isinstance(exc, AppException):
-        return str(exc)
-    diagnosis = type(exc).__name__
-    if isinstance(exc, ModelHTTPError):
-        diagnosis = f"{diagnosis}, HTTP {exc.status_code}"
+    cause: BaseException = exc
+    while isinstance(cause, BaseExceptionGroup):
+        cause = cause.exceptions[0]
+    if isinstance(cause, AppException):
+        return str(cause)
+    diagnosis = type(cause).__name__
+    if isinstance(cause, ModelHTTPError):
+        diagnosis = f"{diagnosis}, HTTP {cause.status_code}"
     return (
         f"The run did not finish ({diagnosis}) - retry it, and check the agent's model "
         "profile if it keeps failing. The server log has the full error."
