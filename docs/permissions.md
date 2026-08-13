@@ -124,6 +124,26 @@ keeps an invented role out is a validator on the member and invitation schemas,
 and if one ever got through, an unknown role resolves to no permissions rather
 than to somebody else's.
 
+### Who may hand out which role
+
+Holding `roles:manage` says a member may change roles; it does not say *which*.
+`assignable_roles` answers that from the catalog: a role may assign one whose
+authority it strictly exceeds - every permission the offered role holds, held at
+least as widely by the assigner, plus something the assigner holds that it does
+not. Two consequences, and both are the point:
+
+- **Nobody assigns `owner`**, because no role outranks it. Ownership moves
+  through `POST /orgs/{id}/transfer-ownership`, which demotes the outgoing owner
+  in the same breath; a role change that only promotes would leave two owners
+  and an audit entry reading `member.role_changed` (#672).
+- **Nobody assigns their own level.** An Admin may make a Builder or a Viewer,
+  never a second Admin - promoting a peer to your own level is an ownership
+  decision.
+
+Derived from the catalog rather than from a role name, so a custom role (Phase
+2) is bounded by what it actually holds. The ceiling this replaced compared
+against the literal `"admin"` and could not see one at all.
+
 Custom roles are Phase 2 and may only ever recombine the permissions above;
 clients cannot invent new ones.
 
