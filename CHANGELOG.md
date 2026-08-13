@@ -17,6 +17,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.143] - 2026-08-13
+
+Three sweeps walked the source tree three different ways.
+
+### Changed
+
+- **One source-tree walker, shared.** `fonts.test.ts`, `loading-state.test.tsx`
+  and `platform-proxy.test.ts` each carried their own recursive read of
+  `frontend/src`, with their own idea of what to skip — so a directory one of them
+  learned to ignore stayed invisible only to that one. They now share
+  `src/test-utils/source-files.ts`. (#618)
+
 ## [0.0.142] - 2026-08-13
 
 Every page declared itself English, Polish ones included.
