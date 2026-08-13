@@ -17,6 +17,23 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.149] - 2026-08-13
+
+A chat turn could attach another user's file by naming its id.
+
+### Security
+
+- **Linking a file the caller does not own is refused.** The link was a blind
+  bulk UPDATE with no owner predicate and no unlinked check, and the ids came
+  straight off the socket payload — so a turn naming another user's file id
+  rendered their filename, MIME and size in the attacker's conversation and
+  silently pulled the file off the victim's own message. Both the read and
+  the UPDATE now carry the owner in their WHERE; a foreign or unknown id
+  answers the same `NotFoundError` (so an id cannot be probed for existence),
+  an already-linked one is refused rather than moved — for everybody, its
+  owner included — and a malformed id is refused at the boundary instead of
+  resurfacing as a failed turn after the message persisted. (#706)
+
 ## [0.0.148] - 2026-08-13
 
 A photo sent with no caption read as somebody sending nothing.
