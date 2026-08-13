@@ -3,35 +3,34 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
-import { ChevronLeft, ChevronRight, ExternalLink, Search } from "lucide-react";
+import { ExternalLink, Search } from "lucide-react";
 
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
   Badge,
-  Button,
   type Column,
   DataTable,
   Input,
+  PaginationBar,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-  SortButton,
 } from "@/components/ui";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { ConversationAgents } from "@/components/agents/conversation-agents";
 import { ErrorState } from "@/components/states";
-import { useAdminConversations, useAgents } from "@/hooks";
+import { useAdminConversations, useAgents, useUrlSort } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
 import { useChanged } from "@/hooks/use-changed";
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
-type SortDir = "asc" | "desc";
-type ConvSortKey = "title" | "owner" | "messages" | "created_at" | "updated_at";
+// Keys the backend can sort on (route → service → repo).
+const SORT_KEYS = ["title", "owner", "messages", "created_at", "updated_at"] as const;
 type Status = "active" | "archived" | "all";
 
 type Conversation = ReturnType<typeof useAdminConversations>["conversations"][number];
@@ -85,10 +84,7 @@ export default function AdminConversationsPage() {
   const [status, setStatus] = useState<Status>("active");
   const [pageSize, setPageSize] = useState<number>(50);
   const [page, setPage] = useState(0);
-  const [sort, setSort] = useState<{ by: ConvSortKey; dir: SortDir }>({
-    by: "updated_at",
-    dir: "desc",
-  });
+  const { sort, setSort } = useUrlSort(SORT_KEYS, { by: "updated_at", dir: "desc" });
 
   // Back to the first page whenever the filters move: page 4 of a list that
   // now has one page shows nothing. During render, so the empty page is never
@@ -132,13 +128,6 @@ export default function AdminConversationsPage() {
     fetchConversations,
   ]);
 
-  const totalPages = Math.max(1, Math.ceil(conversationsTotal / pageSize));
-
-  const toggleSort = (key: ConvSortKey) =>
-    setSort((s) =>
-      s.by === key ? { by: key, dir: s.dir === "asc" ? "desc" : "asc" } : { by: key, dir: "desc" },
-    );
-
   const userOptions = useMemo(
     () => users.map((u) => ({ id: u.id, email: u.email, fullName: u.full_name })),
     [users],
@@ -148,15 +137,8 @@ export default function AdminConversationsPage() {
     () => [
       {
         key: "title",
-        header: (
-          <SortButton
-            active={sort.by === "title"}
-            direction={sort.dir}
-            onClick={() => toggleSort("title")}
-          >
-            {t("title")}
-          </SortButton>
-        ),
+        header: t("title"),
+        sortable: true,
         cell: (conv) => (
           <span className="text-foreground font-medium">{conv.title || t("untitled")}</span>
         ),
@@ -164,15 +146,8 @@ export default function AdminConversationsPage() {
       {
         key: "owner",
         hideBelow: "md",
-        header: (
-          <SortButton
-            active={sort.by === "owner"}
-            direction={sort.dir}
-            onClick={() => toggleSort("owner")}
-          >
-            {t("owner")}
-          </SortButton>
-        ),
+        header: t("owner"),
+        sortable: true,
         cell: (conv) =>
           conv.user_email ? (
             <span className="flex items-center gap-2">
@@ -200,29 +175,15 @@ export default function AdminConversationsPage() {
         key: "messages",
         align: "right",
         hideBelow: "sm",
-        header: (
-          <SortButton
-            active={sort.by === "messages"}
-            direction={sort.dir}
-            onClick={() => toggleSort("messages")}
-          >
-            {t("messages")}
-          </SortButton>
-        ),
+        header: t("messages"),
+        sortable: true,
         cell: (conv) => <span className="tabular-nums">{conv.message_count}</span>,
       },
       {
         key: "created_at",
         hideBelow: "md",
-        header: (
-          <SortButton
-            active={sort.by === "created_at"}
-            direction={sort.dir}
-            onClick={() => toggleSort("created_at")}
-          >
-            {t("created")}
-          </SortButton>
-        ),
+        header: t("created"),
+        sortable: true,
         cell: (conv) => (
           <span className="text-muted-foreground">{formatDate(conv.created_at, locale)}</span>
         ),
@@ -252,7 +213,7 @@ export default function AdminConversationsPage() {
         ),
       },
     ],
-    [sort.by, sort.dir, t],
+    [t, locale],
   );
 
   return (
@@ -350,6 +311,8 @@ export default function AdminConversationsPage() {
         rows={conversations}
         getRowKey={(conv) => conv.id}
         loading={isLoading && conversations.length === 0}
+        sort={sort}
+        onSort={setSort}
         error={error ? <ErrorState title={t("couldnTLoadThisScreen")} description={error} /> : null}
         empty={t("noConversations")}
         skeletonRows={5}
@@ -359,65 +322,9 @@ export default function AdminConversationsPage() {
         page={page}
         pageSize={pageSize}
         total={conversationsTotal}
-        totalPages={totalPages}
         isLoading={isLoading}
-        onPrev={() => setPage((p) => Math.max(0, p - 1))}
-        onNext={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+        onPage={setPage}
       />
-    </div>
-  );
-}
-
-function PaginationBar({
-  page,
-  pageSize,
-  total,
-  totalPages,
-  isLoading,
-  onPrev,
-  onNext,
-}: {
-  page: number;
-  pageSize: number;
-  total: number;
-  totalPages: number;
-  isLoading: boolean;
-  onPrev: () => void;
-  onNext: () => void;
-}) {
-  const t = useTranslations("pages.admin");
-  const tc = useTranslations("common");
-  if (total === 0) return null;
-  const start = page * pageSize + 1;
-  const end = Math.min(total, (page + 1) * pageSize);
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-muted-foreground text-sm">
-        {tc("rangeOfTotal", { start, end, total })}
-      </span>
-      <div className="flex items-center gap-1">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onPrev}
-          disabled={page === 0 || isLoading}
-          aria-label={t("previousPage")}
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
-        <span className="text-muted-foreground px-2 text-sm">
-          {page + 1} / {totalPages}
-        </span>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onNext}
-          disabled={page >= totalPages - 1 || isLoading}
-          aria-label={t("nextPage")}
-        >
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-      </div>
     </div>
   );
 }

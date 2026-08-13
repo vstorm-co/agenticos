@@ -83,7 +83,7 @@ export { Spinner } from "./spinner";
 export { QuestionPrompt } from "./question-prompt";
 export type { QuestionPromptProps } from "./question-prompt";
 
-export { DataTable, type Column } from "./data-table";
+export { DataTable, type Column, type TableSort } from "./data-table";
 
 export {
   OptionalSetting,
@@ -93,5 +93,6 @@ export {
 } from "./optional-setting";
 
 export { Pager, SearchInput, useDebounced, useListControls, PAGE_SIZE } from "./list-controls";
+export { PaginationBar } from "./pagination-bar";
 
 export { DateRangePicker, type DateRange, type DateRangePickerProps } from "./date-range-picker";

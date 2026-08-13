@@ -1,23 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  ArrowDown,
-  ArrowUp,
-  ArrowUpDown,
-  ChevronLeft,
-  ChevronRight,
-  Search,
-  Shield,
-} from "lucide-react";
+import { Search, Shield } from "lucide-react";
 
 import { UserDetailDrawer } from "@/components/admin/user-detail-drawer";
+import { ErrorState } from "@/components/states";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Badge,
   Button,
   DataTable,
   Input,
+  PaginationBar,
   Select,
   SelectContent,
   SelectItem,
@@ -25,16 +19,15 @@ import {
   SelectValue,
   type Column,
 } from "@/components/ui";
-import { useAdminUsers } from "@/hooks";
+import { useAdminUsers, useUrlSort } from "@/hooks";
 import type { AdminUser } from "@/types";
-import { cn, formatDate } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 import { useChanged } from "@/hooks/use-changed";
 
 import { useLocale, useTranslations } from "next-intl";
 const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
-type SortDir = "asc" | "desc";
 // Keys the backend can sort on (route → service → repo).
-type SortKey = "email" | "full_name" | "conversations" | "created_at";
+const SORT_KEYS = ["email", "full_name", "conversations", "created_at"] as const;
 
 function getInitials(nameOrEmail: string): string {
   return nameOrEmail
@@ -49,15 +42,12 @@ export default function AdminUsersPage() {
   const t = useTranslations("pages.admin");
   const tc = useTranslations("common");
   const locale = useLocale();
-  const { users, total, isLoading, fetchUsers, updateUser, deleteUser, impersonateUser } =
+  const { users, total, isLoading, error, fetchUsers, updateUser, deleteUser, impersonateUser } =
     useAdminUsers();
   const [search, setSearch] = useState("");
   const [pageSize, setPageSize] = useState(50);
   const [page, setPage] = useState(0);
-  const [sort, setSort] = useState<{ by: SortKey; dir: SortDir }>({
-    by: "created_at",
-    dir: "desc",
-  });
+  const { sort, setSort } = useUrlSort(SORT_KEYS, { by: "created_at", dir: "desc" });
   // The id, not the row. Holding the object meant it went stale the moment the
   // list refetched, which an effect then copied back over - a second render
   // every time, to arrive where deriving it gets in one.
@@ -72,7 +62,7 @@ export default function AdminUsersPage() {
   }
 
   const load = useCallback(
-    (pg: number, q: string, ps: number, sortBy: SortKey, sortDir: SortDir) => {
+    (pg: number, q: string, ps: number, sortBy: string, sortDir: "asc" | "desc") => {
       fetchUsers({
         skip: pg * ps,
         limit: ps,
@@ -97,26 +87,12 @@ export default function AdminUsersPage() {
     setDrawerOpen(true);
   }, []);
 
-  const toggleSort = (key: SortKey) =>
-    setSort((s) =>
-      s.by === key ? { by: key, dir: s.dir === "asc" ? "desc" : "asc" } : { by: key, dir: "desc" },
-    );
-
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-
   const columns = useMemo<Column<AdminUser>[]>(
     () => [
       {
         key: "email",
-        header: (
-          <SortHeader
-            active={sort.by === "email"}
-            dir={sort.dir}
-            onClick={() => toggleSort("email")}
-          >
-            {t("user")}
-          </SortHeader>
-        ),
+        header: t("user"),
+        sortable: true,
         cell: (u) => (
           <div className="flex min-w-0 items-center gap-3">
             <Avatar className="h-8 w-8 shrink-0">
@@ -150,15 +126,8 @@ export default function AdminUsersPage() {
         key: "conversations",
         align: "right",
         hideBelow: "md",
-        header: (
-          <SortHeader
-            active={sort.by === "conversations"}
-            dir={sort.dir}
-            onClick={() => toggleSort("conversations")}
-          >
-            {t("conversations")}
-          </SortHeader>
-        ),
+        header: t("conversations"),
+        sortable: true,
         // The count the list query has always paid a join for and nothing read.
         cell: (u) => <span className="tabular-nums">{u.conversation_count}</span>,
       },
@@ -183,15 +152,8 @@ export default function AdminUsersPage() {
       {
         key: "created_at",
         hideBelow: "md",
-        header: (
-          <SortHeader
-            active={sort.by === "created_at"}
-            dir={sort.dir}
-            onClick={() => toggleSort("created_at")}
-          >
-            {t("joined")}
-          </SortHeader>
-        ),
+        header: t("joined"),
+        sortable: true,
         cell: (u) => (
           <span className="text-muted-foreground text-sm">{formatDate(u.created_at, locale)}</span>
         ),
@@ -215,11 +177,8 @@ export default function AdminUsersPage() {
         ),
       },
     ],
-    [sort.by, sort.dir, handleOpenUser],
+    [t, locale, handleOpenUser],
   );
-
-  const start = total === 0 ? 0 : page * pageSize + 1;
-  const end = Math.min(total, (page + 1) * pageSize);
 
   return (
     <div className="space-y-4">
@@ -258,39 +217,19 @@ export default function AdminUsersPage() {
         getRowKey={(u) => u.id}
         loading={isLoading && users.length === 0}
         onRowClick={handleOpenUser}
+        sort={sort}
+        onSort={setSort}
+        error={error ? <ErrorState description={error} /> : null}
         empty={search ? t("noUsersMatch", { query: search }) : t("noUsersYet")}
       />
 
-      {total > 0 && (
-        <div className="border-border bg-card flex items-center justify-between rounded-xl border px-4 py-3">
-          <span className="text-muted-foreground text-sm">
-            {tc("rangeOfTotal", { start, end, total })}
-          </span>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-              disabled={page === 0 || isLoading}
-              aria-label={t("previousPage2")}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span className="text-muted-foreground px-2 text-sm">
-              {page + 1} / {totalPages}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-              disabled={page >= totalPages - 1 || isLoading}
-              aria-label={t("nextPage2")}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      )}
+      <PaginationBar
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        isLoading={isLoading}
+        onPage={setPage}
+      />
 
       <UserDetailDrawer
         user={drawerUser}
@@ -301,32 +240,5 @@ export default function AdminUsersPage() {
         onImpersonate={impersonateUser}
       />
     </div>
-  );
-}
-
-function SortHeader({
-  active,
-  dir,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  dir: SortDir;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  const Icon = !active ? ArrowUpDown : dir === "asc" ? ArrowUp : ArrowDown;
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "hover:text-foreground inline-flex items-center gap-1 text-left font-mono text-[11px] font-medium tracking-wider uppercase transition-colors",
-        active ? "text-foreground" : "text-muted-foreground",
-      )}
-    >
-      {children}
-      <Icon className={cn("h-3 w-3", !active && "opacity-40")} aria-hidden />
-    </button>
   );
 }

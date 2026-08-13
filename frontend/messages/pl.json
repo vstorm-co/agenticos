@@ -910,6 +910,8 @@
     "confirm": "aby potwierdzić",
     "dismissQuestions": "Odrzuć pytania",
     "done": "Gotowe",
+    "filterAny": "Dowolna",
+    "filterColumn": "Filtruj",
     "labelPreview": "Podgląd: {label}",
     "markdown": "Markdown",
     "matchedOfTotal": "{matched} z {counted}",
