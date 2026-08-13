@@ -17,6 +17,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.125] - 2026-08-13
+
+A plain role change could mint a second owner and walk around ownership transfer.
+
+### Fixed
+
+- **`PATCH /orgs/{org_id}/members/{user_id}` accepted `{"role": "owner"}`** against
+  any non-owner member. It succeeded, left the organization with two owners, and
+  wrote an audit entry reading `member.role_changed` rather than saying ownership
+  had moved — so `transfer_ownership`, the one path that demotes the outgoing owner
+  in the same breath, could be walked around with a PATCH. Both halves are closed,
+  because either alone leaves the hole open somewhere: `OrganizationMemberUpdate`
+  subtracts `owner` from the roles it admits, the way `InvitationCreate` already
+  did, and the service now caps the role being *assigned* rather than only
+  inspecting the target. (#672)
+
 ## [0.0.124] - 2026-08-13
 
 A Mattermost bot reached through an outgoing webhook answered every post in a
