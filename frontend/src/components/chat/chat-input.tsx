@@ -160,30 +160,30 @@ export function ChatInput({
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (showPalette && filteredCommands.length > 0) {
-      if (e.key === t("arrowdown")) {
+      if (e.key === "ArrowDown") {
         e.preventDefault();
         setPaletteIndex((i) => (i + 1) % filteredCommands.length);
         return;
       }
-      if (e.key === t("arrowup")) {
+      if (e.key === "ArrowUp") {
         e.preventDefault();
         setPaletteIndex((i) => (i - 1 + filteredCommands.length) % filteredCommands.length);
         return;
       }
-      if (e.key === t("tab")) {
+      if (e.key === "Tab") {
         // Tab autocompletes to the highlighted command name.
         e.preventDefault();
         const cmd = filteredCommands[paletteIndex];
         if (cmd) setMessage("/" + cmd.name + " ");
         return;
       }
-      if (e.key === t("escape2")) {
+      if (e.key === "Escape") {
         e.preventDefault();
         setMessage("");
         return;
       }
     }
-    if (e.key === t("enter2") && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit(e);
     }
