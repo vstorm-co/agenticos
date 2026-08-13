@@ -18,17 +18,55 @@ exactly the failure the feature exists to fix.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from aiogram.types import Chat
+from aiogram.types import Message as AiogramMessage
+from aiogram.types import User as AiogramUser
 
-from app.services.channels.base import IncomingAttachment, OutgoingAttachment, OutgoingMessage
+from app.services.channels.base import (
+    IncomingAttachment,
+    IncomingMessage,
+    OutgoingAttachment,
+    OutgoingMessage,
+)
 from app.services.channels.mattermost import MattermostAdapter
 from app.services.channels.slack import SlackAdapter
 from app.services.channels.telegram import TelegramAdapter
 
 pytestmark = pytest.mark.anyio
+
+
+def _polled(**fields: Any) -> AiogramMessage:
+    """One update as aiogram hands it to the polling loop's handler."""
+    fields.setdefault("from_user", AiogramUser(id=9, is_bot=False, first_name="Ada"))
+    return AiogramMessage(
+        message_id=7,
+        date=datetime(2026, 8, 13, tzinfo=UTC),
+        chat=Chat(id=42, type="private"),
+        **fields,
+    )
+
+
+async def _routed(message: AiogramMessage) -> IncomingMessage | None:
+    """What the polling path hands the router, or `None` if it handed it nothing."""
+    router = MagicMock(route=AsyncMock())
+    context = MagicMock(__aenter__=AsyncMock(return_value=MagicMock()), __aexit__=AsyncMock())
+
+    with (
+        patch("app.services.channels.telegram.ChannelMessageRouter", return_value=router),
+        patch("app.services.channels.telegram.get_db_context", return_value=context),
+    ):
+        await TelegramAdapter()._handle_update(message, "bot-1")
+
+    if not router.route.await_args_list:
+        return None
+    routed = router.route.await_args.args[0]
+    assert isinstance(routed, IncomingMessage)
+    return routed
 
 
 class TestTelegramReceiving:
@@ -125,6 +163,17 @@ class TestTelegramReceiving:
             is None
         )
 
+    def test_a_message_with_no_sender_is_nothing_on_this_transport_too(self):
+        """The polling loop always refused one. The webhook parser answered it with
+        an empty `platform_user_id`, which is a single identity shared by every
+        anonymous sender the bot ever sees (#547)."""
+        assert (
+            TelegramAdapter().parse_incoming(
+                {"message": {"chat": {"id": 1, "type": "supergroup"}, "text": "hello"}}, "bot-1"
+            )
+            is None
+        )
+
     def test_a_document_with_no_name_gets_one_rather_than_an_empty_path(self):
         parsed = TelegramAdapter().parse_incoming(
             {
@@ -175,6 +224,65 @@ class TestTelegramReceiving:
             )
 
         bot.session.close.assert_awaited_once()
+
+
+class TestTelegramPolling:
+    """The second way in, which used to be a second parser (#547).
+
+    Polling is the self-hosted and development mode, and its handler built an
+    `IncomingMessage` of its own: text only, `raw={}`, and no call to
+    `_attachments` at all. So a file dropped on a Telegram bot that was not on a
+    webhook was discarded exactly the way #113 had already fixed for the webhook,
+    and the agent answered about a document it never received.
+    """
+
+    async def test_a_document_sent_to_a_polling_bot_reaches_the_router(self):
+        routed = await _routed(
+            _polled(
+                document={
+                    "file_id": "BQACAgQ",
+                    "file_unique_id": "u",
+                    "file_name": "report.csv",
+                    "mime_type": "text/csv",
+                    "file_size": 128,
+                }
+            )
+        )
+
+        assert routed is not None
+        assert [a.filename for a in routed.attachments] == ["report.csv"]
+        assert routed.attachments[0].handle == "BQACAgQ"
+
+    async def test_a_caption_is_the_text_here_too(self):
+        """A photo with a caption had no `text`, so the whole message was dropped -
+        the question about the picture along with the picture."""
+        routed = await _routed(
+            _polled(
+                caption="what is wrong with this chart",
+                photo=[{"file_id": "small", "file_unique_id": "s", "width": 1, "height": 1}],
+            )
+        )
+
+        assert routed is not None
+        assert routed.text == "what is wrong with this chart"
+        assert routed.attachments[0].handle == "small"
+
+    async def test_the_update_is_carried_whole_rather_than_thrown_away(self):
+        routed = await _routed(_polled(text="hello"))
+
+        assert routed is not None
+        assert routed.text == "hello"
+        assert routed.raw["message"]["message_id"] == 7
+        assert routed.platform_display_name == "Ada"
+
+    async def test_a_message_with_neither_text_nor_a_file_is_not_routed(self):
+        assert await _routed(_polled()) is None
+
+    async def test_a_message_with_no_sender_is_not_routed(self):
+        """An anonymous group admin arrives with no `from`, and a run needs somebody
+        to be. Polling always refused one; the webhook parser did not, and keyed a
+        shared identity on an empty user id instead."""
+        assert await _routed(_polled(text="hello", from_user=None)) is None
 
 
 class TestTelegramSending:
@@ -398,6 +506,51 @@ class TestMattermostReceiving:
 
         assert parsed is not None
         assert parsed.attachments[0].handle == ""
+
+    def test_an_outgoing_webhook_post_carries_its_files_too(self):
+        """The second way into this adapter, and it read no files at all (#547).
+
+        The webhook body spells `file_ids` as one comma-separated string where the
+        socket sends a list, which is the whole reason handing the flat payload to
+        the shared reader was never enough.
+        """
+        adapter = MattermostAdapter()
+        adapter.remember_server("bot-1", "https://mm.test")
+
+        parsed = adapter.parse_incoming(
+            {
+                "user_id": "u1",
+                "user_name": "ada",
+                "channel_id": "c1",
+                "channel_name": "town-square",
+                "text": "what does this say",
+                "file_ids": "f1,f2",
+            },
+            "bot-1",
+        )
+
+        assert parsed is not None
+        assert [a.filename for a in parsed.attachments] == ["f1", "f2"]
+        assert parsed.attachments[0].handle == "https://mm.test/api/v4/files/f1"
+
+    def test_a_webhook_post_with_a_file_and_no_text_is_still_a_message(self):
+        parsed = MattermostAdapter().parse_incoming(
+            {"user_id": "u1", "user_name": "ada", "channel_id": "c1", "file_ids": "f1"},
+            "bot-1",
+        )
+
+        assert parsed is not None
+        assert parsed.text == ""
+        assert [a.filename for a in parsed.attachments] == ["f1"]
+
+    def test_a_webhook_post_with_no_files_says_so_rather_than_one_empty_id(self):
+        parsed = MattermostAdapter().parse_incoming(
+            {"user_id": "u1", "user_name": "ada", "channel_id": "c1", "text": "hi", "file_ids": ""},
+            "bot-1",
+        )
+
+        assert parsed is not None
+        assert parsed.attachments == []
 
     async def test_a_missing_server_is_reported_rather_than_guessed_at(self):
         """Guessing a Mattermost address is guessing which company's server to send

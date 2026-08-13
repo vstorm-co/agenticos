@@ -309,7 +309,10 @@ it is about to wait.
 - **Linking, and it comes first** — a channel run belongs to a *person*: the
   budget it spends, what it may read and the audit entry it writes are all
   theirs. So an unlinked chat account is refused, whatever the bot's access
-  policy says.
+  policy says — and a message with no sender at all, which is how Telegram
+  delivers an anonymous group admin's post, is not answered either. There is
+  nobody to link it to, and answering one would file every anonymous poster the
+  bot ever sees under a single shared chat account.
 
     The refusal carries the way out. Message the bot and it answers with a URL;
     open it, and the dashboard — where you are already signed in — names the chat
@@ -631,6 +634,15 @@ had no attachment field, so no adapter parsed one and the agent answered about a
 document it never received. Now a message with a file — with or without a caption —
 reaches the agent the same way a web upload does.
 
+**On every transport, because each adapter has exactly one parser.** Each platform
+has two ways in — a webhook and a stream, or long-polling — and the second one used
+to build its own normalised message: Telegram's polling loop read text and nothing
+else, and the Mattermost outgoing webhook read no `file_ids` at all. Both now put
+their update back into the shape the platform sends and hand it to the same
+`parse_incoming`, so what counts as a message is decided once. It had been decided
+twice, and the copies disagreed about files — which mattered most on the paths a
+self-hosted deployment actually runs.
+
 **Inbound** is the web upload path reached differently. The bytes come from a
 platform instead of a browser and then go through exactly what a web upload gets:
 the MIME allowlist, `MAX_UPLOAD_SIZE`, the parser, storage, and a `ChatFile` row.
@@ -651,6 +663,12 @@ why an attachment arrives as a handle rather than as content:
 | Slack | The private URL on the event, fetched with the bot token. Slack answers **200 with a sign-in page** rather than 401 when the token cannot read a file, so the content type is checked — otherwise a login page would be stored as the user's spreadsheet |
 | Telegram | `getFile` resolves a `file_id` to a path that expires, then the file API. A photo arrives as several sizes; the largest is the one kept |
 | Mattermost | `/files/{id}` on that bot's own server. A bot whose server is not recorded says so rather than guessing which company's server to send a token to |
+
+A Mattermost bot on the **outgoing webhook** is the one case where that last
+sentence bites: the server address is recorded when a stream is opened, and a
+webhook bot opens none, so its files are read, named in the reply and reported as
+unfetchable rather than fetched. Visible and honest, which is not the same as
+working — [#692](https://github.com/vstorm-co/agenticos/issues/692).
 
 **Recordings are not supported yet.** Telegram puts each kind of media in its own
 field, so a voice note arrives with no text at all — and until this change it parsed
