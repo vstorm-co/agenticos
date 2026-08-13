@@ -17,6 +17,26 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.116] - 2026-08-13
+
+A failing tool named a search provider's endpoint, with the key still in the
+query string, to everyone watching the run.
+
+### Fixed
+
+- **A `tool_result` frame carried whatever the tool that raised had put in its
+  `ModelRetry`.** `web_search` builds one out of the `httpx` or SDK exception it
+  caught, so a broken key put `401 Unauthorized for url
+  'https://api.tavily.com/search?…'` — an endpoint, a host and whatever the query
+  string held — into the chat panel and the browser console of everyone watching.
+  An MCP tool's retry is a third party's string entirely, which is why the frame
+  is trimmed where it is sent rather than at each raise. The frame still names the
+  tool, because a card that resolves saying which step failed is the difference
+  from one that spins for ever, and the tool's own text goes to the log beside the
+  send. The model reads the retry whole either way — Pydantic AI puts the part
+  into the next request itself. Applied in `run_stream.py`, so the widget, a
+  hosted page and a channel are covered by the same sentence web chat is. (#681)
+
 ## [0.0.115] - 2026-08-13
 
 A file link that fails no longer takes the transcript of a paid run with it.
