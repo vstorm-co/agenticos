@@ -491,8 +491,9 @@ class ConversationService:
         `role: "assistant"` - to any conversation in the deployment, and it
         would render to its owner as the agent's own words. See `UNSCOPED`.
 
-        `user_id` narrows that to the owner or somebody the conversation was
-        shared with - `_may_write`, not `_may_read`, because a `role: "assistant"`
+        `user_id` narrows that to the owner, somebody the conversation was
+        shared with or, on a thread with no owner, somebody who spoke in it -
+        `_may_write`, not `_may_read`, because a `role: "assistant"`
         turn appended by a room's participant is read as the agent's own words by
         everybody in the thread and by the model on the next turn. It is optional
         because one caller has no user to check: the assistant turn is written by

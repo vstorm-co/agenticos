@@ -805,11 +805,13 @@ it is about to wait.
     somebody, with no backfill: the turn points at the chat account and the
     account gains a person.
 
-    **That list says who spoke, not who may read.** Participation is never
-    re-checked against the platform, so somebody removed from the channel there
-    keeps the thread in their list here — deliberately, and [#641][641] is what it
-    would take to change. Nothing may use it as an authorization check without
-    asking the platform first.
+    **That list says who spoke, not who is still in the channel.** Participation
+    is never re-checked against the platform, so somebody removed from the
+    channel there keeps the thread in their list here — deliberately, and
+    [#641][641] is what it would take to change. Where participation carries an
+    access decision — opening a thread, changing an ownerless one — it carries
+    that staleness with it; anything needing the live channel roster has to ask
+    the platform, never this list.
 
     **And it opens a thread rather than owning one.** Speaking in a room admits
     you to reading it; renaming it, archiving it, deleting it or appending a turn
@@ -822,7 +824,8 @@ it is about to wait.
     the participants *are* who may change it — the same set that may open it.
     There is nobody the write would be taken from, and the alternative was the
     whole organization: any member could delete a transcript whose list entry
-    they had never seen ([#701][701]).
+    they had never seen ([#701][701]). The [#641][641] caveat carries over to
+    the write: this is who spoke, not who is still in the channel.
 
 [701]: https://github.com/vstorm-co/agenticos/issues/701
 
