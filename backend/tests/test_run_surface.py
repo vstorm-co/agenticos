@@ -104,9 +104,8 @@ class TestWhatTheEmbeddedWidgetStamps:
         )
         session.conversation_id = uuid.uuid4()
         session.visitor = "visitor-1"
-        session.hosted = False
         session.visitor_key = None
-        session._context_sent = False
+        session._supplied = {}
         return session
 
     async def test_an_embedded_run_is_recorded_as_embed_and_not_as_web_chat(self):
@@ -123,11 +122,17 @@ class TestWhatTheEmbeddedWidgetStamps:
         assert runner.execute.await_args.kwargs["surface"] is RunSurface.EMBED
 
 
-class TestTheSuppliedContextIsResentWhenItChanges:
-    """A single-page app signs a visitor in on turn 2, so the block the page
+class TestThePreambleGoesOnEveryTurn:
+    """The placement note and the supplied block are prepended to every turn,
+    not latched to the first.
+
+    A single-page app signs a visitor in on turn 2, so the block the page
     supplies has to reach the agent then - not stay frozen at what turn 1 held.
-    Latching the whole preamble on the first turn froze the supplied block, and
-    its `required`-variable warning, at whatever turn 1 happened to carry.
+    And the transcript records only what the visitor said, so the history each
+    turn is rebuilt from carries neither the note nor the block: latching them to
+    turn 1 sent them to the model once and lost them from turn 2 on. Sent every
+    turn they cost the tokens but stay present, and nothing is duplicated because
+    history never held them.
     """
 
     @staticmethod
@@ -147,11 +152,8 @@ class TestTheSuppliedContextIsResentWhenItChanges:
         )
         session.conversation_id = uuid.uuid4()
         session.visitor = "visitor-1"
-        session.hosted = False
         session.visitor_key = None
-        session._context_sent = False
         session._supplied = {}
-        session._supplied_sent = ""
         return session
 
     async def test_a_value_that_arrives_after_turn_one_still_reaches_the_agent(self):
@@ -173,7 +175,8 @@ class TestTheSuppliedContextIsResentWhenItChanges:
 
         assert "A billing widget" in first
         assert "a@b.com" not in first
-        # The value that only arrived on turn 2 must be sent, and the placement
-        # context must not be repeated now it has already gone.
+        # The value that only arrived on turn 2 is sent, and the placement context
+        # is repeated - it is not in the history the turn is rebuilt from, so
+        # sending it once would have lost it here.
         assert "a@b.com" in second
-        assert "A billing widget" not in second
+        assert "A billing widget" in second
