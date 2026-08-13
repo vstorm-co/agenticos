@@ -17,6 +17,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.126] - 2026-08-13
+
+A shareable invite link could grant ownership, or a role that does not exist.
+
+### Fixed
+
+- **`InviteLinkCreate.role` carried no validator** while its sibling
+  `InvitationCreate` refused `owner` and unknown roles. An Owner could mint a link
+  that grants owner — co-ownership through a pasted URL, the exact thing the email
+  invitation path forbids — or an invented role string that `role_has` cannot
+  reason about, which then flowed unvalidated onto the accepter's membership row.
+  Both schemas now share one `InvitableRole`: every role in the catalog except
+  `owner`, refused at validation. (#551)
+
 ## [0.0.125] - 2026-08-13
 
 A plain role change could mint a second owner and walk around ownership transfer.
