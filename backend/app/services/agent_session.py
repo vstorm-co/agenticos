@@ -494,7 +494,7 @@ class AgentSession:
         if not file_ids:
             return []
         async with get_db_context() as file_db:
-            return await load_attached_files(file_db, file_ids)
+            return await load_attached_files(file_db, file_ids, user_id=self.user.id)
 
     async def _frame(self, kind: str, payload: dict[str, Any]) -> None:
         """Where this surface's frames go: to the member who is watching.
