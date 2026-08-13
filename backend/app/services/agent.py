@@ -200,7 +200,7 @@ async def persist_user_turn(
 
     Raises:
         BadRequestError: If `requested_conversation_id` is not a UUID, or a
-            file in `file_ids` is already attached to a message.
+            file in `file_ids` is not one, or is already attached to a message.
         NotFoundError: If a file in `file_ids` is not the caller's own -
             another user's id answers like one that does not exist (#706).
         AuthorizationError: If the requested conversation is not this

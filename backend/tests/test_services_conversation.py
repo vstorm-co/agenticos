@@ -1232,7 +1232,7 @@ class TestConversationServiceLinkFiles:
             repo.get_many = AsyncMock(
                 return_value=[MagicMock(id=fid, message_id=None) for fid in ids]
             )
-            repo.link_to_message = AsyncMock()
+            repo.link_to_message = AsyncMock(return_value=len(ids))
 
             await service.link_files_to_message(msg_id, [str(fid) for fid in ids], user_id=user_id)
 
@@ -1242,6 +1242,46 @@ class TestConversationServiceLinkFiles:
             ids,
             user_id,
         )
+
+    @pytest.mark.anyio
+    async def test_an_id_that_is_not_a_uuid_is_refused_before_any_read(
+        self, service: ConversationService
+    ):
+        """A `ValueError` here used to fall into the caller's infrastructure net
+        and resurface a step later as a generic failed turn, after the message
+        had already been persisted. The refusal names only the malformed ids."""
+        good = uuid4()
+
+        with patch("app.services.conversation.chat_file_repo") as repo:
+            repo.get_many = AsyncMock()
+            repo.link_to_message = AsyncMock()
+
+            with pytest.raises(BadRequestError) as refusal:
+                await service.link_files_to_message(
+                    uuid4(), [str(good), "not-a-uuid", None], user_id=uuid4()
+                )
+
+        assert refusal.value.details == {"file_ids": ["not-a-uuid", "None"]}
+        repo.get_many.assert_not_awaited()
+        repo.link_to_message.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_row_taken_between_the_read_and_the_update_is_refused(
+        self, service: ConversationService
+    ):
+        """The pre-read and the UPDATE are two statements, so a concurrent turn
+        can take the row between them; the repository's count is what keeps the
+        race from answering as a message that quietly lost its attachment."""
+        contested = uuid4()
+
+        with patch("app.services.conversation.chat_file_repo") as repo:
+            repo.get_many = AsyncMock(return_value=[MagicMock(id=contested, message_id=None)])
+            repo.link_to_message = AsyncMock(return_value=0)
+
+            with pytest.raises(BadRequestError) as refusal:
+                await service.link_files_to_message(uuid4(), [str(contested)], user_id=uuid4())
+
+        assert refusal.value.details == {"file_ids": [contested]}
 
     @pytest.mark.anyio
     async def test_a_file_that_is_not_the_callers_is_refused_as_missing(

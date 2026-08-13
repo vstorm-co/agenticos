@@ -33,20 +33,21 @@ async def get_many(db: AsyncSession, file_ids: Iterable[UUID], *, user_id: UUID)
 
 async def link_to_message(
     db: AsyncSession, *, message_id: UUID, file_ids: Iterable[UUID], user_id: UUID
-) -> None:
-    """Link `user_id`'s unlinked chat files to a message.
+) -> int:
+    """Link `user_id`'s unlinked chat files to a message, answering how many moved.
 
     The WHERE carries both halves of the rule rather than trusting the caller:
     without them this was a blind bulk update, so a turn naming another user's
     file id put their filename on its own message and silently pulled the file
     off the message it already hung on (#706). An id the predicates exclude is
     skipped here; a caller that must refuse it reads the rows first
-    (`ConversationService.link_files_to_message`).
+    (`ConversationService.link_files_to_message`) - and compares the count,
+    because a concurrent turn can take a row between that read and this UPDATE.
     """
     ids = list(file_ids)
     if not ids:
-        return
-    await db.execute(
+        return 0
+    result = await db.execute(
         sql_update(ChatFile)
         .where(
             ChatFile.id.in_(ids),
@@ -56,6 +57,9 @@ async def link_to_message(
         .values(message_id=message_id)
     )
     await db.flush()
+    # `execute` is typed to return `Result`, which has no `rowcount`; a DML
+    # statement actually returns `CursorResult`, which does (see resource_grant).
+    return result.rowcount  # ty: ignore[unresolved-attribute]
 
 
 async def delete(db: AsyncSession, *, db_file: ChatFile) -> None:

@@ -97,8 +97,11 @@ class TestLinkingAnotherUsersFile:
         victim = await _member(db)
         theirs = await _message(db, victim)
         stolen = await _upload(db, victim)
-        await chat_file_repo.link_to_message(
-            db, message_id=theirs.id, file_ids=[stolen.id], user_id=victim.id
+        assert (
+            await chat_file_repo.link_to_message(
+                db, message_id=theirs.id, file_ids=[stolen.id], user_id=victim.id
+            )
+            == 1
         )
 
         attacker = await _member(db)
@@ -133,19 +136,21 @@ class TestLinkingAnotherUsersFile:
 
         assert (await _reloaded(db, fresh.id)).message_id is None
 
-    async def test_the_update_itself_skips_a_foreign_row(self, db) -> None:
+    async def test_the_update_itself_skips_a_foreign_row_and_says_so(self, db) -> None:
         """The owner is in the UPDATE's WHERE, not only in the service's read -
         so a caller that skips the read, as the channel transcript does, still
-        cannot move another user's file."""
+        cannot move another user's file. The count answers zero, which is how
+        the service tells a row taken in the race window from a linked one."""
         victim = await _member(db)
         fresh = await _upload(db, victim)
         attacker = await _member(db)
         mine = await _message(db, attacker)
 
-        await chat_file_repo.link_to_message(
+        linked = await chat_file_repo.link_to_message(
             db, message_id=mine.id, file_ids=[fresh.id], user_id=attacker.id
         )
 
+        assert linked == 0
         assert (await _reloaded(db, fresh.id)).message_id is None
 
 

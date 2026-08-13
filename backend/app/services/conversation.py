@@ -55,6 +55,23 @@ type OrgScope = UUID | Literal["unscoped"]
 """A tenant to check against, or an explicit refusal to check one."""
 
 
+def _file_uuids(file_ids: Sequence[str]) -> tuple[list[UUID], list[str]]:
+    """Parse client-sent file ids, naming the ones that are not UUIDs at all.
+
+    `str()` first, because the socket payload is untyped JSON: a number or a
+    null in the list must land in `malformed`, not raise a `TypeError` past
+    the refusal written for it.
+    """
+    ids: list[UUID] = []
+    malformed: list[str] = []
+    for fid in file_ids:
+        try:
+            ids.append(UUID(str(fid)))
+        except ValueError:
+            malformed.append(str(fid))
+    return ids, malformed
+
+
 class ConversationService:
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -612,9 +629,14 @@ class ConversationService:
         hangs on (#706). Refused, never narrowed - a turn that quietly dropped an
         attachment would read as an agent ignoring the file it was asked about.
         A file that is not the caller's answers exactly like one that does not
-        exist, so an id cannot be probed for whether it is taken.
+        exist, so an id cannot be probed for whether it is taken. An id that is
+        not a UUID at all is refused the same loud way: a `ValueError` here used
+        to fall into the caller's infrastructure net and resurface a step later
+        as a generic failed turn, after the message had already been persisted.
         """
-        ids = [UUID(fid) for fid in file_ids]
+        ids, malformed = _file_uuids(file_ids)
+        if malformed:
+            raise BadRequestError(message="Invalid file id", details={"file_ids": malformed})
         if not ids:
             return
         rows = await chat_file_repo.get_many(self.db, ids, user_id=user_id)
@@ -628,9 +650,18 @@ class ConversationService:
                 message="File is already attached to a message",
                 details={"file_ids": taken},
             )
-        await chat_file_repo.link_to_message(
+        linked = await chat_file_repo.link_to_message(
             self.db, message_id=message_id, file_ids=ids, user_id=user_id
         )
+        if linked != len(set(ids)):
+            # The read above and the UPDATE are two statements, so a concurrent
+            # turn naming the same file can take a row between them; the count
+            # is what turns that race into the same refusal instead of a message
+            # that quietly lost its attachment (#706).
+            raise BadRequestError(
+                message="File is already attached to a message",
+                details={"file_ids": sorted(set(ids))},
+            )
 
     async def list_attached_files(self, file_ids: list[str], *, user_id: UUID) -> list[Any]:
         """The caller's rows behind the ids a client sent; anybody else's resolve to nothing (#706)."""
