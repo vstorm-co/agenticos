@@ -770,6 +770,13 @@ it is about to wait.
     would take to change. Nothing may use it as an authorization check without
     asking the platform first.
 
+    **And it opens a thread rather than owning one.** Speaking in a room admits
+    you to reading it; renaming it, archiving it, deleting it or appending a turn
+    to it stays with the thread's owner and anybody it was explicitly shared with.
+    Otherwise one person who said "thanks" in a channel could delete the room's
+    whole transcript, or write a turn as the agent that everybody reads and the
+    model is handed back as its own words on the next turn.
+
 [641]: https://github.com/vstorm-co/agenticos/issues/641
 
     The refusal carries the way out. Message the bot and it answers with a URL;

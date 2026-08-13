@@ -275,6 +275,183 @@ class TestConversationServiceGetConversation:
             assert result.id == conv_id
 
 
+class TestParticipationDoesNotCarryTheWrite:
+    """Speaking in a room is a claim on being shown the thread, not on the row.
+
+    Every mutating method authorizes by resolving the conversation, so widening the
+    read to a room's participants (#639) widened those with it: a Viewer who said
+    one thing in a channel could delete the room's transcript, rename it, or append
+    a `role: "assistant"` turn that everybody reads in `/chat` and the model is
+    handed back as its own words on the next turn. `_may_write` is what keeps the
+    two questions apart, so each verb is pinned rather than the helper.
+    """
+
+    @pytest.fixture
+    def service(self) -> ConversationService:
+        return ConversationService(AsyncMock())
+
+    @staticmethod
+    def _room(owner_id):
+        """A room thread owned by whoever spoke in it first and had linked."""
+        return MockConversation(id=uuid4(), user_id=owner_id)
+
+    @pytest.mark.anyio
+    async def test_a_participant_may_open_a_thread_they_may_not_change(
+        self, service: ConversationService
+    ):
+        """Both halves in one test on purpose: a refusal that also refused the read
+        would pass a write test while breaking the feature #639 exists for."""
+        speaker = uuid4()
+        conversation = self._room(uuid4())
+
+        with (
+            patch("app.services.conversation.conversation_repo") as mock_repo,
+            patch("app.services.conversation.conversation_share_repo") as mock_share_repo,
+        ):
+            mock_repo.get_conversation_by_id = AsyncMock(return_value=conversation)
+            mock_share_repo.get_share = AsyncMock(return_value=None)
+            mock_repo.spoke_in = AsyncMock(return_value=True)
+
+            opened = await service.get_conversation(
+                conversation.id, user_id=speaker, organization_id=TEST_ORG_ID
+            )
+            assert opened.id == conversation.id
+
+            with pytest.raises(NotFoundError):
+                await service.update_conversation(
+                    conversation.id,
+                    MagicMock(),
+                    user_id=speaker,
+                    organization_id=TEST_ORG_ID,
+                )
+
+    @pytest.mark.anyio
+    async def test_a_participant_may_not_delete_the_room_transcript(
+        self, service: ConversationService
+    ):
+        speaker = uuid4()
+        conversation = self._room(uuid4())
+
+        with (
+            patch("app.services.conversation.conversation_repo") as mock_repo,
+            patch("app.services.conversation.conversation_share_repo") as mock_share_repo,
+        ):
+            mock_repo.get_conversation_by_id = AsyncMock(return_value=conversation)
+            mock_repo.delete_conversation = AsyncMock()
+            mock_share_repo.get_share = AsyncMock(return_value=None)
+            mock_repo.spoke_in = AsyncMock(return_value=True)
+
+            with pytest.raises(NotFoundError):
+                await service.delete_conversation(
+                    conversation.id, user_id=speaker, organization_id=TEST_ORG_ID
+                )
+
+            mock_repo.delete_conversation.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_a_participant_may_not_archive_the_room_thread(
+        self, service: ConversationService
+    ):
+        speaker = uuid4()
+        conversation = self._room(uuid4())
+
+        with (
+            patch("app.services.conversation.conversation_repo") as mock_repo,
+            patch("app.services.conversation.conversation_share_repo") as mock_share_repo,
+        ):
+            mock_repo.get_conversation_by_id = AsyncMock(return_value=conversation)
+            mock_repo.archive_conversation = AsyncMock()
+            mock_share_repo.get_share = AsyncMock(return_value=None)
+            mock_repo.spoke_in = AsyncMock(return_value=True)
+
+            with pytest.raises(NotFoundError):
+                await service.archive_conversation(
+                    conversation.id, user_id=speaker, organization_id=TEST_ORG_ID
+                )
+
+            mock_repo.archive_conversation.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_a_participant_may_not_append_a_turn_as_the_agent(
+        self, service: ConversationService
+    ):
+        """The one with teeth beyond the thread: an appended assistant turn is fed
+        back to the model as its own words by the next channel turn's history."""
+        speaker = uuid4()
+        conversation = self._room(uuid4())
+
+        with (
+            patch("app.services.conversation.conversation_repo") as mock_repo,
+            patch("app.services.conversation.conversation_share_repo") as mock_share_repo,
+        ):
+            mock_repo.get_conversation_by_id = AsyncMock(return_value=conversation)
+            mock_repo.create_message = AsyncMock()
+            mock_share_repo.get_share = AsyncMock(return_value=None)
+            mock_repo.spoke_in = AsyncMock(return_value=True)
+
+            with pytest.raises(NotFoundError):
+                await service.add_message(
+                    conversation.id,
+                    MagicMock(),
+                    user_id=speaker,
+                    organization_id=TEST_ORG_ID,
+                )
+
+            mock_repo.create_message.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_a_share_still_carries_the_write(self, service: ConversationService):
+        """Sharing is the deliberate act participation is not."""
+        reader = uuid4()
+        conversation = self._room(uuid4())
+
+        with (
+            patch("app.services.conversation.conversation_repo") as mock_repo,
+            patch("app.services.conversation.conversation_share_repo") as mock_share_repo,
+        ):
+            mock_repo.get_conversation_by_id = AsyncMock(return_value=conversation)
+            mock_repo.archive_conversation = AsyncMock(return_value=conversation)
+            mock_share_repo.get_share = AsyncMock(return_value=MagicMock())
+
+            archived = await service.archive_conversation(
+                conversation.id, user_id=reader, organization_id=TEST_ORG_ID
+            )
+
+            assert archived.id == conversation.id
+
+    @pytest.mark.anyio
+    async def test_the_owner_still_changes_their_own_thread(self, service: ConversationService):
+        owner = uuid4()
+        conversation = MockConversation(id=uuid4(), user_id=owner)
+
+        with patch("app.services.conversation.conversation_repo") as mock_repo:
+            mock_repo.get_conversation_by_id = AsyncMock(return_value=conversation)
+            mock_repo.archive_conversation = AsyncMock(return_value=conversation)
+
+            archived = await service.archive_conversation(
+                conversation.id, user_id=owner, organization_id=TEST_ORG_ID
+            )
+
+            assert archived.id == conversation.id
+
+    @pytest.mark.anyio
+    async def test_a_thread_nobody_owns_stays_the_organizations_to_tidy(
+        self, service: ConversationService
+    ):
+        """A room nobody linked an account in has no owner, and stays writable by
+        the organization - which is what it was before participation existed.
+        Narrowing it is #645, not something this refusal should decide quietly."""
+        conversation = MockConversation(id=uuid4(), user_id=None)
+
+        with patch("app.services.conversation.conversation_repo") as mock_repo:
+            mock_repo.get_conversation_by_id = AsyncMock(return_value=conversation)
+            mock_repo.delete_conversation = AsyncMock()
+
+            assert await service.delete_conversation(
+                conversation.id, user_id=uuid4(), organization_id=TEST_ORG_ID
+            )
+
+
 class TestConversationServiceListConversations:
     """Tests for list_conversations."""
 

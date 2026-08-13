@@ -66,12 +66,17 @@ class ConversationService:
         organization_id: UUID,
         include_messages: bool = False,
         user_id: UUID | None = None,
+        for_write: bool = False,
     ) -> Conversation:
         """One conversation, checked against the tenant first and the reader second.
 
         A row belonging to another organization is reported as missing rather
         than forbidden: "you may not read this" tells somebody in another tenant
         that the id exists.
+
+        `for_write` picks which of the two questions is asked. Reading and
+        writing stopped being one question when participation became a way in:
+        see `_may_read` and `_may_write`.
         """
         conversation = await conversation_repo.get_conversation_by_id(
             self.db, conversation_id, include_messages=include_messages
@@ -88,11 +93,17 @@ class ConversationService:
                 message="Conversation not found",
                 details={"conversation_id": str(conversation_id)},
             )
-        if user_id is not None and not await self._may_read(conversation, user_id):
-            raise NotFoundError(
-                message="Conversation not found",
-                details={"conversation_id": str(conversation_id)},
+        if user_id is not None:
+            allowed = (
+                await self._may_write(conversation, user_id)
+                if for_write
+                else await self._may_read(conversation, user_id)
             )
+            if not allowed:
+                raise NotFoundError(
+                    message="Conversation not found",
+                    details={"conversation_id": str(conversation_id)},
+                )
         if include_messages and user_id is not None and conversation.messages:
             message_ids = [m.id for m in conversation.messages]
             user_ratings = await message_rating_repo.get_user_ratings_for_messages(
@@ -126,6 +137,30 @@ class ConversationService:
         if await conversation_share_repo.get_share(self.db, conversation.id, user_id):
             return True
         return await conversation_repo.spoke_in(self.db, conversation.id, user_id)
+
+    async def _may_write(self, conversation: Conversation, user_id: UUID) -> bool:
+        """Whether this reader may change or delete this conversation.
+
+        Deliberately *not* `_may_read`, and this is the whole reason the two
+        exist. Every mutating method here authorizes by resolving the row -
+        renaming, archiving, deleting, appending a turn - so widening the read to
+        a room's participants widened those too: a Viewer who said one thing in a
+        channel could delete the room's transcript, or append a
+        `role: "assistant"` turn that everybody reads in `/chat` and the model is
+        handed back as its own words on the next turn. Speaking in a room is a
+        claim on being shown the thread, never a claim on the row.
+
+        A thread with no owner recorded stays writable by the organization, which
+        is what it was before participation existed. Narrowing that is a product
+        decision about who tidies up a room nobody linked an account in, not a
+        hole this opened, so it is #645 rather than a second rule here.
+        """
+        owner = getattr(conversation, "user_id", None)
+        if owner is None:
+            return True
+        if str(owner) == str(user_id):
+            return True
+        return bool(await conversation_share_repo.get_share(self.db, conversation.id, user_id))
 
     async def _attach_authors(self, messages: list[Message]) -> None:
         """Put a name on each turn that came from a chat account.
@@ -294,6 +329,7 @@ class ConversationService:
             conversation_id,
             organization_id=organization_id,
             user_id=user_id,
+            for_write=True,
         )
         update_data = writable(data, over=Conversation)
         return await conversation_repo.update_conversation(
@@ -311,6 +347,7 @@ class ConversationService:
             conversation_id,
             organization_id=organization_id,
             user_id=user_id,
+            for_write=True,
         )
         return await conversation_repo.archive_conversation(self.db, db_conversation=conversation)
 
@@ -325,6 +362,7 @@ class ConversationService:
             conversation_id,
             organization_id=organization_id,
             user_id=user_id,
+            for_write=True,
         )
         await conversation_repo.delete_conversation(self.db, db_conversation=conversation)
         return True
@@ -352,6 +390,7 @@ class ConversationService:
         organization_id: OrgScope,
         include_messages: bool = False,
         user_id: UUID | None = None,
+        for_write: bool = False,
     ) -> Conversation:
         """Load one conversation, skipping the tenant check only for `UNSCOPED`."""
         if organization_id != UNSCOPED:
@@ -360,6 +399,7 @@ class ConversationService:
                 organization_id=organization_id,
                 include_messages=include_messages,
                 user_id=user_id,
+                for_write=for_write,
             )
         conversation = await conversation_repo.get_conversation_by_id(
             self.db, conversation_id, include_messages=include_messages
@@ -446,9 +486,12 @@ class ConversationService:
         would render to its owner as the agent's own words. See `UNSCOPED`.
 
         `user_id` narrows that to the owner or somebody the conversation was
-        shared with. It is optional because one caller has no user to check:
-        the assistant turn is written by the agent, after `persist_user_turn`
-        has already resolved the same conversation for the person who asked.
+        shared with - `_may_write`, not `_may_read`, because a `role: "assistant"`
+        turn appended by a room's participant is read as the agent's own words by
+        everybody in the thread and by the model on the next turn. It is optional
+        because one caller has no user to check: the assistant turn is written by
+        the agent, after `persist_user_turn` has already resolved the same
+        conversation for the person who asked.
 
         `run_id` is a keyword rather than a field on `MessageCreate` because
         that schema is bound from a request body. A run id taken from a caller
@@ -462,7 +505,7 @@ class ConversationService:
         would silently reopen it.
         """
         conversation = await self._resolve(
-            conversation_id, organization_id=organization_id, user_id=user_id
+            conversation_id, organization_id=organization_id, user_id=user_id, for_write=True
         )
         if conversation.is_archived:
             raise BadRequestError(
