@@ -17,6 +17,23 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.119] - 2026-08-13
+
+A channel turn refused before it ran left the files it had already stored behind,
+owned by nothing.
+
+### Fixed
+
+- **The bytes are stored before the agent is resolved, so whatever refuses in its
+  place has to give them back.** A turn that never produced a run left `chat_files`
+  rows nothing points at — and that table carries no organization, so an unlinked
+  row is scoped by `user_id` alone and no sweep collects it. Both refusal paths now
+  discard what the turn stored: the one that stores first and refuses second, and
+  the one where a handle names no agent of ours. A file that cannot be deleted
+  costs neither the other files nor the reply, because a cleanup that raised would
+  replace a refusal somebody can act on with a bot that answered nothing at all.
+  (#661, #690)
+
 ## [0.0.118] - 2026-08-13
 
 A crashed turn told the chat panel whatever the provider's SDK had put in its
