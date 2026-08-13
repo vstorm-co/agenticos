@@ -17,6 +17,25 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.134] - 2026-08-13
+
+A refusal from the BFF reached the toast in English, whatever locale the reader
+was in.
+
+### Fixed
+
+- **The route handlers under `src/app/api/**` write a wire payload, not copy**, and
+  the toast that renders it was showing that payload verbatim. A refusal now
+  travels as a code the client resolves in the active locale, and
+  `getErrorMessage` takes the caller's translator — it moved from `@/lib/utils` to
+  `@/lib/api-error` in the process, because a function that needs a translator is
+  not a utility. Step details take the same route. (#603)
+- **The copy guard reads a `.ts` file by the same rules as a `.tsx` one**, so a
+  hook's toast and a module table of labels are copy too. `src/app/api/**` is
+  skipped by the offence sweep — a route handler sits outside the `[locale]`
+  segment and has no translator to reach — and read by the catalog rules, which is
+  what reports a `detail` that duplicates a message. (#603)
+
 ## [0.0.133] - 2026-08-13
 
 The banner guard walked every worktree on the machine before deciding to ignore
