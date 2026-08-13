@@ -407,6 +407,7 @@ include = [
     "app/services/channels/dedupe.py",
     "app/services/channels/mentions.py",
     "app/services/collection_access.py",
+    "app/services/embed_session.py",
     "app/services/embedding_resolution.py",
     "app/services/approvals.py",
     "app/services/audit.py",
@@ -545,6 +546,11 @@ include = [
     "app/services/channels/dedupe.py",
     "app/services/channels/mentions.py",
     "app/services/collection_access.py",
+    # One visitor's turn on a public widget: who it runs as, how often they may
+    # ask, and what the page is allowed to put in front of the model. An
+    # unreachable `except BudgetExceeded` sat here for as long as it was
+    # ungated, which is the failure this gate exists to name (#663).
+    "app/services/embed_session.py",
     "app/services/embedding_resolution.py",
     "app/services/approvals.py",
     # The read half of the audit trail. `audit:read` is the only way to see who

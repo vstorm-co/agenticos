@@ -32,7 +32,6 @@ from uuid import UUID
 from fastapi import WebSocket
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.capabilities.budget import BudgetExceeded
 from app.core.exceptions import AppException
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_embed import AgentEmbed
@@ -158,13 +157,9 @@ class EmbedSession:
         await self._send({"type": "typing"})
         try:
             answer = await self._answer(text)
-        except BudgetExceeded:
-            # The one failure worth naming: an operator seeing this in a widget
-            # needs to know the agent hit its ceiling rather than broke.
-            await self._send(
-                {"type": "error", "message": "This assistant has reached its usage limit."}
-            )
-            return
+        # A budget stop does not arrive here: the runner records it as a
+        # `BUDGET_EXCEEDED` status and returns, so an `except BudgetExceeded`
+        # was a branch nothing could reach (#663).
         except AppException:
             logger.exception("embed_run_refused", extra={"embed_id": str(self.embed.id)})
             await self._send({"type": "error", "message": "This assistant is unavailable."})
