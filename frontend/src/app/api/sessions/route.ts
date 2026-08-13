@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { backendFetch, BackendApiError } from "@/lib/server-api";
+import { BackendApiError, backendFetch, bffRefusal } from "@/lib/server-api";
 
 export async function GET(request: NextRequest) {
   try {
     const accessToken = request.cookies.get("access_token")?.value;
-    if (!accessToken) return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
+    if (!accessToken) return bffRefusal("NOT_AUTHENTICATED", 401);
     // The listing is paged; a proxy that drops `skip`/`limit` would answer page
     // one to every request and the caller would never know.
     const params = new URLSearchParams();
@@ -20,14 +20,14 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     if (error instanceof BackendApiError)
       return NextResponse.json({ detail: error.message }, { status: error.status });
-    return NextResponse.json({ detail: "Internal server error" }, { status: 500 });
+    return bffRefusal("INTERNAL_SERVER_ERROR", 500);
   }
 }
 
 export async function DELETE(request: NextRequest) {
   try {
     const accessToken = request.cookies.get("access_token")?.value;
-    if (!accessToken) return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
+    if (!accessToken) return bffRefusal("NOT_AUTHENTICATED", 401);
     await backendFetch("/api/v1/sessions", {
       method: "DELETE",
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -36,6 +36,6 @@ export async function DELETE(request: NextRequest) {
   } catch (error) {
     if (error instanceof BackendApiError)
       return NextResponse.json({ detail: error.message }, { status: error.status });
-    return NextResponse.json({ detail: "Internal server error" }, { status: 500 });
+    return bffRefusal("INTERNAL_SERVER_ERROR", 500);
   }
 }

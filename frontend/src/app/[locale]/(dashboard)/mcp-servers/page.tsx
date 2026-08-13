@@ -5,7 +5,7 @@ import { Plug } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { McpServerList, ServersCard } from "@/components/mcp/mcp-server-list";
 import { Skeleton } from "@/components/ui";
-import { useMcpServers, usePermissions } from "@/hooks";
+import { useMcpOAuthOutcome, useMcpServers, usePermissions } from "@/hooks";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 
@@ -27,11 +27,16 @@ import { useTranslations } from "next-intl";
  * Presenting the first two as sibling destinations is what made "what is the
  * difference between MCP servers and Integrations?" a question nobody could
  * answer from the navigation. `/settings/integrations` now redirects here.
+ *
+ * It is also where a provider's OAuth redirect lands, which is why this page
+ * announces that outcome rather than the connection dialog that started it: the
+ * browser left the product entirely in between.
  */
 export default function McpServersPage() {
   const t = useTranslations("pages.mcp-servers");
   const { rows, isLoading } = useMcpServers();
   const { can } = usePermissions();
+  useMcpOAuthOutcome();
 
   return (
     <div className="space-y-6">

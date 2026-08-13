@@ -1,11 +1,12 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
 import { DASHBOARD_FRESHNESS } from "@/lib/query-freshness";
 import { qk } from "@/lib/query-keys";
-import { getErrorMessage } from "@/lib/utils";
 import type {
   AgentRun,
   AgentRunList,
@@ -150,6 +151,8 @@ export function useDelegatedRuns(parentRunId: string) {
  * as "nothing waiting".
  */
 export function useApprovals(options?: { enabled?: boolean }) {
+  const tErrors = useTranslations("errors");
+
   const queryClient = useQueryClient();
 
   const { data, isLoading, error, refetch } = useQuery({
@@ -166,7 +169,7 @@ export function useApprovals(options?: { enabled?: boolean }) {
       await queryClient.invalidateQueries({ queryKey: qk.runs.all() });
       toast.success(approval.status === "approved" ? "Approved" : "Rejected");
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   return {

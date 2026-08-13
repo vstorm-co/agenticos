@@ -5,9 +5,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
-import { getErrorMessage } from "@/lib/utils";
 import type {
   NewSecret,
   Secret,
@@ -33,6 +33,7 @@ import type {
  * offers.
  */
 export function useSecrets() {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("vault");
   const queryClient = useQueryClient();
 
@@ -83,7 +84,7 @@ export function useSecrets() {
       await invalidate();
       toast.success(t("secretDeleted"));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   return {

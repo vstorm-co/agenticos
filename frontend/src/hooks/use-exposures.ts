@@ -4,9 +4,9 @@ import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
+import { getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
-import { getErrorMessage } from "@/lib/utils";
 import type { UsageReporting } from "@/types/channels";
 import type { Exposure, ExposureList, ExposureTarget, ExposureTargetList } from "@/types/exposures";
 
@@ -22,6 +22,7 @@ import type { Exposure, ExposureList, ExposureTarget, ExposureTargetList } from 
  * guessed it would render a place that does not exist.
  */
 export function useExposures(agentId: string | null) {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
   const queryClient = useQueryClient();
   const base = `/agents/${agentId}/exposures`;
@@ -50,7 +51,7 @@ export function useExposures(agentId: string | null) {
       await invalidate();
       toast.success(t("exposureLive", { bot: exposure.channel_bot_name }));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   const setActive = useMutation({
@@ -67,7 +68,7 @@ export function useExposures(agentId: string | null) {
           : t("exposurePaused", { bot: exposure.channel_bot_name }),
       );
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   const setEnvironment = useMutation({
@@ -82,7 +83,7 @@ export function useExposures(agentId: string | null) {
       // server reads the distinction off the request, so only this field goes.
       apiClient.patch<Exposure>(`${base}/${exposureId}`, { environment_id: environmentId }),
     onSuccess: invalidate,
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   const setPrompt = useMutation({
@@ -92,7 +93,7 @@ export function useExposures(agentId: string | null) {
       // overwrite whatever somebody changed in between.
       apiClient.patch<Exposure>(`${base}/${exposureId}`, { prompt }),
     onSuccess: invalidate,
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   const setTools = useMutation({
@@ -102,7 +103,7 @@ export function useExposures(agentId: string | null) {
       // patch describing one checkbox could not express "and nothing else".
       apiClient.patch<Exposure>(`${base}/${exposureId}`, { tools }),
     onSuccess: invalidate,
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   const setUsageReporting = useMutation({
@@ -118,7 +119,7 @@ export function useExposures(agentId: string | null) {
       // would overwrite whatever somebody changed in between.
       apiClient.patch<Exposure>(`${base}/${exposureId}`, { usage_reporting: usageReporting }),
     onSuccess: invalidate,
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   const revoke = useMutation({
@@ -127,7 +128,7 @@ export function useExposures(agentId: string | null) {
       await invalidate();
       toast.success(t("exposureRevoked"));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   const exposures: Exposure[] = data?.items ?? [];

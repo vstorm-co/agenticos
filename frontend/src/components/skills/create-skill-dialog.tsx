@@ -83,6 +83,7 @@ interface CreateSkillDialogProps {
  * the skill exists to attach them to.
  */
 export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps) {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("skills");
   const { create, categories, suggestedCategories } = useSkills();
   const [name, setName] = useState("");
@@ -167,10 +168,14 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
       setErrors({});
       onOpenChange(false);
     } catch (error) {
-      const failure = submitFailure(error, {
-        fields: ["name", "description", "category", "content"],
-        identifiedBy: "name",
-      });
+      const failure = submitFailure(
+        error,
+        {
+          fields: ["name", "description", "category", "content"],
+          identifiedBy: "name",
+        },
+        tErrors,
+      );
       setErrors(failure.fields);
       if (failure.toast) toast.error(failure.toast);
     }

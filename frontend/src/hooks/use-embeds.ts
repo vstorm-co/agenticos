@@ -5,9 +5,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
-import { getErrorMessage } from "@/lib/utils";
 import type { Embed, EmbedEdit, EmbedList, NewEmbed } from "@/types/embeds";
 
 /**
@@ -18,6 +18,7 @@ import type { Embed, EmbedEdit, EmbedList, NewEmbed } from "@/types/embeds";
  * that guessed either would show somebody a script tag that does not work.
  */
 export function useEmbeds(agentId: string | null) {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
   const queryClient = useQueryClient();
 
@@ -38,7 +39,7 @@ export function useEmbeds(agentId: string | null) {
       await invalidate();
       toast.success(t("widgetPublished"));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   const update = useMutation({
@@ -48,7 +49,17 @@ export function useEmbeds(agentId: string | null) {
       await invalidate();
       toast.success(t("widgetSaved"));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+  });
+
+  const uploadLogo = useMutation({
+    mutationFn: ({ id, file }: { id: string; file: File }) =>
+      apiClient.upload<Embed>(`/agents/embeds/${id}/logo`, file),
+    onSuccess: async () => {
+      await invalidate();
+      toast.success(t("logoUploaded"));
+    },
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   const remove = useMutation({
@@ -58,8 +69,8 @@ export function useEmbeds(agentId: string | null) {
       // Said plainly: this is the one action here that breaks a live page.
       toast.success(t("widgetRemoved"));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
-  return { embeds: data?.items ?? [], isLoading, create, update, remove };
+  return { uploadLogo, embeds: data?.items ?? [], isLoading, create, update, remove };
 }

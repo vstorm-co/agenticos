@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireAdmin } from "@/lib/admin-auth";
-import { BackendApiError, backendFetch } from "@/lib/server-api";
+import { BackendApiError, backendFetch, bffRefusal } from "@/lib/server-api";
 
 /**
  * Per-service health for the admin system page.
@@ -25,6 +25,6 @@ export async function GET(request: NextRequest) {
     if (error instanceof BackendApiError) {
       return NextResponse.json({ detail: error.message }, { status: error.status });
     }
-    return NextResponse.json({ detail: "Internal server error" }, { status: 500 });
+    return bffRefusal("INTERNAL_SERVER_ERROR", 500);
   }
 }

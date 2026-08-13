@@ -5,11 +5,12 @@ import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, CheckCircle2, Cpu, Database, HardDrive, RefreshCw, Zap } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
+import { getErrorMessage } from "@/lib/api-error";
 import { LoadingState } from "@/components/states";
 import { Button } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
-import { cn, getErrorMessage } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import type { CheckStatus, SystemHealth } from "@/types/admin";
 import { useTranslations } from "next-intl";
 
@@ -46,6 +47,7 @@ const STATUS_TEXT: Record<CheckStatus, string> = {
 };
 
 export default function SystemHealthPage() {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("pages.admin");
   const [auto, setAuto] = useState(true);
 
@@ -149,7 +151,7 @@ export default function SystemHealthPage() {
           <AlertCircle className="text-destructive mx-auto h-6 w-6" />
           <p className="text-foreground mt-3 text-sm font-medium">{t("couldnAposTFetch")}</p>
           <p className="text-muted-foreground mt-1 text-xs">
-            {getErrorMessage(error, t("failedFetchHealth"))}
+            {getErrorMessage(error, tErrors, t("failedFetchHealth"))}
           </p>
         </div>
       ) : (

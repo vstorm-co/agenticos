@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { useRecentConversations } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
@@ -14,6 +14,7 @@ import type { DashboardWidgetProps } from "./types";
 export function ConversationsWidget({ title, seeAll }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.conversations");
   const tTime = useTranslations("time");
+  const locale = useLocale();
   const { conversations, isLoading, error, refetch } = useRecentConversations(4);
 
   return (
@@ -33,7 +34,7 @@ export function ConversationsWidget({ title, seeAll }: DashboardWidgetProps) {
                   {conversation.title ?? t("untitled")}
                 </span>
                 <span className="text-muted-foreground block text-xs">
-                  {timeAgo(conversation.updated_at, tTime)}
+                  {timeAgo(conversation.updated_at, tTime, locale)}
                 </span>
               </span>
               <Link

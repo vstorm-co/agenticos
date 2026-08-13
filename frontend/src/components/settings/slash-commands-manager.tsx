@@ -16,8 +16,8 @@ import {
   Switch,
   Textarea,
 } from "@/components/ui";
+import { getErrorMessage } from "@/lib/api-error";
 import { EmptyState } from "@/components/states";
-import { ApiError } from "@/lib/api-client";
 import { BUILTIN_COMMAND_LIST, isBuiltinEnabled, useSlashCommands } from "@/hooks";
 import type { UserSlashCommandRecord } from "@/lib/slash-commands-api";
 import { useTranslations } from "next-intl";
@@ -25,6 +25,8 @@ import { useTranslations } from "next-intl";
 const NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
 
 export function SlashCommandsManager() {
+  const tErrors = useTranslations("errors");
+
   const t = useTranslations("settings");
   const tCommands = useTranslations("chat.commands");
   const {
@@ -87,8 +89,7 @@ export function SlashCommandsManager() {
       }
       setEditingId(null);
     } catch (e) {
-      const msg =
-        e instanceof ApiError ? e.message : e instanceof Error ? e.message : t("failedSaveCommand");
+      const msg = getErrorMessage(e, tErrors, t("failedSaveCommand"));
       toast.error(msg);
     } finally {
       setSubmitting(false);
@@ -99,7 +100,7 @@ export function SlashCommandsManager() {
     try {
       await updateCustom(record.id, { is_enabled: next });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("failedToggle"));
+      toast.error(getErrorMessage(e, tErrors, t("failedToggle")));
     }
   };
 
@@ -107,7 +108,7 @@ export function SlashCommandsManager() {
     try {
       await setBuiltinEnabled(name, next);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("failedToggle2"));
+      toast.error(getErrorMessage(e, tErrors, t("failedToggle2")));
     }
   };
 
@@ -117,7 +118,7 @@ export function SlashCommandsManager() {
       await remove(record.id);
       toast.success(`/${record.name} deleted.`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("failedDelete3"));
+      toast.error(getErrorMessage(e, tErrors, t("failedDelete3")));
     }
   };
 
@@ -174,8 +175,7 @@ export function SlashCommandsManager() {
           <div>
             <h3 className="text-foreground text-sm font-semibold">{t("yourCustomCommands")}</h3>
             <p className="text-foreground/55 mt-0.5 text-xs">
-              {t("slashShortcutsLead")}
-              {t("chatSendsStoredPrompt")}
+              {t.rich("slashShortcuts", { cmd: (chunks) => <code>{chunks}</code> })}
             </p>
           </div>
           <Button size="sm" onClick={openCreate}>

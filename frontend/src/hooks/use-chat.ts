@@ -4,9 +4,12 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { nanoid } from "nanoid";
 import { useTranslations } from "next-intl";
 import { useWebSocket } from "./use-websocket";
+import { usePermissions } from "./use-permissions";
+import { getErrorMessage } from "@/lib/api-error";
 import { useChatStore, useAuthStore, useOrgStore } from "@/stores";
 import { useTenantId } from "@/hooks/use-organizations";
 import { useAgentSelectionStore } from "@/stores";
+import { Perm } from "@/types/permissions";
 import type {
   ActionRequest,
   AskUserAnswer,
@@ -21,7 +24,7 @@ import type {
   TurnUsage,
   WSEvent,
 } from "@/types";
-import type { ResumedRun } from "@/types/runs";
+import type { ParkedCall, ResumedRun } from "@/types/runs";
 import {
   applyDelegationFrame,
   closeOpenDelegations,
@@ -33,7 +36,6 @@ import { WS_URL } from "@/lib/constants";
 import { toast } from "sonner";
 
 import { apiClient } from "@/lib/api-client";
-import { getErrorMessage } from "@/lib/utils";
 import { setUrlParam } from "@/lib/utils";
 import { useConversationStore } from "@/stores";
 /** A message the user typed while the agent was busy / socket offline.
@@ -51,6 +53,8 @@ interface UseChatOptions {
 }
 
 export function useChat(options: UseChatOptions = {}) {
+  const tErrors = useTranslations("errors");
+
   const { conversationId, onConversationCreated } = options;
   // `chat.unknownError` was in the catalog and read by nothing, while this hook
   // wrote the words out (#425). The `❌ Error:` in front of it is still English:
@@ -117,6 +121,12 @@ export function useChat(options: UseChatOptions = {}) {
   const activeConversationId = currentConversationIdFromStore || conversationId || null;
 
   const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
+  // Runs this hook has already put an approval panel up for, live or restored.
+  // What keeps the restore effect below from re-opening a panel somebody is in
+  // the middle of deciding: `sendResumeDecisions` clears the panel before the
+  // steps stop reading `awaiting_approval`, which is exactly the state the
+  // effect reads as "a reloaded parked run".
+  const approvalOfferedForRef = useRef<Set<string>>(new Set());
   const [pendingQuestions, setPendingQuestions] = useState<AskUserQuestion[] | null>(null);
   // The delegations of the turn on screen, keyed by their own `task_id` and held
   // *outside* the assistant message on purpose.
@@ -351,6 +361,7 @@ export function useChat(options: UseChatOptions = {}) {
             review_configs: ReviewConfig[];
             run_id: string;
           };
+          approvalOfferedForRef.current.add(run_id);
           setPendingApproval({
             actionRequests: action_requests,
             reviewConfigs: review_configs,
@@ -616,6 +627,7 @@ export function useChat(options: UseChatOptions = {}) {
     clearQueued();
     setPendingApproval(null);
     setPendingQuestions(null);
+    approvalOfferedForRef.current = new Set();
     // A delegation belongs to a run in one organization, and to one conversation
     // inside it - the effect below is the other half of that sentence. Left on
     // screen it would show the previous tenant's specialist names and prompts to
@@ -646,8 +658,11 @@ export function useChat(options: UseChatOptions = {}) {
   // panels that are already open and `applyDelegationFrame` would drop every frame
   // after it as naming a task it holds no panel for - a silent loss of the last thing
   // a specialist said, which is the failure this whole design exists to avoid. The
-  // panels are live state that no reload restores, so keeping them for a conversation
-  // somebody may return to would also disagree with what that reload shows.
+  // delegation and question panels are live state that no reload restores, so keeping
+  // them for a conversation somebody may return to would also disagree with what that
+  // reload shows; the approval panel is the one the restore effect below rebuilds
+  // from the rows, which is why its guard is reset here - coming back to a still
+  // parked conversation must offer the decision again.
   //
   // A layout effect for the reason the one above is one: before the paint, so no
   // frame of the previous conversation's panels is shown under this one's transcript.
@@ -663,7 +678,71 @@ export function useChat(options: UseChatOptions = {}) {
     setDelegations([]);
     setPendingApproval(null);
     setPendingQuestions(null);
+    approvalOfferedForRef.current = new Set();
   }, [activeConversationId]);
+
+  // The caller's permissions, for the restore effect below: rebuilding the
+  // approval panel reads an endpoint gated on `approvals:decide`, so a caller
+  // without it is not asked to 403 on every reopened conversation.
+  const { can } = usePermissions();
+  const canDecide = can(Perm.approvalsDecide);
+
+  // The other direction of `tool_approval_required`: that frame exists only for
+  // whoever was watching when the run parked. A reloaded conversation carries
+  // the parked state on its steps - the transcript stores them
+  // `awaiting_approval` - but the panel with the decision was gone, so the only
+  // way to finish the run was the approvals queue on another page (#601). This
+  // asks the backend what the run is still waiting on and puts the panel back.
+  //
+  // Guarded per run so it never reopens a panel mid-decision:
+  // `sendResumeDecisions` clears the panel before the steps stop reading
+  // `awaiting_approval`, which is exactly the state this effect would otherwise
+  // read as a reloaded parked run. Empty rows are left alone - a run decided
+  // elsewhere but not yet resumed has nothing left to offer - and a fetch that
+  // failed is left alone too: the approvals queue holds the same rows, and an
+  // error toast over a transcript somebody is reading buys nothing.
+  useEffect(() => {
+    if (pendingApproval !== null || isProcessing || !canDecide) return;
+    const parkedMessage = [...messages]
+      .reverse()
+      .find(
+        (message) =>
+          message.role === "assistant" &&
+          (message.toolCalls ?? []).some((call) => call.status === "awaiting_approval"),
+      );
+    // No `runId` is a turn stored before runs were stamped on messages: its
+    // step still says it is waiting, but there is no run to ask about.
+    if (parkedMessage === undefined || parkedMessage.runId === undefined) return;
+    const runId = parkedMessage.runId;
+    if (approvalOfferedForRef.current.has(runId)) return;
+    approvalOfferedForRef.current.add(runId);
+    const conversation = activeConversationId;
+    void (async () => {
+      try {
+        const parked = await apiClient.get<ParkedCall[]>(`/runs/${runId}/parked`);
+        // An answer that lands after the reader has moved on is dropped: a
+        // panel drawn under another conversation's transcript is the stale,
+        // actionable state the conversation-switch effect above exists to
+        // prevent, and this fetch can resolve on the far side of that switch.
+        if (parked.length === 0 || panelsBelongTo.current !== conversation) return;
+        setPendingApproval({
+          actionRequests: parked.map((call) => ({
+            id: call.id,
+            tool_call_id: call.tool_call_id ?? "",
+            tool_name: call.tool_name,
+            args: call.tool_args,
+          })),
+          // The same shape the live frame carries: editing a parked call is not
+          // offered, because the arguments were recorded on the row being decided.
+          reviewConfigs: parked.map((call) => ({ tool_name: call.tool_name, allow_edit: false })),
+          runId,
+          messageId: parkedMessage.id,
+        });
+      } catch {
+        // Deliberately quiet - see above.
+      }
+    })();
+  }, [messages, pendingApproval, isProcessing, canDecide, activeConversationId]);
 
   /** Record one decision on the `approvals` row it belongs to. */
   const decideApproval = useCallback(
@@ -855,7 +934,7 @@ export function useChat(options: UseChatOptions = {}) {
           // the closing the resume answer would have carried had it returned, and
           // still surface the failure (agenticos#262).
           setDelegations((current) => resolveAwaitingOnResume(current, terminalStatus));
-          toast.error(getErrorMessage(error));
+          toast.error(getErrorMessage(error, tErrors));
           return;
         }
         // The decision failed to record, or the resume could not be built (a secret
@@ -863,10 +942,18 @@ export function useChat(options: UseChatOptions = {}) {
         // rather than swallowing it - a panel that vanished is a person believing
         // they unblocked it, and the retry can now succeed.
         setPendingApproval(parked);
-        toast.error(getErrorMessage(error));
+        toast.error(getErrorMessage(error, tErrors));
       }
     },
-    [pendingApproval, updateToolCallPart, decideApproval, resumeRun, addMessage, conversationId],
+    [
+      pendingApproval,
+      updateToolCallPart,
+      decideApproval,
+      resumeRun,
+      addMessage,
+      conversationId,
+      tErrors,
+    ],
   );
 
   const sendAskUserResponses = useCallback(

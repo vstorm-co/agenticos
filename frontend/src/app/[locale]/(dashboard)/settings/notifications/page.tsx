@@ -5,6 +5,7 @@ import { CircleDollarSign, Hand, KeyRound, Mail, PieChart, UserPlus } from "luci
 import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 
+import { getErrorMessage } from "@/lib/api-error";
 import { Switch } from "@/components/ui";
 import { SectionCard } from "@/components/settings/settings-section";
 import { useAuth } from "@/hooks";
@@ -59,6 +60,8 @@ const SENT_EMAILS: readonly SentEmail[] = [
 ];
 
 export default function NotificationsSettingsPage() {
+  const tErrors = useTranslations("errors");
+
   const t = useTranslations("pages.settings");
   const { user } = useAuth();
   const { setUser } = useAuthStore();
@@ -74,7 +77,9 @@ export default function NotificationsSettingsPage() {
       const updated = await apiClient.patch<User>("/users/me", { [key]: enabled });
       setUser(updated);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : t("failedSavePreference"));
+      toast.error(
+        err instanceof ApiError ? getErrorMessage(err, tErrors) : t("failedSavePreference"),
+      );
     } finally {
       setSaving(null);
     }
