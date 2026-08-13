@@ -17,6 +17,23 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.123] - 2026-08-13
+
+The embed session — one visitor's turn on a public URL — was the last surface
+outside the coverage and type gates.
+
+### Changed
+
+- **`app/services/embed_session.py` is held to 100% coverage and to `ty`.** It
+  decides who a visitor's turn runs as, how often they may ask, and what the page
+  is allowed to put in front of the model — every one of which is a refusal a
+  stranger can reach — and an unreachable `except BudgetExceeded` sat in it for as
+  long as it was ungated, which is the kind of thing the gate exists to name. The
+  module was at 93%: the missing 13 lines and 8 partial branches were the frame
+  guards in `handle` (a frame that is not a message, an empty one, one past the
+  character cap, a visitor past their rate limit), the two endings that produce no
+  words, and `_files`. All are covered. (#663)
+
 ## [0.0.122] - 2026-08-13
 
 A platform's second way in built its own idea of what a message is, and the two
