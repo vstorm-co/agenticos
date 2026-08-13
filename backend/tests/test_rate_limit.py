@@ -219,6 +219,38 @@ class TestTheLimitsThemselves:
 
         assert await rate_limit.embed_admission_allowed(_connection()) is False
 
+    async def test_the_script_is_counted_apart_from_the_admission_it_precedes(self, monkeypatch):
+        """A widget page load fetches the script, then a config, then opens a
+        socket. Sharing one counter made the configured twenty admissions a minute
+        about seven page loads - a number wrong by a factor of three, which is worse
+        than none because it reads as the one that was set. The script is the one
+        separated: it is cacheable, and a refusal of it breaks the widget outright
+        rather than delaying a message.
+        """
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_PER_MINUTE", 2)
+        monkeypatch.setattr(settings, "RATE_LIMIT_TRUST_FORWARDED_FOR", False)
+        client = _redis([1, 1])
+        rate_limit.configure(client)
+
+        assert await rate_limit.embed_script_allowed(_connection()) is True
+        script_key = client.count_in_window.await_args.args[0]
+        assert await rate_limit.embed_admission_allowed(_connection()) is True
+        admission_key = client.count_in_window.await_args.args[0]
+
+        assert script_key == "ratelimit:embed_script:ip:203.0.113.7"
+        assert script_key != admission_key
+
+    async def test_the_script_shares_the_widget_allowance_it_does_not_share_a_bucket(
+        self, monkeypatch
+    ):
+        """One setting, two counters. A second setting would be a second number for
+        an operator to keep in step with the first, for no decision they make
+        differently."""
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_PER_MINUTE", 5)
+        rate_limit.configure(_redis([6]))
+
+        assert await rate_limit.embed_script_allowed(_connection()) is False
+
 
 class TestTheHostedPageIsCountedPerPage:
     """The one surface whose caller is not its visitor.

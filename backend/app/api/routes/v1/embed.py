@@ -176,8 +176,12 @@ async def embed_widget(public_key: str, db: DBSession, request: Request) -> Resp
     `rate_limit` was made honest. "Static script" is what it looks like from
     outside; from in here it is a row read per request, and the five-minute cache
     is a browser's courtesy rather than a ceiling anybody has to respect.
+
+    On its own counter rather than admission's, because a page load fetches this
+    *and* a config *and* opens a socket: one bucket for all three made an operator's
+    twenty admissions a minute about seven page loads. See `embed_script_allowed`.
     """
-    if not await rate_limit.embed_admission_allowed(request):
+    if not await rate_limit.embed_script_allowed(request):
         raise HTTPException(status_code=429, detail="Too many requests", headers=_RETRY_AFTER)
 
     service = AgentEmbedService(db)

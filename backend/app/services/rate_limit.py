@@ -219,6 +219,28 @@ async def embed_upload_allowed(
     return by_visitor.allowed
 
 
+async def embed_script_allowed(connection: HTTPConnection) -> bool:
+    """Whether this address may fetch a widget's script right now.
+
+    **Its own counter rather than admission's, and that is the point of it.** The
+    script, the config and the socket handshake used to share one key, so a number
+    an operator sets to twenty admissions a minute bought about seven page loads: a
+    cold browser spends all three, and a warm one two. A limit wrong by a factor of
+    three is this module's own failure mode one layer up - it reads as the number
+    that was configured.
+
+    The script is the one to separate rather than the socket, for two reasons: it is
+    cacheable, so it is the cheapest of the three to be generous with, and being
+    refused it breaks the widget outright rather than delaying a message.
+    """
+    decision = await consume(
+        surface="embed_script",
+        caller=f"ip:{caller_ip(connection)}",
+        limit=Limit(attempts=settings.RATE_LIMIT_EMBED_PER_MINUTE),
+    )
+    return decision.allowed
+
+
 async def embed_admission_allowed(connection: HTTPConnection) -> bool:
     """Whether this address may ask to be admitted to a widget right now.
 
@@ -226,6 +248,11 @@ async def embed_admission_allowed(connection: HTTPConnection) -> bool:
     embed's own `rate_limit_per_minute`, counted per visitor inside the socket.
     This is the ceiling on the step before that, which anybody can attempt
     without a valid key at all.
+
+    The widget's `/config` and the socket handshake share this counter, because
+    together they are one admission: a browser that fetched a config and did not
+    open a socket did not get in. The *script* has its own - see
+    `embed_script_allowed`.
 
     Counted before the key is looked up, which is why it lives here rather than
     inside the admission service: doing the database read first would make an

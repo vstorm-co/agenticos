@@ -513,18 +513,29 @@ Production validation: `CORS_ORIGINS` cannot contain `"*"` in
 
 ## Rate Limiting
 
-Applied to the surfaces a stranger can reach, and only those: the public run
-API and the admission step of the widget and the hosted page. The console's own
-routes are behind a session and are not metered — whether the whole API should
-carry a ceiling is a separate decision, not this one.
+Applied to the surfaces a stranger can reach, and only those: the public run API,
+the widget's script, its config, either surface's socket handshake, a hosted
+page's config and logo, and a visitor's upload. The console's own routes are
+behind a session and are not metered — whether the whole API should carry a
+ceiling is a separate decision, not this one.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `RATE_LIMIT_RUN_PER_MINUTE` | `30` | `POST /api/v1/agents/{id}/run`, per caller |
-| `RATE_LIMIT_EMBED_PER_MINUTE` | `20` | Widget admission and a hosted page's socket, per address |
-| `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | A hosted page's config, **per page** — see below |
+| `RATE_LIMIT_EMBED_PER_MINUTE` | `20` | Per address, and **two separate counters of this size**: one for `widget.js`, one for admission — the widget's `/config` plus either surface's socket handshake. See below |
+| `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | A hosted page's config, **per page** — and its logo, on a counter of its own. See below |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Files a visitor may store on a hosted page. Counted **per address and per visitor key**, and both have to allow it — the key is minted by the browser, so counting only that bounds nothing |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Whether `X-Forwarded-For` names the caller |
+
+**Two counters, not one, and the reason is arithmetic.** Loading a page with a
+widget on it costs three requests to this API: the script, the config, and the
+socket. Counted together, `20` bought about seven page loads for a cold browser
+rather than twenty admissions, and a limit wrong by a factor of three is worse
+than no limit because it reads as the number you set. So `widget.js` has its own
+bucket — it is cacheable, and a refusal there breaks the widget outright instead
+of delaying one message. The config and the handshake stay together, because
+together they *are* one admission: a browser that read a config and opened no
+socket did not get in.
 
 The counts live in the deployment's Redis, so they hold across workers —
 production runs four, and a count kept per process would let through four times
