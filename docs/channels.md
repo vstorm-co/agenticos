@@ -818,6 +818,14 @@ it is about to wait.
     whole transcript, or write a turn as the agent that everybody reads and the
     model is handed back as its own words on the next turn.
 
+    A thread whose first speaker never linked an account has no owner, and there
+    the participants *are* who may change it — the same set that may open it.
+    There is nobody the write would be taken from, and the alternative was the
+    whole organization: any member could delete a transcript whose list entry
+    they had never seen ([#701][701]).
+
+[701]: https://github.com/vstorm-co/agenticos/issues/701
+
 [641]: https://github.com/vstorm-co/agenticos/issues/641
 
     The refusal carries the way out. Message the bot and it answers with a URL;
