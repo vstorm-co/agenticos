@@ -213,12 +213,21 @@ class ChannelMessageRouter:
         # does.
         directory = self._channel_directory(bot, incoming)
 
+        files, file_refusals = await self._receive_files(db, bot, incoming, identity)
+
         if await self._answer_mention(
-            incoming, bot, identity, session, db, live, handle, directory
+            incoming,
+            bot,
+            identity,
+            session,
+            db,
+            live,
+            handle,
+            directory,
+            files=files,
+            file_refusals=file_refusals,
         ):
             return
-
-        files, file_refusals = await self._receive_files(db, bot, incoming, identity)
 
         # Loaded before the run, so the turn being run is the prompt and
         # everything before it is the history. The turn itself is written by the
@@ -323,6 +332,9 @@ class ChannelMessageRouter:
         live: LiveReply | None,
         handle: str | None,
         directory: BoundChannelDirectory | None,
+        *,
+        files: list[Any],
+        file_refusals: list[str],
     ) -> bool:
         """Answer `@handle …` with that agent, and report whether we did.
 
@@ -335,8 +347,12 @@ class ChannelMessageRouter:
         an agent nobody exposed on this bot - is reported to the sender and still
         counts as handled. Falling through to the default assistant would answer
         a question that was not asked.
+
+        `files` arrive already fetched, because both paths need the same ones and
+        this one runs first: receiving them here as well downloaded and stored
+        every attachment on an unaddressed message twice, and only the second row
+        was ever linked to the turn (#660).
         """
-        files, file_refusals = await self._receive_files(db, bot, incoming, identity)
         try:
             answered = await ChannelAgentRouter(db).answer(
                 incoming.text,
