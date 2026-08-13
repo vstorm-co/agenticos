@@ -216,6 +216,18 @@ the visitor typed. The dashboard sends it to a member of the organization that
 wrote both.
 """
 
+_PART_GOVERNED_BY = {"ThinkingPart": "thinking_delta", "ToolCallPart": "tool_call"}
+"""Which frame kind decides whether a `part_start` may announce this part.
+
+`part_start` is in `_ALWAYS`, because a client switching on the dashboard's
+vocabulary needs the frame that opens a turn. Its payload names the *kind* of part
+though, so on a page showing neither the reasoning nor the steps it still said
+`{"part_type": "ThinkingPart"}` and one frame per tool call - no content, and a
+narration of how long the agent thought and how many tools it used, on a surface
+whose whole contract is that neither left the server. A part nothing else here will
+carry is not announced either.
+"""
+
 _THINKING = frozenset({"thinking_delta"})
 _STEPS = frozenset({"call_tools_start", "tool_call", "final_result_start"})
 _DETAIL = frozenset({"tool_call_delta", "tool_result"})
@@ -647,6 +659,19 @@ class EmbedSession:
             publisher_user_id=self.embed.owner_user_id,
         )
 
+    def _announces(self, part_type: Any) -> bool:
+        """Whether a `part_start` may say this kind of part has begun.
+
+        A part whose content this surface will not carry is not announced either: a
+        page showing no reasoning and no steps was still sending
+        `{"part_type": "ThinkingPart"}` and one frame per tool call, which narrates
+        how long the agent thought and how many tools it reached for. A part type
+        nothing governs - `TextPart`, and anything a future version of the runtime
+        adds - is announced, because the answer itself is what this surface is for.
+        """
+        governing = _PART_GOVERNED_BY.get(str(part_type))
+        return governing is None or governing in self.shows
+
     async def _emit(self, kind: str, payload: dict[str, Any]) -> None:
         """One frame out, in the envelope every socket on this platform uses.
 
@@ -667,6 +692,8 @@ class EmbedSession:
         connection, and the run settles the way it does for a closed tab.
         """
         if self._stalled or kind not in self.shows:
+            return
+        if kind == "part_start" and not self._announces(payload.get("part_type")):
             return
         if kind == "tool_call" and "tool_result" not in self.shows:
             payload = {key: value for key, value in payload.items() if key != "args"}

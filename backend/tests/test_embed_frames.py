@@ -144,6 +144,39 @@ class TestTheReasoningIsNeverSentUnlessItWasAgreedTo:
     async def test_thinking_is_off_by_default(self) -> None:
         assert "thinking_delta" not in visible_frames(_embed())
 
+    async def test_the_frame_that_opens_a_turn_does_not_announce_it_either(self) -> None:
+        """`part_start` is in `_ALWAYS`, because a client switching on the dashboard's
+        vocabulary needs the frame that opens a turn - but its payload names the
+        *kind* of part. So a page showing no reasoning still sent
+        `{"part_type": "ThinkingPart"}`: no content, and a narration of the fact that
+        the agent reasoned, on the surface whose contract is that it did not leave.
+        """
+        session = _session(_embed(show_thinking=False))
+
+        await _stream(session, PartStartEvent(index=0, part=ThinkingPart(content="Deciding.")))
+
+        assert _kinds(session) == []
+
+    async def test_a_hidden_step_is_not_announced_by_its_part_either(self) -> None:
+        session = _session(_embed(show_tool_steps=False))
+
+        await _stream(
+            session,
+            PartStartEvent(index=0, part=ToolCallPart(tool_name="search_kb", tool_call_id="c1")),
+        )
+
+        assert _kinds(session) == []
+
+    async def test_the_answers_own_part_is_always_announced(self) -> None:
+        """The narrowing is about what the operator hid, not about the answer - and a
+        part type nothing governs, including one a future runtime adds, is announced
+        rather than silently dropped."""
+        session = _session(_embed(show_thinking=False, show_tool_steps=False))
+
+        await _stream(session, PartStartEvent(index=0, part=TextPart(content="Thirty days")))
+
+        assert _kinds(session) == ["part_start", "text_delta"]
+
 
 class TestWhatTheAgentIsDoing:
     async def test_a_page_that_shows_steps_names_the_tool(self) -> None:

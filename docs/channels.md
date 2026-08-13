@@ -211,7 +211,7 @@ loop rather than the transport. Every frame carries `{ "type": …, "data": { �
 | `ready` | `visitor` | Connected. `visitor: true` when a token identified the person. |
 | `history` | `messages` | On a hosted page only: what was said in the thread this visitor is resuming. Each entry is `role`, `text` and `at`, so a replayed turn keeps the time under it. |
 | `model_request_start` | — | The agent has gone to the model. Show an indicator. |
-| `part_start` | `index`, `part_type` | A block of the answer is starting. |
+| `part_start` | `index`, `part_type` | A block of the answer is starting. Sent only for a block this surface will actually carry — a page showing no reasoning does not announce a `ThinkingPart`, since the announcement alone says the agent reasoned. |
 | `text_delta` | `index`, `content` | Words of the answer. Append them. |
 | `thinking_delta` | `index`, `content` | The model's reasoning. **Only if the operator turned it on.** |
 | `call_tools_start` | — | The agent is about to use tools. |
