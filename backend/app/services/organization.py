@@ -156,7 +156,14 @@ class OrganizationService:
             role=OrgRoleName.OWNER,
         )
         for bundled in skill_library.library():
-            await service.install_from_library(ctx, bundled.key)
+            try:
+                await service.install_from_library(ctx, bundled.key)
+            except AlreadyExistsError:
+                # Two bundled folders declaring one name - nothing validates the
+                # library's own uniqueness. Skipping the twin keeps a packaging
+                # mistake from refusing every registration on the deployment;
+                # the seed-skills command tolerates the same collision.
+                logger.warning("Bundled skill %r shares a name with another; skipped", bundled.key)
 
     async def create_personal_org(self, user_id: UUID, email: str) -> Organization:
         """Create the Personal Organization for a newly registered user.

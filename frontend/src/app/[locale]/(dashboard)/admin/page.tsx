@@ -102,8 +102,6 @@ export default function AdminOverviewPage() {
       {
         key: "name",
         header: t("name"),
-        sortable: true,
-        sortValue: (org) => org.name.toLowerCase(),
         cell: (org) => (
           <>
             <span className="text-foreground font-medium">{org.name}</span>
@@ -124,24 +122,18 @@ export default function AdminOverviewPage() {
         key: "members",
         header: t("members"),
         align: "right",
-        sortable: true,
-        sortValue: (org) => org.member_count,
         cell: (org) => <span className="tabular-nums">{org.member_count}</span>,
       },
       {
         key: "agents",
         header: t("agents2"),
         align: "right",
-        sortable: true,
-        sortValue: (org) => org.agent_count,
         cell: (org) => <span className="tabular-nums">{org.agent_count}</span>,
       },
       {
         key: "created",
         header: t("created"),
         align: "right",
-        sortable: true,
-        sortValue: (org) => org.created_at,
         cell: (org) => (
           <span className="text-muted-foreground text-xs">
             {formatDate(org.created_at, locale)}

@@ -2,6 +2,7 @@
 
 import { Plug } from "lucide-react";
 
+import { getErrorMessage } from "@/lib/api-error";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { McpServerList } from "@/components/mcp/mcp-server-list";
 import { ErrorState } from "@/components/states";
@@ -36,6 +37,7 @@ import { useTranslations } from "next-intl";
 export default function McpServersPage() {
   const t = useTranslations("pages.mcp-servers");
   const tMcp = useTranslations("mcp");
+  const tErrors = useTranslations("errors");
   const { rows, isLoading, error } = useMcpServers();
   const { can } = usePermissions();
   useMcpOAuthOutcome();
@@ -67,8 +69,10 @@ export default function McpServersPage() {
           </div>
         </ListCard>
       ) : error ? (
-        <ListCard title={tMcp("servers")} counted={tMcp("serverCount", { count: rows.length })}>
-          <ErrorState />
+        // `counted` stays null while refused: the count was never answered,
+        // and "0 servers" over a failure would state it as fact.
+        <ListCard title={tMcp("servers")} counted={null}>
+          <ErrorState description={getErrorMessage(error, tErrors)} />
         </ListCard>
       ) : rows.length === 0 ? (
         <ListCard title={tMcp("servers")} counted={tMcp("serverCount", { count: 0 })}>

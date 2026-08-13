@@ -41,7 +41,7 @@ const FILTERS: { label: string; value: Filter }[] = [
 
 /**
  * The gallery's frame, drawn whether or not anything is in it - the same
- * bargain as the vault's KeysCard: one panel with one header in every state,
+ * bargain as the shared ListCard: one panel with one header in every state,
  * so an emptied filter changes what is inside the panel, never the page shape.
  */
 function AgentsCard({
