@@ -23,9 +23,10 @@ We aim to acknowledge within 48h and ship a fix within 7 days for high-severity 
 
 ### Authorization
 
-- **Role-based** via `RoleChecker` dep (`UserRole.USER` / `UserRole.ADMIN`).
+- **Permission-based** — authority inside an organization is a membership row plus the permission catalog (`app/core/permissions.py`). There is no role column on the user and no role-based route dependency.
+- **Org roles** — a role is a name on the membership (`owner` / `admin` / `builder` / `operator` / `member` / `viewer`) that maps to a set of permissions. Collection routes gate on a permission; per-resource access resolves the role together with explicit grants, and a grant widens what a role allows — it never narrows it. See [Permissions](docs/permissions.md).
 - **Workspace scope** — every authenticated request resolves an `ActiveOrg` (default = personal org). Resources scoped by `organization_id` foreign key.
-- **Org roles:** `OWNER` / `ADMIN` / `MEMBER`. Owner can transfer ownership + delete org.
+- **Deployment administration** — the `is_app_admin` flag on a user, checked by its own dependency; not a role.
 
 ### Transport / network
 
@@ -36,7 +37,7 @@ We aim to acknowledge within 48h and ship a fix within 7 days for high-severity 
 ### Data
 
 - **Secrets** — read from environment via `pydantic-settings`. Never committed. See `backend/.env.example` and [Configuration](docs/configuration.md).
-- **Audit log** — admin-mutating actions (user updates, deletes, impersonations, role changes) recorded in `app_admin_audit_log` table with actor + IP + payload snapshot.
+- **Audit log** — app-admin actions (user updates, deletes, impersonations) recorded in the `app_admin_audit_logs` table with actor + IP + payload snapshot. Organization-level actions that change access or spend money carry their own trail, gated by `audit:read` — see [Governance](docs/governance.md).
 - **RAG documents** — file uploads scoped per-org. No public read endpoint; all retrieval happens server-side during chat.
 
 ### Hardening checklist for production
@@ -45,6 +46,9 @@ We aim to acknowledge within 48h and ship a fix within 7 days for high-severity 
 - [ ] Set `DEBUG=false` and `ENVIRONMENT=production`.
 - [ ] Restrict `CORS_ORIGINS` to your domain(s).
 - [ ] Tune `RATE_LIMIT_RUN_PER_MINUTE` / `RATE_LIMIT_EMBED_PER_MINUTE` in `.env`.
+- [ ] Review the rate limits on every public surface — the embed widget's
+      messages-per-visitor limit and each channel bot's per-sender
+      `rate_limit_rpm`. The console's own routes are not metered.
 - [ ] Behind a proxy or CDN, set `RATE_LIMIT_TRUST_FORWARDED_FOR=true` **and**
       make sure the API is not also reachable directly — otherwise every
       visitor shares one bucket, or the header can be forged. The limiter reads
@@ -57,6 +61,6 @@ We aim to acknowledge within 48h and ship a fix within 7 days for high-severity 
 
 ## Known limitations
 
-- **No 2FA / MFA** out of the box. Plan to add TOTP via `pyotp` — see `notes/thingstofix.md` §A.13.
+- **No 2FA / MFA** out of the box.
 - **No SAML / OIDC** beyond Google OAuth. Enterprise SSO needs custom IdP integration.
 - **No automatic PII redaction** in logs — be careful what you log.
