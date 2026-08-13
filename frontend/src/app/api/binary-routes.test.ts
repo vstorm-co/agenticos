@@ -465,24 +465,33 @@ describe("avatars", () => {
  * Where a provider sends the browser back after an OAuth consent.
  *
  * No session is required and none is read: the `state` token is what
- * authenticates the exchange. Every outcome ends as a redirect to the settings
- * page carrying a status, because this URL is opened by the provider and the
- * person is looking at a page they did not navigate to themselves - a JSON body
- * here would be a dead end.
+ * authenticates the exchange. Every outcome ends as a redirect to the MCP
+ * servers page carrying a status, because this URL is opened by the provider and
+ * the person is looking at a page they did not navigate to themselves - a JSON
+ * body here would be a dead end. What the page then says is
+ * `src/hooks/use-mcp-oauth-outcome.test.tsx`, and what the query means in
+ * between is `src/lib/mcp-oauth.test.ts`.
  */
 describe("finishing an MCP OAuth flow", () => {
   function callbackRequest(query: string) {
     return new NextRequest(`http://localhost:3000/api/me/mcp-connections/oauth/callback?${query}`);
   }
 
-  /** The query the redirect carries, decoded. */
+  /**
+   * The query the redirect carries, decoded.
+   *
+   * `failure` and `detail` are separate parameters rather than one, because only
+   * the first is resolved into this repository's own copy and anybody can reach
+   * this address with the second.
+   */
   function redirected(response: Response) {
     const location = new URL(response.headers.get("location")!);
     return {
       path: location.pathname,
       status: location.searchParams.get("mcp_oauth"),
-      reason: location.searchParams.get("reason"),
-      name: location.searchParams.get("name"),
+      failure: location.searchParams.get("mcp_oauth_failure"),
+      detail: location.searchParams.get("mcp_oauth_detail"),
+      name: location.searchParams.get("mcp_oauth_name"),
     };
   }
 
@@ -500,7 +509,7 @@ describe("finishing an MCP OAuth flow", () => {
       body: JSON.stringify({ code: "abc", state: "xyz" }),
     });
     expect(redirected(response)).toMatchObject({
-      path: "/settings/integrations",
+      path: "/mcp-servers",
       status: "success",
       name: "Linear",
     });
@@ -520,13 +529,17 @@ describe("finishing an MCP OAuth flow", () => {
     );
 
     expect(backendFetch).not.toHaveBeenCalled();
-    expect(redirected(response)).toMatchObject({ status: "error", reason: "You said no" });
+    expect(redirected(response)).toMatchObject({
+      status: "error",
+      detail: "You said no",
+      failure: null,
+    });
   });
 
   it("falls back to the provider's error code when it described nothing", async () => {
     const response = await callback(callbackRequest("error=access_denied"));
 
-    expect(redirected(response)).toMatchObject({ status: "error", reason: "access_denied" });
+    expect(redirected(response)).toMatchObject({ status: "error", detail: "access_denied" });
   });
 
   it("refuses a callback with no code or no state", async () => {
@@ -536,7 +549,7 @@ describe("finishing an MCP OAuth flow", () => {
 
       expect(redirected(response)).toMatchObject({
         status: "error",
-        reason: "MISSING_AUTHORIZATION_CODE",
+        failure: "MISSING_AUTHORIZATION_CODE",
       });
     }
     expect(backendFetch).not.toHaveBeenCalled();
@@ -553,7 +566,7 @@ describe("finishing an MCP OAuth flow", () => {
 
     expect(redirected(response)).toMatchObject({
       status: "error",
-      reason: "That state token has expired",
+      detail: "That state token has expired",
     });
   });
 
@@ -562,7 +575,7 @@ describe("finishing an MCP OAuth flow", () => {
 
     const response = await callback(callbackRequest("code=abc&state=xyz"));
 
-    expect(redirected(response)).toMatchObject({ reason: "AUTHORIZATION_FAILED" });
+    expect(redirected(response)).toMatchObject({ failure: "AUTHORIZATION_FAILED" });
   });
 
   it("still redirects when the exchange could not be attempted", async () => {
@@ -571,7 +584,10 @@ describe("finishing an MCP OAuth flow", () => {
 
     const response = await callback(callbackRequest("code=abc&state=xyz"));
 
-    expect(redirected(response)).toMatchObject({ status: "error", reason: "AUTHORIZATION_FAILED" });
+    expect(redirected(response)).toMatchObject({
+      status: "error",
+      failure: "AUTHORIZATION_FAILED",
+    });
   });
 });
 
