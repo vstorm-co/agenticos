@@ -17,6 +17,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.147] - 2026-08-13
+
+A failed tool's raw error was stored where every reader of the run can see it.
+
+### Security
+
+- **A tool's retry text stays out of the transcript row.** #681 sanitized the
+  chat `tool_result` frame; the stored row was the same leak on the run paths
+  that never open a socket — the HTTP API and the channel bots. A retry's
+  content is written by whichever tool raised (`web_search` builds one from
+  the vendor exception, endpoint and query string included; an MCP tool's is
+  a third party's entirely), and it landed on a tool-call row rendered in run
+  history weeks later. The row now stores the same sentence the frame sends —
+  which tool failed and that the model was asked to retry — and the vendor's
+  own text goes to the server log beside the write, nowhere else. (#695)
+
 ## [0.0.146] - 2026-08-13
 
 A thread nobody owned was everybody's to delete.
