@@ -92,6 +92,10 @@ There is no `(marketing)` route group.
   how 18 Tailwind class lists and 148 fragments of source ended up in there, the class
   lists read back through `cn(t("flexItemsStartGap"))` where translating one strips the
   component of its styling (#348). `messages/catalog.test.ts` refuses both shapes now.
+  A DOM `KeyboardEvent.key` name is not copy either: fifteen were parked and read back
+  as `e.key === t("enter2")`, where the first Polish translation would have silently
+  killed Enter-to-submit (#549) - key handling compares the literal (`e.key ===
+  "Enter"`), and the catalog test refuses a value that is exactly a key constant.
 - **A module table holds keys, and the component translates.** A module constant cannot
   call a translator, so a table of labels holds catalog keys and the copy is resolved at
   the point of use - `TOOL_CATALOG`'s `captionKey`, `MCP_AUTH_LABEL`, the `Choice` rows
