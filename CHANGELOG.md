@@ -17,6 +17,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.115] - 2026-08-13
+
+A file link that fails no longer takes the transcript of a paid run with it.
+
+### Fixed
+
+- **The write linking a channel turn's files to its message shared the
+  transcript's SAVEPOINT**, so an exception from it rolled back the user turn,
+  the settled tool calls and the assistant message — for a run that had already
+  spent money, over a file. It now has a savepoint of its own inside that one:
+  it is the only write there touching rows the conversation does not own, and a
+  failure costs the link alone. Web chat has always made this trade for the same
+  write, in `persist_user_turn`. The savepoint is skipped outright when nothing
+  was attached, because opening and releasing one on every turn in the deployment
+  is a real cost for a list that is almost always empty. (#690)
+
 ## [0.0.114] - 2026-08-13
 
 The security page described an authorization model that was deleted three
