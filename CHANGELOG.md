@@ -17,6 +17,28 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.117] - 2026-08-13
+
+A failed run stored the provider's own error text in a column that run history
+renders for weeks.
+
+### Fixed
+
+- **`agent_runs.error` held `str(exc)` of whatever came out of the run.** It is a
+  stored column on `AgentRunRead`, rendered in run history to every member who can
+  read it, and what raises there is a model client with `httpx` underneath — so
+  that routinely meant an endpoint, an internal host, or a URL with a key still in
+  its query string, sitting in a row somebody opens weeks later. The same rule as
+  #342 in an HTTP body, #423 in the ingestion columns and #659 in the chat frame,
+  with the longest life of the four. Our own refusals are kept whole, because an
+  `AppException` raised inside the run is written in this repository and its
+  message is the most useful thing an operator can be shown. Anything else stores
+  its type, plus the status code when a provider answered one — 401 a credential,
+  404 a model the profile names and the provider does not have, 429 a rate limit —
+  where a bare class name would make all four `ModelHTTPError`. A group is
+  unwrapped to its first leaf first, so an MCP toolset or a delegated run does not
+  spend that status code on an `ExceptionGroup` that diagnoses nothing. (#676)
+
 ## [0.0.116] - 2026-08-13
 
 A failing tool named a search provider's endpoint, with the key still in the
