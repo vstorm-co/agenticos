@@ -27,6 +27,7 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 // Full-key echo, so "dashboard.errors.title" is assertable and unambiguous.
 vi.mock("next-intl", () => ({
+  useLocale: () => "en",
   useTranslations: (namespace?: string) => (key: string) =>
     namespace ? `${namespace}.${key}` : key,
 }));

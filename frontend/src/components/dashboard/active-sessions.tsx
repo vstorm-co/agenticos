@@ -23,7 +23,7 @@ import { apiClient, ApiError } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { cn, timeAgo } from "@/lib/utils";
 import type { SessionListResponse } from "@/types";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 const PAGE_SIZE = 5;
 
@@ -50,6 +50,7 @@ export function ActiveSessions() {
   const t = useTranslations("dashboard");
   const tc = useTranslations("common");
   const tTime = useTranslations("time");
+  const locale = useLocale();
   const [page, setPage] = useState(0);
   const queryClient = useQueryClient();
 
@@ -184,7 +185,7 @@ export function ActiveSessions() {
                     </p>
                     <p className="text-muted-foreground truncate text-xs">
                       {session.ip_address && `${session.ip_address} · `}
-                      {t("lastActive", { when: timeAgo(session.last_used_at, tTime) })}
+                      {t("lastActive", { when: timeAgo(session.last_used_at, tTime, locale) })}
                     </p>
                   </div>
                 </div>
