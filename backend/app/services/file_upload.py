@@ -224,6 +224,16 @@ class FileUploadService:
             parsed_content=parsed_content,
         )
 
+    async def discard(self, chat_file: ChatFile) -> None:
+        """Delete a stored file and the row recording it - the inverse of `upload`.
+
+        For a caller whose turn was refused after the bytes were already stored.
+        The bytes go first: a row deleted while the file survives leaves nothing
+        pointing at it.
+        """
+        await get_file_storage().delete(chat_file.storage_path)
+        await chat_file_repo.delete(self.db, db_file=chat_file)
+
     def get_file_path(self, storage_path: str) -> str | None:
         """Resolve a storage path to an absolute filesystem path."""
         full_path = get_file_storage().get_full_path(storage_path)
