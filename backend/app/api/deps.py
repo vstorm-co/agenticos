@@ -550,11 +550,92 @@ async def limit_agent_run(ctx: Auth) -> None:
         caller=f"user:{ctx.subject_id}",
         limit=rate_limit.run_limit(),
     )
+    _refuse_if_over(decision, "Too many runs in the last minute. Wait and try again.")
+
+
+def _refuse_if_over(decision: rate_limit.Decision, message: str) -> None:
+    """Turn a rate limiter's refusal into this API's own 429.
+
+    One place, because a 429 has two halves that have to agree and both were being
+    written per route: the envelope and the interval. The embed surface raised a
+    bare `HTTPException`, so it answered `{"detail": ...}` where every other error
+    on this API - including the run route's own 429, thirty lines up - answers
+    `{"error": {"code", "message", "details"}}`, and #516 published that socket as
+    an integration somebody writes a client against. The interval came from a
+    hardcoded `"60"` beside the routes while the limiter was computing one, so a
+    `Limit` with any other window would have made the header a lie.
+
+    `app_exception_handler` is what copies `retry_after_seconds` into `Retry-After`,
+    which is the header a fetch wrapper or a CDN actually backs off on.
+    """
     if not decision.allowed:
         raise RateLimitError(
-            message="Too many runs in the last minute. Wait and try again.",
+            message=message,
             details={"retry_after_seconds": decision.retry_after_seconds},
         )
+
+
+async def limit_embed_script(request: Request) -> None:
+    """Refuse an address asking for a widget's script too often.
+
+    Its own counter rather than admission's - see `rate_limit.embed_script_allowed`
+    for why a page load spending both made the configured number mean a third of
+    itself.
+    """
+    _refuse_if_over(
+        await rate_limit.embed_script_allowed(request), "Too many requests. Try again shortly."
+    )
+
+
+async def limit_embed_admission(request: Request) -> None:
+    """Refuse an address asking to be admitted to a widget too often.
+
+    A dependency rather than a line in the handler so it runs *before* the key is
+    looked up: a database read first would make an unbounded probe for live keys
+    free. The socket handshake cannot use this one - it answers a close code rather
+    than a status - and calls the same helper itself.
+    """
+    _refuse_if_over(
+        await rate_limit.embed_admission_allowed(request), "Too many requests. Try again shortly."
+    )
+
+
+async def limit_hosted_config(public_key: str) -> None:
+    """Refuse a hosted page whose config is being fetched too often.
+
+    Counted per page, not per address, because this route's caller is the frontend
+    server rather than the visitor - `rate_limit.hosted_admission_allowed`.
+    """
+    _refuse_if_over(
+        await rate_limit.hosted_admission_allowed(public_key),
+        "Too many requests. Try again shortly.",
+    )
+
+
+async def limit_hosted_logo(public_key: str) -> None:
+    """Refuse a hosted page whose logo is being fetched too often."""
+    _refuse_if_over(
+        await rate_limit.hosted_logo_allowed(public_key), "Too many requests. Try again shortly."
+    )
+
+
+async def limit_embed_upload(
+    request: Request, public_key: str, x_visitor_key: Annotated[str, Header()]
+) -> None:
+    """Refuse a visitor storing files on a hosted page too fast.
+
+    Two counters, address first, and both have to allow it: the continuity key is
+    minted by the browser, so counting only that bounds nothing at all. The header
+    is read here as well as in the handler because a dependency cannot hand a value
+    back to one, and validating it twice is cheaper than moving the gate after the
+    key is resolved - which is what made probing with a body attached free.
+    """
+    _refuse_if_over(
+        await rate_limit.embed_upload_allowed(
+            request, public_key=public_key, visitor=x_visitor_key
+        ),
+        "Too many uploads. Try again shortly.",
+    )
 
 
 class RequireOrgRole:

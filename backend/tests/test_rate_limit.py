@@ -208,7 +208,7 @@ class TestTheLimitsThemselves:
         client = _redis([1])
         rate_limit.configure(client)
 
-        assert await rate_limit.embed_admission_allowed(_connection()) is True
+        assert (await rate_limit.embed_admission_allowed(_connection())).allowed is True
         assert client.count_in_window.await_args.args[0] == (
             "ratelimit:embed_admission:ip:203.0.113.7"
         )
@@ -217,7 +217,7 @@ class TestTheLimitsThemselves:
         monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_PER_MINUTE", 2)
         rate_limit.configure(_redis([3]))
 
-        assert await rate_limit.embed_admission_allowed(_connection()) is False
+        assert (await rate_limit.embed_admission_allowed(_connection())).allowed is False
 
     async def test_the_script_is_counted_apart_from_the_admission_it_precedes(self, monkeypatch):
         """A widget page load fetches the script, then a config, then opens a
@@ -232,9 +232,9 @@ class TestTheLimitsThemselves:
         client = _redis([1, 1])
         rate_limit.configure(client)
 
-        assert await rate_limit.embed_script_allowed(_connection()) is True
+        assert (await rate_limit.embed_script_allowed(_connection())).allowed is True
         script_key = client.count_in_window.await_args.args[0]
-        assert await rate_limit.embed_admission_allowed(_connection()) is True
+        assert (await rate_limit.embed_admission_allowed(_connection())).allowed is True
         admission_key = client.count_in_window.await_args.args[0]
 
         assert script_key == "ratelimit:embed_script:ip:203.0.113.7"
@@ -249,7 +249,7 @@ class TestTheLimitsThemselves:
         monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_PER_MINUTE", 5)
         rate_limit.configure(_redis([6]))
 
-        assert await rate_limit.embed_script_allowed(_connection()) is False
+        assert (await rate_limit.embed_script_allowed(_connection())).allowed is False
 
 
 class TestTheHostedPageIsCountedPerPage:
@@ -268,7 +268,7 @@ class TestTheHostedPageIsCountedPerPage:
         client = _redis([1])
         rate_limit.configure(client)
 
-        assert await rate_limit.hosted_admission_allowed("abc123") is True
+        assert (await rate_limit.hosted_admission_allowed("abc123")).allowed is True
         assert client.count_in_window.await_args.args[0] == "ratelimit:hosted_config:key:abc123"
 
     async def test_two_pages_do_not_share_one_allowance(self, monkeypatch):
@@ -288,7 +288,7 @@ class TestTheHostedPageIsCountedPerPage:
         monkeypatch.setattr(settings, "RATE_LIMIT_HOSTED_PAGE_PER_MINUTE", 5)
         rate_limit.configure(_redis([6]))
 
-        assert await rate_limit.hosted_admission_allowed("abc123") is False
+        assert (await rate_limit.hosted_admission_allowed("abc123")).allowed is False
 
     async def test_the_allowance_is_its_own_setting_and_a_wider_one(self, monkeypatch):
         """Not the widget's twenty: that number rations one visitor, and this one
@@ -311,7 +311,7 @@ class TestTheHostedPageIsCountedPerPage:
         client = _redis([1])
         rate_limit.configure(client)
 
-        assert await rate_limit.hosted_logo_allowed("abc123") is True
+        assert (await rate_limit.hosted_logo_allowed("abc123")).allowed is True
         assert client.count_in_window.await_args.args[0] == "ratelimit:hosted_logo:key:abc123"
 
 
@@ -331,12 +331,11 @@ class TestStoringAFileIsCountedTwice:
         client = _redis([1, 1])
         rate_limit.configure(client)
 
-        assert (
-            await rate_limit.embed_upload_allowed(
-                _connection(), public_key="pk_abc", visitor="a" * 32
-            )
-            is True
+        decision = await rate_limit.embed_upload_allowed(
+            _connection(), public_key="pk_abc", visitor="a" * 32
         )
+
+        assert decision.allowed is True
         counted = [call.args[0] for call in client.count_in_window.await_args_list]
         assert counted == [
             "ratelimit:embed_upload:ip:203.0.113.7",
@@ -349,12 +348,11 @@ class TestStoringAFileIsCountedTwice:
         client = _redis([9])
         rate_limit.configure(client)
 
-        assert (
-            await rate_limit.embed_upload_allowed(
-                _connection(), public_key="pk_abc", visitor="b" * 32
-            )
-            is False
+        decision = await rate_limit.embed_upload_allowed(
+            _connection(), public_key="pk_abc", visitor="b" * 32
         )
+
+        assert decision.allowed is False
         # The visitor's own bucket was never reached, so varying the key cannot
         # get past a refusal the address already earned.
         assert client.count_in_window.await_count == 1
@@ -363,9 +361,8 @@ class TestStoringAFileIsCountedTwice:
         monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE", 5)
         rate_limit.configure(_redis([1, 9]))
 
-        assert (
-            await rate_limit.embed_upload_allowed(
-                _connection(), public_key="pk_abc", visitor="c" * 32
-            )
-            is False
+        decision = await rate_limit.embed_upload_allowed(
+            _connection(), public_key="pk_abc", visitor="c" * 32
         )
+
+        assert decision.allowed is False

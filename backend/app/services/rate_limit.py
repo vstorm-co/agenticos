@@ -141,7 +141,7 @@ def run_limit() -> Limit:
     return Limit(attempts=settings.RATE_LIMIT_RUN_PER_MINUTE)
 
 
-async def hosted_admission_allowed(public_key: str) -> bool:
+async def hosted_admission_allowed(public_key: str) -> Decision:
     """Whether this hosted page may be configured again right now.
 
     Keyed on the page rather than on the caller's address, because on this one
@@ -158,15 +158,14 @@ async def hosted_admission_allowed(public_key: str) -> bool:
     that is the socket, counted per address, and the key's 192 bits are what make
     guessing one a non-strategy.
     """
-    decision = await consume(
+    return await consume(
         surface="hosted_config",
         caller=f"key:{public_key}",
         limit=Limit(attempts=settings.RATE_LIMIT_HOSTED_PAGE_PER_MINUTE),
     )
-    return decision.allowed
 
 
-async def hosted_logo_allowed(public_key: str) -> bool:
+async def hosted_logo_allowed(public_key: str) -> Decision:
     """Whether this hosted page's logo may be served again right now.
 
     Keyed on the page, not the address, for the same reason as
@@ -178,17 +177,16 @@ async def hosted_logo_allowed(public_key: str) -> bool:
     one, so a page's logo fetches and its config fetches do not spend each other's
     allowance.
     """
-    decision = await consume(
+    return await consume(
         surface="hosted_logo",
         caller=f"key:{public_key}",
         limit=Limit(attempts=settings.RATE_LIMIT_HOSTED_PAGE_PER_MINUTE),
     )
-    return decision.allowed
 
 
 async def embed_upload_allowed(
     connection: HTTPConnection, *, public_key: str, visitor: str
-) -> bool:
+) -> Decision:
     """Whether this caller may store another file on this page right now.
 
     **Two counters, and one of them is not optional.** This is the first thing on
@@ -212,14 +210,13 @@ async def embed_upload_allowed(
         surface="embed_upload", caller=f"ip:{caller_ip(connection)}", limit=limit
     )
     if not by_address.allowed:
-        return False
-    by_visitor = await consume(
+        return by_address
+    return await consume(
         surface="embed_upload", caller=f"key:{public_key}:visitor:{visitor}", limit=limit
     )
-    return by_visitor.allowed
 
 
-async def embed_script_allowed(connection: HTTPConnection) -> bool:
+async def embed_script_allowed(connection: HTTPConnection) -> Decision:
     """Whether this address may fetch a widget's script right now.
 
     **Its own counter rather than admission's, and that is the point of it.** The
@@ -233,15 +230,14 @@ async def embed_script_allowed(connection: HTTPConnection) -> bool:
     cacheable, so it is the cheapest of the three to be generous with, and being
     refused it breaks the widget outright rather than delaying a message.
     """
-    decision = await consume(
+    return await consume(
         surface="embed_script",
         caller=f"ip:{caller_ip(connection)}",
         limit=Limit(attempts=settings.RATE_LIMIT_EMBED_PER_MINUTE),
     )
-    return decision.allowed
 
 
-async def embed_admission_allowed(connection: HTTPConnection) -> bool:
+async def embed_admission_allowed(connection: HTTPConnection) -> Decision:
     """Whether this address may ask to be admitted to a widget right now.
 
     Admission, not messages: what a visitor may *say* once admitted is the
@@ -258,9 +254,8 @@ async def embed_admission_allowed(connection: HTTPConnection) -> bool:
     inside the admission service: doing the database read first would make an
     unbounded probe for live keys free.
     """
-    decision = await consume(
+    return await consume(
         surface="embed_admission",
         caller=f"ip:{caller_ip(connection)}",
         limit=Limit(attempts=settings.RATE_LIMIT_EMBED_PER_MINUTE),
     )
-    return decision.allowed

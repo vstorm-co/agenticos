@@ -206,6 +206,32 @@ class TestTheWidgetsAdmission:
 
         assert response.status_code == 429
 
+    @pytest.mark.parametrize(
+        "path", ["some-key/config", "some-key/hosted", "some-key/logo", "some-key/widget.js"]
+    )
+    async def test_every_refusal_here_is_the_envelope_the_rest_of_the_api_answers(
+        self, mock_redis: MagicMock, path: str
+    ):
+        """These five routes raised a bare `HTTPException`, so they answered
+        `{"detail": ...}` where every other error on this API - including the run
+        route's own 429 above - answers `{"error": {"code", "message", "details"}}`.
+        #516 published this socket as an integration somebody writes a client
+        against, and a client should not need to know which route refused it to
+        parse the refusal. The interval travels the same way rather than as a
+        hardcoded header, so a `Limit` with a different window cannot make it a lie.
+        """
+        app.dependency_overrides[deps.get_redis] = lambda: mock_redis
+        app.dependency_overrides[deps.get_db_session] = lambda: MagicMock()
+        rate_limit.configure(_redis(used=999))
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get(f"/api/v1/embed/{path}")
+
+        assert response.status_code == 429
+        assert response.json()["error"]["code"] == "RATE_LIMIT_EXCEEDED"
+        assert response.json()["error"]["details"]["retry_after_seconds"] == 60
+        assert response.headers["Retry-After"] == "60"
+
     async def test_the_script_does_not_spend_the_allowance_admission_needs(
         self, mock_redis: MagicMock
     ):

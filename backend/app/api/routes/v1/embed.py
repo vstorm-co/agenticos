@@ -18,11 +18,11 @@ from typing import Annotated, Any
 
 from fastapi import (
     APIRouter,
+    Depends,
     File,
     Header,
     HTTPException,
     Query,
-    Request,
     Response,
     UploadFile,
     WebSocket,
@@ -31,7 +31,15 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 
-from app.api.deps import DBSession, EmbedSvc
+from app.api.deps import (
+    DBSession,
+    EmbedSvc,
+    limit_embed_admission,
+    limit_embed_script,
+    limit_embed_upload,
+    limit_hosted_config,
+    limit_hosted_logo,
+)
 from app.core.config import settings
 from app.db.session import get_db_context
 from app.schemas.agent_embed import PublicEmbedConfig, PublicPageConfig, PublicUpload
@@ -55,17 +63,15 @@ WS_DENIED = 4003
 # gives up on a limit.
 WS_TOO_MANY = 4029
 
-# Every limit on this surface is per minute, so a refused caller may come back in
-# one. In the header rather than only a body field, because standard clients,
-# fetch wrappers and CDNs back off on Retry-After and not on a custom key.
-_RETRY_AFTER = {"Retry-After": "60"}
 
-
-@router.get("/{public_key}/config", response_model=PublicEmbedConfig)
+@router.get(
+    "/{public_key}/config",
+    response_model=PublicEmbedConfig,
+    dependencies=[Depends(limit_embed_admission)],
+)
 async def embed_config(
     public_key: str,
     service: EmbedSvc,
-    request: Request,
     response: Response,
     origin: str | None = Header(default=None),
 ) -> Any:
@@ -75,9 +81,6 @@ async def embed_config(
     on the widget's list - a wildcard here would let any site read the config
     and, more to the point, would make the allow-list decorative.
     """
-    if not await rate_limit.embed_admission_allowed(request):
-        raise HTTPException(status_code=429, detail="Too many requests", headers=_RETRY_AFTER)
-
     try:
         admission = await service.admit(public_key, origin=origin, token=None)
         # Inside the same refusal, because a key of another kind has no widget
@@ -93,7 +96,11 @@ async def embed_config(
     return config
 
 
-@router.get("/{public_key}/hosted", response_model=PublicPageConfig)
+@router.get(
+    "/{public_key}/hosted",
+    response_model=PublicPageConfig,
+    dependencies=[Depends(limit_hosted_config)],
+)
 async def hosted_config(public_key: str, service: EmbedSvc) -> Any:
     """What a page of our own renders itself from.
 
@@ -112,17 +119,18 @@ async def hosted_config(public_key: str, service: EmbedSvc) -> Any:
     a container and counting it put the whole deployment in one bucket - see
     `rate_limit.hosted_admission_allowed`.
     """
-    if not await rate_limit.hosted_admission_allowed(public_key):
-        raise HTTPException(status_code=429, detail="Too many requests", headers=_RETRY_AFTER)
-
     embed = await service.find_page(public_key)
     if embed is None:
         raise HTTPException(status_code=404, detail="This page is not available")
     return await service.page_config(embed)
 
 
-@router.get("/{public_key}/logo", response_class=FileResponse)
-async def hosted_logo(public_key: str, service: EmbedSvc, request: Request) -> Any:
+@router.get(
+    "/{public_key}/logo",
+    response_class=FileResponse,
+    dependencies=[Depends(limit_hosted_logo)],
+)
+async def hosted_logo(public_key: str, service: EmbedSvc) -> Any:
     """The one image a hosted page may hand out without a session.
 
     The agent's avatar or the organization's, whichever the page was configured
@@ -148,9 +156,6 @@ async def hosted_logo(public_key: str, service: EmbedSvc, request: Request) -> A
     `script-src 'self' 'unsafe-inline'`. Refused rather than corrected: this route
     hands out one image, and anything that is not one is not this page's logo.
     """
-    if not await rate_limit.hosted_logo_allowed(public_key):
-        raise HTTPException(status_code=429, detail="Too many requests", headers=_RETRY_AFTER)
-
     path = await service.page_logo_path(public_key)
     if path is None:
         raise HTTPException(status_code=404, detail="No logo")
@@ -163,8 +168,12 @@ async def hosted_logo(public_key: str, service: EmbedSvc, request: Request) -> A
     return FileResponse(path, media_type=media_type, headers={"X-Content-Type-Options": "nosniff"})
 
 
-@router.get("/{public_key}/widget.js", response_class=Response)
-async def embed_widget(public_key: str, db: DBSession, request: Request) -> Response:
+@router.get(
+    "/{public_key}/widget.js",
+    response_class=Response,
+    dependencies=[Depends(limit_embed_script)],
+)
+async def embed_widget(public_key: str, db: DBSession) -> Response:
     """The script a customer pastes into their page.
 
     Served from the API rather than a CDN so a self-hosted deployment needs no
@@ -181,9 +190,6 @@ async def embed_widget(public_key: str, db: DBSession, request: Request) -> Resp
     *and* a config *and* opens a socket: one bucket for all three made an operator's
     twenty admissions a minute about seven page loads. See `embed_script_allowed`.
     """
-    if not await rate_limit.embed_script_allowed(request):
-        raise HTTPException(status_code=429, detail="Too many requests", headers=_RETRY_AFTER)
-
     service = AgentEmbedService(db)
     embed = await service.find_public(public_key)
     if embed is None or not embed.is_active:
@@ -206,12 +212,14 @@ async def embed_widget(public_key: str, db: DBSession, request: Request) -> Resp
 
 
 @router.post(
-    "/{public_key}/files", response_model=PublicUpload, status_code=status.HTTP_201_CREATED
+    "/{public_key}/files",
+    response_model=PublicUpload,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(limit_embed_upload)],
 )
 async def embed_upload(
     public_key: str,
     service: EmbedSvc,
-    request: Request,
     file: Annotated[UploadFile, File()],
     visitor: Annotated[str, Header(alias="X-Visitor-Key", max_length=64)],
 ) -> Any:
@@ -242,13 +250,8 @@ async def embed_upload(
     and a query string lands in access logs and any intermediary's. The socket
     handshake cannot avoid a query; this route can.
     """
-    key = continuity_key(visitor)
-    if key is None:
+    if continuity_key(visitor) is None:
         raise HTTPException(status_code=400, detail="A visitor key is required")
-    if not await rate_limit.embed_upload_allowed(request, public_key=public_key, visitor=key):
-        raise HTTPException(
-            status_code=429, detail="Too many uploads. Try again shortly.", headers=_RETRY_AFTER
-        )
 
     embed = await service.find_page(public_key)
     if embed is None:
@@ -300,7 +303,9 @@ async def embed_socket(
     """
     origin = websocket.headers.get("origin")
 
-    if not await rate_limit.embed_admission_allowed(websocket):
+    # The one admission gate that is not `limit_embed_admission`: a refusal here is
+    # a close code, not a status, so there is no exception handler to raise into.
+    if not (await rate_limit.embed_admission_allowed(websocket)).allowed:
         await websocket.accept()
         await websocket.close(code=WS_TOO_MANY, reason="Too many connections. Try again shortly.")
         return

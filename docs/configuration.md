@@ -527,6 +527,13 @@ ceiling is a separate decision, not this one.
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Files a visitor may store on a hosted page. Counted **per address and per visitor key**, and both have to allow it — the key is minted by the browser, so counting only that bounds nothing |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Whether `X-Forwarded-For` names the caller |
 
+**What a refused caller gets** is this API's own error envelope with
+`code: "RATE_LIMIT_EXCEEDED"`, the interval in
+`error.details.retry_after_seconds`, and the same interval in the `Retry-After`
+header — which is the one a fetch wrapper or a CDN actually backs off on. The
+socket handshake is the exception, because a WebSocket has no status to answer
+with: it closes with `4029` (see [channels](channels.md#the-raw-websocket)).
+
 **Two counters, not one, and the reason is arithmetic.** Loading a page with a
 widget on it costs three requests to this API: the script, the config, and the
 socket. Counted together, `20` bought about seven page loads for a cold browser
