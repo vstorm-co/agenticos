@@ -87,32 +87,28 @@ export function timeAgo(dateStr: string, t: Translate): string {
   return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-export function formatCurrency(
-  amountCents: number,
-  currency = "USD",
-  minimumFractionDigits = 0,
-): string {
-  return (amountCents / 100).toLocaleString("en-US", {
-    style: "currency",
-    currency: currency.toUpperCase(),
-    minimumFractionDigits,
-  });
-}
-
-export function formatDate(date: Date | string | null | undefined): string {
+/**
+ * An absolute date, in the active locale.
+ *
+ * Month names and day-month order come from the runtime, not a translator, so it
+ * takes the locale from the caller's `useLocale()` - hardcoding `en-US` here put
+ * "Jul 31, 2026" on every locale's screen (#649).
+ */
+export function formatDate(date: Date | string | null | undefined, locale: string): string {
   if (!date) return "-";
   const d = typeof date === "string" ? new Date(date) : date;
   if (Number.isNaN(d.getTime())) return "-";
-  return d.toLocaleDateString("en-US", {
+  return d.toLocaleDateString(locale, {
     year: "numeric",
     month: "short",
     day: "numeric",
   });
 }
 
-export function formatDateTime(date: Date | string): string {
+/** `formatDate` down to the minute; takes the locale for the same reason (#649). */
+export function formatDateTime(date: Date | string, locale: string): string {
   const d = typeof date === "string" ? new Date(date) : date;
-  return d.toLocaleString("en-US", {
+  return d.toLocaleString(locale, {
     year: "numeric",
     month: "short",
     day: "numeric",

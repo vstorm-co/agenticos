@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { CheckCircle2, XCircle } from "lucide-react";
 
 import { getErrorMessage } from "@/lib/api-error";
@@ -32,6 +32,7 @@ import { formatDate } from "@/lib/utils";
 export function ApprovalsTab() {
   const tErrors = useTranslations("errors");
   const t = useTranslations("pages.runs");
+  const locale = useLocale();
   const { approvals, total, isLoading, error, decide, refetch } = useApprovals();
 
   return (
@@ -74,7 +75,7 @@ export function ApprovalsTab() {
                     <ApprovalDelegate approval={approval} />
                   </div>
                   <span className="text-muted-foreground shrink-0 text-xs">
-                    {approval.created_at ? formatDate(approval.created_at) : ""}
+                    {approval.created_at ? formatDate(approval.created_at, locale) : ""}
                   </span>
                 </div>
                 <pre className="bg-muted/40 overflow-x-auto rounded p-3 text-xs">
