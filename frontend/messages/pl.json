@@ -916,7 +916,7 @@
       },
       "chat-composer": {
         "title": "Zapytaj o cokolwiek",
-        "body": "Wpisz wiadomość, upuść plik albo zacznij od komendy ze slashem. Enter wysyła; Shift+Enter dodaje wiersz."
+        "body": "Wpisz wiadomość, upuść plik albo zacznij od polecenia ukośnika. Enter wysyła; Shift+Enter dodaje wiersz."
       },
       "chat-model-picker": {
         "title": "Dostrój model",
@@ -1088,7 +1088,7 @@
       },
       "settings-tabs": {
         "title": "Twoje ustawienia",
-        "body": "Twój profil, logowanie i bezpieczeństwo, powiadomienia oraz komendy ze slashem — wszystko kryje się za tymi zakładkami; przełączaj się między nimi tutaj."
+        "body": "Twój profil, logowanie i bezpieczeństwo, powiadomienia oraz polecenia ukośnika — wszystko kryje się za tymi zakładkami; przełączaj się między nimi tutaj."
       }
     }
   }

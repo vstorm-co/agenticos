@@ -2238,7 +2238,7 @@
       },
       "flow-agent-mcp-connect": {
         "title": "Open the catalog",
-        "body": "Choose Connect server — the catalog opens right here in the builder, and we'll pick one together."
+        "body": "Choose Connect a server — the catalog opens right here in the builder, and we'll pick one together."
       },
       "flow-agent-limits": {
         "title": "Set a budget (optional)",
@@ -2358,7 +2358,7 @@
       },
       "chat-model-picker": {
         "title": "Tune the model",
-        "body": "Pick the model behind the agent and dial its reasoning effort or temperature — just for this conversation."
+        "body": "Pick the model behind the agent and dial its thinking effort or temperature — just for this conversation."
       },
       "agents-new": {
         "title": "Build an agent",

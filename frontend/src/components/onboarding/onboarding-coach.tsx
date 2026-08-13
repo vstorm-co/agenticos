@@ -349,20 +349,21 @@ export function OnboardingCoach() {
   }, [isActive, blockSubmit, stepId]);
 
   // The submit guard swallows pointer clicks, but the keyboard walks past it: Enter
-  // in a create dialog's text field submits the form, and Enter on its focused
-  // submit button activates it — either creates the resource steps early, and its
-  // later field steps then baseline after the creation and never advance, leaving
-  // the reader dead-ended. While a `blockSubmit` step shows, cancel that Enter in
-  // the capture phase, before the field or button sees it. A text `<input>` and the
-  // guarded submit are the only two paths blocked: a textarea, the source editor
+  // in a create dialog's text field submits the form, and Enter *or Space* on its
+  // focused submit button activates it — either creates the resource steps early,
+  // and its later field steps then baseline after the creation and never advance,
+  // leaving the reader dead-ended. While a `blockSubmit` step shows, cancel those
+  // keys in the capture phase, before the field or button sees them. Space is only
+  // cancelled on the guarded control itself — in a text `<input>` it types a space,
+  // so blocking it there would eat the keystroke. A textarea, the source editor
   // (`isContentEditable`) and a Radix select keep Enter for newlines and choosing.
   useEffect(() => {
     if (!isActive || !blockSubmit) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Enter") return;
+      if (event.key !== "Enter" && event.key !== " ") return;
       const el = event.target as HTMLElement | null;
       if (!el) return;
-      const submitsForm = el instanceof HTMLInputElement;
+      const submitsForm = event.key === "Enter" && el instanceof HTMLInputElement;
       const activatesSubmit = el.closest(`[data-tour="${blockSubmit}"]`) !== null;
       if (submitsForm || activatesSubmit) event.preventDefault();
     };

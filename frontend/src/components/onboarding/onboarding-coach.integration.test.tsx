@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -220,6 +220,30 @@ describe("OnboardingCoach", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Skip" }));
     expect(answer).toHaveBeenCalledWith("flow-agent-knowledge-ask", "skip");
+  });
+
+  it("cancels Space on the guarded submit, so Tab-then-Space cannot create the resource early", async () => {
+    // The freeze blocks pointers, not Tab. A focused submit button activates on
+    // Space as well as Enter, so a keyboard user could Tab to Create and press
+    // Space, jumping past the field steps — the dead-end the guard exists to stop.
+    const guarded = step({ blockSubmit: "skills-new" });
+    flow.state = makeState({ step: guarded, steps: [guarded] });
+    render(<OnboardingCoach />);
+    await screen.findByText("Add your skill");
+
+    const submit = document.createElement("button");
+    submit.type = "submit";
+    submit.setAttribute("data-tour", "skills-new");
+    document.body.appendChild(submit);
+    submit.focus();
+    // fireEvent returns false when a handler called preventDefault.
+    expect(fireEvent.keyDown(submit, { key: " " })).toBe(false);
+
+    // Space must survive in a text field — there it types a space, not a submit.
+    const input = document.createElement("input");
+    document.body.appendChild(input);
+    input.focus();
+    expect(fireEvent.keyDown(input, { key: " " })).toBe(true);
   });
 
   it("hands a fork's Yes off to another flow when it opensFlow", async () => {
