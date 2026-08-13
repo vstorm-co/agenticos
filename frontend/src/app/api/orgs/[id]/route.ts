@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { backendFetch, BackendApiError } from "@/lib/server-api";
+import { BackendApiError, backendFetch, bffRefusal } from "@/lib/server-api";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -8,7 +8,7 @@ interface RouteParams {
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const accessToken = request.cookies.get("access_token")?.value;
-    if (!accessToken) return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
+    if (!accessToken) return bffRefusal("NOT_AUTHENTICATED", 401);
     const { id } = await params;
     const data = await backendFetch(`/api/v1/orgs/${id}`, {
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -17,14 +17,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   } catch (error) {
     if (error instanceof BackendApiError)
       return NextResponse.json({ detail: error.message }, { status: error.status });
-    return NextResponse.json({ detail: "Internal server error" }, { status: 500 });
+    return bffRefusal("INTERNAL_SERVER_ERROR", 500);
   }
 }
 
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
     const accessToken = request.cookies.get("access_token")?.value;
-    if (!accessToken) return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
+    if (!accessToken) return bffRefusal("NOT_AUTHENTICATED", 401);
     const { id } = await params;
     const body = await request.json();
     const data = await backendFetch(`/api/v1/orgs/${id}`, {
@@ -36,14 +36,14 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   } catch (error) {
     if (error instanceof BackendApiError)
       return NextResponse.json({ detail: error.message }, { status: error.status });
-    return NextResponse.json({ detail: "Internal server error" }, { status: 500 });
+    return bffRefusal("INTERNAL_SERVER_ERROR", 500);
   }
 }
 
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const accessToken = request.cookies.get("access_token")?.value;
-    if (!accessToken) return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
+    if (!accessToken) return bffRefusal("NOT_AUTHENTICATED", 401);
     const { id } = await params;
     await backendFetch(`/api/v1/orgs/${id}`, {
       method: "DELETE",
@@ -53,6 +53,6 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
   } catch (error) {
     if (error instanceof BackendApiError)
       return NextResponse.json({ detail: error.message }, { status: error.status });
-    return NextResponse.json({ detail: "Internal server error" }, { status: 500 });
+    return bffRefusal("INTERNAL_SERVER_ERROR", 500);
   }
 }

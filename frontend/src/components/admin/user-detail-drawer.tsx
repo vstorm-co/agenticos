@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { getErrorMessage } from "@/lib/api-error";
 import { useChanged } from "@/hooks/use-changed";
 import { ArrowUpRight, Copy, KeyRound, Mail, Shield, ShieldOff, Trash2, UserX } from "lucide-react";
 import { toast } from "sonner";
@@ -26,7 +27,7 @@ import {
 import type { AdminUser } from "@/types";
 import { apiClient } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
-import { formatDateTime, getErrorMessage } from "@/lib/utils";
+import { formatDateTime } from "@/lib/utils";
 import { qk } from "@/lib/query-keys";
 import { useTranslations } from "next-intl";
 
@@ -54,6 +55,7 @@ export function UserDetailDrawer({
   onDelete,
   onImpersonate,
 }: UserDetailDrawerProps) {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("admin");
   // Server data through the query layer, which is where `.claude/rules/frontend.md`
   // says it lives. It was three pieces of state and an effect: a list, a loading
@@ -167,7 +169,7 @@ export function UserDetailDrawer({
               // opened a chat are the same sentence, and an admin acting on the
               // second when it was the first is acting on nothing.
               <p className="text-destructive text-xs">
-                {getErrorMessage(convsError, t("couldnTLoadConversations"))}
+                {getErrorMessage(convsError, tErrors, t("couldnTLoadConversations"))}
               </p>
             ) : !conversations || conversations.length === 0 ? (
               <p className="text-foreground/55 text-xs">{t("noConversationsFound")}</p>

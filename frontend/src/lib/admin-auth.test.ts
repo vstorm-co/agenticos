@@ -4,7 +4,11 @@ import { NextRequest } from "next/server";
 import { requireAdmin } from "./admin-auth";
 import { backendFetch } from "./server-api";
 
-vi.mock("./server-api", () => ({ backendFetch: vi.fn() }));
+// The real `bffRefusal` stays: the refusals under test are the responses it mints.
+vi.mock("./server-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./server-api")>()),
+  backendFetch: vi.fn(),
+}));
 
 /**
  * The gate on every `/api/admin/*` route.

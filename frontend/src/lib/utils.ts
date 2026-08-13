@@ -9,13 +9,6 @@ export function cn(...inputs: ClassValue[]) {
 
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// A module function cannot translate, and 51 callers pass no fallback - every one of
-// them is this sentence in English under `pl`. #603 is that migration.
-// i18n-exempt: see above.
-export function getErrorMessage(err: unknown, fallback = "An unexpected error occurred"): string {
-  return err instanceof Error ? err.message : fallback;
-}
-
 export function isAppAdmin(user: { is_app_admin?: boolean } | null | undefined): boolean {
   // The one flag the backend gates /admin on. There used to be a
   // `role === "admin"` fallback here for template deployments that never set

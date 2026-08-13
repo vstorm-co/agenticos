@@ -39,7 +39,7 @@ import {
 import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
 import { useMcpServers } from "@/hooks";
 import { cn } from "@/lib/utils";
-import { ApiError } from "@/lib/api-client";
+import { getErrorMessage } from "@/lib/api-error";
 import type { McpConnectionRecord, McpToolInfo } from "@/lib/mcp-connections-api";
 import { startMcpOAuth } from "@/lib/mcp-connections-api";
 import {
@@ -97,12 +97,6 @@ function categoryLabel(category: string): string {
 function rowDescription(row: McpServerRow, t: (key: string) => string): string {
   if (row.descriptionKey !== null) return t(row.descriptionKey);
   return row.description ?? "";
-}
-
-function errorMessage(error: unknown, fallback: string): string {
-  if (error instanceof ApiError) return error.message;
-  if (error instanceof Error) return error.message;
-  return fallback;
 }
 
 interface DraftState {
@@ -166,6 +160,7 @@ export function ServersCard({ count, children }: { count: number | null; childre
  */
 export function McpServerList({ canManageOrganization }: McpServerListProps) {
   const t = useTranslations("mcp");
+  const tErrors = useTranslations("errors");
   const { rows, organization, personal, recordTools } = useMcpServers();
   const [category, setCategory] = useState<string>("all");
   const [state, setState] = useState<StateFilter>("all");
@@ -257,7 +252,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
       recordTools(connection.id, result.tools);
       return result.tools;
     } catch (caught) {
-      toast.error(errorMessage(caught, t("checkFailed")));
+      toast.error(getErrorMessage(caught, tErrors, t("checkFailed")));
       return null;
     } finally {
       setBusyId(null);
@@ -285,7 +280,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
       const { authorization_url } = await startMcpOAuth({ name, url: row.url ?? "" }, scope);
       window.location.href = authorization_url;
     } catch (caught) {
-      toast.error(errorMessage(caught, t("couldNotStartSign")));
+      toast.error(getErrorMessage(caught, tErrors, t("couldNotStartSign")));
       setBusyId(null);
     }
     // On success the browser navigates away - leave the row busy.
@@ -349,7 +344,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
         setDraft(null);
       }
     } catch (caught) {
-      toast.error(errorMessage(caught, t("couldNotSaveServer")));
+      toast.error(getErrorMessage(caught, tErrors, t("couldNotSaveServer")));
     } finally {
       setSubmitting(false);
     }
@@ -365,7 +360,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
       await api(scope).remove(connection.id);
       toast.success(t("serverDisconnected", { name: connection.name }));
     } catch (caught) {
-      toast.error(errorMessage(caught, t("couldNotDisconnect")));
+      toast.error(getErrorMessage(caught, tErrors, t("couldNotDisconnect")));
     }
   };
 
@@ -384,7 +379,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
       toast.success(t("toolSelectionSaved"));
       setToolPicker(null);
     } catch (caught) {
-      toast.error(errorMessage(caught, t("couldNotSaveTool")));
+      toast.error(getErrorMessage(caught, tErrors, t("couldNotSaveTool")));
     } finally {
       setSubmitting(false);
     }

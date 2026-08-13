@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { BackendApiError, backendFetch } from "@/lib/server-api";
+import { BackendApiError, backendFetch, bffRefusal } from "@/lib/server-api";
 
 /**
  * The chat account a link URL is about, and the confirmation that claims it.
@@ -13,7 +13,7 @@ import { BackendApiError, backendFetch } from "@/lib/server-api";
 export async function GET(request: NextRequest, context: { params: Promise<{ token: string }> }) {
   const accessToken = request.cookies.get("access_token")?.value;
   if (!accessToken) {
-    return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
+    return bffRefusal("NOT_AUTHENTICATED", 401);
   }
   const { token } = await context.params;
   try {
@@ -26,14 +26,14 @@ export async function GET(request: NextRequest, context: { params: Promise<{ tok
     if (error instanceof BackendApiError) {
       return NextResponse.json({ detail: error.message }, { status: error.status });
     }
-    return NextResponse.json({ detail: "Internal server error" }, { status: 500 });
+    return bffRefusal("INTERNAL_SERVER_ERROR", 500);
   }
 }
 
 export async function POST(request: NextRequest, context: { params: Promise<{ token: string }> }) {
   const accessToken = request.cookies.get("access_token")?.value;
   if (!accessToken) {
-    return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
+    return bffRefusal("NOT_AUTHENTICATED", 401);
   }
   const { token } = await context.params;
   try {
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ to
     if (error instanceof BackendApiError) {
       return NextResponse.json({ detail: error.message }, { status: error.status });
     }
-    return NextResponse.json({ detail: "Internal server error" }, { status: 500 });
+    return bffRefusal("INTERNAL_SERVER_ERROR", 500);
   }
 }
 
@@ -63,7 +63,7 @@ export async function DELETE(
 ) {
   const accessToken = request.cookies.get("access_token")?.value;
   if (!accessToken) {
-    return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
+    return bffRefusal("NOT_AUTHENTICATED", 401);
   }
   const { token } = await context.params;
   try {
@@ -76,6 +76,6 @@ export async function DELETE(
     if (error instanceof BackendApiError) {
       return NextResponse.json({ detail: error.message }, { status: error.status });
     }
-    return NextResponse.json({ detail: "Internal server error" }, { status: 500 });
+    return bffRefusal("INTERNAL_SERVER_ERROR", 500);
   }
 }

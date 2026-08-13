@@ -18,12 +18,15 @@ import {
   FormField,
   Input,
 } from "@/components/ui";
+import { getErrorMessage } from "@/lib/api-error";
 import { SectionCard } from "@/components/settings/settings-section";
 import { useAuth } from "@/hooks";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { useTranslations } from "next-intl";
 
 export default function AccountSettingsPage() {
+  const tErrors = useTranslations("errors");
+
   const t = useTranslations("pages.settings");
   const { user, logout } = useAuth();
   const [currentPassword, setCurrentPassword] = useState("");
@@ -56,7 +59,9 @@ export default function AccountSettingsPage() {
       if (err instanceof ApiError && err.status === 404) {
         toast.error(t("passwordChangeRequiresBackend"));
       } else {
-        toast.error(err instanceof ApiError ? err.message : t("failedUpdatePassword"));
+        toast.error(
+          err instanceof ApiError ? getErrorMessage(err, tErrors) : t("failedUpdatePassword"),
+        );
       }
     } finally {
       setSaving(false);
@@ -74,7 +79,9 @@ export default function AccountSettingsPage() {
       if (err instanceof ApiError && err.status === 403) {
         toast.error(t("selfDeleteNotEnabled"));
       } else {
-        toast.error(err instanceof ApiError ? err.message : t("failedDeleteAccount"));
+        toast.error(
+          err instanceof ApiError ? getErrorMessage(err, tErrors) : t("failedDeleteAccount"),
+        );
       }
     } finally {
       setDeleting(false);

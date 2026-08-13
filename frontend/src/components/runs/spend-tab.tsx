@@ -2,12 +2,13 @@
 
 import { useTranslations } from "next-intl";
 
+import { getErrorMessage } from "@/lib/api-error";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
 import { SpendBreakdown } from "@/components/runs/spend-breakdown";
 import { SpendByPerson } from "@/components/runs/spend-by-person";
 import { useSpend } from "@/hooks";
-import { formatDate, getErrorMessage } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 import type { CostSummary } from "@/types/runs";
 
 /**
@@ -47,6 +48,7 @@ function windowLabel(
  * dangerous one on a page about money.
  */
 export function SpendTab() {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("pages.runs");
   const { spend, isLoading, error, refetch } = useSpend(30);
 
@@ -55,7 +57,7 @@ export function SpendTab() {
     return (
       <ErrorState
         title={t("spendCouldNotBeRead")}
-        description={getErrorMessage(error, t("theMoneyWasStill"))}
+        description={getErrorMessage(error, tErrors, t("theMoneyWasStill"))}
         cta={{ label: t("tryAgain"), onClick: () => void refetch() }}
       />
     );
