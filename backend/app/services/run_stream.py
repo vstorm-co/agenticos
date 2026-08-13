@@ -40,38 +40,9 @@ from pydantic_ai.messages import RetryPromptPart, TextPart, ThinkingPart, Thinki
 
 from app.services.agent_chat import display_output
 from app.services.chat_timeline import TurnTimeline
+from app.services.transcript import tool_retry_notice
 
 logger = logging.getLogger(__name__)
-
-
-def _tool_retry(part: RetryPromptPart) -> str:
-    """What a tool that asked the model to try again may tell the client.
-
-    The `tool_result` frame used to carry `str(part.content)`, and that content is
-    written by whichever tool raised: `web_search` turns a search provider's
-    failure into a `ModelRetry` built out of the `httpx` or SDK exception it
-    caught, so a broken key put "401 Unauthorized for url
-    'https://api.tavily.com/search'" - an endpoint, a host, and whatever the
-    query string held - in front of everyone watching the run (#681). An MCP
-    tool's retry is a third party's string entirely, which is why this is done
-    here rather than at each raise. Every surface streams through this module, so
-    the widget and a hosted page are covered by the same sentence web chat is.
-
-    The model still reads the retry whole: Pydantic AI puts the part into the
-    next request itself and nothing here touches that, so the detail that decides
-    whether it retries, switches tack or gives up is unchanged. Only the wire is
-    trimmed, and the tool's own text stays in the `logger.warning` beside the
-    send.
-
-    The tool's *name* still goes out, because it is what makes the frame worth
-    sending: a card that resolves saying which step failed is the difference from
-    one that spins for ever. `tool_name` is optional on the part - output
-    validation raises a retry that names no tool - hence the two forms.
-    """
-    called = f"The {part.tool_name} call" if part.tool_name else "A tool call"
-    return (
-        f"{called} failed and the model was asked to try again. The server log has the full error."
-    )
 
 
 type FrameSink = Callable[[str, dict[str, Any]], Awaitable[None]]
@@ -225,7 +196,7 @@ class RunFrames:
                         tool_event.tool_call_id,
                         tool_event.part.content,
                     )
-                    content = _tool_retry(tool_event.part)
+                    content = tool_retry_notice(tool_event.part)
                 else:
                     content = str(tool_event.part.content)
                 call = pending.get(tool_event.tool_call_id)

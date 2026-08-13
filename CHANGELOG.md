@@ -17,6 +17,67 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.147] - 2026-08-13
+
+A failed tool's raw error was stored where every reader of the run can see it.
+
+### Security
+
+- **A tool's retry text stays out of the transcript row.** #681 sanitized the
+  chat `tool_result` frame; the stored row was the same leak on the run paths
+  that never open a socket — the HTTP API and the channel bots. A retry's
+  content is written by whichever tool raised (`web_search` builds one from
+  the vendor exception, endpoint and query string included; an MCP tool's is
+  a third party's entirely), and it landed on a tool-call row rendered in run
+  history weeks later. The row now stores the same sentence the frame sends —
+  which tool failed and that the model was asked to retry — and the vendor's
+  own text goes to the server log beside the write, nowhere else. (#695)
+
+## [0.0.146] - 2026-08-13
+
+A thread nobody owned was everybody's to delete.
+
+### Security
+
+- **An unowned room thread is writable only by its participants.** A channel
+  thread's owner is its first *linked* speaker, so a room where nobody linked
+  an account had no owner — and the write check answered yes to any member of
+  the organization: renaming it, archiving it, deleting the transcript, or
+  appending a `role: "assistant"` turn the model reads back as its own words,
+  including for threads their own list never showed them. The write now stops
+  at the same membership-confirmed participation the read admits; an owned
+  thread still refuses its participants the write. (#701)
+
+## [0.0.145] - 2026-08-13
+
+A webhook bot's files had no server to be fetched from.
+
+### Fixed
+
+- **A Mattermost webhook bot's server is recorded per delivery.** Only the
+  polling path ever told the adapter a bot's address, so an attachment on an
+  outgoing-webhook post parsed with an empty handle and the reply said the
+  file could not be downloaded. The receiver now hands the bot row's
+  `api_base_url` to the adapter after the token check and before the parse —
+  per delivery, so an operator's edit takes effect at once. Not a regression:
+  before #547 the file was dropped silently; #547 made the failure visible,
+  this makes the file reachable. (#692)
+
+## [0.0.144] - 2026-08-13
+
+A removed channel member kept the thread.
+
+### Security
+
+- **`/chat` now asks the platform whether a reader is still in the channel.**
+  A channel thread was shown to anybody whose linked account had ever spoken
+  in it, and never asked again — so somebody removed from a Slack, Telegram or
+  Mattermost channel kept the thread, including everything said after they
+  left. Each adapter now answers a per-account membership question, cached for
+  60 seconds and failing closed: an unsupported platform, a missing adapter,
+  an unsealable token or an errored call hides the thread rather than showing
+  it. The owner and an explicit share keep access on every path. (#641)
+
 ## [0.0.143] - 2026-08-13
 
 Three sweeps walked the source tree three different ways.

@@ -212,6 +212,32 @@ class TelegramAdapter(ChannelAdapter):
             for entry in administrators[:limit]
         ]
 
+    async def is_channel_member(
+        self, bot_token: str, channel_id: str, platform_user_id: str, *, api_base_url: str | None
+    ) -> bool:
+        """`getChatMember`, read for its status.
+
+        The one membership question Telegram does answer per account, where
+        enumerating ordinary members is refused outright. `left` and `kicked`
+        are Telegram's words for "was here, is not"; every other status - down
+        to `restricted`, which is a member who may not speak - is still in the
+        room. An account Telegram cannot place in the chat at all raises
+        `TelegramBadRequest`, which is the same answer as `left` for the
+        question being asked.
+        """
+        try:
+            member_id = int(platform_user_id)
+        except ValueError:
+            return False
+        bot = Bot(token=bot_token)
+        try:
+            found = await bot.get_chat_member(chat_id=channel_id, user_id=member_id)
+        except TelegramBadRequest:
+            return False
+        finally:
+            await bot.session.close()
+        return found.status not in ("left", "kicked")
+
     async def start_polling(self, bot_id: str, bot_token: str) -> None:
         """Start a supervised polling loop for this bot."""
         if bot_id in self._polling_tasks and not self._polling_tasks[bot_id].done():
