@@ -17,6 +17,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.131] - 2026-08-13
+
+Two RAG document lookups disagreed about which document they were looking at, and
+heap order decided.
+
+### Fixed
+
+- **`IngestionService.find_existing` and `get_existing_hash` used different
+  precedence.** The first checked every document for a `source_path` match before
+  falling back to `filename`; the second interleaved the two in one pass, where a
+  filename hit blocked any later source-path match — so a re-sync could answer with
+  a different document depending on which helper asked. (#548)
+- **`PgVectorStore.get_documents` selected with no `ORDER BY`**, so heap order
+  decided which document a lookup answered with, and re-running the same query
+  could give a different one. (#548)
+
 ## [0.0.130] - 2026-08-13
 
 A scanned PDF ingested with OCR enabled indexed near-empty, silently.
