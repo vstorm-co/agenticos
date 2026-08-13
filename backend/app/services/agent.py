@@ -254,7 +254,9 @@ async def persist_user_turn(
 
             content = user_message
             if not content and file_ids:
-                content = what_arrived(await conv_service.list_attached_files(file_ids))
+                content = what_arrived(
+                    await conv_service.list_attached_files(file_ids, user_id=user.id)
+                )
             user_msg = await conv_service.add_message(
                 UUID(current_conversation_id),
                 MessageCreate(role="user", content=content),
