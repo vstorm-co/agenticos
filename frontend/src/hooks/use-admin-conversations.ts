@@ -2,8 +2,8 @@
 
 import { useCallback, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import { getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
-import { getErrorMessage } from "@/lib/utils";
 import type {
   AdminConversation,
   AdminConversationListResponse,
@@ -13,6 +13,7 @@ import type {
 } from "@/types";
 
 export function useAdminConversations() {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("admin");
   // Resolved here, not inside the callbacks: the admin page keys an effect on
   // `fetchUsers`, and a string is a stable dependency by value where a translator is one
@@ -70,13 +71,13 @@ export function useAdminConversations() {
         setConversations(response.items);
         setConversationsTotal(response.total);
       } catch (err: unknown) {
-        const message = getErrorMessage(err, failedConversations);
+        const message = getErrorMessage(err, tErrors, failedConversations);
         setError(message);
       } finally {
         endLoad();
       }
     },
-    [failedConversations],
+    [failedConversations, tErrors],
   );
 
   /**
@@ -113,13 +114,13 @@ export function useAdminConversations() {
         setUsers(response.items);
         setUsersTotal(response.total);
       } catch (err: unknown) {
-        const message = getErrorMessage(err, failedUsers);
+        const message = getErrorMessage(err, tErrors, failedUsers);
         setError(message);
       } finally {
         endLoad();
       }
     },
-    [failedUsers],
+    [failedUsers, tErrors],
   );
 
   const fetchConversationDetail = useCallback(
@@ -133,14 +134,14 @@ export function useAdminConversations() {
         setSelectedConversation(conv);
         return conv;
       } catch (err: unknown) {
-        const message = getErrorMessage(err, failedConversation);
+        const message = getErrorMessage(err, tErrors, failedConversation);
         setError(message);
         return null;
       } finally {
         endLoad();
       }
     },
-    [failedConversation],
+    [failedConversation, tErrors],
   );
 
   return {

@@ -49,17 +49,21 @@ There is no `(marketing)` route group.
   there are no thresholds left to fall between: a node the formatter broke over three
   lines is one node, a type argument list is not JsxText at all, and a comment is
   invisible rather than blanked. The four shapes patched into the old regexes - #199,
-  #246, #249, #314 - each keep a spec, and so does #141's plain multi-line node.
+  #246, #249, #314 - each keep a spec, and so does #141's plain multi-line node. What a
+  *string literal* holds is the one rule still deciding by pattern, and #656 is what that
+  costs: a hyphen inside the first word read as the separator in `Foo / Bar`, so
+  `Sign-in failed` was a label and no sentence opening on a hyphenated word was ever
+  reported.
 - **It reads a `.ts` file as well as a `.tsx` one, and by the same rules.** A parser
   reads one by construction: there is no bracket to anchor on and so nothing to gate on
   the suffix, and a file with no JSX in it simply yields no phrases. That matters because
   a hook's toast and a module table of labels are copy - 381 offences across 90 files,
-  unread for as long as the sweep walked `*.tsx` alone (#446). **`src/app/api/**` is
-  skipped by the offence sweep and read by the catalog rules**, which is not an
-  inconsistency: a route handler sits outside the `[locale]` segment and has no
-  translator to reach, so what it writes is a wire payload (#603) - but a `detail` it
-  writes that duplicates a message is still worth reporting, and `duplicatedInSource` is
-  what reports it. `dev/`, the playground, is skipped by both.
+  unread for as long as the sweep walked `*.tsx` alone (#446). **`src/app/api/**` is read
+  like everything else**: a route handler sits outside the `[locale]` segment and has no
+  translator to reach, so a refusal it mints is a `BFF_ERROR_KEYS` code from
+  `src/lib/bff-errors.ts` (written with `bffRefusal`, resolved by `getErrorMessage`
+  against the `errors` namespace at the toast), never an English sentence (#603).
+  `dev/`, the playground, is the one skip left.
 - **A count is an ICU `plural`, never a ternary.** `{n} file{n === 1 ? "" : "s"}`
   and `count === 1 ? "1 skill" : \`${count} skills\`` are sentences only English
   builds that way, so they are refused too - the message holds
@@ -92,6 +96,10 @@ There is no `(marketing)` route group.
   how 18 Tailwind class lists and 148 fragments of source ended up in there, the class
   lists read back through `cn(t("flexItemsStartGap"))` where translating one strips the
   component of its styling (#348). `messages/catalog.test.ts` refuses both shapes now.
+  A DOM `KeyboardEvent.key` name is not copy either: fifteen were parked and read back
+  as `e.key === t("enter2")`, where the first Polish translation would have silently
+  killed Enter-to-submit (#549) - key handling compares the literal (`e.key ===
+  "Enter"`), and the catalog test refuses a value that is exactly a key constant.
 - **A module table holds keys, and the component translates.** A module constant cannot
   call a translator, so a table of labels holds catalog keys and the copy is resolved at
   the point of use - `TOOL_CATALOG`'s `captionKey`, `MCP_AUTH_LABEL`, the `Choice` rows
@@ -117,6 +125,21 @@ There is no `(marketing)` route group.
   renders English instead of the key. A module-level table of labels cannot call a
   translator, so it holds *keys* and the component translates at the point of use;
   a pure helper either answers with a key or takes `t`.
+- **The product's own nouns stay English in every locale**, and this is the list:
+  **agent, spec, capability, skill, embed, budget, run, prompt, provider, token,
+  vault, workspace, sandbox, MCP**. They name things a client also meets in
+  `docs/`, in the API and in the YAML a spec exports into their own repository, so
+  translating them in the UI and nowhere else makes two vocabularies for one
+  product - a Polish reader looking up *zdolność* finds nothing. Inflect them
+  rather than replacing them (`agenta`, `w spec`, `runy`), and translate everything
+  around them. Decided before the first namespace rather than after the third
+  (#643); a word joining the list belongs here, not in one `pl.json` entry.
+- **Translate a namespace, not a branch.** Seventy Polish strings among four
+  hundred English ones in one dialog is worse than a consistently English one, so
+  the unit of work is the namespace a person reads on one screen - which is why
+  #634 finished `hosted` (12 keys, what a Polish visitor lands on) and left
+  `agents` (509) whole. Polish also makes the count rule bite harder than English
+  does: `one`/`few`/`many`/`other` where `en.json` needed `=1`/`other`.
 - **The locale lives in a cookie, and a switch goes through `@/lib/locale-navigation`.**
   `localePrefix: "as-needed"` means an unprefixed path *is* English, and 49 files import
   a plain `next/link` - so a switch that only rewrites the URL survives exactly one

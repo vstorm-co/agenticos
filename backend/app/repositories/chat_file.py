@@ -33,6 +33,12 @@ async def link_to_message(db: AsyncSession, *, message_id: UUID, file_ids: Itera
     await db.flush()
 
 
+async def delete(db: AsyncSession, *, db_file: ChatFile) -> None:
+    """Delete a chat file row."""
+    await db.delete(db_file)
+    await db.flush()
+
+
 async def create(
     db: AsyncSession,
     *,

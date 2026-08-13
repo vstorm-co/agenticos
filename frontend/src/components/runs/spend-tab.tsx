@@ -1,13 +1,14 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
+import { getErrorMessage } from "@/lib/api-error";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
 import { SpendBreakdown } from "@/components/runs/spend-breakdown";
 import { SpendByPerson } from "@/components/runs/spend-by-person";
 import { useSpend } from "@/hooks";
-import { formatDate, getErrorMessage } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 import type { CostSummary } from "@/types/runs";
 
 /**
@@ -22,15 +23,16 @@ import type { CostSummary } from "@/types/runs";
 function windowLabel(
   spend: CostSummary | undefined,
   t: ReturnType<typeof useTranslations<"pages.runs">>,
+  locale: string,
 ): string {
   if (spend?.period_days != null) return t("lastDays", { days: spend.period_days });
-  const from = formatDate(spend?.from_date);
+  const from = formatDate(spend?.from_date, locale);
   // Null means "up to now", which is a word rather than a date - and rendering
   // it through `formatDate` would put a bare dash where the end of the window
   // should be.
   return spend?.to_date == null
     ? t("fromDateToNow", { from })
-    : t("fromDateToDate", { from, to: formatDate(spend.to_date) });
+    : t("fromDateToDate", { from, to: formatDate(spend.to_date, locale) });
 }
 
 /**
@@ -47,7 +49,9 @@ function windowLabel(
  * dangerous one on a page about money.
  */
 export function SpendTab() {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("pages.runs");
+  const locale = useLocale();
   const { spend, isLoading, error, refetch } = useSpend(30);
 
   if (isLoading) return <LoadingState variant="stats" rows={2} />;
@@ -55,7 +59,7 @@ export function SpendTab() {
     return (
       <ErrorState
         title={t("spendCouldNotBeRead")}
-        description={getErrorMessage(error, t("theMoneyWasStill"))}
+        description={getErrorMessage(error, tErrors, t("theMoneyWasStill"))}
         cta={{ label: t("tryAgain"), onClick: () => void refetch() }}
       />
     );
@@ -63,7 +67,7 @@ export function SpendTab() {
   return (
     <div className="space-y-4">
       {/* The one caveat that governs every figure below: how many of the
-          window's top-level runs could not be fully priced. Saying it once at
+          window's run trees could not be fully priced. Saying it once at
           the top is what stops a reader treating the totals as exact. It marks
           By provider and By key without measuring them, and measures By agent -
           see `CostSummary.partial_run_count` for which is which. */}
@@ -106,7 +110,7 @@ export function SpendTab() {
               sent - `runs.py` refuses to answer "30 days" and a range at once -
               and a default in its place renders "Last 30 days" over a range that
               is nothing of the sort. Silently, which is what a fallback buys. */}
-          <CardDescription>{windowLabel(spend, t)}</CardDescription>
+          <CardDescription>{windowLabel(spend, t, locale)}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
           {!spend || spend.by_agent.length === 0 ? (

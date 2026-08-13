@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "0.0.112"
+version = "0.0.143"
 description = "OS for your agents."
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -39,7 +39,6 @@ dependencies = [
     "redis>=8.1.0",
     "fastapi-cache2>=0.2.2",
     "jinja2>=3.1.0",
-    "slowapi>=0.1.9",
     "aiosmtplib>=3.0.0",
     "itsdangerous>=2.2.0",
     "prefect>=3.8.0",
@@ -379,6 +378,9 @@ include = [
     "app/core/secret_kinds.py",
     "app/core/vault.py",
     "app/core/background.py",
+    # The one size limit that runs before a body is read. Every other one in this
+    # codebase measures bytes that have already arrived.
+    "app/core/body_limit.py",
     # The worker's judgement of its own event loop. It decides to `SIGKILL` the
     # process it runs in, on the two stacks that have no supervisor reading a
     # beat from outside - so a wrong verdict is a restart loop in production.
@@ -386,13 +388,28 @@ include = [
     # Which tables alembic owns and which the vector store makes at runtime. It is
     # two statements, and one of them decides whether `db-check` reports real drift.
     "app/db/vector_tables.py",
+    # Which explicit `null` on an update may reach a row. It is one function and
+    # it stands between a legal request and a 500 naming a database constraint
+    # (#637), which is the kind of thing a branch that never runs is exactly how
+    # it comes back.
+    "app/db/updates.py",
     "app/services/access.py",
+    # How often a stranger may reach a public surface. It was configured and
+    # never applied for the whole life of the product (#39), which is the
+    # argument for holding the replacement to the bar every other refusal is
+    # held to rather than reporting it.
+    "app/services/rate_limit.py",
     "app/services/agent_chat.py",
     "app/services/agent_environment.py",
     "app/services/agent_exposure.py",
     "app/services/agent_registry.py",
     "app/services/agent_runner.py",
     "app/services/agent_session.py",
+    # The turn loop itself, shared by the dashboard chat and the embedded
+    # widget since #634. One frame vocabulary for both sockets, and the sink a
+    # public surface filters at - so a toggle that fails open sends an agent's
+    # reasoning to a stranger.
+    "app/services/run_stream.py",
     "app/repositories/agent_workspace.py",
     "app/repositories/sandbox_connection.py",
     "app/repositories/skill_proposal.py",
@@ -407,6 +424,7 @@ include = [
     "app/services/channels/dedupe.py",
     "app/services/channels/mentions.py",
     "app/services/collection_access.py",
+    "app/services/embed_session.py",
     "app/services/embedding_resolution.py",
     "app/services/approvals.py",
     "app/services/audit.py",
@@ -519,6 +537,9 @@ include = [
     "app/core/secret_kinds.py",
     "app/core/vault.py",
     "app/core/background.py",
+    # The one size limit that runs before a body is read. Every other one in this
+    # codebase measures bytes that have already arrived.
+    "app/core/body_limit.py",
     # The worker's judgement of its own event loop. It decides to `SIGKILL` the
     # process it runs in, on the two stacks that have no supervisor reading a
     # beat from outside - so a wrong verdict is a restart loop in production.
@@ -526,7 +547,17 @@ include = [
     # Which tables alembic owns and which the vector store makes at runtime. It is
     # two statements, and one of them decides whether `db-check` reports real drift.
     "app/db/vector_tables.py",
+    # Which explicit `null` on an update may reach a row. It is one function and
+    # it stands between a legal request and a 500 naming a database constraint
+    # (#637), which is the kind of thing a branch that never runs is exactly how
+    # it comes back.
+    "app/db/updates.py",
     "app/services/access.py",
+    # How often a stranger may reach a public surface. It was configured and
+    # never applied for the whole life of the product (#39), which is the
+    # argument for holding the replacement to the bar every other refusal is
+    # held to rather than reporting it.
+    "app/services/rate_limit.py",
     "app/services/agent_chat.py",
     "app/services/agent_environment.py",
     "app/services/agent_exposure.py",
@@ -536,6 +567,11 @@ include = [
     # every frame it accepts. It sat outside both gates while `use-chat.ts`
     # switched on its names, which is the drift #144 describes.
     "app/services/agent_session.py",
+    # The turn loop itself, shared by the dashboard chat and the embedded
+    # widget since #634. One frame vocabulary for both sockets, and the sink a
+    # public surface filters at - so a toggle that fails open sends an agent's
+    # reasoning to a stranger.
+    "app/services/run_stream.py",
     "app/repositories/agent_workspace.py",
     "app/repositories/sandbox_connection.py",
     "app/repositories/skill_proposal.py",
@@ -550,6 +586,11 @@ include = [
     "app/services/channels/dedupe.py",
     "app/services/channels/mentions.py",
     "app/services/collection_access.py",
+    # One visitor's turn on a public widget: who it runs as, how often they may
+    # ask, and what the page is allowed to put in front of the model. An
+    # unreachable `except BudgetExceeded` sat here for as long as it was
+    # ungated, which is the failure this gate exists to name (#663).
+    "app/services/embed_session.py",
     "app/services/embedding_resolution.py",
     "app/services/approvals.py",
     # The read half of the audit trail. `audit:read` is the only way to see who

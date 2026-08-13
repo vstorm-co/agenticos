@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { getErrorMessage } from "@/lib/api-error";
 import { Button, Spinner } from "@/components/ui";
 import { Send, Mic, MicOff, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { uploadFile, type FileUploadResponse } from "@/lib/file-api";
-import { getErrorMessage, MAX_UPLOAD_SIZE_MB } from "@/lib/utils";
+import { MAX_UPLOAD_SIZE_MB } from "@/lib/utils";
 import { AttachmentCard, PendingAttachmentCard } from "./attachment-card";
 import {
   BUILTIN_COMMANDS,
@@ -71,6 +72,7 @@ export function ChatInput({
   slashContext,
   commands,
 }: ChatInputProps) {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("chat.input");
   const tCommands = useTranslations("chat.commands");
   const [message, setMessage] = useState("");
@@ -158,30 +160,30 @@ export function ChatInput({
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (showPalette && filteredCommands.length > 0) {
-      if (e.key === t("arrowdown")) {
+      if (e.key === "ArrowDown") {
         e.preventDefault();
         setPaletteIndex((i) => (i + 1) % filteredCommands.length);
         return;
       }
-      if (e.key === t("arrowup")) {
+      if (e.key === "ArrowUp") {
         e.preventDefault();
         setPaletteIndex((i) => (i - 1 + filteredCommands.length) % filteredCommands.length);
         return;
       }
-      if (e.key === t("tab")) {
+      if (e.key === "Tab") {
         // Tab autocompletes to the highlighted command name.
         e.preventDefault();
         const cmd = filteredCommands[paletteIndex];
         if (cmd) setMessage("/" + cmd.name + " ");
         return;
       }
-      if (e.key === t("escape2")) {
+      if (e.key === "Escape") {
         e.preventDefault();
         setMessage("");
         return;
       }
     }
-    if (e.key === t("enter2") && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit(e);
     }
@@ -264,7 +266,7 @@ export function ChatInput({
           const result = await uploadFile(file);
           setAttachedFiles((prev) => [...prev, { file: result, pasted }]);
         } catch (err) {
-          toast.error(`${file.name}: ${getErrorMessage(err, t("uploadFailed"))}`);
+          toast.error(`${file.name}: ${getErrorMessage(err, tErrors, t("uploadFailed"))}`);
         } finally {
           setPending((prev) => prev.filter((p) => p.key !== queued[i]!.key));
         }

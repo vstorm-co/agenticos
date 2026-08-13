@@ -6,7 +6,7 @@ import { Spinner } from "@/components/ui";
 import type { RAGSyncLog, RAGSyncLogList } from "@/lib/rag-api";
 import { apiClient } from "@/lib/api-client";
 import { cn, timeAgo } from "@/lib/utils";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 interface SyncSourceLogsProps {
   /** API path relative to /api, e.g. /kb/xxx/sync-sources/yyy/logs */
@@ -36,6 +36,7 @@ function duration(log: RAGSyncLog): string {
 function LogRow({ log }: { log: RAGSyncLog }) {
   const t = useTranslations("rag");
   const tTime = useTranslations("time");
+  const locale = useLocale();
   return (
     <div className="border-foreground/8 flex items-start gap-3 border-b py-2.5 last:border-0">
       <div className="mt-0.5 shrink-0">{statusIcon(log.status)}</div>
@@ -46,7 +47,9 @@ function LogRow({ log }: { log: RAGSyncLog }) {
             {log.mode}
           </span>
           {log.started_at && (
-            <span className="text-foreground/45 text-[10px]">{timeAgo(log.started_at, tTime)}</span>
+            <span className="text-foreground/45 text-[10px]">
+              {timeAgo(log.started_at, tTime, locale)}
+            </span>
           )}
           <span className="text-foreground/45 text-[10px]">{duration(log)}</span>
         </div>

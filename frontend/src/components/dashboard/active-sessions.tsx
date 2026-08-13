@@ -17,12 +17,13 @@ import {
   AlertDialogTrigger,
   Button,
 } from "@/components/ui";
+import { getErrorMessage } from "@/lib/api-error";
 import { SectionCard } from "@/components/settings/settings-section";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
-import { cn, getErrorMessage, timeAgo } from "@/lib/utils";
+import { cn, timeAgo } from "@/lib/utils";
 import type { SessionListResponse } from "@/types";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 const PAGE_SIZE = 5;
 
@@ -45,9 +46,11 @@ function DeviceIcon({ type }: { type?: string | null }) {
  * emptied and step back to the one before it rather than showing a blank card.
  */
 export function ActiveSessions() {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("dashboard");
   const tc = useTranslations("common");
   const tTime = useTranslations("time");
+  const locale = useLocale();
   const [page, setPage] = useState(0);
   const queryClient = useQueryClient();
 
@@ -151,7 +154,9 @@ export function ActiveSessions() {
           ))}
         </div>
       ) : error ? (
-        <p className="text-destructive text-sm">{getErrorMessage(error, t("couldnTLoadYour"))}</p>
+        <p className="text-destructive text-sm">
+          {getErrorMessage(error, tErrors, t("couldnTLoadYour"))}
+        </p>
       ) : sessions.length === 0 ? (
         <p className="text-muted-foreground text-sm">{t("noSessionDataAvailable")}</p>
       ) : (
@@ -180,7 +185,7 @@ export function ActiveSessions() {
                     </p>
                     <p className="text-muted-foreground truncate text-xs">
                       {session.ip_address && `${session.ip_address} · `}
-                      {t("lastActive", { when: timeAgo(session.last_used_at, tTime) })}
+                      {t("lastActive", { when: timeAgo(session.last_used_at, tTime, locale) })}
                     </p>
                   </div>
                 </div>

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { backendFetch, BackendApiError } from "@/lib/server-api";
+import { BackendApiError, backendFetch, bffRefusal } from "@/lib/server-api";
 
 interface RouteParams {
   params: Promise<{ token: string }>;
@@ -8,7 +8,7 @@ interface RouteParams {
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const accessToken = request.cookies.get("access_token")?.value;
-    if (!accessToken) return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
+    if (!accessToken) return bffRefusal("NOT_AUTHENTICATED", 401);
     const { token } = await params;
     const data = await backendFetch(`/api/v1/invitations/${token}/accept`, {
       method: "POST",
@@ -18,14 +18,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   } catch (error) {
     if (error instanceof BackendApiError)
       return NextResponse.json({ detail: error.message }, { status: error.status });
-    return NextResponse.json({ detail: "Internal server error" }, { status: 500 });
+    return bffRefusal("INTERNAL_SERVER_ERROR", 500);
   }
 }
 
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const accessToken = request.cookies.get("access_token")?.value;
-    if (!accessToken) return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
+    if (!accessToken) return bffRefusal("NOT_AUTHENTICATED", 401);
     const { token } = await params;
     await backendFetch(`/api/v1/invitations/${token}`, {
       method: "DELETE",
@@ -35,6 +35,6 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
   } catch (error) {
     if (error instanceof BackendApiError)
       return NextResponse.json({ detail: error.message }, { status: error.status });
-    return NextResponse.json({ detail: "Internal server error" }, { status: 500 });
+    return bffRefusal("INTERNAL_SERVER_ERROR", 500);
   }
 }

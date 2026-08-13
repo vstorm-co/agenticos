@@ -15,12 +15,13 @@ export async function POST(request: NextRequest) {
       // Ignore - we still want to clear the client cookies even if the
       // server-side invalidation fails (e.g. token already expired).
       if (!(error instanceof BackendApiError)) {
+        // i18n-exempt: a log line for the server console, never rendered.
         console.error("Logout backend call failed:", error);
       }
     }
   }
 
-  const response = NextResponse.json({ message: "Logged out successfully" });
+  const response = NextResponse.json({ ok: true });
 
   response.cookies.set("access_token", "", {
     httpOnly: true,

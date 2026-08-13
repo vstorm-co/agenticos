@@ -3,6 +3,8 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { sourceFiles } from "@/test-utils/source-files";
+
 /**
  * That `next build` asks nothing of a CDN.
  *
@@ -22,14 +24,6 @@ import { describe, expect, it } from "vitest";
 const SRC = join(__dirname, "..", "..");
 const FONTS = __dirname;
 
-function sourceFiles(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(dir, entry.name);
-    if (entry.isDirectory()) return sourceFiles(path);
-    return /\.tsx?$/.test(entry.name) ? [path] : [];
-  });
-}
-
 /**
  * The import statement, not the name. Both this file and `layout.tsx` say what
  * they are avoiding, and a substring match would read those sentences as the
@@ -39,7 +33,7 @@ const GOOGLE_FONT_IMPORT = /from\s+"next\/font\/google"/;
 
 describe("vendored fonts", () => {
   it("no module imports the Google Fonts helper", () => {
-    const offenders = sourceFiles(SRC).filter((path) =>
+    const offenders = sourceFiles(SRC, (name) => /\.tsx?$/.test(name)).filter((path) =>
       GOOGLE_FONT_IMPORT.test(readFileSync(path, "utf8")),
     );
     expect(offenders).toEqual([]);

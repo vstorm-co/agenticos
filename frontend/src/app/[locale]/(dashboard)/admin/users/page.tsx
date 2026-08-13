@@ -30,7 +30,7 @@ import type { AdminUser } from "@/types";
 import { cn, formatDate } from "@/lib/utils";
 import { useChanged } from "@/hooks/use-changed";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
 type SortDir = "asc" | "desc";
 // Keys the backend can sort on (route → service → repo).
@@ -48,6 +48,7 @@ function getInitials(nameOrEmail: string): string {
 export default function AdminUsersPage() {
   const t = useTranslations("pages.admin");
   const tc = useTranslations("common");
+  const locale = useLocale();
   const { users, total, isLoading, fetchUsers, updateUser, deleteUser, impersonateUser } =
     useAdminUsers();
   const [search, setSearch] = useState("");
@@ -192,7 +193,7 @@ export default function AdminUsersPage() {
           </SortHeader>
         ),
         cell: (u) => (
-          <span className="text-muted-foreground text-sm">{formatDate(u.created_at)}</span>
+          <span className="text-muted-foreground text-sm">{formatDate(u.created_at, locale)}</span>
         ),
       },
       {

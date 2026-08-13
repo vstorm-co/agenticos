@@ -98,7 +98,16 @@ beforeEach(() => {
   get.mockImplementation((url: string) =>
     url.startsWith("/auth/me")
       ? Promise.resolve({ ...SIGNED_IN, access_token: "t-1" })
-      : Promise.resolve({ items: [], total: 0 }),
+      : url === "/me/permissions"
+        ? // A real shape, not the list fallback: `usePermissions` reads
+          // `data.permissions` off whatever this answers.
+          Promise.resolve({
+            organization_id: "org-1",
+            role: "member",
+            is_app_admin: false,
+            permissions: [],
+          })
+        : Promise.resolve({ items: [], total: 0 }),
   );
   useAuthStore.setState({
     accessToken: "t-1",

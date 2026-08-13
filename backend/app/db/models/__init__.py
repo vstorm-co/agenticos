@@ -22,6 +22,7 @@ from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.dashboard_preset import DashboardPreset
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.agent_embed import AgentEmbed
+from app.db.models.embed_visitor import EmbedVisitor
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.agent_workspace import AgentWorkspace
@@ -61,6 +62,7 @@ __all__ = [
     "DashboardPreset",
     "McpConnection",
     "AgentEmbed",
+    "EmbedVisitor",
     "Agent",
     "AgentStatus",
     "AgentVersion",

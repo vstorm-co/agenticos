@@ -1,13 +1,15 @@
 """Tests for MCP connections: agents/mcp toolset building + the service layer."""
 
 import contextlib
+import logging
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import httpx
 import pytest
-from mcp.shared.auth import OAuthToken
+from mcp.shared.auth import OAuthMetadata, OAuthToken
+from pydantic import AnyUrl
 from sqlalchemy.exc import IntegrityError
 
 from app.agents import mcp_oauth
@@ -1874,6 +1876,104 @@ class TestOAuthRequestSafety:
 
         assert "redis" not in str(exc_info.value)
         assert "500" in str(exc_info.value)
+
+
+class TestOAuthRefusalsDoNotQuoteTheServer:
+    """An OAuth refusal reaches the browser - as a toast since #657 - so what it
+    may say is written here rather than by whatever raised.
+
+    `httpx` puts the failing request in its message, and the two requests this
+    flow makes are a token grant and a client registration: a URL in that
+    message is an endpoint reached with credentials. The vendor's text is not
+    deleted, it moves to the log beside the raise (#686).
+    """
+
+    _LEAKY_URL = "https://auth.example.com/token?client_secret=shh-9f2c"
+
+    @staticmethod
+    def _discovered() -> mcp_oauth.DiscoveredServer:
+        metadata = OAuthMetadata(
+            issuer=AnyUrl("https://auth.example.com"),
+            authorization_endpoint=AnyUrl("https://auth.example.com/authorize"),
+            token_endpoint=AnyUrl("https://auth.example.com/token"),
+            registration_endpoint=AnyUrl("https://auth.example.com/register"),
+            response_types_supported=["code"],
+        )
+        return mcp_oauth.DiscoveredServer(
+            authorization_endpoint=str(metadata.authorization_endpoint),
+            token_endpoint=str(metadata.token_endpoint),
+            registration_endpoint=str(metadata.registration_endpoint),
+            resource="https://mcp.example.com/",
+            scope=None,
+            metadata=metadata,
+        )
+
+    @pytest.mark.anyio
+    async def test_an_unreachable_token_endpoint_is_named_by_its_class(self, monkeypatch, caplog):
+        vendor_text = f"[Errno 61] Connection refused for {self._LEAKY_URL}"
+
+        async def fake_send(client, request):
+            raise httpx.ConnectError(vendor_text)
+
+        monkeypatch.setattr(mcp_oauth, "_send", fake_send)
+        with (
+            caplog.at_level(logging.ERROR, logger="app.agents.mcp_oauth"),
+            pytest.raises(mcp_oauth.OAuthError) as exc_info,
+        ):
+            await mcp_oauth._token_request(
+                "https://auth.example.com/token", {"grant_type": "refresh_token"}
+            )
+
+        shown = str(exc_info.value)
+        assert "client_secret" not in shown
+        assert self._LEAKY_URL not in shown
+        assert "ConnectError" in shown
+        assert vendor_text in caplog.text
+
+    @pytest.mark.anyio
+    async def test_a_failed_registration_is_named_by_its_class(self, monkeypatch, caplog):
+        vendor_text = f"Server disconnected without sending a response: {self._LEAKY_URL}"
+
+        async def fake_send(client, request):
+            raise httpx.ReadError(vendor_text)
+
+        monkeypatch.setattr(mcp_oauth, "_send", fake_send)
+        with (
+            caplog.at_level(logging.ERROR, logger="app.agents.mcp_oauth"),
+            pytest.raises(mcp_oauth.OAuthError) as exc_info,
+        ):
+            await mcp_oauth.register_client(
+                self._discovered(), "https://app.example.com/oauth/callback"
+            )
+
+        shown = str(exc_info.value)
+        assert "client_secret" not in shown
+        assert self._LEAKY_URL not in shown
+        assert "ReadError" in shown
+        assert vendor_text in caplog.text
+
+    @pytest.mark.anyio
+    async def test_an_unreadable_token_response_does_not_echo_its_input(self, monkeypatch, caplog):
+        """A pydantic `ValidationError` echoes the input it rejected, and here
+        that input is the token payload - so a server that names the field
+        wrongly used to have its own tokens read back to the browser."""
+
+        async def fake_send(client, request):
+            return httpx.Response(200, json={"token": "at-secret-9f2c"}, request=request)
+
+        monkeypatch.setattr(mcp_oauth, "_send", fake_send)
+        with (
+            caplog.at_level(logging.ERROR, logger="app.agents.mcp_oauth"),
+            pytest.raises(mcp_oauth.OAuthError) as exc_info,
+        ):
+            await mcp_oauth._token_request(
+                "https://auth.example.com/token", {"grant_type": "authorization_code"}
+            )
+
+        shown = str(exc_info.value)
+        assert "at-secret-9f2c" not in shown
+        assert "ValidationError" in shown
+        assert "at-secret-9f2c" in caplog.text
 
 
 class TestReadSchema:

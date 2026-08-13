@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { ApiError, getErrorMessage, parseErrorMessage } from "@/lib/api-error";
 import { InviteLinkDialog, InviteMemberDialog, OrgSpendingLimit } from "@/components/teams";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { EmptyState } from "@/components/states";
@@ -41,7 +42,7 @@ import {
 } from "@/hooks";
 import { Perm } from "@/types/permissions";
 import type { OrganizationMember, OrgRole } from "@/types";
-import { formatDate, getErrorMessage, MAX_AVATAR_SIZE_BYTES } from "@/lib/utils";
+import { formatDate, MAX_AVATAR_SIZE_BYTES } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants";
 import { useChanged } from "@/hooks/use-changed";
 
@@ -49,7 +50,7 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 const ROLE_VARIANT: Record<OrgRole, "default" | "secondary" | "outline"> = {
   owner: "default",
   admin: "secondary",
@@ -69,8 +70,10 @@ function getInitials(nameOrEmail: string): string {
 }
 
 export default function OrgMembersPage({ params }: PageProps) {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("pages.orgs");
   const tc = useTranslations("common");
+  const locale = useLocale();
   const { id } = use(params);
   const { user } = useAuth();
   const { members, total, isLoading, fetchMembers, changeRole, removeMember } = useMembers(id);
@@ -130,13 +133,13 @@ export default function OrgMembersPage({ params }: PageProps) {
       fd.append("file", file);
       const res = await fetch(`/api/orgs/${id}/avatar`, { method: "POST", body: fd });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: t("uploadFailed") }));
-        throw new Error(err.detail || t("uploadFailed2"));
+        const body: unknown = await res.json().catch(() => null);
+        throw new ApiError(res.status, parseErrorMessage(body, t("uploadFailed2")), body);
       }
       toast.success(t("workspaceAvatarUpdated"));
       await fetchOrgs(true);
     } catch (err) {
-      toast.error(getErrorMessage(err, t("failedUploadAvatar")));
+      toast.error(getErrorMessage(err, tErrors, t("failedUploadAvatar")));
     } finally {
       setAvatarUploading(false);
     }
@@ -203,7 +206,7 @@ export default function OrgMembersPage({ params }: PageProps) {
         key: "joined",
         header: t("joined"),
         cell: (m) => (
-          <span className="text-muted-foreground text-sm">{formatDate(m.joined_at)}</span>
+          <span className="text-muted-foreground text-sm">{formatDate(m.joined_at, locale)}</span>
         ),
       },
     ];
@@ -403,10 +406,10 @@ export default function OrgMembersPage({ params }: PageProps) {
                         )}
                       </>
                     ) : (
-                      <>{t("invitedOn", { date: formatDate(inv.created_at) })}</>
+                      <>{t("invitedOn", { date: formatDate(inv.created_at, locale) })}</>
                     )}
                     {inv.expires_at && (
-                      <> · {t("expiresOn", { date: formatDate(inv.expires_at) })}</>
+                      <> · {t("expiresOn", { date: formatDate(inv.expires_at, locale) })}</>
                     )}
                   </p>
                 </div>

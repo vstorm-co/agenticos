@@ -52,6 +52,24 @@ def workflow() -> dict[str, Any]:
     return loaded
 
 
+_CUT_PATHS = [
+    "CHANGELOG.md",
+    "backend/pyproject.toml",
+    "backend/uv.lock",
+    "frontend/package.json",
+]
+"""Exactly what `chore: cut 0.0.x` touches."""
+
+_CUT_PATCHES = {
+    "backend/pyproject.toml": '@@ -1,7 +1,7 @@\n-version = "0.0.126"\n+version = "0.0.127"\n',
+    "backend/uv.lock": '@@ -10,7 +10,7 @@\n-version = "0.0.126"\n+version = "0.0.127"\n',
+    "frontend/package.json": (
+        '@@ -1,5 +1,5 @@\n-  "version": "0.0.126",\n+  "version": "0.0.127",\n'
+    ),
+}
+"""The diffs of that cut, in the shape `pulls/{n}/files` reports them."""
+
+
 class TestNothingUnrecognisedIsEverSkipped:
     """The direction that matters. A path nobody classified must run everything."""
 
@@ -131,22 +149,92 @@ class TestWhatMayBeSkipped:
         assert ci_changed_scope.scope(["backend/app/main.py"])["e2e"] is True
         assert ci_changed_scope.scope(["frontend/src/app/page.tsx"])["e2e"] is True
 
-    def test_a_release_bump_runs_everything(self) -> None:
-        """Worth stating: `chore: cut 0.0.x` touches both halves, so it skips nothing.
+    def test_a_release_bump_with_no_patches_still_runs_everything(self) -> None:
+        """The paths alone prove nothing, and this is the direction that is safe.
 
-        #317 originally claimed a release pull request would stop paying for the
-        whole matrix. It does not - the version lives in `backend/pyproject.toml`,
-        `backend/uv.lock` and `frontend/package.json`, so every filter matches.
+        Those three files carry the version *and* the dependency lists, the
+        coverage `include` lists and the ruff and ty configuration. Without the
+        diff there is nothing to tell one from the other, so the answer is the
+        expensive one - which is also what a push to `main` gets, where the
+        classifier does not run at all.
         """
-        decided = ci_changed_scope.scope(
-            [
-                "CHANGELOG.md",
-                "backend/pyproject.toml",
-                "backend/uv.lock",
-                "frontend/package.json",
-            ]
-        )
+        decided = ci_changed_scope.scope(_CUT_PATHS)
+
         assert decided == {"backend": True, "frontend": True, "e2e": True}
+
+    def test_a_release_bump_whose_diff_is_only_the_version_skips_all_three(self) -> None:
+        """What #317 claimed a release pull request would do, and did not.
+
+        A CHANGELOG entry is already exempt for being a top-level `*.md`, so once
+        the three version strings are proved to be version strings there is nothing
+        left in the change set that any suite can observe.
+        """
+        decided = ci_changed_scope.scope(_CUT_PATHS, _CUT_PATCHES)
+
+        assert decided == {"backend": False, "frontend": False, "e2e": False}
+
+    def test_a_dependency_added_beside_the_bump_runs_everything(self) -> None:
+        """One unrecognised line in the diff is enough, which is the whole point:
+        the exemption is about what changed, not about which file it changed in."""
+        patches = {
+            **_CUT_PATCHES,
+            "backend/pyproject.toml": (
+                '@@ -1,7 +1,8 @@\n-version = "0.0.126"\n+version = "0.0.127"\n+    "httpx>=0.28",\n'
+            ),
+        }
+
+        assert ci_changed_scope.scope(_CUT_PATHS, patches)["backend"] is True
+
+    def test_a_coverage_include_list_edited_beside_the_bump_runs_everything(self) -> None:
+        """The 100% gate is configured in the same file the version lives in, and
+        adding a module to it is exactly a change the backend suite decides."""
+        patches = {
+            **_CUT_PATCHES,
+            "backend/pyproject.toml": (
+                '@@ -1,7 +1,8 @@\n-version = "0.0.126"\n+version = "0.0.127"\n'
+                '+    "app/services/embed_session.py",\n'
+            ),
+        }
+
+        assert ci_changed_scope.scope(_CUT_PATHS, patches)["backend"] is True
+
+    def test_a_version_file_with_no_patch_of_its_own_runs_everything(self) -> None:
+        """GitHub omits `patch` for a file too large to inline, and an absent proof
+        is not a proof."""
+        patches = {path: text for path, text in _CUT_PATCHES.items() if path != "backend/uv.lock"}
+
+        assert ci_changed_scope.scope(_CUT_PATHS, patches)["backend"] is True
+
+    def test_a_patch_that_changes_nothing_is_not_a_version_bump(self) -> None:
+        """A diff of context lines alone would otherwise vacuously pass `all()`,
+        which is the same `all()`-over-nothing trap the empty change set has."""
+        patches = {**_CUT_PATCHES, "frontend/package.json": '@@ -1,3 +1,3 @@\n   "name": "x",\n'}
+
+        assert ci_changed_scope.scope(_CUT_PATHS, patches)["frontend"] is True
+
+    def test_a_source_file_beside_a_version_bump_still_runs_its_suite(self) -> None:
+        """The exemption is per path and the proof is over all of them, so a cut
+        that smuggled a module in with it is not a cut."""
+        decided = ci_changed_scope.scope(
+            [*_CUT_PATHS, "backend/app/services/agent_runner.py"], _CUT_PATCHES
+        )
+
+        assert decided == {"backend": True, "frontend": False, "e2e": True}
+
+    def test_a_dependency_pinned_to_a_version_is_not_a_version_line(self) -> None:
+        """`_VERSION_LINE` is anchored end to end, so a lockfile entry naming some
+        other package's version does not read as this package's own."""
+        patches = {
+            **_CUT_PATCHES,
+            "backend/uv.lock": (
+                '@@ -1,4 +1,4 @@\n-name = "fastapi"\n+name = "fastapi"\n'
+                '-version = "0.115.0"\n+version = "0.116.0"\n'
+            ),
+        }
+
+        # The version *line* matches - it is the same spelling - but the `name`
+        # lines beside it do not, and one unrecognised line is enough.
+        assert ci_changed_scope.scope(_CUT_PATHS, patches)["backend"] is True
 
     def test_a_nested_markdown_file_is_not_documentation(self) -> None:
         """Only a *top-level* `*.md` is exempt; `backend/app/README.md` is not."""

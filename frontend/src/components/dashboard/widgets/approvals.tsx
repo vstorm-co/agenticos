@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { useApprovals } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
@@ -20,6 +20,7 @@ import type { DashboardWidgetProps } from "./types";
 export function ApprovalsWidget({ title, seeAll }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.approvals");
   const tTime = useTranslations("time");
+  const locale = useLocale();
   const { approvals, total, isLoading, error, refetch } = useApprovals();
 
   return (
@@ -41,7 +42,7 @@ export function ApprovalsWidget({ title, seeAll }: DashboardWidgetProps) {
                   </span>
                   {approval.created_at ? (
                     <span className="text-muted-foreground block text-xs">
-                      {t("waiting", { ago: timeAgo(approval.created_at, tTime) })}
+                      {t("waiting", { ago: timeAgo(approval.created_at, tTime, locale) })}
                     </span>
                   ) : null}
                 </span>

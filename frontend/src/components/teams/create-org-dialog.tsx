@@ -26,6 +26,7 @@ interface CreateOrgDialogProps {
 }
 
 export function CreateOrgDialog({ open, onOpenChange, onCreated }: CreateOrgDialogProps) {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("teams");
   const [name, setName] = useState("");
   const [nameError, setNameError] = useState<string | null>(null);
@@ -45,7 +46,7 @@ export function CreateOrgDialog({ open, onOpenChange, onCreated }: CreateOrgDial
     } catch (error) {
       // The slug is derived server-side and made unique, so the only thing that
       // can be wrong here is the name - which is why it belongs under it.
-      const failure = submitFailure(error, { fields: ["name"], identifiedBy: "name" });
+      const failure = submitFailure(error, { fields: ["name"], identifiedBy: "name" }, tErrors);
       setNameError(failure.fields.name ?? null);
       if (failure.toast) toast.error(failure.toast);
     } finally {

@@ -16,6 +16,7 @@ from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundErr
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.db.models.skill import Skill
+from app.schemas.skill import SkillResourceUpdate, SkillUpdate
 from app.services.skill_library import LibraryResource, LibrarySkill
 from app.services.skills import (
     MAX_RESOURCE_BYTES,
@@ -601,7 +602,9 @@ class TestSkillManagement:
                 "app.services.skills.skill_repo.update", new=AsyncMock(return_value=skill)
             ) as update,
         ):
-            updated = await SkillService(_db()).update(ctx, skill.id, {"content": "# New policy"})
+            updated = await SkillService(_db()).update(
+                ctx, skill.id, SkillUpdate(content="# New policy")
+            )
 
         assert update.call_args.kwargs["update_data"] == {
             "content": "# New policy",
@@ -626,7 +629,7 @@ class TestSkillManagement:
             patch("app.services.skills.skill_repo.update", new=AsyncMock(return_value=skill)),
             patch("app.services.skills.record_audit", new=AsyncMock()) as audit,
         ):
-            await SkillService(_db()).update(ctx, skill.id, {"content": "# New policy"})
+            await SkillService(_db()).update(ctx, skill.id, SkillUpdate(content="# New policy"))
 
         recorded = audit.call_args.kwargs
         assert recorded["action"] == "skill.updated"
@@ -648,7 +651,7 @@ class TestSkillManagement:
             patch("app.services.skills.skill_repo.update", new=AsyncMock()) as update,
             pytest.raises(NotFoundError),
         ):
-            await SkillService(_db()).update(ctx, skill.id, {"content": "# Rewritten"})
+            await SkillService(_db()).update(ctx, skill.id, SkillUpdate(content="# Rewritten"))
 
         assert update.await_count == 0
 
@@ -1186,7 +1189,9 @@ class TestSkillFiles:
         repo.get_resource.return_value = stored
         repo.update_resource.return_value = stored
 
-        updated = await service.update_resource(ctx, skill.id, stored.id, {"content": "# New"})
+        updated = await service.update_resource(
+            ctx, skill.id, stored.id, SkillResourceUpdate(content="# New")
+        )
 
         assert updated is stored
         assert repo.update_resource.await_args.kwargs["update_data"] == {"content": "# New"}
@@ -1202,7 +1207,9 @@ class TestSkillFiles:
         repo.get_resource.return_value = None
 
         with pytest.raises(NotFoundError):
-            await service.update_resource(ctx, skill.id, uuid.uuid4(), {"content": "# New"})
+            await service.update_resource(
+                ctx, skill.id, uuid.uuid4(), SkillResourceUpdate(content="# New")
+            )
 
         repo.update_resource.assert_not_awaited()
         repo.update.assert_not_awaited()

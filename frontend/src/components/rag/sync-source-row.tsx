@@ -1,7 +1,7 @@
 "use client";
 
 import { Plug, RotateCw, Trash2 } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui";
 import { BrandIcon, connectorBrand } from "@/components/icons/brand-icon";
@@ -24,7 +24,8 @@ export function SyncSourceRow({
   onDelete?: () => void;
 }) {
   const t = useTranslations("pages.kb");
-  const lastSync = source.last_sync_at ? formatDateTime(source.last_sync_at) : t("never");
+  const locale = useLocale();
+  const lastSync = source.last_sync_at ? formatDateTime(source.last_sync_at, locale) : t("never");
   const brand = connectorBrand(source.connector_type);
   return (
     <li className="overflow-hidden">

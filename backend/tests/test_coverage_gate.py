@@ -83,6 +83,7 @@ PLATFORM_MODULES = (
     "app/services/audit.py",
     "app/services/channels/mentions.py",
     "app/services/collection_access.py",
+    "app/services/embed_session.py",
     "app/services/embedding_resolution.py",
     "app/services/health.py",
     "app/services/ingestion_config.py",

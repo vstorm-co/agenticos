@@ -28,6 +28,7 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 // `t.rich is not a function` inside a render, several files from the assertion.
 const translators = new Map<string, (key: string) => string>();
 vi.mock("next-intl", () => ({
+  useLocale: () => "en",
   useTranslations: (ns: string) => {
     const cached = translators.get(ns);
     if (cached !== undefined) return cached;

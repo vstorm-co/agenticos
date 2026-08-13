@@ -56,6 +56,7 @@ from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundErr
 from app.core.permissions import AuthContext
 from app.core.vault import SealedSecret, VaultScope, seal, unseal
 from app.db.models.mcp_connection import McpConnection
+from app.db.updates import writable
 from app.repositories import mcp_connection_repo
 from app.schemas.mcp_connection import (
     McpConnectionCreate,
@@ -314,8 +315,8 @@ class McpConnectionService:
         self, *, user_id: UUID, connection_id: UUID, data: McpConnectionUpdate
     ) -> McpConnection:
         db_connection = await self._get_owned(user_id=user_id, connection_id=connection_id)
-        update_data: dict[str, Any] = data.model_dump(
-            exclude_unset=True, exclude={"clear_allowed_tools"}
+        update_data: dict[str, Any] = writable(
+            data, over=McpConnection, exclude={"clear_allowed_tools"}
         )
 
         if "url" in update_data:
@@ -657,8 +658,8 @@ class McpConnectionService:
         self, ctx: AuthContext, *, connection_id: UUID, data: OrgMcpConnectionUpdate
     ) -> McpConnection:
         db_connection = await self._get_org(ctx, connection_id)
-        update_data: dict[str, Any] = data.model_dump(
-            exclude_unset=True, exclude={"clear_allowed_tools"}
+        update_data: dict[str, Any] = writable(
+            data, over=McpConnection, exclude={"clear_allowed_tools"}
         )
 
         if "url" in update_data:
