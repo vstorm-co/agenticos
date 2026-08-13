@@ -2710,7 +2710,8 @@ class AgentRunnerService:
         here rather than by the caller because where an attachment *goes* depends
         on whether the agent has a workspace, and only `prepare` knows that - the
         same reason the streaming path routes them after preparing rather than
-        before.
+        before. They are also what the transcript links its user turn to, so a
+        caller has nothing left to remember about a file it handed over.
 
         `outbound` and `outbound_refused` are filled with what the agent produced
         and what a reply cannot carry. Lists the caller passes in rather than a
@@ -2746,6 +2747,7 @@ class AgentRunnerService:
             message_history=message_history,
             deferred_tool_results=None,
             stream=stream,
+            attachments=attachments or (),
         )
         if outbound is not None:
             outbound.extend(prepared.outbound)
@@ -3100,6 +3102,7 @@ class AgentRunnerService:
         message_history: list[Any] | None,
         deferred_tool_results: DeferredToolResults | None,
         stream: RunStream | None = None,
+        attachments: Sequence[ChatFile] = (),
     ) -> RunSegment:
         """Execute the agent and account for it, however it ends.
 
@@ -3115,6 +3118,10 @@ class AgentRunnerService:
         described. A thing four surfaces have to remember is a thing the fifth
         will not. The streaming chat does not come through here and keeps writing
         its own, because it has events to attach and a socket to answer on.
+
+        `attachments` travel this far for that write: the user turn is created
+        there, so there is nowhere earlier to hang the files a message arrived
+        with. Empty on a resume, which records no prompt at all.
 
         **A cancellation is one of those endings, and it needs both halves.**
         `asyncio.CancelledError` is a `BaseException`, so it reaches neither
@@ -3205,6 +3212,7 @@ class AgentRunnerService:
                 tool_calls=called,
                 settled=settled,
                 model_label=prepared.built.model_label,
+                attachments=attachments,
             )
             # Committed here rather than left to the session context: that exit
             # rolls back on any exception, and cancellation never reaches it at

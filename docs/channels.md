@@ -643,6 +643,15 @@ The size is checked twice on purpose: against what the platform *claims* before
 anything is fetched, because downloading a gigabyte to then reject it is the
 attack, and against the bytes afterwards, because a claim is not a measurement.
 
+**A file the turn ran on belongs to that turn.** Its `ChatFile` row is linked to the
+user message the run's transcript writes, exactly as a web upload is linked to the
+message somebody typed — so a transcript of a channel thread shows the spreadsheet
+beside the question it was asked about. It matters more here than it reads:
+`chat_files` carries no organization, so a row with no message is scoped by the
+sender alone, reachable through `GET /files/{id}` by its owner and by nothing else.
+Every channel turn used to leave one that way, because linking was done by the one
+surface that writes its own transcript.
+
 Fetching a file needs a second authenticated request on every platform, which is
 why an attachment arrives as a handle rather than as content:
 

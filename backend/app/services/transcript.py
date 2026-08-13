@@ -38,12 +38,14 @@ from pydantic_ai.messages import (
     ToolReturnPart,
 )
 
+from app.repositories import chat_file_repo
 from app.repositories import conversation as conversation_repo
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from app.db.models.agent_run import AgentRun
+    from app.db.models.chat_file import ChatFile
 
 logger = logging.getLogger(__name__)
 
@@ -147,12 +149,22 @@ class TranscriptService:
         tool_calls: Sequence[RecordedToolCall] = (),
         settled: Mapping[str, str] | None = None,
         model_label: str | None = None,
+        attachments: Sequence[ChatFile] = (),
     ) -> None:
         """Write whatever this run produced, and never fail the run for it.
 
         `prompt` is `None` where there is nothing new to record: a resumed run
         picks up at the tool call it stopped on, and inventing a user turn there
         would put words in somebody's mouth.
+
+        `attachments` are the files that arrived with that prompt, and they are
+        linked to the user turn written here because this is where that message
+        first exists. A channel bot stored a `ChatFile`, fed it to the agent and
+        then left `message_id` NULL for ever: `chat_files` carries no
+        organization, so an unlinked row is scoped by `user_id` alone and the
+        conversation it belongs to does not know the file exists (#690). Only
+        web chat linked them, from the one surface that writes its own
+        transcript.
 
         An empty `answer` is written when the run called something, and skipped
         when it did not. A blank assistant message with nothing under it reads as
@@ -190,12 +202,17 @@ class TranscriptService:
         try:
             async with self.db.begin_nested():
                 if prompt:
-                    await conversation_repo.create_message(
+                    user_message = await conversation_repo.create_message(
                         self.db,
                         conversation_id=run.conversation_id,
                         role="user",
                         content=prompt,
                         run_id=run.id,
+                    )
+                    await chat_file_repo.link_to_message(
+                        self.db,
+                        message_id=user_message.id,
+                        file_ids=[attachment.id for attachment in attachments],
                     )
                 for tool_call_id, result in (settled or {}).items():
                     await self._settle(run, tool_call_id=tool_call_id, result=result)

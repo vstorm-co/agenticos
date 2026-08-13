@@ -318,3 +318,49 @@ class TestTheDefaultAgentRecordsItsTranscript:
             question="what is the refund window",
             answer="The refund window is 30 days.",
         )
+
+    async def test_a_channel_turn_links_the_file_it_ran_on_to_the_user_message(self) -> None:
+        """A file dropped on a bot is stored, read by the agent, and then belongs
+        to the turn it was asked about. It used to keep `message_id` NULL for
+        ever, because only web chat linked one - and `chat_files` carries no
+        organization, so an unlinked row is scoped by `user_id` alone and the
+        conversation holding the question does not know the file exists (#690).
+        """
+        exposure, agent = MagicMock(is_active=True), MagicMock(id=uuid.uuid4(), slug="support")
+        run = AsyncMock(return_value=_searched_then_answered("Row 12 is the outlier."))
+        attachment = MagicMock(id=uuid.uuid4(), filename="q3.csv", parsed_content="a,b\n1,2")
+        user_message, assistant_message = MagicMock(id=uuid.uuid4()), MagicMock(id=uuid.uuid4())
+
+        with (
+            _run_yielding(run) as (_captured, conversations),
+            patch("app.services.transcript.chat_file_repo") as chat_files,
+            patch(
+                "app.services.channels.mentions.agent_exposure_repo.list_active_for_bot",
+                new=AsyncMock(return_value=[(exposure, agent)]),
+            ),
+            patch(
+                "app.services.channels.mentions.member_repo.get",
+                new=AsyncMock(return_value=MagicMock(role="builder")),
+            ),
+            patch.object(
+                ChannelAgentRouter,
+                "_with_usage",
+                new=AsyncMock(side_effect=lambda _ctx, answer, _run, **_kw: answer),
+            ),
+        ):
+            conversations.create_message = AsyncMock(side_effect=[user_message, assistant_message])
+            chat_files.link_to_message = AsyncMock()
+            await ChannelAgentRouter(_db()).answer_default(
+                "which row is the outlier",
+                platform="slack",
+                organization_id=uuid.uuid4(),
+                bot_id=uuid.uuid4(),
+                user_id=uuid.uuid4(),
+                conversation_id=uuid.uuid4(),
+                platform_chat_id="C123",
+                attachments=[attachment],
+            )
+
+        linked = chat_files.link_to_message.await_args.kwargs
+        assert linked["file_ids"] == [attachment.id]
+        assert linked["message_id"] == user_message.id
