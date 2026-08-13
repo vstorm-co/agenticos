@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import EmailStr, Field, field_validator
+from pydantic import AfterValidator, EmailStr, Field, field_validator
 
 from app.core.permissions import OrgRoleName
 from app.schemas.base import BaseSchema, TimestampSchema
@@ -103,24 +103,28 @@ class OrganizationMemberList(BaseSchema):
     total: int
 
 
+def _invitable_role(v: str) -> str:
+    allowed = {role.value for role in OrgRoleName} - {OrgRoleName.OWNER.value}
+    if v not in allowed:
+        raise ValueError(f"Role must be one of: {', '.join(sorted(allowed))}")
+    return v
+
+
+# An invitation cannot make someone an owner - ownership transfers explicitly.
+# A link takes the same bound: it is built to be shared, so an unvalidated role
+# on it was a mintable owner credential (#551).
+InvitableRole = Annotated[str, AfterValidator(_invitable_role)]
+
+
 class InvitationCreate(BaseSchema):
     email: EmailStr
-    role: str = "member"
-
-    @field_validator("role")
-    @classmethod
-    def role_valid(cls, v: str) -> str:
-        # An invitation cannot make someone an owner - ownership transfers explicitly.
-        allowed = {role.value for role in OrgRoleName} - {OrgRoleName.OWNER.value}
-        if v not in allowed:
-            raise ValueError(f"Role must be one of: {', '.join(sorted(allowed))}")
-        return v
+    role: InvitableRole = "member"
 
 
 class InviteLinkCreate(BaseSchema):
     """A shareable link, as an administrator asks for one."""
 
-    role: str = Field(default="member", max_length=20)
+    role: InvitableRole = "member"
     max_uses: int | None = Field(
         default=None,
         ge=1,
