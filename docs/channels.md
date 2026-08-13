@@ -1137,6 +1137,18 @@ reaches the agent the same way a web upload does, and is **read back the same wa
 the file is a row on the turn it arrived with, so the thread in `/chat` shows a card
 rather than the briefing the model was given about it.
 
+**On every transport, because each adapter has exactly one parser.** Each platform
+has two ways in — a webhook and a stream, or long-polling — and the second one used
+to build its own normalised message: Telegram's polling loop read text and nothing
+else, and the Mattermost outgoing webhook read no `file_ids` at all. Both now put
+their update back into the shape the platform sends and hand it to the same
+`parse_incoming`, so what counts as a message is decided once. It had been decided
+twice, and the copies disagreed about files — which mattered most on the paths a
+self-hosted deployment actually runs. What each transport is *handed* still
+differs, and that is the platform's doing rather than ours: Telegram's polling
+loop subscribes to new messages only, so an edit reaches the webhook receiver and
+never the poller.
+
 **Inbound** is the web upload path reached differently. The bytes come from a
 platform instead of a browser and then go through exactly what a web upload gets:
 the MIME allowlist, `MAX_UPLOAD_SIZE`, the parser, storage, and a `ChatFile` row.
