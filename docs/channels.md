@@ -633,21 +633,30 @@ Two ways in; pick by whether your Mattermost can reach this deployment.
 
 **Every** post, which is the thing to know about this transport: the socket is not
 a subscription to messages aimed at the bot, it is the channel. So the rule is the
-one a colleague follows:
+one a colleague follows — and it belongs to the bot rather than to one way of
+reaching it, so the outgoing webhook below obeys the same table:
 
 | Where | When it answers |
 |---|---|
 | **A direct message** | Always. There is nobody else in the room, so requiring a mention would be asking somebody to address the only participant |
 | **A channel** | Only when it is named — `@the-bot`, or `@agent-slug` for one of the agents exposed on it |
 
-The bot resolves its own account once per stream session and reads Mattermost's
-own mention list off each event, rather than matching text: `@ada` is somebody
-whose display name the bot cannot resolve, and a bot called `bot` should not answer
-the word "robot". An `@agent-slug` is the exception that has to be read from the
-text — a slug is a name in *this* product, so it is never in a mention list. A
-handle that turns out to name neither the bot nor one of its agents is answered in
-a direct message and passed over in a channel, because there it was somebody's
-colleague.
+*How* it knows it was named is the transport's, because the two payloads say
+different things:
+
+| Transport | What it reads |
+|---|---|
+| **Event stream** | Mattermost's own mention list on each `posted` event, against the account the bot resolves once per session |
+| **Outgoing webhook** | The `trigger_word` the integration fired on. The body carries no mention list, so `@the-bot` cannot be read here — set the trigger word to the bot's handle if that is how people should reach it |
+
+An `@agent-slug` needs neither and works on both: it is read out of the text,
+because a slug is a name in *this* product and so is never in a mention list.
+
+The stream reads the list rather than matching text for the same reason: `@ada` is
+somebody whose display name the bot cannot resolve, and a bot called `bot` should
+not answer the word "robot". A handle that turns out to name neither the bot nor
+one of its agents is answered in a direct message and passed over in a channel,
+because there it was somebody's colleague.
 
 **`@channel`, `@all`, `@here` and `@everyone` address the room, not an agent.**
 They have the shape of a slug, and a channel-wide mention puts every member of the
@@ -656,9 +665,11 @@ read as a message naming an agent nobody has. Those four handles are never a
 mention here, and an agent named after one gets `-agent` on the end of its handle so
 it stays reachable.
 
-If the bot's own account cannot be resolved, it answers everything, as it did
-before this rule existed: going quiet on a server that would not say who we are is
-the worse of the two failures.
+If the bot's own account cannot be resolved, the stream answers everything, as it
+did before this rule existed: going quiet on a server that would not say who we
+are is the worse of the two failures. The webhook has no such fallback and does
+not need one — an integration with no trigger word is a channel filter, and a
+channel filter says nothing about who a post was for.
 
 **Outgoing webhook.** For a Mattermost that can reach this API.
 
@@ -666,7 +677,9 @@ the worse of the two failures.
 2. *System Console → Integrations → Outgoing Webhooks → Add*, with the callback
    URL `https://your-api.example.com/api/v1/mattermost/BOT_ID/webhook` — the bot
    id is on the row once it is registered, and `channel-webhook-register` prints
-   the whole URL.
+   the whole URL. Its **trigger words** are what addresses the bot on this
+   transport, per the table above; leave them empty and only an `@agent-slug`
+   reaches it in a channel.
 3. Mattermost shows a **token** when the webhook is saved. Paste that into the
    bot's **Webhook token** field here.
 
