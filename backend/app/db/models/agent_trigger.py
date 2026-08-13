@@ -217,10 +217,11 @@ class AgentTrigger(Base, TimestampMixin):
         nullable=True,
     )
 
-    # The single run-log conversation every fire appends to. Opened on the first
-    # fire (a per-fire conversation would be ~1440 rows a day on the interval
-    # floor) and reused after. SET NULL so deleting the conversation reopens a
-    # fresh log on the next fire rather than losing the schedule.
+    # The single run-log conversation every fire appends to. Opened when the
+    # trigger is created (a per-fire conversation would be ~1440 rows a day on
+    # the interval floor) and reused after. SET NULL so deleting the
+    # conversation reopens a fresh log on the next fire rather than losing the
+    # schedule.
     conversation_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("conversations.id", ondelete="SET NULL"),

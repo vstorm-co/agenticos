@@ -131,6 +131,16 @@ class TestEmailMatching:
             config={"sender_contains": "@trusted.co"},
         )
 
+    def test_subject_and_sender_filters_match_regardless_of_case(self):
+        # A domain is case-insensitive by spec and "invoice" should catch "Invoice";
+        # a case-sensitive filter would never fire and never say why.
+        assert trigger_events.event_matches(
+            "email",
+            headers={},
+            payload={"subject": "Invoice #12", "from": "billing@Vstorm.co"},
+            config={"subject_contains": "invoice", "sender_contains": "@vstorm.co"},
+        )
+
 
 class TestRenderContext:
     def test_a_github_issue_renders_its_number_title_and_body(self):
@@ -169,6 +179,29 @@ class TestRenderContext:
             "email", payload={"from": "a@b.co", "subject": "Hi", "text": "plain text body"}
         )
         assert "plain text body" in context
+
+    def test_a_giant_github_issue_body_is_clipped_and_its_header_survives(self):
+        context = trigger_events.render_context(
+            "github",
+            payload={
+                "action": "opened",
+                "repository": {"full_name": "acme/widgets"},
+                "issue": {"number": 7, "title": "It broke", "body": "x" * 10000},
+            },
+        )
+        assert "#7: It broke" in context
+        assert "truncated" in context
+        assert len(context) < 3000
+
+    def test_a_giant_email_body_is_clipped_and_its_header_survives(self):
+        context = trigger_events.render_context(
+            "email",
+            payload={"from": "a@b.co", "subject": "Hello", "body": "y" * 10000},
+        )
+        assert "From: a@b.co" in context
+        assert "Subject: Hello" in context
+        assert "truncated" in context
+        assert len(context) < 3000
 
 
 class TestLinkedinAndWebhook:
@@ -212,6 +245,14 @@ class TestLinkedinAndWebhook:
             config={"text_contains": "launch"},
         )
 
+    def test_a_linkedin_author_and_text_filter_match_regardless_of_case(self):
+        assert trigger_events.event_matches(
+            "linkedin",
+            headers={},
+            payload={"author": "Jane DOE", "text": "We SHIPPED it"},
+            config={"author_contains": "doe", "text_contains": "shipped"},
+        )
+
     def test_a_linkedin_post_renders_its_author_and_text(self):
         context = trigger_events.render_context(
             "linkedin",
@@ -219,6 +260,15 @@ class TestLinkedinAndWebhook:
         )
         assert "Author: Jane" in context
         assert "We shipped it" in context
+
+    def test_a_giant_linkedin_body_is_clipped_and_its_header_survives(self):
+        context = trigger_events.render_context(
+            "linkedin",
+            payload={"author": "Jane", "url": "https://li/x", "text": "z" * 10000},
+        )
+        assert "Author: Jane" in context
+        assert "truncated" in context
+        assert len(context) < 3000
 
     def test_a_generic_webhook_always_matches_once_verified(self):
         # The sender chose to deliver; filtering is its job, not the trigger's.

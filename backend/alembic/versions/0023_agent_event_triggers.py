@@ -42,7 +42,7 @@ down_revision = "0022_agent_triggers"
 branch_labels = None
 depends_on = None
 
-# The pre-0014 shape check, restored on downgrade. Kept as a constant so the
+# The 0022 shape check, restored on downgrade. Kept as a constant so the
 # upgrade's drop and the downgrade's recreate name the same expression.
 _SCHEDULE_SHAPE = (
     "(schedule_kind = 'interval' AND interval_seconds IS NOT NULL "

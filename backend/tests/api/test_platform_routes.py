@@ -117,6 +117,10 @@ class _Absent:
 
 _SERVICE_DEPS = (
     deps.get_agent_registry_service,
+    # The org-wide `GET /triggers` is the one gated trigger route, so past its gate
+    # the stub answers 404 like the rest; the per-agent routes are ungated and never
+    # reach this sweep.
+    deps.get_agent_trigger_service,
     deps.get_agent_exposure_service,
     # Same shape again: a widget is one agent's public face, so who may publish
     # or take one down is `agents:publish` on that agent, resolved against its
@@ -229,6 +233,10 @@ CALLS: tuple[Call, ...] = (
             }
         },
     ),
+    # The org-wide trigger listing: a collection route gated on seeing agents, the
+    # same coarse door as `GET /agents`. Per-agent trigger routes stay ungated and
+    # let the service resolve `agents:run` per row.
+    Call("GET", "/triggers", Perm.AGENTS_VIEW),
     Call("GET", "/runs", Perm.RUNS_VIEW),
     Call(
         "GET",
@@ -633,10 +641,11 @@ _PLATFORM_PREFIXES = (
     "/sandbox-connections",
     "/sandbox-workspaces",
     "/skill-changes",
-    # The org-wide trigger listing, which mirrors `/runs`: no `require()`, the
-    # service resolves scope and grants per agent. Without the prefix the sweep
-    # would pass over `GET /triggers` and its "gated or resource-aware" claim
-    # would not actually cover it. (Per-agent triggers live under `/agents`.)
+    # The org-wide trigger listing, gated on `agents:view` like its siblings
+    # `GET /agents` and `GET /runs`, with the service still resolving scope and
+    # grants per agent behind the gate. Without the prefix the sweep would pass
+    # over `GET /triggers` and its "gated or resource-aware" claim would not
+    # actually cover it. (Per-agent triggers live under `/agents`.)
     "/triggers",
 )
 
