@@ -56,12 +56,23 @@ def _agent(*, agent_id: uuid.UUID | None = None, name: str = "Nightly") -> Magic
 def _service(agent: MagicMock | None = None) -> AgentTriggerService:
     service = AgentTriggerService(MagicMock())
     service.db.flush = AsyncMock()
-    # `create` and `run_now` refresh the row before returning it, so it serializes
-    # without a MissingGreenlet on a live session; the mock must await.
+    # `create` refreshes the row before returning it, so it serializes without a
+    # MissingGreenlet on a live session; the mock must await.
     service.db.refresh = AsyncMock()
+    # `spawn_after_commit` queues on `Session.info`, a plain dict SQLAlchemy keeps
+    # per unit of work. A MagicMock would swallow the append and leave the queued
+    # coroutine un-awaited.
+    service.db.info = {}
     service.agents = MagicMock()
     service.agents.get = AsyncMock(return_value=agent or _agent())
     return service
+
+
+async def _run_deferred(db: MagicMock) -> None:
+    """Run what the session deferred, as `_managed_session` does after its commit."""
+    for queue in db.info.values():
+        for deferred in queue:
+            await deferred.coro
 
 
 def _trigger(**overrides: object) -> MagicMock:
@@ -482,39 +493,79 @@ class TestChangingASchedule:
         assert next_fire < datetime.now(UTC) + timedelta(seconds=360)
 
 
+@pytest.fixture
+def fired(monkeypatch: pytest.MonkeyPatch) -> list[uuid.UUID]:
+    """The trigger ids the dispatched background fire was handed, in order.
+
+    `run_now` queues `fire_trigger` for after the commit rather than awaiting
+    `fire`, so what was fired is recorded here and not on the service. Every test
+    that reaches `_run_deferred` needs this: without it the queued coroutine is the
+    real handler, which opens a database session of its own.
+    """
+    ids: list[uuid.UUID] = []
+
+    async def _fire(trigger_id: uuid.UUID, *, event_context: str | None = None) -> None:
+        ids.append(trigger_id)
+
+    monkeypatch.setattr("app.worker.background.trigger_fire.fire_trigger", _fire)
+    return ids
+
+
 class TestRunningNow:
-    async def test_running_now_demands_permission_to_run_the_agent(self):
+    async def test_running_now_demands_permission_to_run_the_agent(self, fired):
         """The same floor as scheduling it - `agents:run` on the agent, per row."""
         agent = _agent()
         service = _service(agent)
         trigger = _trigger(agent_id=agent.id)
-        service.fire = AsyncMock()
         with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
             repo.get = AsyncMock(return_value=trigger)
             await service.run_now(_ctx(), agent.id, trigger.id)
+            await _run_deferred(service.db)
         assert service.agents.get.call_args.kwargs["perm"].value == "agents:run"
-        service.fire.assert_awaited_once_with(trigger.id)
 
-    async def test_running_now_fires_without_rescheduling(self):
+    async def test_running_now_answers_before_the_run_it_dispatches(self, fired):
+        """#658: the fire is handed over, not awaited inside the request.
+
+        Awaiting it ran the whole agent in the HTTP request, so anything slower
+        than a proxy's read timeout answered 504 while the run carried on and
+        committed - a failure reported for a run that was working, which invites a
+        second press and fires the schedule twice. Nothing has run by the time the
+        caller is answered; the fire starts when the session commits.
+        """
+        agent = _agent()
+        service = _service(agent)
+        service.fire = AsyncMock()
+        trigger = _trigger(agent_id=agent.id)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            await service.run_now(_ctx(), agent.id, trigger.id)
+            service.fire.assert_not_awaited()
+            assert fired == []
+            await _run_deferred(service.db)
+        assert fired == [trigger.id]
+
+    async def test_running_now_fires_without_rescheduling(self, fired):
         """A manual fire is one extra run, not a reschedule - next_fire_at stands."""
         agent = _agent()
         service = _service(agent)
         original_next = datetime(2026, 1, 1, tzinfo=UTC)
         trigger = _trigger(agent_id=agent.id, next_fire_at=original_next)
-        service.fire = AsyncMock()
         with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
             repo.get = AsyncMock(return_value=trigger)
             result = await service.run_now(_ctx(), agent.id, trigger.id)
+            await _run_deferred(service.db)
         assert trigger.next_fire_at == original_next
         assert result is trigger
 
-    async def test_running_now_is_audited_under_the_caller_not_the_creator(self):
+    async def test_running_now_is_audited_under_the_caller_not_the_creator(self, fired):
         """The run runs as the creator, but who pressed the button - and spent the
         money - is a separate fact, recorded under the caller."""
         agent = _agent()
         service = _service(agent)
         trigger = _trigger(agent_id=agent.id)
-        service.fire = AsyncMock()
         audit = AsyncMock()
         with (
             patch("app.services.agent_trigger.agent_trigger_repo") as repo,
@@ -522,18 +573,19 @@ class TestRunningNow:
         ):
             repo.get = AsyncMock(return_value=trigger)
             await service.run_now(_ctx(), agent.id, trigger.id)
+            await _run_deferred(service.db)
         assert audit.call_args.kwargs["action"] == "agent.trigger_run_now"
         assert audit.call_args.kwargs["actor_user_id"] == _CALLER
 
-    async def test_running_now_on_another_agents_trigger_is_not_reachable(self):
+    async def test_running_now_on_another_agents_trigger_is_not_reachable(self, fired):
         agent = _agent()
         service = _service(agent)
-        service.fire = AsyncMock()
         with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
             repo.get = AsyncMock(return_value=_trigger(agent_id=uuid.uuid4()))
             with pytest.raises(NotFoundError):
                 await service.run_now(_ctx(), agent.id, uuid.uuid4())
-        service.fire.assert_not_called()
+            await _run_deferred(service.db)
+        assert fired == []
 
 
 class TestClaiming:
