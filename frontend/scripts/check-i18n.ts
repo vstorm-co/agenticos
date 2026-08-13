@@ -202,9 +202,16 @@ const MACHINE_WORD = /^[A-Z0-9_]+$/;
 /**
  * What `NOT_A_SENTENCE` kept out of the string-literal rule: a label built from title
  * case around a separator, a leading acronym, a CSS measurement.
+ *
+ * The separator joins *two capitalised tokens* - `Model / Provider`, `Agent - Settings`
+ * - and the `[A-Z]` after it is the whole of #656. Without it a hyphen inside the first
+ * word was the separator, so `Sign-in failed` read as a label and every sentence whose
+ * first word is hyphenated left the sweep silently: two of them survived #603 in the BFF
+ * handlers and were found by review rather than by this (#654). Prose after a hyphen
+ * carries on in lower case, which is the one thing a two-token label never does.
  */
 const NOT_A_SENTENCE =
-  /^(?:[A-Z][a-z]+(?:\s[A-Z][a-z]+)*\s?[-/]\s?|[A-Z]{2,}\s|.*\b(?:px|rem|vh|vw|deg)\b)/;
+  /^(?:[A-Z][a-z]+(?:\s[A-Z][a-z]+)*\s?[-/]\s?[A-Z]|[A-Z]{2,}\s|.*\b(?:px|rem|vh|vw|deg)\b)/;
 
 export interface Offence {
   line: number;
