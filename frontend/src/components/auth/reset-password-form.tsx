@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { ArrowLeft, ArrowRight, Check, X } from "lucide-react";
 import { toast } from "sonner";
 
+import { getErrorMessage } from "@/lib/api-error";
 import { Button, Input, Label } from "@/components/ui";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
@@ -17,6 +18,8 @@ interface Props {
 }
 
 export function ResetPasswordForm({ token }: Props) {
+  const tErrors = useTranslations("errors");
+
   const t = useTranslations("auth.resetPassword");
   const router = useRouter();
   const [password, setPassword] = useState("");
@@ -54,7 +57,7 @@ export function ResetPasswordForm({ token }: Props) {
       toast.success(t("successToast"));
       router.push(ROUTES.LOGIN);
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : t("invalidLink");
+      const msg = err instanceof ApiError ? getErrorMessage(err, tErrors) : t("invalidLink");
       setError(msg);
       setSubmitting(false);
     }

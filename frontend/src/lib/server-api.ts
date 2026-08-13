@@ -4,7 +4,23 @@
  * IMPORTANT: This file should only be imported in server-side code (API routes, Server Components).
  */
 
+import { NextResponse } from "next/server";
+
+import type { BffErrorCode } from "@/lib/bff-errors";
+
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
+
+/**
+ * A refusal minted by a BFF route itself, as `{ code }` on the wire.
+ *
+ * A route handler sits outside the `[locale]` segment, so it cannot write the
+ * refusal as a sentence in the caller's language - it used to write English,
+ * which every toast rendered verbatim under every locale (#603). The client
+ * resolves the code against the `errors` namespace via `getErrorMessage`.
+ */
+export function bffRefusal(code: BffErrorCode, status: number): NextResponse {
+  return NextResponse.json({ code }, { status });
+}
 
 export class BackendApiError extends Error {
   constructor(

@@ -995,6 +995,7 @@
       "noRelevantDocuments": "No relevant documents found",
       "noWebResults": "No web results found",
       "output": "Output",
+      "patternInFile": "{pattern} in {file}",
       "read": "{named, select, no {Read…} other {Read {subject}}}",
       "reading": "{named, select, no {Reading…} other {Reading {subject}}}",
       "readingChannel": "Reading the channel",
@@ -1517,6 +1518,25 @@
         "title": "Version to version"
       }
     }
+  },
+  "errors": {
+    "authorizationFailed": "Authorization failed",
+    "avatarNotAvailable": "Avatar not available",
+    "backendUnavailable": "Backend service unavailable",
+    "failedToGetUser": "Failed to get user",
+    "fileNotFound": "File not found",
+    "forbidden": "Forbidden",
+    "internalServerError": "Internal server error",
+    "loginFailed": "Login failed",
+    "missingAuthorizationCode": "Missing authorization code",
+    "missingTokens": "Missing tokens",
+    "noRefreshToken": "No refresh token",
+    "notAuthenticated": "Not authenticated",
+    "registrationFailed": "Registration failed",
+    "requestFailed": "Request failed",
+    "sessionExpired": "Session expired",
+    "unexpected": "An unexpected error occurred",
+    "uploadFailed": "Upload failed"
   },
   "files": {
     "couldNotBeFetched": "That file could not be fetched",
@@ -2961,7 +2981,6 @@
       "updatePassword": "Update password",
       "uploadAvatar3": "Upload avatar",
       "uploadAvatar4": "Upload avatar",
-      "uploadFailed3": "Upload failed",
       "uploadFailed4": "Upload failed",
       "uploading3": "Uploading…",
       "useStrongUniquePassword": "Use a strong, unique password - 8+ characters, mixed case, numbers.",

@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { ChevronRight, ShieldAlert } from "lucide-react";
 
+import { getErrorMessage } from "@/lib/api-error";
 import { SchemaForm } from "@/components/agents/schema-form";
 import {
   Badge,
@@ -23,7 +24,7 @@ import { InlineSecret } from "@/components/vault/inline-secret";
 import { ProviderRow } from "@/components/vault/provider-row";
 import { useSecrets } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
-import { cn, getErrorMessage } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import type {
   ApprovalMode,
   CapabilityBindingSpec,
@@ -407,6 +408,7 @@ function fitsPurpose(secret: Secret, purpose: string | null, selectedId: string 
  * by choosing, so offering it would be offering a way to break the agent.
  */
 function SecretField({ binding, requirement, onChange, disabled }: SecretFieldProps) {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
   const { secrets, isLoading, listError } = useSecrets();
   const fieldId = `${binding.id}-secret`;
@@ -471,7 +473,7 @@ function SecretField({ binding, requirement, onChange, disabled }: SecretFieldPr
 
       {state === "unreadable" && (
         <p className="text-destructive text-xs">
-          {t("vaultUnreadableDetail", { error: getErrorMessage(listError) })}
+          {t("vaultUnreadableDetail", { error: getErrorMessage(listError, tErrors) })}
         </p>
       )}
 

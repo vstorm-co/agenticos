@@ -123,7 +123,7 @@ describe("uploading a file to a conversation", () => {
     );
 
     expect(response.status).toBe(504);
-    await expect(response.json()).resolves.toEqual({ detail: "Upload failed" });
+    await expect(response.json()).resolves.toEqual({ code: "UPLOAD_FAILED" });
   });
 
   it("answers 500 when the backend could not be reached", async () => {
@@ -209,7 +209,7 @@ describe("reading a file back", () => {
     serve(null, { status: 404 });
     const missing = await readFile(request("http://localhost:3000/api/files/f-1"), params);
     expect(missing.status).toBe(404);
-    await expect(missing.json()).resolves.toEqual({ detail: "File not found" });
+    await expect(missing.json()).resolves.toEqual({ code: "FILE_NOT_FOUND" });
   });
 
   it("answers 500 when the backend could not be reached", async () => {
@@ -356,7 +356,7 @@ describe("avatars", () => {
       request("http://localhost:3000/api/users/me/avatar", { form: file() }),
     );
 
-    await expect(response.json()).resolves.toEqual({ detail: "Upload failed" });
+    await expect(response.json()).resolves.toEqual({ code: "UPLOAD_FAILED" });
   });
 
   it("answers 500 when an avatar upload could not be attempted", async () => {
@@ -408,7 +408,7 @@ describe("avatars", () => {
       params: Promise.resolve({ id: "org-1" }),
     });
     expect(missing.status).toBe(404);
-    await expect(missing.json()).resolves.toEqual({ detail: "Avatar not available" });
+    await expect(missing.json()).resolves.toEqual({ code: "AVATAR_NOT_AVAILABLE" });
   });
 
   it("answers 500 when an organization avatar could not be fetched", async () => {
@@ -536,7 +536,7 @@ describe("finishing an MCP OAuth flow", () => {
 
       expect(redirected(response)).toMatchObject({
         status: "error",
-        reason: "Missing authorization code",
+        reason: "MISSING_AUTHORIZATION_CODE",
       });
     }
     expect(backendFetch).not.toHaveBeenCalled();
@@ -562,7 +562,7 @@ describe("finishing an MCP OAuth flow", () => {
 
     const response = await callback(callbackRequest("code=abc&state=xyz"));
 
-    expect(redirected(response)).toMatchObject({ reason: "Authorization failed" });
+    expect(redirected(response)).toMatchObject({ reason: "AUTHORIZATION_FAILED" });
   });
 
   it("still redirects when the exchange could not be attempted", async () => {
@@ -571,7 +571,7 @@ describe("finishing an MCP OAuth flow", () => {
 
     const response = await callback(callbackRequest("code=abc&state=xyz"));
 
-    expect(redirected(response)).toMatchObject({ status: "error", reason: "Authorization failed" });
+    expect(redirected(response)).toMatchObject({ status: "error", reason: "AUTHORIZATION_FAILED" });
   });
 });
 

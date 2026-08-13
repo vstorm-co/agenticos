@@ -488,7 +488,7 @@ describe("the health check", () => {
     const response = await health();
 
     expect(response.status).toBe(503);
-    await expect(response.json()).resolves.toEqual({ detail: "Backend service unavailable" });
+    await expect(response.json()).resolves.toEqual({ code: "BACKEND_UNAVAILABLE" });
   });
 
   it("answers 500 when the backend could not be reached at all", async () => {

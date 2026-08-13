@@ -4,10 +4,10 @@ import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
+import { getErrorMessage } from "@/lib/api-error";
 import { PAGE_SIZE } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
-import { getErrorMessage } from "@/lib/utils";
 import type { LibrarySkillList, Skill, SkillList, SkillResource } from "@/types/providers";
 
 export interface NewSkill {
@@ -50,6 +50,7 @@ export function useSkills({
   skip = 0,
   limit = PAGE_SIZE,
 }: SkillQuery = {}) {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("skills");
   const queryClient = useQueryClient();
 
@@ -95,7 +96,7 @@ export function useSkills({
       // Skills are bound by reference, so an edit reaches every agent at once.
       toast.success(t("savedAgentsCurrent"));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   const remove = useMutation({
@@ -104,7 +105,7 @@ export function useSkills({
       await invalidate();
       toast.success(t("deleted"));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   return {
@@ -138,6 +139,7 @@ export interface SkillEdit {
  * model both use, and `enabled` only means something once it exists.
  */
 export function useSkill(skillId: string | null) {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("skills");
   const queryClient = useQueryClient();
 
@@ -154,7 +156,7 @@ export function useSkill(skillId: string | null) {
       // Agents bind to the skill, not to a version of it, so this is already live.
       toast.success(t("savedAgentsCurrent"));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   /**
@@ -172,7 +174,7 @@ export function useSkill(skillId: string | null) {
       await queryClient.invalidateQueries({ queryKey: qk.skills.all() });
       toast.success(t("fileAdded"));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   const saveResource = useMutation({
@@ -182,7 +184,7 @@ export function useSkill(skillId: string | null) {
       await queryClient.invalidateQueries({ queryKey: qk.skills.all() });
       toast.success(t("fileSaved"));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   const removeResource = useMutation({
@@ -192,7 +194,7 @@ export function useSkill(skillId: string | null) {
       await queryClient.invalidateQueries({ queryKey: qk.skills.all() });
       toast.success(t("fileRemoved"));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   /**
@@ -216,7 +218,7 @@ export function useSkill(skillId: string | null) {
       await queryClient.invalidateQueries({ queryKey: qk.skills.all() });
       toast.success(t("filesUploaded", { count: result.items.length }));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   return {
@@ -249,6 +251,7 @@ export function useSkillResource(skillId: string | null, resourceId: string | nu
  * owns and edits.
  */
 export function useSkillLibrary() {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("skills");
   const queryClient = useQueryClient();
 
@@ -263,7 +266,7 @@ export function useSkillLibrary() {
       await queryClient.invalidateQueries({ queryKey: qk.skills.all() });
       toast.success(t("installed", { name: skill.name }));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   return { library: data?.items ?? [], isLoading, install };

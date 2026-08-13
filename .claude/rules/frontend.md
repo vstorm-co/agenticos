@@ -54,12 +54,12 @@ There is no `(marketing)` route group.
   reads one by construction: there is no bracket to anchor on and so nothing to gate on
   the suffix, and a file with no JSX in it simply yields no phrases. That matters because
   a hook's toast and a module table of labels are copy - 381 offences across 90 files,
-  unread for as long as the sweep walked `*.tsx` alone (#446). **`src/app/api/**` is
-  skipped by the offence sweep and read by the catalog rules**, which is not an
-  inconsistency: a route handler sits outside the `[locale]` segment and has no
-  translator to reach, so what it writes is a wire payload (#603) - but a `detail` it
-  writes that duplicates a message is still worth reporting, and `duplicatedInSource` is
-  what reports it. `dev/`, the playground, is skipped by both.
+  unread for as long as the sweep walked `*.tsx` alone (#446). **`src/app/api/**` is read
+  like everything else**: a route handler sits outside the `[locale]` segment and has no
+  translator to reach, so a refusal it mints is a `BFF_ERROR_KEYS` code from
+  `src/lib/bff-errors.ts` (written with `bffRefusal`, resolved by `getErrorMessage`
+  against the `errors` namespace at the toast), never an English sentence (#603).
+  `dev/`, the playground, is the one skip left.
 - **A count is an ICU `plural`, never a ternary.** `{n} file{n === 1 ? "" : "s"}`
   and `count === 1 ? "1 skill" : \`${count} skills\`` are sentences only English
   builds that way, so they are refused too - the message holds

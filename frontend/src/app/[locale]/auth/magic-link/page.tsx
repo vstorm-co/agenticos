@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 
+import { getErrorMessage } from "@/lib/api-error";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { useReauthenticate } from "@/hooks/use-auth";
 import { postSignInDestination } from "@/lib/auth-landing";
@@ -20,6 +21,8 @@ import { ROUTES } from "@/lib/constants";
  * destination.
  */
 export default function MagicLinkVerifyPage() {
+  const tErrors = useTranslations("errors");
+
   const t = useTranslations("auth.magicLink");
   const router = useRouter();
   const params = useSearchParams();
@@ -49,12 +52,12 @@ export default function MagicLinkVerifyPage() {
       .catch((err: unknown) => {
         if (!active) return;
         setState("error");
-        setError(err instanceof ApiError ? err.message : t("errorInvalid"));
+        setError(err instanceof ApiError ? getErrorMessage(err, tErrors) : t("errorInvalid"));
       });
     return () => {
       active = false;
     };
-  }, [token, router, t, reauthenticate]);
+  }, [token, router, t, reauthenticate, tErrors]);
 
   return (
     <main

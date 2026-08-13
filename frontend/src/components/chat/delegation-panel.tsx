@@ -6,10 +6,11 @@ import { useTranslations } from "next-intl";
 import { ChevronDown, CopyPlus, Users } from "lucide-react";
 import { toast } from "sonner";
 
+import { getErrorMessage } from "@/lib/api-error";
 import { useAgents, useModelProviders, usePermissions } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { newSpecialist, specialistNameError } from "@/lib/agent-spec";
-import { cn, getErrorMessage } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { childrenOf, rootsOf } from "@/lib/delegations";
 import { toolStep } from "@/lib/tool-steps";
 import { Button } from "@/components/ui";
@@ -268,6 +269,7 @@ function PromoteDynamicSpecialist({
   name: string;
   definition: SpecialistDefinition;
 }) {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("chat.delegation");
   // The name-error copy lives with the Builder's, keyed off the same helper; a
   // second translator reaches it without duplicating the strings into `chat`.
@@ -293,7 +295,7 @@ function PromoteDynamicSpecialist({
       },
       {
         onSuccess: (agent) => toast.success(t("specialistPromoted", { name: agent.name })),
-        onError: (error) => toast.error(getErrorMessage(error)),
+        onError: (error) => toast.error(getErrorMessage(error, tErrors)),
       },
     );
 
