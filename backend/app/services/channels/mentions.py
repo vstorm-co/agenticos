@@ -58,7 +58,7 @@ from app.db.models.organization import Organization
 from app.repositories import agent_exposure_repo, agent_repo, member_repo
 from app.services.access import publisher_context
 from app.services.agent_runner import AgentRunnerService, RunStream
-from app.services.channels.base import OutgoingAttachment
+from app.services.channels.base import ROOM_HANDLES, OutgoingAttachment
 from app.services.channels.chart_png import render_chart_png
 from app.services.transcript import RecordedToolCall
 from app.services.usage_report import (
@@ -153,12 +153,20 @@ def parse_mention(text: str) -> Mention | None:
 
     Returns `None` for a bare handle with nothing after it. `@support` alone
     is a greeting, and answering it would open a billed run to say hello.
+
+    And `None` for a handle that addresses the *room* - `@channel`, `@all`,
+    `@here`, `@everyone`. They match the slug pattern, so a standup announcement
+    read as a mention of an agent nobody has, and because a channel-wide mention
+    puts every member including the bot in the platform's mention list the bot
+    considered itself named and answered under it. Nobody typing `@channel` is
+    addressing an agent, which makes this a property of the parser rather than a
+    refusal further down.
     """
     match = _MENTION.match(text)
     if match is None:
         return None
     slug, prompt = match.group(1), match.group(2).strip()
-    if not prompt:
+    if not prompt or slug in ROOM_HANDLES:
         return None
     return Mention(slug=slug, prompt=prompt)
 

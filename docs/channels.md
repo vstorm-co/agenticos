@@ -642,6 +642,13 @@ handle that turns out to name neither the bot nor one of its agents is answered 
 a direct message and passed over in a channel, because there it was somebody's
 colleague.
 
+**`@channel`, `@all`, `@here` and `@everyone` address the room, not an agent.**
+They have the shape of a slug, and a channel-wide mention puts every member of the
+channel — the bot included — in the platform's own mention list, so an announcement
+read as a message naming an agent nobody has. Those four handles are never a
+mention here, and an agent named after one gets `-agent` on the end of its handle so
+it stays reachable.
+
 If the bot's own account cannot be resolved, it answers everything, as it did
 before this rule existed: going quiet on a server that would not say who we are is
 the worse of the two failures.

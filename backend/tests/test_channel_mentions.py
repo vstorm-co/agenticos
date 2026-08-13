@@ -23,6 +23,7 @@ import pytest
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import RunSurface
+from app.services.channels.base import ROOM_HANDLES
 from app.services.channels.mentions import (
     ChannelAgentRouter,
     UnaddressedMessage,
@@ -208,6 +209,24 @@ class TestParseMention:
     def test_a_handle_longer_than_a_slug_can_be_is_not_one(self):
         """Slugs are capped at 64 characters, so nothing longer can exist."""
         assert parse_mention("@" + "a" * 65 + " hello") is None
+
+    @pytest.mark.parametrize("handle", sorted(ROOM_HANDLES))
+    def test_a_handle_that_addresses_the_room_is_not_an_agent(self, handle):
+        """`@channel deploying at five` matched the slug pattern, so it read as a
+        mention of an agent called `channel`. And a channel-wide mention puts every
+        member including the bot in the platform's own mention list, so the bot
+        considered itself named and posted "No agent here answers to @channel" under
+        every announcement - the interruption #634 exists to end.
+        """
+        assert parse_mention(f"@{handle} deploying at five") is None
+
+    def test_a_handle_that_merely_starts_with_one_is_still_an_agent(self):
+        """The set is exact, not a prefix: an agent may perfectly well be called
+        `channel-bot` or `all-hands`."""
+        mention = parse_mention("@channel-bot what is the refund window")
+
+        assert mention is not None
+        assert mention.slug == "channel-bot"
 
 
 class TestAnswer:
