@@ -17,6 +17,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.135] - 2026-08-13
+
+The copy guard read a hyphen in the first word as a label separator, so half a
+sentence passed the sweep.
+
+### Fixed
+
+- **`"Sign-in failed"` passed the i18n guard while `"Not authenticated"` was
+  refused.** `NOT_A_SENTENCE` exempts a label built from title case around a
+  separator — `Model / Provider` — and the whitespace on both sides of that
+  separator was optional, so a hyphen *inside* the first word made the whole
+  sentence a label. The separator now needs the whitespace that makes it one.
+  (#656)
+
 ## [0.0.134] - 2026-08-13
 
 A refusal from the BFF reached the toast in English, whatever locale the reader
