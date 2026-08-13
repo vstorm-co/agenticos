@@ -260,6 +260,32 @@ describe("the hosted page", () => {
     await userEvent.click(screen.getByRole("button", { name: "Reconnect" }));
     expect(screen.getByRole("textbox")).toBeEnabled();
   });
+
+  it.each([1006, 1011, 4029, 4003])(
+    "settles the turn a close of %i interrupted, rather than leaving it running",
+    async (code) => {
+      // `finished()` is what ends a turn, and `error` and `complete` reach it
+      // through `fold`. A close reached nothing, so the caret kept pulsing and a
+      // tool step stayed running under a notice saying the connection was gone -
+      // exactly what 81dac010 fixed for an `error` frame, one path over.
+      render(<HostedChat config={config()} />);
+      await userEvent.type(screen.getByRole("textbox"), "hello");
+      await userEvent.click(screen.getByRole("button", { name: "Send" }));
+      act(() =>
+        socket().deliver({
+          type: "tool_call",
+          data: { tool_call_id: "c1", tool_name: "search_knowledge" },
+        }),
+      );
+      act(() => socket().deliver({ type: "text_delta", data: { content: "Checking" } }));
+
+      act(() => socket().onclose?.({ code }));
+
+      expect(screen.queryByText("Working on it…")).toBeNull();
+      expect(document.querySelector(".animate-pulse")).toBeNull();
+      expect(screen.queryByText(/Searching/)).toBeNull();
+    },
+  );
 });
 
 describe("what the operator lets the page offer", () => {

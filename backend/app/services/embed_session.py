@@ -797,8 +797,29 @@ WIDGET_JS = """(function () {
         }
       };
       socket.onclose = function (event) {
-        if (event.code === 4003) bubble("assistant", "This assistant is not available on this page.");
-        else if (event.code === 4029) bubble("assistant", "Too many messages just now - please wait a moment and try again.");
+        // A half-written answer is settled first, whatever the code: `pending` is
+        // the bubble the deltas were landing in, and an unfinished one left on
+        // screen reads as an answer the agent gave rather than one it was cut off
+        // mid-sentence. An empty one is removed - there is nothing to keep.
+        if (pending && !answer) pending.remove();
+        pending = null;
+        answer = "";
+        if (event.code === 4003) {
+          // The one code that must not be retried: the answer will not change, so
+          // the socket is deliberately left in place and reopening the launcher
+          // does not reconnect.
+          bubble("assistant", "This assistant is not available on this page.");
+          return;
+        }
+        // Everything else may be tried again, but only when the visitor asks:
+        // clearing the socket is what lets reopening the launcher reconnect, and
+        // it is a reconnect per click rather than a loop.
+        socket = null;
+        if (event.code === 4029) bubble("assistant", "Too many messages just now - please wait a moment and try again.");
+        // A network blip, a deploy restarting the server, or the 1011 a reader too
+        // slow to keep up gets. Said rather than left silent: the box stops working
+        // either way, and #634 removed exactly this silence for 4029.
+        else bubble("assistant", "The connection dropped. Close this and open it again to carry on.");
       };
     }
 

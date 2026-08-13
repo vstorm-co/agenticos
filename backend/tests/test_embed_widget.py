@@ -78,6 +78,37 @@ def test_a_rate_limit_close_says_to_wait_rather_than_going_silent():
     assert "4029" in RENDERED
 
 
+def test_no_close_leaves_the_box_silently_dead():
+    """The two named codes were the only ones that said anything, so the close a
+    visitor actually meets - a network blip, a deploy restarting the server, the
+    1011 a reader too slow to keep up gets - left a dead input box with nothing on
+    screen. That is the failure #634 removed for 4029, one code over. Asserted as
+    the `else` rather than as a string, because a message added under an `if` for
+    some third code would satisfy a copy check and not the visitor.
+    """
+    assert "The connection dropped." in RENDERED
+    assert 'else bubble("assistant", "The connection dropped.' in RENDERED
+
+
+def test_a_half_written_answer_is_settled_when_the_socket_goes():
+    """`pending` is the bubble the deltas were landing in. Left as it was, a
+    sentence the agent was cut off mid-way through reads as the answer it gave."""
+    close = RENDERED.split("socket.onclose")[1]
+    assert "pending.remove()" in close
+    assert "pending = null" in close
+
+
+def test_only_a_refusal_survives_a_reopen():
+    """Clearing `socket` is what lets reopening the launcher reconnect, and 4003 is
+    the one code that must not: the answer will not change. So the refusal returns
+    before the socket is cleared, and the guard in `onsubmit` is `!socket`."""
+    close = RENDERED.split("socket.onclose")[1]
+    refusal, retryable = close.split("socket = null")
+    assert "4003" in refusal
+    assert "return;" in refusal
+    assert "4029" in retryable
+
+
 def test_it_is_valid_javascript():
     """Parsed by an actual engine rather than eyeballed.
 

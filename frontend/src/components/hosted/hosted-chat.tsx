@@ -341,10 +341,20 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
       if (event.code === 4029) setClosed("too-many");
       else if (event.code === 4003) setClosed("refused");
       // Any other close - a network blip, uvicorn restarting mid-deploy, the 1006
-      // an abnormal drop carries - is not a refusal and not a limit. The composer
-      // is disabled rather than left to swallow a `send` silently, and the visitor
-      // is offered a reconnect that keeps their thread.
+      // an abnormal drop carries, the 1011 a reader too slow to keep up gets - is
+      // not a refusal and not a limit. The composer is disabled rather than left to
+      // swallow a `send` silently, and the visitor is offered a reconnect that keeps
+      // their thread.
       else setClosed("lost");
+      // A dropped socket ends the turn as surely as an `error` frame does, and
+      // nothing else will say so: without this the caret keeps pulsing and a tool
+      // step stays running, under a notice saying the connection is gone.
+      setTurns((said) =>
+        said.map((turn) => (turn.live === true ? { ...turn, ...finished(turn) } : turn)),
+      );
+      // A dropped socket ends the turn as surely as an `error` frame does, and
+      // nothing else will say so: without this the caret keeps pulsing and a tool
+      // step stays running, under a notice saying the connection is gone.
     };
 
     return () => {
