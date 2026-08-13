@@ -392,6 +392,7 @@ class TestAnswer:
             patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
         ):
             members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.MEMBER))
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.MEMBER))
             agents.get_by_slug = AsyncMock(return_value=agent)
             exposures.get_for_bot = _bound()
             runner_cls.return_value.execute = AsyncMock(return_value=("hi", MagicMock()))
@@ -614,7 +615,13 @@ class TestWhatARoomRunsAs:
         return MagicMock(created_by_user_id=creator, organization_id=organization_id)
 
     async def _ran_as(self, exposure: MagicMock, **kwargs) -> AuthContext:
-        """The context a turn ran under, admitting an unnamed sender."""
+        """The context a turn ran under, admitting an unnamed sender.
+
+        `membership` is what `member_repo.get_active` answers with, so it stands for
+        an account that is both still a member and still able to sign in: `None`
+        covers having left *and* having been deactivated, which is the same answer
+        for the same reason (`access.publisher_context`).
+        """
         agent = MagicMock(id=uuid.uuid4(), slug="support")
         with (
             patch("app.services.channels.mentions.member_repo") as members,
@@ -622,7 +629,9 @@ class TestWhatARoomRunsAs:
             patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
             patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
         ):
-            members.get = AsyncMock(return_value=kwargs.pop("membership", None))
+            membership = kwargs.pop("membership", None)
+            members.get = AsyncMock(return_value=membership)
+            members.get_active = AsyncMock(return_value=membership)
             exposures.list_active_for_bot = AsyncMock(return_value=[(exposure, agent)])
             execute = AsyncMock(return_value=("hello", MagicMock()))
             runner_cls.return_value.execute = execute
@@ -659,6 +668,36 @@ class TestWhatARoomRunsAs:
         ctx = await self._ran_as(exposure, user_id=None, membership=None)
 
         assert ctx.role == OrgRoleName.VIEWER
+
+    async def test_the_creators_role_is_read_off_a_membership_that_can_sign_in(self):
+        """Deactivation leaves the membership row in place, so the plain read kept a
+        binding answering at its creator's Owner role after their account stopped
+        being able to sign in at all. `get` here is the defect, so it raises."""
+        exposure = self._binding(uuid.uuid4(), uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), slug="support")
+
+        with (
+            patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.access.member_repo", new=members),
+            patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
+            patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
+        ):
+            members.get = AsyncMock(side_effect=AssertionError("the joined read decides this"))
+            members.get_active = AsyncMock(return_value=None)
+            exposures.list_active_for_bot = AsyncMock(return_value=[(exposure, agent)])
+            execute = AsyncMock(return_value=("hello", MagicMock()))
+            runner_cls.return_value.execute = execute
+
+            await ChannelAgentRouter(MagicMock()).answer_default(
+                "what is the refund window",
+                platform="mattermost",
+                organization_id=exposure.organization_id,
+                bot_id=_BOT_ID,
+                admit_unlinked=True,
+                user_id=None,
+            )
+
+        assert execute.call_args.args[0].role == OrgRoleName.VIEWER
 
     async def test_a_binding_nobody_is_recorded_against_runs_as_viewer(self):
         """A row old enough to predate the column is not a row with an owner."""
@@ -713,8 +752,10 @@ class TestWhatARoomRunsAs:
             patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
             patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
         ):
-            # The departed sender first, then the creator's own membership.
-            members.get = AsyncMock(side_effect=[None, MagicMock(role=OrgRoleName.ADMIN)])
+            # The departed sender, read by the router; the creator's own standing is
+            # the joined read, which is what decides the role.
+            members.get = AsyncMock(return_value=None)
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.ADMIN))
             exposures.list_active_for_bot = AsyncMock(return_value=[(exposure, agent)])
             execute = AsyncMock(return_value=("hello", MagicMock()))
             runner_cls.return_value.execute = execute
@@ -769,6 +810,7 @@ class TestWhatARoomRunsAs:
             patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
         ):
             members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.MEMBER))
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.MEMBER))
             agents.get_by_slug = AsyncMock(return_value=agent)
             exposures.get_for_bot = AsyncMock(return_value=exposure)
             execute = AsyncMock(return_value=("hello", MagicMock()))

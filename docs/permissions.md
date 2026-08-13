@@ -175,10 +175,17 @@ anonymous, or a chat account with no platform user behind it, and a run still ne
 a subject, because the role is what resolves what the agent may reach.
 
 The answer is **whoever published the surface**, and the fallback is the part worth
-knowing: `viewer` when that person is no longer a member, and `viewer` when no
-publisher was recorded at all. A departure must not silently *widen* what a public
-surface reaches, and a widget on a customer's site outlives the person who pasted
-it.
+knowing: `viewer` when that person is no longer a member, `viewer` when their
+account has been deactivated, and `viewer` when no publisher was recorded at all. A
+departure must not silently *widen* what a public surface reaches, and a widget on a
+customer's site outlives the person who pasted it.
+
+Deactivation counts because the membership row survives it. Being deactivated is
+refused on every path a person signs in through, so a role read off the membership
+alone left a deactivated Owner's widget, hosted page and channel binding answering
+at full authority — an account that cannot sign in, still spending the
+organization's budget. It is one joined read (`member_repo.get_active`) rather than
+two, because it is answered on every turn a public surface takes.
 
 Who **asked** is carried separately — `channel_identity_id`, the chat account that
 spoke. Merging the two would make a channel run claim the sender's authority, which
@@ -304,9 +311,10 @@ trail and the approval gate all key on one.
 The surfaces open to people this deployment cannot name do not use that
 constructor. A hosted page, a widget and a channel each run the turn under
 whoever *published* it - the embed's owner, or the binding that put the agent on
-the bot - falling back to `viewer` when that person has left the organization, so
-their departure cannot silently widen what a public surface reaches. The subject
-is therefore a real one, and it is not the person who typed the message.
+the bot - falling back to `viewer` when that person has left the organization or
+their account has been deactivated, so neither can silently widen what a public
+surface reaches. The subject is therefore a real one, and it is not the person who
+typed the message.
 
 `AuthContext.channel_identity_id` is who typed it, when that is a chat account
 rather than a member. It carries no authority - no permission reads it - and

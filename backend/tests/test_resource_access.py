@@ -412,12 +412,27 @@ class TestWhatAnAnonymousSurfaceRunsAs:
     assert it through their own entry points; what this class owns is the rule.
     """
 
+    @staticmethod
+    def _reading(*, membership: object | None, active: bool | None = True):
+        """The two rows this reads, as a pair of patches.
+
+        `active=None` stands for a user row that is not there at all, which is a
+        different failure from a deactivated one and has to answer the same way.
+        """
+        return (
+            patch("app.services.access.member_repo.get", new=AsyncMock(return_value=membership)),
+            patch(
+                "app.services.access.user_repo.get_by_id",
+                new=AsyncMock(return_value=None if active is None else MagicMock(is_active=active)),
+            ),
+        )
+
     @pytest.mark.anyio
     async def test_a_publisher_who_is_still_a_member_lends_their_role(self):
         organization, publisher = uuid.uuid4(), uuid.uuid4()
 
         with patch(
-            "app.services.access.member_repo.get",
+            "app.services.access.member_repo.get_active",
             new=AsyncMock(return_value=MagicMock(role=OrgRoleName.BUILDER.value)),
         ):
             ctx = await publisher_context(
@@ -434,7 +449,7 @@ class TestWhatAnAnonymousSurfaceRunsAs:
     async def test_a_publisher_who_left_drops_the_turn_to_viewer(self):
         """Their departure must not silently *widen* what a public surface reaches.
         A widget on a customer's site outlives the person who pasted it."""
-        with patch("app.services.access.member_repo.get", new=AsyncMock(return_value=None)):
+        with patch("app.services.access.member_repo.get_active", new=AsyncMock(return_value=None)):
             ctx = await publisher_context(
                 MagicMock(), organization_id=uuid.uuid4(), publisher_user_id=uuid.uuid4()
             )
@@ -442,12 +457,32 @@ class TestWhatAnAnonymousSurfaceRunsAs:
         assert ctx.role == OrgRoleName.VIEWER.value
 
     @pytest.mark.anyio
+    async def test_the_role_is_read_off_a_membership_that_can_still_sign_in(self):
+        """Deactivating a user leaves their membership row exactly where it was, so
+        `get` answered with the authority of an account refused everywhere a person
+        signs in - a deactivated Owner's widget still reaching every agent. The read
+        that decides this must be the joined one; `get` here is the defect.
+        """
+        read = AsyncMock(return_value=None)
+
+        with (
+            patch("app.services.access.member_repo.get_active", new=read),
+            patch("app.services.access.member_repo.get", new=AsyncMock(side_effect=AssertionError)),
+        ):
+            ctx = await publisher_context(
+                MagicMock(), organization_id=uuid.uuid4(), publisher_user_id=uuid.uuid4()
+            )
+
+        assert ctx.role == OrgRoleName.VIEWER.value
+        read.assert_awaited_once()
+
+    @pytest.mark.anyio
     async def test_a_surface_with_no_publisher_recorded_drops_too(self):
         """A row old enough to predate the column naming who made it. `viewer` is
         the answer for the same reason, and no membership is read at all."""
         read = AsyncMock()
 
-        with patch("app.services.access.member_repo.get", new=read):
+        with patch("app.services.access.member_repo.get_active", new=read):
             ctx = await publisher_context(
                 MagicMock(), organization_id=uuid.uuid4(), publisher_user_id=None
             )
@@ -462,7 +497,7 @@ class TestWhatAnAnonymousSurfaceRunsAs:
         sender's authority - which an unlinked sender does not have."""
         asker = uuid.uuid4()
 
-        with patch("app.services.access.member_repo.get", new=AsyncMock(return_value=None)):
+        with patch("app.services.access.member_repo.get_active", new=AsyncMock(return_value=None)):
             ctx = await publisher_context(
                 MagicMock(),
                 organization_id=uuid.uuid4(),

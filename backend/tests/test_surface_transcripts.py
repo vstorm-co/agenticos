@@ -239,7 +239,7 @@ def _the_widgets_rows() -> Iterator[None]:
             new=AsyncMock(return_value=[]),
         ),
         patch(
-            "app.services.access.member_repo.get",
+            "app.services.access.member_repo.get_active",
             new=AsyncMock(return_value=MagicMock(role="builder")),
         ),
     ):

@@ -196,13 +196,21 @@ async def publisher_context(
     role is what resolves what the agent may reach. So it is the member who
     published, which is both the honest record and the only answer available.
 
-    **`viewer` when they are no longer a member, and when there is no publisher
-    recorded at all.** Their departure must not silently *widen* what a public
-    surface reaches, and neither must a row old enough to predate the column naming
-    who made it. That is the whole reason this function exists rather than the two
-    call sites reading a membership each: it was written twice - once for
-    `agent_embeds.owner_user_id` and once for `agent_exposures.created_by_user_id` -
-    and two copies of an authorization decision is one that gets fixed once (#640).
+    **`viewer` when they are no longer a member, when their account has been
+    deactivated, and when there is no publisher recorded at all.** Their departure
+    must not silently *widen* what a public surface reaches, and neither must a row
+    old enough to predate the column naming who made it. That is the whole reason
+    this function exists rather than the two call sites reading a membership each: it
+    was written twice - once for `agent_embeds.owner_user_id` and once for
+    `agent_exposures.created_by_user_id` - and two copies of an authorization
+    decision is one that gets fixed once (#640).
+
+    Deactivation counts as no longer a member, which is why this reads
+    `member_repo.get_active` rather than `get`: the membership row survives a
+    deactivation, so the plain read left a deactivated Owner's widget, hosted page
+    and channel binding running turns at their full authority - an account refused
+    on every path a person signs in through, still spending the organization's
+    budget.
 
     `channel_identity_id` is a *different* fact and is only passed through: it
     records who **asked**, while the role comes from who **published**. Merging them
@@ -211,7 +219,7 @@ async def publisher_context(
     """
     role = OrgRoleName.VIEWER.value
     if publisher_user_id is not None:
-        membership = await member_repo.get(
+        membership = await member_repo.get_active(
             db, organization_id=organization_id, user_id=publisher_user_id
         )
         if membership is not None:
