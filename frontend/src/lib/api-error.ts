@@ -11,10 +11,12 @@
  * permission and an unpublished agent all reached the browser as the same three
  * words, and every carefully written server message died in transit.
  *
- * Two further shapes exist and are not going away, so this module knows all
- * three: `{"detail": "..."}` from this app's own BFF routes (`Not
- * authenticated`) and from Starlette's `HTTPException`, and `{"detail": [...]}`
- * from any FastAPI validation the backend's handler does not reach.
+ * Three further shapes exist and are not going away, so this module knows all
+ * four: `{"code": "..."}` from this app's own BFF routes, which have no locale
+ * to write a message in and so name the refusal for the client to translate
+ * (#603); `{"detail": "..."}` from Starlette's `HTTPException` and from what a
+ * proxy passes through; and `{"detail": [...]}` from any FastAPI validation the
+ * backend's handler does not reach.
  *
  * The other half of the job is deciding *where* a problem goes. A conflict on a
  * name and a rejected length are things a person can fix in the form they are
@@ -23,7 +25,8 @@
  * form that decided for itself would eventually decide differently.
  */
 
-import { getErrorMessage } from "@/lib/utils";
+import type { Translate } from "@/lib/agent-step-captions";
+import { bffErrorKey } from "@/lib/bff-errors";
 
 /** A problem the server attributed to a named field. */
 export type FieldProblem = {
@@ -45,9 +48,9 @@ export type SubmitFailure = {
   readonly toast: string | null;
 };
 
-// The last resort for a body that named no message, in a module with no translator
-// to reach. What renders it decides the locale; #603 covers moving that decision to
-// the caller.
+// A sentinel for a body that named no message, minted where no translator is in
+// scope. `localizedMessage` swaps it for `errors.requestFailed` at render time;
+// it stays a readable sentence for any path that never reaches a translator.
 // i18n-exempt: see above.
 const FALLBACK_MESSAGE = "Request failed";
 const UNKNOWN_CODE = "UNKNOWN";
@@ -68,6 +71,12 @@ function readEnvelope(body: unknown): Envelope | null {
     message,
     details: isRecord(details) ? details : null,
   };
+}
+
+/** The `{"code": "..."}` a BFF route refuses with, or null if the body is not one. */
+function readBffCode(body: unknown): string | null {
+  if (!isRecord(body) || typeof body.code !== "string") return null;
+  return bffErrorKey(body.code) === null ? null : body.code;
 }
 
 /** FastAPI's own validation shape, for the routes our handler does not cover. */
@@ -93,6 +102,14 @@ export function parseErrorMessage(body: unknown, fallback: string = FALLBACK_MES
 
   const problems = readFastApiDetail(body);
   if (problems) return problems.map((problem) => `${problem.field}: ${problem.message}`).join("; ");
+
+  // The code spelled out, so a reader that shows `.message` without a translator
+  // (#655) says "Not authenticated" rather than the meaningless sentinel.
+  const code = readBffCode(body);
+  if (code !== null) {
+    const words = code.toLowerCase().replace(/_/g, " ");
+    return words.charAt(0).toUpperCase() + words.slice(1);
+  }
 
   if (isRecord(body)) {
     if (typeof body.detail === "string") return body.detail;
@@ -121,9 +138,38 @@ export class ApiError extends Error {
     super(message);
     this.name = "ApiError";
     const envelope = readEnvelope(data);
-    this.code = envelope?.code ?? UNKNOWN_CODE;
+    this.code = envelope?.code ?? readBffCode(data) ?? UNKNOWN_CODE;
     this.details = envelope?.details ?? null;
   }
+}
+
+/**
+ * The sentence a refusal shows, in the caller's locale.
+ *
+ * A BFF code resolves against the `errors` namespace, because the handler that
+ * wrote it had no locale in scope and this is the side that does (#603). The
+ * fallback sentinel resolves the same way. Everything else is a message written
+ * by the backend, shown as written.
+ */
+function localizedMessage(error: ApiError, t: Translate): string {
+  const key = bffErrorKey(error.code);
+  if (key !== null) return t(key);
+  return error.message === FALLBACK_MESSAGE ? t("requestFailed") : error.message;
+}
+
+/**
+ * What to show for any failure: a refusal in the caller's locale, an `Error`'s
+ * own words, or - for a thrown non-Error - the caller's `fallback`, defaulting
+ * to `errors.unexpected`.
+ *
+ * Takes the `errors` translator rather than defaulting, because this used to
+ * default - to one English sentence that 51 callers rendered under every
+ * locale (#603).
+ */
+export function getErrorMessage(err: unknown, t: Translate, fallback?: string): string {
+  if (err instanceof ApiError) return localizedMessage(err, t);
+  if (err instanceof Error) return err.message;
+  return fallback ?? t("unexpected");
 }
 
 /** Every field the server named as wrong. Empty when it named none. */
@@ -195,20 +241,20 @@ export type FormShape = {
  * problem about a field this form does not have - comes back as one line for a
  * toast, because pretending otherwise would leave a failure invisible.
  */
-export function submitFailure(error: unknown, form: FormShape): SubmitFailure {
+export function submitFailure(error: unknown, form: FormShape, t: Translate): SubmitFailure {
   if (!(error instanceof ApiError)) {
-    return { fields: {}, toast: getErrorMessage(error) };
+    return { fields: {}, toast: getErrorMessage(error, t) };
   }
 
   if (error.status === 409) {
     return form.identifiedBy === undefined
-      ? { fields: {}, toast: error.message }
-      : { fields: { [form.identifiedBy]: error.message }, toast: null };
+      ? { fields: {}, toast: localizedMessage(error, t) }
+      : { fields: { [form.identifiedBy]: localizedMessage(error, t) }, toast: null };
   }
 
   const problems = fieldProblems(error);
   if (problems.length === 0) {
-    return { fields: {}, toast: error.message };
+    return { fields: {}, toast: localizedMessage(error, t) };
   }
 
   const fields: Record<string, string> = {};

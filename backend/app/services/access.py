@@ -18,9 +18,9 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.permissions import AuthContext, Perm, Scope
+from app.core.permissions import AuthContext, OrgRoleName, Perm, Scope
 from app.db.models.resource_grant import GRANT_ORDER, GrantLevel, Visibility
-from app.repositories import resource_grant_repo
+from app.repositories import member_repo, resource_grant_repo
 
 
 class OwnedResource(Protocol):
@@ -178,4 +178,55 @@ async def visible_resource_ids(
         subject_user_id=subject,
         resource_type=resource_type.key,
         minimum_level=required,
+    )
+
+
+async def publisher_context(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    publisher_user_id: UUID | None,
+    channel_identity_id: UUID | None = None,
+) -> AuthContext:
+    """The role a turn nobody can name runs under: whoever published the surface.
+
+    A widget on somebody's site, a hosted page behind a link, an agent bound to a
+    Slack channel - on all three the person in front of it is anonymous or is a chat
+    account with no platform user behind it, and a run still takes a subject: the
+    role is what resolves what the agent may reach. So it is the member who
+    published, which is both the honest record and the only answer available.
+
+    **`viewer` when they are no longer a member, when their account has been
+    deactivated, and when there is no publisher recorded at all.** Their departure
+    must not silently *widen* what a public surface reaches, and neither must a row
+    old enough to predate the column naming who made it. That is the whole reason
+    this function exists rather than the two call sites reading a membership each: it
+    was written twice - once for `agent_embeds.owner_user_id` and once for
+    `agent_exposures.created_by_user_id` - and two copies of an authorization
+    decision is one that gets fixed once (#640).
+
+    Deactivation counts as no longer a member, which is why this reads
+    `member_repo.get_active` rather than `get`: the membership row survives a
+    deactivation, so the plain read left a deactivated Owner's widget, hosted page
+    and channel binding running turns at their full authority - an account refused
+    on every path a person signs in through, still spending the organization's
+    budget.
+
+    `channel_identity_id` is a *different* fact and is only passed through: it
+    records who **asked**, while the role comes from who **published**. Merging them
+    would make a channel run claim the sender's authority, which is exactly what an
+    unlinked sender does not have.
+    """
+    role = OrgRoleName.VIEWER.value
+    if publisher_user_id is not None:
+        membership = await member_repo.get_active(
+            db, organization_id=organization_id, user_id=publisher_user_id
+        )
+        if membership is not None:
+            role = membership.role
+    return AuthContext(
+        user_id=publisher_user_id,
+        organization_id=organization_id,
+        role=role,
+        channel_identity_id=channel_identity_id,
     )

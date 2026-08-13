@@ -139,13 +139,13 @@ function SingleQuestion({
       }
       return;
     }
-    if (e.key === t("arrowdown2")) {
+    if (e.key === "ArrowDown") {
       e.preventDefault();
       setFocusIdx((i) => Math.min(i + 1, options.length - 1));
-    } else if (e.key === t("arrowup2")) {
+    } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setFocusIdx((i) => Math.max(i - 1, 0));
-    } else if (e.key === t("enter6")) {
+    } else if (e.key === "Enter") {
       e.preventDefault();
       onAnswer(options[focusIdx]!);
     }
@@ -209,7 +209,7 @@ function SingleQuestion({
               placeholder={t("typeYourAnswer")}
               onChange={(e) => setCustomText(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === t("enter7")) {
+                if (e.key === "Enter") {
                   e.preventDefault();
                   submitCustom();
                 }

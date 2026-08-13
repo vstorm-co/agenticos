@@ -15,6 +15,7 @@ from app.core.security import (
     verify_special_token,
 )
 from app.db.models.user import User
+from app.db.updates import writable
 from app.repositories import session_repo, user_repo
 from app.schemas.conversation_share import AdminUserList, AdminUserRead
 from app.schemas.user import UserCreate, UserUpdate
@@ -186,7 +187,7 @@ class UserService:
     async def update(self, user_id: UUID, user_in: UserUpdate) -> User:
         user = await self.get_by_id(user_id)
 
-        update_data = user_in.model_dump(exclude_unset=True)
+        update_data = writable(user_in, over=User)
         if "password" in update_data:
             update_data["hashed_password"] = get_password_hash(update_data.pop("password"))
 

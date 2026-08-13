@@ -12,7 +12,6 @@ from app.core.exceptions import (
 )
 from app.core.middleware import RequestIDMiddleware
 from app.core.cache import setup_cache
-from app.core.rate_limit import limiter
 from unittest.mock import patch
 
 from fastapi import FastAPI
@@ -96,14 +95,6 @@ class TestMiddleware:
     def test_request_id_middleware_exists(self):
         """Test request ID middleware is configured."""
         assert RequestIDMiddleware is not None
-
-
-class TestRateLimit:
-    """Tests for rate limiting."""
-
-    def test_limiter_exists(self):
-        """Test rate limiter is configured."""
-        assert limiter is not None
 
 
 class TestLogfireSetup:

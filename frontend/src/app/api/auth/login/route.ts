@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { backendFetch, BackendApiError } from "@/lib/server-api";
+import { BackendApiError, backendFetch, bffRefusal } from "@/lib/server-api";
 import type { LoginResponse } from "@/types";
 
 export async function POST(request: NextRequest) {
@@ -28,7 +28,6 @@ export async function POST(request: NextRequest) {
     const response = NextResponse.json({
       user,
       access_token: data.access_token,
-      message: "Login successful",
     });
 
     response.cookies.set("access_token", data.access_token, {
@@ -50,9 +49,10 @@ export async function POST(request: NextRequest) {
     return response;
   } catch (error) {
     if (error instanceof BackendApiError) {
-      const detail = (error.data as { detail?: string })?.detail || "Login failed";
+      const detail = (error.data as { detail?: string })?.detail;
+      if (!detail) return bffRefusal("LOGIN_FAILED", error.status);
       return NextResponse.json({ detail }, { status: error.status });
     }
-    return NextResponse.json({ detail: "Internal server error" }, { status: 500 });
+    return bffRefusal("INTERNAL_SERVER_ERROR", 500);
   }
 }

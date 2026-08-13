@@ -13,6 +13,7 @@ import { POST as uploadFile } from "./files/upload/route";
 import { GET as readFile } from "./files/[id]/route";
 import { GET as callback } from "./me/mcp-connections/oauth/callback/route";
 import { GET as orgAvatar, POST as setOrgAvatar } from "./orgs/[id]/avatar/route";
+import { GET as hostedLogo } from "./embed/[publicKey]/logo/route";
 import { GET as userAvatar } from "./users/avatar/[userId]/route";
 import { POST as setOwnAvatar } from "./users/me/avatar/route";
 import { backendFetch } from "@/lib/server-api";
@@ -122,7 +123,7 @@ describe("uploading a file to a conversation", () => {
     );
 
     expect(response.status).toBe(504);
-    await expect(response.json()).resolves.toEqual({ detail: "Upload failed" });
+    await expect(response.json()).resolves.toEqual({ code: "UPLOAD_FAILED" });
   });
 
   it("answers 500 when the backend could not be reached", async () => {
@@ -208,7 +209,7 @@ describe("reading a file back", () => {
     serve(null, { status: 404 });
     const missing = await readFile(request("http://localhost:3000/api/files/f-1"), params);
     expect(missing.status).toBe(404);
-    await expect(missing.json()).resolves.toEqual({ detail: "File not found" });
+    await expect(missing.json()).resolves.toEqual({ code: "FILE_NOT_FOUND" });
   });
 
   it("answers 500 when the backend could not be reached", async () => {
@@ -355,7 +356,7 @@ describe("avatars", () => {
       request("http://localhost:3000/api/users/me/avatar", { form: file() }),
     );
 
-    await expect(response.json()).resolves.toEqual({ detail: "Upload failed" });
+    await expect(response.json()).resolves.toEqual({ code: "UPLOAD_FAILED" });
   });
 
   it("answers 500 when an avatar upload could not be attempted", async () => {
@@ -407,7 +408,7 @@ describe("avatars", () => {
       params: Promise.resolve({ id: "org-1" }),
     });
     expect(missing.status).toBe(404);
-    await expect(missing.json()).resolves.toEqual({ detail: "Avatar not available" });
+    await expect(missing.json()).resolves.toEqual({ code: "AVATAR_NOT_AVAILABLE" });
   });
 
   it("answers 500 when an organization avatar could not be fetched", async () => {

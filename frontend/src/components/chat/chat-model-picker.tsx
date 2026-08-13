@@ -8,6 +8,7 @@ import {
   modelPlaceholder,
   placeholderWords,
 } from "@/components/agents/add-model";
+import { getErrorMessage } from "@/lib/api-error";
 import { ProviderIcon } from "@/components/vault/provider-icon";
 import { ProviderRow } from "@/components/vault/provider-row";
 import {
@@ -28,7 +29,7 @@ import {
   useSecretPurposes,
   useSecrets,
 } from "@/hooks";
-import { getErrorMessage } from "@/lib/utils";
+import { modelDetail } from "@/lib/model-profiles";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 
@@ -68,6 +69,7 @@ interface ChatModelPickerProps {
  * itself to nobody.
  */
 export function ChatModelPicker({ value, onChange }: ChatModelPickerProps) {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("chat.modelPicker");
   // Root, for the absolute keys `modelPlaceholder` answers with. Resolving them
   // through `t` above asked for `chat.modelPicker.pickProviderFirst`, which does
@@ -86,6 +88,7 @@ export function ChatModelPicker({ value, onChange }: ChatModelPickerProps) {
   const provider = providers.find((entry) => entry.id === providerId);
   const { models: suggestions } = useProviderModels(providerId);
   const active = profiles.find((profile) => profile.id === value) ?? null;
+  const activeDetail = active ? modelDetail(active) : null;
 
   // Before the fields, not on the button: a disabled submit under three filled-in
   // fields still says "you could do this", and the answer here is that somebody
@@ -135,7 +138,7 @@ export function ChatModelPicker({ value, onChange }: ChatModelPickerProps) {
     } catch (error) {
       // Caught, not left to reject: every refusal this endpoint gives is about
       // the model id, so it belongs under the field, where it can be fixed.
-      setFailure(getErrorMessage(error));
+      setFailure(getErrorMessage(error, tErrors));
     }
   };
 
@@ -146,9 +149,9 @@ export function ChatModelPicker({ value, onChange }: ChatModelPickerProps) {
           <ProviderIcon provider={active.provider} />
           <span className="min-w-0 flex-1 truncate">
             <span className="font-medium">{active.label}</span>
-            <span className="text-muted-foreground block truncate font-mono">
-              {active.provider} · {active.model}
-            </span>
+            {activeDetail !== null && (
+              <span className="text-muted-foreground block truncate font-mono">{activeDetail}</span>
+            )}
           </span>
           <Check className="text-foreground h-3.5 w-3.5 shrink-0" aria-hidden />
         </p>

@@ -9,7 +9,7 @@ from app.services.embedding_resolution import embeddings_for_collection
 from app.services.rag.documents import DocumentProcessor
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.failures import IngestionStage, failure_summary
-from app.services.rag.models import Document, IngestionResult, IngestionStatus
+from app.services.rag.models import Document, DocumentInfo, IngestionResult, IngestionStatus
 from app.services.rag.vectorstore import BaseVectorStore
 from app.services.rag.vectorstore import PgVectorStore as VectorStore
 
@@ -51,19 +51,34 @@ class IngestionService:
             except Exception as e:
                 logger.warning("Webhook event dispatch failed: %s", e)
 
-    async def _find_existing_by_source(self, collection_name: str, source_path: str) -> str | None:
+    async def _existing_by_source(
+        self, collection_name: str, source_path: str
+    ) -> tuple[str | None, str | None]:
+        """The stored document `source_path` refers to, as `(document_id, content_hash)`.
+
+        One precedence for both answers: a `source_path` match anywhere in the
+        collection beats a `filename` match anywhere in it. The id lookup and
+        the hash lookup used to walk the documents with different rules, so the
+        sync modes compared a live file's hash against a different document's
+        `content_hash` than the one they were about to replace (#548).
+        """
         try:
             docs = await self.store.get_documents(collection_name)
-            for doc in docs:
-                meta = doc.additional_info or {}
-                if meta.get("source_path") == source_path:
-                    return doc.document_id
-            for doc in docs:
-                if doc.filename and doc.filename == Path(source_path).name:
-                    return doc.document_id
         except Exception as exc:
             logger.warning("Could not check for existing document: %s", exc, exc_info=True)
-        return None
+            return None, None
+        filename = Path(source_path).name
+        fallback: DocumentInfo | None = None
+        for doc in docs:
+            meta = doc.additional_info or {}
+            if meta.get("source_path") == source_path:
+                return doc.document_id, meta.get("content_hash") or None
+            if fallback is None and doc.filename and doc.filename == filename:
+                fallback = doc
+        if fallback is None:
+            return None, None
+        meta = fallback.additional_info or {}
+        return fallback.document_id, meta.get("content_hash") or None
 
     async def _find_existing_by_hash(self, collection_name: str, content_hash: str) -> str | None:
         """Find an existing document by content hash (exact duplicate check)."""
@@ -106,7 +121,7 @@ class IngestionService:
             existing_id = None
             if replace:
                 if document.metadata.source_path:
-                    existing_id = await self._find_existing_by_source(
+                    existing_id, _ = await self._existing_by_source(
                         collection_name, document.metadata.source_path
                     )
                 if not existing_id and document.metadata.content_hash:
@@ -165,27 +180,12 @@ class IngestionService:
         )
 
     async def find_existing(self, collection_name: str, source_path: str) -> str | None:
-        return await self._find_existing_by_source(collection_name, source_path)
+        document_id, _ = await self._existing_by_source(collection_name, source_path)
+        return document_id
 
     async def get_existing_hash(self, collection_name: str, source_path: str) -> str | None:
-        try:
-            docs = await self.store.get_documents(collection_name)
-            doc_id: str | None = None
-            content_hash: str | None = None
-            for doc in docs:
-                meta = doc.additional_info or {}
-                if doc_id is None:
-                    if meta.get("source_path") == source_path:
-                        doc_id = doc.document_id
-                        content_hash = meta.get("content_hash")
-                        break
-                    if doc.filename and doc.filename == Path(source_path).name:
-                        doc_id = doc.document_id
-                        content_hash = meta.get("content_hash")
-            return content_hash
-        except Exception as exc:
-            logger.warning("Could not retrieve existing hash: %s", exc, exc_info=True)
-        return None
+        _, content_hash = await self._existing_by_source(collection_name, source_path)
+        return content_hash
 
     async def remove_document(self, collection_name: str, document_id: str) -> bool:
         """Wipes all traces of a document from the vector store."""

@@ -51,6 +51,7 @@ from app.services.agent_runner import (
     PausedRunState,
     PreparedRun,
     _outcome,
+    run_failure_summary,
 )
 from app.services.attachments import AttachmentRouter
 from app.services.usage_report import UsageReport, UsageReportService
@@ -389,7 +390,7 @@ class ChatAgentRunner:
             logger.info("Chat run %s stopped by budget: %s", prepared.run.id, exc)
             raise
         except Exception as exc:
-            error = str(exc)
+            error = run_failure_summary(exc)
             logger.exception("Chat run %s failed", prepared.run.id)
             raise
         finally:
