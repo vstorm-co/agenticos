@@ -17,6 +17,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.142] - 2026-08-13
+
+Every page declared itself English, Polish ones included.
+
+### Fixed
+
+- **`<html lang="en">` was hard-coded** from `defaultLocale` in the one layout that
+  renders `<html>`, so a screen reader on `/pl/agents` announced Polish copy with
+  English pronunciation rules and a crawler read the page as English. It now comes
+  from the active locale. More visible since #604, because before that the UI
+  mostly reverted to English anyway. (#619)
+
 ## [0.0.141] - 2026-08-13
 
 The baked MCP logos were keyed on a domain nothing ever asked for.
