@@ -780,8 +780,10 @@ exists to hold to account.
 
 Worth stating, because a governance page implies otherwise:
 
-- **No rate limiting per agent.** There is deployment-level rate limiting on the
-  API, not a per-agent request budget.
+- **No rate limiting per agent.** The limits that exist sit on the public
+  surfaces — the embed widget meters messages per visitor, a channel bot meters
+  each sender ([Channels](channels.md)) — not on the deployment: there is no
+  per-agent request budget, and the console's own routes are not metered.
 - **No content filtering.** What an agent says is what the model said.
 - **No egress control on MCP.** A bound server is reached over the network from
   the worker; restricting where that can go is deployment configuration, not a
