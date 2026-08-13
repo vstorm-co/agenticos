@@ -280,7 +280,8 @@ class TestConversationServiceGetConversation:
 
 
 class TestParticipationDoesNotCarryTheWrite:
-    """Speaking in a room is a claim on being shown the thread, not on the row.
+    """Speaking in a room is a claim on being shown the thread, not on a row
+    somebody owns; only an ownerless thread is its participants' to change (#701).
 
     Every mutating method authorizes by resolving the conversation, so widening the
     read to a room's participants (#639) widened those with it: a Viewer who said
@@ -443,17 +444,48 @@ class TestParticipationDoesNotCarryTheWrite:
             assert archived.id == conversation.id
 
     @pytest.mark.anyio
-    async def test_a_thread_nobody_owns_stays_the_organizations_to_tidy(
+    async def test_a_thread_nobody_owns_is_not_a_strangers_to_delete(
         self, service: ConversationService
     ):
-        """A room nobody linked an account in has no owner, and stays writable by
-        the organization - which is what it was before participation existed.
-        Narrowing it is #701, not something this refusal should decide quietly."""
+        """A room nobody linked an account in has no owner, so the owner guard
+        used to be skipped and any member of the organization could delete it
+        (#701). The write now stops at the same set the read does."""
         conversation = MockConversation(id=uuid4(), user_id=None)
 
-        with patch("app.services.conversation.conversation_repo") as mock_repo:
+        with (
+            patch("app.services.conversation.conversation_repo") as mock_repo,
+            patch("app.services.conversation.conversation_share_repo") as mock_share_repo,
+            patch("app.services.conversation.channel_membership") as mock_membership,
+        ):
             mock_repo.get_conversation_by_id = AsyncMock(return_value=conversation)
             mock_repo.delete_conversation = AsyncMock()
+            mock_share_repo.get_share = AsyncMock(return_value=None)
+            mock_membership.confirms_participation = AsyncMock(return_value=False)
+
+            with pytest.raises(NotFoundError):
+                await service.delete_conversation(
+                    conversation.id, user_id=uuid4(), organization_id=TEST_ORG_ID
+                )
+
+            mock_repo.delete_conversation.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_a_thread_nobody_owns_is_its_participants_to_tidy(
+        self, service: ConversationService
+    ):
+        """With no owner to be taken from, speaking in the room is the only claim
+        anybody has, so it carries the write - exactly the set the read admits."""
+        conversation = MockConversation(id=uuid4(), user_id=None)
+
+        with (
+            patch("app.services.conversation.conversation_repo") as mock_repo,
+            patch("app.services.conversation.conversation_share_repo") as mock_share_repo,
+            patch("app.services.conversation.channel_membership") as mock_membership,
+        ):
+            mock_repo.get_conversation_by_id = AsyncMock(return_value=conversation)
+            mock_repo.delete_conversation = AsyncMock()
+            mock_share_repo.get_share = AsyncMock(return_value=None)
+            mock_membership.confirms_participation = AsyncMock(return_value=True)
 
             assert await service.delete_conversation(
                 conversation.id, user_id=uuid4(), organization_id=TEST_ORG_ID
