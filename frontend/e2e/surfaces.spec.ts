@@ -32,9 +32,20 @@ async function openAvailability(page: Page, agent: string): Promise<Locator> {
   return page.getByRole("tabpanel");
 }
 
-/** Publish a hosted page, and answer with the link it produced. */
+/**
+ * Publish a hosted page, and answer with the link it produced.
+ *
+ * Every locator here is anchored or exact, because `getByRole` matches an
+ * accessible name by *substring* and this panel offers three names that contain
+ * another: a row carries `Edit Hosted page` and `Remove Hosted page`, and the
+ * picker's Public API card ends "Nothing to publish here".
+ */
 async function publishPage(page: Page, panel: Locator): Promise<string> {
-  const publish = panel.getByRole("button", { name: /Hosted page/ }).first();
+  // Anchored, and no `.first()`: an unanchored `Hosted page` also matches a
+  // published row's Edit and Remove buttons, which sort before the picker - so
+  // once a page existed this reopened the oldest row instead of publishing, and
+  // published only while the embeds fetch was still in flight.
+  const publish = panel.getByRole("button", { name: /^Hosted page/ });
   // Wait for the panel's query to resolve before deciding the button is absent:
   // isVisible() is immediate, so a slow embeds fetch would skip the spec as
   // "cannot publish" on a machine that was merely slow rather than unpermitted.
@@ -44,20 +55,30 @@ async function publishPage(page: Page, panel: Locator): Promise<string> {
     test.skip(true, "this user cannot publish an embed");
   }
   await publish.click();
-  const submit = panel.getByRole("button", { name: "Publish" });
+  const submit = panel.getByRole("button", { name: "Publish", exact: true });
   await submit.click();
   // The picker form unmounts on success, so the write has landed once the submit
   // is gone. Reloading before that races the mutation - .click() resolves on the
   // dispatch, not the response - and the refetch can answer with the pre-write
-  // list (#230).
+  // list (#230). Exact above is what makes zero reachable: the Public API card
+  // is on screen whenever the form is not, and a substring match counted it.
   await expect(submit).toHaveCount(0);
 
   await page.reload();
   await openBuilderTab(page, "Availability");
   const origin = new URL(page.url()).origin;
-  const link = page.getByText(new RegExp(`^${origin}/e/`)).first();
+  // The last row, not the first: the list is ordered by `created_at` ascending
+  // (`app/repositories/agent_embed.py`), and these specs share one agent - so
+  // the page this call published is the newest one, and the first link belongs
+  // to whichever spec ran before.
+  const link = page.getByText(new RegExp(`^${origin}/e/`)).last();
   await expect(link).toBeVisible({ timeout: 30_000 });
   return (await link.textContent())?.trim() ?? "";
+}
+
+/** The Edit button of the surface `publishPage` just created - the last row. */
+function editNewest(panel: Locator): Locator {
+  return panel.getByRole("button", { name: /^Edit / }).last();
 }
 
 test.describe("A published surface", () => {
@@ -65,17 +86,14 @@ test.describe("A published surface", () => {
     const panel = await openAvailability(page, DRAFT_AGENT_NAME);
     await publishPage(page, panel);
 
-    await panel
-      .getByRole("button", { name: /^Edit / })
-      .first()
-      .click();
+    await editNewest(panel).click();
     const title = panel.getByLabel("Page title");
     await title.fill("Refund questions");
     // Every switch here is a filter on what the server *sends*, so the one worth
     // driving end to end is the one whose default is on: turning the narration
     // off has to reach the row rather than the renderer.
     await panel.getByRole("checkbox", { name: /What the agent is doing/ }).click();
-    const save = panel.getByRole("button", { name: "Save changes" });
+    const save = panel.getByRole("button", { name: "Save changes", exact: true });
     await save.click();
     // The inline form unmounts on success, so the edit has landed once the
     // button is gone. Reloading before that races the mutation.
@@ -83,10 +101,7 @@ test.describe("A published surface", () => {
 
     await page.reload();
     await openBuilderTab(page, "Availability");
-    await panel
-      .getByRole("button", { name: /^Edit / })
-      .first()
-      .click();
+    await editNewest(panel).click();
     await expect(panel.getByLabel("Page title")).toHaveValue("Refund questions");
     await expect(
       panel.getByRole("checkbox", { name: /What the agent is doing/ }),
@@ -100,10 +115,7 @@ test.describe("A published surface", () => {
     // a file has landed - which is the only visible proof the write happened.
     const panel = await openAvailability(page, DRAFT_AGENT_NAME);
     await publishPage(page, panel);
-    await panel
-      .getByRole("button", { name: /^Edit / })
-      .first()
-      .click();
+    await editNewest(panel).click();
 
     await panel.getByLabel("Logo").click();
     await page.getByRole("option", { name: "A picture you upload" }).click();
@@ -175,12 +187,9 @@ test.describe("What the page offers a visitor", () => {
     // assertion is written against what it reports.
     const panel = await openAvailability(page, DRAFT_AGENT_NAME);
     const hostedUrl = await publishPage(page, panel);
-    await panel
-      .getByRole("button", { name: /^Edit / })
-      .first()
-      .click();
+    await editNewest(panel).click();
     await panel.getByRole("checkbox", { name: /A microphone in the composer/ }).click();
-    const save = panel.getByRole("button", { name: "Save changes" });
+    const save = panel.getByRole("button", { name: "Save changes", exact: true });
     await save.click();
     // The write must land before the stranger loads the page, or they see the
     // pre-save config: the form unmounts on success, so wait for that.

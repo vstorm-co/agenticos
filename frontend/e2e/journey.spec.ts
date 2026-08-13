@@ -247,11 +247,18 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
   await page.goto(`/agents/${agentId}`);
   await page.getByRole("tab", { name: "Availability" }).click();
   const availability = page.getByRole("tabpanel");
-  const publishPage = availability.getByRole("button", { name: /Hosted page/ }).first();
+  const publishPage = availability.getByRole("button", { name: /^Hosted page/ });
   if (!(await publishPage.isVisible())) {
     test.skip(true, "this user cannot publish an embed");
   }
   await publishPage.click();
+
+  // The form is open once its own field is on screen. Waited for rather than
+  // assumed: `getByLabel("Allowed sites")` is absent from the picker too, so it
+  // asserts nothing about the click having landed, and the submit below would
+  // then find the picker's Public API card - whose name ends "Nothing to publish
+  // here", which a substring match on `Publish` counts (#634).
+  await expect(availability.getByLabel("Name")).toBeVisible();
 
   // No allowed site, and that is the assertion rather than an omission: an
   // allow-list is a rule about other people's sites, and this page is ours. The
@@ -259,7 +266,7 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
   // shortest integration this product has - send somebody a link - impossible to
   // create without inventing a site.
   await expect(availability.getByLabel("Allowed sites")).toHaveCount(0);
-  await availability.getByRole("button", { name: "Publish" }).click();
+  await availability.getByRole("button", { name: "Publish", exact: true }).click();
 
   // Reloaded before the link is read. The list's refetch after a write is
   // sometimes answered with the pre-write list (#230), and this step needs the
