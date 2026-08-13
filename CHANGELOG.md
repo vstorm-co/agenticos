@@ -17,6 +17,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.132] - 2026-08-13
+
+The spend page said nothing could not be priced, above three breakdowns that had
+priced nothing.
+
+### Fixed
+
+- **`GET /runs/spend` counted its "could not be priced" caveat over *top-level*
+  rows only.** By provider and By key price every row in the window through a
+  subquery that is deliberately not windowed, so a parent that started before the
+  window and delegated inside it put its delegate's spend into the breakdowns while
+  the caveat above them read `0` — a page saying the numbers are complete when they
+  are not. The caveat now counts what the breakdowns count. (#620)
+
 ## [0.0.131] - 2026-08-13
 
 Two RAG document lookups disagreed about which document they were looking at, and
