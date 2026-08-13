@@ -285,6 +285,7 @@ class ChannelMessageRouter:
             # A refusal - no agent exposed, several to choose from, an unlinked
             # sender - is the platform answering, not a crash. The message says
             # what to do next.
+            await self._discard_files(db, files)
             await self._send_reply(bot, incoming, exc.message)
             return
         except Exception:
@@ -396,6 +397,11 @@ class ChannelMessageRouter:
         except UnaddressedMessage:
             return False
         except AppException as exc:
+            # Whether or not the refusal is worth posting, the files this turn
+            # already stored are not: a turn that produced no run leaves rows
+            # nothing points at, and `chat_files` carries no organization, so an
+            # unlinked row is scoped by `user_id` alone (#690).
+            await self._discard_files(db, files)
             # A handle that names no agent of ours. In a channel where the bot was
             # not among the mentioned accounts, that handle was somebody's
             # colleague - so the refusal is logged rather than posted, because a bot
@@ -520,6 +526,20 @@ class ChannelMessageRouter:
             incoming.attachments,
             user_id=identity.user_id,
         )
+
+    @staticmethod
+    async def _discard_files(db: Any, files: list[Any]) -> None:
+        """Give back what the turn stored, for a turn that was refused.
+
+        The files are fetched and stored before the agent is resolved, so a
+        refusal raised in its place - nothing exposed on this bot, a sender whose
+        account is nobody's - leaves rows nothing will ever link to a message and
+        bytes nothing will ever read (#661). The refusal is still what the sender
+        gets: nothing here is allowed to raise in its way.
+        """
+        if not files:
+            return
+        await ChannelAttachmentService(db).discard(files)
 
     @staticmethod
     def _with_notes(answer: str, *notes: list[str]) -> str:
