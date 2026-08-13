@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { useSyncSources } from "@/hooks";
 import { timeAgo } from "@/lib/utils";
@@ -13,6 +13,7 @@ import type { DashboardWidgetProps } from "./types";
 export function KnowledgeFreshnessWidget({ title, seeAll }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.knowledge-freshness");
   const tTime = useTranslations("time");
+  const locale = useLocale();
   const { sources, isLoading, error, refetch } = useSyncSources();
 
   return (
@@ -32,7 +33,7 @@ export function KnowledgeFreshnessWidget({ title, seeAll }: DashboardWidgetProps
               sub: failing
                 ? (source.last_error ?? undefined)
                 : source.last_sync_at
-                  ? t("synced", { ago: timeAgo(source.last_sync_at, tTime) })
+                  ? t("synced", { ago: timeAgo(source.last_sync_at, tTime, locale) })
                   : t("neverSynced"),
               pill: failing ? t("failing") : t("fresh"),
               tone: failing ? ("err" as const) : ("ok" as const),

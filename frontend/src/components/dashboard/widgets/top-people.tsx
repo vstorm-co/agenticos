@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { usePeopleUsage, useUsageStats } from "@/hooks";
 import { timeAgo } from "@/lib/utils";
@@ -25,6 +25,7 @@ const ROWS = 6;
 export function TopPeopleWidget({ title, period, seeAll }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.top-people");
   const tTime = useTranslations("time");
+  const locale = useLocale();
   const { byUser, isLoading, error, refetch } = usePeopleUsage(
     { from: period.from, to: period.to },
     { limit: ROWS },
@@ -68,7 +69,7 @@ export function TopPeopleWidget({ title, period, seeAll }: DashboardWidgetProps)
                       {formatUsd(Number(person.cost_usd))}
                     </td>
                     <td className="text-muted-foreground py-1.5 text-right">
-                      {timeAgo(person.last_run_at, tTime)}
+                      {timeAgo(person.last_run_at, tTime, locale)}
                     </td>
                   </tr>
                 ))}
