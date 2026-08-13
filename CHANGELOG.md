@@ -17,6 +17,40 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.122] - 2026-08-13
+
+A platform's second way in built its own idea of what a message is, and the two
+disagreed about files.
+
+### Fixed
+
+- **Each adapter now has exactly one parser.** Every platform has two ways in — a
+  webhook and a stream, or long-polling — and the second one built its own
+  normalised message: Telegram's polling loop read text and nothing else, and the
+  Mattermost outgoing webhook read no `file_ids` at all. So somebody dropping a
+  spreadsheet on a bot had it silently discarded, depending only on which
+  transport that deployment happened to run — and long-polling is what a
+  self-hosted install uses. Both now put the update back into the shape the
+  platform sends and hand it to the same `parse_incoming`, so what counts as a
+  message is decided once. What each transport is *handed* still differs, and that
+  is the platform's doing: Telegram's polling loop subscribes to new messages
+  only, so an edit reaches the webhook receiver and never the poller. (#672)
+
+## [0.0.121] - 2026-08-13
+
+A message's attachments were downloaded and stored twice, and the run was handed
+the second copy.
+
+### Fixed
+
+- **Each path fetched the files for itself.** A mention that names nobody of ours
+  falls through to the default assistant, and both halves called `_receive_files`
+  — so an ordinary message with a spreadsheet on it was downloaded from the
+  platform twice, stored twice, and run with the second set. The first row stayed
+  against the sender with nothing pointing at it, which on `chat_files` means
+  scoped by `user_id` alone and collected by nothing. The fetch now happens once,
+  above both paths, and is passed down. (#683)
+
 ## [0.0.120] - 2026-08-13
 
 Reloading a conversation whose run is parked on an approval showed nothing to

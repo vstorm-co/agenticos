@@ -722,9 +722,18 @@ class MattermostAdapter(ChannelAdapter):
         it is there and an id with none is carried as a handle with nothing
         claimed - which the size check then reads as zero and lets through, to be
         caught against the bytes after the download.
+
+        Both spellings of `file_ids` are read here, because Mattermost has two:
+        the socket sends a list, the outgoing webhook one comma-separated string.
+        Handing the flat webhook body to a reader that only knew the list form
+        would have iterated the string a character at a time (#547).
         """
         metadata = (post.get("metadata") or {}).get("files") or []
         described = {str(entry.get("id")): entry for entry in metadata if isinstance(entry, dict)}
+        raw_ids = post.get("file_ids") or []
+        file_ids = (
+            [part for part in raw_ids.split(",") if part] if isinstance(raw_ids, str) else raw_ids
+        )
 
         # The handle is the full URL, resolved here from the server this bot's
         # stream was opened against. Every Mattermost deployment is somebody's own
@@ -733,7 +742,7 @@ class MattermostAdapter(ChannelAdapter):
         base_url = self._base_urls.get(bot_id, "")
 
         found: list[IncomingAttachment] = []
-        for file_id in post.get("file_ids") or []:
+        for file_id in file_ids:
             entry = described.get(str(file_id), {})
             found.append(
                 IncomingAttachment(
@@ -766,12 +775,14 @@ class MattermostAdapter(ChannelAdapter):
         return response.content
 
     def _from_webhook(self, payload: dict[str, Any], bot_id: str) -> IncomingMessage | None:
-        text = str(payload.get("text") or "").strip()
-        if not text:
-            return None
         # Mattermost sends the bot's own posts to an outgoing webhook only when
         # explicitly configured to, but a loop is expensive enough to check for.
         if payload.get("user_name") in {"", None} or str(payload.get("user_id") or "") == "":
+            return None
+
+        attachments = self._attachments(payload, bot_id)
+        text = str(payload.get("text") or "").strip()
+        if not text and not attachments:
             return None
 
         channel_id = str(payload.get("channel_id") or "")
@@ -790,4 +801,5 @@ class MattermostAdapter(ChannelAdapter):
             platform_username=str(payload.get("user_name") or "") or None,
             platform_display_name=str(payload.get("user_name") or "") or None,
             message_id=str(payload.get("post_id") or "") or None,
+            attachments=attachments,
         )
