@@ -8,6 +8,7 @@ import {
   fromEditorSections,
   locate,
   moveSection,
+  moveSectionBy,
   moveWidget,
   moveWidgetBy,
   patchDivider,
@@ -174,6 +175,19 @@ describe("moveWidgetBy", () => {
     ]);
   });
 
+  it("unfolds a collapsed section a step carries the card into", () => {
+    const before = [
+      section("s0", null, [card("a", "runs"), card("b", "spend")]),
+      section("s1", { ...divider("U"), collapsed: true }, [card("c", "agents")]),
+    ];
+    const after = moveWidgetBy(before, "b", 1);
+    expect(shape(after)).toEqual([
+      { divider: null, widgets: ["runs", "agents"] },
+      { divider: "U", widgets: ["spend"] },
+    ]);
+    expect(after[1]!.divider!.collapsed).toBe(false);
+  });
+
   it("is a no-op at the ends and for an unknown card", () => {
     const before = [section("s0", null, [card("a", "runs"), card("b", "spend")])];
     expect(moveWidgetBy(before, "a", -1)).toBe(before);
@@ -201,6 +215,38 @@ describe("moveSection", () => {
   it("refuses to move the headingless leading section", () => {
     const before = build();
     expect(moveSection(before, "lead", 2)).toBe(before);
+  });
+});
+
+describe("moveSectionBy", () => {
+  const build = () => [
+    section("lead", null, [card("a", "runs")]),
+    section("s1", divider("One"), [card("b", "spend")]),
+    section("s2", divider("Two"), [card("c", "agents")]),
+  ];
+
+  it("steps a section down one place", () => {
+    expect(shape(moveSectionBy(build(), "s1", 1))).toEqual([
+      { divider: null, widgets: ["runs"] },
+      { divider: "Two", widgets: ["agents"] },
+      { divider: "One", widgets: ["spend"] },
+    ]);
+  });
+
+  it("steps a section up one place", () => {
+    expect(shape(moveSectionBy(build(), "s2", -1))).toEqual([
+      { divider: null, widgets: ["runs"] },
+      { divider: "Two", widgets: ["agents"] },
+      { divider: "One", widgets: ["spend"] },
+    ]);
+  });
+
+  it("is a no-op past the ends, against the pinned lead, and for an unknown section", () => {
+    const before = build();
+    expect(moveSectionBy(before, "s1", -1)).toBe(before);
+    expect(moveSectionBy(before, "s2", 1)).toBe(before);
+    expect(moveSectionBy(before, "lead", 1)).toBe(before);
+    expect(moveSectionBy(before, "missing", 1)).toBe(before);
   });
 });
 

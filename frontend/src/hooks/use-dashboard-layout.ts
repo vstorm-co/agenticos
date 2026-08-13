@@ -43,8 +43,15 @@ export function useDashboardLayout(): UseDashboardLayoutResult {
   });
 
   const resetMutation = useMutation({
-    mutationFn: deleteLayout,
-    onSuccess: () => queryClient.setQueryData<StoredLayout | null>(queryKey, null),
+    // Snapshot the key at mutate time, same as the save above: reset, then switch
+    // organization before the DELETE resolves, and reading `queryKey` in onSuccess
+    // would write null under org B's key, dropping org B's saved arrangement.
+    mutationFn: async () => {
+      const key = queryKey;
+      await deleteLayout();
+      return key;
+    },
+    onSuccess: (key) => queryClient.setQueryData<StoredLayout | null>(key, null),
   });
 
   const save = useCallback(

@@ -749,6 +749,8 @@
       "hide": "Ukryj {title}",
       "moveUp": "Przesuń {title} w górę",
       "moveDown": "Przesuń {title} w dół",
+      "moveSectionUp": "Przesuń sekcję {title} w górę",
+      "moveSectionDown": "Przesuń sekcję {title} w dół",
       "narrower": "Zwęź {title}",
       "wider": "Poszerz {title}",
       "shorter": "Zmniejsz wysokość {title}",

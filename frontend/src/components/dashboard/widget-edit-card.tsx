@@ -177,7 +177,11 @@ export function WidgetEditCard({
       setResizingTo({ span, rows: nextRows });
       onResize(span, nextRows);
     };
-    const finish = () => {
+    const finish = (endEvent?: PointerEvent) => {
+      // Revert to the press-time size only on a cancelled gesture, matching the
+      // drag engine, which discards its move on cancel too. Not on pointerup (the
+      // resize stands) nor on the no-event unmount teardown (the card is gone).
+      if (endEvent?.type === "pointercancel") onResize(entry.span, rows);
       setResizingTo(null);
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", finish);

@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronRight, GripVertical, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, GripVertical, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Button, Input } from "@/components/ui";
@@ -19,6 +19,8 @@ interface SectionDividerCardProps {
   dragging: boolean;
   onLabelChange: (label: string) => void;
   onAccentChange: (accent: SectionAccent) => void;
+  /** Step the whole band one place earlier (`-1`) or later (`+1`) — the keyboard reorder. */
+  onMove: (direction: -1 | 1) => void;
   onToggleCollapse: () => void;
   onRemove: () => void;
 }
@@ -44,6 +46,7 @@ export function SectionDividerCard({
   dragging,
   onLabelChange,
   onAccentChange,
+  onMove,
   onToggleCollapse,
   onRemove,
 }: SectionDividerCardProps) {
@@ -86,6 +89,27 @@ export function SectionDividerCard({
         ) : (
           <ChevronDown className="size-4" aria-hidden />
         )}
+      </Button>
+
+      <Button
+        variant="ghost"
+        size="icon"
+        data-no-drag
+        className="text-muted-foreground hover:text-foreground size-7 shrink-0"
+        aria-label={t("edit.moveSectionUp", { title: heading })}
+        onClick={() => onMove(-1)}
+      >
+        <ArrowUp className="size-4" aria-hidden />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        data-no-drag
+        className="text-muted-foreground hover:text-foreground size-7 shrink-0"
+        aria-label={t("edit.moveSectionDown", { title: heading })}
+        onClick={() => onMove(1)}
+      >
+        <ArrowDown className="size-4" aria-hidden />
       </Button>
 
       <Input

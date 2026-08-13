@@ -125,6 +125,10 @@ export function swapWidgets(
  * with its neighbour, so a step off the end of one section carries it into the
  * next (the neighbour takes the vacated slot), the same exchange the drop-on-a-
  * tile gesture makes. A no-op at the very ends, where there is no neighbour.
+ *
+ * A step that lands the card in a collapsed section unfolds it, so the card is
+ * never swapped into a folded band where it reads as vanished — the same answer
+ * the add path gives, and the case the pointer hit-test skips outright.
  */
 export function moveWidgetBy(
   sections: EditorSection[],
@@ -136,7 +140,13 @@ export function moveWidgetBy(
   if (at < 0) return sections;
   const neighbour = order[at + direction];
   if (neighbour === undefined) return sections;
-  return swapWidgets(sections, widgetUid, neighbour);
+  const swapped = swapWidgets(sections, widgetUid, neighbour);
+  const landing = swapped.find((section) =>
+    section.widgets.some((widget) => widget.uid === widgetUid),
+  );
+  return landing?.divider?.collapsed
+    ? patchDivider(swapped, landing.uid, { collapsed: false })
+    : swapped;
 }
 
 /**
@@ -157,6 +167,26 @@ export function moveSection(
   next.splice(from, 1);
   next.splice(Math.min(Math.max(index, floor), next.length), 0, moving);
   return next;
+}
+
+/**
+ * Move a whole section one step earlier (`-1`) or later (`+1`) among the other
+ * sections — the keyboard counterpart to dragging its grip. A no-op at the ends,
+ * and for the pinned headingless leading section, whose cards have no divider to
+ * travel with.
+ */
+export function moveSectionBy(
+  sections: EditorSection[],
+  sectionUid: string,
+  direction: -1 | 1,
+): EditorSection[] {
+  const at = sections.findIndex((section) => section.uid === sectionUid);
+  const moving = at < 0 ? undefined : sections[at];
+  if (!moving || moving.divider === null) return sections;
+  const floor = sections[0]?.divider === null ? 1 : 0;
+  const target = at + direction;
+  if (target < floor || target >= sections.length) return sections;
+  return moveSection(sections, sectionUid, target);
 }
 
 /** Resize the card to a width and height from the grid's closed sets. */

@@ -43,6 +43,7 @@ import {
   addWidgetToSection,
   fromEditorSections,
   moveSection,
+  moveSectionBy,
   moveWidget,
   moveWidgetBy,
   patchDivider,
@@ -513,6 +514,9 @@ export function DashboardEditor({
                       dragging={drag?.kind === "section" && drag.uid === section.uid}
                       onLabelChange={(label) => setLabel(section.uid, label)}
                       onAccentChange={(accent) => setAccent(section.uid, accent)}
+                      onMove={(direction) =>
+                        setSections((current) => moveSectionBy(current, section.uid, direction))
+                      }
                       onToggleCollapse={() => toggleCollapse(section.uid)}
                       onRemove={() => setSections((current) => removeSection(current, section.uid))}
                     />

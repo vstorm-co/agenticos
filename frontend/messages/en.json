@@ -1528,6 +1528,8 @@
       "hide": "Hide {title}",
       "moveUp": "Move {title} up",
       "moveDown": "Move {title} down",
+      "moveSectionUp": "Move section {title} up",
+      "moveSectionDown": "Move section {title} down",
       "narrower": "Make {title} narrower",
       "wider": "Make {title} wider",
       "shorter": "Make {title} shorter",
