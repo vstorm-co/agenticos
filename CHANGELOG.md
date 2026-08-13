@@ -17,6 +17,24 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.127] - 2026-08-13
+
+An invitation nobody clicked stayed pending for ever, and one clicked too late
+was recorded as withdrawn.
+
+### Added
+
+- **An hourly `invitation-expiry-sweep`**, the same shape as the approval sweep.
+  `InvitationStatus.EXPIRED` was unreachable — `invitation_repo.expire_stale` had
+  no caller — so the pending list kept offering invitations that had timed out.
+  Registered hourly rather than more often, because the TTL is measured in days.
+  (#456)
+
+### Fixed
+
+- **Accepting a stale invitation marked it `revoked`**, which records a withdrawal
+  somebody made when what actually happened is that it ran out. (#456)
+
 ## [0.0.126] - 2026-08-13
 
 A shareable invite link could grant ownership, or a role that does not exist.
