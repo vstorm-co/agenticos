@@ -17,6 +17,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.133] - 2026-08-13
+
+The banner guard walked every worktree on the machine before deciding to ignore
+them.
+
+### Fixed
+
+- **`scripts/check_comments.py` filtered after walking rather than pruning.**
+  `Path.rglob("*")` descended into `.git`, `.venv`, `node_modules` and every
+  checkout under `.claude/worktrees/`, and `SKIP_DIRS` only decided what was
+  *reported*. On a machine with 68 worktrees that was about 3.9M paths and roughly
+  seven minutes per commit, because pre-commit runs the hook with
+  `pass_filenames: false`. It is now `os.walk` with in-place pruning. (#635)
+
 ## [0.0.132] - 2026-08-13
 
 The spend page said nothing could not be priced, above three breakdowns that had
