@@ -17,6 +17,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.130] - 2026-08-13
+
+A scanned PDF ingested with OCR enabled indexed near-empty, silently.
+
+### Fixed
+
+- **The OCR fallback drove the image describer through
+  `asyncio.new_event_loop().run_until_complete(...)`** from inside a running loop,
+  which produced nothing — and the result was indistinguishable from a PDF that
+  genuinely had no text. `PyMuPDFParser._ocr_page` and `_parse_pdf_file` are now
+  `async` and await the describer on the caller's loop. (#550)
+
 ## [0.0.129] - 2026-08-13
 
 An MCP OAuth failure put the token endpoint, and whatever its query string held,
