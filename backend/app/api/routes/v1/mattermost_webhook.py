@@ -55,9 +55,11 @@ async def mattermost_webhook(
 
     # A webhook-mode bot opens no stream, so this is the only place its server
     # can reach the adapter - and the parser resolves attachment handles from
-    # it (#692). The isinstance narrows the registry's base type.
-    if isinstance(adapter, MattermostAdapter) and bot.api_base_url:
-        adapter.remember_server(str(bot_id), bot.api_base_url)
+    # it (#692). Mirrored even when empty, so clearing the row's address does
+    # not leave a stale one in the singleton map. The isinstance narrows the
+    # registry's base type.
+    if isinstance(adapter, MattermostAdapter):
+        adapter.remember_server(str(bot_id), bot.api_base_url or "")
 
     incoming = adapter.parse_incoming(decode_webhook_body(raw), str(bot_id))
     if incoming is None:

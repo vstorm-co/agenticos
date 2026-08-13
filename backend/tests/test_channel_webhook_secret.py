@@ -25,7 +25,8 @@ from app.db.models.channel_bot import ChannelBot
 from app.main import app
 from app.schemas.channel_bot import ChannelBotCreate, ChannelBotUpdate
 from app.services.channel_bot import ChannelBotService, unseal_webhook_secret
-from app.services.channels import register_adapter
+from app.services.channels import get_adapter, register_adapter
+from app.services.channels.base import IncomingMessage
 from app.services.channels.mattermost import MattermostAdapter
 from app.services.channels.telegram import TelegramAdapter
 
@@ -332,7 +333,7 @@ class TestTheReceiverRecordsTheServer:
     ):
         secret = "the-real-secret"
         bot = _sealed_bot(secret, api_base_url="https://mm.example.com/")
-        captured: list = []
+        captured: list[IncomingMessage] = []
 
         async def _record(incoming) -> None:
             captured.append(incoming)
@@ -360,3 +361,43 @@ class TestTheReceiverRecordsTheServer:
         assert len(captured) == 1
         handles = [attachment.handle for attachment in captured[0].attachments]
         assert handles == ["https://mm.example.com/api/v4/files/f1"]
+
+    async def test_clearing_the_bots_address_does_not_leave_a_stale_one_in_the_adapter(
+        self, client: AsyncClient
+    ):
+        """The adapter's map is process-wide state; the row is the truth. A bot
+        whose `api_base_url` was cleared must stop resolving attachments against
+        the address it used to have."""
+        secret = "the-real-secret"
+        bot = _sealed_bot(secret)
+        adapter = get_adapter("mattermost")
+        assert isinstance(adapter, MattermostAdapter)
+        adapter.remember_server(str(bot.id), "https://old.example.com")
+        captured: list[IncomingMessage] = []
+
+        async def _record(incoming) -> None:
+            captured.append(incoming)
+
+        app.dependency_overrides[deps.get_channel_bot_service] = lambda: _bot_service(bot)
+        try:
+            with patch("app.api.routes.v1.mattermost_webhook.process_channel_event", new=_record):
+                response = await client.post(
+                    f"/api/v1/mattermost/{bot.id}/webhook",
+                    json={
+                        "token": secret,
+                        "text": "what does this say",
+                        "user_id": "u-1",
+                        "user_name": "kacper",
+                        "channel_id": "c-1",
+                        "post_id": "p-1",
+                        "file_ids": "f1",
+                    },
+                )
+                assert response.status_code == 200
+                await background.drain(timeout=5.0)
+        finally:
+            app.dependency_overrides.pop(deps.get_channel_bot_service, None)
+
+        assert len(captured) == 1
+        handles = [attachment.handle for attachment in captured[0].attachments]
+        assert handles == [""]
