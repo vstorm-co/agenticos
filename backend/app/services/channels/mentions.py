@@ -16,10 +16,13 @@ this bot is refused rather than reaching it.
 
 Three rules make this safe to expose in a shared channel:
 
-*The run belongs to a person.* A mention from an unlinked channel identity is
-refused rather than run as the bot or as the organization. Budgets, resource
-grants and the audit trail all take a subject, and a run with no subject is one
-nobody is accountable for.
+*The run belongs to somebody.* A direct message is a conversation with a person,
+so an unlinked identity is refused there until it names one. A channel is a room:
+the turn runs under the *binding's* creator, the way a hosted page's visitor runs
+under the page's owner, and the chat account that typed it is recorded on the run
+(#639). What is never true is a run belonging to the bot or to the organization at
+large - budgets, resource grants and the audit trail all take a subject, and every
+path here has one.
 
 *The agent has to have been put here.* A handle resolves only against the agent
 *exposed* to this bot - see :mod:`app.services.agent_exposure`. It used to
@@ -48,12 +51,14 @@ from app.agents.capabilities.channel_tools import ChannelDirectory
 from app.agents.capabilities.charts._spec import parse_chart_spec
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
+from app.db.models.agent_exposure import AgentExposure
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
 from app.repositories import agent_exposure_repo, agent_repo, member_repo
+from app.services.access import publisher_context
 from app.services.agent_runner import AgentRunnerService, RunStream
-from app.services.channels.base import OutgoingAttachment
+from app.services.channels.base import ROOM_HANDLES, OutgoingAttachment
 from app.services.channels.chart_png import render_chart_png
 from app.services.transcript import RecordedToolCall
 from app.services.usage_report import (
@@ -148,12 +153,20 @@ def parse_mention(text: str) -> Mention | None:
 
     Returns `None` for a bare handle with nothing after it. `@support` alone
     is a greeting, and answering it would open a billed run to say hello.
+
+    And `None` for a handle that addresses the *room* - `@channel`, `@all`,
+    `@here`, `@everyone`. They match the slug pattern, so a standup announcement
+    read as a mention of an agent nobody has, and because a channel-wide mention
+    puts every member including the bot in the platform's mention list the bot
+    considered itself named and answered under it. Nobody typing `@channel` is
+    addressing an agent, which makes this a property of the parser rather than a
+    refusal further down.
     """
     match = _MENTION.match(text)
     if match is None:
         return None
     slug, prompt = match.group(1), match.group(2).strip()
-    if not prompt:
+    if not prompt or slug in ROOM_HANDLES:
         return None
     return Mention(slug=slug, prompt=prompt)
 
@@ -245,6 +258,8 @@ class ChannelAgentRouter:
         organization_id: UUID,
         bot_id: UUID,
         user_id: UUID | None,
+        channel_identity_id: UUID | None = None,
+        admit_unlinked: bool = False,
         conversation_id: UUID | None = None,
         platform_chat_id: str | None = None,
         channel_directory: ChannelDirectory | None = None,
@@ -264,6 +279,13 @@ class ChannelAgentRouter:
                 handle is *looked up*, not what makes it reachable.
             user_id: The platform user's linked account, or `None` if they
                 never linked one.
+            channel_identity_id: The chat account the message arrived from,
+                recorded on the run so a channel turn says who asked even when
+                nobody has linked an account to it.
+            admit_unlinked: Whether a sender with no linked account may run under
+                the binding's creator instead of being refused. True in a room,
+                false in a private conversation - the caller decides, because
+                only the caller knows which this is.
             conversation_id: The channel session's conversation, so a thread
                 keeps its history.
             channel_directory: This channel, ready to be asked about, for an
@@ -286,7 +308,8 @@ class ChannelAgentRouter:
             UnaddressedMessage: If the message names no agent. This is the
                 common case, not an error: the caller decides what an
                 unaddressed message means for its bot.
-            AuthorizationError: If the sender never linked an account.
+            AuthorizationError: If the sender has no account and this is not a
+                room.
             NotFoundError: If no agent in this organization holds that handle,
                 or the sender may not see the one that does. Both answer with
                 the same message, so a channel cannot be used to enumerate the
@@ -299,7 +322,14 @@ class ChannelAgentRouter:
         if mention is None:
             raise UnaddressedMessage
 
-        ctx = await self._context(organization_id, user_id, slug=mention.slug)
+        sender = await self._membership_context(
+            organization_id,
+            user_id,
+            slug=mention.slug,
+            channel_identity_id=channel_identity_id,
+            admit_unlinked=admit_unlinked,
+        )
+
         agent = await agent_repo.get_by_slug(self.db, mention.slug, organization_id=organization_id)
         if agent is None:
             raise NotFoundError(
@@ -319,6 +349,10 @@ class ChannelAgentRouter:
                 message=_NOT_EXPOSED_HERE.format(slug=mention.slug),
                 details={"slug": mention.slug, "agent_id": str(agent.id)},
             )
+
+        ctx = sender or await self._binding_context(
+            exposure, channel_identity_id=channel_identity_id
+        )
 
         produced: list[OutgoingAttachment] = []
         refused: list[str] = []
@@ -363,6 +397,8 @@ class ChannelAgentRouter:
         organization_id: UUID,
         bot_id: UUID,
         user_id: UUID | None,
+        channel_identity_id: UUID | None = None,
+        admit_unlinked: bool = False,
         conversation_id: UUID | None = None,
         platform_chat_id: str | None = None,
         channel_directory: ChannelDirectory | None = None,
@@ -389,7 +425,8 @@ class ChannelAgentRouter:
             BadRequestError: If the bot exposes no agent. The message says what
                 to do next, because the person reading it is standing in a chat
                 that just refused to answer.
-            AuthorizationError: If the sender never linked an account.
+            AuthorizationError: If the sender has no account and this is not a
+                room.
             NotFoundError: If the sender may not see the one exposed agent.
         """
         exposed = await agent_exposure_repo.list_active_for_bot(self.db, channel_bot_id=bot_id)
@@ -401,7 +438,13 @@ class ChannelAgentRouter:
         # a message naming no handle was answered with a list of slugs instead
         # of an answer, for agents they could not see.
         exposure, agent = exposed[0]
-        ctx = await self._context(organization_id, user_id, slug=agent.slug)
+        ctx = await self._membership_context(
+            organization_id,
+            user_id,
+            slug=agent.slug,
+            channel_identity_id=channel_identity_id,
+            admit_unlinked=admit_unlinked,
+        ) or await self._binding_context(exposure, channel_identity_id=channel_identity_id)
         produced: list[OutgoingAttachment] = []
         refused: list[str] = []
         called: list[RecordedToolCall] = []
@@ -484,27 +527,66 @@ class ChannelAgentRouter:
         organization = await self.db.get(Organization, ctx.organization_id)
         return None if organization is None else organization.monthly_budget_usd
 
-    async def _context(
-        self, organization_id: UUID, user_id: UUID | None, *, slug: str
-    ) -> AuthContext:
-        """The sender's authorization context, or a refusal.
+    async def _membership_context(
+        self,
+        organization_id: UUID,
+        user_id: UUID | None,
+        *,
+        slug: str,
+        channel_identity_id: UUID | None,
+        admit_unlinked: bool,
+    ) -> AuthContext | None:
+        """The sender's own context, `None` if the turn runs under the binding.
 
-        An unlinked identity and a linked one whose account was removed from the
-        organization are both refused: in either case there is no membership to
-        take a role from, and running with no role would mean running with none
-        of the checks a role implies.
+        Split from :meth:`_binding_context` so that *whether this sender may be
+        answered at all* is decided before anything is looked up. A sender who
+        may not must not learn from the refusal whether the handle they typed
+        exists - which is the property the mention path is built on, and one only
+        this ordering keeps.
+
+        A linked sender who is still a member runs as themselves: their role,
+        their grants, their name on the audit entry.
+
+        `admit_unlinked` is the caller's answer to whether this is a room or a
+        private conversation - a group chat, unless the bot's policy asks for a
+        link. Where it holds, a sender this platform cannot name runs under the
+        binding instead; where it does not, they are refused, which is every
+        direct message.
+
+        A linked account that is no longer a member takes the same path as an
+        unlinked one rather than a third: there is no membership to read a role
+        from, and in a room a former member is no more entitled than the stranger
+        beside them.
         """
-        if user_id is None:
+        if user_id is not None:
+            membership = await member_repo.get(
+                self.db, organization_id=organization_id, user_id=user_id
+            )
+            if membership is not None:
+                return AuthContext(
+                    user_id=user_id,
+                    organization_id=organization_id,
+                    role=membership.role,
+                    channel_identity_id=channel_identity_id,
+                )
+
+        if not admit_unlinked:
             raise AuthorizationError(message=_LINK_FIRST, details={"agent": slug})
 
-        membership = await member_repo.get(
-            self.db, organization_id=organization_id, user_id=user_id
-        )
-        if membership is None:
-            raise AuthorizationError(message=_LINK_FIRST, details={"agent": slug})
+        return None
 
-        return AuthContext(
-            user_id=user_id,
-            organization_id=organization_id,
-            role=membership.role,
+    async def _binding_context(
+        self, exposure: AgentExposure, *, channel_identity_id: UUID | None
+    ) -> AuthContext:
+        """The context a turn nobody can name runs under: the binding creator's.
+
+        One line, because the rule and its `viewer` fallback are the same ones a
+        widget and a hosted page answer with - see `access.publisher_context`, which
+        is where the reasoning now lives so the two cannot drift apart (#640).
+        """
+        return await publisher_context(
+            self.db,
+            organization_id=exposure.organization_id,
+            publisher_user_id=exposure.created_by_user_id,
+            channel_identity_id=channel_identity_id,
         )

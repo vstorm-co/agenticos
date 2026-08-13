@@ -100,6 +100,7 @@ from app.services.agent_chat import ChatTurn, OpenedRun
 from app.services.agent_runner import ParkedApproval, PreparedRun
 from app.services.agent_session import AgentSession
 from app.services.chat_timeline import TurnTimeline
+from app.services.run_stream import RunFrames
 from app.services.usage_report import UsageReport
 
 pytestmark = pytest.mark.anyio
@@ -113,6 +114,22 @@ def _session() -> AgentSession:
     user = MagicMock()
     organization = MagicMock()
     return AgentSession(websocket, user, organization)
+
+
+def _frames(
+    session: AgentSession,
+    *,
+    timeline: TurnTimeline | None = None,
+    tool_calls: list[dict[str, Any]] | None = None,
+    prompt: str = "",
+) -> RunFrames:
+    """The shared streaming loop, aimed at this session's socket.
+
+    The loop is `app.services.run_stream` since both sockets drive one
+    implementation; what these tests are about is unchanged - the frames a chat
+    client reads, in the order they arrive, through this surface's own sink.
+    """
+    return RunFrames(emit=session._frame, timeline=timeline, tool_calls=tool_calls, prompt=prompt)
 
 
 def _sent_events(session: AgentSession) -> list[tuple[str, dict]]:
@@ -933,7 +950,7 @@ class TestStreamingAModelResponse:
                 yield event
 
         collected = timeline if timeline is not None else TurnTimeline()
-        await session._stream_request_events(_events(), collected)
+        await _frames(session, timeline=collected).request(_events())
         return collected.thinking
 
     async def test_a_part_that_starts_with_text_already_in_it_forwards_that_text(self):
@@ -1228,7 +1245,9 @@ class TestDrivingTheRun:
         timeline = TurnTimeline()
 
         async with _answering_agent(tools=[count_open]).iter("how many are open?") as agent_run:
-            await session._stream_agent_run(agent_run, "how many are open?", tool_calls, timeline)
+            await _frames(
+                session, timeline=timeline, tool_calls=tool_calls, prompt="how many are open?"
+            ).drive(agent_run)
 
         # The same words that went out as `text_delta`, kept so a turn that never
         # finishes can still be written down as what its reader saw.
@@ -1262,7 +1281,7 @@ class TestDrivingTheRun:
         prompt = ["have a look at this", BinaryContent(data=b"\x89PNG", media_type="image/png")]
 
         async with _answering_agent().iter(prompt) as agent_run:
-            await session._stream_agent_run(agent_run, "have a look at this", [], TurnTimeline())
+            await _frames(session, prompt="have a look at this").drive(agent_run)
 
         assert _sent_events(session)[0] == (
             "user_prompt_processed",
@@ -1294,7 +1313,7 @@ class TestForwardingToolEvents:
                 )
             )
 
-        await session._stream_tool_events(_events(), collected, TurnTimeline())
+        await _frames(session, tool_calls=collected).tools(_events())
 
         assert [event for event in _sent_events(session) if event[0] == "tool_result"] == [
             ("tool_result", {"tool_call_id": "t1", "content": "wrote /a.txt"})
@@ -1314,7 +1333,7 @@ class TestForwardingToolEvents:
                 part=ToolReturnPart(tool_name="ls", content=["/a.txt"], tool_call_id="t1")
             )
 
-        await session._stream_tool_events(_events(), collected, TurnTimeline())
+        await _frames(session, tool_calls=collected).tools(_events())
 
         assert collected == [
             {"tool_call_id": "t1", "tool_name": "ls", "args": {}, "result": "['/a.txt']"}
@@ -1330,7 +1349,7 @@ class TestForwardingToolEvents:
                 part=RetryPromptPart(content="path must be absolute", tool_call_id="t9")
             )
 
-        await session._stream_tool_events(_events(), [], TurnTimeline())
+        await _frames(session).tools(_events())
 
         [(_type, data)] = [event for event in _sent_events(session) if event[0] == "tool_result"]
         assert data == {"tool_call_id": "t9", "content": "path must be absolute"}
@@ -1349,7 +1368,7 @@ class TestForwardingToolEvents:
                 )
             )
 
-        await session._stream_tool_events(_events(), collected, TurnTimeline())
+        await _frames(session, tool_calls=collected).tools(_events())
 
         assert _sent_events(session) == []
         assert collected == []

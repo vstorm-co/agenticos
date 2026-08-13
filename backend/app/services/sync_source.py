@@ -7,6 +7,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.updates import writable
 from app.core.config import settings
 from app.core.crypto import decrypt_value, encrypt_value, is_encrypted
 from app.core.exceptions import BadRequestError, NotFoundError
@@ -258,7 +259,7 @@ class SyncSourceService:
             NotFoundError: If sync source does not exist.
         """
         existing = await self.get_source(source_id)
-        updates = data.model_dump(exclude_unset=True)
+        updates = writable(data, over=SyncSource)
 
         if "config" in updates and updates["config"] is not None:
             raw_existing = _raw_config(existing)

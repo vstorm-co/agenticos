@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ModelProfilePicker } from "./model-profile-picker";
@@ -22,11 +22,31 @@ vi.mock("@/hooks", () => ({ useModelProviders: () => ({ deleteProfile }) }));
 // `add-model.integration.test.tsx`. What this panel owes it is the callback: a
 // model created here is also the model the agent moves onto.
 vi.mock("@/components/agents/add-model", () => ({
-  AddModel: ({ onCreated }: { onCreated: (profile: { id: string }) => void }) => (
-    <button type="button" onClick={() => onCreated({ id: "p-new" })}>
-      Add model
-    </button>
-  ),
+  // The real form is a provider, a model id and a key from the vault, tested in
+  // `add-model.integration.test.tsx` - including that it starts on the model in
+  // use. What this panel owes it is the callback and that model, so the stand-in
+  // prints which one it was handed.
+  AddModel: ({
+    onCreated,
+    selected,
+  }: {
+    onCreated: (profile: { id: string }) => void;
+    selected?: { label: string };
+  }) => {
+    // Read once, like the real form: its fields are `useState(selected?.…)`, so a
+    // prop that arrives later moves nothing. That is the whole reason the panel
+    // keys this component, and a stand-in that re-read the prop on every render
+    // would pass with the key removed.
+    const [seeded] = useState(selected?.label ?? "nothing");
+    return (
+      <>
+        <button type="button" onClick={() => onCreated({ id: "p-new" })}>
+          Add model
+        </button>
+        <span data-testid="form-starts-on">{seeded}</span>
+      </>
+    );
+  },
 }));
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -88,13 +108,49 @@ describe("ModelProfilePicker", () => {
     expect(screen.getByText("Use a saved model (1)")).toBeInTheDocument();
   });
 
-  it("states which model the agent is on above the form that would change it", () => {
-    // The form being the default view puts the one fact somebody opens this
-    // panel to check at risk of being the only thing behind a disclosure.
+  it("starts the form on the model the agent is on", () => {
+    // The panel used to answer "which model" in a line above the form and ask it in
+    // the form's two fields, which are the same question - so the fields said
+    // "Choose a provider" over a line naming the provider. They start on it now.
     mount({ allowAdd: true, value: "p1" });
 
+    expect(screen.getByTestId("form-starts-on")).toHaveTextContent("openai default");
+  });
+
+  it("names the model in use without repeating what the fields say", () => {
+    // The line survives because it answers *which named profile* is in use, which
+    // the two fields cannot - they carry the provider and the model id. What it no
+    // longer carries is that pair, which is what made it read the model twice.
+    const derived = profile({ label: "OpenRouter · openai/gpt-5.5", provider: "openrouter" });
+
+    mount({ allowAdd: true, value: "p1", profiles: [derived] });
+
     const current = screen.getByRole("group", { name: "Current model" });
-    expect(within(current).getByText("openai default")).toBeInTheDocument();
+    expect(within(current).getByText("OpenRouter · openai/gpt-5.5")).toBeInTheDocument();
+    expect(within(current).queryByText(/openrouter · openai\/gpt-5\.5/)).toBeNull();
+  });
+
+  it("starts it on the model once the profiles arrive, not only when they were already there", () => {
+    // `value` and `profiles` do not land together: an agent already pointed at a
+    // model renders with the id while the list is still in flight, so keying the
+    // form on the id meant the key never changed once the list came back and the
+    // fields kept the nothing they mounted with. "Choose a provider" over an agent
+    // that plainly has one - which passed on a warm laptop and failed in CI.
+    const { rerender } = render(
+      <ModelProfilePicker profiles={[]} value="p1" allowAdd onChange={vi.fn()} />,
+      { wrapper },
+    );
+    expect(screen.getByTestId("form-starts-on")).toHaveTextContent("nothing");
+
+    rerender(<ModelProfilePicker profiles={[profile()]} value="p1" allowAdd onChange={vi.fn()} />);
+
+    expect(screen.getByTestId("form-starts-on")).toHaveTextContent("openai default");
+  });
+
+  it("starts it on nothing where the agent is on nothing", () => {
+    mount({ allowAdd: true, value: null });
+
+    expect(screen.getByTestId("form-starts-on")).toHaveTextContent("nothing");
   });
 
   it("says a model has no key wherever it is shown", () => {
@@ -206,10 +262,43 @@ describe("ModelProfilePicker", () => {
     expect(screen.queryByText("no key")).toBeNull();
   });
 
-  it("says the current model has no key, where the agent's own line is", () => {
+  it("says the model in use has no key, which is what decides whether it runs", () => {
     mount({ allowAdd: true, value: "p1" });
 
     const current = screen.getByRole("group", { name: "Current model" });
     expect(within(current).getByText("no key")).toBeInTheDocument();
+  });
+
+  it("says what the agent runs on once", () => {
+    // A label is derived from the provider and the model unless somebody typed
+    // their own, so appending `provider · model` after it read
+    // `OpenRouter · openai/gpt-5.5 openrouter · openai/gpt-5.5` - on the strip the
+    // choose-only panel still has, and on every row of the saved-model list.
+    const derived = profile({ label: "OpenRouter · openai/gpt-5.5", provider: "openrouter" });
+
+    mount({ value: "p1", profiles: [derived] });
+
+    const current = screen.getByRole("group", { name: "Current model" });
+    expect(within(current).getByText("OpenRouter · openai/gpt-5.5")).toBeInTheDocument();
+    expect(within(current).queryByText(/openrouter · openai\/gpt-5\.5/)).toBeNull();
+  });
+
+  it("still names the model where the label does not, on the row that offers it", () => {
+    // The other half of `modelDetail`: a name somebody chose says nothing about what
+    // runs. It is the *list* that carries it now - the line above the form carries
+    // the name, and the form's own fields carry the pair.
+    mount({ value: "p1", profiles: [profile({ label: "the cheap one" })] });
+
+    expect(screen.getByText("openai · gpt-4.1")).toBeInTheDocument();
+  });
+
+  it("names what the agent runs on rather than relying on it reading differently", () => {
+    // The strip and the selected row now hold the same string, which is what
+    // saying it once costs. The caption is what tells them apart, and it is
+    // visible rather than only an accessible name.
+    mount({ value: "p1", profiles: [profile({ label: "OpenRouter · openai/gpt-5.5" })] });
+
+    const current = screen.getByRole("group", { name: "Current model" });
+    expect(within(current).getByText("Current model")).toBeInTheDocument();
   });
 });

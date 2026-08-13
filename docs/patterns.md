@@ -163,6 +163,35 @@ class UserResponse(UserBase):
     model_config = ConfigDict(from_attributes=True)
 ```
 
+### An update is written through `writable`, never dumped
+
+On a `*Update` every field is `X | None` because `None` means *not provided* — and
+`model_dump(exclude_unset=True)` keeps a field that was **explicitly set to
+`None`**, because setting it is what `exclude_unset` asks about. So a client
+sending `{"name": null}` gets its `None` past the dump, into `setattr`, and onto a
+`NOT NULL` column: a 500 naming a database constraint, for a request the API's own
+types say is legal.
+
+```python
+from app.db.updates import writable
+
+changes = writable(data, over=AgentEmbed)      # not data.model_dump(exclude_unset=True)
+```
+
+**The column decides.** `writable` reads nullability off the model, so a schema
+that gains an optional field is covered the day it gains one — where a hand-kept
+list of field names per service is a new crash the next time somebody adds one.
+Twenty-four such pairs existed across eleven schemas before #637.
+
+A `null` a column *allows* is kept, which is what makes this different from
+`exclude_none`: clearing a nullable column is a legitimate request, and dropping
+every null would make "remove the description" silently do nothing. Where a field
+has a default worth returning to, the service substitutes it before calling —
+`EmbedUpdate.config` restores the kind's defaults rather than dropping the key.
+
+`tests/test_update_nulls.py` is what keeps this true: every `*Update` schema is
+declared against the row it writes, and no service may dump one itself.
+
 ## Handing work to the background
 
 Two primitives, in `app/core/background.py`, and the choice between them is

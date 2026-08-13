@@ -45,7 +45,16 @@ We aim to acknowledge within 48h and ship a fix within 7 days for high-severity 
 - [ ] Rotate `SECRET_KEY` and `API_KEY` from generated defaults.
 - [ ] Set `DEBUG=false` and `ENVIRONMENT=production`.
 - [ ] Restrict `CORS_ORIGINS` to your domain(s).
-- [ ] Review the rate limits on every public surface — the embed widget's messages-per-visitor limit and each channel bot's per-sender `rate_limit_rpm`. The console's own routes are not metered.
+- [ ] Tune `RATE_LIMIT_RUN_PER_MINUTE` / `RATE_LIMIT_EMBED_PER_MINUTE` in `.env`.
+- [ ] Review the rate limits on every public surface — the embed widget's
+      messages-per-visitor limit and each channel bot's per-sender
+      `rate_limit_rpm`. The console's own routes are not metered.
+- [ ] Behind a proxy or CDN, set `RATE_LIMIT_TRUST_FORWARDED_FOR=true` **and**
+      make sure the API is not also reachable directly — otherwise every
+      visitor shares one bucket, or the header can be forged. The limiter reads
+      the rightmost `X-Forwarded-For` hop (the one your proxy appended), so put
+      exactly one trusted proxy in front; with two, collapse the header to a
+      single hop at your edge.
 - [ ] Enforce HTTPS at the proxy layer.
 - [ ] Run `pip-audit` / `bun audit` in CI for dependency vulnerabilities.
 - [ ] Configure database backups + restore test schedule.
