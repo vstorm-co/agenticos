@@ -43,6 +43,7 @@ async def create_run(
     secret_id: UUID | None = None,
     parent_run_id: UUID | None = None,
     subagent_task_id: str | None = None,
+    channel_identity_id: UUID | None = None,
 ) -> AgentRun:
     run = AgentRun(
         organization_id=organization_id,
@@ -50,6 +51,7 @@ async def create_run(
         agent_version_id=agent_version_id,
         user_id=user_id,
         conversation_id=conversation_id,
+        channel_identity_id=channel_identity_id,
         exposure_id=exposure_id,
         environment_id=environment_id,
         surface=surface,

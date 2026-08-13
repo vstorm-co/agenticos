@@ -21,7 +21,7 @@ from app.db.models.agent_run import (
     RunSurface,
 )
 from app.repositories.agent_run import ApprovalFilters, RunFilters
-from app.schemas.agent import AgentRunResult, RunStep, SettledCall
+from app.schemas.agent import AgentRunResult, ParkedCall, RunStep, SettledCall
 from app.schemas.agent_run import (
     AgentRunList,
     AgentRunRead,
@@ -241,6 +241,29 @@ async def get_run_transcript(
         ],
         total=total,
     )
+
+
+@router.get(
+    "/runs/{run_id}/parked",
+    response_model=list[ParkedCall],
+    dependencies=[Depends(require(Perm.APPROVALS_DECIDE))],
+)
+async def get_parked_calls(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
+    """What this run is waiting on a decision for, right now.
+
+    The same rows `POST /runs/{run_id}/resume` returns in `parked`, readable
+    without resuming anything. A live surface is handed them as a
+    `tool_approval_required` frame the moment the run parks, but that frame
+    exists only for whoever was watching: reloading the conversation lost the
+    panel, and the only way to finish the run was the approvals queue on another
+    page (#601). Empty for a run that is not parked - including one whose calls
+    were all decided and which is now waiting to be resumed.
+
+    Gated on `approvals:decide` like the resume and the queue, because the rows
+    are offered here to be decided.
+    """
+    run = await service.get_run(ctx, run_id)
+    return await service.parked_calls(ctx, run)
 
 
 @router.post(

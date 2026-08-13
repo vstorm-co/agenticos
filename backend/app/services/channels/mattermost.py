@@ -110,6 +110,9 @@ class MattermostAdapter(ChannelAdapter):
         # connection the stream already holds, and the sequence number that
         # connection is up to.
         self._sockets: dict[str, Any] = {}
+        # Which account each bot is, so a mention of it can be told from a mention
+        # of somebody else. Resolved per stream session - see `_own_user_id`.
+        self._own_ids: dict[str, str] = {}
         self._seq: dict[str, int] = {}
 
     def remember_server(self, bot_id: str, api_base_url: str) -> None:
@@ -510,6 +513,30 @@ class MattermostAdapter(ChannelAdapter):
             # hammered 720 times by every bot on it.
             delay = min(delay * 2, 60.0)
 
+    async def _own_user_id(self, bot_id: str, bot_token: str) -> str | None:
+        """Which Mattermost account this bot *is*, so a mention of it is legible.
+
+        Resolved once per stream session rather than per message, and stored beside
+        the base URL because it is the same kind of per-bot fact. `None` when the
+        server would not say: the caller then treats every post as addressed, which
+        is the behaviour a bot had before this existed - answering too much is a
+        worse failure than answering too little only where somebody chose it.
+        """
+        base_url = self._base_urls.get(bot_id)
+        if not base_url:
+            return None
+        try:
+            async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
+                response = await client.get(
+                    f"{base_url}/api/v4/users/me",
+                    headers={"Authorization": f"Bearer {bot_token}"},
+                )
+            response.raise_for_status()
+            return str(response.json().get("id") or "") or None
+        except Exception:
+            logger.warning("mattermost_own_id_unresolved", extra={"bot_id": bot_id}, exc_info=True)
+            return None
+
     async def _run_stream(self, bot_id: str, bot_token: str) -> None:
         """One authenticated session on the event stream."""
         try:
@@ -542,6 +569,12 @@ class MattermostAdapter(ChannelAdapter):
                 )
             )
             self._sockets[bot_id] = socket
+            # Before the first frame is read, so no post is judged against an
+            # unknown identity - a miss there would answer a channel it should
+            # have stayed out of.
+            own = await self._own_user_id(bot_id, bot_token)
+            if own is not None:
+                self._own_ids[bot_id] = own
             keepalive = asyncio.create_task(self._keepalive(socket))
             try:
                 async for frame in socket:
@@ -652,7 +685,33 @@ class MattermostAdapter(ChannelAdapter):
             platform_display_name=data.get("sender_name") or None,
             message_id=post.get("id"),
             attachments=attachments,
+            addressed=self._addressed(data, bot_id),
         )
+
+    def _addressed(self, data: dict[str, Any], bot_id: str) -> bool | None:
+        """Whether this post named the bot, from the event's own mention list.
+
+        Mattermost puts the mentioned account ids in `data.mentions`, as JSON in a
+        string. Read from there rather than from the text: `@ada` is a mention of
+        somebody whose display name the bot cannot resolve, and matching on text
+        would make a bot called `bot` answer the word "robot".
+
+        `None` where the bot's own id was never resolved, which the router reads as
+        "the platform did not say" and answers as it did before. A *missing*
+        `mentions` key with a known id is `False`: the event carries the list
+        whenever there is one, so its absence means nobody was mentioned.
+        """
+        own = self._own_ids.get(bot_id)
+        if own is None:
+            return None
+        raw = data.get("mentions")
+        if raw is None:
+            return False
+        try:
+            mentioned = json.loads(raw) if isinstance(raw, str) else raw
+        except (json.JSONDecodeError, TypeError):
+            return False
+        return own in mentioned if isinstance(mentioned, list) else False
 
     def _attachments(self, post: dict[str, Any], bot_id: str) -> list[IncomingAttachment]:
         """The files on a Mattermost post, as handles.

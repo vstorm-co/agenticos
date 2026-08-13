@@ -28,6 +28,7 @@ from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundErr
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
+from app.db.updates import cleared, writable
 from app.repositories import agent_environment_repo, agent_repo, organization_secret_repo
 from app.schemas.agent_environment import EnvironmentCreate, EnvironmentRead, EnvironmentUpdate
 from app.services.agent_registry import AgentRegistryService
@@ -141,7 +142,16 @@ class AgentEnvironmentService:
             AlreadyExistsError: If the new name is taken on this agent.
         """
         agent, environment = await self._get(ctx, agent_id, environment_id)
-        changes = data.model_dump(exclude_unset=True)
+        # Before `writable`, which drops it: an environment is always pinned, so
+        # `version_id: null` is a request to refuse rather than a value to write -
+        # and dropping it first turned that refusal into "Nothing to change", which
+        # is true of the row and useless to whoever asked.
+        if cleared(data, "version_id"):
+            raise BadRequestError(
+                message="An environment is always pinned - point it at a version.",
+                details={"environment_id": str(environment.id)},
+            )
+        changes = writable(data, over=AgentEnvironment)
         if not changes:
             raise BadRequestError(message="Nothing to change", details={})
 
@@ -167,11 +177,6 @@ class AgentEnvironmentService:
 
         version: AgentVersion | None = None
         if "version_id" in changes:
-            if changes["version_id"] is None:
-                raise BadRequestError(
-                    message="An environment is always pinned - point it at a version.",
-                    details={"environment_id": str(environment.id)},
-                )
             version = await self._version_of(ctx, agent, changes["version_id"])
 
         environment = await agent_environment_repo.update(
