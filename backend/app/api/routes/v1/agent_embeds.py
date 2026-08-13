@@ -57,7 +57,6 @@ async def upload_embed_logo(
         ctx,
         embed_id,
         file_data=await file.read(),
-        filename=file.filename or "logo.png",
         content_type=file.content_type,
     )
 

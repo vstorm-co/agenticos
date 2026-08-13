@@ -10,6 +10,14 @@ const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 // network at all.
 const KEY_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 
+// What this route will pass on. Echoing the backend's own answer is what the other
+// proxies here do, and it is wrong on this one: this response is served from the
+// origin the hosted page runs on, under a policy that allows `'unsafe-inline'`
+// script, so `text/html` or `image/svg+xml` here is a script on that origin rather
+// than a picture on the page. The backend pins the type too - both ends, because
+// each is one line and either alone is a single point of failure for a stored XSS.
+const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+
 /**
  * A hosted page's logo, served from this origin.
  *
@@ -44,10 +52,15 @@ export async function GET(
     if (!response.ok) {
       return new NextResponse(null, { status: response.status });
     }
+    const type = response.headers.get("content-type")?.split(";")[0]?.trim() ?? "";
+    if (!IMAGE_TYPES.has(type)) {
+      return new NextResponse(null, { status: 502 });
+    }
     return new NextResponse(await response.arrayBuffer(), {
       headers: {
-        "Content-Type": response.headers.get("content-type") || "image/png",
+        "Content-Type": type,
         "Cache-Control": "public, max-age=300",
+        "X-Content-Type-Options": "nosniff",
       },
     });
   } catch {

@@ -1186,7 +1186,6 @@ class TestAPagesOwnPicture:
                 MagicMock(),
                 uuid.uuid4(),
                 file_data=b"%PDF-1.4",
-                filename="logo.pdf",
                 content_type="application/pdf",
             )
 
@@ -1197,7 +1196,6 @@ class TestAPagesOwnPicture:
                 MagicMock(),
                 uuid.uuid4(),
                 file_data=b"x" * (2 * 1024 * 1024 + 1),
-                filename="logo.png",
                 content_type="image/png",
             )
 
@@ -1213,7 +1211,6 @@ class TestAPagesOwnPicture:
                 MagicMock(organization_id=uuid.uuid4()),
                 uuid.uuid4(),
                 file_data=b"png",
-                filename="logo.png",
                 content_type="image/png",
             )
 
@@ -1240,7 +1237,6 @@ class TestAPagesOwnPicture:
                 MagicMock(organization_id=uuid.uuid4()),
                 embed.id,
                 file_data=b"png",
-                filename="logo.png",
                 content_type="image/png",
             )
 
@@ -1251,6 +1247,44 @@ class TestAPagesOwnPicture:
         # component of what it is handed, so `embeds/<id>` would collapse to the
         # same directory while reading as a layout that exists.
         assert storage.save.await_args.args[0] == str(embed.id)
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("content_type", "suffix"),
+        [
+            ("image/png", ".png"),
+            ("image/jpeg", ".jpg"),
+            ("image/webp", ".webp"),
+            ("image/gif", ".gif"),
+        ],
+    )
+    async def test_the_stored_name_comes_from_the_type_not_the_caller(self, content_type, suffix):
+        """`save` keeps whatever extension it is handed and `/logo` is proxied from
+        the origin the hosted page runs on, so a file called `logo.html` accepted as
+        an `image/png` - the type is the header the client declared, never the bytes
+        - is a script on that origin. The name is minted, so there is nothing to
+        declare."""
+        embed = _embed(kind="page", config={"logo": "agent"})
+        service = self._service_for(embed)
+        storage = MagicMock()
+        storage.save = AsyncMock(return_value="0f9c/abc123_logo" + suffix)
+
+        with (
+            patch(f"{MODULE}.get_file_storage", return_value=storage),
+            patch(f"{MODULE}.record_audit", new=AsyncMock()),
+            patch(
+                f"{MODULE}.agent_embed_repo.update",
+                new=AsyncMock(side_effect=lambda db, **kw: embed),
+            ),
+        ):
+            await service.set_page_logo(
+                MagicMock(organization_id=uuid.uuid4()),
+                embed.id,
+                file_data=b"png",
+                content_type=content_type,
+            )
+
+        assert storage.save.await_args.args[1] == f"logo{suffix}"
 
     @pytest.mark.anyio
     async def test_the_public_route_serves_the_uploaded_file(self):

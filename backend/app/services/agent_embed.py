@@ -75,6 +75,17 @@ _MAX_TOKEN_AGE_SECONDS = 60 * 60 * 12
 
 _CONFIG_ADAPTER: TypeAdapter[EmbedConfig] = TypeAdapter(EmbedConfig)
 
+# What a stored logo is called on disk, keyed on the type it was accepted as. A
+# name is not decoration here: `/logo` is proxied from the origin the hosted page
+# runs on, and a browser handed `logo.html` runs it. Keys are `IMAGE_MIME_TYPES`,
+# and `set_page_logo` refuses anything outside that set before reaching this.
+_LOGO_SUFFIX = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+    "image/gif": ".gif",
+}
+
 
 @dataclass(frozen=True)
 class Admission:
@@ -279,7 +290,6 @@ class AgentEmbedService:
         embed_id: UUID,
         *,
         file_data: bytes,
-        filename: str,
         content_type: str | None,
     ) -> EmbedRead:
         """Upload the image a hosted page shows, and point the page at it.
@@ -289,6 +299,11 @@ class AgentEmbedService:
         Setting `config.logo` to `custom` in the same statement is what makes the
         upload finish the job: an operator who uploads a picture and finds the
         page still showing the agent's avatar has been given a form that lies.
+
+        **The caller's filename is not taken**, unlike every other upload here: the
+        stored name is minted from the validated type, because `/logo` serves this
+        file from the origin the hosted page runs on and a name decides what a
+        browser thinks it is.
 
         Raises:
             NotFoundError: If the embed is not this organization's.
@@ -317,7 +332,13 @@ class AgentEmbedService:
                 await storage.delete(embed.logo_path)
         # The id alone: `save` keeps only the last component of what it is given,
         # so a `embeds/` prefix reads as a directory layout it would silently drop.
-        path = await storage.save(str(embed.id), filename, file_data)
+        #
+        # And the name is built from the type checked above rather than from the one
+        # sent: `save` keeps whatever extension it is handed, `/logo` is served from
+        # the origin the hosted page is on, and `logo.html` there is a script rather
+        # than a picture. The extension is the only part of a filename this route
+        # has any use for, so nothing is lost by minting it.
+        path = await storage.save(str(embed.id), f"logo{_LOGO_SUFFIX[content_type]}", file_data)
 
         config = PageConfig.model_validate(embed.config).model_copy(update={"logo": "custom"})
         updated = await agent_embed_repo.update(

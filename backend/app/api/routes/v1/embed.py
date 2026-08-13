@@ -13,6 +13,7 @@ does that, and the same frames the dashboard chat already speaks work unchanged.
 from __future__ import annotations
 
 import logging
+import mimetypes
 from typing import Annotated, Any
 
 from fastapi import (
@@ -37,6 +38,7 @@ from app.schemas.agent_embed import PublicEmbedConfig, PublicPageConfig, PublicU
 from app.services import rate_limit
 from app.services.agent_embed import AgentEmbedService, EmbedDenied
 from app.services.embed_session import WIDGET_JS, EmbedSession, continuity_key
+from app.services.file_storage import IMAGE_MIME_TYPES
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +137,16 @@ async def hosted_logo(public_key: str, service: EmbedSvc, request: Request) -> A
     put every hosted page's logo in one deployment-wide bucket. It is the most
     expensive route here - two queries, a stat and a file - which is the reason it
     carries a gate at all rather than being left as the cheap read the others are.
+
+    **The type is decided here, not by the name on disk.** A stored file keeps the
+    extension whoever uploaded it chose, and the upload paths that produced these
+    files - a page's own logo, an agent's avatar, an organization's - validated the
+    `Content-Type` header the client *declared* rather than the bytes. So a file
+    named `x.html` reaches this route, and a bare `FileResponse` would let
+    Starlette guess `text/html` from the suffix and serve a script from the origin
+    the hosted page is on, where the frontend proxies this under
+    `script-src 'self' 'unsafe-inline'`. Refused rather than corrected: this route
+    hands out one image, and anything that is not one is not this page's logo.
     """
     if not await rate_limit.hosted_logo_allowed(public_key):
         raise HTTPException(status_code=429, detail="Too many requests", headers=_RETRY_AFTER)
@@ -142,7 +154,13 @@ async def hosted_logo(public_key: str, service: EmbedSvc, request: Request) -> A
     path = await service.page_logo_path(public_key)
     if path is None:
         raise HTTPException(status_code=404, detail="No logo")
-    return FileResponse(path)
+    media_type = mimetypes.guess_type(path)[0]
+    if media_type not in IMAGE_MIME_TYPES:
+        logger.warning(
+            "hosted_logo_not_an_image", extra={"public_key": public_key, "media_type": media_type}
+        )
+        raise HTTPException(status_code=404, detail="No logo")
+    return FileResponse(path, media_type=media_type, headers={"X-Content-Type-Options": "nosniff"})
 
 
 @router.get("/{public_key}/widget.js", response_class=Response)

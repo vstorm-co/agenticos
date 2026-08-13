@@ -607,10 +607,29 @@ describe("a hosted page's logo", () => {
     expect(headers.headers?.cookie).toBeUndefined();
   });
 
-  it("assumes a PNG when the backend named no type", async () => {
-    serve("bytes", { headers: { "content-type": "" } });
+  it.each(["text/html", "image/svg+xml", "application/xhtml+xml", ""])(
+    "refuses to pass on %s, because this origin is the one the page runs on",
+    async (type) => {
+      // The backend pins the type too, and this is the second half rather than a
+      // duplicate: whatever this route answers is served from the origin the hosted
+      // page runs on, under `script-src 'self' 'unsafe-inline'`. Echoing `text/html`
+      // there is a script on that origin, not a picture on the page - and the file
+      // behind it was accepted on a `Content-Type` some client declared, never on
+      // its bytes. An unnamed type included: a default of `image/png` over unknown
+      // bytes is a guess this route has no reason to make.
+      serve("<script>fetch('/api/v1/users/me')</script>", { headers: { "content-type": type } });
 
-    expect((await logo()).headers.get("content-type")).toBe("image/png");
+      expect((await logo()).status).toBe(502);
+    },
+  );
+
+  it("pins the type it passes on and turns sniffing off", async () => {
+    serve("PNGBYTES", { headers: { "content-type": "image/png; charset=binary" } });
+
+    const response = await logo();
+
+    expect(response.headers.get("content-type")).toBe("image/png");
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
   });
 
   it("lets a browser hold it briefly, because the Builder can change it", async () => {

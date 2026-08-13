@@ -75,3 +75,36 @@ class TestTheHostedLogo:
         client_and_service.page_logo_path = AsyncMock(return_value=None)
 
         assert (await _get("/api/v1/embed/some-key/logo")).status_code == 404
+
+    @pytest.mark.parametrize("name", ["logo.html", "logo.svg", "logo.xhtml", "logo"])
+    async def test_a_stored_file_that_is_not_an_image_is_not_served(
+        self, client_and_service, tmp_path, name
+    ):
+        """The one route on this surface that hands out a *file*, and the type it
+        answers with decides what a browser does with it. Every upload path feeding
+        this one - a page's own logo, an agent's avatar, an organization's -
+        validated the `Content-Type` a client *declared* rather than the bytes, and
+        the stored name keeps the extension that client chose. So `logo.html` gets
+        here, a bare `FileResponse` guesses `text/html` from the suffix, and the
+        frontend proxies that from the origin the hosted page runs on under
+        `script-src 'unsafe-inline'` - a stored XSS reachable by anyone with the
+        link. Refused on the way out, so a file already on disk cannot be one.
+        """
+        stored = tmp_path / name
+        stored.write_bytes(b"<script>fetch('/api/v1/users/me')</script>")
+        client_and_service.page_logo_path = AsyncMock(return_value=str(stored))
+
+        assert (await _get("/api/v1/embed/some-key/logo")).status_code == 404
+
+    async def test_an_image_is_served_with_its_type_pinned_and_sniffing_off(
+        self, client_and_service, tmp_path
+    ):
+        stored = tmp_path / "logo.png"
+        stored.write_bytes(b"\x89PNG\r\n\x1a\n")
+        client_and_service.page_logo_path = AsyncMock(return_value=str(stored))
+
+        response = await _get("/api/v1/embed/some-key/logo")
+
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "image/png"
+        assert response.headers["x-content-type-options"] == "nosniff"

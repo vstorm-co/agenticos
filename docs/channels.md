@@ -526,6 +526,16 @@ operator-supplied image is one more thing to make safe. And the stored path is a
 path is read back and streamed by a public route, so one accepted from a request
 body would be a caller naming any file the process can open.
 
+**Nor does it take your filename, or your word for what the file is.** Because the
+page fetches the logo from its own origin, whatever type that response carries is
+a type the browser trusts on that origin — and `script-src` there allows inline
+script. An upload is accepted on the `Content-Type` its client *declared*, which is
+not evidence about the bytes, so the name on disk is minted from the type instead
+(`logo.png`, `logo.jpg`, `logo.webp`, `logo.gif`) and both the API route and the
+frontend proxy refuse to answer with anything that is not one of those four image
+types. A stored `.html` or `.svg` — from here or from an avatar uploaded years ago
+through another route — is served as nothing at all rather than as a script.
+
 The page is `noindex`. A secret link is not a page to be indexed, and a crawler
 that follows one has published it.
 
