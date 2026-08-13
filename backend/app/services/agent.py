@@ -40,6 +40,7 @@ from app.schemas.conversation import (
     ToolCallCreate,
 )
 from app.services.conversation import ConversationService
+from app.services.transcript import what_arrived
 from app.services.usage_report import UsageReport
 
 logger = logging.getLogger(__name__)
@@ -198,6 +199,13 @@ async def persist_user_turn(
     must not lose what somebody typed. `PersistedPrompt.message_id` is how the
     caller closes that gap once the run row is open.
 
+    A blank `user_message` beside `file_ids` is written naming what arrived -
+    the body :func:`what_arrived` composes, the same one `TranscriptService.record`
+    writes for every non-streaming surface. The dashboard's composer substitutes
+    its own placeholder before sending, so only a raw client reaches this - and
+    used to leave the one blank user turn left in the product (#750). A typed
+    message is never replaced.
+
     Raises:
         BadRequestError: If `requested_conversation_id` is not a UUID.
         AuthorizationError: If the requested conversation is not this
@@ -241,9 +249,12 @@ async def persist_user_turn(
                 current_conversation_id = str(conversation.id)
                 newly_created = True
 
+            content = user_message
+            if not content and file_ids:
+                content = what_arrived(await conv_service.list_attached_files(file_ids))
             user_msg = await conv_service.add_message(
                 UUID(current_conversation_id),
-                MessageCreate(role="user", content=user_message),
+                MessageCreate(role="user", content=content),
                 organization_id=organization_id,
                 user_id=user.id,
             )

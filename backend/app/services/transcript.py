@@ -134,13 +134,18 @@ def settled_calls_in(messages: Sequence[ModelMessage]) -> dict[str, str]:
     }
 
 
-def _what_arrived(attachments: Sequence[ChatFile]) -> str:
+def what_arrived(attachments: Sequence[ChatFile]) -> str:
     """The user turn's body when files arrived with no words around them.
 
     A blank user message reads as somebody sending nothing, so a caption-less
     upload names its files instead - the vocabulary `AttachmentRouter` already
     uses for the model's briefing (#704). Only the names: the linked rows carry
     the size and the type.
+
+    Public because there are two write sites and one format: :meth:`record`
+    for every non-streaming surface, and `persist_user_turn` for the streaming
+    chat, which writes its own turn and used to leave it blank (#750). Two
+    copies of this string is how the same turn reads differently by surface.
     """
     return "\n".join(
         f"Attached {'image' if attachment.file_type == 'image' else 'file'}: {attachment.filename}"
@@ -236,7 +241,7 @@ class TranscriptService:
                         self.db,
                         conversation_id=run.conversation_id,
                         role="user",
-                        content=prompt or _what_arrived(attachments),
+                        content=prompt or what_arrived(attachments),
                         run_id=run.id,
                         # Off the run rather than passed in: the run row already
                         # records which chat account asked, and a second route to
