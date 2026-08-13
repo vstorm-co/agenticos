@@ -1,33 +1,31 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { mcpOAuthConnected, mcpOAuthRefused, mcpOAuthUpstreamRefusal } from "@/lib/mcp-oauth";
 import { backendFetch } from "@/lib/server-api";
 
 /**
  * OAuth redirect target. The provider sends the user here with `code` + `state`
  * (or an `error`). We forward them to the backend's state-authenticated
- * callback, then bounce the browser back with the outcome in the query string -
- * which today nothing reads: `/settings/integrations` is a redirect to
- * `/mcp-servers` and no page consumes `mcp_oauth` (#657). A failure of this
- * route's own is named by a `BFF_ERROR_KEYS` code, since there is no locale
- * here to write a sentence in (#603); a provider's or the backend's reason is
- * passed as given. No auth cookie is required - the `state` token
- * authenticates the exchange.
+ * callback, then bounce the browser back to the MCP servers page with a status
+ * `useMcpOAuthOutcome` turns into a toast. No auth cookie is required - the
+ * `state` token authenticates the exchange, which is also why every refusal it
+ * writes goes through `@/lib/mcp-oauth`: a stranger can reach this address with
+ * an `error` of their choosing, and that query is now rendered.
  */
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
-  const settings = (query: string) =>
-    NextResponse.redirect(new URL(`/settings/integrations?${query}`, request.url));
+  const servers = (query: string) =>
+    NextResponse.redirect(new URL(`/mcp-servers?${query}`, request.url));
 
   const providerError = params.get("error");
   if (providerError) {
-    const reason = params.get("error_description") ?? providerError;
-    return settings(`mcp_oauth=error&reason=${encodeURIComponent(reason)}`);
+    return servers(mcpOAuthUpstreamRefusal(params.get("error_description") ?? providerError));
   }
 
   const code = params.get("code");
   const state = params.get("state");
   if (!code || !state) {
-    return settings(`mcp_oauth=error&reason=MISSING_AUTHORIZATION_CODE`);
+    return servers(mcpOAuthRefused("MISSING_AUTHORIZATION_CODE"));
   }
 
   try {
@@ -40,12 +38,14 @@ export async function GET(request: NextRequest) {
       body: JSON.stringify({ code, state }),
     });
     if (!result.ok) {
-      const reason = result.error ?? "AUTHORIZATION_FAILED";
-      return settings(`mcp_oauth=error&reason=${encodeURIComponent(reason)}`);
+      return servers(
+        result.error
+          ? mcpOAuthUpstreamRefusal(result.error)
+          : mcpOAuthRefused("AUTHORIZATION_FAILED"),
+      );
     }
-    const name = result.connection_name ?? "";
-    return settings(`mcp_oauth=success&name=${encodeURIComponent(name)}`);
+    return servers(mcpOAuthConnected(result.connection_name ?? ""));
   } catch {
-    return settings(`mcp_oauth=error&reason=AUTHORIZATION_FAILED`);
+    return servers(mcpOAuthRefused("AUTHORIZATION_FAILED"));
   }
 }

@@ -26,6 +26,7 @@ export {
   useCapabilityCatalog,
 } from "./use-agents";
 export { useMcpCatalog, useMcpServers, type McpServerRow } from "./use-mcp-servers";
+export { useMcpOAuthOutcome } from "./use-mcp-oauth-outcome";
 export { useModelProviders, useProviderModels } from "./use-model-providers";
 export {
   useLocalSandboxService,

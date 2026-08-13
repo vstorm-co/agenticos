@@ -72,7 +72,10 @@ metadata, and the flow runs from there:
 2. **Register** — RFC 7591 dynamic client registration.
 3. **Consent** — a PKCE authorization URL with `state` and an RFC 8707 resource
    indicator; the browser goes there.
-4. **Exchange** — the callback swaps the code for tokens.
+4. **Exchange** — the callback swaps the code for tokens, then redirects the
+   browser back to the MCP servers page, which says whether it worked. That is
+   the only place the outcome can be told: the person is looking at a page they
+   did not navigate to themselves.
 5. **Refresh** — when the access token expires.
 
 Every URL reached in that flow is SSRF-checked, not just the one somebody typed:
