@@ -174,8 +174,7 @@ export function SlashCommandsManager() {
           <div>
             <h3 className="text-foreground text-sm font-semibold">{t("yourCustomCommands")}</h3>
             <p className="text-foreground/55 mt-0.5 text-xs">
-              {t("slashShortcutsLead")}
-              {t("chatSendsStoredPrompt")}
+              {t.rich("slashShortcuts", { cmd: (chunks) => <code>{chunks}</code> })}
             </p>
           </div>
           <Button size="sm" onClick={openCreate}>

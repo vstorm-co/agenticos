@@ -35,6 +35,22 @@ test.use({ storageState: AUTH_STATE });
  * profile this file then deletes would leave the rest of the suite with an agent
  * that cannot be published.
  */
+/**
+ * What the panel says the agent runs on, in the two fields that would change it.
+ *
+ * The provider and the model id, which is the pair that decides which API is
+ * called and what a run costs. It lives in the form since #634: the line above it
+ * carries the profile's *name*, and having both in one row is what made that line
+ * read the model twice.
+ */
+async function expectRunsOn(
+  page: Page,
+  { provider, model }: { provider: string; model: string },
+): Promise<void> {
+  await expect(page.locator("#add-model-provider")).toContainText(provider);
+  await expect(page.locator("#add-model-id")).toContainText(model);
+}
+
 test.describe("Models", () => {
   test("names the provider and the model id of what the agent runs on", async ({ page }) => {
     // A label is worth nothing on its own: `openai · gpt-4.1` is the pair that
@@ -43,24 +59,34 @@ test.describe("Models", () => {
     await openAgent(page, DRAFT_AGENT_NAME);
     await selectSavedModel(page, SEEDED_MODEL_LABEL);
 
-    const current = page.getByRole("group", { name: "Current model" });
-    await expect(current).toContainText(SEEDED_MODEL_LABEL);
-    await expect(current).toContainText(`openai · ${SEEDED_MODEL_ID}`);
+    // The name in the line above the form, the pair in the form's own fields. They
+    // are two different facts and each is said once: the label is what an agent is
+    // pointed at, and `openai · gpt-4.1` is what actually gets called.
+    await expect(page.getByRole("group", { name: "Current model" })).toContainText(
+      SEEDED_MODEL_LABEL,
+    );
+    await expectRunsOn(page, { provider: "OpenAI", model: SEEDED_MODEL_ID });
   });
 
   test("a model cannot be added without a provider and a model id", async ({ page }) => {
     await openAgent(page, DRAFT_AGENT_NAME);
 
-    const submit = page.getByRole("button", { name: "Add model" });
-    await expect(submit).toBeDisabled();
-
-    // Nothing is preselected, and the model field is not even usable yet: which
-    // models exist is a question only the provider can answer.
-    await expect(page.locator("#add-model-id")).toBeDisabled();
-
+    // What an *empty* form refuses - a disabled submit, and a model field that is
+    // not usable until a provider can answer which models exist - is asserted in
+    // `add-model.integration.test.tsx`, where the form is guaranteed empty. It
+    // cannot be asserted here: the fields start on whatever model the agent is
+    // already on, and this agent is shared with every other spec in this file.
+    // Away and back, because what clears the model id is the provider *changing*:
+    // picking the one the form already shows is a Radix select answering with the
+    // value it holds, so nothing fires and the form stays exactly as it was. That
+    // is why this read as "Add model not found" in CI and passed on a laptop - the
+    // button says "Use this model" while the fields still match the profile the
+    // agent is on, and which provider that is depends on what ran before.
+    await pickProvider(page, "Anthropic");
     await pickProvider(page, "OpenAI");
-    // Still refused. A profile with a provider and no model id is one that fails
-    // at the moment a run needs it rather than here.
+    // Refused. A profile with a provider and no model id is one that fails at the
+    // moment a run needs it rather than here.
+    const submit = page.getByRole("button", { name: "Add model" });
     await expect(submit).toBeDisabled();
 
     await pickModel(page, "gpt-4.1-mini");
@@ -94,7 +120,7 @@ test.describe("Models", () => {
     // like it did not take.
     const current = page.getByRole("group", { name: "Current model" });
     await expect(current).toContainText(label);
-    await expect(current).toContainText("ollama · llama3.2");
+    await expectRunsOn(page, { provider: "Ollama", model: "llama3.2" });
     // The badge that decides whether the agent can run at all. On a self-hosted
     // profile it is the expected state rather than a warning - but it is also
     // the refusal half of this surface, and the only place it is asserted: the

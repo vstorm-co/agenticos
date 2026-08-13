@@ -31,6 +31,7 @@ vi.mock("@/hooks", () => ({
 function card(overrides: Partial<ToolCall> = {}) {
   return render(
     <ToolCallCard
+      mcpServers={servers.list}
       toolCall={{
         id: "tc-1",
         name: "post_invoice",
@@ -249,6 +250,7 @@ describe("a tool call in the transcript", () => {
     // "hej" is absent by design and would make this assert the opposite of expansion.
     render(
       <ToolCallCard
+        mcpServers={servers.list}
         startOpen
         conversationId="c-1"
         toolCall={{
@@ -320,12 +322,17 @@ describe("a tool call in the transcript", () => {
     // front of somebody is the answer to what they asked for.
     const live = { id: "tc-1", name: "write_file", args: { path: "notes.md", content: "hej" } };
     const { rerender } = render(
-      <ToolCallCard conversationId="c-1" toolCall={{ ...live, status: "running" }} />,
+      <ToolCallCard
+        mcpServers={servers.list}
+        conversationId="c-1"
+        toolCall={{ ...live, status: "running" }}
+      />,
     );
     expect(screen.queryByRole("button", { name: "Open" })).toBeNull();
 
     rerender(
       <ToolCallCard
+        mcpServers={servers.list}
         conversationId="c-1"
         toolCall={{ ...live, status: "completed", result: "Wrote 1 lines" }}
       />,
@@ -349,12 +356,16 @@ describe("a tool call in the transcript", () => {
   it("opens a chart that finishes after the step was already on screen", () => {
     // The same live rule, for the tool whose whole value is the picture.
     const { rerender } = render(
-      <ToolCallCard toolCall={{ id: "tc-1", name: "create_chart", args: {}, status: "running" }} />,
+      <ToolCallCard
+        mcpServers={servers.list}
+        toolCall={{ id: "tc-1", name: "create_chart", args: {}, status: "running" }}
+      />,
     );
     expect(screen.queryByTestId("chart")).toBeNull();
 
     rerender(
       <ToolCallCard
+        mcpServers={servers.list}
         toolCall={{
           id: "tc-1",
           name: "create_chart",
