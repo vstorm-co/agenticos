@@ -380,3 +380,24 @@ class TestWritingTheTranscript:
         assert "transcript_write_failed" in caplog.text
         assert "no connection" in caplog.text
         assert "RuntimeError" in caplog.text
+
+    async def test_a_files_link_that_fails_costs_the_files_and_not_the_turn(
+        self, conversations, caplog
+    ):
+        """The link is the one write here touching rows the conversation does not
+        own, so it gets a SAVEPOINT of its own. Sharing the transcript's would
+        mean a run that has already spent money losing its answer and its tool
+        calls because a file could not be attached to the question."""
+        with patch("app.services.transcript.chat_file_repo") as chat_files:
+            chat_files.link_to_message = AsyncMock(side_effect=RuntimeError("deadlock detected"))
+
+            await TranscriptService(_session()).record(
+                _run(),
+                prompt="which row is the outlier?",
+                answer="row 12",
+                attachments=[MagicMock(id=uuid.uuid4())],
+            )
+
+        assert "transcript_file_link_failed" in caplog.text
+        roles = [call.kwargs["role"] for call in conversations.create_message.await_args_list]
+        assert roles == ["user", "assistant"]

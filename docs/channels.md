@@ -652,6 +652,13 @@ sender alone, reachable through `GET /files/{id}` by its owner and by nothing el
 Every channel turn used to leave one that way, because linking was done by the one
 surface that writes its own transcript.
 
+What the link widens is the *metadata*, not the bytes. A channel's conversation is
+owned by whoever spoke in it first, so in a shared channel a colleague's file now
+appears in a transcript other members can read — as a name, a type and a size.
+Downloading it still answers only its owner, which is the right half to keep
+private and the half a reader has to be told about: the chip is there, the bytes
+are not theirs.
+
 Fetching a file needs a second authenticated request on every platform, which is
 why an attachment arrives as a handle rather than as content:
 
