@@ -240,6 +240,12 @@ class ChannelMessageRouter:
         # does.
         directory = self._channel_directory(bot, incoming)
 
+        # Once, above both paths. A mention that turns out to name nobody of ours
+        # falls through to the default assistant, and fetching per path downloaded
+        # the same attachment twice and left the first copy stored with nothing
+        # pointing at it (#683).
+        files, file_refusals = await self._receive_files(db, bot, incoming, identity)
+
         # The mention path opens its own placeholder lazily, because it may find
         # the handle names a colleague rather than an agent of ours and stay
         # silent - a "…" posted up front would be left hanging under two people's
@@ -247,12 +253,19 @@ class ChannelMessageRouter:
         # opens eagerly below: the "…" that tells a channel the bot is working
         # rather than crashed.
         if await self._answer_mention(
-            incoming, bot, identity, session, db, directory, admit_unlinked
+            incoming,
+            bot,
+            identity,
+            session,
+            db,
+            directory,
+            admit_unlinked,
+            files=files,
+            file_refusals=file_refusals,
         ):
             return
 
         live, handle = await self._open_reply(bot, incoming)
-        files, file_refusals = await self._receive_files(db, bot, incoming, identity)
 
         # Loaded before the run, so the turn being run is the prompt and
         # everything before it is the history. The turn itself is written by the
@@ -359,6 +372,9 @@ class ChannelMessageRouter:
         db: Any,
         directory: BoundChannelDirectory | None,
         admit_unlinked: bool,
+        *,
+        files: list[Any],
+        file_refusals: list[str],
     ) -> bool:
         """Answer `@handle …` with that agent, and report whether we did.
 
@@ -375,8 +391,12 @@ class ChannelMessageRouter:
         The placeholder is opened lazily: a handle that names a colleague rather
         than an agent of ours raises before a token is streamed, so nothing is
         ever posted and no "…" is left hanging under two people's conversation.
+
+        `files` arrive already fetched, because both paths need the same ones and
+        this one runs first: receiving them here as well downloaded and stored
+        every attachment on an unaddressed message twice, and only the second row
+        was ever linked to the turn (#683).
         """
-        files, file_refusals = await self._receive_files(db, bot, incoming, identity)
         live, handle_of = self._lazy_reply(bot, incoming)
         try:
             answered = await ChannelAgentRouter(db).answer(
