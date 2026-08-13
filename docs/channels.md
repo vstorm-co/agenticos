@@ -1148,7 +1148,10 @@ had no attachment field, so no adapter parsed one and the agent answered about a
 document it never received. Now a message with a file — with or without a caption —
 reaches the agent the same way a web upload does, and is **read back the same way**:
 the file is a row on the turn it arrived with, so the thread in `/chat` shows a card
-rather than the briefing the model was given about it.
+rather than the briefing the model was given about it. A caption-less upload is
+still a turn, and its message names what arrived — `Attached image: photo.jpg` —
+rather than sitting blank above the card, because a blank user message reads as
+somebody sending nothing.
 
 **On every transport, because each adapter has exactly one parser.** Each platform
 has two ways in — a webhook and a stream, or long-polling — and the second one used

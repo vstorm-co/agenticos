@@ -134,6 +134,20 @@ def settled_calls_in(messages: Sequence[ModelMessage]) -> dict[str, str]:
     }
 
 
+def _what_arrived(attachments: Sequence[ChatFile]) -> str:
+    """The user turn's body when files arrived with no words around them.
+
+    A blank user message reads as somebody sending nothing, so a caption-less
+    upload names its files instead - the vocabulary `AttachmentRouter` already
+    uses for the model's briefing (#704). Only the names: the linked rows carry
+    the size and the type.
+    """
+    return "\n".join(
+        f"Attached {'image' if attachment.file_type == 'image' else 'file'}: {attachment.filename}"
+        for attachment in attachments
+    )
+
+
 class TranscriptService:
     """Writes a run's turns into the conversation the run belongs to."""
 
@@ -166,9 +180,13 @@ class TranscriptService:
         (/uploads/…, 43 KB, image)`. The dashboard's own uploads have been rows
         since they existed; a channel's became nothing at all.
 
-        An empty *prompt* is written when a file came with it, because a picture
-        posted with no caption is a turn: the row is what the file hangs off, and
-        without it the attachment belongs to nothing.
+        An empty *prompt* with a file beside it is a turn, because a picture
+        posted with no caption is one: the row is what the file hangs off, and
+        without it the attachment belongs to nothing. Its body names what
+        arrived rather than staying blank - an empty user message reads as
+        somebody sending nothing (#704). `None` is different from `""` here:
+        a resume passes `None` and no attachments, so it writes no user turn,
+        while an empty caption always arrives with the file that makes it one.
 
         An empty `answer` is written when the run called something, and skipped
         when it did not. A blank assistant message with nothing under it reads as
@@ -218,7 +236,7 @@ class TranscriptService:
                         self.db,
                         conversation_id=run.conversation_id,
                         role="user",
-                        content=prompt or "",
+                        content=prompt or _what_arrived(attachments),
                         run_id=run.id,
                         # Off the run rather than passed in: the run row already
                         # records which chat account asked, and a second route to

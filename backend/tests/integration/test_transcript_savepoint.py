@@ -181,3 +181,52 @@ async def test_a_channel_turns_file_is_left_carrying_the_message_it_arrived_with
     ).scalar_one()
     linked = (await db.execute(select(ChatFile).where(ChatFile.id == stored.id))).scalar_one()
     assert linked.message_id == question.id
+
+
+async def test_a_captionless_turn_leaves_a_named_user_message_its_file_hangs_off(db) -> None:
+    """A photo posted with no words still reads as a turn somebody took.
+
+    An attachment that produces no prompt text - a caption-less image on an
+    agent with no workspace - used to jump the conversation straight to the
+    answer, leaving the `ChatFile` with `message_id` NULL. The user message is
+    written with a body naming what arrived, because a blank one reads as
+    somebody sending nothing (#704).
+    """
+    org, agent, version = await _org_and_agent(db)
+    sender = await _owner(db)
+    conversation = Conversation(
+        id=uuid.uuid4(), organization_id=org.id, user_id=sender.id, title="Telegram Chat"
+    )
+    db.add(conversation)
+    await db.flush()
+    run = AgentRun(
+        id=uuid.uuid4(),
+        organization_id=org.id,
+        agent_id=agent.id,
+        agent_version_id=version.id,
+        conversation_id=conversation.id,
+        status=RunStatus.COMPLETED.value,
+        surface=RunSurface.TELEGRAM.value,
+    )
+    db.add(run)
+    stored = ChatFile(
+        id=uuid.uuid4(),
+        user_id=sender.id,
+        filename="photo.jpg",
+        mime_type="image/jpeg",
+        size=1024,
+        storage_path=f"uploads/{uuid.uuid4().hex}.jpg",
+        file_type="image",
+    )
+    db.add(stored)
+    await db.flush()
+
+    await TranscriptService(db).record(run, prompt="", answer="A dashboard.", attachments=[stored])
+    await db.commit()
+
+    question = (
+        await db.execute(select(Message).where(Message.run_id == run.id, Message.role == "user"))
+    ).scalar_one()
+    linked = (await db.execute(select(ChatFile).where(ChatFile.id == stored.id))).scalar_one()
+    assert question.content == "Attached image: photo.jpg"
+    assert linked.message_id == question.id
