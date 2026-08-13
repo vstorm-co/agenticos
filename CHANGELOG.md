@@ -17,6 +17,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.139] - 2026-08-13
+
+`timeAgo` fell back to an English date once a timestamp was old enough.
+
+### Fixed
+
+- **The date `timeAgo` answers with past its relative window** was built with a
+  hardcoded locale, so a Polish reader watching a list of runs saw Polish for
+  anything recent and English the moment a row aged out of "2 days ago". It takes
+  the active locale now, like the absolute formatters beside it. (#621)
+
 ## [0.0.138] - 2026-08-13
 
 An absolute date was formatted in English on every locale.
