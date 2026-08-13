@@ -388,6 +388,22 @@ describe("a string literal", () => {
     expect(said(source)).toEqual(["string 'Escape a \\\\ and a \\' in one sentence'"]);
   });
 
+  it("refuses prose whose first word is hyphenated (#656)", () => {
+    // The hyphen inside `Sign-in` read as the separator in `Foo / Bar`, so the whole
+    // sentence was a label and left the sweep silently. `Sign-in failed` and `Sign-in
+    // successful` survived #603's sweep of the BFF handlers that way, and it was review
+    // that found them (#654), not the guard.
+    expect(saidTs('const x = "Sign-in failed";\n')).toEqual(["string 'Sign-in failed'"]);
+    expect(saidTs('const x = "Auto-refresh is on";\n')).toEqual(["string 'Auto-refresh is on'"]);
+  });
+
+  it("passes a label built from title case around a separator", () => {
+    // What that exemption is for, and the bound on the tightening above: the separator
+    // joins two capitalised tokens, which is the one thing prose does not do.
+    expect(saidTs('const x = "Model / Provider";\n')).toEqual([]);
+    expect(saidTs('const x = "Agent - Settings";\n')).toEqual([]);
+  });
+
   it("passes a two-token label, an icon name and an import", () => {
     expect(said('import { Button } from "@/components/ui/button";\n')).toEqual([]);
     expect(said('const icon = "chevron-right";\n')).toEqual([]);
