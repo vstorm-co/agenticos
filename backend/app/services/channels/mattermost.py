@@ -735,10 +735,11 @@ class MattermostAdapter(ChannelAdapter):
             [part for part in raw_ids.split(",") if part] if isinstance(raw_ids, str) else raw_ids
         )
 
-        # The handle is the full URL, resolved here from the server this bot's
-        # stream was opened against. Every Mattermost deployment is somebody's own
-        # server, so the id alone is not enough to fetch anything - and the
-        # download signature carries a token, not a bot.
+        # The handle is the full URL, resolved from the server this bot was told
+        # about - by the stream when it opened, or by the webhook receiver per
+        # delivery (#692). Every Mattermost deployment is somebody's own server,
+        # so the id alone is not enough to fetch anything - and the download
+        # signature carries a token, not a bot.
         base_url = self._base_urls.get(bot_id, "")
 
         found: list[IncomingAttachment] = []
@@ -757,10 +758,10 @@ class MattermostAdapter(ChannelAdapter):
     async def download_attachment(self, bot_token: str, attachment: IncomingAttachment) -> bytes:
         """Fetch a Mattermost file from the URL the parser resolved.
 
-        Empty means this bot's server was not known when the message arrived - the
-        outgoing-webhook path never calls `remember_server` - and that is reported
-        rather than guessed at, because guessing a Mattermost address is guessing
-        which company's server to send a bot token to.
+        Empty means this bot's server was not known when the message arrived -
+        the bot row carries no `api_base_url` - and that is reported rather than
+        guessed at, because guessing a Mattermost address is guessing which
+        company's server to send a bot token to.
         """
         if not attachment.handle:
             raise ValueError(

@@ -21,7 +21,7 @@ from app.api.deps import ChannelBotSvc
 from app.core.background import spawn
 from app.services.channel_bot import unseal_webhook_secret
 from app.services.channels import get_adapter
-from app.services.channels.mattermost import decode_webhook_body
+from app.services.channels.mattermost import MattermostAdapter, decode_webhook_body
 from app.worker.background.channel import process_channel_event
 
 logger = logging.getLogger(__name__)
@@ -52,6 +52,12 @@ async def mattermost_webhook(
     secret = unseal_webhook_secret(bot)
     if not secret or not adapter.verify_webhook_signature(dict(request.headers), secret, raw):
         raise HTTPException(status_code=403, detail="Invalid webhook token")
+
+    # A webhook-mode bot opens no stream, so this is the only place its server
+    # can reach the adapter - and the parser resolves attachment handles from
+    # it (#692). The isinstance narrows the registry's base type.
+    if isinstance(adapter, MattermostAdapter) and bot.api_base_url:
+        adapter.remember_server(str(bot_id), bot.api_base_url)
 
     incoming = adapter.parse_incoming(decode_webhook_body(raw), str(bot_id))
     if incoming is None:

@@ -44,6 +44,7 @@ def _sealed_bot(
     *,
     platform: str = "mattermost",
     organization_id: uuid.UUID | None = None,
+    api_base_url: str | None = None,
 ) -> ChannelBot:
     """A bot row carrying `secret`, sealed for its own organization."""
     org_id = organization_id or uuid.uuid4()
@@ -54,6 +55,7 @@ def _sealed_bot(
         name="bot",
         token_encrypted="",
         secret_key_version=1,
+        api_base_url=api_base_url,
     )
     bot.webhook_secret_encrypted = (
         None if secret is None else seal(secret, scope=VaultScope.organization(org_id)).ciphertext
@@ -316,3 +318,45 @@ class TestTheReceiversRefuse:
             client, f"/api/v1/telegram/{uuid.uuid4()}/webhook", None, json={"update_id": 1}
         )
         assert status == 200
+
+
+@pytest.mark.usefixtures("registered_adapters")
+class TestTheReceiverRecordsTheServer:
+    """A webhook-mode bot opens no stream, so `remember_server` never ran for it
+    and every attachment parsed with an empty handle - the file could be named in
+    the reply but never fetched (#692). The receiver holds the bot row, so it is
+    the one place the address can reach the adapter on this transport."""
+
+    async def test_a_file_on_a_webhook_delivery_resolves_against_the_bots_own_server(
+        self, client: AsyncClient
+    ):
+        secret = "the-real-secret"
+        bot = _sealed_bot(secret, api_base_url="https://mm.example.com/")
+        captured: list = []
+
+        async def _record(incoming) -> None:
+            captured.append(incoming)
+
+        app.dependency_overrides[deps.get_channel_bot_service] = lambda: _bot_service(bot)
+        try:
+            with patch("app.api.routes.v1.mattermost_webhook.process_channel_event", new=_record):
+                response = await client.post(
+                    f"/api/v1/mattermost/{bot.id}/webhook",
+                    json={
+                        "token": secret,
+                        "text": "what does this say",
+                        "user_id": "u-1",
+                        "user_name": "kacper",
+                        "channel_id": "c-1",
+                        "post_id": "p-1",
+                        "file_ids": "f1",
+                    },
+                )
+                assert response.status_code == 200
+                await background.drain(timeout=5.0)
+        finally:
+            app.dependency_overrides.pop(deps.get_channel_bot_service, None)
+
+        assert len(captured) == 1
+        handles = [attachment.handle for attachment in captured[0].attachments]
+        assert handles == ["https://mm.example.com/api/v4/files/f1"]
