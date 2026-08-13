@@ -372,6 +372,27 @@ class MattermostAdapter(ChannelAdapter):
             for user in users.json()
         ]
 
+    async def is_channel_member(
+        self, bot_token: str, channel_id: str, platform_user_id: str, *, api_base_url: str | None
+    ) -> bool:
+        """`GET /channels/{id}/members/{user_id}` - Mattermost answers per account.
+
+        A 404 is the platform saying "not in this channel", which is an answer
+        rather than a failure. Anything else unexpected - a 403 because the bot
+        itself was removed, a server error - raises, and the participant model
+        treats a question it could not ask as a refusal.
+        """
+        base_url = self._server(api_base_url)
+        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
+            found = await client.get(
+                f"{base_url}/api/v4/channels/{channel_id}/members/{platform_user_id}",
+                headers={"Authorization": f"Bearer {bot_token}"},
+            )
+        if found.status_code == 404:
+            return False
+        found.raise_for_status()
+        return True
+
     async def search_channels(
         self, bot_token: str, channel_id: str, *, api_base_url: str | None, query: str, limit: int
     ) -> list[ChannelSummary]:

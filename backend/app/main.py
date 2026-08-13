@@ -36,6 +36,7 @@ from app.services.channel_bot import unseal_bot_token, unseal_slack_app_token
 from app.services.channels import register_adapter
 from app.services import rate_limit
 from app.services.channels import dedupe as channel_dedupe
+from app.services.channels import membership as channel_membership
 from app.services.channels.supervisor import open_inbound_stream
 
 logger = logging.getLogger(__name__)
@@ -101,6 +102,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     # outside any request the limiter could read `request.state` from, and a
     # count kept in this process would be off by the worker count (#39).
     rate_limit.configure(redis_client)
+    # And the membership check behind the participant model, which the
+    # conversation service consults from inside a request but caches in the
+    # Redis every worker shares (#641).
+    channel_membership.configure(redis_client)
     embedder: EmbeddingService | None = None
     try:
         embedder = EmbeddingService(settings=settings.rag)
@@ -168,6 +173,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
         await _mattermost_adapter.stop_polling(_mbid)
     channel_dedupe.configure(None)
     rate_limit.configure(None)
+    channel_membership.configure(None)
     if "redis" in state:
         await state["redis"].close()
 

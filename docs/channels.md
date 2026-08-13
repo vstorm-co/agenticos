@@ -805,11 +805,19 @@ it is about to wait.
     somebody, with no backfill: the turn points at the chat account and the
     account gains a person.
 
-    **That list says who spoke, not who may read.** Participation is never
-    re-checked against the platform, so somebody removed from the channel there
-    keeps the thread in their list here — deliberately, and [#641][641] is what it
-    would take to change. Nothing may use it as an authorization check without
-    asking the platform first.
+    **Speaking is a claim; the platform decides whether it still holds.** The
+    turn record says who *spoke*, and before [#641][641] that was the whole
+    check — somebody removed from the channel kept reading the thread,
+    including everything said after they left. Now every participation claim is
+    confirmed against the platform's current membership (`getChatMember` on
+    Telegram, `conversations.members` on Slack, the per-user member lookup on
+    Mattermost) before the listing shows the thread and before it opens, behind
+    a shared Redis cache of about a minute. The check **fails closed**: a
+    platform that cannot answer, a bot that is gone, and a thread whose channel
+    nothing names any more — `/new` re-points the session at a fresh
+    conversation — all refuse participation rather than trust the claim. The
+    thread's owner and anybody it was explicitly shared with keep their access
+    regardless; the membership check gates participation and nothing else.
 
     **And it opens a thread rather than owning one.** Speaking in a room admits
     you to reading it; renaming it, archiving it, deleting it or appending a turn
