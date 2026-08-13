@@ -14,6 +14,7 @@ the organization's and never none at all.
 from __future__ import annotations
 
 import asyncio
+import logging
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -490,8 +491,28 @@ class TestRecordingTheRun:
 
         finished = runner.finish.call_args.kwargs
         assert finished["status"] is RunStatus.FAILED
-        assert finished["error"] == "the model went away"
         db.commit.assert_awaited_once()
+
+    async def test_a_failed_chat_run_records_the_refusal_and_not_the_provider(self, caplog):
+        """The same rule the chat frame took in #659, on the row rather than the
+        socket: `agent_runs.error` is rendered in run history to every member who
+        can read it, and a model client puts the failing request in its message -
+        a tenant's own endpoint with the key still in its query string (#676)."""
+        db = _db()
+        vendor_text = "401 from https://llm.acme.internal/v1/chat?api_key=sk-live-9f2c"
+
+        with (
+            _runner(_prepared()) as runner,
+            caplog.at_level(logging.ERROR, logger="app.services.agent_chat"),
+            pytest.raises(RuntimeError),
+        ):
+            await _run(db, stream=AsyncMock(side_effect=RuntimeError(vendor_text)))
+
+        assert runner.finish.call_args.kwargs["error"] == (
+            "The run did not finish (RuntimeError) - retry it, and check the agent's "
+            "model profile if it keeps failing. The server log has the full error."
+        )
+        assert vendor_text in caplog.text
 
     async def test_a_stopped_turn_is_recorded_as_cancelled_and_committed(self):
         """Cancellation never reaches the session's rollback-on-error, so the row

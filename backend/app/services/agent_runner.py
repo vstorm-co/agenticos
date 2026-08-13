@@ -65,6 +65,7 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from pydantic_ai import Agent as PydanticAgent
+from pydantic_ai.exceptions import ModelHTTPError
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter, UserContent
 from pydantic_ai.run import AgentRun as AgentIteration
 from pydantic_ai.run import AgentRunResult
@@ -121,6 +122,7 @@ from app.agents.subagent_runtime import (
 )
 from app.core.config import settings
 from app.core.exceptions import (
+    AppException,
     AuthorizationError,
     BadRequestError,
     NotFoundError,
@@ -1351,6 +1353,41 @@ def _prompt_text(user_prompt: str | list[Any] | None) -> str | None:
     if user_prompt is None or isinstance(user_prompt, str):
         return user_prompt
     return "".join(part for part in user_prompt if isinstance(part, str))
+
+
+def run_failure_summary(exc: Exception) -> str:
+    """The sentence a failed run may store, for an exception it may not.
+
+    `agent_runs.error` used to hold `str(exc)` of whatever came out of the run.
+    It is a stored column on `AgentRunRead`, rendered in run history to every
+    member who can read it, and what raises there is a model client with `httpx`
+    underneath - so that routinely meant an endpoint, an internal host, or a URL
+    with a key still in its query string, sitting in a row somebody opens weeks
+    later. Same rule as #342 in an HTTP body, #423 in the ingestion columns and
+    #659 in the chat frame, with the longest life of the four (#676).
+
+    Ours is kept whole. An `AppException` is written in this repository, and its
+    message is the most useful thing an operator can be shown - "No model
+    profile is configured for this agent" beats any sentence composed here.
+    `BudgetExceeded` never reaches this function: it is caught above and its
+    ceiling is the point of it.
+
+    Anything else is a foreign `__str__` and only its *type* is safe to store,
+    plus the status code when a provider answered one. That code is what keeps
+    the failures a person can act on themselves actionable - 401 a credential,
+    404 a model the profile names and the provider does not have, 429 a rate
+    limit, 400 a request the model refused - where a bare class name would make
+    all four `ModelHTTPError`. An `int` has never carried a URL.
+    """
+    if isinstance(exc, AppException):
+        return str(exc)
+    diagnosis = type(exc).__name__
+    if isinstance(exc, ModelHTTPError):
+        diagnosis = f"{diagnosis}, HTTP {exc.status_code}"
+    return (
+        f"The run did not finish ({diagnosis}) - retry it, and check the agent's model "
+        "profile if it keeps failing. The server log has the full error."
+    )
 
 
 class AgentRunnerService:
@@ -3184,7 +3221,7 @@ class AgentRunnerService:
             budget_scope = exc.scope
             logger.info("Run %s stopped by budget: %s", prepared.run.id, exc)
         except Exception as exc:
-            error = str(exc)
+            error = run_failure_summary(exc)
             logger.exception("Agent run %s failed", prepared.run.id)
             raise
         finally:
