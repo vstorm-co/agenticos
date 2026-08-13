@@ -8,6 +8,7 @@ export { Label } from "./label";
 export { Textarea } from "./textarea";
 export { MarkdownEditor } from "./markdown-editor";
 export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent } from "./card";
+export { ListCard, ListCardEmpty } from "./list-card";
 export { Badge, badgeVariants } from "./badge";
 export { SortButton } from "./sort-button";
 export type { SortDirection } from "./sort-button";
