@@ -17,6 +17,19 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.140] - 2026-08-13
+
+Polish diacritics swapped typeface mid-word.
+
+### Fixed
+
+- **The vendored woff2 files were the latin subsets**, and eight of the nine
+  Polish pairs — `ą ć ę ł ń ś ź ż` — live in latin-ext, so per-glyph fallback
+  rendered them in the system font. Worst on Bricolage Grotesque headings at
+  700–800, where a word could change typeface halfway through. The latin-ext
+  subset of all three families is vendored beside the latin one, at the same
+  Google Fonts versions, about 119 KB together. (#606)
+
 ## [0.0.139] - 2026-08-13
 
 `timeAgo` fell back to an English date once a timestamp was old enough.
