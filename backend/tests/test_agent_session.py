@@ -637,17 +637,26 @@ class TestATurnThatDidNotFinish:
             {"message": "Organization monthly budget exhausted: $20.0100 spent of $20.00 limit"},
         )
 
-    async def test_an_unexpected_failure_still_reaches_the_client(self, caplog):
+    @pytest.mark.parametrize(
+        ("failure", "named"), [(RuntimeError, "RuntimeError"), (TimeoutError, "TimeoutError")]
+    )
+    async def test_an_unexpected_failure_still_reaches_the_client(self, failure, named, caplog):
         """A provider that answered 500 is not a refusal and not a bug in the
         spec, and the person sitting there gets told either way - by a sentence
         written here. A provider client puts the failing request in its message
         and that URL carries a key in its query string, so the exception's own
-        text stays in the log and only its class reaches the panel (#659)."""
+        text stays in the log and only its class reaches the panel (#659).
+
+        Two classes, because the class is the whole of what the frame still
+        carries: it is what separates an upstream that timed out from one that
+        refused a credential, and a sentence that named a fixed class would say
+        nothing while passing.
+        """
         session = _session()
         vendor_text = "503 from https://api.example.com/v1/chat?api_key=sk-live-9f2c"
 
         with (
-            _chat(AsyncMock(side_effect=RuntimeError(vendor_text))),
+            _chat(AsyncMock(side_effect=failure(vendor_text))),
             caplog.at_level(logging.ERROR, logger="app.services.agent_session"),
         ):
             await session.process_message(_message())
@@ -657,7 +666,7 @@ class TestATurnThatDidNotFinish:
             "error",
             {
                 "message": (
-                    "The agent could not finish this turn (RuntimeError). "
+                    f"The agent could not finish this turn ({named}). "
                     "Try again; the server log has the full error."
                 )
             },
