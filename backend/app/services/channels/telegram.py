@@ -305,9 +305,12 @@ class TelegramAdapter(ChannelAdapter):
         until #547, and the copies disagreed about files.
 
         `message` and `edited_message` only. A file with no caption is a message;
-        a message with no sender is not - an anonymous group admin arrives with no
-        `from` at all, and a run has to be somebody's, so answering one would key a
-        single shared identity on an empty user id.
+        a message with no sender is not. The Bot API leaves `from` empty for a
+        message sent to a channel, and a run has to be somebody's - answering one
+        would key a single shared identity on an empty user id. A post made on
+        behalf of a chat elsewhere carries a stand-in sender rather than nothing,
+        so this refuses less than it sounds like: it refuses the case where there
+        is genuinely nobody to link the run to.
         """
         msg_data: dict[str, Any] | None = raw_payload.get("message") or raw_payload.get(
             "edited_message"
@@ -426,8 +429,15 @@ class TelegramAdapter(ChannelAdapter):
         the agent answered about a document it never received.
 
         `by_alias` because the Bot API's `from` is a Python keyword and aiogram
-        renames it; `exclude_none` because Telegram omits a field it has nothing
-        for, and `_attachments` reads presence.
+        renames it - without it nothing here finds a sender and every polled
+        message is refused. `exclude_none` because Telegram omits a field it has
+        nothing for while aiogram holds a `None`: left in, a sender with no
+        surname is displayed as "Ada None".
+
+        Only `message` reaches this. `@dp.message()` is the sole handler, so
+        aiogram asks Telegram for that update type alone and an edit is never
+        delivered - unlike the webhook receiver, which is sent whatever the
+        platform has and reads `edited_message` too.
         """
         incoming = self.parse_incoming(
             {"message": message.model_dump(mode="json", by_alias=True, exclude_none=True)}, bot_id

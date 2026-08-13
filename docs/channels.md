@@ -309,10 +309,11 @@ it is about to wait.
 - **Linking, and it comes first** — a channel run belongs to a *person*: the
   budget it spends, what it may read and the audit entry it writes are all
   theirs. So an unlinked chat account is refused, whatever the bot's access
-  policy says — and a message with no sender at all, which is how Telegram
-  delivers an anonymous group admin's post, is not answered either. There is
-  nobody to link it to, and answering one would file every anonymous poster the
-  bot ever sees under a single shared chat account.
+  policy says — and so is a message with no sender at all, which on Telegram is
+  a post made to a channel rather than by a person. There is nobody to link it
+  to, and answering one would file every such post under a single shared chat
+  account. A message sent on behalf of a chat is a different thing: Telegram
+  puts a stand-in sender on it, so it reaches the ordinary linking refusal.
 
     The refusal carries the way out. Message the bot and it answers with a URL;
     open it, and the dashboard — where you are already signed in — names the chat
@@ -641,7 +642,10 @@ else, and the Mattermost outgoing webhook read no `file_ids` at all. Both now pu
 their update back into the shape the platform sends and hand it to the same
 `parse_incoming`, so what counts as a message is decided once. It had been decided
 twice, and the copies disagreed about files — which mattered most on the paths a
-self-hosted deployment actually runs.
+self-hosted deployment actually runs. What each transport is *handed* still
+differs, and that is the platform's doing rather than ours: Telegram's polling
+loop subscribes to new messages only, so an edit reaches the webhook receiver and
+never the poller.
 
 **Inbound** is the web upload path reached differently. The bytes come from a
 platform instead of a browser and then go through exactly what a web upload gets:

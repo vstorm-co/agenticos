@@ -166,7 +166,7 @@ class TestTelegramReceiving:
     def test_a_message_with_no_sender_is_nothing_on_this_transport_too(self):
         """The polling loop always refused one. The webhook parser answered it with
         an empty `platform_user_id`, which is a single identity shared by every
-        anonymous sender the bot ever sees (#547)."""
+        senderless post the bot ever sees (#547)."""
         assert (
             TelegramAdapter().parse_incoming(
                 {"message": {"chat": {"id": 1, "type": "supergroup"}, "text": "hello"}}, "bot-1"
@@ -273,16 +273,24 @@ class TestTelegramPolling:
         assert routed is not None
         assert routed.text == "hello"
         assert routed.raw["message"]["message_id"] == 7
-        assert routed.platform_display_name == "Ada"
 
     async def test_a_message_with_neither_text_nor_a_file_is_not_routed(self):
         assert await _routed(_polled()) is None
 
     async def test_a_message_with_no_sender_is_not_routed(self):
-        """An anonymous group admin arrives with no `from`, and a run needs somebody
-        to be. Polling always refused one; the webhook parser did not, and keyed a
-        shared identity on an empty user id instead."""
+        """The Bot API leaves `from` empty for a message sent to a channel, and a
+        run needs somebody to be. Polling always refused one; the webhook parser
+        did not, and keyed a shared identity on an empty user id instead."""
         assert await _routed(_polled(text="hello", from_user=None)) is None
+
+    async def test_a_sender_with_no_surname_is_not_displayed_as_ada_none(self):
+        """`exclude_none` on the dump, in one assertion. aiogram holds a `None`
+        where Telegram simply omits the field, and the display name is built by
+        joining the two - so leaving it in renames everybody without a surname."""
+        routed = await _routed(_polled(text="hello"))
+
+        assert routed is not None
+        assert routed.platform_display_name == "Ada"
 
 
 class TestTelegramSending:
