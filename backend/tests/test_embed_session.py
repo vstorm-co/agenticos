@@ -237,10 +237,13 @@ class TestWhichFilesAVisitorMayAttach:
         ]
         attached = [uuid.uuid4(), uuid.uuid4()]
 
-        with patch(f"{MODULE}.chat_file_repo.get_many", AsyncMock(return_value=rows)):
+        with patch(f"{MODULE}.chat_file_repo.get_many", AsyncMock(return_value=rows)) as get_many:
             usable = await session._files(MagicMock(), attached)
 
         assert usable == rows
+        # The ownership half of the rule lives in the query itself (#706), so a
+        # stranger's id never resolves to a row for this Python to keep.
+        assert get_many.await_args.kwargs["user_id"] == session.embed.owner_user_id
 
     async def test_an_id_that_resolves_to_nothing_usable_is_dropped_not_refused(self):
         """Refusing somebody their answer over a stale id in a composer is the

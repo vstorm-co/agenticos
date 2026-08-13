@@ -421,29 +421,42 @@ class TestWhichFilesAFrameMayAttach:
 
     async def test_a_row_belonging_to_somebody_else_is_not_attached(self) -> None:
         """Two conditions, and between them they stop a frame from attaching a file
-        it was never handed: the row is the page owner's, and it hangs off no
-        message yet."""
+        it was never handed: the row is the page owner's - which since #706 is the
+        repository read's own WHERE, so a stranger's row never comes back to be
+        filtered - and it hangs off no message yet."""
         session = _session(_embed(allow_files=True))
         mine = MagicMock(id=uuid.uuid4(), user_id=session.embed.owner_user_id, message_id=None)
-        somebody_elses = MagicMock(id=uuid.uuid4(), user_id=uuid.uuid4(), message_id=None)
         already_sent = MagicMock(
             id=uuid.uuid4(), user_id=session.embed.owner_user_id, message_id=uuid.uuid4()
         )
-        asked = [mine.id, somebody_elses.id, already_sent.id]
+        asked = [mine.id, uuid.uuid4(), already_sent.id]
 
         with patch(
             "app.services.embed_session.chat_file_repo.get_many",
-            new=AsyncMock(return_value=[mine, somebody_elses, already_sent]),
-        ):
+            new=AsyncMock(return_value=[mine, already_sent]),
+        ) as read:
             usable = await session._files(MagicMock(), asked)
 
         assert usable == [mine]
+        assert read.await_args.kwargs["user_id"] == session.embed.owner_user_id
 
     async def test_a_frame_that_names_nothing_reads_no_rows(self) -> None:
         session = _session(_embed())
 
         with patch("app.services.embed_session.chat_file_repo.get_many", new=AsyncMock()) as read:
             assert await session._files(MagicMock(), []) == []
+
+        read.assert_not_awaited()
+
+    async def test_a_page_whose_publisher_is_gone_owns_no_rows_to_attach(self) -> None:
+        """`owner_user_id` is `SET NULL` when the publisher's account is deleted,
+        and the read is scoped to the owner (#706) - so there is nobody to read
+        as, and every id the frame names drops."""
+        session = _session(_embed(allow_files=True))
+        session.embed.owner_user_id = None
+
+        with patch("app.services.embed_session.chat_file_repo.get_many", new=AsyncMock()) as read:
+            assert await session._files(MagicMock(), [uuid.uuid4()]) == []
 
         read.assert_not_awaited()
 

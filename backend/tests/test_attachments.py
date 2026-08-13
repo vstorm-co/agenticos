@@ -330,12 +330,15 @@ class TestASecondTurn:
 
 
 class TestLoadingTheRows:
-    async def test_the_ids_a_client_sent_are_resolved_through_the_conversation(self, monkeypatch):
+    async def test_the_ids_a_client_sent_are_resolved_as_the_caller(self, monkeypatch):
+        """The sender's id rides along, because the read is scoped to it (#706)."""
         from app.services import attachments as module
 
+        caller = uuid4()
         service = SimpleNamespace(list_attached_files=AsyncMock(return_value=["row"]))
         monkeypatch.setattr(
             "app.api.deps.get_conversation_service", lambda db: service, raising=True
         )
 
-        assert await module.load_attached_files(object(), [uuid4()]) == ["row"]
+        assert await module.load_attached_files(object(), [uuid4()], user_id=caller) == ["row"]
+        assert service.list_attached_files.await_args.kwargs["user_id"] == caller

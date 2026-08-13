@@ -335,16 +335,27 @@ class TranscriptService:
 
         Nothing when nothing was attached - a SAVEPOINT and its release on every
         turn in the deployment is a real cost for a list that is usually empty.
+
+        The link is scoped to each row's own uploader, because the repository
+        refuses to move anybody else's file (#706). The rows here were stored by
+        `ChannelAttachmentService.receive` for the turn's sender, so grouping by
+        owner is one UPDATE in practice - it only splits if a caller ever hands
+        it rows from more than one uploader.
         """
         if not attachments:
             return
+        by_owner: dict[UUID, list[UUID]] = {}
+        for attachment in attachments:
+            by_owner.setdefault(attachment.user_id, []).append(attachment.id)
         try:
             async with self.db.begin_nested():
-                await chat_file_repo.link_to_message(
-                    self.db,
-                    message_id=message_id,
-                    file_ids=[attachment.id for attachment in attachments],
-                )
+                for owner_id, ids in by_owner.items():
+                    await chat_file_repo.link_to_message(
+                        self.db,
+                        message_id=message_id,
+                        file_ids=ids,
+                        user_id=owner_id,
+                    )
         except Exception:
             logger.exception("transcript_file_link_failed", extra={"message_id": str(message_id)})
 
