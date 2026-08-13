@@ -77,8 +77,16 @@ async def check_agent_triggers_flow() -> None:
             # and a marker left set would hold it out of `claim_due` until the lease
             # lapsed rather than the next tick firing it again on its new schedule.
             logger.exception("agent_trigger_dispatch_failed", extra={"trigger_id": str(trigger.id)})
-            async with get_worker_db_context() as db:
-                await AgentTriggerService(db).release_fire_marker(trigger.id)
+            try:
+                async with get_worker_db_context() as db:
+                    await AgentTriggerService(db).release_fire_marker(trigger.id)
+            except Exception:
+                # The lease bounds this one trigger's damage; the rest of the
+                # batch must still dispatch - the reason this loop isolates at all.
+                logger.exception(
+                    "agent_trigger_marker_release_failed",
+                    extra={"trigger_id": str(trigger.id)},
+                )
         else:
             dispatched += 1
     logger.info("agent_triggers_check", extra={"dispatched": dispatched, "claimed": len(triggers)})
