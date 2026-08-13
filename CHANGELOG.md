@@ -17,6 +17,19 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.141] - 2026-08-13
+
+The baked MCP logos were keyed on a domain nothing ever asked for.
+
+### Fixed
+
+- **Every logo in `mcp-logos.generated.ts` was keyed on a brand domain** —
+  `linear.app`, `notion.so` — while `logoDataUri` is always asked with the
+  connection URL's host, `mcp.linear.app`. The intersection was empty, so the MCP
+  badge fell through to Google's live favicon service on every view and the
+  self-contained export phoned home per server instead of rendering offline.
+  (#614)
+
 ## [0.0.140] - 2026-08-13
 
 Polish diacritics swapped typeface mid-word.
