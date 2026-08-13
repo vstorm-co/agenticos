@@ -20,6 +20,7 @@ from app.core.background import spawn_after_commit
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.vault import SealedSecret, VaultScope, seal, unseal
 from app.db.models.channel_bot import ChannelBot
+from app.db.updates import writable
 from app.repositories import agent_exposure_repo, channel_bot_repo, channel_session_repo
 from app.schemas.channel_bot import (
     BotAgent,
@@ -340,7 +341,7 @@ class ChannelBotService:
         """Update a channel bot. Only the fields the caller sent are applied;
         an explicit null clears a Slack credential, an omission leaves it."""
         bot = await self.get(bot_id)
-        update_data = data.model_dump(exclude_unset=True)
+        update_data = writable(data, over=ChannelBot)
         if "api_base_url" in update_data:
             self._check_server_url(bot.platform, update_data["api_base_url"])
         if "slack_signing_secret" in update_data or "slack_app_token" in update_data:

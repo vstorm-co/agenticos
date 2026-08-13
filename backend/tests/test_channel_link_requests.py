@@ -270,6 +270,48 @@ class TestWhatTheBotSaysToAStranger:
         assert minted.call_count == 0, "nothing should be minted for a room it cannot be sent to"
 
 
+class TestWhoIsAskedToLinkAtAll:
+    """A room stopped asking (#639).
+
+    The instruction above is what a channel used to get *instead of* an answer,
+    for every sender who had never linked - which made a channel a dead end,
+    since the refusal cannot carry the link and nothing in the channel could
+    change that. It is now reached only by a bot whose policy asks for a link.
+    """
+
+    @staticmethod
+    def _bot(**policy) -> MagicMock:
+        return MagicMock(access_policy=policy or {})
+
+    def test_a_direct_message_is_still_a_conversation_with_a_person(self):
+        assert ChannelMessageRouter()._admits_unlinked(_incoming(), self._bot()) is False
+
+    def test_a_channel_answers_somebody_who_never_linked(self):
+        assert ChannelMessageRouter()._admits_unlinked(_incoming("group"), self._bot()) is True
+
+    def test_a_supergroup_is_a_room_like_any_other(self):
+        """Telegram's own name for a large group, and it arrives verbatim."""
+        assert ChannelMessageRouter()._admits_unlinked(_incoming("supergroup"), self._bot()) is True
+
+    def test_require_link_is_the_way_back_to_refusing(self):
+        bot = self._bot(mode="open", require_link=True)
+
+        assert ChannelMessageRouter()._admits_unlinked(_incoming("group"), bot) is False
+
+    def test_require_link_is_read_from_a_policy_stored_as_a_string(self):
+        """SQLite keeps `access_policy` as JSON text, so a setting that decides a
+        refusal must not depend on which database answered."""
+        bot = MagicMock(access_policy='{"mode":"open","require_link":true}')
+
+        assert ChannelMessageRouter()._admits_unlinked(_incoming("group"), bot) is False
+
+    def test_a_policy_that_says_nothing_admits_the_room(self):
+        """The default is the answer here, and the default is `false`."""
+        bot = self._bot(mode="open")
+
+        assert ChannelMessageRouter()._admits_unlinked(_incoming("group"), bot) is True
+
+
 class TestASlashAPlatformAte:
     """Mattermost parses a leading `/` itself.
 

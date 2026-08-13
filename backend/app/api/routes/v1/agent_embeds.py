@@ -12,7 +12,7 @@ address the widget by its own id, which is what a table row has.
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, File, UploadFile, status
 
 from app.api.deps import Auth, EmbedSvc
 from app.schemas.agent_embed import EmbedCreate, EmbedList, EmbedRead, EmbedUpdate
@@ -37,6 +37,28 @@ async def create_embed(data: EmbedCreate, service: EmbedSvc, ctx: Auth) -> Any:
 async def update_embed(embed_id: UUID, data: EmbedUpdate, service: EmbedSvc, ctx: Auth) -> Any:
     """Change a widget's look, origins, context or auth."""
     return await service.update(ctx, embed_id, data)
+
+
+@router.post("/embeds/{embed_id}/logo", response_model=EmbedRead)
+async def upload_embed_logo(
+    embed_id: UUID,
+    service: EmbedSvc,
+    ctx: Auth,
+    file: UploadFile = File(...),
+) -> Any:
+    """Give a hosted page a picture of its own.
+
+    A page's other two choices - the agent's avatar, the organization's - are
+    images this platform already stores, so this is the third and the only one
+    that writes a file. There is still no field for a URL of your own: a page we
+    serve fetching an operator-supplied image is one more thing to make safe.
+    """
+    return await service.set_page_logo(
+        ctx,
+        embed_id,
+        file_data=await file.read(),
+        content_type=file.content_type,
+    )
 
 
 @router.delete("/embeds/{embed_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)

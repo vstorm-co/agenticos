@@ -156,6 +156,27 @@ class TestSlugify:
     def test_a_long_name_is_cut_to_a_handle_that_fits(self):
         assert slugify("a" * 200) == "a" * 64
 
+    @pytest.mark.parametrize(
+        ("name", "handle"),
+        [
+            ("Channel", "channel-agent"),
+            ("all", "all-agent"),
+            ("Here", "here-agent"),
+            ("Everyone", "everyone-agent"),
+        ],
+    )
+    def test_a_name_that_addresses_the_room_gets_out_of_the_way(self, name, handle):
+        """`@channel`, `@all`, `@here` and `@everyone` address the room on every chat
+        platform, so `parse_mention` refuses them before they can reach an agent. An
+        agent taking one would have a handle nobody could ever say, and nothing about
+        the agent would look wrong - so the handle moves rather than the parser.
+        """
+        assert slugify(name) == handle
+
+    def test_a_name_that_merely_starts_with_one_keeps_its_handle(self):
+        """The set is exact, not a prefix: `@channel-bot` reaches an agent fine."""
+        assert slugify("Channel Bot") == "channel-bot"
+
 
 class TestGet:
     @pytest.mark.anyio

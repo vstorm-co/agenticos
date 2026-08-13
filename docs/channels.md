@@ -1,7 +1,7 @@
 # Putting an agent where people already are
 
 An agent that only answers inside this dashboard is a demo. The same published
-agent can answer in five places, and every one of them runs the *same frozen
+agent answers in eight places, and every one of them runs the *same frozen
 version* through the same budget, the same approval gate and the same tenant
 checks — the surface changes, the agent does not.
 
@@ -9,22 +9,52 @@ checks — the surface changes, the agent does not.
 |---|---|---|
 | **Dashboard** | nothing | a signed-in member |
 | **Website widget** | a `<script>` tag | anonymous, or a user your backend vouches for |
-| **WebSocket** | a widget key | whatever your integration says |
+| **Raw WebSocket** | an embed key | whatever your integration says |
+| **A hosted page** | a link | anonymous, and nothing else |
+| **The API** | a session | whoever holds the credential |
 | **Slack** | a bot token | a Slack account, optionally linked to a member |
 | **Telegram** | a bot token | a Telegram account, optionally linked |
 | **Mattermost** | a bot token and your server URL | a Mattermost account, optionally linked |
 
-Two rules hold everywhere, and both are enforced in the runner rather than per
-surface: **a run always belongs to exactly one organization**, and **a spending
-limit is checked before each model request, never after**.
+Three rules hold everywhere, and all three are enforced in the runner rather
+than per surface: **a run always belongs to exactly one organization**, **a
+spending limit is checked before each model request, never after**, and **a run
+that failed is still in history with what it spent** — the tokens were spent
+before it broke, and a budget that ignores that is not a budget.
 
-Every run records the surface that admitted it — `playground`, `web`, `embed`,
-`api`, `slack`, `telegram` or `mattermost` — which is what the dashboard's
-by-surface chart aggregates. Two historical wrinkles: widget runs recorded
-before the `embed` value existed are stored as `web`, and Mattermost runs from
-the same era as `api`. Neither is backfilled — rewriting history would be a
-guess — so charts over old periods fold those runs into the surface they were
-recorded under.
+**Three of those eight are one table, and its rows differ by a `kind`.** A
+widget, a raw socket and a hosted page are each an *embed*: one public key, one
+rate bucket, one budget, one pause switch, and one set of refusals. What differs
+is what there is to configure and what admits a visitor — which is why the
+Builder asks which one you want before it asks anything else, and why a page has
+no allowed-origins list rather than an ignored one. A kind is fixed at creation:
+a tag already pasted, a client already written and a link already sent all name
+the same row.
+
+Every run records the surface that admitted it — `web`, `embed`, `api`, `slack`,
+`telegram` or `mattermost` — which is what the dashboard's by-surface chart
+aggregates. All three embed kinds record `embed`. Two historical wrinkles:
+widget runs recorded before the `embed` value existed are stored as `web`, and
+Mattermost runs from the same era as `api`. Neither is backfilled — rewriting
+history would be a guess — so charts over old periods fold those runs into the
+surface they were recorded under.
+
+**What a stranger may do, they may do at a rate.** The surfaces reachable
+without a session carry a limit counted in the deployment's Redis, so it holds
+across workers: the run API per caller, the widget's script and its admission per
+address on a counter each, and a hosted page's config **per page** — that one is
+fetched by the frontend server rather than by the browser, so an address there
+names a container and would put every visitor in the deployment in one bucket.
+The script is counted apart from the admission it precedes because a page load
+spends both, and one bucket for both made the number an operator sets mean a third
+of itself. `RATE_LIMIT_RUN_PER_MINUTE`,
+`RATE_LIMIT_EMBED_PER_MINUTE` and `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` set them,
+and [configuration](configuration.md#rate-limiting) has the one caveat worth
+reading before production — behind a proxy, every visitor arrives as the proxy
+unless you say otherwise.
+
+What rations *spend* on a hosted page is the socket the page opens, and that is
+counted per address like the widget's.
 
 ---
 
@@ -34,15 +64,20 @@ The shortest path. Publish the agent, create an embed, paste two lines.
 
 ### 1. Create the embed
 
-In the Builder, open the agent → **Embeds** → *Publish as widget*. You choose:
+In the Builder, open the agent → **Availability** → *Website widget*. You choose:
 
 - **Allowed origins** — the sites this widget may be opened from. **An empty
-  list allows nothing.** The key in the script tag is public by construction, so
-  the origin list is what actually stops somebody else running your agent on
-  your bill.
+  list allows nothing**, so publishing without one is refused rather than
+  producing a widget that answers nowhere. The key in the script tag is public by
+  construction, so the origin list is what actually stops somebody else running
+  your agent on your bill. The same rule holds for a socket, whose handshake is
+  checked against the same list.
 - **Auth** — `public` (anonymous visitors) or `jwt` (your backend vouches for
   each visitor; see below).
-- **Look** — title, greeting, accent colour, which corner.
+- **Look** — the header and the line under it, the greeting, what the empty box
+  says, what the launcher button says, the accent colour and which corner it sits
+  in. All seven, and the greeting is drawn by the widget rather than sent to the
+  model: a greeting in the model's history is a turn the agent thinks it took.
 - **Context** — a note appended to the visitor's first message: *"You are on the
   pricing page"*, *"Answer in German"*. It never replaces the agent's own
   instructions, which belong to the published version.
@@ -132,8 +167,20 @@ the same socket:
 wss://your-api.example.com/api/v1/embed/PUBLIC_KEY/ws[?token=SIGNED_JWT]
 ```
 
-The handshake must carry an `Origin` on the embed's allow-list; browsers send it
-for you. Native clients must set it explicitly.
+**You do not have to assemble that yourself.** Publish one from the Builder —
+the agent → **Availability** → *Raw WebSocket* — and its row prints the URL,
+built from the deployment's own base URL, with a copy button. A **widget** prints
+the same thing beside its script tag, because a widget is a client of this
+protocol: moving to an interface of your own is a step rather than a rewrite. The `?token=` is not printed
+there: in `jwt` mode the token is minted per visitor by your backend, and a real
+one on a dashboard screen is a working credential somebody can read over a
+shoulder.
+
+The handshake must carry an `Origin` on the embed's allow-list. **A browser sends
+it for you; a client of your own sends nothing unless you set it** - a mobile app,
+a kiosk, a server-side relay. That is the first thing that goes wrong, and what
+it looks like when it does is `4003` in the table below rather than an error
+message.
 
 **Frames you send**
 
@@ -141,35 +188,392 @@ for you. Native clients must set it explicitly.
 { "type": "message", "text": "Do you ship to Poland?" }
 ```
 
+That is the whole inbound vocabulary, plus `context` (what the page says about the
+visitor) and `file_ids` (what they attached, on a page that takes files). **It
+deliberately does not include the three fields the dashboard's own frame carries:**
+the agent, the model profile and the environment. A frame that could choose a model
+is a visitor choosing one on the operator's bill, and one that could choose an
+agent is a visitor talking to something nobody published on this key. All three
+come off the embed row. An unknown field is ignored rather than refused — a client
+cached in somebody's browser may be older than this server, and closing the socket
+over it would take the conversation with it.
+
 **Frames you receive**
 
-| `type` | Meaning |
-|---|---|
-| `ready` | Connected. `visitor: true` when a token identified the person. |
-| `typing` | The agent is working. Show an indicator. |
-| `message` | The answer: `{ "role": "assistant", "text": "…" }` |
-| `error` | Something the visitor should see: rate limit, budget reached, failure. |
+**This is the dashboard's own frame vocabulary, not a second one.** The chat in
+`/chat` and this socket drive one loop (`app/services/run_stream.py`), so an
+answer arrives here a word at a time the same way it does there — a hosted page
+used to show one lump of text after thirty seconds of nothing, and that was the
+loop rather than the transport. Every frame carries `{ "type": …, "data": { … } }`.
+
+| `type` | `data` | Meaning |
+|---|---|---|
+| `ready` | `visitor` | Connected. `visitor: true` when a token identified the person. |
+| `history` | `messages` | On a hosted page only: what was said in the thread this visitor is resuming. Each entry is `role`, `text` and `at`, so a replayed turn keeps the time under it. |
+| `model_request_start` | — | The agent has gone to the model. Show an indicator. |
+| `part_start` | `index`, `part_type` | A block of the answer is starting. Sent only for a block this surface will actually carry — a page showing no reasoning does not announce a `ThinkingPart`, since the announcement alone says the agent reasoned. |
+| `text_delta` | `index`, `content` | Words of the answer. Append them. |
+| `thinking_delta` | `index`, `content` | The model's reasoning. **Only if the operator turned it on.** |
+| `call_tools_start` | — | The agent is about to use tools. |
+| `tool_call` | `tool_call_id`, `tool_name`, `args` | A step. `args` only when the operator shows results. |
+| `tool_call_delta` | `index`, `args_delta` | A call's arguments as they stream. |
+| `tool_result` | `tool_call_id`, `content` | What the step returned. |
+| `final_result_start` | `tool_name` | The answer is being produced by an output tool. |
+| `final_result` | `output` | What the run ended with. Empty on a turn that parked. |
+| `complete` | — | The turn is over. It carries **no usage**: what a run cost is the operator's business, not the visitor's. |
+| `error` | `message` | Something the visitor should see: rate limit, budget reached, a refusal, a turn that produced nothing. |
+
+Some dashboard frames never reach a public socket, and they are refusals rather
+than settings. **`user_prompt_processed`** carries the prompt *as assembled* —
+the placement note and the supplied block above what the visitor typed — which is
+the operator's text and not the visitor's to read back.
+
+**`ask_user` and `tool_approval_required` have nobody here to answer them, but
+they fail differently.** A visitor cannot approve a side effect on somebody
+else's organization, so `tool_approval_required` **parks** the run exactly as it
+does on a channel, and the turn ends with `error` saying a person has to decide —
+unlike a channel, without the `/runs` link, because the reader there is a member
+who can open it and here they are a stranger holding a link. `ask_user` does
+**not** park: `AgentDeps.ask_user` is `None` on this surface, so the tool
+*refuses* when the model calls it (`app/agents/ask_user.py`) and the model carries
+on to answer without the input — a degraded answer, not a parked run.
+
+**A client ignores what it does not draw**, and `widget.js` is the worked example:
+it reads `model_request_start`, `text_delta`, `final_result`, `complete` and
+`error`, and ignores the reasoning and the steps on purpose — an answer arriving
+a word at a time is worth having in a bubble in the corner of a page, and a
+narration of tool calls is not. The hosted page draws all of them.
 
 **Close codes**
 
 | Code | Meaning |
 |---|---|
 | `4003` | Refused. The origin is not allowed, the token failed, or the widget is paused. Do not retry — the answer will not change. |
+| `4029` | Too many connections from this address in the last minute. Back off and retry. |
+| `1011` | This client was not reading. A frame took longer than 30 seconds to reach it, so the server stopped writing rather than hold the turn's database session and the open provider stream once per frame. Reconnect; a hosted page resumes its thread. |
 
 The refusal is deliberately one code with one message. A page that is not on the
 allow-list learns that it is not allowed and nothing about whether a token would
 have helped.
 
+`4029` is separate from it for the opposite reason: "not allowed" and "allowed
+but too fast" ask a client for opposite things — stop for ever, and try again
+later — so a client that cannot tell them apart either hammers a refusal or
+abandons a limit. How many connections an address gets is
+`RATE_LIMIT_EMBED_PER_MINUTE`; how many *messages* a visitor gets once connected
+is the widget's own rate limit, set in the Builder.
+
 A minimal client:
 
 ```js
 const socket = new WebSocket(`${BASE}/api/v1/embed/${KEY}/ws`);
+let answer = "";
 socket.onmessage = (event) => {
-  const frame = JSON.parse(event.data);
-  if (frame.type === "message") render(frame.text);
+  const { type, data } = JSON.parse(event.data);
+  if (type === "text_delta") render((answer += data.content));
+  if (type === "final_result" && data.output) render((answer = data.output));
+  if (type === "complete") answer = "";
+  if (type === "error") render(data.message);
 };
 socket.send(JSON.stringify({ type: "message", text: "hello" }));
 ```
+
+`final_result` is assigned rather than appended: it is what the run *ended* with,
+and a provider that streamed no deltas leaves it as the only copy of the answer.
+
+---
+
+## A hosted page
+
+The shortest integration there is: **send somebody a link.** No site of your
+own, no `<script>` tag, no client to write, no sign-in.
+
+In the Builder, open the agent → **Availability** → *Hosted page*. There is no
+site to name and nothing to paste — the form asks for a title, a welcome, an
+accent and a logo, all optional, and publishes:
+
+```
+https://your-app.example.com/e/PUBLIC_KEY
+```
+
+It is **an embed like the other two**: the same kind of key, the same rate limit,
+the same budget and the same pause switch. Pausing it stops the page at once, and
+every link already sent with it.
+
+### What protects it
+
+Say this part out loud before publishing one, because it is the whole security
+model:
+
+> **A hosted link in `public` mode is protected by the key being unguessable,
+> plus the embed's rate limit, its budget and its pause switch. Nothing else.**
+
+Whoever has the link can talk to the agent. That is the point of a link, and it
+is why the key is 24 random bytes rather than something readable.
+
+There is no allowed-origins list here, deliberately, and the form does not offer
+one: an allow-list is a rule about *other people's* sites, and this page is one we
+serve. A page is admitted from the deployment's own origin — derived from
+`FRONTEND_URL`, never hardcoded — and nowhere else. A `CHECK` constraint refuses
+a page that carries a list at all, because a stored one reads as the thing
+protecting the link, and it is not.
+
+### Two things a hosted page refuses
+
+Both are refused at publish, with a message, rather than silently falling back to
+a widget:
+
+- **A page cannot use `jwt` mode**, and the form does not offer it. The token
+  would have to travel in the URL, and so into browser history, `Referer` headers
+  and every chat client the link is pasted into — and the fragment trick that
+  avoids some of that stops the link being "send it and it works". Use a widget
+  or a socket for a per-user integration; `jwt` there is unaffected. A `CHECK`
+  constraint holds the same rule in the database.
+- **A *required* variable that is not URL-safe cannot be on a page** — see below.
+
+### Variables from the address bar
+
+A hosted page has no page of yours to read `window.AgenticOSContext` from. Its
+only source for a declared variable is the visitor's own URL:
+
+```
+https://your-app.example.com/e/PUBLIC_KEY?var_plan=pro
+```
+
+**A query parameter is visitor-controlled input**, so this is off per variable
+and on only where somebody decided it: tick *URL-safe* on the variable in the
+Builder. Without it, `?var_user_tier=premium` typed into the address bar is
+dropped — which is the point. Anything not declared at all is dropped as it is on
+the widget.
+
+That is also why a *required* variable has to be marked: on this surface the URL
+is the only way to supply one, so a required-and-not-URL-safe variable is a
+promise the page structurally cannot keep.
+
+### Coming back to it
+
+A widget's conversation lasts as long as its socket. A bookmarked link is a
+stronger promise, so the page keeps a random visitor key in `localStorage` — one
+per public key — and the server maps it to a conversation. Reopening the link
+replays the thread and the agent is reminded of the same window the visitor is
+reading.
+
+**The key is a bearer credential for that conversation**: whoever holds it
+resumes the thread, including what is already in it. It is 128 random bits and
+nothing about the person. Clearing site data starts a new thread.
+
+That key is the whole of what the page stores, which is why **a hosted page and a
+shared conversation show no cookie prompt** — the two surfaces served to somebody
+who is not a member are the two with no optional cookie to consent to. The
+product's banner used to appear here, asking permission for analytics this
+deployment does not run while sitting over the composer and covering Send (#644).
+A consent prompt for one essential key is a prompt whose only effect is the
+overlap.
+
+That shape is enforced, not assumed — the socket accepts 32 to 64 lower-case hex
+characters as a `visitor` and **drops anything else**, opening a fresh thread
+instead. It matters for a client of your own (below): keying continuity on a
+customer id, an email or a counter would hand each of your users a conversation
+the next person can walk into by guessing. A dropped key costs continuity and
+never the conversation, so a stale value in somebody's browser is not a page that
+will not load.
+
+### What it offers
+
+Two switches, and both are the operator's rather than the page's — a capability
+a page turned on for itself would be one nobody could turn off.
+
+- **A button to start a fresh thread**, on by default. It mints a new continuity
+  key, so the old thread is not deleted: it stops being the one that browser
+  resumes.
+- **A microphone in the composer**, off by default. It dictates into the box
+  using the *visitor's own browser*, so no audio reaches this deployment and
+  nothing is transcribed here — but a browser that offers speech recognition
+  hands the audio to its vendor, which is the half worth reading before turning
+  it on for the public. A browser without one is shown no microphone rather than
+  a button that does nothing.
+- **A way to attach a file**, off by default. See below: it is the only thing on
+  this surface that lets a stranger *store* something.
+
+### What a stranger holding the link can write to
+
+Everything else on a public surface reads. This one writes, so it is worth
+stating exactly what a visitor can put where.
+
+**They can store a file**, and only if the operator ticked the switch. The bytes
+go through the same path a member's upload does — the MIME allowlist,
+`MAX_UPLOAD_SIZE` (the chat path's hardcoded 10 MiB, not `MAX_UPLOAD_SIZE_MB`,
+which is the knowledge-base cap), the parser, the storage backend, a `ChatFile`
+row — with three narrowings in front of it:
+
+| | |
+|---|---|
+| **A cap of this surface's own** | `EMBED_MAX_UPLOAD_SIZE_MB`, 5MB by default. A member uploading a fifty-megabyte export is somebody the organization employs; the same allowance on a public link is a way to fill a disk from an address nobody knows |
+| **A limit per address and per visitor** | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE`, in the shared Redis, and **both** have to allow it. Counting only the continuity key bounds nothing: the browser mints it and any 32 hex characters is a valid one, so a script varies it per file. Counting only the address lets one browser on a shared one spend everybody's |
+| **Three files to a message** | Which bounds how much of one turn's prompt is somebody else's document |
+
+Those three bound what gets *stored*. What bounds what a stranger can make this
+deployment *receive* is one layer above all of them, because the multipart body is
+parsed before the route runs: a request declaring more than the whole-request
+ceiling is answered 413 without being read. See
+[configuration](configuration.md#the-size-of-a-request-as-opposed-to-the-size-of-a-file),
+including what it does not cover.
+
+**The row belongs to the member who published the page**, because
+`chat_files.user_id` is `NOT NULL` and a visitor has no account — the same answer
+already given for who a public turn *runs* as. A page whose publisher's account is
+gone therefore cannot take files at all, and says "not available" rather than
+storing them against nobody.
+
+**Where the file then goes is the runner's decision, not this surface's.** It is
+the routing in [File processing](file-processing.md), unchanged: into the agent's
+workspace where it has one, folded into the prompt where it does not, and an image
+both ways up to the inline ceiling. Nothing about a visitor's file is a special
+case.
+
+A frame may only name a file that belongs to this page's owner and does not
+already hang off a message, so an id cannot be replayed into a second turn or
+into somebody else's thread. That is proportionate rather than complete, and what
+makes it enough is the id itself: `uuid4` is 122 random bits, so an id from
+another visitor is a value nobody can produce without having been handed it.
+
+**They cannot write anything else.** No knowledge base, no workspace path of their
+own, no config, no variable that is not declared and URL-safe. The conversation
+row and the turns in it are written *about* them, by the platform.
+
+### What the visitor sees of the work
+
+Three more switches, and they are **filters on what the server sends** rather than
+on what the page draws. That distinction is the whole design: reasoning hidden in
+CSS is an agent's reasoning sitting in a stranger's devtools, and a page is
+exactly where a stranger has one open. A visitor who opens theirs sees what is
+ticked here and nothing else.
+
+| Switch | Default | What it lets through |
+|---|---|---|
+| **What the agent is doing** | on | One line per step — *Searching the documents*, *Ran a query*. On, because a page that goes quiet for thirty seconds reads as broken |
+| **What each step returned** | off | The arguments a step was called with and what came back. Written for the model, so this is where something internal turns up: an address, a row from a system, a passage nobody meant to publish |
+| **The agent's reasoning** | off | What the model says to itself before answering. Not written for anybody to read, and not an answer an operator can stand behind |
+
+*What each step returned* cannot be turned on alone — there is no step for it to
+open, and the server drops both regardless of what the config says.
+
+**A turn looks like a turn in web chat**, down to the chrome around it: the agent's
+name above the answer, the avatar in the gutter — the page's logo where there is one
+and the agent's initial where there is not — the time under each turn on the side it
+is on, and one composer card with the field and its controls inside it. Three things
+web chat draws there are deliberately absent, and all three are the same decision as
+the panels below: what the turn cost, what the month has cost, and which agent and
+model to run — that last one because a frame that could pick a model is a visitor
+picking one on the operator's bill.
+
+**A turn is rendered by web chat's own components**, not by a second set that looks
+like them: `TurnParts` is what the dashboard renders and what the page renders, so
+the reasoning is the same disclosure, the answer the same Markdown, and a run of
+tool calls the same rail — the icon from `src/lib/tool-catalog.ts`, the wording from
+`toolStep`, and the same renderers opening under a step for a knowledge search, a
+web search, a chart, code that ran, a skill that was loaded and a file that was
+written. There is deliberately no second table of tool names and no second turn
+renderer (#144). What the page does *not* draw is everything about being a member —
+see below.
+
+One thing reads differently by necessity: a call that came from an MCP server is
+named *Linear · Create issue* in the dashboard and by a humanized name here,
+because the mapping is the organization's list of connections and reading it needs a
+session.
+
+**A widget and a raw socket carry no switches and get these defaults**, read off
+`PageConfig` rather than repeated — a second copy of "off by default" is a copy
+that can disagree with the one somebody reads in the Builder. What `widget.js`
+then *draws* is narrower still, and says so above.
+
+Neither of them takes files either, and that is the route rather than the client:
+the upload endpoint resolves the key through `find_page`, so a widget key reaches
+it and is answered "not available". A widget lives on a page the operator already
+controls, which is where a file picker of their own belongs.
+
+### What is deliberately member-only
+
+Web chat draws three panels a public surface does not, and each omission is a
+decision rather than a gap — recorded here so it is not re-litigated as one.
+
+| Panel | On a public surface | Why |
+|---|---|---|
+| **The usage strip** | No, and it is not a switch | It reports the turn's tokens, its cost, the month against the organization's cap and how full the workspace is. A visitor is not the one paying, and the operator's remaining budget is a fact about the operator. `complete` carries no usage at all, so there is nothing to hide client-side |
+| **The file panel** | No | It lists everything in the agent's *workspace*, which is shared across the conversations of everybody using that agent. A stranger who attached one file would be shown every file the agent has ever been given. Their own attachment is on their own turn, which is what they are owed |
+| **The delegation panel** | No | It names the delegates by slug, what each was asked, and what each cost — the shape of the organization's agent graph. A page that showed it would publish an internal org chart to whoever has the link. A delegation still *runs*: it is one `tool_call` step named `task`, under the same switch as any other step |
+
+The pattern behind all three: what a member sees is *about the organization*, and
+what a visitor sees is *about their own turn*. A panel that crosses that line is
+member-only whatever it would cost to render.
+
+### What it looks like
+
+The answer renders as **Markdown**, the same as web chat: an agent told to answer
+in Markdown is answering in it whether or not the page reinterprets the asterisks.
+What a *visitor* typed is not reinterpreted — it is not a document.
+
+Four fields, all optional:
+
+| Field | Default |
+|---|---|
+| **Page title** | the agent's name |
+| **Welcome message** | none. **Markdown**, written in the same editor the placement note uses and rendered as Markdown on the page. Shown before the first question and never sent to the model — a greeting in the model's history is a turn the agent thinks it took |
+| **Accent colour** | `#4f46e5`. Light and dark still follow the visitor's system |
+| **Logo** | the agent's avatar; or the organization's, one you upload, or none. Whichever you pick, the page shows **nothing** rather than a broken image when there is no file behind it — an agent with no avatar is the common case, and a browser cannot tell a 404 from a slow image |
+
+Three of those four are images this platform already holds. The fourth takes a
+file — PNG, JPEG, WebP or GIF, up to 2MB — and it can only be added once the page
+exists, because an upload needs a row to attach to.
+
+The page fetches it from **its own origin**, not from the API: `img-src` in
+`next.config.ts` excludes an API on plain `http`, so a page pointing an `<img>` at
+one rendered a broken glyph in dev and on any deployment terminating TLS elsewhere.
+`/api/embed/<key>/logo` on the frontend proxies it.
+
+**What it does not take is a URL of your own.** A page we serve fetching an
+operator-supplied image is one more thing to make safe. And the stored path is a
+*column*, written by the upload route and never by the config you submit: the
+path is read back and streamed by a public route, so one accepted from a request
+body would be a caller naming any file the process can open.
+
+**Nor does it take your filename, or your word for what the file is.** Because the
+page fetches the logo from its own origin, whatever type that response carries is
+a type the browser trusts on that origin — and `script-src` there allows inline
+script. An upload is accepted on the `Content-Type` its client *declared*, which is
+not evidence about the bytes, so the name on disk is minted from the type instead
+(`logo.png`, `logo.jpg`, `logo.webp`, `logo.gif`) and both the API route and the
+frontend proxy refuse to answer with anything that is not one of those four image
+types. A stored `.html` or `.svg` — from here or from an avatar uploaded years ago
+through another route — is served as nothing at all rather than as a script.
+
+The page is `noindex`. A secret link is not a page to be indexed, and a crawler
+that follows one has published it.
+
+---
+
+## The public API
+
+No frontend at all, and no browser. One request, one answer:
+
+```bash
+curl -X POST https://your-api.example.com/api/v1/agents/AGENT_ID/run \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Summarise this week's refunds"}'
+```
+
+It goes through the same runner as every other surface, so the run is recorded,
+the budget applies and the cost lands in the same dashboard — an API caller
+cannot route around governance by not using the UI. Runs are stamped `api`.
+
+The answer carries `run_id`, `output`, `status` and what it cost. A `status` of
+`awaiting_approval` with an empty output means a tool call is parked: the run is
+in the approvals queue, and it continues when somebody decides.
+
+Limited per caller rather than per address — an office behind one NAT is not one
+caller — at `RATE_LIMIT_RUN_PER_MINUTE`.
 
 ---
 
@@ -185,8 +589,9 @@ socket.send(JSON.stringify({ type: "message", text: "hello" }));
 
 Works in channels and in DMs. A thread gets its own conversation, so two people
 asking different things in the same channel do not end up in one thread of
-context. A message runs as the person who typed it — never as the bot — which is
-why an unlinked Slack account is refused rather than run with no role.
+context. A message from a linked account runs as that person — never as the bot;
+one from an account nobody has linked runs under the binding, and only in a
+channel. A direct message asks for the account first.
 
 ## Telegram
 
@@ -219,8 +624,41 @@ Two ways in; pick by whether your Mattermost can reach this deployment.
    the token, and set **Server URL** to your Mattermost, e.g.
    `https://mattermost.acme.internal` or `http://mattermost:8065` inside compose.
    Leave the webhook token empty.
-3. Invite the bot to a channel. The deployment opens an authenticated WebSocket
+3. Add the bot to the **team**, which *Integrations → Bot Accounts* does not do:
+   *System Console → User Management → Users*, find it, **Manage Teams**, add the
+   team — or `mmctl team users add <team> <bot>`. Until then a channel refuses to
+   admit it, saying it "is not a part of this team".
+4. Invite the bot to a channel. The deployment opens an authenticated WebSocket
    to your server and every `posted` event arrives on it.
+
+**Every** post, which is the thing to know about this transport: the socket is not
+a subscription to messages aimed at the bot, it is the channel. So the rule is the
+one a colleague follows:
+
+| Where | When it answers |
+|---|---|
+| **A direct message** | Always. There is nobody else in the room, so requiring a mention would be asking somebody to address the only participant |
+| **A channel** | Only when it is named — `@the-bot`, or `@agent-slug` for one of the agents exposed on it |
+
+The bot resolves its own account once per stream session and reads Mattermost's
+own mention list off each event, rather than matching text: `@ada` is somebody
+whose display name the bot cannot resolve, and a bot called `bot` should not answer
+the word "robot". An `@agent-slug` is the exception that has to be read from the
+text — a slug is a name in *this* product, so it is never in a mention list. A
+handle that turns out to name neither the bot nor one of its agents is answered in
+a direct message and passed over in a channel, because there it was somebody's
+colleague.
+
+**`@channel`, `@all`, `@here` and `@everyone` address the room, not an agent.**
+They have the shape of a slug, and a channel-wide mention puts every member of the
+channel — the bot included — in the platform's own mention list, so an announcement
+read as a message naming an agent nobody has. Those four handles are never a
+mention here, and an agent named after one gets `-agent` on the end of its handle so
+it stays reachable.
+
+If the bot's own account cannot be resolved, it answers everything, as it did
+before this rule existed: going quiet on a server that would not say who we are is
+the worse of the two failures.
 
 **Outgoing webhook.** For a Mattermost that can reach this API.
 
@@ -287,6 +725,19 @@ it is about to wait.
 
 ## What every channel shares
 
+- **The model is reminded of the most recent turns, not the first ones.** A
+  channel thread is keyed to the chat and never rolls over, so a support channel
+  passes the window in days. Two hundred turns for a channel against forty for a
+  widget, and the two numbers are different on purpose: a widget is a public URL
+  with somebody else's budget behind it, and a channel is a room the operator's own
+  colleagues work in. Bounded either way, because a prompt is not a transcript and
+  one thread's whole history is a per-turn bill that grows for ever.
+
+    It read from the wrong end until #638: the repository orders oldest-first, so
+    the bot was told how the conversation opened and nothing said since — and it
+    answered plausibly, from a version of the thread that had stopped hundreds of
+    turns ago. Nothing errored, which is why it needed a test rather than a fix.
+
 - **One bot answers as one agent.** A bot user is a single identity in the chat:
   the same avatar, the same name, whichever agent produced the reply. So a bot
   serves exactly one agent, and binding a second is refused — in the Builder's
@@ -306,10 +757,55 @@ it is about to wait.
     which no amount of routing can. `@slug` still parses — as an alias for the
     agent behind this bot, refused when it names any other.
 - **Access policy per bot** — open, whitelist, or "must be linked to a member".
-- **Linking, and it comes first** — a channel run belongs to a *person*: the
+- **Linking, and where it is required** — every run belongs to somebody: the
   budget it spends, what it may read and the audit entry it writes are all
-  theirs. So an unlinked chat account is refused, whatever the bot's access
-  policy says.
+  attributed. Where that *somebody* comes from depends on whether the bot is
+  being spoken to privately or standing in a room.
+
+    **A direct message asks for an account.** It is a conversation with one
+    person, so an unlinked chat account is refused until it names one.
+
+    **A channel answers anybody in it.** Whoever could invite the bot chose the
+    audience, so a sender with no linked account is not refused: the turn runs
+    under the *binding* that admitted it — the role of whoever bound the agent to
+    this bot, dropping to `viewer` if they have since left the organization — and
+    the chat account that typed it is recorded on the run. What that widens is
+    real and worth saying: anyone who can speak in the channel can spend the
+    organization's budget and reach what the binding's creator can reach, which
+    is the same trade a public widget makes. The ceilings are the rate limit per
+    chat account, the access policy, and the organization's monthly cap.
+
+    Set **`require_link`** on the bot's access policy to refuse in channels too,
+    which is the old behaviour.
+
+    Linking still matters in a channel, and it is worth doing: a linked sender
+    runs as *themselves* rather than under the binding, and linking later makes
+    their earlier channel turns attributable to them — the run points at the chat
+    account, and the chat account gains a person.
+
+    **A channel thread is one conversation with several people in it**, and it
+    appears in the conversation list of everybody whose linked chat account has
+    written in it — not only whoever spoke first, and not nobody, which is what a
+    thread with no linked speaker used to reach. Each turn records the account
+    that wrote it, so a room reads as a room rather than as one person talking to
+    themselves. Linking afterwards is what puts the earlier thread in front of
+    somebody, with no backfill: the turn points at the chat account and the
+    account gains a person.
+
+    **That list says who spoke, not who may read.** Participation is never
+    re-checked against the platform, so somebody removed from the channel there
+    keeps the thread in their list here — deliberately, and [#641][641] is what it
+    would take to change. Nothing may use it as an authorization check without
+    asking the platform first.
+
+    **And it opens a thread rather than owning one.** Speaking in a room admits
+    you to reading it; renaming it, archiving it, deleting it or appending a turn
+    to it stays with the thread's owner and anybody it was explicitly shared with.
+    Otherwise one person who said "thanks" in a channel could delete the room's
+    whole transcript, or write a turn as the agent that everybody reads and the
+    model is handed back as its own words on the next turn.
+
+[641]: https://github.com/vstorm-co/agenticos/issues/641
 
     The refusal carries the way out. Message the bot and it answers with a URL;
     open it, and the dashboard — where you are already signed in — names the chat
@@ -431,11 +927,19 @@ is stored is what its reader actually saw.
 | HTTP API | The same when the call carries a `conversation_id`. Nothing without one — there is no thread to write a turn into, and the run row is still the record that it happened |
 | A run resumed after an approval | Its continuation — the answer and the calls it made, and the calls even when there is no answer, which is what a continuation that parks again on a second gated call has. No user turn: it picks up at the call it stopped on, and inventing a question would put words in somebody's mouth |
 
-Two things are deliberately not recorded. A channel reply's **delivery notes** — *this
-file was too large to send* — stay out of the transcript: they are about what the
-reply could not carry, not about what the agent said. And an **attachment folded
-into a prompt** contributes only its text; the file itself is a row of its own,
-and its `repr` in a message body would be worse than nothing.
+**What is recorded is what the person wrote, not the prompt assembled around it.**
+Every surface builds something larger before the model sees it: `AttachmentRouter`
+appends a briefing about each file, and an embedded widget prepends the operator's
+placement note. Recording that put the platform's own briefing in the transcript as
+somebody's words — a file posted in Mattermost read back as `co tu widzisz` followed
+by `--- Attached file: … (/uploads/…, 43 KB, image)`, and the opening turn of every
+widget conversation read as a visitor reciting the page they were on. **The file
+itself is a row on that turn**, which is what the dashboard renders as a card, the
+same as an upload made there.
+
+One thing is deliberately not recorded: a channel reply's **delivery notes** — *this
+file was too large to send* — stay out of the transcript, because they are about what
+the reply could not carry rather than about what the agent said.
 
 ### What a turn looks like in web chat
 
@@ -629,7 +1133,9 @@ release that starts falling back to a plain request turns red and says so.
 Somebody dropping a spreadsheet on a bot used to have it discarded: `IncomingMessage`
 had no attachment field, so no adapter parsed one and the agent answered about a
 document it never received. Now a message with a file — with or without a caption —
-reaches the agent the same way a web upload does.
+reaches the agent the same way a web upload does, and is **read back the same way**:
+the file is a row on the turn it arrived with, so the thread in `/chat` shows a card
+rather than the briefing the model was given about it.
 
 **Inbound** is the web upload path reached differently. The bytes come from a
 platform instead of a browser and then go through exactly what a web upload gets:
@@ -642,6 +1148,22 @@ with no workspace, written to `/uploads` with a reference for one that has it.
 The size is checked twice on purpose: against what the platform *claims* before
 anything is fetched, because downloading a gigabyte to then reject it is the
 attack, and against the bytes afterwards, because a claim is not a measurement.
+
+**A file the turn ran on belongs to that turn.** Its `ChatFile` row is linked to the
+user message the run's transcript writes, exactly as a web upload is linked to the
+message somebody typed — so a transcript of a channel thread shows the spreadsheet
+beside the question it was asked about. It matters more here than it reads:
+`chat_files` carries no organization, so a row with no message is scoped by the
+sender alone, reachable through `GET /files/{id}` by its owner and by nothing else.
+Every channel turn used to leave one that way, because linking was done by the one
+surface that writes its own transcript.
+
+What the link widens is the *metadata*, not the bytes. A channel's conversation is
+owned by whoever spoke in it first, so in a shared channel a colleague's file now
+appears in a transcript other members can read — as a name, a type and a size.
+Downloading it still answers only its owner, which is the right half to keep
+private and the half a reader has to be told about: the chip is there, the bytes
+are not theirs.
 
 Fetching a file needs a second authenticated request on every platform, which is
 why an attachment arrives as a handle rather than as content:
@@ -834,5 +1356,11 @@ pasted into the instructions, is a prompt injection with a public edit button.
 - Your own site, no accounts → **widget, `public` mode**.
 - Inside your product, per-user → **widget, `jwt` mode**.
 - Your own interface entirely → **WebSocket**.
+- No site of your own, and a link will do → **a hosted page**.
 - Where the team already talks → **Slack, Telegram or Mattermost**.
 - Another system entirely → the REST API (`POST /api/v1/agents/{id}/run`).
+
+The first four are one object. A widget, a socket client and a hosted page are
+three ways of reaching the same embed, with one set of refusals between them —
+so "who may talk to this agent" has exactly one answer whichever of the three
+somebody arrives through.

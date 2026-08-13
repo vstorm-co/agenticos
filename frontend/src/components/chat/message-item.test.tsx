@@ -2,12 +2,17 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MessageItem, mustShowEveryStep, runsOf } from "./message-item";
+import { MessageItem } from "./message-item";
+import { mustShowEveryStep, runsOf } from "./turn-parts";
 import { useAuthStore, useChatStore, useFilePreviewStore } from "@/stores";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import type { Agent } from "@/types/agents";
 import type { ChatMessage, ChatMessageFile, MessagePart, ToolCall, TurnUsage } from "@/types";
 
+// The MCP connections a step is named from. `MessageItem` reads them once per turn
+// and hands them to each step, so a public surface can render the same step without
+// a session - the fetch would need one, and a query client to run it in.
+vi.mock("@/hooks", () => ({ useMcpToolServers: () => [] }));
 vi.mock("./markdown-content", () => ({
   MarkdownContent: ({
     content,

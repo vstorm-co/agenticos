@@ -86,15 +86,17 @@ async def _run(org_id: str | None, dry_run: bool) -> None:
             )
             for skill in bundled:
                 try:
-                    installed = await service.install_from_library(ctx, skill.key)
+                    # Visible to the organization rather than to the person the
+                    # seed ran as, set at install rather than by a follow-up edit:
+                    # a bundled skill is for everybody, where private is the right
+                    # default for something somebody wrote and the wrong one for
+                    # something the platform shipped.
+                    installed = await service.install_from_library(
+                        ctx, skill.key, visibility=Visibility.ORG
+                    )
                 except AlreadyExistsError:
                     click.echo(f"    {skill.name} - already there, left alone")
                     continue
-                # Visible to the organization rather than to the person the
-                # seed ran as. A bundled skill is for everybody; private is the
-                # right default for something somebody wrote, and the wrong one
-                # for something the platform shipped.
-                await service.update(ctx, installed.id, {"visibility": Visibility.ORG.value})
                 click.echo(f"    {installed.name} - installed with {len(skill.resources)} file(s)")
 
     success("Done." if not dry_run else "Dry run - nothing was written.")
