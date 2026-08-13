@@ -90,7 +90,9 @@ class OrganizationMemberUpdate(BaseSchema):
     @field_validator("role")
     @classmethod
     def role_valid(cls, v: str) -> str:
-        allowed = {role.value for role in OrgRoleName}
+        # A role change cannot make a second owner - ownership transfers
+        # explicitly, and transfer-ownership demotes the outgoing owner (#672).
+        allowed = {role.value for role in OrgRoleName} - {OrgRoleName.OWNER.value}
         if v not in allowed:
             raise ValueError(f"Role must be one of: {', '.join(sorted(allowed))}")
         return v
