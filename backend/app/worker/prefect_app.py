@@ -27,6 +27,7 @@ from prefect.client.schemas.schedules import IntervalSchedule
 
 from app.core.config import settings
 from app.worker.tasks.approval_tasks import approval_expiry_sweep_flow
+from app.worker.tasks.invitation_tasks import invitation_expiry_sweep_flow
 from app.worker.tasks.mcp_tasks import mcp_connection_sweep_flow
 from app.worker.tasks.rag_tasks import (
     check_scheduled_syncs_flow,
@@ -70,6 +71,14 @@ async def main() -> None:
     deployments.append(
         await approval_expiry_sweep_flow.ato_deployment(
             name="approval-expiry-sweep",
+            schedules=[IntervalSchedule(interval=3600)],
+        )
+    )
+    # Hourly for the same reason as the approval sweep: the invitation TTL is
+    # measured in days, so an invitation expiring 40 minutes late costs nothing.
+    deployments.append(
+        await invitation_expiry_sweep_flow.ato_deployment(
+            name="invitation-expiry-sweep",
             schedules=[IntervalSchedule(interval=3600)],
         )
     )
