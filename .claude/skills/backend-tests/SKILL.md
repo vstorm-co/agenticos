@@ -58,6 +58,14 @@ The conftest also sets `POSTGRES_DB` to `<base>_p<pid>` *before* anything import
 checkout with a populated `.env` used to empty the development database, and a constant
 name meant two runs on one machine dropping each other's tables (#189).
 
+The same block seeds Prefect, which reads `backend/.env` on its own account:
+`PREFECT_API_URL` **empty** so that calling a `@flow` starts a temporary server rather
+than reaching for the one `make dev` names (#536), and `PREFECT_HOME` at a directory
+belonging to the tests so that server's SQLite database is not a developer's
+`~/.prefect`. `tests/test_prefect_test_environment.py` pins both, and
+`docs/testing.md#prefect-and-why-no-test-reaches-a-server` explains why an empty
+assignment is the shape that works.
+
 `tests/integration/conftest.py` **creates that database for the session and drops it
 afterwards**, so two concurrent runs need nothing passed to them — `make test` and
 `uv run pytest tests/integration` are safe while another run is going. It skips the

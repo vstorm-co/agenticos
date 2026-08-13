@@ -53,6 +53,7 @@ export function ConnectionsTable({
   onDelete,
 }: ConnectionsTableProps) {
   const t = useTranslations("sandboxes.table");
+  const tc = useTranslations("common");
   return (
     <Table>
       <TableHeader>
@@ -109,7 +110,7 @@ export function ConnectionsTable({
                     variant="ghost"
                     size="sm"
                     onClick={() => onInspect(connection)}
-                    aria-label={`What ${connection.name} allows`}
+                    aria-label={t("whatNamedAllows", { name: connection.name })}
                   >
                     {t("whatAllows")}
                   </Button>
@@ -118,7 +119,7 @@ export function ConnectionsTable({
                   variant="ghost"
                   size="icon"
                   onClick={() => onEdit(connection)}
-                  aria-label={`Edit ${connection.name}`}
+                  aria-label={tc("editNamed", { name: connection.name })}
                 >
                   <Pencil className="h-4 w-4" aria-hidden />
                 </Button>
@@ -126,7 +127,7 @@ export function ConnectionsTable({
                   variant="ghost"
                   size="icon"
                   onClick={() => onDelete(connection)}
-                  aria-label={`Delete ${connection.name}`}
+                  aria-label={tc("deleteNamed", { name: connection.name })}
                 >
                   <Trash2 className="h-4 w-4" aria-hidden />
                 </Button>

@@ -5,6 +5,7 @@ import json
 import logging
 import re
 import time
+from collections.abc import Callable
 from typing import Any
 
 from app.core.config import settings
@@ -22,9 +23,15 @@ from app.services.channel_link import ChannelLinkService
 from app.services.channels import get_adapter
 from app.services.channels.attachments import ChannelAttachmentService
 from app.services.channels.base import IncomingMessage, OutgoingAttachment, OutgoingMessage
+from app.services.channels.dedupe import claim_delivery, release_delivery
 from app.services.channels.directory import BoundChannelDirectory
 from app.services.channels.live_reply import WORKING, LiveReply, channel_stream
-from app.services.channels.mentions import ChannelAgentRouter, UnaddressedMessage, channel_key
+from app.services.channels.mentions import (
+    ChannelAgentRouter,
+    UnaddressedMessage,
+    channel_key,
+    parse_mention,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +65,18 @@ def _as_command(text: str) -> str:
     stripped = text.strip()
     match = _SLASHLESS.match(stripped)
     return f"/{stripped}" if match else stripped
+
+
+# How much of a channel thread the model is reminded of.
+#
+# Its own number rather than the widget's 40, and larger, because the two surfaces
+# are bounded for different reasons. A widget's is a public URL with somebody
+# else's budget behind it, so the ceiling is about spend. A channel is a room the
+# operator's own colleagues work in: the thread is long-lived and shared, so a
+# window that only holds a few turns loses context two people are relying on. What
+# it is still bounded *for* is the same - a prompt is not a transcript, and one
+# thread's whole history is a per-turn bill that grows for ever.
+HISTORY_MESSAGES = 200
 
 
 def _get_chat_lock(bot_id: str, chat_id: str) -> asyncio.Lock:
@@ -119,15 +138,36 @@ class ChannelMessageRouter:
     """Process an incoming channel message end-to-end."""
 
     async def route(self, incoming: IncomingMessage, db: Any) -> None:
-        """Acquire per-chat lock, then process the message.
+        """Claim the delivery, acquire the per-chat lock, then process.
 
-        The lock ensures that concurrent messages in the same group chat
-        are processed sequentially - no duplicate sessions, no interleaved
-        agent calls.
+        The claim comes first, and before the lock on purpose: a redelivered
+        message (a platform retries when its 2xx is lost) would otherwise
+        queue behind the run it duplicates and then answer again - the lock
+        converts the race into an orderly double answer, it never prevents
+        one (#167). The lock then ensures concurrent messages in the same
+        group chat are processed sequentially - no duplicate sessions, no
+        interleaved agent calls.
+
+        A run that does not finish gives the claim back, so the redelivery that
+        follows it is answered rather than mistaken for a duplicate. Cancellation
+        counts, which is why the handler is `BaseException`: a pod draining
+        mid-run is the case the claim would otherwise outlive.
         """
+        if not await claim_delivery(incoming):
+            logger.info(
+                "Duplicate channel delivery ignored: bot=%s platform=%s message=%s",
+                incoming.bot_id,
+                incoming.platform,
+                incoming.message_id,
+            )
+            return
         lock = _get_chat_lock(incoming.bot_id, incoming.platform_chat_id)
-        async with lock:
-            await self._route_inner(incoming, db)
+        try:
+            async with lock:
+                await self._route_inner(incoming, db)
+        except BaseException:
+            await release_delivery(incoming)
+            raise
 
     async def _route_inner(self, incoming: IncomingMessage, db: Any) -> None:
         """Process an incoming channel message end-to-end.
@@ -148,10 +188,25 @@ class ChannelMessageRouter:
             logger.debug("Bot %s not found or inactive - ignoring", incoming.bot_id)
             return
 
+        if self._is_overheard(incoming):
+            # Decided before anything is created or refused, not after. A bot in a
+            # channel hears every post, so a refusal - a whitelist that does not
+            # list the speaker, a jwt bot they have not linked to - posted before
+            # this check talked over two colleagues, message after message, for
+            # exactly the policies meant to narrow access; and an identity row was
+            # minted for every bystander the bot would never answer. A message
+            # naming a handle is not overheard even here - whether that handle is
+            # ours is `_answer_mention`'s to judge, and its refusal stays its own.
+            logger.debug(
+                "channel_message_not_addressed",
+                extra={"platform": incoming.platform, "bot_id": incoming.bot_id},
+            )
+            return
+
         try:
             self._check_access(incoming, bot)
         except AuthorizationError as exc:
-            await self._send_reply(bot, incoming, exc.message)
+            await self._refuse_if_named(bot, incoming, exc.message)
             return
 
         command_reply = await self._handle_command(incoming.text, incoming, bot, db)
@@ -162,10 +217,11 @@ class ChannelMessageRouter:
         try:
             identity = await self._resolve_identity(incoming, bot, db)
         except AuthorizationError as exc:
-            await self._send_reply(bot, incoming, exc.message)
+            await self._refuse_if_named(bot, incoming, exc.message)
             return
 
-        if identity.user_id is None:
+        admit_unlinked = self._admits_unlinked(incoming, bot)
+        if identity.user_id is None and not admit_unlinked:
             await self._send_reply(bot, incoming, await self._invite_to_link(incoming, db))
             return
 
@@ -177,13 +233,6 @@ class ChannelMessageRouter:
             await self._send_reply(bot, incoming, exc.message)
             return
 
-        # Opened once, here, and handed to whichever path answers. Opening it
-        # inside `_answer_mention` left one behind on every ordinary message:
-        # that path posts, discovers the message names no agent, returns False -
-        # and the placeholder stays on screen for ever while the default path
-        # posts a second one beside it.
-        live, handle = await self._open_reply(bot, incoming)
-
         # Built here, once, from the row that admitted the message - so an agent
         # that asks about the channel asks about *this* channel, with the bot's
         # own token, and never about one named by the model. Free to build for a
@@ -191,12 +240,32 @@ class ChannelMessageRouter:
         # does.
         directory = self._channel_directory(bot, incoming)
 
+        # Once, above both paths. A mention that turns out to name nobody of ours
+        # falls through to the default assistant, and fetching per path downloaded
+        # the same attachment twice and left the first copy stored with nothing
+        # pointing at it (#683).
+        files, file_refusals = await self._receive_files(db, bot, incoming, identity)
+
+        # The mention path opens its own placeholder lazily, because it may find
+        # the handle names a colleague rather than an agent of ours and stay
+        # silent - a "…" posted up front would be left hanging under two people's
+        # conversation. The default path always answers when it is reached, so it
+        # opens eagerly below: the "…" that tells a channel the bot is working
+        # rather than crashed.
         if await self._answer_mention(
-            incoming, bot, identity, session, db, live, handle, directory
+            incoming,
+            bot,
+            identity,
+            session,
+            db,
+            directory,
+            admit_unlinked,
+            files=files,
+            file_refusals=file_refusals,
         ):
             return
 
-        files, file_refusals = await self._receive_files(db, bot, incoming, identity)
+        live, handle = await self._open_reply(bot, incoming)
 
         # Loaded before the run, so the turn being run is the prompt and
         # everything before it is the history. The turn itself is written by the
@@ -210,6 +279,8 @@ class ChannelMessageRouter:
                 organization_id=bot.organization_id,
                 bot_id=bot.id,
                 user_id=identity.user_id,
+                channel_identity_id=identity.id,
+                admit_unlinked=admit_unlinked,
                 conversation_id=session.conversation_id,
                 platform_chat_id=incoming.platform_chat_id,
                 channel_directory=directory,
@@ -227,6 +298,7 @@ class ChannelMessageRouter:
             # A refusal - no agent exposed, several to choose from, an unlinked
             # sender - is the platform answering, not a crash. The message says
             # what to do next.
+            await self._discard_files(db, files)
             await self._send_reply(bot, incoming, exc.message)
             return
         except Exception:
@@ -298,9 +370,11 @@ class ChannelMessageRouter:
         identity: Any,
         session: Any,
         db: Any,
-        live: LiveReply | None,
-        handle: str | None,
         directory: BoundChannelDirectory | None,
+        admit_unlinked: bool,
+        *,
+        files: list[Any],
+        file_refusals: list[str],
     ) -> bool:
         """Answer `@handle …` with that agent, and report whether we did.
 
@@ -309,12 +383,21 @@ class ChannelMessageRouter:
         agent always wins: someone who typed a handle asked for that agent, and
         silently answering as something else is worse than not answering.
 
-        A refusal - unlinked account, unknown handle, an agent they cannot see,
-        an agent nobody exposed on this bot - is reported to the sender and still
-        counts as handled. Falling through to the default assistant would answer
-        a question that was not asked.
+        A refusal - an unnamed sender in a private chat, an unknown handle, an
+        agent they cannot see, an agent nobody exposed on this bot - is reported
+        to the sender and still counts as handled. Falling through to the default
+        assistant would answer a question that was not asked.
+
+        The placeholder is opened lazily: a handle that names a colleague rather
+        than an agent of ours raises before a token is streamed, so nothing is
+        ever posted and no "…" is left hanging under two people's conversation.
+
+        `files` arrive already fetched, because both paths need the same ones and
+        this one runs first: receiving them here as well downloaded and stored
+        every attachment on an unaddressed message twice, and only the second row
+        was ever linked to the turn (#683).
         """
-        files, file_refusals = await self._receive_files(db, bot, incoming, identity)
+        live, handle_of = self._lazy_reply(bot, incoming)
         try:
             answered = await ChannelAgentRouter(db).answer(
                 incoming.text,
@@ -322,22 +405,95 @@ class ChannelMessageRouter:
                 organization_id=bot.organization_id,
                 bot_id=bot.id,
                 user_id=identity.user_id,
+                channel_identity_id=identity.id,
+                admit_unlinked=admit_unlinked,
                 conversation_id=session.conversation_id,
                 platform_chat_id=incoming.platform_chat_id,
                 channel_directory=directory,
                 turn=session.turn_count,
                 attachments=files,
-                stream=None if live is None else channel_stream(live),
+                stream=channel_stream(live),
             )
         except UnaddressedMessage:
             return False
         except AppException as exc:
-            await self._send_reply(bot, incoming, exc.message)
+            # Whether or not the refusal is worth posting, the files this turn
+            # already stored are not: a turn that produced no run leaves rows
+            # nothing points at, and `chat_files` carries no organization, so an
+            # unlinked row is scoped by `user_id` alone (#690).
+            await self._discard_files(db, files)
+            # A handle that names no agent of ours. In a channel where the bot was
+            # not among the mentioned accounts, that handle was somebody's
+            # colleague - so the refusal is logged rather than posted, because a bot
+            # that answers "@ada is not available on this bot" every time two people
+            # talk to each other is the interruption this gate exists to stop. It
+            # still counts as handled: nothing else should answer it either. Nothing
+            # streamed, so the lazy placeholder was never opened.
+            if self._names_the_bot(incoming):
+                await self._send_reply(bot, incoming, exc.message)
+            else:
+                logger.info(
+                    "channel_mention_not_ours",
+                    extra={"platform": incoming.platform, "bot_id": incoming.bot_id},
+                )
             return True
 
         answer = self._with_notes(answered.text, file_refusals, _kept_back(answered.refused))
-        await self._deliver(bot, incoming, answer, answered, handle)
+        await self._deliver(bot, incoming, answer, answered, handle_of())
         return True
+
+    def _lazy_reply(
+        self, bot: Any, incoming: IncomingMessage
+    ) -> tuple[LiveReply, Callable[[], str | None]]:
+        """A live reply that posts its placeholder on the first push, not before.
+
+        `_open_reply` puts a "…" on screen for every message it is called on. The
+        mention path cannot use that: `answer()` may discover the handle names a
+        colleague rather than an agent of ours and raise before a token is
+        streamed, and a placeholder already posted would be left hanging under
+        two people's conversation for ever. Opened on the first push instead,
+        nothing appears unless the agent produced something - and a handle that
+        resolves to nobody produces nothing.
+
+        The handle is captured so `_deliver` can edit the message into the final
+        answer; when nothing streamed it stays `None` and `_deliver` posts the
+        answer whole, the same fallback a platform that cannot edit already takes.
+        """
+        adapter = get_adapter(incoming.platform)
+        token = unseal_bot_token(bot)
+        state: dict[str, str | None] = {"handle": None}
+        opened = False
+
+        async def push(text: str) -> None:
+            nonlocal opened
+            if not opened:
+                opened = True
+                placeholder = OutgoingMessage(
+                    platform_chat_id=incoming.platform_chat_id,
+                    text=text or WORKING,
+                    reply_to_message_id=incoming.message_id,
+                    api_base_url=getattr(bot, "api_base_url", None),
+                )
+                try:
+                    state["handle"] = await adapter.begin_reply(token, placeholder)
+                except Exception:
+                    logger.warning(
+                        "Could not open a live reply on %s", incoming.platform, exc_info=True
+                    )
+                return
+            if state["handle"] is None:
+                return
+            await adapter.update_reply(
+                token,
+                OutgoingMessage(
+                    platform_chat_id=incoming.platform_chat_id,
+                    text=text,
+                    api_base_url=getattr(bot, "api_base_url", None),
+                ),
+                state["handle"],
+            )
+
+        return LiveReply(push), lambda: state["handle"]
 
     @staticmethod
     def _channel_directory(bot: Any, incoming: IncomingMessage) -> BoundChannelDirectory | None:
@@ -392,6 +548,20 @@ class ChannelMessageRouter:
         )
 
     @staticmethod
+    async def _discard_files(db: Any, files: list[Any]) -> None:
+        """Give back what the turn stored, for a turn that was refused.
+
+        The files are fetched and stored before the agent is resolved, so a
+        refusal raised in its place - nothing exposed on this bot, a sender whose
+        account is nobody's - leaves rows nothing will ever link to a message and
+        bytes nothing will ever read (#661). The refusal is still what the sender
+        gets: nothing here is allowed to raise in its way.
+        """
+        if not files:
+            return
+        await ChannelAttachmentService(db).discard(files)
+
+    @staticmethod
     def _with_notes(answer: str, *notes: list[str]) -> str:
         """The answer, with what could not be delivered said out loud under it.
 
@@ -436,6 +606,73 @@ class ChannelMessageRouter:
                     )
                 )
         # "open" and "jwt_linked" pass through here; jwt_linked is enforced at identity resolution
+
+    def _admits_unlinked(self, incoming: IncomingMessage, bot: Any) -> bool:
+        """Whether somebody with no linked account may be answered here.
+
+        In a room, yes. Somebody with the rights to invite the bot put it in a
+        channel, and the people in that channel are the audience that invitation
+        chose - so the turn runs under the binding's creator and the chat account
+        is recorded on the run. Requiring each of them to open a direct message
+        and click a link first made a channel a dead end: the refusal cannot
+        carry the link, because the link is a bearer credential and everybody in
+        the channel can read it (#639).
+
+        In a direct message, no. It is a conversation with one person, the link
+        is safe to send, and the account it connects is the point of it.
+
+        `require_link` is the way back to refusing both, and this is what makes
+        it mean anything: it sat in the default policy, the schema, the CLI and
+        the dashboard while the gate it was meant to control refused everybody
+        regardless.
+        """
+        if incoming.chat_type == "private":
+            return False
+        return not bool(self._parse_policy(bot).get("require_link", False))
+
+    @staticmethod
+    def _is_overheard(incoming: IncomingMessage) -> bool:
+        """Whether this message was said *near* the bot rather than to it.
+
+                **A direct message is always to the bot** - there is nobody else in the
+                room, so requiring a mention there would be asking somebody to address the
+                only participant. In a channel it is the other way round: the bot is one
+                member of many, and a message that names nobody names nobody.
+
+                The distinction is what was missing. Mattermost's socket delivers every
+                post in every channel the bot belongs to, so the default agent answered all
+                of them - a bot added to a team channel replied to colleagues talking to
+                each other (agenticos#634).
+
+                `addressed is None` means the platform did not say, and that is deliberately
+                *not* treated as unaddressed: Slack and Telegram deliver on their own
+                subscription rules, and reading silence as "ignore" would make a working bot
+                on either go quiet.
+
+        **An `@agent-slug` handle counts as addressing the bot**, and it has to be read
+                here rather than left to `_answer_mention`: an agent's slug is a name in *this*
+                product, not an account on the platform, so it never appears in a mention list
+                and a gate that only trusted that list would have silently broken every
+                `@sales what is the refund window` in a channel.
+
+                Read syntactically, which lets a message naming a *colleague* past this gate -
+                `@ada` is a handle as far as the pattern is concerned. What stops the bot
+                answering that is `_answer_mention` keeping its refusal to itself when the
+                platform says the bot was not among the mentioned; see `_names_the_bot`.
+        """
+        if incoming.chat_type == "private" or incoming.addressed is not False:
+            return False
+        return parse_mention(incoming.text) is None
+
+    @staticmethod
+    def _names_the_bot(incoming: IncomingMessage) -> bool:
+        """Whether the bot itself was addressed, as far as the platform will say.
+
+        True in a direct message and true where the platform did not report mentions
+        at all, both for the reason `_is_overheard` gives: neither is a case where
+        silence is what somebody asked for.
+        """
+        return incoming.chat_type == "private" or incoming.addressed is not False
 
     async def _invite_to_link(self, incoming: IncomingMessage, db: Any) -> str:
         """What to answer somebody whose chat account is nobody's yet.
@@ -667,6 +904,24 @@ class ChannelMessageRouter:
 
         return LiveReply(push), handle
 
+    async def _refuse_if_named(self, bot: Any, incoming: IncomingMessage, message: str) -> None:
+        """Post a refusal only where the bot was actually addressed.
+
+        In a channel the bot is one member of many, so a refusal to a message
+        that named it belongs on screen - but a refusal to a message that named a
+        colleague, or named nobody, is the interruption the overheard gate exists
+        to stop, arriving through the refusal rather than the answer.
+        `_answer_mention` already keeps its unknown-handle refusal to itself for
+        this reason; an access or identity refusal takes the same rule.
+        """
+        if self._names_the_bot(incoming):
+            await self._send_reply(bot, incoming, message)
+        else:
+            logger.info(
+                "channel_refusal_not_addressed",
+                extra={"platform": incoming.platform, "bot_id": incoming.bot_id},
+            )
+
     async def _send_reply(
         self,
         bot: Any,
@@ -704,11 +959,26 @@ class ChannelMessageRouter:
 
     @staticmethod
     async def _load_history(db: Any, conversation_id: Any) -> list[dict[str, str]]:
-        """The channel thread so far, oldest first, as role/content dicts."""
+        """The most recent turns of the channel thread, oldest first.
+
+        **The most recent, which took a `count` to get right.** The repository orders
+        oldest-first, so `limit` with no offset is the *first* `HISTORY_MESSAGES`
+        turns - and a support channel passes that in days, because
+        `channel_sessions` keys the conversation to the chat and the thread never
+        rolls over. Past it the model was reminded of how the conversation opened
+        and told nothing said since, including the question before the one it was
+        answering. Nothing errored: the bot answered plausibly, from a version of
+        the conversation that had stopped hundreds of turns ago (#638).
+
+        One `COUNT(*)` per turn on an indexed column is the price, and it is the
+        price the widget has paid since #39 fixed the same window from the other
+        direction - see `embed_session.HISTORY_MESSAGES`.
+        """
+        total = await conversation_repo.count_messages(db, conversation_id)
         messages = await conversation_repo.get_messages_by_conversation(
             db,
             conversation_id=conversation_id,
-            skip=0,
-            limit=200,
+            skip=max(0, total - HISTORY_MESSAGES),
+            limit=HISTORY_MESSAGES,
         )
         return [{"role": m.role, "content": m.content} for m in messages]

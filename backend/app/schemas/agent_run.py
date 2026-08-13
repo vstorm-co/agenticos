@@ -279,10 +279,15 @@ class CostByAgent(BaseSchema):
     partial_run_count: int = Field(
         default=0,
         description=(
-            "How many of those runs had a model with no price. The cost is a "
-            "floor by exactly that much, and '3 of 40 runs could not be priced' "
-            "is the difference between a figure a reader can act on and one "
-            "they have to take on trust"
+            "How many of those runs could not be fully priced - some model in "
+            "the run had no price, its delegates' included, because a tree "
+            "shares one ledger. The cost is a floor by exactly that many runs, "
+            "and '3 of 40 runs could not be priced' is the difference between a "
+            "figure a reader can act on and one they have to take on trust. It "
+            "can exceed `run_count`: an unpriced tree that straddles the start "
+            "of the window counts on the agent its delegate ran as, whose "
+            "top-level runs the delegation is not among, because the parent's "
+            "row is outside the window (agenticos#620)"
         ),
     )
     month_to_date_usd: Decimal | None = Field(
@@ -350,8 +355,19 @@ class CostSummary(BaseSchema):
     partial_run_count: int = Field(
         default=0,
         description=(
-            "Runs in the window whose cost is a floor because some model in "
-            "them had no price. How much of everything below is a fact"
+            "Top-level runs in the window whose cost is a floor because some "
+            "model in the run had no price - the run's own or any it delegated "
+            "to, which share one spend ledger. How much of everything below is "
+            "a fact: an unpriced delegate is in its parent's ledger too, so a "
+            "floor under `by_provider` or `by_key` is marked here even though "
+            "neither is measured here. It counts *trees* rather than the rows "
+            "those two sum, so one parent with three unpriced delegates reads "
+            "1, and it measures `by_agent`, which counts the same rows. A tree "
+            "that straddles the start of the window - the delegate's row inside "
+            "it, its parent's before it - is counted through the delegate's "
+            "agent, once per straddling tree, because the parent row that would "
+            "otherwise carry the mark is outside every window here while the "
+            "delegate's own spend is inside both splits (agenticos#620)"
         ),
     )
     by_agent: list[CostByAgent]

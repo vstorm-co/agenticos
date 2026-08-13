@@ -293,7 +293,6 @@ lint-backend:
 	uv run --directory backend ty check
 	uv run --directory backend vulture
 	python3 scripts/check_backticks.py
-	python3 scripts/check_i18n.py
 	python3 scripts/check_routes.py
 	python3 scripts/check_comments.py
 
@@ -314,10 +313,15 @@ dead-code:
 	uv run --directory backend vulture --min-confidence 60
 	cd frontend && bunx knip@5 --no-progress
 
+# The i18n guard is the fourth step and belongs here rather than beside the Python
+# ones: since #395 it *is* TypeScript, reading `frontend/src` through
+# `ts.createSourceFile` instead of ten regexes over source text. It runs last because
+# it is the slowest of the four and the other three answer faster on a typo.
 lint-frontend:
 	cd frontend && bun run lint
-	cd frontend && bunx prettier --check "src/**/*.{ts,tsx}" "e2e/**/*.ts"
+	cd frontend && bunx prettier --check "scripts/**/*.ts" "src/**/*.{ts,tsx}" "e2e/**/*.ts"
 	cd frontend && bun run type-check
+	cd frontend && bun run check:i18n
 
 # Spelling, over every tracked file rather than the ones a commit happens to
 # touch. The hook alone only ever reads changed files, so a misspelling that
@@ -442,8 +446,9 @@ test-e2e:
 #   - `lint` ran neither eslint, prettier nor tsc, all three of which gate CI;
 #   - `check` ran neither `next build`, the docs build nor the dependency audit -
 #     three whole jobs;
-#   - and in the other direction, CI never ran `scripts/check_i18n.py`, so a
-#     hardcoded string failed `make lint` and passed the build.
+#   - and in the other direction, CI never ran the i18n guard, so a hardcoded
+#     string failed `make lint` and passed the build. It was `scripts/check_i18n.py`
+#     then and is `frontend/scripts/check-i18n.ts` now, in `lint-frontend`.
 #
 # Not here, deliberately:
 #

@@ -17,6 +17,893 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.143] - 2026-08-13
+
+Three sweeps walked the source tree three different ways.
+
+### Changed
+
+- **One source-tree walker, shared.** `fonts.test.ts`, `loading-state.test.tsx`
+  and `platform-proxy.test.ts` each carried their own recursive read of
+  `frontend/src`, with their own idea of what to skip — so a directory one of them
+  learned to ignore stayed invisible only to that one. They now share
+  `src/test-utils/source-files.ts`. (#618)
+
+## [0.0.142] - 2026-08-13
+
+Every page declared itself English, Polish ones included.
+
+### Fixed
+
+- **`<html lang="en">` was hard-coded** from `defaultLocale` in the one layout that
+  renders `<html>`, so a screen reader on `/pl/agents` announced Polish copy with
+  English pronunciation rules and a crawler read the page as English. It now comes
+  from the active locale. More visible since #604, because before that the UI
+  mostly reverted to English anyway. (#619)
+
+## [0.0.141] - 2026-08-13
+
+The baked MCP logos were keyed on a domain nothing ever asked for.
+
+### Fixed
+
+- **Every logo in `mcp-logos.generated.ts` was keyed on a brand domain** —
+  `linear.app`, `notion.so` — while `logoDataUri` is always asked with the
+  connection URL's host, `mcp.linear.app`. The intersection was empty, so the MCP
+  badge fell through to Google's live favicon service on every view and the
+  self-contained export phoned home per server instead of rendering offline.
+  (#614)
+
+## [0.0.140] - 2026-08-13
+
+Polish diacritics swapped typeface mid-word.
+
+### Fixed
+
+- **The vendored woff2 files were the latin subsets**, and eight of the nine
+  Polish pairs — `ą ć ę ł ń ś ź ż` — live in latin-ext, so per-glyph fallback
+  rendered them in the system font. Worst on Bricolage Grotesque headings at
+  700–800, where a word could change typeface halfway through. The latin-ext
+  subset of all three families is vendored beside the latin one, at the same
+  Google Fonts versions, about 119 KB together. (#606)
+
+## [0.0.139] - 2026-08-13
+
+`timeAgo` fell back to an English date once a timestamp was old enough.
+
+### Fixed
+
+- **The date `timeAgo` answers with past its relative window** was built with a
+  hardcoded locale, so a Polish reader watching a list of runs saw Polish for
+  anything recent and English the moment a row aged out of "2 days ago". It takes
+  the active locale now, like the absolute formatters beside it. (#621)
+
+## [0.0.138] - 2026-08-13
+
+An absolute date was formatted in English on every locale.
+
+### Fixed
+
+- **`formatDate` and `formatDateTime` passed a hardcoded `"en-US"`** to
+  `toLocaleDateString` / `toLocaleString`, so the month name and the day-month
+  order came from English everywhere — a Polish reader saw `Jul 31, 2026` where
+  the runtime would have given `31 lip 2026`. None of it is copy a translator can
+  reach, because the strings come from `Intl` rather than the catalog, so no
+  amount of `pl.json` would have fixed it. (#621)
+
+## [0.0.137] - 2026-08-13
+
+An MCP consent that was refused landed on the servers page looking exactly like
+one that was accepted.
+
+### Fixed
+
+- **Nothing read the outcome the OAuth callback redirected with.** The provider
+  sends the browser to a route that has no way to answer the person — a JSON body
+  on a page nobody navigated to is a dead end — so every outcome ends as a redirect
+  carrying its result in the query. That contract was written in the route handler
+  and consumed by no page. The MCP servers page now announces it, and the redirect
+  lands there rather than on `/settings/integrations`, which is itself a redirect.
+  (#657)
+- **A refusal of ours and a refusal from somewhere else travel separately.** The
+  callback takes no session by design — the `state` token authenticates the
+  exchange — so anybody can put a browser on that address with a refusal of their
+  choosing, and that query is now rendered. Ours goes under `mcp_oauth_failure` and
+  is looked up in a fixed table, so a stranger cannot spell one and have the
+  product say it in its own voice; anything else is stripped of control
+  characters, capped at 200 characters and shown quoted after a sentence this
+  repository wrote. (#657)
+
+## [0.0.136] - 2026-08-13
+
+DOM key constants were sitting in the message catalog and read back through the
+translator.
+
+### Fixed
+
+- **`e.key === t("enter2")` compared a keyboard event against a translation.**
+  `Enter`, `Escape`, `Tab`, `ArrowUp` and `ArrowDown` were parked in `en.json` and
+  read back in the chat composer, the command palette, conversation rename, the
+  share dialog, the sources panel and the question prompt. `src/i18n.ts` merges
+  `en.json` under every locale, so this worked only while `pl.json` omitted those
+  keys — the first translator to render one would have broken every shortcut on
+  that screen. They are literals in the source again, and
+  `messages/catalog.test.ts` refuses a catalog value that is a DOM key constant.
+  Six of them had in the meantime been translated into `pl.json`, which is the
+  failure arriving; they are deleted. (#549)
+
+## [0.0.135] - 2026-08-13
+
+The copy guard read a hyphen in the first word as a label separator, so half a
+sentence passed the sweep.
+
+### Fixed
+
+- **`"Sign-in failed"` passed the i18n guard while `"Not authenticated"` was
+  refused.** `NOT_A_SENTENCE` exempts a label built from title case around a
+  separator — `Model / Provider` — and the whitespace on both sides of that
+  separator was optional, so a hyphen *inside* the first word made the whole
+  sentence a label. The separator now needs the whitespace that makes it one.
+  (#656)
+
+## [0.0.134] - 2026-08-13
+
+A refusal from the BFF reached the toast in English, whatever locale the reader
+was in.
+
+### Fixed
+
+- **The route handlers under `src/app/api/**` write a wire payload, not copy**, and
+  the toast that renders it was showing that payload verbatim. A refusal now
+  travels as a code the client resolves in the active locale, and
+  `getErrorMessage` takes the caller's translator — it moved from `@/lib/utils` to
+  `@/lib/api-error` in the process, because a function that needs a translator is
+  not a utility. Step details take the same route. (#603)
+- **The copy guard reads a `.ts` file by the same rules as a `.tsx` one**, so a
+  hook's toast and a module table of labels are copy too. `src/app/api/**` is
+  skipped by the offence sweep — a route handler sits outside the `[locale]`
+  segment and has no translator to reach — and read by the catalog rules, which is
+  what reports a `detail` that duplicates a message. (#603)
+
+## [0.0.133] - 2026-08-13
+
+The banner guard walked every worktree on the machine before deciding to ignore
+them.
+
+### Fixed
+
+- **`scripts/check_comments.py` filtered after walking rather than pruning.**
+  `Path.rglob("*")` descended into `.git`, `.venv`, `node_modules` and every
+  checkout under `.claude/worktrees/`, and `SKIP_DIRS` only decided what was
+  *reported*. On a machine with 68 worktrees that was about 3.9M paths and roughly
+  seven minutes per commit, because pre-commit runs the hook with
+  `pass_filenames: false`. It is now `os.walk` with in-place pruning. (#635)
+
+## [0.0.132] - 2026-08-13
+
+The spend page said nothing could not be priced, above three breakdowns that had
+priced nothing.
+
+### Fixed
+
+- **`GET /runs/spend` counted its "could not be priced" caveat over *top-level*
+  rows only.** By provider and By key price every row in the window through a
+  subquery that is deliberately not windowed, so a parent that started before the
+  window and delegated inside it put its delegate's spend into the breakdowns while
+  the caveat above them read `0` — a page saying the numbers are complete when they
+  are not. The caveat now counts what the breakdowns count. (#620)
+
+## [0.0.131] - 2026-08-13
+
+Two RAG document lookups disagreed about which document they were looking at, and
+heap order decided.
+
+### Fixed
+
+- **`IngestionService.find_existing` and `get_existing_hash` used different
+  precedence.** The first checked every document for a `source_path` match before
+  falling back to `filename`; the second interleaved the two in one pass, where a
+  filename hit blocked any later source-path match — so a re-sync could answer with
+  a different document depending on which helper asked. (#548)
+- **`PgVectorStore.get_documents` selected with no `ORDER BY`**, so heap order
+  decided which document a lookup answered with, and re-running the same query
+  could give a different one. (#548)
+
+## [0.0.130] - 2026-08-13
+
+A scanned PDF ingested with OCR enabled indexed near-empty, silently.
+
+### Fixed
+
+- **The OCR fallback drove the image describer through
+  `asyncio.new_event_loop().run_until_complete(...)`** from inside a running loop,
+  which produced nothing — and the result was indistinguishable from a PDF that
+  genuinely had no text. `PyMuPDFParser._ocr_page` and `_parse_pdf_file` are now
+  `async` and await the describer on the caller's loop. (#550)
+
+## [0.0.129] - 2026-08-13
+
+An MCP OAuth failure put the token endpoint, and whatever its query string held,
+into a toast in the browser.
+
+### Fixed
+
+- **Three refusals in the MCP OAuth flow interpolated whatever raised.** `httpx`
+  puts the failing request in its message, and the two requests this flow makes
+  are a client registration and a token grant — so a broken provider reached the
+  member's screen as the endpoint it failed on, rendered as a toast since #657 via
+  `McpOAuthCallbackResult(ok=False, error=str(exc))`. Each refusal now names the
+  stage it failed at and what the reader can do about it; the client's own text
+  stays in the `logger.exception` beside the raise. (#686)
+
+## [0.0.128] - 2026-08-13
+
+A test that proved `spawn_after_commit` was needed proved it on a 250ms
+stopwatch.
+
+### Fixed
+
+- **`test_spawning_inside_the_request_starts_before_the_row_exists` waited a fixed
+  `_GRACE = 0.25s`** for the spawned flow to take its reading, and asserted the
+  reading happened inside that window. Under `make test` — four xdist workers plus
+  coverage instrumentation on one machine — 250ms guarantees nothing, so the test
+  failed once and passed on a clean re-run and in CI. It now waits on a signal from
+  the task itself, which is what it was trying to time. (#680)
+
+### Changed
+
+- **A release that only bumps the version no longer runs `test`, `test-frontend`
+  and `e2e`.** `scripts/ci_changed_scope.py` reads the diff of
+  `backend/pyproject.toml`, `backend/uv.lock` and `frontend/package.json` rather
+  than their paths, because those files also hold the dependency lists, the
+  coverage `include` lists and the ruff and ty configuration. An absent patch, a
+  diff of context lines, or one line that is not a version assignment still runs
+  everything. #317 claimed this; it is now true. (#317)
+
+## [0.0.127] - 2026-08-13
+
+An invitation nobody clicked stayed pending for ever, and one clicked too late
+was recorded as withdrawn.
+
+### Added
+
+- **An hourly `invitation-expiry-sweep`**, the same shape as the approval sweep.
+  `InvitationStatus.EXPIRED` was unreachable — `invitation_repo.expire_stale` had
+  no caller — so the pending list kept offering invitations that had timed out.
+  Registered hourly rather than more often, because the TTL is measured in days.
+  (#456)
+
+### Fixed
+
+- **Accepting a stale invitation marked it `revoked`**, which records a withdrawal
+  somebody made when what actually happened is that it ran out. (#456)
+
+## [0.0.126] - 2026-08-13
+
+A shareable invite link could grant ownership, or a role that does not exist.
+
+### Fixed
+
+- **`InviteLinkCreate.role` carried no validator** while its sibling
+  `InvitationCreate` refused `owner` and unknown roles. An Owner could mint a link
+  that grants owner — co-ownership through a pasted URL, the exact thing the email
+  invitation path forbids — or an invented role string that `role_has` cannot
+  reason about, which then flowed unvalidated onto the accepter's membership row.
+  Both schemas now share one `InvitableRole`: every role in the catalog except
+  `owner`, refused at validation. (#551)
+
+## [0.0.125] - 2026-08-13
+
+A plain role change could mint a second owner and walk around ownership transfer.
+
+### Fixed
+
+- **`PATCH /orgs/{org_id}/members/{user_id}` accepted `{"role": "owner"}`** against
+  any non-owner member. It succeeded, left the organization with two owners, and
+  wrote an audit entry reading `member.role_changed` rather than saying ownership
+  had moved — so `transfer_ownership`, the one path that demotes the outgoing owner
+  in the same breath, could be walked around with a PATCH. Both halves are closed,
+  because either alone leaves the hole open somewhere: `OrganizationMemberUpdate`
+  subtracts `owner` from the roles it admits, the way `InvitationCreate` already
+  did, and the service now caps the role being *assigned* rather than only
+  inspecting the target. (#672)
+
+## [0.0.124] - 2026-08-13
+
+A Mattermost bot reached through an outgoing webhook answered every post in a
+channel it was merely invited to.
+
+### Fixed
+
+- **The outgoing-webhook path left `addressed` unset**, and the router reads unset
+  as "the platform did not say" and answers. So the transport put the bot back in
+  the position the event stream's rule took it out of: replying to colleagues
+  talking to each other. The body carries no mention list — Mattermost sends the
+  post, not who it notified — so what is read instead is `trigger_word`, the
+  platform's own record that the post was for this integration. Empty means the
+  webhook fired on its channel filter alone, which delivers every post exactly as
+  the socket does, so it is `False` for the same reason a `posted` event with no
+  mentions is. Worth knowing before choosing this transport: `@the-bot` is not
+  readable here, because nothing in the body says which account the bot is — set
+  the trigger word to the bot's handle if that is how people should reach it. An
+  `@agent-slug` needs nothing, since the router reads a slug out of the text.
+  (#662)
+
+## [0.0.123] - 2026-08-13
+
+The embed session — one visitor's turn on a public URL — was the last surface
+outside the coverage and type gates.
+
+### Changed
+
+- **`app/services/embed_session.py` is held to 100% coverage and to `ty`.** It
+  decides who a visitor's turn runs as, how often they may ask, and what the page
+  is allowed to put in front of the model — every one of which is a refusal a
+  stranger can reach — and an unreachable `except BudgetExceeded` sat in it for as
+  long as it was ungated, which is the kind of thing the gate exists to name. The
+  module was at 93%: the missing 13 lines and 8 partial branches were the frame
+  guards in `handle` (a frame that is not a message, an empty one, one past the
+  character cap, a visitor past their rate limit), the two endings that produce no
+  words, and `_files`. All are covered. (#663)
+
+## [0.0.122] - 2026-08-13
+
+A platform's second way in built its own idea of what a message is, and the two
+disagreed about files.
+
+### Fixed
+
+- **Each adapter now has exactly one parser.** Every platform has two ways in — a
+  webhook and a stream, or long-polling — and the second one built its own
+  normalised message: Telegram's polling loop read text and nothing else, and the
+  Mattermost outgoing webhook read no `file_ids` at all. So somebody dropping a
+  spreadsheet on a bot had it silently discarded, depending only on which
+  transport that deployment happened to run — and long-polling is what a
+  self-hosted install uses. Both now put the update back into the shape the
+  platform sends and hand it to the same `parse_incoming`, so what counts as a
+  message is decided once. What each transport is *handed* still differs, and that
+  is the platform's doing: Telegram's polling loop subscribes to new messages
+  only, so an edit reaches the webhook receiver and never the poller. (#672)
+
+## [0.0.121] - 2026-08-13
+
+A message's attachments were downloaded and stored twice, and the run was handed
+the second copy.
+
+### Fixed
+
+- **Each path fetched the files for itself.** A mention that names nobody of ours
+  falls through to the default assistant, and both halves called `_receive_files`
+  — so an ordinary message with a spreadsheet on it was downloaded from the
+  platform twice, stored twice, and run with the second set. The first row stayed
+  against the sender with nothing pointing at it, which on `chat_files` means
+  scoped by `user_id` alone and collected by nothing. The fetch now happens once,
+  above both paths, and is passed down. (#683)
+
+## [0.0.120] - 2026-08-13
+
+Reloading a conversation whose run is parked on an approval showed nothing to
+say so, at either end.
+
+### Added
+
+- **`GET /runs/{run_id}/parked`** answers a run's pending calls — the approval row
+  to decide, the tool call id, the tool and its arguments — the same payload the
+  live `tool_approval_required` frame carries. Gated on `approvals:decide`. (#601)
+
+### Fixed
+
+- **The step a run parked on rendered as though it had run.** The transcript now
+  stores those calls with `status="awaiting_approval"` rather than `running`, taken
+  off the runner's paused state for every non-streaming surface and off
+  `turn.parked` in web chat. The row does not read "waiting" for ever: a resume
+  settles it with what the call returned, an expiry with the timeout notice, and
+  both paths already existed. (#601)
+- **The approval panel never came back after a reload**, so the only way to finish
+  a parked run was the approvals queue on another page. This had always been true
+  of every non-streaming surface; #509 removed the stored notice that had been
+  covering for both halves, which is what made it visible. (#601)
+
+## [0.0.119] - 2026-08-13
+
+A channel turn refused before it ran left the files it had already stored behind,
+owned by nothing.
+
+### Fixed
+
+- **The bytes are stored before the agent is resolved, so whatever refuses in its
+  place has to give them back.** A turn that never produced a run left `chat_files`
+  rows nothing points at — and that table carries no organization, so an unlinked
+  row is scoped by `user_id` alone and no sweep collects it. Both refusal paths now
+  discard what the turn stored: the one that stores first and refuses second, and
+  the one where a handle names no agent of ours. A file that cannot be deleted
+  costs neither the other files nor the reply, because a cleanup that raised would
+  replace a refusal somebody can act on with a bot that answered nothing at all.
+  (#661, #690)
+
+## [0.0.118] - 2026-08-13
+
+A crashed turn told the chat panel whatever the provider's SDK had put in its
+exception.
+
+### Fixed
+
+- **The `error` frame carried `str(exc)` of whatever came out of the run.** A
+  provider SDK puts the failing request in its message, so that routinely meant an
+  endpoint, an internal host, or a URL with a key still in its query string —
+  reaching a member's chat panel and their browser console rather than an HTTP
+  body, which is where #342 fixed the same leak. The exception's text now stays in
+  the `logger.exception` beside the send, and the frame names only what the reader
+  can act on. The class still goes out, because it separates an upstream that
+  timed out from one that refused a credential and a class name has never carried
+  a URL. Our own refusals do not come through here at all — an `AppException` and
+  a `BudgetExceeded` are caught above and passed through whole, since their
+  messages are written in this repository. (#659)
+
+## [0.0.117] - 2026-08-13
+
+A failed run stored the provider's own error text in a column that run history
+renders for weeks.
+
+### Fixed
+
+- **`agent_runs.error` held `str(exc)` of whatever came out of the run.** It is a
+  stored column on `AgentRunRead`, rendered in run history to every member who can
+  read it, and what raises there is a model client with `httpx` underneath — so
+  that routinely meant an endpoint, an internal host, or a URL with a key still in
+  its query string, sitting in a row somebody opens weeks later. The same rule as
+  #342 in an HTTP body, #423 in the ingestion columns and #659 in the chat frame,
+  with the longest life of the four. Our own refusals are kept whole, because an
+  `AppException` raised inside the run is written in this repository and its
+  message is the most useful thing an operator can be shown. Anything else stores
+  its type, plus the status code when a provider answered one — 401 a credential,
+  404 a model the profile names and the provider does not have, 429 a rate limit —
+  where a bare class name would make all four `ModelHTTPError`. A group is
+  unwrapped to its first leaf first, so an MCP toolset or a delegated run does not
+  spend that status code on an `ExceptionGroup` that diagnoses nothing. (#676)
+
+## [0.0.116] - 2026-08-13
+
+A failing tool named a search provider's endpoint, with the key still in the
+query string, to everyone watching the run.
+
+### Fixed
+
+- **A `tool_result` frame carried whatever the tool that raised had put in its
+  `ModelRetry`.** `web_search` builds one out of the `httpx` or SDK exception it
+  caught, so a broken key put `401 Unauthorized for url
+  'https://api.tavily.com/search?…'` — an endpoint, a host and whatever the query
+  string held — into the chat panel and the browser console of everyone watching.
+  An MCP tool's retry is a third party's string entirely, which is why the frame
+  is trimmed where it is sent rather than at each raise. The frame still names the
+  tool, because a card that resolves saying which step failed is the difference
+  from one that spins for ever, and the tool's own text goes to the log beside the
+  send. The model reads the retry whole either way — Pydantic AI puts the part
+  into the next request itself. Applied in `run_stream.py`, so the widget, a
+  hosted page and a channel are covered by the same sentence web chat is. (#681)
+
+## [0.0.115] - 2026-08-13
+
+A file link that fails no longer takes the transcript of a paid run with it.
+
+### Fixed
+
+- **The write linking a channel turn's files to its message shared the
+  transcript's SAVEPOINT**, so an exception from it rolled back the user turn,
+  the settled tool calls and the assistant message — for a run that had already
+  spent money, over a file. It now has a savepoint of its own inside that one:
+  it is the only write there touching rows the conversation does not own, and a
+  failure costs the link alone. Web chat has always made this trade for the same
+  write, in `persist_user_turn`. The savepoint is skipped outright when nothing
+  was attached, because opening and releasing one on every turn in the deployment
+  is a real cost for a list that is almost always empty. (#690)
+
+## [0.0.114] - 2026-08-13
+
+The security page described an authorization model that was deleted three
+months ago.
+
+### Fixed
+
+- **`SECURITY.md` documented `RoleChecker` and `UserRole.USER` / `UserRole.ADMIN`
+  as the authorization model.** The `users.role` column went in migration `0066`;
+  authority inside an organization is a membership row plus the permission
+  catalog, and has been since. A security page is read by somebody deciding
+  whether to trust a deployment, so being three months stale there costs more
+  than elsewhere. It now describes the three layers and points at
+  `docs/permissions.md`.
+- **The hardening checklist named no rate limits at all**, which left an operator
+  no way to know the public surfaces have them. It now lists the per-surface
+  limits — the embed widget's per-visitor cap and each channel bot's
+  `rate_limit_rpm` — and says plainly that the console's own routes are not
+  metered.
+- **The audit-log entry named a table that does not exist.**
+  `app_admin_audit_log` is `app_admin_audit_logs`, and organization-level actions
+  carry a trail of their own gated by `audit:read`, which the page did not
+  mention. (`docs/governance.md`)
+
+## [0.0.113] - 2026-08-13
+
+Every surface — web chat, the embed widget, a channel bot, and the hosted page
+this adds — now runs the same turn loop, remembers its conversation and is rate
+limited. The three W2 surface issues were one thread of work, and doing them
+apart is how the surfaces drifted in the first place.
+
+### Added
+
+- **A hosted chat page.** `/e/{publicKey}` serves an agent as a page rather than
+  a snippet somebody has to embed: `hosted_config` holds the copy, the accent and
+  the logo, a visitor keeps their thread across reloads, and a published page can
+  be edited afterwards. Migrations `0022`, `0023` and `0025`. (#517)
+- **The embed WebSocket is offered as an integration, not only documented.**
+  `socket_url_for` sits beside `snippet_for` and rides the same read schema, so
+  the panel publishes both with the `Origin` rule beside them. It carries no
+  `?token=` — in `jwt` mode a token is minted per visitor, and one printed in a
+  panel is a working credential on a shared screen. (#516)
+- **A run records which channel identity asked for it.**
+  `agent_runs.channel_identity_id`, migration `0024`. (#639)
+
+### Fixed
+
+- **A thread past 200 messages sent the model its *first* 200.** The window read
+  from the start of the conversation rather than the end, so the longer a thread
+  ran the staler the context it was answered from. `count_messages` plus `skip`
+  makes the window the last 200. (#636, #638)
+- **A group channel refused every sender who had never linked an account.** A room
+  now admits an unlinked speaker and the turn runs as the binding's creator; a DM
+  is unchanged, and `require_link: true` is the opt-out. (#639)
+- **An update sending `null` answered 500 on a `NOT NULL` column.**
+  `app/db/updates.py` lets the column decide instead of a hand-kept list, applied
+  to every `*Update` and guarded over `app/services/**` and `app/api/**`. (#637)
+- **The cookie banner covered Send on a hosted page.** Not rendered on `/e/**` or
+  `/shared/**` — neither has an optional cookie to consent to. (#644)
+- **The widget was the only surface passing no `message_history`**, so it forgot
+  the conversation between turns. It now streams the frames the web chat does,
+  and `EmbedSession` takes a session factory and opens one per turn, so an idle
+  socket holds no pooled connection. (#39)
+
+### Changed
+
+- **One copy of "an anonymous surface runs as its publisher".**
+  `access.publisher_context` is read by the embed session and by channels; there
+  were two implementations that had already begun to disagree. (#640)
+- **A channel thread has participants.** `/chat` shows a room's thread to
+  everybody whose linked account has spoken in it, as a `DISTINCT` over
+  `messages.channel_identity_id`. Reading and writing became two questions in the
+  process: speaking in a room is a claim on being shown the thread, never on
+  deleting or renaming it. Migrations `0026` and `0027`. That record says who
+  spoke and is never re-checked against the platform, so somebody removed from a
+  channel keeps reading the thread here — deliberately not closed, and #641 says
+  why.
+
+## [0.0.112] - 2026-08-12
+
+The copy guard reads the frontend with a TypeScript parser instead of five
+regexes, and the 137 English strings it can now see are in the catalog.
+
+### Changed
+
+- **The i18n guard parses instead of grepping, and the copy it found is in the
+  catalog.** `scripts/check_i18n.py` had been patched for a new shape four times
+  (#199, #246, #249, #314) and each fix was correct: the pattern was the problem.
+  Reading a `.tsx` file as text means deciding per candidate whether you are looking
+  at TypeScript or JSX, so every rule carried a threshold standing in for a parse
+  and the next shape fell between two of them. The last one was one word wide —
+  `` aria-label={`Remove ${source.name}`} `` sat below a two-word threshold that
+  existed to keep `` `audience${key}Hint` `` out. It is now
+  `frontend/scripts/check-i18n.ts`, walking `JsxText`, `JsxExpression`,
+  `StringLiteral` and `TemplateExpression` through `ts.createSourceFile`: a node the
+  formatter broke over three lines is one node, a type argument list is not JsxText
+  at all, and a comment is invisible rather than blanked. `MIXED`, `COUNT`, `LEAD`,
+  `JSX_TEXT`, `mask_generics`, `readable`, `NOT_PROSE` and both word-count
+  thresholds are deleted rather than ported; every policy rule carries over.
+  Runs from `make lint-frontend` (`bun run check:i18n`) and a new pre-commit hook,
+  with `frontend/scripts/check-i18n.test.ts` in place of the five
+  `backend/tests/test_check_i18n_*.py` files. Closes #395 and #141. (#610)
+- **131 hardcoded strings answered, and 34 dead keys deleted.** What the parser
+  reports on the tree before the sweep, in 66 files: 64 template literals, 62 text
+  nodes, 4 strings and a toast. That is the one-word template literals #395
+  measured (`aria-label`s and toasts — `Open ${org.name}`, `${name} updated.`), the
+  multi-line text nodes #141 measured (the 404 page, `global-error.tsx`, the
+  magic-link step, four legal paragraphs), and eight confirm-dialog titles a bare
+  `?` on the machine-read list had been exempting. 128 became messages; three took a
+  reasoned `i18n-exempt` — two on the error boundary that renders above
+  `NextIntlClientProvider`, one on a capability's wire format. A sentence split across an
+  element is now one `t.rich` message rather than a head, a `<span>` and a tail,
+  which is what made the 34 fragment keys dead — the guard's own `unreadKeys` named
+  every one. Three decisions worth recording. A number and its unit is a formatter
+  rather than a message — `` `${bytes} KiB` `` is the shape, and `ctx` joined the
+  unit list for the model picker's badge — so the fourteen of those take a rule
+  rather than fourteen exemptions. `PROVIDER_DEFAULT` holds a key now instead of the
+  words, per the module-table rule. And `result: ` in `run-python.tsx` keeps an
+  exemption, because `parseResult` beside it matches the string literally. (#610)
+
+### Fixed
+
+- **An `i18n-exempt` now covers the element it opens.** It applied to its own line
+  and the next, so the three exemptions in `app/not-found.tsx` — written above an
+  `<h1>` whose words are on the third line, because the opening tag carries four
+  Tailwind classes — covered the tag and missed the copy. Nothing noticed while a
+  text node alone on its line matched no rule at all. A reason worth two lines
+  covers the code under the whole comment block, too. (#610)
+- **The parser reads a `.ts` file, which is what kept #446 closed.** The port
+  landed with the offence sweep narrowed back to `*.tsx`, because the branch was
+  cut before #446 was fixed. Merging it that way would have taken the `.ts` sweep
+  out again — every `toast.success("…")` in `src/hooks/**` invisible, and nothing
+  stopping the 381 strings #446 migrated from coming back. The sweep reads both
+  suffixes now, by the same rules: a parser has no bracket to anchor on, so
+  nothing needs gating on the suffix. `src/app/api/**` keeps its skip, still at
+  the sweep rather than in a rule, because a route payload is a string a rule
+  reads perfectly well and what excuses it is where it lives (#603). Six strings
+  the widened sweep found are in the catalog: `timeAgo`'s three relative-time
+  labels as ICU plurals, the stream-error prefix, `chunk {number}`, and
+  `summarizeEmbedding` — deleted rather than translated, having had no caller but
+  its own test. (#610)
+- **A key was checked against the wrong namespace when a file held two
+  translators.** `missingKeys` unioned every namespace in a file, so a key read
+  through one translator counted as present if any *other* namespace held it. That
+  hid eight keys on the admin conversations page: `archived`, `active`, `all`,
+  `allOwners` and `allAgents` were read through a `useTranslations("admin")` while
+  only `pages.admin` held them, so all eight rendered as their own key strings on
+  screen in every locale. A call now resolves to the nearest enclosing binding of
+  that name — by scope, because one page binds `getTranslations("pages.meta")` in
+  `generateMetadata` and `getTranslations("pages.auth")` below it, both called
+  `t`, and keying on the name alone reports 157 live keys as missing. Where the
+  walk finds no binding it falls back to every namespace that name takes. (#610)
+- **`` `Bearer ${token}` `` was reported as copy.** An auth header value is the one
+  header shape `MACHINE_READ`'s character class cannot see, holding no punctuation
+  at all, so the whitespace rule read it as a word beside an interpolation. Only
+  latent while the sweep skipped `.ts`; both call sites are in `src/lib`. (#610)
+- **A ternary between two one-word labels in a readable prop was read by nothing.**
+  `aria-label={busy ? "Saving" : "Save"}` passed the attribute rule, which read a
+  bare literal, and `readString`, which wants a capital and a space before it calls
+  something a sentence — #395's own defect wearing a ternary. A label is
+  capitalised or holds a space, which keeps `dir === "asc" ? "desc" : "asc"` out.
+  (#610)
+- **A toast holding a sentence was reported twice**, once by each rule that owns
+  it, inflating the count a person works through. The toast rule keeps its
+  argument. (#610)
+
+## [0.0.111] - 2026-08-12
+
+The pricing caveat on the cost screen says which breakdown it measures and which
+it only marks.
+
+### Fixed
+
+- **One caveat, three breakdowns, and three places claiming it measured all
+  three.** "Some runs could not be priced" counts top-level runs — one per run
+  tree, the same rows *By agent* groups — so it measures that breakdown and only
+  *marks* By provider and By key, which sum every row's own spend, delegated rows
+  included. One parent with three unpriced delegates therefore reads `1` while
+  three figures below it are a floor. The two schema descriptions, the route
+  comment, the rendering side and `docs/governance.md` now say that instead of
+  claiming the figure and "its breakdown" cannot disagree. Descriptions, comments
+  and tests only — no behaviour change. (#597)
+- **The invariant behind it was untested end to end**: no breakdown is a floor
+  without a figure on the same page saying so. Two integration tests now pin it —
+  a priced parent with an unpriced delegate reads `1` above a provider split that
+  is the delegate's own spend, and one parent with two unpriced delegates still
+  reads `1`, with the delegate's own row counted nowhere. (#597)
+
+Checked and not changed: the marker itself is sound. The reported sequence — an
+unpriced delegate leaving the count at `0` — is not reachable, because a run tree
+shares one spend ledger and the top-level row is written from it.
+
+## [0.0.110] - 2026-08-12
+
+A turn that stopped for an approval no longer says so in the agent's own voice,
+in a transcript that keeps it forever.
+
+### Fixed
+
+- **The approval notice was stored as the agent's words.** A chat turn that
+  parked on an approval wrote *"This run needs approval before it can go further
+  — it is waiting in the approvals queue."* into the assistant message's
+  `content`. The moment somebody approved, that sentence was false, and it stayed
+  in the transcript attributed to the agent, in the middle of a turn that plainly
+  did go further — visible between two steps that both ran, since a run's segments
+  are drawn as one turn. It was never the model's text; it was UI state written
+  into the one field that keeps things forever. A parked run now records no answer
+  of its own, which is what every surface that does not stream already did — web
+  chat was the one place inventing a sentence. That a run is parked is still said
+  by the two things that stop saying it once the decision is made: the step it
+  stopped on, and the approval panel. (#509)
+- **A model that explained itself before asking for a gated call had that
+  explanation overwritten.** A parked turn now persists what was streamed before
+  it stopped, the same route a turn that failed, was stopped or lost its socket
+  already takes. Usually empty; not always. (#509)
+
+Known, and no longer covered for: a still-parked run says nothing about waiting
+once the page is reloaded — the stored tool-call row keeps `status="running"` and
+renders as a finished step, and the approval panel is only ever raised by a live
+socket frame. Every non-streaming surface has always looked like this; the notice
+was accidentally hiding it here. (#601)
+
+## [0.0.109] - 2026-08-12
+
+The suite reaches no Prefect server on a laptop either, so what a developer runs
+is what CI runs.
+
+### Fixed
+
+- **A test that called a flow needed a Prefect server listening on
+  `localhost:4200`.** Prefect resolves its own settings from `backend/.env` — its
+  settings model carries `env_file=".env"` — so the `PREFECT_API_URL` line
+  `make dev` needs was also the address a test's flow call tried to reach, and it
+  failed as `Failed to reach API at …` out of a test that patches every
+  collaborator it has. CI never saw it: with no `.env` there is no URL, so what a
+  laptop ran was never what CI ran. The URL is now assigned *empty* before Prefect
+  is imported — deleting it would leave the dotenv source to answer, and an empty
+  assignment outranks that source because Prefect's model carries
+  `env_ignore_empty=False` — and Prefect reads an empty URL as no URL, running the
+  flow against a temporary server of its own, which is what CI has always done.
+  Unconditionally, so a developer with `make dev` up gets the same run rather than
+  a different code path. (#536)
+- **That temporary server wrote into a developer's own Prefect database.**
+  Its state is a SQLite file under `PREFECT_HOME`, which is `~/.prefect` unless
+  something says otherwise — the same file a locally run `prefect server` has
+  open. It now points at a directory of the tests' own, for the same reason the
+  test database name does. (#536)
+- **And starting it inside Prefect's own 20-second allowance failed on a first
+  run.** The server migrates its database before it answers: about 75 seconds cold
+  against a `PREFECT_HOME` nothing has written, about seven warm. Trading a
+  deterministic failure for a first-run one is not a fix, so the allowance is 90
+  seconds, and ephemeral mode is named rather than inherited — with it off a flow
+  call does not fail fast, it retries for 75 seconds and then fails. (#536)
+
+## [0.0.108] - 2026-08-12
+
+The backend suite runs in a random order, and the first shuffle found a
+connection-pool defect that had been hiding behind collection order.
+
+### Added
+
+- **`pytest-randomly`, and the documentation that described it is now true.**
+  Two pages said the shuffle was on by default while the plugin was in neither
+  `pyproject.toml` nor the lockfile: the suite ran in collection order, the
+  documented `-p no:randomly` was a silent no-op, and the order-independence
+  those pages called verified had never been exercised by that mechanism. The
+  seed is printed in the header and reaches every xdist worker through
+  `workerinput`, so `-n auto` collects one order rather than four. A guard test
+  asserts the *declaration*, so removing the dependency fails a test rather than
+  silently un-shuffling the suite. (#571)
+
+### Fixed
+
+- **A closed event loop's connection was left in the app engine's pool.**
+  `app.db.session.engine` is a module-level object, so its pool outlives the test
+  that filled it, while anyio gives every test its own event loop — and a
+  connection created on a loop that has since closed answers
+  `cannot perform operation: another operation is in progress` for the next
+  statement issued through it, in whichever test checked it out. The two files
+  driving the real `get_db_session` each disposed the engine on the way *out*,
+  which covers only the pair of them; anything else sharing the xdist worker
+  could leave a connection there. The `engine` fixture now disposes on the way
+  *in*, and the two per-file disposes are gone. Pre-existing — which tests share
+  a worker was already decided at run time by `--dist load`; the shuffle only
+  changed the adjacencies and made it surface, red on run 6 of 8. (#571)
+
+## [0.0.107] - 2026-08-12
+
+Picking Polish now survives the next click.
+
+### Fixed
+
+- **The language switcher redrew the current page and nothing more.** The
+  locale's entire persistence was the `/pl` URL prefix, and under
+  `localePrefix: "as-needed"` a path without a prefix *is* the default locale —
+  so every ordinary `<Link href="/agents">` and `router.push("/orgs")` in the app
+  dropped the prefix and the language with it, and a reload never brought Polish
+  back either. next-intl reads a `NEXT_LOCALE` cookie itself, but only under
+  `localeDetection`, which also turns on `accept-language` sniffing — and this
+  deployment serves English at the root whatever the browser asks for. So nothing
+  wrote the cookie and nothing read it. One routing config now backs both the
+  middleware and the navigation APIs: the switcher writes the cookie with a
+  year's `maxAge`, making the choice a preference rather than a session, and the
+  middleware redirects an unprefixed path to the picked locale while still
+  ignoring `accept-language`. A path that names a locale always wins, so a shared
+  `/pl/...` URL still means what it says. (#285)
+
+## [0.0.106] - 2026-08-11
+
+The seam that puts a chart in a Slack reply is covered, so the line holding it
+there can no longer be deleted with a green suite.
+
+### Fixed
+
+- **A chart could stop reaching a channel reply without a single test
+  noticing.** `drawn_chart` was covered on its own and the runner's hand-back of
+  the tool calls a turn made was covered on its own; nothing joined them. Every
+  test of `ChannelAgentRouter.answer` mocks the runner, so the list of calls
+  stays empty and `image_png` is always `None` — which means `tool_calls=called`
+  could be deleted from either call site in `channels/mentions.py` with a green
+  suite and a 100% coverage gate, and a Slack user would be back to reading
+  "here is the chart" under no chart. Both reply paths now run against a stub
+  runner that fills the list the way the real one does, and assert on the PNG
+  rather than on a mock call; the stub takes the tool calls as a *required*
+  keyword, so a router that stops passing them fails loudly. (#515)
+
+Two things the issue behind this asserted did not survive checking, recorded
+here rather than left open: the line it named was already covered by the pull
+request that exposed it, and CI was never green while the local gate was red —
+the same 99.98% failure was red there for seven runs, so this was not a
+`make check` / CI divergence.
+
+## [0.0.105] - 2026-08-11
+
+`next build` no longer touches the network, so a CDN nobody in this repository
+controls can no longer fail a frontend build.
+
+### Fixed
+
+- **Every green frontend build so far was luck of the CDN.**
+  `next/font/google` resolves a family against `fonts.gstatic.com` at build
+  time, and when gstatic 404s the `.woff2` Turbopack surfaces it as
+  `Module not found: Can't resolve
+  '@vercel/turbopack-next/internal/font/google/font'` and exits non-zero — which
+  is `test-frontend`'s `Build` step and `e2e`'s `Build the frontend` step. On
+  2026-08-10 it took out two pull requests inside one push window (#570,
+  Bricolage, six errors; #544, Inter, twenty-eight) while a third built fine.
+  Bricolage Grotesque, Inter and Geist Mono are now vendored under
+  `frontend/src/app/fonts/` and read by `next/font/local` — the latin subset of
+  each, range-limited to the weights in use, 113 KB across the three, with SIL
+  OFL 1.1 and all three copyright notices beside them. A regression test asserts
+  no module imports the Google helper and that the set of `.woff2` on disk is
+  exactly the set `layout.tsx` declares, compared in both directions. (#572)
+
+- **The coverage gate failed at random, on branches with no Python in them.**
+  Exactly 99.98%, twice tonight: on a frontend-only change and on a commit that
+  bumped three version strings. The missed line was the `continue` in
+  `catalog.custom_icon`, reachable only when `glob` yields a non-matching mark
+  first — `scandir` order, which on the runners' ext4 volumes is hash order, not
+  alphabetical. A test that asks for a name matching no mark in a directory
+  holding two now reaches it whatever the order. A red `test` job at 99.98% on a
+  diff that touched no Python is this, and reading it as the branch's fault cost
+  an hour. (#625)
+
+Known, unchanged: the vendored subsets are `latin` only — exactly what
+`subsets: ["latin"]` asked for before — so Polish diacritics on the `pl` locale
+still fall through to the system font.
+
+## [0.0.104] - 2026-08-11
+
+A channel message the platform delivers twice is answered once, and the decision
+is the Redis claim rather than a retry header that cannot know.
+
+### Fixed
+
+- **A redelivered channel message became a second full agent run.** Another model
+  call, another spend record, another answer in the thread. The fast 200 the
+  webhook routes return only prevents the slow-handler retry; a 200 lost on the
+  wire — a proxy drop, a pod rotation — was never received, and the redelivery
+  that follows is valid, signed and brand-new. The first delivery now claims the
+  message with one atomic `SET NX` against the shared Redis, so the claim holds
+  across API workers, and it lives fifteen minutes — longer than every platform's
+  retry window. Taken in `ChannelMessageRouter.route` rather than the worker shim,
+  because the three polling paths call the router directly and a claim in the shim
+  would have covered three inbound paths of six; keyed with the chat id, because
+  Telegram numbers messages per chat and Slack's `ts` is per channel. (#167)
+- **A run that did not finish swallowed every redelivery for fifteen minutes.**
+  The claim is taken on receipt, not on completion, so it is given back when the
+  run under it dies — under `BaseException`, so a task cancelled while the pod
+  drains counts as one. Harmless on the webhook paths, where the 200 has already
+  gone out, but the pollers re-read what the process died on: aiogram re-fetches
+  an unconfirmed `getUpdates` batch and Socket Mode redelivers an unacknowledged
+  envelope. (#167)
+- **Nothing is refused on a retry header alone.** A Slack request carrying
+  `x-slack-retry-num` is logged and then processed like any other. The header says
+  Slack is redelivering; it does not say the first attempt did any work, and
+  `reason=http_error` means it explicitly did not — the route raised before
+  `spawn`, so nothing was scheduled and no claim was taken. A transient database
+  error in `find_active` was enough to lose a message that way: 500, redelivery,
+  200, and a log line reading like a success. (#167)
+
+The guarantee degrades open, never shut, and always with a log line: a message
+with no id, an unconfigured module and an unreachable Redis are all processed
+rather than dropped. A duplicated answer is the rarer, cheaper failure than a
+dropped question.
+
 ## [0.0.103] - 2026-08-11
 
 The Builder says when the agent people are talking to is not the one on screen,

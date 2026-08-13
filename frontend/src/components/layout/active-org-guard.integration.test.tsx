@@ -9,7 +9,12 @@ import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
 import { useOrgStore } from "@/stores";
 
-vi.mock("next/navigation", () => ({ usePathname: () => "/dashboard" }));
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/dashboard",
+  // next-intl's createNavigation wraps these at module scope; see `vitest.setup.ts`.
+  redirect: vi.fn(),
+  permanentRedirect: vi.fn(),
+}));
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/lib/api-client", async () => {

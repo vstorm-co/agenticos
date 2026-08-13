@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { ChevronLeft, ChevronRight, ExternalLink, Search } from "lucide-react";
 
 import {
@@ -65,6 +65,8 @@ function UserAvatar({
 
 export default function AdminConversationsPage() {
   const t = useTranslations("admin");
+  const tc = useTranslations("common");
+  const locale = useLocale();
   const {
     conversations,
     conversationsTotal,
@@ -222,7 +224,7 @@ export default function AdminConversationsPage() {
           </SortButton>
         ),
         cell: (conv) => (
-          <span className="text-muted-foreground">{formatDate(conv.created_at)}</span>
+          <span className="text-muted-foreground">{formatDate(conv.created_at, locale)}</span>
         ),
       },
       {
@@ -271,8 +273,8 @@ export default function AdminConversationsPage() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="active">{t("active2")}</SelectItem>
-            <SelectItem value="archived">{t("archived2")}</SelectItem>
+            <SelectItem value="active">{t("active")}</SelectItem>
+            <SelectItem value="archived">{t("archived")}</SelectItem>
             <SelectItem value="all">{t("all")}</SelectItem>
           </SelectContent>
         </Select>
@@ -285,7 +287,7 @@ export default function AdminConversationsPage() {
             <SelectValue placeholder={t("allOwners")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">{t("allOwners2")}</SelectItem>
+            <SelectItem value="all">{t("allOwners")}</SelectItem>
             {userOptions.map((u) => (
               <SelectItem key={u.id} value={u.id}>
                 <span className="flex items-center gap-2">
@@ -309,7 +311,7 @@ export default function AdminConversationsPage() {
             <SelectValue placeholder={t("allAgents")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">{t("allAgents2")}</SelectItem>
+            <SelectItem value="all">{t("allAgents")}</SelectItem>
             {agents.map((agent) => (
               <SelectItem key={agent.id} value={agent.id}>
                 <span className="flex items-center gap-2">
@@ -328,7 +330,7 @@ export default function AdminConversationsPage() {
           <SelectContent>
             {PAGE_SIZE_OPTIONS.map((n) => (
               <SelectItem key={n} value={String(n)}>
-                {n} / page
+                {tc("perPage", { count: n })}
               </SelectItem>
             ))}
           </SelectContent>
@@ -384,13 +386,14 @@ function PaginationBar({
   onNext: () => void;
 }) {
   const t = useTranslations("pages.admin");
+  const tc = useTranslations("common");
   if (total === 0) return null;
   const start = page * pageSize + 1;
   const end = Math.min(total, (page + 1) * pageSize);
   return (
     <div className="flex items-center justify-between">
       <span className="text-muted-foreground text-sm">
-        {start}–{end} of {total}
+        {tc("rangeOfTotal", { start, end, total })}
       </span>
       <div className="flex items-center gap-1">
         <Button

@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -86,12 +86,21 @@ async def _run(
     agent: Agent,
     cost: Decimal,
     secret: OrganizationSecret | None = None,
+    partial: bool = False,
+    started_at: datetime | None = None,
 ) -> AgentRun:
     """A run somebody started, opened and finished the way every surface does.
 
     On OpenAI, because the delegate below runs on Anthropic: the provider split is
     where double-counting is least visible - the same money appears under two
     vendors at once, and each looks plausible on its own.
+
+    `partial` is what the run's ledger answered about pricing, which is a question
+    about the whole tree: a delegate on a model with no price makes this row a
+    floor too, because parent and delegate book into one ledger.
+
+    `started_at` is the column every spend window filters on, so it is what puts a
+    run inside or outside the one being asked about.
     """
     run = await agent_run_repo.create_run(
         db,
@@ -104,7 +113,7 @@ async def _run(
         model_label="gpt-4.1",
         provider="openai",
         secret_id=None if secret is None else secret.id,
-        started_at=datetime.now(UTC),
+        started_at=datetime.now(UTC) if started_at is None else started_at,
     )
     return await agent_run_repo.finish_run(
         db,
@@ -113,7 +122,7 @@ async def _run(
         input_tokens=1000,
         output_tokens=100,
         cost_usd=cost,
-        cost_is_partial=False,
+        cost_is_partial=partial,
         ended_at=datetime.now(UTC),
     )
 
@@ -128,6 +137,8 @@ async def _delegated(
     cost: Decimal,
     task_id: str = "4f2a1b8c",
     secret: OrganizationSecret | None = None,
+    partial: bool = False,
+    started_at: datetime | None = None,
 ) -> AgentRun:
     """A delegation, written the way `finish` writes one: complete, in one insert.
 
@@ -135,7 +146,7 @@ async def _delegated(
     while the run was still going - and the foreign key is the thing this proves:
     the parent's row has to exist by the time these are written.
     """
-    moment = datetime.now(UTC)
+    moment = datetime.now(UTC) if started_at is None else started_at
     return await agent_run_repo.record_delegated_run(
         db,
         run_id=uuid.uuid4(),
@@ -155,7 +166,9 @@ async def _delegated(
         input_tokens=500,
         output_tokens=50,
         cost_usd=cost,
-        cost_is_partial=False,
+        # This delegation's own requests, not the run's - the parent carries the
+        # tree's answer, and both are written from the one terminal write.
+        cost_is_partial=partial,
         started_at=moment,
         ended_at=moment,
     )
@@ -482,6 +495,203 @@ class TestTheCostScreen:
         assert sum(row.cost_usd for row in by_agent) == month_to_date
         assert sum(row[1] for row in by_provider) == month_to_date
         assert sum(row[2] for row in by_key) == month_to_date
+
+    async def test_an_unpriced_delegate_is_marked_above_the_splits_it_makes_a_floor(self, db):
+        """No breakdown on this page is a floor without a figure on it saying so.
+
+        The caveat counts top-level runs; By provider and By key sum every row's
+        own spend, delegated rows included (#194). So an unpriced *delegate* makes
+        those two a floor through a row the caveat never looks at, and what keeps
+        the figure non-zero above the vendor it marks is the parent's row being
+        written a floor as well (#597).
+
+        Both rows are written partial here, which is the state that shared ledger
+        produces rather than a proof of it - `tests/test_delegation_seams.py` is
+        where the parent inherits its delegate's unpriced request. What this pins
+        is the arithmetic downstream of it.
+        """
+        org = await _org(db)
+        orchestrator = await _agent(db, org, slug="orchestrator")
+        researcher = await _agent(db, org, slug="researcher")
+        key = await _secret(db, org, name="Shared key")
+        parent = await _run(
+            db, org=org, agent=orchestrator, cost=Decimal("1.00"), secret=key, partial=True
+        )
+        await _delegated(
+            db,
+            org=org,
+            agent=researcher,
+            version=await _version(db, researcher),
+            parent=parent,
+            cost=Decimal("0.40"),
+            secret=key,
+            partial=True,
+        )
+        service = AgentRunnerService(db)
+        ctx = AuthContext(user_id=None, organization_id=org.id, role=OrgRoleName.OWNER)
+
+        by_agent = await service.spend_by_agent(ctx, since=month_start())
+        by_provider = await service.spend_by_provider(ctx, since=month_start())
+
+        # The sum the route renders above all three breakdowns.
+        assert sum(row.partial_run_count for row in by_agent) == 1
+        # And the figure it is a caveat about: Anthropic's share is the delegate's
+        # own spend, so that row is the floor the count above it is announcing.
+        assert {provider: cost for provider, cost, _runs in by_provider}["anthropic"] == Decimal(
+            "0.40"
+        )
+
+    async def test_a_tree_that_straddles_the_start_of_the_window_is_still_marked(self, db):
+        """No breakdown is a floor without a figure on the same page saying so,
+        and a window boundary inside the tree does not suspend that.
+
+        The caveat's top-level count carries the window, so a parent that started
+        before the window and delegated inside it used to put its delegate's own
+        spend under a vendor and a key - the two splits price every row in the
+        window through a subquery that is deliberately not windowed
+        (:func:`_own_cost`) - and nothing at all under the count above them
+        (agenticos#620). The count now reaches the delegate's row: it carries the
+        mark on the agent it ran as, because the parent row that would otherwise
+        carry it is outside every aggregate on the page.
+        """
+        org = await _org(db)
+        orchestrator = await _agent(db, org, slug="orchestrator")
+        researcher = await _agent(db, org, slug="researcher")
+        since = datetime.now(UTC) - timedelta(hours=1)
+        parent = await _run(
+            db,
+            org=org,
+            agent=orchestrator,
+            cost=Decimal("1.00"),
+            partial=True,
+            started_at=since - timedelta(hours=2),
+        )
+        await _delegated(
+            db,
+            org=org,
+            agent=researcher,
+            version=await _version(db, researcher),
+            parent=parent,
+            cost=Decimal("0.40"),
+            partial=True,
+            started_at=since + timedelta(minutes=30),
+        )
+        service = AgentRunnerService(db)
+        ctx = AuthContext(user_id=None, organization_id=org.id, role=OrgRoleName.OWNER)
+
+        by_agent = await service.spend_by_agent(ctx, since=since)
+        by_provider = await service.spend_by_provider(ctx, since=since)
+
+        assert sum(row.partial_run_count for row in by_agent) == 1
+        # On the agent the delegate ran as - the only row of the tree the window
+        # can see - not on the orchestrator, whose run is outside the window.
+        counts = {row.agent_name: row.partial_run_count for row in by_agent}
+        assert counts["Researcher"] == 1
+        # The floor that count announces: the delegate's own spend, at the vendor
+        # it was spent with, from a row written `cost_is_partial`.
+        assert {provider: cost for provider, cost, _runs in by_provider}["anthropic"] == Decimal(
+            "0.40"
+        )
+
+    async def test_a_straddling_tree_counts_once_however_many_delegations_crossed(self, db):
+        """The trees-not-rows rule holds across the window's edge: one parent
+        outside it, two unpriced delegations inside it, and the figure reads 1 -
+        distinct parents, not delegated rows."""
+        org = await _org(db)
+        orchestrator = await _agent(db, org, slug="orchestrator")
+        researcher = await _agent(db, org, slug="researcher")
+        version = await _version(db, researcher)
+        since = datetime.now(UTC) - timedelta(hours=1)
+        parent = await _run(
+            db,
+            org=org,
+            agent=orchestrator,
+            cost=Decimal("1.00"),
+            partial=True,
+            started_at=since - timedelta(hours=2),
+        )
+        for cost, task_id in ((Decimal("0.40"), "4f2a1b8c"), (Decimal("0.30"), "9c1d2e3f")):
+            await _delegated(
+                db,
+                org=org,
+                agent=researcher,
+                version=version,
+                parent=parent,
+                cost=cost,
+                task_id=task_id,
+                partial=True,
+                started_at=since + timedelta(minutes=30),
+            )
+        ctx = AuthContext(user_id=None, organization_id=org.id, role=OrgRoleName.OWNER)
+
+        by_agent = await AgentRunnerService(db).spend_by_agent(ctx, since=since)
+
+        assert sum(row.partial_run_count for row in by_agent) == 1
+
+    async def test_a_priced_delegation_across_the_edge_raises_no_caveat(self, db):
+        """The parent's unpriced spend is outside the window, and the delegate's
+        own spend - the only money of the tree the splits sum - is fully priced.
+        The window's figures are exact, so a caveat here would mark a floor that
+        is not one."""
+        org = await _org(db)
+        orchestrator = await _agent(db, org, slug="orchestrator")
+        researcher = await _agent(db, org, slug="researcher")
+        since = datetime.now(UTC) - timedelta(hours=1)
+        parent = await _run(
+            db,
+            org=org,
+            agent=orchestrator,
+            cost=Decimal("1.00"),
+            partial=True,
+            started_at=since - timedelta(hours=2),
+        )
+        await _delegated(
+            db,
+            org=org,
+            agent=researcher,
+            version=await _version(db, researcher),
+            parent=parent,
+            cost=Decimal("0.40"),
+            started_at=since + timedelta(minutes=30),
+        )
+        ctx = AuthContext(user_id=None, organization_id=org.id, role=OrgRoleName.OWNER)
+
+        by_agent = await AgentRunnerService(db).spend_by_agent(ctx, since=since)
+
+        assert sum(row.partial_run_count for row in by_agent) == 0
+
+    async def test_the_caveat_counts_trees_rather_than_the_rows_the_splits_sum(self, db):
+        """One parent, two unpriced delegates, and the figure reads 1.
+
+        Its magnitude is top-level runs - which is what "3 of 40 runs" is counted
+        out of - so it marks By provider and By key without measuring them. The
+        delegate's own row is counted nowhere: its agent's `partial_run_count` is
+        the top-level runs *it* started, and it started none.
+        """
+        org = await _org(db)
+        orchestrator = await _agent(db, org, slug="orchestrator")
+        researcher = await _agent(db, org, slug="researcher")
+        version = await _version(db, researcher)
+        parent = await _run(db, org=org, agent=orchestrator, cost=Decimal("1.00"), partial=True)
+        for cost, task_id in ((Decimal("0.40"), "4f2a1b8c"), (Decimal("0.30"), "9c1d2e3f")):
+            await _delegated(
+                db,
+                org=org,
+                agent=researcher,
+                version=version,
+                parent=parent,
+                cost=cost,
+                task_id=task_id,
+                partial=True,
+            )
+        ctx = AuthContext(user_id=None, organization_id=org.id, role=OrgRoleName.OWNER)
+
+        by_agent = await AgentRunnerService(db).spend_by_agent(ctx, since=month_start())
+
+        assert {row.agent_name: row.partial_run_count for row in by_agent} == {
+            "Orchestrator": 1,
+            "Researcher": 0,
+        }
 
     async def test_the_delegates_own_month_is_still_its_own_spend(self, db):
         """The same service, the other question: what a budget alert on the

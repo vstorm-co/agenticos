@@ -124,6 +124,26 @@ keeps an invented role out is a validator on the member and invitation schemas,
 and if one ever got through, an unknown role resolves to no permissions rather
 than to somebody else's.
 
+### Who may hand out which role
+
+Holding `roles:manage` says a member may change roles; it does not say *which*.
+`assignable_roles` answers that from the catalog: a role may assign one whose
+authority it strictly exceeds - every permission the offered role holds, held at
+least as widely by the assigner, plus something the assigner holds that it does
+not. Two consequences, and both are the point:
+
+- **Nobody assigns `owner`**, because no role outranks it. Ownership moves
+  through `POST /orgs/{id}/transfer-ownership`, which demotes the outgoing owner
+  in the same breath; a role change that only promotes would leave two owners
+  and an audit entry reading `member.role_changed` (#672).
+- **Nobody assigns their own level.** An Admin may make a Builder or a Viewer,
+  never a second Admin - promoting a peer to your own level is an ownership
+  decision.
+
+Derived from the catalog rather than from a role name, so a custom role (Phase
+2) is bounded by what it actually holds. The ceiling this replaced compared
+against the literal `"admin"` and could not see one at all.
+
 Custom roles are Phase 2 and may only ever recombine the permissions above;
 clients cannot invent new ones.
 
@@ -165,6 +185,35 @@ taken away by the absence of a grant.
 3. Does the role's scope alone reach this row? If yes, done - no query.
 4. Only now is `resource_grants` consulted, and the level compared against the
    minimum the permission requires.
+
+### A surface with nobody in front of it
+
+`publisher_context` answers a different question in the same module: **which role
+does a turn take when the person cannot be named?** A widget on somebody's site, a
+hosted page behind a link, an agent bound to a Slack channel — the visitor is
+anonymous, or a chat account with no platform user behind it, and a run still needs
+a subject, because the role is what resolves what the agent may reach.
+
+The answer is **whoever published the surface**, and the fallback is the part worth
+knowing: `viewer` when that person is no longer a member, `viewer` when their
+account has been deactivated, and `viewer` when no publisher was recorded at all. A
+departure must not silently *widen* what a public surface reaches, and a widget on a
+customer's site outlives the person who pasted it.
+
+Deactivation counts because the membership row survives it. Being deactivated is
+refused on every path a person signs in through, so a role read off the membership
+alone left a deactivated Owner's widget, hosted page and channel binding answering
+at full authority — an account that cannot sign in, still spending the
+organization's budget. It is one joined read (`member_repo.get_active`) rather than
+two, because it is answered on every turn a public surface takes.
+
+Who **asked** is carried separately — `channel_identity_id`, the chat account that
+spoke. Merging the two would make a channel run claim the sender's authority, which
+is exactly what an unlinked sender does not have.
+
+One function rather than one per surface, since #640: it was written twice, against
+`agent_embeds.owner_user_id` and `agent_exposures.created_by_user_id`, and two
+copies of an authorization decision is one that gets fixed once.
 
 ### Listings
 
@@ -278,6 +327,21 @@ trail and the approval gate all key on one.
   the audit actor column is `NOT NULL` and letting the absence travel surfaces
   several layers down as an `IntegrityError` - by which point the audit entry is
   lost and the request has half happened.
+
+The surfaces open to people this deployment cannot name do not use that
+constructor. A hosted page, a widget and a channel each run the turn under
+whoever *published* it - the embed's owner, or the binding that put the agent on
+the bot - falling back to `viewer` when that person has left the organization or
+their account has been deactivated, so neither can silently widen what a public
+surface reaches. The subject is therefore a real one, and it is not the person who
+typed the message.
+
+`AuthContext.channel_identity_id` is who typed it, when that is a chat account
+rather than a member. It carries no authority - no permission reads it - and
+exists so a channel turn is attributable: it is stamped on `agent_runs`, and
+linking that chat account later attributes those runs to a person without
+rewriting what they ran as. See
+[Channels](channels.md#what-every-channel-shares).
 
 What such a run is allowed to do comes from the **exposure** that admitted it,
 created by somebody who did have a role.

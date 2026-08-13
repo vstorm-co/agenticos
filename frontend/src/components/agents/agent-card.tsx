@@ -27,7 +27,7 @@ import {
 import { ROUTES } from "@/lib/constants";
 import { cn, formatDate } from "@/lib/utils";
 import type { Agent } from "@/types/agents";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 /** Chip labels for the surfaces an agent answers on. Unknown values pass through. */
 const CHANNEL_LABEL: Record<string, string> = {
@@ -80,6 +80,8 @@ export function AgentCard({
   busy?: boolean;
 }) {
   const t = useTranslations("agents");
+  const tc = useTranslations("common");
+  const locale = useLocale();
   const archived = agent.status === "archived";
 
   return (
@@ -94,7 +96,7 @@ export function AgentCard({
       <Link
         href={ROUTES.AGENT_DETAIL(agent.id)}
         className="focus-visible:ring-ring absolute inset-0 rounded-xl outline-none focus-visible:ring-2"
-        aria-label={`Open ${agent.name}`}
+        aria-label={tc("openNamed", { name: agent.name })}
       />
 
       <div className="pointer-events-none relative flex items-start gap-3">
@@ -123,14 +125,16 @@ export function AgentCard({
 
       <div className="relative mt-3 flex items-center justify-between gap-2 border-t pt-3">
         <span className="text-muted-foreground pointer-events-none text-xs">
-          {agent.updated_at ? `edited ${formatDate(agent.updated_at)}` : t("neverEdited")}
+          {agent.updated_at
+            ? t("editedWhen", { when: formatDate(agent.updated_at, locale) })
+            : t("neverEdited")}
         </span>
 
         {canEdit && (
           <div className="flex items-center gap-1">
             <IconAction
               icon={Pencil}
-              label={`Edit ${agent.name}`}
+              label={tc("editNamed", { name: agent.name })}
               href={ROUTES.AGENT_DETAIL(agent.id)}
             />
             <DropdownMenu>

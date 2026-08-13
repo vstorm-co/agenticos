@@ -153,3 +153,13 @@ repos:
         language: system
         files: ^frontend/.*\.(ts|tsx)$
         pass_filenames: false
+      # Every user-facing string through next-intl, both ways round: no copy left in
+      # a component, and no key in `en.json` that nothing reads. Reads the whole of
+      # `frontend/src` rather than the changed files, because the catalog half is a
+      # question about the tree - a key is dead only if *nothing* reads it.
+      - id: check-i18n
+        name: no hardcoded copy
+        entry: bash -c 'cd frontend && bun run check:i18n'
+        language: system
+        files: ^frontend/(src/.*\.(ts|tsx)|messages/.*\.json)$
+        pass_filenames: false

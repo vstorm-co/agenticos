@@ -78,6 +78,7 @@ function AgentsCard({
 
 export default function AgentsPage() {
   const t = useTranslations("pages.agents");
+  const tc = useTranslations("common");
   const router = useRouter();
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
@@ -242,7 +243,7 @@ export default function AgentsPage() {
         <ConfirmDialog
           open
           onOpenChange={() => setPendingArchive(null)}
-          title={`Archive ${pendingArchive.name}?`}
+          title={tc("archiveNamedConfirm", { name: pendingArchive.name })}
           description={t("stopsAnsweringEverywhereAvailable2")}
           confirmLabel={t("archive2")}
           loading={archive.isPending}
@@ -257,7 +258,7 @@ export default function AgentsPage() {
         <ConfirmDialog
           open
           onOpenChange={() => setPendingDelete(null)}
-          title={`Delete ${pendingDelete.name}?`}
+          title={tc("deleteNamedConfirm", { name: pendingDelete.name })}
           description={t("removesAgentEveryVersion2")}
           confirmLabel={t("delete2")}
           confirmText={pendingDelete.slug}

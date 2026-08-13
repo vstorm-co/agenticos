@@ -4,6 +4,7 @@ import { useState } from "react";
 import { CopyPlus, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
+import { getErrorMessage } from "@/lib/api-error";
 import { CapabilitySettings } from "@/components/agents/capability-settings";
 import { CollectionPicker } from "@/components/agents/collection-picker";
 import { DelegationModeField } from "@/components/agents/delegation-mode-field";
@@ -24,7 +25,6 @@ import {
   withCapability,
   withSkills,
 } from "@/lib/agent-spec";
-import { getErrorMessage } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import type { CapabilityBindingSpec, CapabilityCatalogEntry, SpecialistSpec } from "@/types/agents";
 import { Perm } from "@/types/permissions";
@@ -179,6 +179,7 @@ function SpecialistEditor({
   onChange,
   onRemove,
 }: SpecialistEditorProps) {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
   const { promote } = useAgents();
   const { can } = usePermissions();
@@ -200,7 +201,7 @@ function SpecialistEditor({
       { specialist, fallbackModelProfileId: parentModelProfileId },
       {
         onSuccess: (agent) => toast.success(t("specialistPromoted", { name: agent.name })),
-        onError: (error) => toast.error(getErrorMessage(error)),
+        onError: (error) => toast.error(getErrorMessage(error, tErrors)),
       },
     );
 

@@ -28,6 +28,7 @@ from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundErr
 from app.core.permissions import AuthContext
 from app.core.secret_kinds import ApiKeySecret
 from app.db.models.sandbox_connection import SandboxConnection
+from app.db.updates import writable
 from app.repositories import (
     agent_workspace_repo,
     organization_secret_repo,
@@ -179,7 +180,7 @@ class SandboxConnectionService:
         self, ctx: AuthContext, connection_id: UUID, data: SandboxConnectionUpdate
     ) -> SandboxConnectionRead:
         row = await self.get(ctx, connection_id)
-        changes = data.model_dump(exclude_unset=True)
+        changes = writable(data, over=SandboxConnection)
 
         if "name" in changes and changes["name"] != row.name:
             await self._refuse_duplicate_name(ctx, changes["name"])

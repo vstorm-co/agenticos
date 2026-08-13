@@ -124,3 +124,7 @@ docs/audits/
 # Only frontend/.gitignore covered this, so a `bunx vitest` run from the repository
 # root left a root-level cache that `git add -A` happily staged.
 node_modules/
+
+# Session worktrees - without this the main checkout reports every worktree
+# as untracked, which is the fastest route to staging a copied .env.
+.claude/worktrees/

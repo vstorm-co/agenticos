@@ -23,6 +23,8 @@ import { join } from "node:path";
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { sourceFiles } from "@/test-utils/source-files";
+
 import { platformProxy } from "./platform-proxy";
 
 const BACKEND = "http://localhost:8000";
@@ -208,14 +210,6 @@ describe("platformProxy", () => {
 const SRC = join(process.cwd(), "src");
 const APP_ROOT = join(SRC, "app", "api");
 
-/** Every file under a directory, recursively. */
-function walk(directory: string): string[] {
-  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(directory, entry.name);
-    return entry.isDirectory() ? walk(path) : [path];
-  });
-}
-
 /**
  * Backend prefixes whose routes resolve the caller's *active* organization
  * rather than reading one out of the URL.
@@ -257,7 +251,7 @@ describe("every org-scoped request carries the organization", () => {
   // answered for the caller's personal organization no matter what the UI was
   // showing. Fixing the two files would have left the next hand-rolled route to
   // make the same omission, which is why this is a sweep and not a unit test.
-  const routeFiles = walk(APP_ROOT).filter((path) => path.endsWith("route.ts"));
+  const routeFiles = sourceFiles(APP_ROOT, (name) => name.endsWith("route.ts"));
 
   it("finds the route files it is supposed to be checking", () => {
     expect(routeFiles.length).toBeGreaterThan(20);
@@ -335,13 +329,10 @@ function isRouted(path: string): boolean {
  */
 function calledPaths(): Set<string> {
   const paths = new Set<string>();
-  const files = walk(SRC).filter(
-    (path) =>
-      (path.endsWith(".ts") || path.endsWith(".tsx")) &&
-      !path.startsWith(APP_ROOT) &&
-      !path.endsWith(".test.ts") &&
-      !path.endsWith(".test.tsx"),
-  );
+  const files = sourceFiles(
+    SRC,
+    (name) => /\.tsx?$/.test(name) && !name.endsWith(".test.ts") && !name.endsWith(".test.tsx"),
+  ).filter((path) => !path.startsWith(APP_ROOT));
   for (const file of files) {
     // `backendFetch` takes a *backend* path, not a BFF one, and there is no
     // route file behind `/api/v1/...` here by design - those calls run on the

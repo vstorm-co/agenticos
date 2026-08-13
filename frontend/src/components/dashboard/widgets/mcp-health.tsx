@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { useOrgMcpConnections } from "@/hooks";
 import { timeAgo } from "@/lib/utils";
@@ -16,6 +16,8 @@ import type { DashboardWidgetProps } from "./types";
  */
 export function McpHealthWidget({ title, seeAll }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.mcp-health");
+  const tTime = useTranslations("time");
+  const locale = useLocale();
   const { connections, isLoading, error, refresh } = useOrgMcpConnections();
 
   return (
@@ -38,10 +40,10 @@ export function McpHealthWidget({ title, seeAll }: DashboardWidgetProps) {
               pill:
                 connection.last_status === "error"
                   ? connection.last_checked_at
-                    ? t("downSince", { ago: timeAgo(connection.last_checked_at) })
+                    ? t("downSince", { ago: timeAgo(connection.last_checked_at, tTime, locale) })
                     : t("down")
                   : connection.last_checked_at
-                    ? t("checked", { ago: timeAgo(connection.last_checked_at) })
+                    ? t("checked", { ago: timeAgo(connection.last_checked_at, tTime, locale) })
                     : t("unchecked"),
               tone:
                 connection.last_status === "error"

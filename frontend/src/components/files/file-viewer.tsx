@@ -2,7 +2,9 @@
 
 import { useState, type ReactNode } from "react";
 import { Download } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+
+import type { Translate } from "@/lib/agent-step-captions";
 
 import { FileContent } from "./file-content";
 import { FileIcon } from "./file-icon";
@@ -81,6 +83,8 @@ interface FileViewerProps {
  */
 export function FileViewer({ file, access, extraTabs = [], onClose }: FileViewerProps) {
   const t = useTranslations("files");
+  const tTime = useTranslations("time");
+  const locale = useLocale();
   const kind = resolveFileKind(file.name, file.mimeType);
   const { download, error } = useFileActions(access);
   const [view, setView] = useState("preview");
@@ -139,7 +143,7 @@ export function FileViewer({ file, access, extraTabs = [], onClose }: FileViewer
                 copy in the header plus a copy beside the tabs is one sentence a
                 screen reader reads twice. */}
             <DialogDescription className="truncate text-xs">
-              {describe(file, kind, t)}
+              {describe(file, kind, t, tTime, locale)}
             </DialogDescription>
           </div>
           {/* Download alone. "Open in new tab" sat beside it doing very nearly the
@@ -196,12 +200,14 @@ function describe(
   file: ViewerFile,
   kind: FileKind,
   t: (key: string, values?: Record<string, string>) => string,
+  tTime: Translate,
+  locale: string,
 ): string {
   const suffix = suffixOf(file.name);
   const parts = [suffix === "" ? t(`kinds.${kind}`) : suffix.toUpperCase()];
   if (file.size != null) parts.push(formatBytes(file.size));
   if (file.modifiedAt != null) {
-    const when = timeAgo(file.modifiedAt);
+    const when = timeAgo(file.modifiedAt, tTime, locale);
     if (when !== "") parts.push(t("modified", { when }));
   }
   return parts.join(" · ");

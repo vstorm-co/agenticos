@@ -180,6 +180,20 @@ class AgentRun(Base, TimestampMixin):
         ForeignKey("conversations.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # Who asked, when who asked is not a person: the chat account a channel turn
+    # arrived from. In a group chat `user_id` is the binding's creator - the role
+    # the turn ran as - and without this column three of four speakers in a
+    # channel are unattributable, because `channel_sessions` is one row per chat
+    # and its identity is whoever opened it (#639).
+    #
+    # Linking an account later sets `channel_identities.user_id`, which is what
+    # makes attribution retroactive through this column without a backfill.
+    channel_identity_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("channel_identities.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     # Which binding admitted this run, when one did. Null for the dashboard, the
     # playground and the API, which are reached as a person rather than through
     # a place the agent was published to. Attribution: "where did this run come

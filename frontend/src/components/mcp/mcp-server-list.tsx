@@ -39,7 +39,7 @@ import {
 import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
 import { useMcpServers } from "@/hooks";
 import { cn } from "@/lib/utils";
-import { ApiError } from "@/lib/api-client";
+import { getErrorMessage } from "@/lib/api-error";
 import type { McpConnectionRecord, McpToolInfo } from "@/lib/mcp-connections-api";
 import { startMcpOAuth } from "@/lib/mcp-connections-api";
 import {
@@ -76,9 +76,10 @@ const AUTH_CHOICES: { value: DraftAuth; labelKey: string; hintKey: string }[] = 
   { value: "oauth", labelKey: "authOauth", hintKey: "authOauthHint" },
 ];
 
+/** Keys, like `AUTH_CHOICES` above: a module constant has no translator to reach. */
 const SCOPE_LABEL: Record<Scope, string> = {
-  organization: "Organization",
-  personal: "You",
+  organization: "scopeOrganization",
+  personal: "scopeYou",
 };
 
 /**
@@ -96,12 +97,6 @@ function categoryLabel(category: string): string {
 function rowDescription(row: McpServerRow, t: (key: string) => string): string {
   if (row.descriptionKey !== null) return t(row.descriptionKey);
   return row.description ?? "";
-}
-
-function errorMessage(error: unknown, fallback: string): string {
-  if (error instanceof ApiError) return error.message;
-  if (error instanceof Error) return error.message;
-  return fallback;
 }
 
 interface DraftState {
@@ -165,6 +160,7 @@ export function ServersCard({ count, children }: { count: number | null; childre
  */
 export function McpServerList({ canManageOrganization }: McpServerListProps) {
   const t = useTranslations("mcp");
+  const tErrors = useTranslations("errors");
   const { rows, organization, personal, recordTools } = useMcpServers();
   const [category, setCategory] = useState<string>("all");
   const [state, setState] = useState<StateFilter>("all");
@@ -256,7 +252,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
       recordTools(connection.id, result.tools);
       return result.tools;
     } catch (caught) {
-      toast.error(errorMessage(caught, t("checkFailed")));
+      toast.error(getErrorMessage(caught, tErrors, t("checkFailed")));
       return null;
     } finally {
       setBusyId(null);
@@ -284,7 +280,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
       const { authorization_url } = await startMcpOAuth({ name, url: row.url ?? "" }, scope);
       window.location.href = authorization_url;
     } catch (caught) {
-      toast.error(errorMessage(caught, t("couldNotStartSign")));
+      toast.error(getErrorMessage(caught, tErrors, t("couldNotStartSign")));
       setBusyId(null);
     }
     // On success the browser navigates away - leave the row busy.
@@ -302,7 +298,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
       return;
     }
     if (!/^https?:\/\//.test(url)) {
-      toast.error("URL must start with http:// or https://");
+      toast.error(t("urlMustStartWithHttp"));
       return;
     }
     const { scope, row, existing } = draft;
@@ -344,11 +340,11 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
           ...(url !== existing.url ? { url } : {}),
           ...(token ? { auth_token: token } : clearToken ? { auth_token: "" } : {}),
         });
-        toast.success(`${name} updated.`);
+        toast.success(t("serverUpdated", { name }));
         setDraft(null);
       }
     } catch (caught) {
-      toast.error(errorMessage(caught, t("couldNotSaveServer")));
+      toast.error(getErrorMessage(caught, tErrors, t("couldNotSaveServer")));
     } finally {
       setSubmitting(false);
     }
@@ -357,14 +353,14 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
   const handleDisconnect = async (scope: Scope, connection: McpConnectionRecord) => {
     const warning =
       scope === "organization"
-        ? `Disconnect "${connection.name}"? Agents bound to it keep running, without its tools.`
-        : `Disconnect "${connection.name}"?`;
+        ? t("disconnectOrgWarning", { name: connection.name })
+        : t("disconnectWarning", { name: connection.name });
     if (!confirm(warning)) return;
     try {
       await api(scope).remove(connection.id);
-      toast.success(`${connection.name} disconnected.`);
+      toast.success(t("serverDisconnected", { name: connection.name }));
     } catch (caught) {
-      toast.error(errorMessage(caught, t("couldNotDisconnect")));
+      toast.error(getErrorMessage(caught, tErrors, t("couldNotDisconnect")));
     }
   };
 
@@ -383,7 +379,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
       toast.success(t("toolSelectionSaved"));
       setToolPicker(null);
     } catch (caught) {
-      toast.error(errorMessage(caught, t("couldNotSaveTool")));
+      toast.error(getErrorMessage(caught, tErrors, t("couldNotSaveTool")));
     } finally {
       setSubmitting(false);
     }
@@ -606,8 +602,8 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
               {draft === null
                 ? ""
                 : draft.existing
-                  ? `Edit "${draft.existing.name}"`
-                  : `Connect ${draft.row.name} for ${draft.scope === "organization" ? t("organization") : "yourself"}`}
+                  ? t("editNamed", { name: draft.existing.name })
+                  : t("connectForScope", { name: draft.row.name, scope: draft.scope })}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
@@ -666,7 +662,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                         )}
                       >
                         <Icon className="h-3.5 w-3.5" />
-                        {SCOPE_LABEL[scope]}
+                        {t(SCOPE_LABEL[scope])}
                       </button>
                     );
                   })}
@@ -813,7 +809,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                       return { ...previous, checked: next };
                     })
                   }
-                  aria-label={`Toggle ${tool.name}`}
+                  aria-label={t("toggleNamed", { name: tool.name })}
                 />
               </li>
             ))}
@@ -865,10 +861,10 @@ function ScopeChip({
             ? "border-destructive/40 bg-destructive/10 text-foreground"
             : "border-border text-muted-foreground",
       )}
-      title={`${SCOPE_LABEL[scope]}: ${t(MCP_STATE_LABEL[state])}`}
+      title={`${t(SCOPE_LABEL[scope])}: ${t(MCP_STATE_LABEL[state])}`}
     >
       <Icon className="h-3 w-3 shrink-0" aria-hidden />
-      {SCOPE_LABEL[scope]}
+      {t(SCOPE_LABEL[scope])}
       <span aria-hidden>·</span>
       {t(MCP_STATE_LABEL[state])}
     </span>
@@ -918,7 +914,7 @@ function ConnectionMenu({
   const t = useTranslations("mcp");
   const state = connectionState(connection);
   const busy = busyId === connection.id || busyId === row.key;
-  const owner = SCOPE_LABEL[scope];
+  const owner = t(SCOPE_LABEL[scope]);
   const Icon = scope === "organization" ? Building2 : User;
 
   return (
@@ -928,7 +924,7 @@ function ConnectionMenu({
           size="sm"
           variant="outline"
           disabled={busy}
-          aria-label={`Manage ${owner}`}
+          aria-label={t("manageNamed", { name: owner })}
           title={`${owner}: ${t(MCP_STATE_LABEL[state])}`}
         >
           <Icon className="mr-1 h-3.5 w-3.5" />

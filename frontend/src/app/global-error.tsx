@@ -57,6 +57,7 @@ export default function GlobalError({
               maxWidth: "28rem",
             }}
           >
+            {/* i18n-exempt: outside next-intl's provider, as above */}
             An unexpected error occurred. Please try again or contact support if the problem
             persists.
           </p>
@@ -106,6 +107,7 @@ export default function GlobalError({
                 textDecoration: "none",
               }}
             >
+              {/* i18n-exempt: outside next-intl's provider, as above */}
               Go home
             </a>
           </div>

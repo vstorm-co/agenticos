@@ -17,6 +17,7 @@ already exercised by other tests, and none of them looked at what was written.
 from __future__ import annotations
 
 import uuid
+from contextlib import asynccontextmanager, contextmanager
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -63,14 +64,40 @@ class TestEveryMemberIsAssignedBySomething:
         assert _SURFACES["mattermost"] is RunSurface.MATTERMOST
 
 
+def _one_session() -> Any:
+    """A session factory for a test that builds its session with `__new__`.
+
+    `EmbedSession` opens one per turn rather than holding the socket's own, so
+    the attribute these tests set is the factory and not a session (#39).
+    """
+
+    @asynccontextmanager
+    async def factory() -> Any:
+        yield MagicMock()
+
+    return factory
+
+
+@contextmanager
+def _a_turn(runner: MagicMock) -> Any:
+    """The turn's runner and the rows it reads, mocked at the repository."""
+    with (
+        patch("app.services.embed_session.AgentRunnerService", return_value=runner),
+        patch("app.services.embed_session.conversation_repo") as conversations,
+        patch("app.services.access.member_repo") as members,
+    ):
+        conversations.count_messages = AsyncMock(return_value=0)
+        conversations.get_messages_by_conversation = AsyncMock(return_value=[])
+        yield members
+
+
 class TestWhatTheEmbeddedWidgetStamps:
     @staticmethod
     def _session(runner: MagicMock) -> Any:
         from app.services.embed_session import EmbedSession
 
         session = EmbedSession.__new__(EmbedSession)
-        session.db = MagicMock()
-        session.runner = runner
+        session.sessions = _one_session()
         session.embed = MagicMock(
             id=uuid.uuid4(),
             agent_id=uuid.uuid4(),
@@ -81,7 +108,8 @@ class TestWhatTheEmbeddedWidgetStamps:
         )
         session.conversation_id = uuid.uuid4()
         session.visitor = "visitor-1"
-        session._context_sent = False
+        session.visitor_key = None
+        session._supplied = {}
         return session
 
     async def test_an_embedded_run_is_recorded_as_embed_and_not_as_web_chat(self):
@@ -91,18 +119,24 @@ class TestWhatTheEmbeddedWidgetStamps:
         runner = MagicMock(execute=AsyncMock(return_value=("the answer", MagicMock())))
         session = self._session(runner)
 
-        with patch("app.services.embed_session.member_repo") as members:
+        with _a_turn(runner) as members:
             members.get = AsyncMock(return_value=None)
             await session._answer("how do I get a refund?")
 
         assert runner.execute.await_args.kwargs["surface"] is RunSurface.EMBED
 
 
-class TestTheSuppliedContextIsResentWhenItChanges:
-    """A single-page app signs a visitor in on turn 2, so the block the page
+class TestThePreambleGoesOnEveryTurn:
+    """The placement note and the supplied block are prepended to every turn,
+    not latched to the first.
+
+    A single-page app signs a visitor in on turn 2, so the block the page
     supplies has to reach the agent then - not stay frozen at what turn 1 held.
-    Latching the whole preamble on the first turn froze the supplied block, and
-    its `required`-variable warning, at whatever turn 1 happened to carry.
+    And the transcript records only what the visitor said, so the history each
+    turn is rebuilt from carries neither the note nor the block: latching them to
+    turn 1 sent them to the model once and lost them from turn 2 on. Sent every
+    turn they cost the tokens but stay present, and nothing is duplicated because
+    history never held them.
     """
 
     @staticmethod
@@ -110,8 +144,7 @@ class TestTheSuppliedContextIsResentWhenItChanges:
         from app.services.embed_session import EmbedSession
 
         session = EmbedSession.__new__(EmbedSession)
-        session.db = MagicMock()
-        session.runner = runner
+        session.sessions = _one_session()
         session.embed = MagicMock(
             id=uuid.uuid4(),
             agent_id=uuid.uuid4(),
@@ -123,16 +156,15 @@ class TestTheSuppliedContextIsResentWhenItChanges:
         )
         session.conversation_id = uuid.uuid4()
         session.visitor = "visitor-1"
-        session._context_sent = False
+        session.visitor_key = None
         session._supplied = {}
-        session._supplied_sent = ""
         return session
 
     async def test_a_value_that_arrives_after_turn_one_still_reaches_the_agent(self):
         runner = MagicMock(execute=AsyncMock(return_value=("ok", MagicMock())))
         session = self._session(runner)
 
-        with patch("app.services.embed_session.member_repo") as members:
+        with _a_turn(runner) as members:
             members.get = AsyncMock(return_value=None)
 
             # Turn 1: not signed in. The placement context goes; the required
@@ -147,7 +179,8 @@ class TestTheSuppliedContextIsResentWhenItChanges:
 
         assert "A billing widget" in first
         assert "a@b.com" not in first
-        # The value that only arrived on turn 2 must be sent, and the placement
-        # context must not be repeated now it has already gone.
+        # The value that only arrived on turn 2 is sent, and the placement context
+        # is repeated - it is not in the history the turn is rebuilt from, so
+        # sending it once would have lost it here.
         assert "a@b.com" in second
-        assert "A billing widget" not in second
+        assert "A billing widget" in second

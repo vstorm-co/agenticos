@@ -43,6 +43,7 @@ async def create_run(
     secret_id: UUID | None = None,
     parent_run_id: UUID | None = None,
     subagent_task_id: str | None = None,
+    channel_identity_id: UUID | None = None,
 ) -> AgentRun:
     run = AgentRun(
         organization_id=organization_id,
@@ -50,6 +51,7 @@ async def create_run(
         agent_version_id=agent_version_id,
         user_id=user_id,
         conversation_id=conversation_id,
+        channel_identity_id=channel_identity_id,
         exposure_id=exposure_id,
         environment_id=environment_id,
         surface=surface,
@@ -554,10 +556,16 @@ class AgentSpendRow:
             the column sums to the total printed above it. A delegate's tokens
             are already inside its parent's row.
         run_count: Runs behind that figure.
-        partial_run_count: How many of them had a model with no price. The
-            figure is a floor by exactly that much, and saying "3 of 40 runs
-            could not be priced" is the difference between a number a reader
-            can act on and one they have to take on trust.
+        partial_run_count: How many of them could not be fully priced - some
+            model in the run had no price, its delegates' included, because a
+            tree shares one ledger. The figure is a floor by exactly that many
+            runs, and saying "3 of 40 runs could not be priced" is the
+            difference between a number a reader can act on and one they have
+            to take on trust. It can exceed `run_count`: an unpriced tree that
+            straddles the start of the window counts here on the agent its
+            delegate ran as, whose top-level runs the delegation is not among,
+            because the parent's row is outside the window and nothing else
+            can carry the mark (#620).
         month_to_date_usd: This agent's **own** month, delegated rows included -
             because that is the spend its cap is a cap on, and a delegate's rows
             are the only record of what it itself did. It does not sum to the
@@ -605,11 +613,28 @@ async def spend_by_agent(
     their own spend and no one else's, and the narrowing is a `WHERE` here rather
     than a filter applied after the sums - so both windows and the counts describe
     the same person's rows.
+
+    The unpriced count reaches one set of rows the top-level filter cannot: an
+    unpriced delegation whose parent started before the window. The delegate's
+    own spend is inside `spend_by_provider` and `spend_by_key` - their per-row
+    sums are deliberately not windowed backwards (:func:`_own_cost`) - so those
+    splits are a floor, and the tree's own mark sits on a parent row outside
+    every aggregate here. Counted by distinct parent, the same trees-not-rows
+    rule the top-level count follows, and gated on the parent being outside the
+    window so a tree wholly inside it is never counted twice (#620).
     """
     window = [AgentRun.started_at >= since]
     if until is not None:
         window.append(AgentRun.started_at <= until)
     top_level = and_(*window, AgentRun.parent_run_id.is_(None))
+    parent = aliased(AgentRun)
+    straddling = and_(
+        *window,
+        AgentRun.cost_is_partial,
+        select(parent.id)
+        .where(parent.id == AgentRun.parent_run_id, parent.started_at < since)
+        .exists(),
+    )
     cap = AgentVersion.spec["budget"]["monthly_usd"]
     rows = await db.execute(
         select(
@@ -617,7 +642,8 @@ async def spend_by_agent(
             Agent.name,
             func.coalesce(func.sum(AgentRun.cost_usd).filter(top_level), 0),
             func.count(AgentRun.id).filter(top_level),
-            func.count(AgentRun.id).filter(top_level, AgentRun.cost_is_partial),
+            func.count(AgentRun.id).filter(top_level, AgentRun.cost_is_partial)
+            + func.count(AgentRun.parent_run_id.distinct()).filter(straddling),
             func.coalesce(
                 func.sum(AgentRun.cost_usd).filter(AgentRun.started_at >= month_since), 0
             ),

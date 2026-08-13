@@ -18,7 +18,7 @@ import { useAgentVersion } from "@/hooks";
 import { collapseUnchanged, diffLines, diffStat } from "@/lib/diff";
 import { cn, formatDate } from "@/lib/utils";
 import type { AgentEnvironment, AgentSpec, AgentVersion } from "@/types/agents";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 interface VersionHistoryProps {
   agentId: string;
@@ -65,7 +65,10 @@ function PromoteMenu({
       disabled={promoting}
       onValueChange={(environmentId) => onPromote(environmentId, version.id)}
     >
-      <SelectTrigger className="w-36" aria-label={`Promote v${version.version} to…`}>
+      <SelectTrigger
+        className="w-36"
+        aria-label={t("promoteVersionTo", { version: version.version })}
+      >
         <SelectValue placeholder={t("promote")} />
       </SelectTrigger>
       <SelectContent>
@@ -103,6 +106,7 @@ export function VersionHistory({
   promoting,
 }: VersionHistoryProps) {
   const t = useTranslations("agents");
+  const locale = useLocale();
   // Newest against the one before it: the comparison somebody opening a history
   // almost always wants, and the one that needs no explaining.
   const [rightId, setRightId] = useState<string>(DRAFT);
@@ -142,7 +146,7 @@ export function VersionHistory({
               </p>
               <p className="text-muted-foreground mt-0.5 text-xs">
                 {version.published_by_email ?? t("unknownAuthor")}
-                {version.created_at ? ` · ${formatDate(version.created_at)}` : ""}
+                {version.created_at ? ` · ${formatDate(version.created_at, locale)}` : ""}
               </p>
             </div>
             {/* Which environments serve this exact version - the fact that
@@ -159,7 +163,7 @@ export function VersionHistory({
               size="sm"
               variant="ghost"
               onClick={() => setLeftId(version.id)}
-              aria-label={`Compare v${version.version}`}
+              aria-label={t("compareVersion", { version: version.version })}
               aria-pressed={leftId === version.id}
               className={cn(leftId === version.id && "bg-accent")}
             >

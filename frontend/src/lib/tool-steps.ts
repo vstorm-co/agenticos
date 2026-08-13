@@ -175,7 +175,7 @@ export function toolStep(
     // tense while running, and what happened once it has.
     return {
       label: finished ? finishedLabel(name, args, t) : toolCaption(name, t),
-      detail: subjectOf(name, args),
+      detail: subjectOf(name, args, t),
       kind,
     };
   }
@@ -183,7 +183,7 @@ export function toolStep(
   // The whole sentence comes from one message per tense, which selects on whether the
   // call named a subject. A verb interpolated into `{verb} {subject}` would be the
   // `{noun}` defect under another name (#362).
-  const named = subjectOf(name, args);
+  const named = subjectOf(name, args, t);
   return {
     label: t(finished ? verbs.done : verbs.now, {
       named: named === null ? "no" : "yes",
@@ -219,16 +219,18 @@ function finishedLabel(
  * `/workspace/skills/review/SKILL.md` is not a line. The whole path is in the detail
  * the step opens, where there is room for it.
  */
-function subjectOf(name: string, args: Record<string, unknown> | undefined): string | null {
+function subjectOf(
+  name: string,
+  args: Record<string, unknown> | undefined,
+  t: Translate,
+): string | null {
   const given = args ?? {};
   if (name === "execute") return text(given.command) ?? text(given.cmd);
   if (name === "grep" || name === "glob") {
     const pattern = text(given.pattern);
     const where = pathArg(given);
     if (pattern === null) return null;
-    // i18n-exempt: `in` joins a pattern to a filename in a step's detail; #603 covers
-    // moving the join into a message, which needs `subjectOf` to take a translator.
-    return where === null ? pattern : `${pattern} in ${basename(where)}`;
+    return where === null ? pattern : t("patternInFile", { pattern, file: basename(where) });
   }
   const path = pathArg(given);
   if (path !== null) return name === "ls" ? path : basename(path);

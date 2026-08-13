@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
-import { getErrorMessage } from "@/lib/utils";
+import { getErrorMessage } from "@/lib/api-error";
 import type { Trigger, TriggerCreate, TriggerList, TriggerUpdate } from "@/types/triggers";
 
 /**
@@ -22,6 +22,7 @@ import type { Trigger, TriggerCreate, TriggerList, TriggerUpdate } from "@/types
 export function useTriggers(agentId: string | null) {
   const queryClient = useQueryClient();
   const t = useTranslations("triggers");
+  const tErrors = useTranslations("errors");
   const base = `/agents/${agentId}/triggers`;
 
   const { data, isLoading } = useQuery({
@@ -41,14 +42,14 @@ export function useTriggers(agentId: string | null) {
       await invalidate();
       toast.success(t("created"));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   const update = useMutation({
     mutationFn: ({ triggerId, patch }: { triggerId: string; patch: TriggerUpdate }) =>
       apiClient.patch<Trigger>(`${base}/${triggerId}`, patch),
     onSuccess: invalidate,
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   const setActive = useMutation({
@@ -61,7 +62,7 @@ export function useTriggers(agentId: string | null) {
       await invalidate();
       toast.success(trigger.is_active ? t("resumedToast") : t("pausedToast"));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   const runNow = useMutation({
@@ -70,7 +71,7 @@ export function useTriggers(agentId: string | null) {
       await invalidate();
       toast.success(t("runningNow"));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   const remove = useMutation({
@@ -79,7 +80,7 @@ export function useTriggers(agentId: string | null) {
       await invalidate();
       toast.success(t("removed"));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   return {

@@ -23,7 +23,7 @@ import { apiClient } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
 import { qk } from "@/lib/query-keys";
 import { formatDate, timeAgo } from "@/lib/utils";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import type { AdminOrganization, AdminStats } from "@/types/admin";
 
@@ -43,6 +43,8 @@ const EVENT_ICON: Record<RecentEvent["type"], LucideIcon> = {
 
 export default function AdminOverviewPage() {
   const t = useTranslations("pages.admin");
+  const tTime = useTranslations("time");
+  const locale = useLocale();
   const statsQuery = useQuery({
     queryKey: ["admin", "stats"],
     queryFn: async (): Promise<AdminStats> => {
@@ -85,7 +87,7 @@ export default function AdminOverviewPage() {
         id: c.id,
         type: "conversation_created" as const,
         title: c.title || t("newConversation"),
-        description: c.user_email ? `by ${c.user_email}` : "",
+        description: c.user_email ? t("byUser", { email: c.user_email }) : "",
         timestamp: c.created_at,
       }));
     },
@@ -219,7 +221,7 @@ export default function AdminOverviewPage() {
                     <td className="px-3 py-3 text-right tabular-nums">{org.member_count}</td>
                     <td className="px-3 py-3 text-right tabular-nums">{org.agent_count}</td>
                     <td className="text-muted-foreground px-5 py-3 text-right text-xs">
-                      {formatDate(org.created_at)}
+                      {formatDate(org.created_at, locale)}
                     </td>
                   </tr>
                 ))}
@@ -256,7 +258,7 @@ export default function AdminOverviewPage() {
                     <p className="text-muted-foreground truncate text-xs">
                       {e.description}
                       {e.description && " · "}
-                      {timeAgo(e.timestamp)}
+                      {timeAgo(e.timestamp, tTime, locale)}
                     </p>
                   </div>
                 </li>

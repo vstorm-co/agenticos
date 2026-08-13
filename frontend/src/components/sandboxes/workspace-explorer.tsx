@@ -227,6 +227,7 @@ interface FileListProps {
 
 /** The files at one level, as tiles, each openable and downloadable. */
 function FileList({ source, files, onOpen, showFullPath }: FileListProps) {
+  const tc = useTranslations("common");
   return (
     <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
       {files.map((file) => (
@@ -246,7 +247,7 @@ function FileList({ source, files, onOpen, showFullPath }: FileListProps) {
             </span>
             <button
               type="button"
-              aria-label={`Download ${file.path}`}
+              aria-label={tc("downloadNamed", { name: file.path })}
               onClick={() => void workspaceFileAccess(source, file.path).download()}
               className="text-muted-foreground hover:text-foreground shrink-0 rounded-md p-1"
             >

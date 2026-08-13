@@ -110,6 +110,9 @@ class MattermostAdapter(ChannelAdapter):
         # connection the stream already holds, and the sequence number that
         # connection is up to.
         self._sockets: dict[str, Any] = {}
+        # Which account each bot is, so a mention of it can be told from a mention
+        # of somebody else. Resolved per stream session - see `_own_user_id`.
+        self._own_ids: dict[str, str] = {}
         self._seq: dict[str, int] = {}
 
     def remember_server(self, bot_id: str, api_base_url: str) -> None:
@@ -510,6 +513,30 @@ class MattermostAdapter(ChannelAdapter):
             # hammered 720 times by every bot on it.
             delay = min(delay * 2, 60.0)
 
+    async def _own_user_id(self, bot_id: str, bot_token: str) -> str | None:
+        """Which Mattermost account this bot *is*, so a mention of it is legible.
+
+        Resolved once per stream session rather than per message, and stored beside
+        the base URL because it is the same kind of per-bot fact. `None` when the
+        server would not say: the caller then treats every post as addressed, which
+        is the behaviour a bot had before this existed - answering too much is a
+        worse failure than answering too little only where somebody chose it.
+        """
+        base_url = self._base_urls.get(bot_id)
+        if not base_url:
+            return None
+        try:
+            async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
+                response = await client.get(
+                    f"{base_url}/api/v4/users/me",
+                    headers={"Authorization": f"Bearer {bot_token}"},
+                )
+            response.raise_for_status()
+            return str(response.json().get("id") or "") or None
+        except Exception:
+            logger.warning("mattermost_own_id_unresolved", extra={"bot_id": bot_id}, exc_info=True)
+            return None
+
     async def _run_stream(self, bot_id: str, bot_token: str) -> None:
         """One authenticated session on the event stream."""
         try:
@@ -542,6 +569,12 @@ class MattermostAdapter(ChannelAdapter):
                 )
             )
             self._sockets[bot_id] = socket
+            # Before the first frame is read, so no post is judged against an
+            # unknown identity - a miss there would answer a channel it should
+            # have stayed out of.
+            own = await self._own_user_id(bot_id, bot_token)
+            if own is not None:
+                self._own_ids[bot_id] = own
             keepalive = asyncio.create_task(self._keepalive(socket))
             try:
                 async for frame in socket:
@@ -652,7 +685,33 @@ class MattermostAdapter(ChannelAdapter):
             platform_display_name=data.get("sender_name") or None,
             message_id=post.get("id"),
             attachments=attachments,
+            addressed=self._addressed(data, bot_id),
         )
+
+    def _addressed(self, data: dict[str, Any], bot_id: str) -> bool | None:
+        """Whether this post named the bot, from the event's own mention list.
+
+        Mattermost puts the mentioned account ids in `data.mentions`, as JSON in a
+        string. Read from there rather than from the text: `@ada` is a mention of
+        somebody whose display name the bot cannot resolve, and matching on text
+        would make a bot called `bot` answer the word "robot".
+
+        `None` where the bot's own id was never resolved, which the router reads as
+        "the platform did not say" and answers as it did before. A *missing*
+        `mentions` key with a known id is `False`: the event carries the list
+        whenever there is one, so its absence means nobody was mentioned.
+        """
+        own = self._own_ids.get(bot_id)
+        if own is None:
+            return None
+        raw = data.get("mentions")
+        if raw is None:
+            return False
+        try:
+            mentioned = json.loads(raw) if isinstance(raw, str) else raw
+        except (json.JSONDecodeError, TypeError):
+            return False
+        return own in mentioned if isinstance(mentioned, list) else False
 
     def _attachments(self, post: dict[str, Any], bot_id: str) -> list[IncomingAttachment]:
         """The files on a Mattermost post, as handles.
@@ -663,9 +722,18 @@ class MattermostAdapter(ChannelAdapter):
         it is there and an id with none is carried as a handle with nothing
         claimed - which the size check then reads as zero and lets through, to be
         caught against the bytes after the download.
+
+        Both spellings of `file_ids` are read here, because Mattermost has two:
+        the socket sends a list, the outgoing webhook one comma-separated string.
+        Handing the flat webhook body to a reader that only knew the list form
+        would have iterated the string a character at a time (#547).
         """
         metadata = (post.get("metadata") or {}).get("files") or []
         described = {str(entry.get("id")): entry for entry in metadata if isinstance(entry, dict)}
+        raw_ids = post.get("file_ids") or []
+        file_ids = (
+            [part for part in raw_ids.split(",") if part] if isinstance(raw_ids, str) else raw_ids
+        )
 
         # The handle is the full URL, resolved here from the server this bot's
         # stream was opened against. Every Mattermost deployment is somebody's own
@@ -674,7 +742,7 @@ class MattermostAdapter(ChannelAdapter):
         base_url = self._base_urls.get(bot_id, "")
 
         found: list[IncomingAttachment] = []
-        for file_id in post.get("file_ids") or []:
+        for file_id in file_ids:
             entry = described.get(str(file_id), {})
             found.append(
                 IncomingAttachment(
@@ -707,12 +775,37 @@ class MattermostAdapter(ChannelAdapter):
         return response.content
 
     def _from_webhook(self, payload: dict[str, Any], bot_id: str) -> IncomingMessage | None:
-        text = str(payload.get("text") or "").strip()
-        if not text:
-            return None
+        """Normalise one outgoing-webhook body.
+
+        The addressing rule is the socket's, read off what this payload actually
+        carries. An outgoing-webhook body has no mention list - Mattermost sends
+        the post, not who it notified - so the bot's own account cannot be looked
+        for in it, and this path left `addressed` unset. The router reads unset as
+        "the platform did not say" and answers, which put the bot back in the
+        position the socket's rule took it out of: replying to colleagues talking
+        to each other in a channel it was merely invited to (#662).
+
+        What the payload does say is `trigger_word` - the word an operator
+        configured *this integration* to fire on, which is Mattermost's own record
+        that the post was for us. Empty means the webhook fired on its channel
+        filter alone, and a channel filter delivers every post exactly as the
+        socket does, so it is `False` for the same reason a `posted` event with no
+        mentions is.
+
+        The consequence worth knowing before choosing this transport: `@the-bot`
+        is not readable here, because nothing in the body says which account the
+        bot is. Set the trigger word to the bot's handle if that is how people
+        should reach it; an `@agent-slug` needs nothing, since the router reads a
+        slug out of the text.
+        """
         # Mattermost sends the bot's own posts to an outgoing webhook only when
         # explicitly configured to, but a loop is expensive enough to check for.
         if payload.get("user_name") in {"", None} or str(payload.get("user_id") or "") == "":
+            return None
+
+        attachments = self._attachments(payload, bot_id)
+        text = str(payload.get("text") or "").strip()
+        if not text and not attachments:
             return None
 
         channel_id = str(payload.get("channel_id") or "")
@@ -731,4 +824,6 @@ class MattermostAdapter(ChannelAdapter):
             platform_username=str(payload.get("user_name") or "") or None,
             platform_display_name=str(payload.get("user_name") or "") or None,
             message_id=str(payload.get("post_id") or "") or None,
+            attachments=attachments,
+            addressed=bool(str(payload.get("trigger_word") or "").strip()),
         )

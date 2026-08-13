@@ -17,12 +17,13 @@ import {
   AlertDialogTrigger,
   Button,
 } from "@/components/ui";
+import { getErrorMessage } from "@/lib/api-error";
 import { SectionCard } from "@/components/settings/settings-section";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
-import { cn, getErrorMessage, timeAgo } from "@/lib/utils";
+import { cn, timeAgo } from "@/lib/utils";
 import type { SessionListResponse } from "@/types";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 const PAGE_SIZE = 5;
 
@@ -45,7 +46,11 @@ function DeviceIcon({ type }: { type?: string | null }) {
  * emptied and step back to the one before it rather than showing a blank card.
  */
 export function ActiveSessions() {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("dashboard");
+  const tc = useTranslations("common");
+  const tTime = useTranslations("time");
+  const locale = useLocale();
   const [page, setPage] = useState(0);
   const queryClient = useQueryClient();
 
@@ -149,7 +154,9 @@ export function ActiveSessions() {
           ))}
         </div>
       ) : error ? (
-        <p className="text-destructive text-sm">{getErrorMessage(error, t("couldnTLoadYour"))}</p>
+        <p className="text-destructive text-sm">
+          {getErrorMessage(error, tErrors, t("couldnTLoadYour"))}
+        </p>
       ) : sessions.length === 0 ? (
         <p className="text-muted-foreground text-sm">{t("noSessionDataAvailable")}</p>
       ) : (
@@ -169,7 +176,7 @@ export function ActiveSessions() {
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-foreground flex items-center gap-2 text-sm font-medium">
-                      <span className="truncate">{session.device_name || "Unknown device"}</span>
+                      <span className="truncate">{session.device_name || t("unknownDevice")}</span>
                       {session.is_current && (
                         <span className="bg-card border-border text-muted-foreground inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
                           {t("current")}
@@ -178,7 +185,7 @@ export function ActiveSessions() {
                     </p>
                     <p className="text-muted-foreground truncate text-xs">
                       {session.ip_address && `${session.ip_address} · `}
-                      {t("lastActive", { when: timeAgo(session.last_used_at) })}
+                      {t("lastActive", { when: timeAgo(session.last_used_at, tTime, locale) })}
                     </p>
                   </div>
                 </div>
@@ -201,7 +208,11 @@ export function ActiveSessions() {
           {totalPages > 1 && (
             <div className="mt-3 flex items-center justify-between">
               <span className="text-muted-foreground text-xs">
-                {page * PAGE_SIZE + 1}–{Math.min(total, (page + 1) * PAGE_SIZE)} of {total}
+                {tc("rangeOfTotal", {
+                  start: page * PAGE_SIZE + 1,
+                  end: Math.min(total, (page + 1) * PAGE_SIZE),
+                  total,
+                })}
               </span>
               <div className="flex items-center gap-1">
                 <Button

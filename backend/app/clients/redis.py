@@ -48,11 +48,38 @@ class RedisClient:
         key: str,
         value: str,
         ttl: int | None = None,
-    ) -> None:
-        """Set a value with optional TTL (in seconds)."""
+        nx: bool = False,
+    ) -> bool:
+        """Set a value with optional TTL (in seconds).
+
+        With `nx=True` the write happens only when the key does not already
+        exist - Redis `SET NX`, one atomic claim - and the return value says
+        whether this call was the one that wrote it. Redis answers a refused
+        NX write with a nil reply, which the driver surfaces as `None`.
+        """
         if not self.client:
             raise RuntimeError("Redis client not connected")
-        await self.client.set(key, value, ex=ttl)
+        return bool(await self.client.set(key, value, ex=ttl, nx=nx))
+
+    async def count_in_window(self, key: str, ttl: int) -> int:
+        """Count one hit in a fixed window, and answer how many it now holds.
+
+        `INCR` then `EXPIRE … NX`, pipelined: the increment creates the key when
+        the window is new and the conditional expiry gives it a lifetime without
+        ever extending an existing one. `NX` is what makes it a *fixed* window -
+        a plain `EXPIRE` on every hit would push the deadline out with each call,
+        so a caller who never stops never resets, and their allowance would be
+        gone until they did.
+
+        Redis 7 or newer, which every compose file pins.
+        """
+        if not self.client:
+            raise RuntimeError("Redis client not connected")
+        pipe = self.client.pipeline()
+        pipe.incr(key)
+        pipe.expire(key, ttl, nx=True)
+        used, _expired = await pipe.execute()
+        return int(used)
 
     async def delete(self, key: str) -> int:
         """Delete a key. Returns number of keys deleted."""

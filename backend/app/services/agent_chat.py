@@ -51,6 +51,7 @@ from app.services.agent_runner import (
     PausedRunState,
     PreparedRun,
     _outcome,
+    run_failure_summary,
 )
 from app.services.attachments import AttachmentRouter
 from app.services.usage_report import UsageReport, UsageReportService
@@ -68,14 +69,6 @@ type ChatStream = Callable[[AgentRun[AgentDeps, str | DeferredToolRequests]], Aw
 # no membership has no role, and a run with no role has none of the checks a
 # role implies.
 _NOT_A_MEMBER = "You are no longer a member of this organization."
-
-# What the person is told when the run stopped on an approval instead of an
-# answer. Silence would read as the agent ignoring them, and the run does not
-# continue in this conversation - it continues when somebody decides, from the
-# approvals queue.
-_AWAITING_APPROVAL = (
-    "This run needs approval before it can go further - it is waiting in the approvals queue."
-)
 
 
 def requested_agent_id(frame: Mapping[str, Any]) -> UUID | None:
@@ -152,8 +145,18 @@ def display_output(output: str | DeferredToolRequests) -> str:
     side-effecting call, Pydantic AI ends the run with the calls waiting on a
     human. There is no model text to show then, and the object itself is not
     something a client can render.
+
+    Empty, then - and deliberately not a sentence about the queue. This value
+    becomes the assistant message's `content`, so a notice put here is stored as
+    the agent's words: false the moment somebody approves, and false for good, in
+    the middle of a turn that plainly did go further (#509). That a run is parked
+    is state, and it is already carried by things that stop carrying it when the
+    decision is made - the step the run stopped on, and the approval panel put in
+    front of whoever is looking. Every surface that does not stream records an
+    empty answer here too (:meth:`AgentRunnerService._run`), so this is the whole
+    platform's answer rather than this one's.
     """
-    return output if isinstance(output, str) else _AWAITING_APPROVAL
+    return output if isinstance(output, str) else ""
 
 
 @dataclass(frozen=True)
@@ -182,6 +185,10 @@ class ChatTurn:
     """What one published-agent turn produced, for the surface to persist."""
 
     output: str
+    """The answer, or empty for a turn that parked on an approval - see
+    :func:`display_output`. A surface that streamed the turn holds what the model
+    said before it stopped; this carries only what the run *ended* with."""
+
     model_label: str
     agent_id: UUID
     agent_version_id: UUID | None
@@ -289,8 +296,8 @@ class ChatAgentRunner:
 
         Returns:
             The answer to show and persist, and the model that produced it. A
-            run parked on an approval returns the queue's explanation instead of
-            an answer - it did not fail, and it has not finished either.
+            run parked on an approval returns no answer at all - it did not fail,
+            and it has not finished either - and `parked` is what says so.
 
         Raises:
             AuthorizationError: If the user is not a member of this organization.
@@ -365,8 +372,8 @@ class ChatAgentRunner:
                 )
                 status = RunStatus.AWAITING_APPROVAL
             else:
+                output = result.output
                 status = RunStatus.COMPLETED
-            output = display_output(result.output)
         except asyncio.CancelledError:
             # The user pressed stop, or the socket went away mid-run. Cancelled
             # is not failed, and the tokens spent up to here were still spent.
@@ -383,7 +390,7 @@ class ChatAgentRunner:
             logger.info("Chat run %s stopped by budget: %s", prepared.run.id, exc)
             raise
         except Exception as exc:
-            error = str(exc)
+            error = run_failure_summary(exc)
             logger.exception("Chat run %s failed", prepared.run.id)
             raise
         finally:
