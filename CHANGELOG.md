@@ -17,6 +17,25 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.118] - 2026-08-13
+
+A crashed turn told the chat panel whatever the provider's SDK had put in its
+exception.
+
+### Fixed
+
+- **The `error` frame carried `str(exc)` of whatever came out of the run.** A
+  provider SDK puts the failing request in its message, so that routinely meant an
+  endpoint, an internal host, or a URL with a key still in its query string —
+  reaching a member's chat panel and their browser console rather than an HTTP
+  body, which is where #342 fixed the same leak. The exception's text now stays in
+  the `logger.exception` beside the send, and the frame names only what the reader
+  can act on. The class still goes out, because it separates an upstream that
+  timed out from one that refused a credential and a class name has never carried
+  a URL. Our own refusals do not come through here at all — an `AppException` and
+  a `BudgetExceeded` are caught above and passed through whole, since their
+  messages are written in this repository. (#659)
+
 ## [0.0.117] - 2026-08-13
 
 A failed run stored the provider's own error text in a column that run history
