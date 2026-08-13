@@ -72,7 +72,7 @@ async def create_trigger(
 async def run_trigger_now(
     agent_id: UUID, trigger_id: UUID, ctx: Auth, service: AgentTriggerSvc
 ) -> Any:
-    """Accept one extra fire of this schedule, as its creator, on its own cadence.
+    """Accept one extra fire of this schedule, as its creator, cadence untouched.
 
     202, not 200: the fire is dispatched once this request commits rather than run
     inside it, so the trigger comes back as it stands and its `last_run_id` still

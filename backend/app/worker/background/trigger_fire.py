@@ -1,12 +1,11 @@
 """In-process handler for a trigger fire that must not happen inside a request.
 
-Two doors reach it, for one reason. The webhook route dispatches a verified event
-delivery here so the provider gets a fast 202 - a GitHub delivery times out after
-about ten seconds, far less than a run can take - and `run_now` dispatches a manual
-fire here so the button does not hold its own HTTP request open for the length of
-the run, which behind an ordinary proxy is a 504 for a run that is still going and
-still spending (#658). Both arrive with the fire already decided and authorized;
-this only runs it, on a session of its own.
+Two doors reach it, for one reason: neither caller can afford to wait for a run.
+The webhook route dispatches a verified event delivery here because a GitHub
+delivery times out after about ten seconds, and `run_now` because a run held open
+inside its own HTTP request is a 504 from any ordinary proxy (#658). Both arrive
+with the fire already decided and authorized; this only runs it, on a session of
+its own.
 """
 
 import logging

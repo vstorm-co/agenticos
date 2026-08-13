@@ -447,6 +447,7 @@ class AgentTriggerService:
             target_id=str(agent_id),
             details={"trigger_id": str(trigger.id)},
         )
+        # Local: the handler imports this module, so hoisting this is a cycle.
         from app.worker.background.trigger_fire import fire_trigger
 
         spawn_after_commit(self.db, fire_trigger(trigger.id), name=f"trigger-run-now-{trigger.id}")

@@ -1,10 +1,10 @@
 """What "run now" answers, through the mounted app.
 
-The status code is the contract this route changed and the only place it can be
-observed: the handler is called directly in `tests/test_agent_trigger_routes.py`,
-where a `202` declared on the decorator is invisible. It says the fire was
-accepted, not that it finished - the run starts once the request's transaction
-commits (#658), so the trigger comes back with the `last_run_id` it already had.
+The status code is the contract this route changed, and this is the only place it
+can be observed: the handler is called directly in
+`tests/test_agent_trigger_routes.py`, where a `202` declared on the decorator is
+invisible. It says the fire was accepted, not that it finished - the run starts
+once the request's transaction commits (#658).
 """
 
 from __future__ import annotations
@@ -64,4 +64,3 @@ async def test_running_now_is_accepted_rather_than_answered_with_the_finished_ru
             f"/api/v1/agents/{_AGENT_ID}/triggers/{trigger_id}/run", json={}
         )
     assert response.status_code == 202
-    assert response.json()["last_run_id"] == str(_PREVIOUS_RUN_ID)

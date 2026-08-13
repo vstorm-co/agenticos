@@ -526,11 +526,8 @@ class TestRunningNow:
     async def test_running_now_answers_before_the_run_it_dispatches(self, fired):
         """#658: the fire is handed over, not awaited inside the request.
 
-        Awaiting it ran the whole agent in the HTTP request, so anything slower
-        than a proxy's read timeout answered 504 while the run carried on and
-        committed - a failure reported for a run that was working, which invites a
-        second press and fires the schedule twice. Nothing has run by the time the
-        caller is answered; the fire starts when the session commits.
+        Nothing has run by the time the caller is answered; the fire starts when
+        the session commits.
         """
         agent = _agent()
         service = _service(agent)

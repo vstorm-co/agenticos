@@ -105,9 +105,9 @@ Any trigger can also be **run now**: one extra fire on demand that leaves its ca
 untouched. It is accepted rather than awaited - the request answers as soon as the
 fire is handed over, and the run appears in the trigger's run-log conversation as it
 happens - so an agent that takes minutes does not hold the browser's request open
-until a proxy gives up on it. And every schedule and event in an organization is listed together across
-its agents, each filtered to the ones the caller may run - the same per-resource
-`agents:run` that gates creating one.
+until a proxy gives up on it. And every schedule and event in an organization is
+listed together across its agents, each filtered to the ones the caller may run -
+the same per-resource `agents:run` that gates creating one.
 
 ## Run
 
