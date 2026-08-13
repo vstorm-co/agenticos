@@ -23,11 +23,10 @@ import pytest
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import RunSurface
-from app.services.channels.base import ROOM_HANDLES
+from app.services.channels.base import ROOM_HANDLES, channel_key
 from app.services.channels.mentions import (
     ChannelAgentRouter,
     UnaddressedMessage,
-    channel_key,
     parse_mention,
 )
 from app.services.usage_report import UsageReport

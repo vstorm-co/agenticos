@@ -94,6 +94,9 @@ async def _channel(
 
     Without this row the thread has no channel anybody can ask about, and a
     participation claim on it is refused - which one test below pins on purpose.
+    The chat id carries a folded thread root (`:root-1`), the shape Mattermost
+    and Slack store - the membership question must name the channel in front of
+    the colon, and the assertion on `asked_chat` pins that on real rows.
     """
     bot = ChannelBot(
         id=uuid.uuid4(),
@@ -110,7 +113,7 @@ async def _channel(
         bot_id=bot.id,
         identity_id=identity.id,
         conversation_id=conversation.id,
-        platform_chat_id="town-square",
+        platform_chat_id="town-square:root-1",
         chat_type="group",
     )
     db.add(session)

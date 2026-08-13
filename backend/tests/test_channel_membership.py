@@ -301,6 +301,63 @@ class TestConfirmedParticipantThreads:
         assert confirmed == {first, second}
         is_still_member.assert_awaited_once()
 
+    async def test_a_thread_id_is_stripped_to_its_channel_before_the_platform_is_asked(self):
+        """Slack and Mattermost fold a thread id into `platform_chat_id`
+        (`C1:1721234.5678`), and asked about that composite the platform answers
+        `channel_not_found` - a member still in the room would be refused."""
+        bot = _bot()
+        thread = uuid4()
+
+        with (
+            patch(
+                "app.services.channels.membership.conversation_repo.participation_claims",
+                AsyncMock(return_value=[_claim(thread, bot.id, chat="C1:1721234.5678")]),
+            ),
+            patch(
+                "app.services.channels.membership.channel_bot_repo.get_by_ids",
+                AsyncMock(return_value={bot.id: bot}),
+            ),
+            patch(
+                "app.services.channels.membership.is_still_member", AsyncMock(return_value=True)
+            ) as is_still_member,
+        ):
+            confirmed = await membership.confirmed_participant_threads(
+                AsyncMock(), user_id=uuid4(), organization_id=uuid4()
+            )
+
+        assert confirmed == {thread}
+        assert is_still_member.await_args.args[1] == "C1"
+
+    async def test_two_threads_of_one_channel_are_one_question(self):
+        """Different thread suffixes, one channel: one platform call answers
+        both claims rather than one per thread."""
+        bot = _bot()
+        first, second = uuid4(), uuid4()
+        claims = [
+            _claim(first, bot.id, chat="C1:1721234.5678"),
+            _claim(second, bot.id, chat="C1:1721299.0001"),
+        ]
+
+        with (
+            patch(
+                "app.services.channels.membership.conversation_repo.participation_claims",
+                AsyncMock(return_value=claims),
+            ),
+            patch(
+                "app.services.channels.membership.channel_bot_repo.get_by_ids",
+                AsyncMock(return_value={bot.id: bot}),
+            ),
+            patch(
+                "app.services.channels.membership.is_still_member", AsyncMock(return_value=True)
+            ) as is_still_member,
+        ):
+            confirmed = await membership.confirmed_participant_threads(
+                AsyncMock(), user_id=uuid4(), organization_id=uuid4()
+            )
+
+        assert confirmed == {first, second}
+        is_still_member.assert_awaited_once()
+
 
 class TestConfirmsParticipation:
     async def test_a_confirmed_claim_opens_the_thread(self):

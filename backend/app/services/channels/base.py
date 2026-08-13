@@ -58,6 +58,24 @@ DEFAULT_ACCESS_POLICY_JSON: str = (
 )
 
 
+def channel_key(platform_chat_id: str) -> str:
+    """The chat a message arrived in, with any thread stripped.
+
+    Slack folds `thread_ts` into `platform_chat_id` as `channel:thread_ts` and
+    Mattermost folds `root_id` in the same way, so the raw id identifies a
+    *thread*. Anything scoped to the channel - a workspace shared across its
+    threads, an API call about the channel itself - has to key on what is stable
+    across them, which is the part before the colon. Every other platform's id
+    is already the chat.
+
+    Here rather than in `mentions`, where it started: `channels.membership`
+    asks the platform about the channel too and must not drag the agent runtime
+    in with the import - and two implementations of "which channel is this" is
+    how one of them ends up asking Mattermost about a thread id.
+    """
+    return platform_chat_id.partition(":")[0]
+
+
 @dataclass(frozen=True)
 class IncomingAttachment:
     """A file somebody sent a bot, before it has been fetched.

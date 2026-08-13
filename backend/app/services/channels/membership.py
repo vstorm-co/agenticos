@@ -33,7 +33,7 @@ from app.repositories import channel_bot as channel_bot_repo
 from app.repositories import conversation as conversation_repo
 from app.services.channel_bot import unseal_bot_token
 from app.services.channels import get_adapter
-from app.services.channels.base import ChannelDirectoryUnsupported
+from app.services.channels.base import ChannelDirectoryUnsupported, channel_key
 
 logger = logging.getLogger(__name__)
 
@@ -135,13 +135,17 @@ async def _confirmed(
 
     One membership question per distinct (bot, chat, account) however many
     threads hang off it, asked concurrently - on a cold cache each is a network
-    round trip, and a listing is waiting.
+    round trip, and a listing is waiting. The chat is the *channel*: Slack and
+    Mattermost fold a thread id into `platform_chat_id`, and handed that
+    composite the platform answers `channel_not_found` - so every thread
+    participant would be refused while still in the room. `channel_key` strips
+    it, which also makes a channel's many threads one question.
     """
     if not claims:
         return set()
     bots = await channel_bot_repo.get_by_ids(db, {claim.bot_id for claim in claims})
     questions = {
-        (claim.bot_id, claim.platform_chat_id, claim.platform_user_id)
+        (claim.bot_id, channel_key(claim.platform_chat_id), claim.platform_user_id)
         for claim in claims
         if claim.bot_id in bots
     }
@@ -153,7 +157,7 @@ async def _confirmed(
     return {
         claim.conversation_id
         for claim in claims
-        if (claim.bot_id, claim.platform_chat_id, claim.platform_user_id) in confirmed
+        if (claim.bot_id, channel_key(claim.platform_chat_id), claim.platform_user_id) in confirmed
     }
 
 
