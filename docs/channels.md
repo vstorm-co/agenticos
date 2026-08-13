@@ -247,6 +247,7 @@ narration of tool calls is not. The hosted page draws all of them.
 |---|---|
 | `4003` | Refused. The origin is not allowed, the token failed, or the widget is paused. Do not retry — the answer will not change. |
 | `4029` | Too many connections from this address in the last minute. Back off and retry. |
+| `1011` | This client was not reading. A frame took longer than 30 seconds to reach it, so the server stopped writing rather than hold the turn's database session and the open provider stream once per frame. Reconnect; a hosted page resumes its thread. |
 
 The refusal is deliberately one code with one message. A page that is not on the
 allow-list learns that it is not allowed and nothing about whether a token would

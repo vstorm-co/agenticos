@@ -19,6 +19,7 @@ the visitor typed.
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -43,6 +44,8 @@ from app.services.file_upload import FileUploadService
 from app.services.run_stream import RunFrames
 
 pytestmark = pytest.mark.anyio
+
+MODULE = "app.services.embed_session"
 
 
 def _embed(*, kind: str = "page", **config: Any) -> MagicMock:
@@ -218,6 +221,65 @@ class TestASurfaceWithNoSwitchesGetsTheSafeOnes:
             assert "tool_result" not in shown
             assert "tool_call" in shown
             assert "text_delta" in shown
+
+
+class TestAReaderThatStopsReading:
+    """A bound per frame is not a bound on the turn.
+
+    The reader end of #39's pool exhaustion: a client whose write buffer never
+    drains held the per-turn session and the open provider stream for as long as it
+    liked. A timeout per `send_json` turned "for ever" into
+    `frames * SEND_TIMEOUT_SECONDS`, which for an answer arriving in two hundred
+    deltas is an hour and a half - slower, not bounded. So the first stall ends the
+    connection instead of being retried on the next frame.
+    """
+
+    @staticmethod
+    def _stalling() -> EmbedSession:
+        session = _session(_embed())
+
+        async def never_drains(_frame: dict[str, Any]) -> None:
+            await asyncio.sleep(3600)
+
+        session.websocket.send_json = AsyncMock(side_effect=never_drains)
+        session.websocket.close = AsyncMock()
+        return session
+
+    async def test_one_stall_costs_the_bound_once_however_many_frames_follow(self) -> None:
+        session = self._stalling()
+
+        with patch(f"{MODULE}.SEND_TIMEOUT_SECONDS", 0.01):
+            for _ in range(50):
+                await session._emit("text_delta", {"content": "hi"})
+
+        assert session.websocket.send_json.await_count == 1, (
+            "the 49 frames after the stall were not each given the full bound"
+        )
+
+    async def test_the_socket_is_closed_rather_than_written_to_with_a_hole_in_it(self) -> None:
+        """`wait_for` cancels `send_json` mid-write, so what follows is not a stream
+        a client can trust: frames go missing with no `error` to explain them, and a
+        dropped `final_result` leaves a truncated answer on screen while the
+        transcript and the operator's bill hold the whole one."""
+        session = self._stalling()
+
+        with patch(f"{MODULE}.SEND_TIMEOUT_SECONDS", 0.01):
+            await session._emit("text_delta", {"content": "hi"})
+
+        session.websocket.close.assert_awaited_once_with(code=1011)
+
+    async def test_a_closed_tab_is_not_a_stall_and_does_not_end_the_turn(self) -> None:
+        """The other half of the old `except Exception`. A send that raises at once
+        is a visitor who left; every later frame is still attempted, because there
+        is no stall to latch and `_run`'s own `finally` is what records the cost."""
+        session = _session(_embed())
+        session.websocket.send_json = AsyncMock(side_effect=RuntimeError("socket is closed"))
+
+        await session._emit("text_delta", {"content": "one"})
+        await session._emit("text_delta", {"content": "two"})
+
+        assert session.websocket.send_json.await_count == 2
+        assert session._stalled is False
 
 
 class TestWhatATurnCostStaysWithTheOperator:
