@@ -23,6 +23,7 @@ import logging
 import re
 from dataclasses import dataclass
 from typing import Any
+from uuid import UUID
 
 from pydantic_ai.messages import BinaryContent
 from pydantic_ai_backends import AsyncBackendProtocol, BackendProtocol, ensure_async
@@ -305,8 +306,8 @@ class AttachmentRouter:
         return BinaryContent(data=data, media_type=chat_file.mime_type)
 
 
-async def load_attached_files(db: Any, file_ids: list[str]) -> list[ChatFile]:
-    """The rows behind the ids a client sent with its message."""
+async def load_attached_files(db: Any, file_ids: list[str], *, user_id: UUID) -> list[ChatFile]:
+    """The rows behind the ids a client sent with its message, scoped to the sender (#706)."""
     from app.api.deps import get_conversation_service
 
-    return await get_conversation_service(db).list_attached_files(file_ids)
+    return await get_conversation_service(db).list_attached_files(file_ids, user_id=user_id)

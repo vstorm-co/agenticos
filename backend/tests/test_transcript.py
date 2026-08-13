@@ -278,7 +278,7 @@ class TestWritingTheTranscript:
         `--- Attached file: … (/uploads/…, 43 KB, image)`. The dashboard's own
         uploads have been rows since they existed.
         """
-        attachment = MagicMock(id=uuid.uuid4())
+        attachment = MagicMock(id=uuid.uuid4(), user_id=uuid.uuid4())
 
         await TranscriptService(_session()).record(
             _run(), prompt="co tu widzisz", answer="A dashboard.", attachments=[attachment]
@@ -287,6 +287,9 @@ class TestWritingTheTranscript:
         linked = files.link_to_message.await_args.kwargs
         asked = conversations.create_message.await_args_list[0].kwargs
         assert linked["file_ids"] == [attachment.id]
+        # The repository moves a file only for its own uploader (#706), so the
+        # link is issued as the sender the row was stored for.
+        assert linked["user_id"] == attachment.user_id
         assert (linked["message_id"], asked["role"]) == (
             conversations.create_message.return_value.id,
             "user",

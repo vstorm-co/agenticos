@@ -539,10 +539,10 @@ class EmbedSession:
 
         Two conditions, and between them they are what stops a frame from
         attaching a file that is not this visitor's to attach. The row must belong
-        to the member who published this embed - which is who
-        `accept_upload` attributes an upload to - and it must not already hang off
-        a message, so a file cannot be replayed into a second turn or into somebody
-        else's thread.
+        to the member who published this embed - which is who `accept_upload`
+        attributes an upload to, and is the owner the repository read is scoped
+        by (#706) - and it must not already hang off a message, so a file cannot
+        be replayed into a second turn or into somebody else's thread.
 
         That is proportionate rather than complete, and the reason it is enough is
         the id: `uuid4` is 122 random bits, so "an id from another visitor" is a
@@ -551,16 +551,18 @@ class EmbedSession:
         that exists to re-state what the message it ends up on already says.
 
         A dropped id is logged and the turn goes ahead. The alternative is refusing
-        somebody their answer over a stale id in a composer.
+        somebody their answer over a stale id in a composer. A page whose
+        publisher's account is gone owns no rows at all - `accept_upload` already
+        refuses new files on one - so every id it names drops the same way.
         """
         if not attached:
             return []
-        rows = await chat_file_repo.get_many(db, attached)
-        usable = [
-            row
-            for row in rows
-            if row.user_id == self.embed.owner_user_id and row.message_id is None
-        ]
+        rows = (
+            []
+            if self.embed.owner_user_id is None
+            else await chat_file_repo.get_many(db, attached, user_id=self.embed.owner_user_id)
+        )
+        usable = [row for row in rows if row.message_id is None]
         if len(usable) != len(attached):
             logger.info(
                 "embed_attachment_refused",
