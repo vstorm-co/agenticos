@@ -287,9 +287,10 @@ class TestMemberService:
 class TestRoleAssigned:
     """The request schema refuses a role a role change may not grant (#672).
 
-    The membership half of what `InvitationCreate` and `InviteLinkCreate` hold
-    for invitations: the service's ceiling depends on who is asking, so the
-    schema is where "no owner by PATCH, no made-up roles" holds for everyone.
+    The membership half of what `InvitationCreate` holds for invitations - and
+    of what `InviteLinkCreate` is still missing on this base, which is #551.
+    The service's ceiling depends on who is asking, so the schema is where "no
+    owner by PATCH, no made-up roles" holds for every requester alike.
     """
 
     @pytest.mark.parametrize("role", ["owner", "ceo"])
