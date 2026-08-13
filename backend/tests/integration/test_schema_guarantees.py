@@ -17,10 +17,13 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
+from app.db.models.agent_embed import AgentEmbed
 from app.db.models.agent_exposure import AgentExposure, ExposureSurface
 from app.db.models.agent_run import AgentRun, RunStatus, ToolApproval
 from app.db.models.channel_bot import ChannelBot
+from app.db.models.conversation import Conversation
 from app.db.models.credential import ModelProfile
+from app.db.models.embed_visitor import EmbedVisitor
 from app.db.models.ingestion_spend import IngestionSpend
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization import Organization, OrganizationMember
@@ -29,7 +32,7 @@ from app.db.models.rag_document import RAGDocument
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
 from app.db.models.skill import Skill
 from app.db.models.user import User
-from app.repositories import ingestion_spend_repo
+from app.repositories import embed_visitor_repo, ingestion_spend_repo
 
 pytestmark = pytest.mark.anyio
 
@@ -873,3 +876,185 @@ class TestExposureAttribution:
         await db.refresh(run)
 
         assert (run.exposure_id, run.cost_usd) == (None, Decimal("2.00"))
+
+
+class TestHostedEmbedConstraints:
+    """What a page is, held by the database rather than by the service alone.
+
+    The service refuses each of these at publish time with a message somebody can
+    act on. This is the other half, for a future call site that forgets to ask: a
+    page's link travels in browser history, in `Referer` headers and in every chat
+    client it is pasted into, so a `jwt` page would put a visitor token through all
+    three (#517) - and an allow-list on a page is either dead configuration or
+    somebody's belief that it is what protects the link.
+    """
+
+    @staticmethod
+    def _embed(org: Organization, agent: Agent, **overrides) -> AgentEmbed:
+        kind = overrides.pop("kind", "widget")
+        return AgentEmbed(
+            id=uuid.uuid4(),
+            organization_id=org.id,
+            agent_id=agent.id,
+            name="Support",
+            public_key=uuid.uuid4().hex,
+            kind=kind,
+            config={"kind": kind},
+            **overrides,
+        )
+
+    async def test_a_public_page_is_accepted(self, db):
+        org = await _org(db)
+        agent = await _agent(db, org)
+
+        db.add(self._embed(org, agent, kind="page", auth_mode="public"))
+        await db.flush()
+
+    async def test_a_token_page_is_refused(self, db):
+        org = await _org(db)
+        agent = await _agent(db, org)
+
+        db.add(self._embed(org, agent, kind="page", auth_mode="jwt", jwt_secret_encrypted="sealed"))
+        with pytest.raises(IntegrityError):
+            await db.flush()
+
+    async def test_a_page_carrying_an_allow_list_is_refused(self, db):
+        """An allow-list is a rule about other people's sites, and this one is
+        ours. Stored, it would read as the thing protecting the link."""
+        org = await _org(db)
+        agent = await _agent(db, org)
+
+        db.add(self._embed(org, agent, kind="page", allowed_origins=["https://acme.test"]))
+        with pytest.raises(IntegrityError):
+            await db.flush()
+
+    async def test_a_kind_nothing_serves_is_refused(self, db):
+        """Three surfaces exist. A fourth value would be a row every reader
+        branches on and nobody renders."""
+        org = await _org(db)
+        agent = await _agent(db, org)
+
+        db.add(self._embed(org, agent, kind="carrier-pigeon"))
+        with pytest.raises(IntegrityError):
+            await db.flush()
+
+    async def test_one_visitor_key_names_one_thread_per_embed(self, db):
+        """The key is what a bookmarked link resumes by. Two rows for one key
+        would make "which conversation" a question with two answers."""
+        org = await _org(db)
+        agent = await _agent(db, org)
+        embed = self._embed(org, agent, kind="page")
+        db.add(embed)
+        await db.flush()
+
+        for _ in range(2):
+            db.add(EmbedVisitor(id=uuid.uuid4(), embed_id=embed.id, visitor_key="v-1"))
+        with pytest.raises(IntegrityError):
+            await db.flush()
+
+    async def test_claiming_a_key_twice_is_not_a_conflict(self, db):
+        """Two tabs on one bookmarked link share a `localStorage` key.
+
+        Read-then-write had both miss, both insert, and the second commit violate
+        the constraint above - which the socket's handler turns into "Something
+        went wrong" for whichever tab lost. `claim` is one statement, so the
+        second sighting is an update and both tabs get the same row.
+        """
+        org = await _org(db)
+        agent = await _agent(db, org)
+        embed = self._embed(org, agent, kind="page")
+        db.add(embed)
+        await db.flush()
+
+        first = await embed_visitor_repo.claim(db, embed_id=embed.id, visitor_key="v-1")
+        second = await embed_visitor_repo.claim(db, embed_id=embed.id, visitor_key="v-1")
+
+        assert first.id == second.id
+        assert second.last_seen_at is not None
+
+    async def test_a_claim_that_finds_a_thread_keeps_it(self, db):
+        """The upsert touches `last_seen_at` and nothing else. Resuming a
+        conversation must not be the thing that forgets which one it was."""
+        org = await _org(db)
+        agent = await _agent(db, org)
+        embed = self._embed(org, agent, kind="page")
+        conversation = Conversation(id=uuid.uuid4(), organization_id=org.id, title="t")
+        db.add_all([embed, conversation])
+        await db.flush()
+
+        claimed = await embed_visitor_repo.claim(db, embed_id=embed.id, visitor_key="v-1")
+        await embed_visitor_repo.link_conversation(
+            db, db_visitor=claimed, conversation_id=conversation.id
+        )
+
+        again = await embed_visitor_repo.claim(db, embed_id=embed.id, visitor_key="v-1")
+
+        assert again.conversation_id == conversation.id
+
+    async def test_a_second_link_keeps_the_first_thread_and_returns_it(self, db):
+        """The first-message race: two tabs on one key each create a thread and
+        each try to link it. The second write finds the column already set, so it
+        changes nothing and the caller is handed the first thread to answer into -
+        rather than detaching it and stranding the visitor's history."""
+        org = await _org(db)
+        agent = await _agent(db, org)
+        embed = self._embed(org, agent, kind="page")
+        first = Conversation(id=uuid.uuid4(), organization_id=org.id, title="first")
+        second = Conversation(id=uuid.uuid4(), organization_id=org.id, title="second")
+        db.add_all([embed, first, second])
+        await db.flush()
+
+        claimed = await embed_visitor_repo.claim(db, embed_id=embed.id, visitor_key="v-1")
+        won = await embed_visitor_repo.link_conversation(
+            db, db_visitor=claimed, conversation_id=first.id
+        )
+        adopted = await embed_visitor_repo.link_conversation(
+            db, db_visitor=claimed, conversation_id=second.id
+        )
+
+        assert won == first.id
+        assert adopted == first.id
+        again = await embed_visitor_repo.claim(db, embed_id=embed.id, visitor_key="v-1")
+        assert again.conversation_id == first.id
+
+    async def test_the_same_key_may_visit_two_embeds(self, db):
+        """Nothing links the two: a browser holds one key per public key, and a
+        collision across embeds must not be a collision at all."""
+        org = await _org(db)
+        agent = await _agent(db, org)
+        first, second = self._embed(org, agent, kind="page"), self._embed(org, agent, kind="page")
+        db.add_all([first, second])
+        await db.flush()
+
+        db.add_all(
+            [
+                EmbedVisitor(id=uuid.uuid4(), embed_id=first.id, visitor_key="v-1"),
+                EmbedVisitor(id=uuid.uuid4(), embed_id=second.id, visitor_key="v-1"),
+            ]
+        )
+        await db.flush()
+
+    async def test_a_deleted_conversation_leaves_the_visitor_able_to_start_again(self, db):
+        """`SET NULL`, not `CASCADE`: a retention sweep must not delete the
+        visitor along with the thread it removed."""
+        org = await _org(db)
+        agent = await _agent(db, org)
+        embed = self._embed(org, agent, kind="page")
+        conversation = Conversation(id=uuid.uuid4(), organization_id=org.id, title="t")
+        db.add_all([embed, conversation])
+        await db.flush()
+
+        visitor = EmbedVisitor(
+            id=uuid.uuid4(),
+            embed_id=embed.id,
+            visitor_key="v-1",
+            conversation_id=conversation.id,
+        )
+        db.add(visitor)
+        await db.flush()
+
+        await db.delete(conversation)
+        await db.flush()
+        await db.refresh(visitor)
+
+        assert visitor.conversation_id is None

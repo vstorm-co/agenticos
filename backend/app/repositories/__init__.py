@@ -25,6 +25,7 @@ from app.repositories import channel_session as channel_session_repo
 
 from app.repositories import agent as agent_repo
 from app.repositories import agent_embed as agent_embed_repo
+from app.repositories import embed_visitor as embed_visitor_repo
 from app.repositories import agent_environment as agent_environment_repo
 from app.repositories import agent_exposure as agent_exposure_repo
 from app.repositories import agent_run as agent_run_repo
@@ -74,6 +75,7 @@ __all__ = [
     "agent_environment_repo",
     "agent_exposure_repo",
     "agent_embed_repo",
+    "embed_visitor_repo",
     "agent_run_repo",
     "agent_workspace_repo",
     "sandbox_connection_repo",

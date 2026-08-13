@@ -308,6 +308,9 @@ class TestATurnRefusedBeforeTheRunKeepsNothing:
     async def test_a_refused_turn_leaves_no_stored_file(self):
         router, replies, rows = _router()
         router._answer_mention = AsyncMock(return_value=False)  # type: ignore[method-assign]
+        # The window is read off the database and these tests hand `_route_inner`
+        # a mock; what they are about is the file rows, not the history.
+        router._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
 
         with _channel(
             _agent_router(
@@ -337,6 +340,7 @@ class TestATurnRefusedBeforeTheRunKeepsNothing:
         router, _replies, rows = _router()
         router._answer_mention = AsyncMock(return_value=False)  # type: ignore[method-assign]
         router._deliver = AsyncMock()  # type: ignore[method-assign]
+        router._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
 
         with _channel(_agent_router(answer_default=None), rows):
             await router._route_inner(_incoming("here is the report"), MagicMock())

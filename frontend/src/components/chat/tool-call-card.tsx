@@ -13,7 +13,7 @@ import { LoadSkillResult } from "./tool-results/skills";
 import { GenericToolResult, RawToolView } from "./tool-results/generic";
 import { RunPythonResult } from "./tool-results/run-python";
 import { WorkspaceToolResult } from "./tool-results/workspace";
-import { useMcpToolServers } from "@/hooks";
+import type { McpServerRef } from "@/lib/tool-steps";
 import { useTranslations } from "next-intl";
 
 interface ToolCallCardProps {
@@ -26,6 +26,16 @@ interface ToolCallCardProps {
    * route that serves them is addressed through it.
    */
   conversationId?: string;
+  /**
+   * The organization's MCP connections, for naming a call that came from one.
+   *
+   * Passed rather than fetched here, and that is what lets a public page render a
+   * step at all: reading them off the API is two authenticated queries, and the
+   * hosted route has neither a session nor a query client. A caller with none to
+   * offer passes an empty list, which is what makes `linear_create_issue` read as
+   * a humanized name instead of failing.
+   */
+  mcpServers: McpServerRef[];
   /**
    * Open this step on mount.
    *
@@ -51,7 +61,12 @@ interface ToolCallCardProps {
  * defaults are the calls whose whole value is the thing they produced - a chart, a
  * question waiting on an answer, code that ran, and a file that was written.
  */
-export function ToolCallCard({ toolCall, conversationId, startOpen = false }: ToolCallCardProps) {
+export function ToolCallCard({
+  toolCall,
+  conversationId,
+  mcpServers,
+  startOpen = false,
+}: ToolCallCardProps) {
   const t = useTranslations("chat.tools");
   // What this side knows about the tool: its icon, its wording, and which renderer
   // opens underneath it. One table, keyed on the id the backend registers - see
@@ -112,7 +127,6 @@ export function ToolCallCard({ toolCall, conversationId, startOpen = false }: To
       ? parseWebSearch(toolCall.result)
       : null;
 
-  const mcpServers = useMcpToolServers();
   const isRunning = toolCall.status === "running" || toolCall.status === "pending";
   // Its own state, not a kind of running: a parked call produces no result until
   // somebody decides, so a spinner here is a lie that never resolves.

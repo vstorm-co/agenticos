@@ -65,6 +65,7 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from pydantic_ai import Agent as PydanticAgent
+from pydantic_ai.exceptions import ModelHTTPError
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter, UserContent
 from pydantic_ai.run import AgentRun as AgentIteration
 from pydantic_ai.run import AgentRunResult
@@ -121,6 +122,7 @@ from app.agents.subagent_runtime import (
 )
 from app.core.config import settings
 from app.core.exceptions import (
+    AppException,
     AuthorizationError,
     BadRequestError,
     NotFoundError,
@@ -1336,21 +1338,51 @@ class RunSegment:
     settled: dict[str, str]
 
 
-def _prompt_text(user_prompt: str | list[Any] | None) -> str | None:
-    """The words to record as the user's turn, if there are any.
+def run_failure_summary(exc: Exception) -> str:
+    """The sentence a failed run may store, for an exception it may not.
 
-    `None` stays `None`: a resumed run has no new prompt - it picks up at the
-    tool call it stopped on - and writing a turn there would put words in
-    somebody's mouth.
+    `agent_runs.error` used to hold `str(exc)` of whatever came out of the run.
+    It is a stored column on `AgentRunRead`, rendered in run history to every
+    member who can read it, and what raises there is a model client with `httpx`
+    underneath - so that routinely meant an endpoint, an internal host, or a URL
+    with a key still in its query string, sitting in a row somebody opens weeks
+    later. Same rule as #342 in an HTTP body, #423 in the ingestion columns and
+    #659 in the chat frame, with the longest life of the four (#676).
 
-    A list is a prompt an attachment was folded into, where the non-text parts
-    are the file itself. Only the text is recorded; the transcript's own file
-    rows are where an attachment belongs, and a `repr` of `BinaryContent` in the
-    message body is worse than nothing.
+    Ours is kept whole. An `AppException` raised inside the run is written in
+    this repository, and its message is the most useful thing an operator can be
+    shown - "No model profile is configured for this agent" beats any sentence
+    composed here. (The one place that folds a foreign `__str__` into an
+    `AppException` is `sandbox_workspace._reason`, deliberately and for a route's
+    answer; it runs outside both `try` blocks that call this.) `BudgetExceeded`
+    never reaches this function: it is caught above and its ceiling is the point
+    of it.
+
+    Anything else is a foreign `__str__` and only its *type* is safe to store,
+    plus the status code when a provider answered one. That code is what keeps
+    the failures a person can act on themselves actionable - 401 a credential,
+    404 a model the profile names and the provider does not have, 429 a rate
+    limit, 400 a request the model refused - where a bare class name would make
+    all four `ModelHTTPError`. An `int` has never carried a URL.
+
+    A group is unwrapped to its first leaf first, the same unwrapping
+    `failure_summary` and `probe_error_message` do. MCP toolsets and delegated
+    runs sit on anyio task groups, so their failures arrive as an
+    `ExceptionGroup` whose own name diagnoses nothing at all - which would spend
+    the status code above on the failures most likely to carry one.
     """
-    if user_prompt is None or isinstance(user_prompt, str):
-        return user_prompt
-    return "".join(part for part in user_prompt if isinstance(part, str))
+    cause: BaseException = exc
+    while isinstance(cause, BaseExceptionGroup):
+        cause = cause.exceptions[0]
+    if isinstance(cause, AppException):
+        return str(cause)
+    diagnosis = type(cause).__name__
+    if isinstance(cause, ModelHTTPError):
+        diagnosis = f"{diagnosis}, HTTP {cause.status_code}"
+    return (
+        f"The run did not finish ({diagnosis}) - retry it, and check the agent's model "
+        "profile if it keeps failing. The server log has the full error."
+    )
 
 
 class AgentRunnerService:
@@ -1575,6 +1607,7 @@ class AgentRunnerService:
                 conversation_id=conversation_id,
                 environment_id=environment_id,
                 exposure_id=exposure.id if exposure else None,
+                channel_identity_id=ctx.channel_identity_id,
                 surface=surface.value,
                 model_label=model_spec.label,
                 provider=model_spec.provider,
@@ -2685,6 +2718,7 @@ class AgentRunnerService:
         agent_id: UUID,
         prompt: str,
         *,
+        said: str | None = None,
         surface: RunSurface = RunSurface.API,
         conversation_id: UUID | None = None,
         channel_key: str | None = None,
@@ -2710,7 +2744,15 @@ class AgentRunnerService:
         here rather than by the caller because where an attachment *goes* depends
         on whether the agent has a workspace, and only `prepare` knows that - the
         same reason the streaming path routes them after preparing rather than
-        before.
+        before. They are also linked to the turn they arrived with, so a file
+        posted in a channel is a file in the transcript rather than a sentence
+        about one.
+
+        `said` is what the person actually wrote, when `prompt` is something this
+        caller assembled around it - a widget's placement note, a channel's
+        restored slash. It is what goes in the transcript; `prompt` is what goes
+        to the model. Defaults to `prompt`, which is right for every surface that
+        assembles nothing.
 
         `outbound` and `outbound_refused` are filled with what the agent produced
         and what a reply cannot carry. Lists the caller passes in rather than a
@@ -2743,6 +2785,11 @@ class AgentRunnerService:
         segment = await self._run(
             prepared,
             user_prompt=assembled,
+            # The prompt as it was *given*, not as it was assembled: the files
+            # are recorded as rows below, and a surface that prepends its own
+            # note passes what the person typed.
+            said=prompt if said is None else said,
+            attachments=attachments or (),
             message_history=message_history,
             deferred_tool_results=None,
             stream=stream,
@@ -2938,6 +2985,7 @@ class AgentRunnerService:
                 # No new prompt: the conversation resumes at the tool call it stopped
                 # on, and inventing a user turn here would put words in their mouth.
                 user_prompt=None,
+                said=None,
                 message_history=ModelMessagesTypeAdapter.validate_python(state.messages),
                 deferred_tool_results=plan.results,
             )
@@ -3097,11 +3145,20 @@ class AgentRunnerService:
         prepared: PreparedRun,
         *,
         user_prompt: str | list[Any] | None,
+        said: str | None,
+        attachments: Sequence[ChatFile] = (),
         message_history: list[Any] | None,
         deferred_tool_results: DeferredToolResults | None,
         stream: RunStream | None = None,
     ) -> RunSegment:
         """Execute the agent and account for it, however it ends.
+
+        `user_prompt` is what the model is given and `said` is what the person
+        wrote, which are not the same string on any surface that assembles one:
+        `AttachmentRouter` appends a briefing about each file, and an embedded
+        widget prepends the operator's placement note. Recording the assembled
+        version put the model's own briefing in the transcript as the user's words.
+        `said` is `None` on a resume, where nothing new was said at all.
 
         The one place a run is executed, so a parked call, a budget stop, a
         cancellation and a crash are all recorded the same way whether the run is
@@ -3184,7 +3241,7 @@ class AgentRunnerService:
             budget_scope = exc.scope
             logger.info("Run %s stopped by budget: %s", prepared.run.id, exc)
         except Exception as exc:
-            error = str(exc)
+            error = run_failure_summary(exc)
             logger.exception("Agent run %s failed", prepared.run.id)
             raise
         finally:
@@ -3200,8 +3257,9 @@ class AgentRunnerService:
             # somebody opens.
             await self.transcript.record(
                 prepared.run,
-                prompt=_prompt_text(user_prompt),
+                prompt=said,
                 answer=output,
+                attachments=attachments,
                 tool_calls=called,
                 settled=settled,
                 model_label=prepared.built.model_label,

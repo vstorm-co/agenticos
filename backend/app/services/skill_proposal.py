@@ -30,6 +30,7 @@ from app.core.exceptions import AlreadyExistsError, NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
 from app.repositories import skill_proposal_repo
+from app.schemas.skill import SkillUpdate
 from app.services.skill_workspace import SkillChange
 from app.services.skills import SkillService
 
@@ -144,7 +145,7 @@ class SkillProposalService:
             skill = await self.skills.update(
                 ctx,
                 proposal.skill_id,
-                {"description": proposal.description, "content": proposal.content},
+                SkillUpdate(description=proposal.description, content=proposal.content),
             )
 
         if proposal.resources:
