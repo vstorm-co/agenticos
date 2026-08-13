@@ -232,7 +232,7 @@ class TestAccepting:
         invite = _link(expires_at=datetime.now(UTC) - timedelta(days=1))
         with (
             patch(f"{MODULE}.invitation_repo.get_by_token", new=AsyncMock(return_value=invite)),
-            patch(f"{MODULE}.invitation_repo.revoke", new=AsyncMock()),
+            patch(f"{MODULE}.invitation_repo.expire", new=AsyncMock()),
             pytest.raises(BadRequestError, match="expired"),
         ):
             await InvitationService(MagicMock()).accept("tok", uuid.uuid4())
