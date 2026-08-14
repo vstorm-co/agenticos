@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 
 import { RUN_LABEL } from "@/components/agents/status-badge";
+import { SurfaceIcon } from "@/components/runs/surface-icon";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui";
 import { useAgents, useAgentVersions, useMembers, usePermissions } from "@/hooks";
 import { useOrgStore } from "@/stores";
@@ -91,7 +92,10 @@ export function RunFilterBar({
           <SelectItem value="all">{t("anySurface")}</SelectItem>
           {SURFACES.map((entry) => (
             <SelectItem key={entry} value={entry} className="font-mono text-xs">
-              {entry}
+              <span className="flex items-center gap-1.5">
+                <SurfaceIcon surface={entry} />
+                {entry}
+              </span>
             </SelectItem>
           ))}
         </SelectContent>

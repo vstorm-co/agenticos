@@ -4,6 +4,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { ThumbsDown } from "lucide-react";
 
 import { RunStatusBadge } from "@/components/agents/status-badge";
+import { SurfaceIcon } from "@/components/runs/surface-icon";
 import { Badge, DataTable, type Column } from "@/components/ui";
 import { formatDate, formatRunDuration } from "@/lib/utils";
 import type { AgentRun } from "@/types/runs";
@@ -84,7 +85,14 @@ export function RunTable({
     {
       key: "surface",
       header: t("surface"),
-      cell: (run) => <span className="text-muted-foreground">{run.surface}</span>,
+      // The mark and the name together: the mark is what makes a column of
+      // fifty rows scannable, the name is what a screen reader hears.
+      cell: (run) => (
+        <span className="text-muted-foreground flex items-center gap-1.5">
+          <SurfaceIcon surface={run.surface} />
+          {run.surface}
+        </span>
+      ),
     },
     {
       key: "model",
