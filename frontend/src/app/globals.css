@@ -1000,25 +1000,27 @@
   }
 }
 
-/* The wash per theme. One set of blobs, two palettes: a light page takes airy
-   pastels from the pale end of the ramp - mid-ramp steps read grey-blue and
-   dirty on white - while a dark page takes only a faint glow, because the same
-   percentages that disappear on white pool into murky navy on black. Same
-   two-selector shape as the theme blocks above. */
+/* The wash per theme - luminance only, no hue. Colour was tried twice here
+   (mid-ramp blue: dirty grey on white, murky navy on black; pale pastels:
+   still read as "why is my app blue") and the clean answer is light, not
+   paint: soft neutral shading on a light page, soft neutral blooms on a dark
+   one. The frosted sidebars still have something to pull through; the page
+   stays the page's own colour. Same two-selector shape as the theme blocks
+   above. */
 :root {
-  --ambient-a: color-mix(in oklab, var(--brand-200) 45%, transparent);
-  --ambient-b: color-mix(in oklab, var(--brand-100) 42%, transparent);
-  --ambient-c: color-mix(in oklab, var(--brand-300) 26%, transparent);
+  --ambient-a: color-mix(in oklab, var(--color-foreground) 5%, transparent);
+  --ambient-b: color-mix(in oklab, var(--color-foreground) 3%, transparent);
+  --ambient-c: color-mix(in oklab, var(--color-foreground) 4%, transparent);
 }
 @media (prefers-color-scheme: dark) {
   :root:not(.light) {
-    --ambient-a: color-mix(in oklab, var(--brand-400) 12%, transparent);
-    --ambient-b: color-mix(in oklab, var(--brand-300) 10%, transparent);
-    --ambient-c: color-mix(in oklab, var(--brand-500) 8%, transparent);
+    --ambient-a: color-mix(in oklab, white 7%, transparent);
+    --ambient-b: color-mix(in oklab, white 5%, transparent);
+    --ambient-c: color-mix(in oklab, white 6%, transparent);
   }
 }
 :root.dark {
-  --ambient-a: color-mix(in oklab, var(--brand-400) 12%, transparent);
-  --ambient-b: color-mix(in oklab, var(--brand-300) 10%, transparent);
-  --ambient-c: color-mix(in oklab, var(--brand-500) 8%, transparent);
+  --ambient-a: color-mix(in oklab, white 7%, transparent);
+  --ambient-b: color-mix(in oklab, white 5%, transparent);
+  --ambient-c: color-mix(in oklab, white 6%, transparent);
 }
