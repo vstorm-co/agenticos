@@ -20,8 +20,9 @@ import type { Period } from "@/lib/dashboard/period";
  */
 
 vi.mock("@/lib/api-client", () => ({
-  apiClient: { get: vi.fn() },
+  apiClient: { get: vi.fn(), raw: vi.fn() },
 }));
+vi.mock("@/lib/file-access", () => ({ saveBlob: vi.fn() }));
 
 const perm = vi.hoisted(() => ({ canView: true }));
 vi.mock("@/hooks/use-permissions", () => ({
@@ -44,6 +45,11 @@ beforeEach(() => {
   perm.canView = true;
   vi.mocked(apiClient.get).mockReset();
   vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+  vi.mocked(apiClient.raw).mockReset();
+  vi.mocked(apiClient.raw).mockResolvedValue({
+    blob: async () => new Blob(["run_id\n"], { type: "text/csv" }),
+    headers: { get: () => null },
+  } as unknown as Response);
 });
 
 describe("the rated-down filter", () => {
@@ -94,5 +100,46 @@ describe("the rated-down filter", () => {
 
     expect(await screen.findByText("No runs in this window")).toBeVisible();
     expect(screen.queryByText("No runs rated down")).toBeNull();
+  });
+});
+
+describe("the export beside the filters", () => {
+  it("carries exactly the filters on screen, so the file is the table (#763)", async () => {
+    render(
+      <RunHistoryTab agentId={null} focusedRunId={null} period={PERIOD} onAgentChange={vi.fn()} />,
+      { wrapper },
+    );
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Filter by status" }));
+    await userEvent.click(await screen.findByRole("option", { name: "failed" }));
+    await userEvent.click(screen.getByRole("combobox", { name: "Filter by surface" }));
+    await userEvent.click(await screen.findByRole("option", { name: "slack" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Export CSV" }));
+
+    await waitFor(() => expect(apiClient.raw).toHaveBeenCalledTimes(1));
+    const call = vi.mocked(apiClient.raw).mock.calls.at(-1);
+    const params = (call?.[1] as { params: Record<string, string> }).params;
+    expect(params.status).toBe("failed");
+    expect(params.surface).toBe("slack");
+    expect(params.started_from).toBe("2026-07-16T00:00:00.000Z");
+    expect(params.started_to).toBe("2026-08-14T23:59:59.999Z");
+  });
+
+  it("sends the problems narrowing as the two statuses it stands for", async () => {
+    render(
+      <RunHistoryTab agentId={null} focusedRunId={null} period={PERIOD} onAgentChange={vi.fn()} />,
+      { wrapper },
+    );
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Filter by status" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Problems" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Export CSV" }));
+
+    await waitFor(() => expect(apiClient.raw).toHaveBeenCalledTimes(1));
+    const call = vi.mocked(apiClient.raw).mock.calls.at(-1);
+    const params = (call?.[1] as { params: Record<string, string> }).params;
+    expect(params.status).toBe("failed,budget_exceeded");
   });
 });

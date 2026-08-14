@@ -157,6 +157,24 @@ export function RunHistoryTab({
   };
   const slowActive = minDurationMs !== null;
 
+  // Exactly what the table was asked with, in the export route's own names -
+  // the file is what is on screen, and a filter dropped here is the #763
+  // defect: a CSV read as "the failed Slack runs" that is neither.
+  const exportParams: Record<string, string> = {};
+  if (agentId !== null) {
+    exportParams.agent_id = agentId;
+    exportParams.include_delegations = "true";
+  }
+  if (filters.status !== "all") {
+    exportParams.status =
+      filters.status === "problems" ? PROBLEM_STATUSES.join(",") : filters.status;
+  }
+  if (filters.surface !== "all") exportParams.surface = filters.surface;
+  if (filters.rated !== "all") exportParams.rated = filters.rated;
+  if (filters.userId !== "all") exportParams.user_id = filters.userId;
+  if (filters.versionId !== "all") exportParams.agent_version_id = filters.versionId;
+  if (minDurationMs !== null) exportParams.took_over_ms = String(minDurationMs);
+
   return (
     <div className="space-y-4">
       {/* Narrowed to an agent, a per-version summary sits above the table - the
@@ -187,11 +205,7 @@ export function RunHistoryTab({
                   permission={Perm.runsView}
                   endpoint="/runs/export"
                   kind="runs"
-                  params={
-                    agentId === null
-                      ? undefined
-                      : { agent_id: agentId, include_delegations: "true" }
-                  }
+                  params={Object.keys(exportParams).length > 0 ? exportParams : undefined}
                   rangeParams={{ from: "started_from", to: "started_to" }}
                   range={{ from: periodStart(period), to: periodEnd(period) }}
                 />
