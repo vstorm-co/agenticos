@@ -89,6 +89,9 @@ export const qk = {
         rated?: string;
         statuses?: string[];
         surface?: string;
+        userId?: string;
+        agentVersionId?: string;
+        skip?: number;
       } = {},
     ) =>
       [
@@ -103,6 +106,9 @@ export const qk = {
         opts.rated ?? "any-rating",
         opts.statuses?.join(",") ?? "any-status",
         opts.surface ?? "any-surface",
+        opts.userId ?? "anyone",
+        opts.agentVersionId ?? "any-version",
+        opts.skip ?? 0,
       ] as const,
     detail: (id: string) => ["runs", id] as const,
     // One run's transcript, where the run-detail surface reads the answers

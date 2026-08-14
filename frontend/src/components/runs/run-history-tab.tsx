@@ -6,25 +6,17 @@ import { useTranslations } from "next-intl";
 import { Activity, ThumbsDown } from "lucide-react";
 
 import { getErrorMessage } from "@/lib/api-error";
-import { RUN_LABEL } from "@/components/agents/status-badge";
 import { ExportMenu } from "@/components/runs/export-menu";
 import { FocusedRun } from "@/components/runs/focused-run";
+import {
+  DEFAULT_RUN_FILTERS,
+  RunFilterBar,
+  type RunFilters,
+} from "@/components/runs/run-filter-bar";
 import { RunTable, type RunSort } from "@/components/runs/run-table";
 import { VersionStrip } from "@/components/runs/version-strip";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
-import {
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui";
+import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
 import { usePermissions, useRuns } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { periodEnd, periodStart, type Period } from "@/lib/dashboard/period";
@@ -41,12 +33,6 @@ import type { RunStatus } from "@/types/runs";
  */
 const SLOW_RUN_THRESHOLD_MS = 30_000;
 
-/** What the status filter offers, in the order the badge vocabulary lists them. */
-const STATUSES = Object.keys(RUN_LABEL) as RunStatus[];
-
-/** `RunSurface` on the backend - every value something assigns, none invented. */
-const SURFACES = ["web", "embed", "api", "slack", "telegram", "mattermost"] as const;
-
 /** "What went wrong" as one choice - the query the two statuses exist apart for. */
 const PROBLEM_STATUSES: RunStatus[] = ["failed", "budget_exceeded"];
 
@@ -58,11 +44,11 @@ const PROBLEM_STATUSES: RunStatus[] = ["failed", "budget_exceeded"];
  * ever be used on the page whose URL it knows. Nothing in here is aware of the
  * Activity page.
  *
- * "Rated down" is the one narrowing this tab owns rather than inherits from a
- * query parameter: the highest-signal queue here, the answers real people said
- * were wrong. It is offered only to a caller who may read runs at all - a
- * control that would 403 is not rendered - and a filtered-empty list says it was
- * the filter, not that nothing has ever run.
+ * The filters live in `RunFilterBar` and this tab owns their state: which
+ * statuses, which surface, which rating, whose runs, which version. They are
+ * offered only to a caller who may read runs at all - a control that would 403
+ * is not rendered - and a filtered-empty list says it was the filter, not that
+ * nothing has ever run.
  *
  * `period` is the page's window - the one control every tab shares - and
  * `initialDurationSort` is how the dashboard's p95 figure hands over: it links
@@ -79,21 +65,20 @@ export function RunHistoryTab({
   agentId,
   focusedRunId,
   period,
+  onAgentChange,
   initialDurationSort = false,
 }: {
   agentId: string | null;
   focusedRunId: string | null;
   period: Period;
+  onAgentChange: (agentId: string | null) => void;
   initialDurationSort?: boolean;
 }) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("pages.runs");
-  const tAgents = useTranslations("agents");
   const { can } = usePermissions();
   const canView = can(Perm.runsView);
-  const [ratedDown, setRatedDown] = useState(false);
-  const [status, setStatus] = useState<RunStatus | "all" | "problems">("all");
-  const [surface, setSurface] = useState<string>("all");
+  const [filters, setFilters] = useState<RunFilters>(DEFAULT_RUN_FILTERS);
   const [sort, setSort] = useState<RunSort>(
     initialDurationSort ? { by: "duration", dir: "desc" } : { by: "started_at", dir: "desc" },
   );
@@ -101,17 +86,36 @@ export function RunHistoryTab({
   // re-sort the slow set by start time without it ceasing to be the slow set.
   const [minDurationMs, setMinDurationMs] = useState<number | null>(null);
 
+  // The version narrowing belongs to one agent's history: carried across a
+  // change of agent it would silently empty the next agent's list.
+  const changeAgent = (next: string | null) => {
+    setFilters((current) => ({ ...current, versionId: "all" }));
+    onAgentChange(next);
+  };
+
   const { runs, isLoading, error, refetch } = useRuns(agentId ?? undefined, {
     startedFrom: periodStart(period),
     startedTo: periodEnd(period),
     orderBy: sort.by,
     descending: sort.dir === "desc",
     tookOverMs: minDurationMs ?? undefined,
-    rated: ratedDown ? "down" : undefined,
-    statuses: status === "all" ? undefined : status === "problems" ? PROBLEM_STATUSES : [status],
-    surface: surface === "all" ? undefined : surface,
+    rated: filters.rated === "all" ? undefined : filters.rated,
+    statuses:
+      filters.status === "all"
+        ? undefined
+        : filters.status === "problems"
+          ? PROBLEM_STATUSES
+          : [filters.status],
+    surface: filters.surface === "all" ? undefined : filters.surface,
+    userId: filters.userId === "all" ? undefined : filters.userId,
+    agentVersionId: filters.versionId === "all" ? undefined : filters.versionId,
   });
-  const narrowed = ratedDown || status !== "all" || surface !== "all";
+  const narrowed =
+    filters.rated !== "all" ||
+    filters.status !== "all" ||
+    filters.surface !== "all" ||
+    filters.userId !== "all" ||
+    filters.versionId !== "all";
 
   const showSlow = () => {
     setSort({ by: "duration", dir: "desc" });
@@ -149,15 +153,6 @@ export function RunHistoryTab({
                 the same corner because it exports exactly this table. */}
             {focusedRunId === null && canView && (
               <div className="flex shrink-0 items-center gap-2">
-                <Button
-                  variant={ratedDown ? "default" : "outline"}
-                  size="sm"
-                  aria-pressed={ratedDown}
-                  onClick={() => setRatedDown((on) => !on)}
-                >
-                  <ThumbsDown className="mr-1.5 h-4 w-4" />
-                  {t("ratedDown")}
-                </Button>
                 <ExportMenu
                   permission={Perm.runsView}
                   endpoint="/runs/export"
@@ -176,7 +171,9 @@ export function RunHistoryTab({
           {/* Said out loud, with the way out beside it. A filtered table that
               does not mention the filter is a table somebody reads as the
               whole history, and then wonders where the rest of the runs went.
-              `?run=` narrows harder than `?agent=` and so says so first. */}
+              `?run=` narrows harder than `?agent=` and so says so first. The
+              agent's way out clears the state the filter bar shares - a plain
+              link to /runs would rewrite the URL and leave the narrowing. */}
           {focusedRunId !== null ? (
             <p className="text-muted-foreground text-xs">
               {t("narrowedToOneRun")}{" "}
@@ -188,9 +185,13 @@ export function RunHistoryTab({
             agentId !== null && (
               <p className="text-muted-foreground text-xs">
                 {t("narrowedToOneAgent")}{" "}
-                <Link href={ROUTES.RUNS} className="underline underline-offset-4">
+                <button
+                  type="button"
+                  onClick={() => changeAgent(null)}
+                  className="underline underline-offset-4"
+                >
                   {t("showEveryAgent")}
-                </Link>
+                </button>
               </p>
             )
           )}
@@ -222,37 +223,16 @@ export function RunHistoryTab({
                 </Button>
 
                 {/* Server-side narrowing, like the sort: the page holds fifty
-                    rows and the statuses live on the whole history. */}
-                <Select
-                  value={status}
-                  onValueChange={(value) => setStatus(value as RunStatus | "all" | "problems")}
-                >
-                  <SelectTrigger className="h-8 w-[170px]" aria-label={t("statusFilter")}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">{t("anyStatus")}</SelectItem>
-                    <SelectItem value="problems">{t("problemsOnly")}</SelectItem>
-                    {STATUSES.map((entry) => (
-                      <SelectItem key={entry} value={entry}>
-                        {tAgents(RUN_LABEL[entry])}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select value={surface} onValueChange={setSurface}>
-                  <SelectTrigger className="h-8 w-[150px]" aria-label={t("surfaceFilter")}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">{t("anySurface")}</SelectItem>
-                    {SURFACES.map((entry) => (
-                      <SelectItem key={entry} value={entry} className="font-mono text-xs">
-                        {entry}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                    rows and the filters live on the whole history. Offered only
+                    to a caller who may read runs - see the export above. */}
+                {canView && (
+                  <RunFilterBar
+                    filters={filters}
+                    onChange={setFilters}
+                    agentId={agentId}
+                    onAgentChange={changeAgent}
+                  />
+                )}
               </div>
               {isLoading ? (
                 <LoadingState variant="skeleton-table" columns={7} rows={6} />
@@ -263,7 +243,7 @@ export function RunHistoryTab({
                   cta={{ label: t("tryAgain"), onClick: () => void refetch() }}
                 />
               ) : runs.length === 0 ? (
-                ratedDown ? (
+                filters.rated === "down" ? (
                   <EmptyState
                     icon={ThumbsDown}
                     title={t("noRunsRatedDown")}

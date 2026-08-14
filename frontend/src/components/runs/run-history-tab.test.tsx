@@ -23,9 +23,31 @@ vi.mock("@/hooks", () => ({
   // Imported by FocusedRun, which never renders on the list path exercised here.
   useRun: () => ({ run: undefined, isLoading: false, error: null }),
   useDelegatedRuns: () => ({ runs: [], total: 0, isLoading: false }),
-  // The tab gates its "rated down" control on runs:view; these tests exercise the
-  // sort and window controls, so the holder is given everything.
+  // The tab gates its filters on runs:view and the filter bar gates its agent
+  // and version selects on agents:view; these tests exercise the sort and
+  // filter controls, so the holder is given everything.
   usePermissions: () => ({ can: () => true }),
+  // What the filter bar's selects offer. One agent and two versions are enough
+  // to prove the narrowing each control asks for.
+  useAgents: () => ({ agents: [{ id: "agent-1", name: "Support agent" }], isLoading: false }),
+  useAgentVersions: () => ({
+    versions: [
+      { id: "ver-2", version: 2 },
+      { id: "ver-1", version: 1 },
+    ],
+    isLoading: false,
+  }),
+  useMembers: () => ({
+    members: [{ user_id: "user-7", email: "kim@example.com", full_name: "Kim" }],
+  }),
+  // Mounted by the version strip when the tab is narrowed to an agent; an
+  // empty window collapses the strip, which is all these tests need of it.
+  useVersionUsage: () => ({ byVersion: [], isLoading: false, error: null, refetch: vi.fn() }),
+  useAgent: () => ({ agent: undefined, isLoading: false }),
+}));
+vi.mock("@/stores", () => ({
+  useOrgStore: (selector: (state: { activeOrgId: string | null }) => unknown) =>
+    selector({ activeOrgId: "org-1" }),
 }));
 
 function aRun(): AgentRun {
@@ -56,7 +78,13 @@ const PERIOD: Period = { preset: "30d", from: "2026-07-16", to: "2026-08-14" };
 function renderTab(props: Partial<Parameters<typeof RunHistoryTab>[0]> = {}) {
   return render(
     <NextIntlClientProvider locale="en" messages={messages}>
-      <RunHistoryTab agentId={null} focusedRunId={null} period={PERIOD} {...props} />
+      <RunHistoryTab
+        agentId={null}
+        focusedRunId={null}
+        period={PERIOD}
+        onAgentChange={vi.fn()}
+        {...props}
+      />
     </NextIntlClientProvider>,
   );
 }
@@ -197,6 +225,60 @@ describe("run history controls", () => {
     await userEvent.click(screen.getByRole("option", { name: "slack" }));
 
     expect(lastOptions()).toMatchObject({ surface: "slack" });
+  });
+
+  it("asks for the runs people liked, not only the ones they did not", async () => {
+    renderTab();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Filter by rating" }));
+    await userEvent.click(screen.getByRole("option", { name: "Rated up" }));
+
+    expect(lastOptions()).toMatchObject({ rated: "up" });
+  });
+
+  it("narrows to one person's runs", async () => {
+    renderTab();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Filter by person" }));
+    await userEvent.click(screen.getByRole("option", { name: "Kim" }));
+
+    expect(lastOptions()).toMatchObject({ userId: "user-7" });
+  });
+
+  it("hands a picked agent to the page, which owns that narrowing", async () => {
+    const onAgentChange = vi.fn();
+    renderTab({ onAgentChange });
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Filter by agent" }));
+    await userEvent.click(screen.getByRole("option", { name: "Support agent" }));
+
+    expect(onAgentChange).toHaveBeenCalledWith("agent-1");
+  });
+
+  it("narrows to one version, offered only when an agent is", async () => {
+    renderTab();
+    expect(screen.queryByRole("combobox", { name: "Filter by version" })).toBeNull();
+
+    renderTab({ agentId: "agent-1" });
+    await userEvent.click(screen.getByRole("combobox", { name: "Filter by version" }));
+    await userEvent.click(screen.getByRole("option", { name: "v2" }));
+
+    expect(lastOptions()).toMatchObject({ agentVersionId: "ver-2" });
+  });
+
+  it("drops the version narrowing when the agent changes under it", async () => {
+    // v2 of one agent is not a version of the next: carried across, the filter
+    // would silently empty the other agent's history.
+    renderTab({ agentId: "agent-1" });
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Filter by version" }));
+    await userEvent.click(screen.getByRole("option", { name: "v2" }));
+    expect(lastOptions()).toMatchObject({ agentVersionId: "ver-2" });
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Filter by agent" }));
+    await userEvent.click(screen.getByRole("option", { name: "All agents" }));
+
+    expect(lastOptions()).toMatchObject({ agentVersionId: undefined });
   });
 
   it("says the filters emptied the list, not that nothing has ever run", async () => {

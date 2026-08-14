@@ -2878,7 +2878,16 @@
       "spendWindow": "Spend",
       "overTheWindowAbove": "Over the window above, so the two figures agree.",
       "noRunsInWindow": "No runs in this window",
-      "widenTheWindowAbove": "Nothing ran in the window above. Widen it, or run an agent."
+      "widenTheWindowAbove": "Nothing ran in the window above. Widen it, or run an agent.",
+      "ratingFilter": "Filter by rating",
+      "anyRating": "Any rating",
+      "ratedUp": "Rated up",
+      "agentFilter": "Filter by agent",
+      "anyAgent": "All agents",
+      "personFilter": "Filter by person",
+      "anyPerson": "Anyone",
+      "versionFilter": "Filter by version",
+      "anyVersion": "Any version"
     },
     "sandboxes": {
       "addConnection": "Add connection",

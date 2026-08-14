@@ -55,10 +55,27 @@ export function useRuns(
     /** Narrows to these statuses - `failed,budget_exceeded` is "the problems". */
     statuses?: RunStatus[];
     surface?: string;
+    /** Who the run ran as. */
+    userId?: string;
+    /** The frozen spec the run executed - "did v4 behave better than v3", as rows. */
+    agentVersionId?: string;
+    /** Rows to skip - the pager's, always a multiple of the page size. */
+    skip?: number;
   },
 ) {
-  const { startedFrom, startedTo, orderBy, descending, tookOverMs, rated, statuses, surface } =
-    options ?? {};
+  const {
+    startedFrom,
+    startedTo,
+    orderBy,
+    descending,
+    tookOverMs,
+    rated,
+    statuses,
+    surface,
+    userId,
+    agentVersionId,
+    skip,
+  } = options ?? {};
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.runs.list({
       agentId,
@@ -70,6 +87,9 @@ export function useRuns(
       rated,
       statuses,
       surface,
+      userId,
+      agentVersionId,
+      skip,
     }),
     queryFn: () => {
       const params: Record<string, string> = {};
@@ -87,6 +107,9 @@ export function useRuns(
       if (rated) params.rated = rated;
       if (statuses && statuses.length > 0) params.status = statuses.join(",");
       if (surface) params.surface = surface;
+      if (userId) params.user_id = userId;
+      if (agentVersionId) params.agent_version_id = agentVersionId;
+      if (skip) params.skip = String(skip);
       return apiClient.get<AgentRunList>(
         "/runs",
         Object.keys(params).length > 0 ? { params } : undefined,

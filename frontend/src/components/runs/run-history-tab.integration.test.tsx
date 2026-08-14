@@ -47,11 +47,15 @@ beforeEach(() => {
 });
 
 describe("the rated-down filter", () => {
-  it("asks the server for only the rated-down runs when toggled on", async () => {
-    render(<RunHistoryTab agentId={null} focusedRunId={null} period={PERIOD} />, { wrapper });
+  it("asks the server for only the rated-down runs when narrowed to them", async () => {
+    render(
+      <RunHistoryTab agentId={null} focusedRunId={null} period={PERIOD} onAgentChange={vi.fn()} />,
+      { wrapper },
+    );
     await waitFor(() => expect(runsCalls()).not.toHaveLength(0));
 
-    await userEvent.click(screen.getByRole("button", { name: /Rated down/ }));
+    await userEvent.click(screen.getByRole("combobox", { name: "Filter by rating" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Rated down" }));
 
     await waitFor(() =>
       expect(runsCalls().at(-1)?.[1]).toMatchObject({
@@ -61,8 +65,12 @@ describe("the rated-down filter", () => {
   });
 
   it("says the list is empty because of the filter, not because nothing ran", async () => {
-    render(<RunHistoryTab agentId={null} focusedRunId={null} period={PERIOD} />, { wrapper });
-    await userEvent.click(screen.getByRole("button", { name: /Rated down/ }));
+    render(
+      <RunHistoryTab agentId={null} focusedRunId={null} period={PERIOD} onAgentChange={vi.fn()} />,
+      { wrapper },
+    );
+    await userEvent.click(screen.getByRole("combobox", { name: "Filter by rating" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Rated down" }));
 
     expect(await screen.findByText("No runs rated down")).toBeVisible();
   });
@@ -70,13 +78,19 @@ describe("the rated-down filter", () => {
   it("is not offered to a caller who may not read runs", async () => {
     perm.canView = false;
 
-    render(<RunHistoryTab agentId={null} focusedRunId={null} period={PERIOD} />, { wrapper });
+    render(
+      <RunHistoryTab agentId={null} focusedRunId={null} period={PERIOD} onAgentChange={vi.fn()} />,
+      { wrapper },
+    );
 
-    expect(screen.queryByRole("button", { name: /Rated down/ })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Filter by rating" })).toBeNull();
   });
 
   it("blames the window when the unfiltered list is empty, not a filter and not the org", async () => {
-    render(<RunHistoryTab agentId={null} focusedRunId={null} period={PERIOD} />, { wrapper });
+    render(
+      <RunHistoryTab agentId={null} focusedRunId={null} period={PERIOD} onAgentChange={vi.fn()} />,
+      { wrapper },
+    );
 
     expect(await screen.findByText("No runs in this window")).toBeVisible();
     expect(screen.queryByText("No runs rated down")).toBeNull();

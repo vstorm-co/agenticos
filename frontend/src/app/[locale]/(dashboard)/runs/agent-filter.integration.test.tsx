@@ -126,14 +126,25 @@ describe("Activity, arriving from the Builder", () => {
   it("says the table is narrowed, and offers the way out", async () => {
     // A filtered table that does not mention the filter is one somebody reads as
     // the whole history, and then wonders where the rest of the runs went.
-    // The notice lives with the table, and the page opens on Approvals.
+    // The notice lives with the table, and the page opens on Approvals. The way
+    // out is an action, not a link: it clears the state the filter bar shares,
+    // where a navigation to /runs would rewrite the URL and leave the narrowing.
     params.set("agent", "agent-42");
 
     render(<RunsPage />, { wrapper });
     await openRunHistory();
 
     expect(await screen.findByText(/Narrowed to one agent/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Show every agent" })).toHaveAttribute("href", "/runs");
+
+    await userEvent.click(screen.getByRole("button", { name: "Show every agent" }));
+
+    expect(screen.queryByText(/Narrowed to one agent/)).toBeNull();
+    await waitFor(() => {
+      const widened = runsCalls()
+        .map((call) => call[1])
+        .filter((options) => options?.params?.agent_id === undefined);
+      expect(widened.length).toBeGreaterThan(0);
+    });
   });
 
   it("says nothing about narrowing when nothing is narrowed", async () => {

@@ -40,9 +40,26 @@ export default function RunsPage() {
   // `?agent=` is how the Builder hands over. Its Recent runs panel answers the
   // summary question and links here for the detail, and arriving at the whole
   // organization's history after clicking through from one agent would make the
-  // link a dead end dressed as a filter.
+  // link a dead end dressed as a filter. The filter bar can change it too, so
+  // it is state mirrored into the URL, like the period below.
   const searchParams = useSearchParams();
-  const agentId = searchParams.get("agent");
+  const agentParam = searchParams.get("agent");
+  // A navigation can change `?agent=` under the state - the focused-run notice
+  // links to a bare /runs - and the two must not disagree about the narrowing,
+  // so the param seen last is stored beside the value and a fresh param wins
+  // (the render-time adjustment React documents, not an effect).
+  const [agent, setAgent] = useState<{ seenParam: string | null; value: string | null }>({
+    seenParam: agentParam,
+    value: agentParam,
+  });
+  if (agent.seenParam !== agentParam) {
+    setAgent({ seenParam: agentParam, value: agentParam });
+  }
+  const agentId = agent.seenParam === agentParam ? agent.value : agentParam;
+  const changeAgent = (next: string | null) => {
+    setAgent({ seenParam: agentParam, value: next });
+    setUrlParam("agent", next);
+  };
   // `?run=` is how a delegation panel in a chat hands over. A delegated run is
   // deliberately not in the top-level list - see `useRuns` - so the only way to
   // reach one is to name it, and `FocusedRun` is what answers.
@@ -129,6 +146,7 @@ export default function RunsPage() {
               agentId={agentId}
               focusedRunId={focusedRunId}
               period={period}
+              onAgentChange={changeAgent}
               initialDurationSort={sortParam === "duration"}
             />
           </TabsContent>
