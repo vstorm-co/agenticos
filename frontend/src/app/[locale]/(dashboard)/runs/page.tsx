@@ -7,19 +7,12 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { PeriodControl } from "@/components/dashboard/period-control";
 import { ActivityFigures } from "@/components/runs/activity-figures";
 import { ApprovalsTab } from "@/components/runs/approvals-tab";
-import { ExportMenu } from "@/components/runs/export-menu";
 import { RunHistoryTab } from "@/components/runs/run-history-tab";
 import { SpendTab } from "@/components/runs/spend-tab";
 import { LoadingState } from "@/components/states";
 import { Badge, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
 import { useApprovals, usePermissions, useUrlState } from "@/hooks";
-import {
-  formatPeriodParam,
-  parsePeriodParam,
-  periodEnd,
-  periodStart,
-  type Period,
-} from "@/lib/dashboard/period";
+import { formatPeriodParam, parsePeriodParam, type Period } from "@/lib/dashboard/period";
 import { setUrlParam } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
@@ -110,17 +103,6 @@ export default function RunsPage() {
 
           {canDecide && (
             <TabsContent value="approvals">
-              {/* Export the record for whatever window, gated on the same
-                  permission the tab is - absent, not disabled, without it. */}
-              <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
-                <ExportMenu
-                  permission={Perm.approvalsDecide}
-                  endpoint="/approvals/export"
-                  kind="approvals"
-                  rangeParams={{ from: "created_from", to: "created_to" }}
-                  range={{ from: periodStart(period), to: periodEnd(period) }}
-                />
-              </div>
               <ApprovalsTab />
             </TabsContent>
           )}
@@ -139,15 +121,6 @@ export default function RunsPage() {
           </TabsContent>
 
           <TabsContent value="spend">
-            <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
-              <ExportMenu
-                permission={Perm.runsView}
-                endpoint="/spend/export"
-                kind="spend"
-                rangeParams={{ from: "from", to: "to" }}
-                range={{ from: periodStart(period), to: periodEnd(period) }}
-              />
-            </div>
             <SpendTab period={period} />
           </TabsContent>
         </Tabs>
