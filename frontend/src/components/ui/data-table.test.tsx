@@ -1,9 +1,10 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import messages from "../../../messages/en.json";
-import { DataTable } from "./data-table";
+import { DataTable, type Column } from "./data-table";
 
 /**
  * The state this file exists for is **failed, not empty**.
@@ -82,5 +83,127 @@ describe("DataTable", () => {
     renderTable({ rows: [] });
 
     expect(screen.getByText(messages.ui.noResults)).toBeInTheDocument();
+  });
+});
+
+interface Run {
+  id: string;
+  name: string;
+  seconds: number | null;
+}
+
+const runColumns: Column<Run>[] = [
+  {
+    key: "name",
+    header: "Name",
+    cell: (row) => row.name,
+    sortable: true,
+    sortValue: (row) => row.name,
+  },
+  {
+    key: "seconds",
+    header: "Took",
+    cell: (row) => String(row.seconds),
+    sortable: true,
+    sortValue: (row) => row.seconds,
+  },
+];
+
+const runs: Run[] = [
+  { id: "1", name: "billing", seconds: 4 },
+  { id: "2", name: "answers", seconds: 9 },
+  { id: "3", name: "parked", seconds: null },
+];
+
+function rowNames() {
+  const body = screen.getAllByRole("rowgroup")[1]!;
+  return within(body)
+    .getAllByRole("row")
+    .map((row) => within(row).getAllByRole("cell")[0]!.textContent);
+}
+
+function renderRuns(props: Partial<Parameters<typeof DataTable<Run>>[0]> = {}) {
+  return render(
+    <NextIntlClientProvider locale="en" messages={messages}>
+      <DataTable<Run> columns={runColumns} rows={runs} getRowKey={(row) => row.id} {...props} />
+    </NextIntlClientProvider>,
+  );
+}
+
+describe("DataTable client-side sorting", () => {
+  it("sorts the rows it holds when a sortable header is pressed, descending first", async () => {
+    const user = userEvent.setup();
+    renderRuns();
+
+    await user.click(screen.getByRole("button", { name: "Name" }));
+
+    expect(rowNames()).toEqual(["parked", "billing", "answers"]);
+  });
+
+  it("flips the direction when the same header is pressed again", async () => {
+    const user = userEvent.setup();
+    renderRuns();
+
+    const header = screen.getAllByRole("button")[0]!;
+    await user.click(header);
+    await user.click(header);
+
+    expect(rowNames()).toEqual(["answers", "billing", "parked"]);
+  });
+
+  it("sorts a row without a value last in both directions", async () => {
+    const user = userEvent.setup();
+    renderRuns({ defaultSort: { by: "seconds", dir: "desc" } });
+
+    expect(rowNames()).toEqual(["answers", "billing", "parked"]);
+
+    await user.click(screen.getAllByRole("button")[1]!);
+
+    expect(rowNames()).toEqual(["billing", "answers", "parked"]);
+  });
+
+  it("marks the sorted column for a screen reader", () => {
+    renderRuns({ defaultSort: { by: "name", dir: "asc" } });
+
+    expect(screen.getAllByRole("columnheader")[0]!).toHaveAttribute("aria-sort", "ascending");
+    expect(screen.getAllByRole("columnheader")[1]!).not.toHaveAttribute("aria-sort");
+  });
+
+  // `sortable: true` without `sortValue` in client mode would be a control that
+  // flips its arrow over rows that never move — so it is not a control at all.
+  it("renders a plain header for a client-mode column with nothing to sort by", () => {
+    renderRuns({
+      columns: [
+        { key: "name", header: "Name", cell: (row: Run) => row.name, sortable: true },
+        ...runColumns.slice(1),
+      ],
+      defaultSort: { by: "name", dir: "asc" },
+    });
+
+    expect(screen.queryByRole("button", { name: "Name" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("columnheader")[0]!).not.toHaveAttribute("aria-sort");
+  });
+});
+
+describe("DataTable server-side sorting", () => {
+  it("asks the caller instead of touching the rows, a new column starting descending", async () => {
+    const user = userEvent.setup();
+    const onSort = vi.fn();
+    renderRuns({ onSort, sort: { by: "name", dir: "desc" } });
+
+    await user.click(screen.getAllByRole("button")[1]!);
+
+    expect(onSort).toHaveBeenCalledWith({ by: "seconds", dir: "desc" });
+    expect(rowNames()).toEqual(["billing", "answers", "parked"]);
+  });
+
+  it("hands back the flipped direction for the column already sorted", async () => {
+    const user = userEvent.setup();
+    const onSort = vi.fn();
+    renderRuns({ onSort, sort: { by: "name", dir: "desc" } });
+
+    await user.click(screen.getAllByRole("button")[0]!);
+
+    expect(onSort).toHaveBeenCalledWith({ by: "name", dir: "asc" });
   });
 });

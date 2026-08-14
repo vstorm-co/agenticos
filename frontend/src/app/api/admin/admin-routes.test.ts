@@ -12,8 +12,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GET as conversationDetail } from "./conversations/[id]/route";
 import { GET as conversations } from "./conversations/route";
 import { GET as organizations } from "./organizations/route";
-import { GET as ratingsExport } from "./ratings/export/route";
-import { GET as ratings } from "./ratings/route";
 import { GET as ratingsSummary } from "./ratings/summary/route";
 import { GET as stats } from "./stats/route";
 import { GET as system } from "./system/route";
@@ -54,8 +52,6 @@ const GUARDED: [string, () => Promise<Response>][] = [
     () => conversationDetail(request(), { params: Promise.resolve({ id: "c-1" }) }),
   ],
   ["organizations", () => organizations(request())],
-  ["ratings", () => ratings(request())],
-  ["a ratings export", () => ratingsExport(request())],
   ["a ratings summary", () => ratingsSummary(request())],
   ["stats", () => stats(request())],
   ["system", () => system(request())],
@@ -208,24 +204,6 @@ describe("what the admin screens filter on", () => {
     expect(forwarded()).toBe("/api/v1/admin/users");
   });
 
-  it("pages the ratings list, with defaults when the screen sent none", async () => {
-    await ratings(request("http://localhost:3000/api/admin/ratings"));
-
-    expect(forwarded()).toContain("skip=0");
-    expect(forwarded()).toContain("limit=50");
-  });
-
-  it("carries the ratings filters, including the comments-only flag", async () => {
-    await ratings(
-      request(
-        "http://localhost:3000/api/admin/ratings?skip=10&limit=5&rating_filter=down&with_comments_only=true",
-      ),
-    );
-
-    expect(forwarded()).toContain("rating_filter=down");
-    expect(forwarded()).toContain("with_comments_only=true");
-  });
-
   it("leaves the summary window to the backend when none was asked for", async () => {
     await ratingsSummary(request("http://localhost:3000/api/admin/ratings/summary"));
     expect(forwarded()).toBe("/api/v1/admin/ratings/summary");
@@ -299,56 +277,5 @@ describe("acting on one user", () => {
 
     expect(forwarded()).toBe("/api/v1/admin/users/u-1/impersonate");
     await expect(response.json()).resolves.toMatchObject({ access_token: "imp" });
-  });
-});
-
-describe("exporting the ratings", () => {
-  it("asks for a CSV as raw text, and answers with it as a download", async () => {
-    // Re-serializing a CSV through `NextResponse.json` is not a CSV, so the
-    // format decides both how the body is read and how it is sent back.
-    vi.mocked(backendFetch).mockResolvedValue("rating,comment\nup,good");
-
-    const response = await ratingsExport(
-      request("http://localhost:3000/api/admin/ratings/export?export_format=csv"),
-    );
-
-    expect(vi.mocked(backendFetch).mock.calls[0]![1]).toMatchObject({ raw: true });
-    expect(response.headers.get("content-type")).toBe("text/csv");
-    expect(response.headers.get("content-disposition")).toMatch(
-      /attachment; filename="ratings_export_\d{4}-\d{2}-\d{2}\.csv"/,
-    );
-    await expect(response.text()).resolves.toContain("rating,comment");
-  });
-
-  it("answers JSON as JSON, still as a download", async () => {
-    vi.mocked(backendFetch).mockResolvedValue({ items: [] });
-
-    const response = await ratingsExport(request("http://localhost:3000/api/admin/ratings/export"));
-
-    expect(vi.mocked(backendFetch).mock.calls[0]![1]).toMatchObject({ raw: false });
-    expect(response.headers.get("content-disposition")).toContain(".json");
-  });
-
-  it("takes only the two formats it can produce", async () => {
-    // A format nobody implemented would be forwarded verbatim and answered with
-    // whatever the backend did with it.
-    await ratingsExport(
-      request("http://localhost:3000/api/admin/ratings/export?export_format=xlsx"),
-    );
-
-    expect(forwarded()).toContain("export_format=json");
-  });
-
-  it("carries the same filters as the list it exports", async () => {
-    // An export that ignored the filters would quietly hand somebody the whole
-    // table under a filtered heading.
-    await ratingsExport(
-      request(
-        "http://localhost:3000/api/admin/ratings/export?export_format=csv&rating_filter=down&with_comments_only=true",
-      ),
-    );
-
-    expect(forwarded()).toContain("rating_filter=down");
-    expect(forwarded()).toContain("with_comments_only=true");
   });
 });

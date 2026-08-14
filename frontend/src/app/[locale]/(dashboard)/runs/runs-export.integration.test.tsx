@@ -58,13 +58,12 @@ beforeEach(() => {
 });
 
 describe("exporting run history from a filtered Activity page", () => {
-  it("carries the agent the page was narrowed to, and a window", async () => {
+  it("carries the agent the page was narrowed to, and the page's window", async () => {
     serve(["runs:view"]);
 
     render(<RunsPage />, { wrapper });
 
     await userEvent.click(await screen.findByRole("button", { name: "Export CSV" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: "Last 30 days" }));
 
     await waitFor(() => expect(apiClient.raw).toHaveBeenCalledTimes(1));
     const call = vi.mocked(apiClient.raw).mock.calls.at(-1);

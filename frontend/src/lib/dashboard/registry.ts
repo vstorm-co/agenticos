@@ -184,13 +184,14 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     category: "platform",
     seeAll: ROUTES.ADMIN,
   },
+  // No seeAll: the deployment-wide ratings page left with the admin overhaul -
+  // ratings are read where the runs are, on the Activity page, per org.
   "platform-ratings": {
     id: "platform-ratings",
     gate: adminOnly,
     defaultSpan: "s5",
     defaultRows: "r3",
     category: "platform",
-    seeAll: ROUTES.ADMIN_RATINGS,
   },
   runs: {
     id: "runs",

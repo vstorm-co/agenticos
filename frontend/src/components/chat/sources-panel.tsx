@@ -151,7 +151,7 @@ export function SourcesPanel() {
       </div>
 
       {/* Body */}
-      <div className="flex-1 space-y-5 overflow-y-auto px-4 py-4">
+      <div className="flex-1 scrollbar-thin space-y-5 overflow-y-auto px-4 py-4">
         {ragSources.length > 0 && (
           <section className="space-y-2">
             {ragSources.length > 0 && webSources.length > 0 && (

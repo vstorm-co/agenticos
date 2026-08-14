@@ -17,6 +17,173 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.151] - 2026-08-15
+
+Every list in the product is now one table and one card, and Activity is a
+page you can actually narrow, page and export.
+
+### Added
+
+- **One table primitive, one list shell.** `DataTable` gained sorting and
+  filtering in two modes — client-side over rows a caller holds whole, and
+  server-side as a request — so a sort header means the same thing everywhere.
+  Which mode a table uses follows where its rows live: a client-side sort of
+  page one, on a list with three pages, is worse than no header at all.
+  `ListCard`/`ListCardEmpty` replaced five per-page card copies and four inline
+  empty states, and `components/ui/table.tsx` went with its last caller. Sort
+  state survives a reload through `?sort_by=`/`?sort_dir=`, validated against
+  the same whitelist the backend route declares. (#139, #282)
+- **Activity became an observability page.** One period window feeding the
+  figures, the table, the version strip, the Spend tab and all three exports;
+  every filter the backend answers (status, surface, a three-state rating,
+  agent, person and — narrowed to an agent — version); pagination with
+  "51–100 of 1,204"; surface brand marks; a run's chat one click away; and the
+  run detail in a drawer whose prev/next walk the run's own conversation.
+  (#760, #761, #762, #764, #765, #766)
+- **Every organization starts with the shipped skill library.** Creation copies
+  each bundled skill in as an ordinary org-visible row, and the listing
+  materializes any the catalog grew since — so the install step, its endpoints
+  and its gallery are gone. (#281)
+
+### Changed
+
+- **Admin standardised onto both primitives**, one pagination control instead
+  of three dialects, organizations on their own tab, and `/admin/ratings`
+  deleted whole — ratings are read where the runs are. (#283, #284)
+- **The agent map reads in four directions** — surfaces left, model and budget
+  above, tools right, delegation below, each subagent a first-class node beside
+  a policy box naming `allow_dynamic`. (#518)
+
+### Fixed
+
+- **A CSV exported beside a narrowed table contained everything.** The export
+  passed only `agent_id`, while both docstrings promised the file was what was
+  on screen. (#763)
+- **Deciding the last outstanding approval now resumes the run.** The queue
+  posted the decision alone, which left runs approved, undisputed and parked
+  forever.
+- **Runs still going no longer sort as the cheapest or the lightest.** Cost and
+  tokens are written at finish and default to zero, so an ascending sort ranked
+  a running row above every finished one; all four orders now put an unfinished
+  run last, as duration always did.
+- **The run detail's arrows no longer step into delegations** the list itself
+  hides — a fan-out's children sat between a run and the thread's next turn.
+- **Six lists stopped reporting a failed request as an empty collection** —
+  vault, MCP, skills, channels, members and the admin users table each drew
+  "nothing here yet" over a refusal, and MCP drew it over a catalog compiled
+  into the backend. (#32's shape)
+- **Seeding a bundled skill twice costs that row, not the reader's page**, and
+  audit entries written by a seeding path now say so rather than asserting the
+  organization's owner made a write they never made.
+
+## [0.0.150] - 2026-08-13
+
+The streaming socket was the last surface still writing blank user turns.
+
+### Fixed
+
+- **A blank streaming turn's user message names its files.** 0.0.148 fixed the
+  blank-turn class for every surface that reaches the transcript's `record` —
+  channels, the embed widget, the HTTP API — but the dashboard's streaming
+  socket writes its own user turn and stored the message verbatim, blank
+  included; only the composer's client-side substitution hid it, so any raw
+  WebSocket client sending `{"message": "", "file_ids": [...]}` stored an
+  empty bubble. Both write sites now compose the same one-line-per-file body,
+  loaded through the owner-scoped file read from 0.0.149. A typed message is
+  never replaced. (#750)
+
+## [0.0.149] - 2026-08-13
+
+A chat turn could attach another user's file by naming its id.
+
+### Security
+
+- **Linking a file the caller does not own is refused.** The link was a blind
+  bulk UPDATE with no owner predicate and no unlinked check, and the ids came
+  straight off the socket payload — so a turn naming another user's file id
+  rendered their filename, MIME and size in the attacker's conversation and
+  silently pulled the file off the victim's own message. Both the read and
+  the UPDATE now carry the owner in their WHERE; a foreign or unknown id
+  answers the same `NotFoundError` (so an id cannot be probed for existence),
+  an already-linked one is refused rather than moved — for everybody, its
+  owner included — and a malformed id is refused at the boundary instead of
+  resurfacing as a failed turn after the message persisted. (#706)
+
+## [0.0.148] - 2026-08-13
+
+A photo sent with no caption read as somebody sending nothing.
+
+### Fixed
+
+- **A caption-less turn's user message names its files.** A channel turn whose
+  attachment produced no prompt text wrote a blank user message, so the thread
+  in `/chat` jumped straight to the answer with the file card as the only
+  trace of the question. The transcript now composes the empty turn's body
+  from its attachments — `Attached image: photo.jpg`, one line per file —
+  reusing the vocabulary the model's briefing already uses. A caption is never
+  replaced, and a resume still writes no user turn at all. (#704)
+
+## [0.0.147] - 2026-08-13
+
+A failed tool's raw error was stored where every reader of the run can see it.
+
+### Security
+
+- **A tool's retry text stays out of the transcript row.** #681 sanitized the
+  chat `tool_result` frame; the stored row was the same leak on the run paths
+  that never open a socket — the HTTP API and the channel bots. A retry's
+  content is written by whichever tool raised (`web_search` builds one from
+  the vendor exception, endpoint and query string included; an MCP tool's is
+  a third party's entirely), and it landed on a tool-call row rendered in run
+  history weeks later. The row now stores the same sentence the frame sends —
+  which tool failed and that the model was asked to retry — and the vendor's
+  own text goes to the server log beside the write, nowhere else. (#695)
+
+## [0.0.146] - 2026-08-13
+
+A thread nobody owned was everybody's to delete.
+
+### Security
+
+- **An unowned room thread is writable only by its participants.** A channel
+  thread's owner is its first *linked* speaker, so a room where nobody linked
+  an account had no owner — and the write check answered yes to any member of
+  the organization: renaming it, archiving it, deleting the transcript, or
+  appending a `role: "assistant"` turn the model reads back as its own words,
+  including for threads their own list never showed them. The write now stops
+  at the same membership-confirmed participation the read admits; an owned
+  thread still refuses its participants the write. (#701)
+
+## [0.0.145] - 2026-08-13
+
+A webhook bot's files had no server to be fetched from.
+
+### Fixed
+
+- **A Mattermost webhook bot's server is recorded per delivery.** Only the
+  polling path ever told the adapter a bot's address, so an attachment on an
+  outgoing-webhook post parsed with an empty handle and the reply said the
+  file could not be downloaded. The receiver now hands the bot row's
+  `api_base_url` to the adapter after the token check and before the parse —
+  per delivery, so an operator's edit takes effect at once. Not a regression:
+  before #547 the file was dropped silently; #547 made the failure visible,
+  this makes the file reachable. (#692)
+
+## [0.0.144] - 2026-08-13
+
+A removed channel member kept the thread.
+
+### Security
+
+- **`/chat` now asks the platform whether a reader is still in the channel.**
+  A channel thread was shown to anybody whose linked account had ever spoken
+  in it, and never asked again — so somebody removed from a Slack, Telegram or
+  Mattermost channel kept the thread, including everything said after they
+  left. Each adapter now answers a per-account membership question, cached for
+  60 seconds and failing closed: an unsupported platform, a missing adapter,
+  an unsealable token or an errored call hides the thread rather than showing
+  it. The owner and an explicit share keep access on every path. (#641)
+
 ## [0.0.143] - 2026-08-13
 
 Three sweeps walked the source tree three different ways.

@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "0.0.143"
+version = "0.0.151"
 description = "OS for your agents."
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -422,6 +422,7 @@ include = [
     "app/services/skill_workspace.py",
     "app/services/channels/attachments.py",
     "app/services/channels/dedupe.py",
+    "app/services/channels/membership.py",
     "app/services/channels/mentions.py",
     "app/services/collection_access.py",
     "app/services/embed_session.py",
@@ -584,6 +585,7 @@ include = [
     "app/services/skill_workspace.py",
     "app/services/channels/attachments.py",
     "app/services/channels/dedupe.py",
+    "app/services/channels/membership.py",
     "app/services/channels/mentions.py",
     "app/services/collection_access.py",
     # One visitor's turn on a public widget: who it runs as, how often they may

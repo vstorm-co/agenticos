@@ -5,6 +5,8 @@ import {
   DEFAULT_PRESET,
   formatPeriodParam,
   parsePeriodParam,
+  periodEnd,
+  periodStart,
   resolvePreset,
 } from "./period";
 
@@ -95,5 +97,16 @@ describe("formatPeriodParam", () => {
 
     expect(parsePeriodParam(formatPeriodParam(preset), TODAY)).toEqual(preset);
     expect(parsePeriodParam(formatPeriodParam(custom), TODAY)).toEqual(custom);
+  });
+});
+
+describe("periodStart and periodEnd", () => {
+  it("widen the inclusive dates into whole-day instants", () => {
+    // The end reaches the last instant of the last day: cut at its midnight,
+    // the window silently drops the day the reader picked.
+    const period = customPeriod("2026-07-05", "2026-07-20");
+
+    expect(periodStart(period)).toBe("2026-07-05T00:00:00.000Z");
+    expect(periodEnd(period)).toBe("2026-07-20T23:59:59.999Z");
   });
 });

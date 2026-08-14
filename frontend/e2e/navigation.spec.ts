@@ -53,12 +53,20 @@ const DASHBOARD_PAGES: {
     proof: (page) => skillCard(page, SEEDED_SKILL_NAME),
   },
   {
-    // Activity has no seeded row — a run needs a real provider key. Its queries
-    // are asserted directly in `activity.spec.ts`; here the proof is the one
-    // control on the page that only renders once the approvals query resolved.
+    // Activity's queries are asserted directly in `activity.spec.ts`; here the
+    // proof is whichever answer the run history card drew.
     path: "/runs",
     heading: "Activity",
-    proof: (page) => page.getByRole("heading", { name: "Nothing waiting" }),
+    proof: (page) =>
+      // Both real outcomes, and neither is chrome: `journey.spec.ts` runs an
+      // agent with a real key, so this suite sometimes has runs to list and
+      // sometimes does not. A bare table locator would pass on the loading
+      // skeleton, which draws a real <table> of empty cells (#32) - a *named*
+      // column header only the loaded table has is the discriminator.
+      page
+        .getByRole("columnheader", { name: "Started" })
+        .or(page.getByText("No runs in this window"))
+        .first(),
   },
   {
     path: "/rag",

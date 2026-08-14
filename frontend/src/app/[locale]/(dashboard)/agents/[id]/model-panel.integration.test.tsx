@@ -65,6 +65,7 @@ vi.mock("@/hooks", () => ({
   useAgentVersions: () => ({ versions: [] }),
   useCapabilityCatalog: () => ({ capabilities: [] }),
   useExposures: () => ({ exposures: [] }),
+  useEmbeds: () => ({ embeds: [] }),
   useKnowledgeBases: () => ({ kbs: [] }),
   useMcpCatalog: () => ({ servers: [] }),
   useModelProviders: () => ({

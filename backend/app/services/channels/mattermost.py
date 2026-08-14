@@ -372,6 +372,27 @@ class MattermostAdapter(ChannelAdapter):
             for user in users.json()
         ]
 
+    async def is_channel_member(
+        self, bot_token: str, channel_id: str, platform_user_id: str, *, api_base_url: str | None
+    ) -> bool:
+        """`GET /channels/{id}/members/{user_id}` - Mattermost answers per account.
+
+        A 404 is the platform saying "not in this channel", which is an answer
+        rather than a failure. Anything else unexpected - a 403 because the bot
+        itself was removed, a server error - raises, and the participant model
+        treats a question it could not ask as a refusal.
+        """
+        base_url = self._server(api_base_url)
+        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
+            found = await client.get(
+                f"{base_url}/api/v4/channels/{channel_id}/members/{platform_user_id}",
+                headers={"Authorization": f"Bearer {bot_token}"},
+            )
+        if found.status_code == 404:
+            return False
+        found.raise_for_status()
+        return True
+
     async def search_channels(
         self, bot_token: str, channel_id: str, *, api_base_url: str | None, query: str, limit: int
     ) -> list[ChannelSummary]:
@@ -735,10 +756,11 @@ class MattermostAdapter(ChannelAdapter):
             [part for part in raw_ids.split(",") if part] if isinstance(raw_ids, str) else raw_ids
         )
 
-        # The handle is the full URL, resolved here from the server this bot's
-        # stream was opened against. Every Mattermost deployment is somebody's own
-        # server, so the id alone is not enough to fetch anything - and the
-        # download signature carries a token, not a bot.
+        # The handle is the full URL, resolved from the server this bot was told
+        # about - by the stream when it opened, or by the webhook receiver per
+        # delivery (#692). Every Mattermost deployment is somebody's own server,
+        # so the id alone is not enough to fetch anything - and the download
+        # signature carries a token, not a bot.
         base_url = self._base_urls.get(bot_id, "")
 
         found: list[IncomingAttachment] = []
@@ -757,10 +779,10 @@ class MattermostAdapter(ChannelAdapter):
     async def download_attachment(self, bot_token: str, attachment: IncomingAttachment) -> bytes:
         """Fetch a Mattermost file from the URL the parser resolved.
 
-        Empty means this bot's server was not known when the message arrived - the
-        outgoing-webhook path never calls `remember_server` - and that is reported
-        rather than guessed at, because guessing a Mattermost address is guessing
-        which company's server to send a bot token to.
+        Empty means this bot's server was not known when the message arrived -
+        the bot row carries no `api_base_url` - and that is reported rather than
+        guessed at, because guessing a Mattermost address is guessing which
+        company's server to send a bot token to.
         """
         if not attachment.handle:
             raise ValueError(

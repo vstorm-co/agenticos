@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import type { ReactNode } from "react";
 import { Boxes, Plus } from "lucide-react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -9,15 +8,8 @@ import { ConnectionDialog } from "@/components/sandboxes/connection-dialog";
 import { ConnectionsTable } from "@/components/sandboxes/connections-table";
 import { PolicyPanel } from "@/components/sandboxes/policy-panel";
 import { SessionsPanel } from "@/components/sandboxes/sessions-panel";
-import {
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Skeleton,
-} from "@/components/ui";
+import { Button, ListCard, ListCardEmpty, Skeleton } from "@/components/ui";
+import { ErrorState } from "@/components/states";
 import { usePermissions, useSandboxConnections } from "@/hooks";
 import { Perm } from "@/types/permissions";
 import type { SandboxConnectionRecord } from "@/lib/sandbox-connections-api";
@@ -28,23 +20,6 @@ import { useTranslations } from "next-intl";
  * disagree - a header whose text changes when the data lands is a flicker.
  */
 const SANDBOXES_DESCRIPTION = "pageDescription";
-
-function ConnectionsCard({ count, children }: { count: number | null; children: ReactNode }) {
-  const t = useTranslations("pages.sandboxes");
-  return (
-    <Card>
-      <CardHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-4">
-        <div className="space-y-1">
-          <CardTitle className="text-sm">{t("sandboxConnections")}</CardTitle>
-          <CardDescription className="text-xs">
-            {count === null ? <Skeleton className="h-3 w-24" /> : t("registeredCount", { count })}
-          </CardDescription>
-        </div>
-      </CardHeader>
-      <CardContent className="p-0">{children}</CardContent>
-    </Card>
-  );
-}
 
 /**
  * The operator screen for sandbox connections.
@@ -73,13 +48,13 @@ export default function SandboxesPage() {
     return (
       <div className="space-y-6">
         <PageHeader title={t("sandboxes")} description={t(SANDBOXES_DESCRIPTION)} />
-        <ConnectionsCard count={null}>
+        <ListCard title={t("sandboxConnections")} counted={null} contentClassName="p-0">
           <div className="space-y-3 p-5">
             {[0, 1].map((row) => (
               <Skeleton key={row} className="h-10 w-full" />
             ))}
           </div>
-        </ConnectionsCard>
+        </ListCard>
       </div>
     );
 
@@ -103,37 +78,36 @@ export default function SandboxesPage() {
         }
       />
 
-      {/* An empty table and a failed request are the same pixels, so the reason
-          is said out loud rather than left to look like "none registered". */}
-      {error !== null && <p className="text-destructive text-sm">{error}</p>}
-
-      <ConnectionsCard count={connections.length}>
-        {connections.length === 0 ? (
-          <div className="px-6 py-16 text-center">
-            <div className="bg-muted text-muted-foreground mx-auto flex h-11 w-11 items-center justify-center rounded-xl">
-              <Boxes className="h-5 w-5" />
-            </div>
-            <p className="text-foreground mt-4 text-sm font-medium">
-              {t("noSandboxConnectionsYet")}
-            </p>
-            <p className="text-muted-foreground mx-auto mt-1 max-w-md text-sm">
-              {t("agentsCanStillKeep")}
-            </p>
-          </div>
+      <ListCard
+        title={t("sandboxConnections")}
+        // With the list refused, "0 connections" would state as fact something
+        // the request never answered - the skeleton stays.
+        counted={error !== null ? null : t("registeredCount", { count: connections.length })}
+        contentClassName="p-0"
+      >
+        {error !== null ? (
+          // An empty table and a failed request are the same pixels, so the
+          // refusal is shown where the rows would be rather than dressed as
+          // "none registered".
+          <ErrorState description={error} className="m-5" />
+        ) : connections.length === 0 ? (
+          <ListCardEmpty
+            icon={Boxes}
+            title={t("noSandboxConnectionsYet")}
+            description={t("agentsCanStillKeep")}
+          />
         ) : (
-          <div className="overflow-x-auto px-5 pb-2">
-            <ConnectionsTable
-              connections={connections}
-              onEdit={(connection) => {
-                setEditing(connection);
-                setDialogOpen(true);
-              }}
-              onInspect={setInspecting}
-              onDelete={(connection) => void remove(connection.id)}
-            />
-          </div>
+          <ConnectionsTable
+            connections={connections}
+            onEdit={(connection) => {
+              setEditing(connection);
+              setDialogOpen(true);
+            }}
+            onInspect={setInspecting}
+            onDelete={(connection) => void remove(connection.id)}
+          />
         )}
-      </ConnectionsCard>
+      </ListCard>
 
       {/* Mounted only while it is open, and keyed on the row it is editing. The
           form reads its initial values once; without this, clicking Edit on a

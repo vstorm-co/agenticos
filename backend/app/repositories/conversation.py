@@ -1,8 +1,9 @@
 """Conversation repository."""
 
+from collections.abc import Collection
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, NamedTuple
 from uuid import UUID
 
 from sqlalchemy import ColumnElement, distinct, func, or_, select
@@ -13,6 +14,7 @@ from sqlalchemy.orm import selectinload
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
 from app.db.models.channel_identity import ChannelIdentity
+from app.db.models.channel_session import ChannelSession
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.user import User
 from app.repositories._search import contains_ci
@@ -96,24 +98,35 @@ async def agents_in_conversations(
     }
 
 
+class ConversationHead(NamedTuple):
+    """What a listing needs of a conversation it references: its name, and whose it is."""
+
+    title: str
+    user_id: UUID | None
+
+
 async def titles_for(
     db: AsyncSession, conversation_ids: list[UUID], *, organization_id: UUID
-) -> dict[UUID, str]:
-    """The title of each of these conversations, inside one organization.
+) -> dict[UUID, ConversationHead]:
+    """The title and owner of each of these conversations, inside one organization.
 
     One query for a whole page, and scoped: an id from somewhere else answers
     with nothing rather than with a title, which is what stops a listing from
     confirming that a conversation exists in an organization the caller is not in.
+
+    The owner travels with the title because the chat page lists its owner's
+    threads: a link offered to anybody else lands on an empty sidebar dressed
+    as the conversation, so a listing has to know whose thread it is naming.
     """
     if not conversation_ids:
         return {}
     result = await db.execute(
-        select(Conversation.id, Conversation.title).where(
+        select(Conversation.id, Conversation.title, Conversation.user_id).where(
             Conversation.id.in_(conversation_ids),
             Conversation.organization_id == organization_id,
         )
     )
-    return {row.id: row.title for row in result.all()}
+    return {row.id: ConversationHead(row.title, row.user_id) for row in result.all()}
 
 
 async def count_by_agent(
@@ -241,56 +254,83 @@ async def authors_of(db: AsyncSession, identity_ids: list[UUID]) -> dict[UUID, C
     return {identity.id: identity for identity in result.scalars().all()}
 
 
-def _reachable_by(user_id: UUID) -> ColumnElement[bool]:
+def _reachable_by(user_id: UUID, participant_ids: Collection[UUID]) -> ColumnElement[bool]:
     """Whose conversation list a thread appears in.
 
-    Theirs if they own it, and theirs if a chat account of theirs has spoken in
-    it - which is what puts a channel thread in front of everybody who was in the
-    room rather than only whoever happened to speak first. A channel thread has no
-    owner at all when the first speaker had linked no account, so ownership alone
-    left it invisible to everybody (#639).
+    Theirs if they own it, and theirs if they are a *confirmed* participant of
+    the room it came from. Participation used to be a correlated `EXISTS` over
+    `messages.channel_identity_id` - who spoke - and speaking once kept the
+    thread readable after the platform removed them from the channel (#641). So
+    the ids arrive vetted instead: the caller runs :func:`participation_claims`
+    through `app.services.channels.membership`, which asks the platform, and
+    hands over only the threads whose membership held up.
 
-    **This is who spoke, not who may read.** Participation is never re-checked
-    against the platform, so somebody removed from the channel keeps the thread in
-    their list - deliberately, and #641 is what it would take to change. Nothing
-    may use this as an authorization check without asking the platform first.
-
-    The same correlation care as :func:`_list_filters`: only `conversations` may be
-    correlated, or the subquery loses its FROM clause and raises.
+    The default is therefore the narrow one. A caller that passes nothing gets
+    owner-only, which fails safe - forgetting the participation step hides a
+    thread rather than showing it to somebody who was removed.
     """
-    spoke_in_it = (
-        select(Message.id)
-        .select_from(Message)
-        .join(ChannelIdentity, ChannelIdentity.id == Message.channel_identity_id)
-        .where(
-            Message.conversation_id == Conversation.id,
-            ChannelIdentity.user_id == user_id,
-        )
-        .correlate(Conversation)
-        .exists()
-    )
-    return or_(Conversation.user_id == user_id, spoke_in_it)
+    if not participant_ids:
+        return Conversation.user_id == user_id
+    return or_(Conversation.user_id == user_id, Conversation.id.in_(participant_ids))
 
 
-async def spoke_in(db: AsyncSession, conversation_id: UUID, user_id: UUID) -> bool:
-    """Whether a chat account of this user's has spoken in this conversation.
+class ParticipationClaim(NamedTuple):
+    """One "I spoke there" fact, addressed well enough to check it.
 
-    The read-side counterpart of `_reachable_by`'s `spoke_in_it`: a channel
-    thread appears in the list of everyone who was in the room, so opening it has
-    to be allowed for the same set - otherwise a participant sees the thread and
-    gets a 404 opening it. The same #641 caveat carries over: this is who spoke,
-    not a live check against the platform's current membership.
+    The conversation a chat account of the user's wrote in, and the bot and
+    platform chat the thread belongs to - which is what
+    `app.services.channels.membership` needs to ask the platform whether the
+    account is *still* in that channel. A claim is who spoke, never who may
+    read (#641); nothing may treat one as access without that check.
     """
-    result = await db.execute(
-        select(Message.id)
-        .join(ChannelIdentity, ChannelIdentity.id == Message.channel_identity_id)
-        .where(
-            Message.conversation_id == conversation_id,
-            ChannelIdentity.user_id == user_id,
+
+    conversation_id: UUID
+    platform_user_id: str
+    bot_id: UUID
+    platform_chat_id: str
+
+
+async def participation_claims(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    organization_id: UUID | None = None,
+    conversation_id: UUID | None = None,
+) -> list[ParticipationClaim]:
+    """Every channel this user's chat accounts have spoken in, by conversation.
+
+    One query for the whole listing: messages joined to the identity that wrote
+    them, to the session that names the room, distinct over the four scalars -
+    scalars because `channel_bots` carries `json` columns, which have no
+    equality operator, so a `DISTINCT` over the row itself is a 500 on a real
+    database (see :func:`app.repositories.channel_session.bots_by_identity`).
+
+    The join to `channel_sessions` is inner on purpose. A thread the session no
+    longer points at - `/new` re-points `conversation_id` at a fresh row - has
+    no channel anybody can ask about, and a claim that cannot be checked is
+    refused rather than trusted (#641). The owner and an explicit share still
+    reach such a thread; participation alone does not.
+    """
+    query = (
+        select(
+            Message.conversation_id,
+            ChannelIdentity.platform_user_id,
+            ChannelSession.bot_id,
+            ChannelSession.platform_chat_id,
         )
-        .limit(1)
+        .join(ChannelIdentity, ChannelIdentity.id == Message.channel_identity_id)
+        .join(ChannelSession, ChannelSession.conversation_id == Message.conversation_id)
+        .where(ChannelIdentity.user_id == user_id)
+        .distinct()
     )
-    return result.first() is not None
+    if organization_id is not None:
+        query = query.join(Conversation, Conversation.id == Message.conversation_id).where(
+            Conversation.organization_id == organization_id
+        )
+    if conversation_id is not None:
+        query = query.where(Message.conversation_id == conversation_id)
+    result = await db.execute(query)
+    return [ParticipationClaim(*row) for row in result.all()]
 
 
 def _sort_columns() -> dict[str, Any]:
@@ -333,6 +373,7 @@ async def get_conversations_by_user(
     archived_only: bool = False,
     sort_by: str = "updated_at",
     sort_dir: str = "desc",
+    participant_conversation_ids: Collection[UUID] = frozenset(),
 ) -> list[Conversation]:
     """Get one organization's conversations, optionally narrowed to one user.
 
@@ -340,10 +381,14 @@ async def get_conversations_by_user(
     the tenant would return every tenant's rows, and that mistake must not look
     like an ordinary call. The narrowing arguments after it are shared with the
     admin listing - see :func:`_list_filters` for what each one means.
+
+    `participant_conversation_ids` widens a user's list to channel threads whose
+    membership the caller has already confirmed against the platform - see
+    :func:`_reachable_by` for why they arrive vetted rather than derived here.
     """
     query = select(Conversation).where(Conversation.organization_id == organization_id)
     if user_id:
-        query = query.where(_reachable_by(user_id))
+        query = query.where(_reachable_by(user_id, participant_conversation_ids))
     for condition in _list_filters(
         search=search,
         agent_id=agent_id,
@@ -421,18 +466,20 @@ async def count_conversations(
     agent_id: UUID | None = None,
     include_archived: bool = False,
     archived_only: bool = False,
+    participant_conversation_ids: Collection[UUID] = frozenset(),
 ) -> int:
     """Count one organization's conversations, optionally narrowed to one user.
 
     Takes the same narrowing as :func:`get_conversations_by_user` because it
     answers a question about that page: a total counted without the filters the
-    page was fetched with is a number that contradicts the rows under it.
+    page was fetched with is a number that contradicts the rows under it -
+    which includes the vetted participation set.
     """
     query = select(func.count(Conversation.id)).where(
         Conversation.organization_id == organization_id
     )
     if user_id:
-        query = query.where(_reachable_by(user_id))
+        query = query.where(_reachable_by(user_id, participant_conversation_ids))
     for condition in _list_filters(
         search=search,
         agent_id=agent_id,

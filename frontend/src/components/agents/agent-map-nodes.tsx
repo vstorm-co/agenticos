@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 import type { DelegationMode } from "@/types/agents";
 import { useTranslations } from "next-intl";
 
+import type { MapSide } from "./agent-map-view";
+
 /** One capability box on the map. `items` empty means "nothing configured", said out loud. */
 export interface MapNode {
   key: string;
@@ -16,7 +18,7 @@ export interface MapNode {
   /** What to say when there is nothing - the reason to open the map at all. */
   empty: string;
   /** Which side of the agent it hangs off. */
-  side: "in" | "out";
+  side: MapSide;
 }
 
 /**

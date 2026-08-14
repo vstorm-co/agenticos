@@ -320,6 +320,10 @@ class TestSkillManagement:
                 new=AsyncMock(return_value=([installed, local], 2)),
             ),
             patch(f"{SKILLS_PATH}.skill_repo.list_categories", new=AsyncMock(return_value=[])),
+            patch(
+                f"{SKILLS_PATH}.skill_repo.list_names",
+                new=AsyncMock(return_value={"refunds", "our-own-thing"}),
+            ),
             patch(f"{SKILLS_PATH}.skill_library.library", return_value=[bundled]),
         ):
             listing = await SkillService(_db()).list_readable(ctx)
@@ -345,6 +349,7 @@ class TestSkillManagement:
                 f"{SKILLS_PATH}.skill_repo.list_categories",
                 new=AsyncMock(return_value=["devops", "support"]),
             ),
+            patch(f"{SKILLS_PATH}.skill_repo.list_names", new=AsyncMock(return_value=set())),
             patch(f"{SKILLS_PATH}.skill_library.library", return_value=[]),
         ):
             listing = await SkillService(_db()).list_readable(ctx, search="refund", limit=1)
@@ -508,74 +513,6 @@ class TestSkillManagement:
         assert list_categories.call_args.kwargs["organization_id"] == ctx.organization_id
 
     @pytest.mark.anyio
-    async def test_the_library_marks_a_name_taken_by_a_skill_nobody_can_see(self):
-        """The gallery answers "may I install this", so it asks what installing asks.
-
-        A member installs a bundled skill and the copy lands `private`. Another
-        member's `SKILLS_VIEW` scope does not reach it, so the listing they can
-        read does not contain the name - but `install_from_library` refuses them
-        anyway, because uniqueness is organization-wide. Deciding this from a
-        visibility-scoped page offered an Install that answered 409 and pointed
-        at a skill they cannot open.
-        """
-        ctx = _ctx(OrgRoleName.MEMBER)
-
-        with (
-            patch(
-                f"{SKILLS_PATH}.skill_repo.names_in_use",
-                new=AsyncMock(return_value={"refund-policy"}),
-            ),
-            patch(
-                f"{SKILLS_PATH}.skill_repo.list_visible", new=AsyncMock(return_value=([], 0))
-            ) as list_visible,
-            patch(f"{SKILLS_PATH}.skill_library.library", return_value=[_bundled("refund-policy")]),
-        ):
-            listing = await SkillService(_db()).list_library(ctx)
-
-        assert [(item.key, item.installed) for item in listing.items] == [("refund-policy", True)]
-        # Not from a listing at all: a listing is scoped and paged, and both of
-        # those answer a question the Install button never asked.
-        assert list_visible.await_count == 0
-
-    @pytest.mark.anyio
-    async def test_the_library_asks_the_whole_organization_and_offers_a_free_name(self):
-        ctx = _ctx()
-
-        with (
-            patch(
-                f"{SKILLS_PATH}.skill_repo.names_in_use", new=AsyncMock(return_value=set())
-            ) as names_in_use,
-            patch(f"{SKILLS_PATH}.skill_library.library", return_value=[_bundled("code-review")]),
-        ):
-            listing = await SkillService(_db()).list_library(ctx)
-
-        assert names_in_use.call_args.kwargs == {"organization_id": ctx.organization_id}
-        assert listing.total == 1
-        assert listing.items[0].installed is False
-
-    @pytest.mark.anyio
-    async def test_a_library_card_carries_its_files_without_their_bodies(self):
-        """The gallery shows what a skill would bring with it, and how big.
-
-        The ids are derived from the key and the file name rather than stored:
-        nothing on disk has a row yet, and a card whose file ids changed per
-        request would make the response unusable as a cache key.
-        """
-        ctx = _ctx()
-        bundled = _bundled("incident-report", resources=("checklist.md",))
-
-        with (
-            patch(f"{SKILLS_PATH}.skill_repo.names_in_use", new=AsyncMock(return_value=set())),
-            patch(f"{SKILLS_PATH}.skill_library.library", return_value=[bundled]),
-        ):
-            first = await SkillService(_db()).list_library(ctx)
-            second = await SkillService(_db()).list_library(ctx)
-
-        resource = first.items[0].resources[0]
-        assert (resource.name, resource.size_bytes) == ("checklist.md", 4)
-        assert resource.id == second.items[0].resources[0].id
-
-    @pytest.mark.anyio
     async def test_a_skill_is_created_on_the_shelf_it_was_given(self):
         with (
             patch("app.services.skills.skill_repo.get_by_name", new=AsyncMock(return_value=None)),
@@ -683,6 +620,130 @@ class TestSkillManagement:
         assert audit.call_args.kwargs["target_id"] == str(skill.id)
 
 
+class TestBundledTopUp:
+    """The listing closes the gap between the shipped catalog and an organization.
+
+    Creation-time seeding copies whatever the deployment shipped *that day*; a
+    skill added to the catalog later would otherwise never reach an existing
+    organization, and its page would show one bundled skill where the
+    deployment ships three - which is exactly how the defect was found.
+    """
+
+    def _bundled(self, key: str, name: str | None = None) -> MagicMock:
+        entry = MagicMock()
+        entry.key = key
+        entry.name = name or key
+        return entry
+
+    @pytest.mark.anyio
+    async def test_a_skill_added_to_the_catalog_appears_on_the_next_listing(self):
+        ctx = _ctx()
+        owner_id = uuid.uuid4()
+
+        with (
+            patch(f"{SKILLS_PATH}.skill_repo.list_visible", new=AsyncMock(return_value=([], 0))),
+            patch(f"{SKILLS_PATH}.skill_repo.list_categories", new=AsyncMock(return_value=[])),
+            patch(
+                f"{SKILLS_PATH}.skill_repo.list_names",
+                new=AsyncMock(return_value={"refund-policy"}),
+            ),
+            patch(
+                f"{SKILLS_PATH}.skill_library.library",
+                return_value=[self._bundled("refund-policy"), self._bundled("incident-report")],
+            ),
+            patch(
+                f"{SKILLS_PATH}.member_repo.first_owner_id",
+                new=AsyncMock(return_value=owner_id),
+            ),
+            patch.object(SkillService, "install_from_library", new=AsyncMock()) as install,
+        ):
+            await SkillService(_db()).list_readable(ctx)
+
+        # Only the gap, and as the organization's owner - the reader whose
+        # visit triggered this may be a viewer, and ownership widens access.
+        install.assert_awaited_once()
+        installer_ctx, key = install.await_args.args
+        assert key == "incident-report"
+        assert installer_ctx.user_id == owner_id
+        assert installer_ctx.organization_id == ctx.organization_id
+
+    @pytest.mark.anyio
+    async def test_a_complete_organization_installs_nothing_and_asks_for_no_owner(self):
+        ctx = _ctx()
+
+        with (
+            patch(f"{SKILLS_PATH}.skill_repo.list_visible", new=AsyncMock(return_value=([], 0))),
+            patch(f"{SKILLS_PATH}.skill_repo.list_categories", new=AsyncMock(return_value=[])),
+            patch(
+                f"{SKILLS_PATH}.skill_repo.list_names",
+                new=AsyncMock(return_value={"refund-policy"}),
+            ),
+            patch(
+                f"{SKILLS_PATH}.skill_library.library",
+                return_value=[self._bundled("refund-policy")],
+            ),
+            patch(f"{SKILLS_PATH}.member_repo.first_owner_id", new=AsyncMock()) as owner_lookup,
+            patch.object(SkillService, "install_from_library", new=AsyncMock()) as install,
+        ):
+            await SkillService(_db()).list_readable(ctx)
+
+        owner_lookup.assert_not_awaited()
+        install.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_an_organization_with_no_owner_is_left_alone(self):
+        # A skill row records who owns it, and that column is a foreign key to
+        # a real person - with nobody to attribute to, the listing answers what
+        # is there rather than inventing an owner or failing the page.
+        ctx = _ctx()
+
+        with (
+            patch(f"{SKILLS_PATH}.skill_repo.list_visible", new=AsyncMock(return_value=([], 0))),
+            patch(f"{SKILLS_PATH}.skill_repo.list_categories", new=AsyncMock(return_value=[])),
+            patch(f"{SKILLS_PATH}.skill_repo.list_names", new=AsyncMock(return_value=set())),
+            patch(
+                f"{SKILLS_PATH}.skill_library.library",
+                return_value=[self._bundled("refund-policy")],
+            ),
+            patch(f"{SKILLS_PATH}.member_repo.first_owner_id", new=AsyncMock(return_value=None)),
+            patch.object(SkillService, "install_from_library", new=AsyncMock()) as install,
+        ):
+            listing = await SkillService(_db()).list_readable(ctx)
+
+        install.assert_not_awaited()
+        assert listing.total == 0
+
+    @pytest.mark.anyio
+    async def test_a_racing_twin_costs_that_row_and_never_the_readers_page(self):
+        # Two first listings can race to the same missing skill; the loser's
+        # collision is caught per-install, so the page still answers.
+        ctx = _ctx()
+
+        with (
+            patch(f"{SKILLS_PATH}.skill_repo.list_visible", new=AsyncMock(return_value=([], 0))),
+            patch(f"{SKILLS_PATH}.skill_repo.list_categories", new=AsyncMock(return_value=[])),
+            patch(f"{SKILLS_PATH}.skill_repo.list_names", new=AsyncMock(return_value=set())),
+            patch(
+                f"{SKILLS_PATH}.skill_library.library",
+                return_value=[self._bundled("refund-policy"), self._bundled("incident-report")],
+            ),
+            patch(
+                f"{SKILLS_PATH}.member_repo.first_owner_id",
+                new=AsyncMock(return_value=uuid.uuid4()),
+            ),
+            patch.object(
+                SkillService,
+                "install_from_library",
+                new=AsyncMock(side_effect=[AlreadyExistsError(message="taken"), MagicMock()]),
+            ) as install,
+        ):
+            listing = await SkillService(_db()).list_readable(ctx)
+
+        # The collision did not stop the second install, and the listing answered.
+        assert install.await_count == 2
+        assert listing.suggested_categories == list(SUGGESTED_CATEGORIES)
+
+
 class TestSkillLibrary:
     """The skills this deployment ships with, and what installing one does."""
 
@@ -784,8 +845,10 @@ class TestSkillLibrary:
 
         assert create.call_args.kwargs["name"] == "code-review"
         assert create.call_args.kwargs["content"]
-        # The copy keeps the shelf the library put it on.
+        # The copy keeps the shelf the library put it on, and lands visible to
+        # the whole organization - seeding is for everybody, not the seeder.
         assert create.call_args.kwargs["category"] == "engineering"
+        assert create.call_args.kwargs["visibility"] == Visibility.ORG
         assert {call.kwargs["name"] for call in add_resource.await_args_list} == {
             "checklist.md",
             "review-comment.md",
@@ -794,6 +857,9 @@ class TestSkillLibrary:
             "skill.created",
             "skill.installed",
         ]
+        # The actor on a seeded install is the first owner as an attribution,
+        # not as a person who acted - the marker is what keeps the entry honest.
+        assert audit.await_args_list[-1].kwargs["details"]["seeded"] is True
 
     @pytest.mark.anyio
     async def test_installing_something_that_does_not_ship_is_refused(self):

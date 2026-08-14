@@ -1,12 +1,13 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 
+import { SortButton } from "@/components/ui/sort-button";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 
 export interface Column<T> {
-  /** Stable key for the column. */
+  /** Stable key for the column. Server-side sorting and filtering send it as-is. */
   key: string;
   header: ReactNode;
   cell: (row: T) => ReactNode;
@@ -19,6 +20,25 @@ export interface Column<T> {
    * Omit to keep the column always visible.
    */
   hideBelow?: "sm" | "md" | "lg";
+  /**
+   * Renders the header as a sort control. With `onSort` on the table the click
+   * is the caller's (server-side sorting); without it the table sorts the rows
+   * it holds, which needs `sortValue` — a client-mode column without one renders
+   * a plain header rather than a control that flips its arrow over rows that
+   * never move.
+   */
+  sortable?: boolean;
+  /**
+   * What this column sorts rows by when the table sorts client-side. A null
+   * sorts last in both directions: a run with no duration yet has no place on
+   * a fast-to-slow scale, which is a different fact from having been fast.
+   */
+  sortValue?: (row: T) => string | number | null;
+}
+
+export interface TableSort {
+  by: string;
+  dir: "asc" | "desc";
 }
 
 /** Tailwind classes that hide a column until the given breakpoint. */
@@ -49,11 +69,39 @@ interface DataTableProps<T> {
   /** Number of skeleton rows while loading. */
   skeletonRows?: number;
   className?: string;
+  /** The current sort when the server sorts. Owned by the caller, shown here. */
+  sort?: TableSort;
+  /**
+   * Asked to sort — the table computes the next state (same column flips, a new
+   * column starts descending) and hands it over whole, so no caller writes its
+   * own toggle reducer again. Omit to sort client-side via `sortValue`.
+   */
+  onSort?: (sort: TableSort) => void;
+  /** Where client-side sorting starts. Ignored when `onSort` is given. */
+  defaultSort?: TableSort;
 }
 
 const alignClass = { left: "text-left", right: "text-right", center: "text-center" } as const;
 
-/** Flat, theme-aware table with built-in loading + empty states. */
+function compare(a: string | number | null, b: string | number | null, dir: "asc" | "desc") {
+  if (a === null || b === null) return a === b ? 0 : a === null ? 1 : -1;
+  const order =
+    typeof a === "number" && typeof b === "number" ? a - b : String(a).localeCompare(String(b));
+  return dir === "asc" ? order : -order;
+}
+
+/**
+ * Flat, theme-aware table with built-in loading, empty and error states and
+ * sortable headers — the one table primitive (#139).
+ *
+ * Two modes for sorting, because the two kinds of list in this product are
+ * genuinely different: a list the client holds whole is this component's
+ * problem (`sortValue`), and a list the server pages is a request
+ * (`sort`/`onSort`) — a client-side sort of page one, on a list with three
+ * pages, is worse than no header. Filtering deliberately lives outside: the
+ * standard is a control strip inside the list card (`ListCardControlsRow`),
+ * never a second header row under the columns.
+ */
 export function DataTable<T>({
   columns,
   rows,
@@ -64,12 +112,40 @@ export function DataTable<T>({
   onRowClick,
   skeletonRows = 6,
   className,
+  sort,
+  onSort,
+  defaultSort,
 }: DataTableProps<T>) {
   const t = useTranslations("ui");
+  const [clientSort, setClientSort] = useState<TableSort | null>(defaultSort ?? null);
+
+  const serverSorted = onSort !== undefined;
+  const activeSort = serverSorted ? (sort ?? null) : clientSort;
+
+  const requestSort = (key: string) => {
+    const next: TableSort =
+      activeSort?.by === key
+        ? { by: key, dir: activeSort.dir === "asc" ? "desc" : "asc" }
+        : { by: key, dir: "desc" };
+    if (onSort) onSort(next);
+    else setClientSort(next);
+  };
+
+  const visible = useMemo(() => {
+    if (!rows) return rows;
+    let result = rows;
+    if (!serverSorted && clientSort) {
+      const col = columns.find((entry) => entry.key === clientSort.by);
+      const read = col?.sortValue;
+      if (read) result = [...result].sort((a, b) => compare(read(a), read(b), clientSort.dir));
+    }
+    return result;
+  }, [rows, columns, serverSorted, clientSort]);
+
   // A failure wins over emptiness, because a failed request has no rows either
   // and would otherwise be drawn as a collection with nothing in it.
   const showError = !loading && error != null;
-  const showEmpty = !loading && !showError && rows && rows.length === 0;
+  const showEmpty = !loading && !showError && visible && visible.length === 0;
 
   return (
     <div className={cn("border-border bg-card overflow-hidden rounded-xl border", className)}>
@@ -77,19 +153,37 @@ export function DataTable<T>({
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-border border-b">
-              {columns.map((col) => (
-                <th
-                  key={col.key}
-                  className={cn(
-                    "text-muted-foreground px-4 py-2.5 font-mono text-[11px] font-medium tracking-wider uppercase",
-                    alignClass[col.align ?? "left"],
-                    col.hideBelow && hideBelowClass[col.hideBelow],
-                    col.className,
-                  )}
-                >
-                  {col.header}
-                </th>
-              ))}
+              {columns.map((col) => {
+                const sortsHere = col.sortable && (serverSorted || col.sortValue !== undefined);
+                const sorted = sortsHere && activeSort?.by === col.key ? activeSort : null;
+                return (
+                  <th
+                    key={col.key}
+                    scope="col"
+                    aria-sort={
+                      sorted ? (sorted.dir === "asc" ? "ascending" : "descending") : undefined
+                    }
+                    className={cn(
+                      "text-muted-foreground px-4 py-2.5 font-mono text-[11px] font-medium tracking-wider uppercase",
+                      alignClass[col.align ?? "left"],
+                      col.hideBelow && hideBelowClass[col.hideBelow],
+                      col.className,
+                    )}
+                  >
+                    {sortsHere ? (
+                      <SortButton
+                        active={sorted !== null}
+                        direction={sorted?.dir ?? "desc"}
+                        onClick={() => requestSort(col.key)}
+                      >
+                        {col.header}
+                      </SortButton>
+                    ) : (
+                      col.header
+                    )}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
@@ -112,7 +206,7 @@ export function DataTable<T>({
               ))}
 
             {!loading &&
-              rows?.map((row, i) => (
+              visible?.map((row, i) => (
                 <tr
                   key={getRowKey(row, i)}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}

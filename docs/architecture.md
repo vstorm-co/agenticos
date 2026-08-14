@@ -363,7 +363,10 @@ bounds a read; the user is what narrows it further.**
   enriches each message with the caller's own rating. That overload is why its
   authorizing half went missing for so long: the route passed it, the argument
   was plainly there in review, and it was doing the other job.
-- File downloads verify `chat_file.user_id == current_user.id`.
+- File downloads verify `chat_file.user_id == current_user.id`, and attaching a
+  file to a message carries the same owner in the `WHERE`: a turn naming
+  another user's file id — or a file already on a message — is refused, never
+  silently applied.
 
 `ConversationService` makes the distinction impossible to omit: `organization_id`
 is a **required** keyword, and a caller that genuinely reads across tenants

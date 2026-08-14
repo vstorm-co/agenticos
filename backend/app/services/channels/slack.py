@@ -35,6 +35,13 @@ from app.services.channels.router import ChannelMessageRouter
 
 logger = logging.getLogger(__name__)
 
+_MEMBERSHIP_PAGES = 50
+"""How far `is_channel_member` will walk `conversations.members`.
+
+At Slack's 1000 ids per page this covers a fifty-thousand-member channel,
+which is a bound on a runaway cursor rather than on any real room.
+"""
+
 
 class SlackAdapter(ChannelAdapter):
     """Concrete Slack adapter using slack-sdk."""
@@ -197,6 +204,39 @@ class SlackAdapter(ChannelAdapter):
                 )
             )
         return members
+
+    async def is_channel_member(
+        self, bot_token: str, channel_id: str, platform_user_id: str, *, api_base_url: str | None
+    ) -> bool:
+        """`conversations.members`, paged until the account is found or the list ends.
+
+        Slack has no per-account membership call for a bot token, so the page
+        walk is the question - full pages of ids only, never the `users.info`
+        fan-out `channel_members` does, because nobody here needs a name. The
+        page cap exists so a pathological cursor cannot loop forever; a channel
+        bigger than it answers "not a member", logged, which is the participant
+        model's safe default rather than a claim about the room.
+        """
+        from slack_sdk.web.async_client import AsyncWebClient
+
+        client = AsyncWebClient(token=bot_token)
+        cursor: str | None = None
+        for _ in range(_MEMBERSHIP_PAGES):
+            response = await client.conversations_members(
+                channel=channel_id, limit=1000, cursor=cursor
+            )
+            if platform_user_id in {str(found) for found in (response.get("members") or [])}:
+                return True
+            cursor = str((response.get("response_metadata") or {}).get("next_cursor") or "") or None
+            if cursor is None:
+                return False
+        logger.warning(
+            "Slack channel %s exceeded %d membership pages; treating %s as not a member",
+            channel_id,
+            _MEMBERSHIP_PAGES,
+            platform_user_id,
+        )
+        return False
 
     async def search_channels(
         self, bot_token: str, channel_id: str, *, api_base_url: str | None, query: str, limit: int

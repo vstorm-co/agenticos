@@ -238,6 +238,19 @@ async def count_for_org(db: AsyncSession, organization_id: UUID) -> int:
     return result.scalar() or 0
 
 
+async def first_owner_id(db: AsyncSession, *, organization_id: UUID) -> UUID | None:
+    """The earliest-joined owner - who system-made rows are attributed to."""
+    return await db.scalar(
+        select(OrganizationMember.user_id)
+        .where(
+            OrganizationMember.organization_id == organization_id,
+            OrganizationMember.role == OrgRole.OWNER.value,
+        )
+        .order_by(OrganizationMember.joined_at.asc())
+        .limit(1)
+    )
+
+
 async def create(
     db: AsyncSession,
     *,

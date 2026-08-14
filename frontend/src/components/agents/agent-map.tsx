@@ -81,7 +81,8 @@ export function AgentMap({
   const edgeInputs = useMemo<EdgeInput[]>(
     () => [
       ...nodes.map((node) => ({ key: node.key, side: node.side })),
-      ...delegates.map((delegate) => ({ key: delegate.key, side: "out" as const })),
+      // A delegate is another agent, and a tree grows downward.
+      ...delegates.map((delegate) => ({ key: delegate.key, side: "bottom" as const })),
     ],
     [nodes, delegates],
   );
@@ -98,8 +99,13 @@ export function AgentMap({
     panHandlers,
   } = useMapView(edgeInputs);
 
-  const inputs = nodes.filter((node) => node.side === "in");
-  const outputs = nodes.filter((node) => node.side === "out");
+  // Four directions, each answering its own question (#518): left is what
+  // reaches the agent, top is what it runs as, right is what it reaches for,
+  // bottom is what it hands work to.
+  const lefts = nodes.filter((node) => node.side === "left");
+  const rights = nodes.filter((node) => node.side === "right");
+  const tops = nodes.filter((node) => node.side === "top");
+  const bottoms = nodes.filter((node) => node.side === "bottom");
 
   // The focused item, for the detail panel. Exactly one of these matches.
   const focusedNode = nodes.find((node) => node.key === focused);
@@ -177,8 +183,29 @@ export function AgentMap({
           </svg>
 
           <div className="relative grid items-center gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1fr)]">
+            {/* Row above the hub: what the agent runs as. The flanking cells
+                keep the grid's auto-placement honest on large screens. */}
+            {tops.length > 0 && (
+              <>
+                <div className="hidden lg:block" />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {tops.map((node) => (
+                    <CapabilityNode
+                      key={node.key}
+                      node={node}
+                      focused={focused === node.key}
+                      dimmed={focused !== null && focused !== node.key}
+                      onFocus={() => focus(node.key)}
+                      registerRef={registerBox(node.key)}
+                    />
+                  ))}
+                </div>
+                <div className="hidden lg:block" />
+              </>
+            )}
+
             <div className="space-y-4">
-              {inputs.map((node) => (
+              {lefts.map((node) => (
                 <CapabilityNode
                   key={node.key}
                   node={node}
@@ -218,7 +245,7 @@ export function AgentMap({
             </div>
 
             <div className="space-y-4">
-              {outputs.map((node) => (
+              {rights.map((node) => (
                 <CapabilityNode
                   key={node.key}
                   node={node}
@@ -228,36 +255,46 @@ export function AgentMap({
                   registerRef={registerBox(node.key)}
                 />
               ))}
-
-              {/* Delegates and specialists as their own nodes, grouped so they
-                  read as a different kind of thing from a capability. Rendered
-                  only when there are any: an empty delegation heading on every
-                  agent that never delegates would be noise, not a finding. */}
-              {delegates.length > 0 && (
-                <section
-                  className="border-brand/20 space-y-2 rounded-xl border p-3"
-                  aria-label={t("delegation")}
-                >
-                  <p className="text-muted-foreground flex items-center gap-1.5 text-[11px] font-medium tracking-wide uppercase">
-                    <Network className="h-3.5 w-3.5" />
-                    {t("delegation")}
-                  </p>
-                  <div className="space-y-2">
-                    {delegates.map((delegate) => (
-                      <DelegateNode
-                        key={delegate.key}
-                        delegate={delegate}
-                        icon={DELEGATE_ICON[delegate.kind]}
-                        focused={focused === delegate.key}
-                        dimmed={focused !== null && focused !== delegate.key}
-                        onFocus={() => focus(delegate.key)}
-                        registerRef={registerBox(delegate.key)}
-                      />
-                    ))}
-                  </div>
-                </section>
-              )}
             </div>
+
+            {/* Row below the hub: what the agent hands work to. A delegate is
+                another agent, so it is a node of its own down here rather than
+                a line of text in a box - and a tree grows downward. Rendered
+                only when there is anything: an empty delegation row on every
+                agent that never delegates would be noise, not a finding. */}
+            {(bottoms.length > 0 || delegates.length > 0) && (
+              <>
+                <div className="hidden lg:block" />
+                <div className="space-y-4">
+                  {bottoms.map((node) => (
+                    <CapabilityNode
+                      key={node.key}
+                      node={node}
+                      focused={focused === node.key}
+                      dimmed={focused !== null && focused !== node.key}
+                      onFocus={() => focus(node.key)}
+                      registerRef={registerBox(node.key)}
+                    />
+                  ))}
+                  {delegates.length > 0 && (
+                    <section className="grid gap-2 sm:grid-cols-2" aria-label={t("delegation")}>
+                      {delegates.map((delegate) => (
+                        <DelegateNode
+                          key={delegate.key}
+                          delegate={delegate}
+                          icon={DELEGATE_ICON[delegate.kind]}
+                          focused={focused === delegate.key}
+                          dimmed={focused !== null && focused !== delegate.key}
+                          onFocus={() => focus(delegate.key)}
+                          registerRef={registerBox(delegate.key)}
+                        />
+                      ))}
+                    </section>
+                  )}
+                </div>
+                <div className="hidden lg:block" />
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -284,11 +321,12 @@ export function AgentMap({
 
 /** The icons the Builder passes in, kept here so the map owns its own vocabulary. */
 export const MAP_ICONS = {
-  channels: MessageSquare,
+  surfaces: MessageSquare,
   model: Cpu,
   capabilities: Boxes,
   mcp: Plug,
   skills: Library,
   knowledge: BookOpen,
   budget: Wallet,
+  delegation: Network,
 } as const;

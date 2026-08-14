@@ -60,15 +60,65 @@ class RecordedToolCall:
         tool_name: What was called.
         args: What it was called with. Stored because "the agent sent an email"
             is not reviewable and "the agent sent an email to X" is.
-        result: What it returned, or the retry message when it failed. `None`
-            for a call that never returned - the run was parked on it, stopped,
-            or broke before it completed.
+        result: What it returned, or - when it failed - the notice that the
+            model was asked to retry, never the retry text itself
+            (:func:`_result_text`). `None` for a call that never returned - the
+            run was parked on it, stopped, or broke before it completed.
     """
 
     tool_call_id: str
     tool_name: str
     args: dict[str, Any]
     result: str | None = None
+
+
+def tool_retry_notice(part: RetryPromptPart) -> str:
+    """What a tool that asked the model to try again may tell a reader.
+
+    A retry's content is written by whichever tool raised: `web_search` turns a
+    search provider's failure into a `ModelRetry` built out of the `httpx` or
+    SDK exception it caught, so a broken key put "401 Unauthorized for url
+    'https://api.tavily.com/search'" - an endpoint, a host, and whatever the
+    query string held - in front of everyone watching the run (#681), and on
+    the tool-call row every member who can read the run opens weeks later
+    (#695). An MCP tool's retry is a third party's string entirely, which is
+    why this is one sentence at the two choke points rather than a rule at each
+    raise: `run_stream` sends it in the `tool_result` frame, and
+    :func:`_result_text` below stores it.
+
+    The model still reads the retry whole: Pydantic AI puts the part into the
+    next request itself and nothing here touches that, so the detail that
+    decides whether it retries, switches tack or gives up is unchanged. Only
+    what is shown and stored is trimmed, and the tool's own text stays in the
+    `logger.warning` beside the send or the write.
+
+    The tool's *name* still goes out, because it is what makes the frame worth
+    sending: a card that resolves saying which step failed is the difference
+    from one that spins for ever. `tool_name` is optional on the part - output
+    validation raises a retry that names no tool - hence the two forms.
+    """
+    called = f"The {part.tool_name} call" if part.tool_name else "A tool call"
+    return (
+        f"{called} failed and the model was asked to try again. The server log has the full error."
+    )
+
+
+def _result_text(part: ToolReturnPart | RetryPromptPart) -> str:
+    """What the row stores as the call's outcome.
+
+    A return is the tool's own answer and is stored whole. A retry's content is
+    written by whatever raised - `web_search` builds one out of the vendor
+    exception it caught, failing endpoint and query string included, and an MCP
+    tool's is a third party's string entirely - so the row holds the same
+    sentence the `tool_result` frame sends (#681) and the text itself goes to
+    the log beside the write, where run history read weeks later cannot reach
+    it (#695). The model is untouched either way: Pydantic AI carries the part
+    into the next request itself, and this function only decides what is stored.
+    """
+    if isinstance(part, RetryPromptPart):
+        logger.warning("Tool call %s asked the model to retry: %s", part.tool_call_id, part.content)
+        return tool_retry_notice(part)
+    return str(part.content)
 
 
 def tool_calls_in(messages: Sequence[ModelMessage]) -> list[RecordedToolCall]:
@@ -83,6 +133,13 @@ def tool_calls_in(messages: Sequence[ModelMessage]) -> list[RecordedToolCall]:
     A `RetryPromptPart` counts as a result. A call the model was told to retry
     did happen and did fail, and dropping it would leave the transcript showing
     an argument list with no outcome - which reads as "still running" for ever.
+
+    A result whose call is not here is skipped rather than collected and then
+    dropped: it is :func:`settled_calls_in`'s to store, and reading it in both
+    places logged a settled retry's vendor text twice. Gating on `calls` is
+    sound because a result part sits in the `ModelRequest` that answers its
+    call's `ModelResponse`, so the call - when it is in these messages at all -
+    has always been seen first.
     """
     calls: dict[str, RecordedToolCall] = {}
     results: dict[str, str] = {}
@@ -94,8 +151,8 @@ def tool_calls_in(messages: Sequence[ModelMessage]) -> list[RecordedToolCall]:
                     tool_name=part.tool_name,
                     args=part.args_as_dict(raise_if_invalid=False),
                 )
-            elif isinstance(part, ToolReturnPart | RetryPromptPart):
-                results[part.tool_call_id] = str(part.content)
+            elif isinstance(part, ToolReturnPart | RetryPromptPart) and part.tool_call_id in calls:
+                results[part.tool_call_id] = _result_text(part)
     return [
         RecordedToolCall(
             tool_call_id=call.tool_call_id,
@@ -127,11 +184,30 @@ def settled_calls_in(messages: Sequence[ModelMessage]) -> dict[str, str]:
         if isinstance(part, ToolCallPart)
     }
     return {
-        part.tool_call_id: str(part.content)
+        part.tool_call_id: _result_text(part)
         for message in messages
         for part in message.parts
         if isinstance(part, ToolReturnPart | RetryPromptPart) and part.tool_call_id not in called
     }
+
+
+def what_arrived(attachments: Sequence[ChatFile]) -> str:
+    """The user turn's body when files arrived with no words around them.
+
+    A blank user message reads as somebody sending nothing, so a caption-less
+    upload names its files instead - the vocabulary `AttachmentRouter` already
+    uses for the model's briefing (#704). Only the names: the linked rows carry
+    the size and the type.
+
+    Public because there are two write sites and one format: :meth:`record`
+    for every non-streaming surface, and `persist_user_turn` for the streaming
+    chat, which writes its own turn and used to leave it blank (#750). Two
+    copies of this string is how the same turn reads differently by surface.
+    """
+    return "\n".join(
+        f"Attached {'image' if attachment.file_type == 'image' else 'file'}: {attachment.filename}"
+        for attachment in attachments
+    )
 
 
 class TranscriptService:
@@ -166,9 +242,13 @@ class TranscriptService:
         (/uploads/…, 43 KB, image)`. The dashboard's own uploads have been rows
         since they existed; a channel's became nothing at all.
 
-        An empty *prompt* is written when a file came with it, because a picture
-        posted with no caption is a turn: the row is what the file hangs off, and
-        without it the attachment belongs to nothing.
+        An empty *prompt* with a file beside it is a turn, because a picture
+        posted with no caption is one: the row is what the file hangs off, and
+        without it the attachment belongs to nothing. Its body names what
+        arrived rather than staying blank - an empty user message reads as
+        somebody sending nothing (#704). `None` is different from `""` here:
+        a resume passes `None` and no attachments, so it writes no user turn,
+        while an empty caption always arrives with the file that makes it one.
 
         An empty `answer` is written when the run called something, and skipped
         when it did not. A blank assistant message with nothing under it reads as
@@ -218,7 +298,7 @@ class TranscriptService:
                         self.db,
                         conversation_id=run.conversation_id,
                         role="user",
-                        content=prompt or "",
+                        content=prompt or what_arrived(attachments),
                         run_id=run.id,
                         # Off the run rather than passed in: the run row already
                         # records which chat account asked, and a second route to
@@ -260,16 +340,27 @@ class TranscriptService:
 
         Nothing when nothing was attached - a SAVEPOINT and its release on every
         turn in the deployment is a real cost for a list that is usually empty.
+
+        The link is scoped to each row's own uploader, because the repository
+        refuses to move anybody else's file (#706). The rows here were stored by
+        `ChannelAttachmentService.receive` for the turn's sender, so grouping by
+        owner is one UPDATE in practice - it only splits if a caller ever hands
+        it rows from more than one uploader.
         """
         if not attachments:
             return
+        by_owner: dict[UUID, list[UUID]] = {}
+        for attachment in attachments:
+            by_owner.setdefault(attachment.user_id, []).append(attachment.id)
         try:
             async with self.db.begin_nested():
-                await chat_file_repo.link_to_message(
-                    self.db,
-                    message_id=message_id,
-                    file_ids=[attachment.id for attachment in attachments],
-                )
+                for owner_id, ids in by_owner.items():
+                    await chat_file_repo.link_to_message(
+                        self.db,
+                        message_id=message_id,
+                        file_ids=ids,
+                        user_id=owner_id,
+                    )
         except Exception:
             logger.exception("transcript_file_link_failed", extra={"message_id": str(message_id)})
 

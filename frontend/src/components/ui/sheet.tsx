@@ -46,8 +46,13 @@ export function Sheet({ open, onOpenChange, children }: SheetProps) {
 export function SheetContent({ children, className, side = "left" }: SheetContentProps) {
   return (
     <div
+      // A modal panel is a dialog to assistive tech, and the role is also what
+      // lets a test scope its queries to the panel rather than the page it
+      // covers - the run drawer renders a second table over the list's.
+      role="dialog"
+      aria-modal="true"
       className={cn(
-        "bg-background fixed inset-y-0 z-50 flex w-72 flex-col shadow-lg",
+        "glass-strong fixed inset-y-0 z-50 flex w-72 flex-col",
         "animate-in duration-300",
         side === "left" ? "slide-in-from-left left-0" : "slide-in-from-right right-0",
         className,

@@ -532,3 +532,60 @@ class TestTheDefaultAgentRecordsItsTranscript:
         linked = chat_files.link_to_message.await_args.kwargs
         assert linked["file_ids"] == [attachment.id]
         assert linked["message_id"] == user_message.id
+
+    async def test_a_captionless_image_on_a_workspaceless_agent_leaves_a_named_user_turn(
+        self,
+    ) -> None:
+        """A photo with no words under it, on an agent with no workspace, yields
+        no prompt text at all: the image reaches the model as bytes beside an
+        empty string. The turn still happened and was billed, so the transcript
+        holds a user message naming what arrived - not a blank one - and the
+        file hangs off it (#704).
+        """
+        exposure, agent = MagicMock(is_active=True), MagicMock(id=uuid.uuid4(), slug="support")
+        run = AsyncMock(return_value=_searched_then_answered("A dashboard."))
+        attachment = MagicMock(
+            id=uuid.uuid4(),
+            filename="photo.jpg",
+            file_type="image",
+            size=1024,
+            mime_type="image/jpeg",
+            storage_path=f"uploads/{uuid.uuid4().hex}.jpg",
+        )
+        user_message, assistant_message = MagicMock(id=uuid.uuid4()), MagicMock(id=uuid.uuid4())
+
+        with (
+            _run_yielding(run) as (_captured, conversations),
+            patch("app.services.transcript.chat_file_repo") as chat_files,
+            patch("app.services.attachments.get_file_storage") as storage,
+            patch(
+                "app.services.channels.mentions.agent_exposure_repo.list_active_for_bot",
+                new=AsyncMock(return_value=[(exposure, agent)]),
+            ),
+            patch(
+                "app.services.channels.mentions.member_repo.get",
+                new=AsyncMock(return_value=MagicMock(role="builder")),
+            ),
+            patch.object(
+                ChannelAgentRouter,
+                "_with_usage",
+                new=AsyncMock(side_effect=lambda _ctx, answer, _run, **_kw: answer),
+            ),
+        ):
+            storage.return_value.load = AsyncMock(return_value=b"\x89PNG")
+            conversations.create_message = AsyncMock(side_effect=[user_message, assistant_message])
+            chat_files.link_to_message = AsyncMock()
+            await ChannelAgentRouter(_db()).answer_default(
+                "",
+                platform="telegram",
+                organization_id=uuid.uuid4(),
+                bot_id=uuid.uuid4(),
+                user_id=uuid.uuid4(),
+                conversation_id=uuid.uuid4(),
+                platform_chat_id="123",
+                attachments=[attachment],
+            )
+
+        asked = conversations.create_message.await_args_list[0].kwargs
+        assert (asked["role"], asked["content"]) == ("user", "Attached image: photo.jpg")
+        assert chat_files.link_to_message.await_args.kwargs["message_id"] == user_message.id

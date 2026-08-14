@@ -8,6 +8,7 @@ export { Label } from "./label";
 export { Textarea } from "./textarea";
 export { MarkdownEditor } from "./markdown-editor";
 export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent } from "./card";
+export { ListCard, ListCardControlsRow, ListCardEmpty, ListCardFootRow } from "./list-card";
 export { Badge, badgeVariants } from "./badge";
 export { SortButton } from "./sort-button";
 export type { SortDirection } from "./sort-button";
@@ -68,22 +69,12 @@ export {
   DropdownMenuRadioGroup,
 } from "./dropdown-menu";
 export { Popover, PopoverTrigger, PopoverContent, PopoverAnchor } from "./popover";
-export {
-  Table,
-  TableHeader,
-  TableBody,
-  TableFooter,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableCaption,
-} from "./table";
 export { Checkbox } from "./checkbox";
 export { Spinner } from "./spinner";
 export { QuestionPrompt } from "./question-prompt";
 export type { QuestionPromptProps } from "./question-prompt";
 
-export { DataTable, type Column } from "./data-table";
+export { DataTable, type Column, type TableSort } from "./data-table";
 
 export {
   OptionalSetting,
@@ -93,5 +84,6 @@ export {
 } from "./optional-setting";
 
 export { Pager, SearchInput, useDebounced, useListControls, PAGE_SIZE } from "./list-controls";
+export { PaginationBar } from "./pagination-bar";
 
 export { DateRangePicker, type DateRange, type DateRangePickerProps } from "./date-range-picker";

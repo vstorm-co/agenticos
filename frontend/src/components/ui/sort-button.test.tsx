@@ -12,8 +12,9 @@ import { SortButton } from "./sort-button";
  *
  * The state worth testing is the *third* one: a column that can be sorted but is
  * not currently sorting. Without it a reader cannot tell "sortable" from "sorted
- * ascending", and the accessible name is the only thing that carries the
- * difference to anybody not looking at the arrow.
+ * ascending". The accessible name stays the column's own label — the state rides
+ * on the `title` here and on `aria-sort` on the `th` DataTable renders — so a
+ * test can press "Conversations" rather than the n-th "sorted descending".
  */
 function renderButton(props: Parameters<typeof SortButton>[0]) {
   return render(
@@ -24,19 +25,22 @@ function renderButton(props: Parameters<typeof SortButton>[0]) {
 }
 
 describe("SortButton", () => {
-  it("says it is sortable when the table is sorted by something else", () => {
+  it("answers to the column's label and says it is sortable when sorted by something else", () => {
     renderButton({ active: false, direction: "desc", onClick: vi.fn(), children: "Took" });
 
-    expect(screen.getByRole("button", { name: messages.ui.sortBy })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Took" })).toHaveAttribute(
+      "title",
+      messages.ui.sortBy,
+    );
   });
 
   it.each([
     ["asc" as const, messages.ui.sortedAscending],
     ["desc" as const, messages.ui.sortedDescending],
-  ])("names the direction it is sorting in when active: %s", async (direction, name) => {
+  ])("carries the direction it is sorting in when active: %s", async (direction, title) => {
     renderButton({ active: true, direction, onClick: vi.fn(), children: "Took" });
 
-    expect(screen.getByRole("button", { name })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Took" })).toHaveAttribute("title", title);
   });
 
   it("keeps the column's own label alongside that", () => {

@@ -21,6 +21,7 @@ import {
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { AgentMap, MAP_ICONS, type MapDelegate, type MapNode } from "@/components/agents/agent-map";
+import { MODE_LABEL } from "@/components/agents/agent-map-nodes";
 import { AgentStatusBadge } from "@/components/agents/status-badge";
 import { AlertsPanel } from "@/components/agents/alerts-panel";
 import { CapabilityWorkbench } from "@/components/agents/capability-workbench";
@@ -74,6 +75,7 @@ import {
   useAgents,
   useAgentVersions,
   useCapabilityCatalog,
+  useEmbeds,
   useExposures,
   useKnowledgeBases,
   useMcpCatalog,
@@ -106,6 +108,7 @@ interface PageProps {
 export default function AgentBuilderPage({ params }: PageProps) {
   const t = useTranslations("pages.agents");
   const tc = useTranslations("common");
+  const tAgents = useTranslations("agents");
   const { id } = use(params);
   const router = useRouter();
   const { agent, isLoading, saveDraft, validate, publish, rollback, setAvatar } = useAgent(id);
@@ -127,6 +130,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // the ids the spec stores belong to the connections.
   const { connections: mcpConnections } = useOrgMcpConnections();
   const { exposures } = useExposures(id);
+  const { embeds } = useEmbeds(id);
   const { servers: mcpCatalog } = useMcpCatalog();
   const selectAgentForChat = useAgentSelectionStore((state) => state.select);
   const resetConversation = useConversationStore((state) => state.reset);
@@ -205,6 +209,10 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // thing it replaces. Anything the spec references but the organization no
   // longer has is named as missing rather than dropped - a silently shorter
   // list hides exactly the problem that refuses at publish.
+  //
+  // Four directions, each its own question (#518): what reaches the agent on
+  // the left, what it runs as on top, what it reaches for on the right, and
+  // what it hands work to at the bottom.
   const mapNodes = useMemo<MapNode[]>(() => {
     if (!spec) return [];
     const name = <T extends { id: string; name: string }>(pool: T[], id: string) =>
@@ -216,38 +224,47 @@ export default function AgentBuilderPage({ params }: PageProps) {
         : t("namedMissing", { name: spec.model_profile_id })
       : t("organizationDefault");
 
-    return [
+    const nodes: MapNode[] = [
       {
-        key: "channels",
-        title: t("channels"),
-        icon: MAP_ICONS.channels,
-        side: "in",
-        items: exposures.map(
-          (exposure) => `${exposure.channel_bot_name}${exposure.is_active ? "" : " (paused)"}`,
-        ),
+        key: "surfaces",
+        title: t("mapSurfaces"),
+        icon: MAP_ICONS.surfaces,
+        side: "left",
+        // The standing surfaces first - every agent is reachable from the
+        // dashboard, the API and the raw socket - then whatever this one was
+        // published as: widgets, and each channel binding.
+        items: [
+          t("surfaceChat"),
+          t("surfaceApi"),
+          t("surfaceSocket"),
+          ...embeds.map((embed) => t("surfaceWidget", { name: embed.name })),
+          ...exposures.map(
+            (exposure) => `${exposure.channel_bot_name}${exposure.is_active ? "" : " (paused)"}`,
+          ),
+        ],
         empty: t("chatOnlyNotSlack"),
-      },
-      {
-        key: "knowledge",
-        title: t("knowledge"),
-        icon: MAP_ICONS.knowledge,
-        side: "in",
-        items: spec.collection_ids.map((entry) => name(collections, entry)),
-        empty: t("noCollectionsAttached"),
       },
       {
         key: "model",
         title: t("model"),
         icon: MAP_ICONS.model,
-        side: "out",
+        side: "top",
         items: [profile],
         empty: t("noModel"),
+      },
+      {
+        key: "budget",
+        title: t("budget"),
+        icon: MAP_ICONS.budget,
+        side: "top",
+        items: spec.budget?.monthly_usd ? [t("perMonth", { amount: spec.budget.monthly_usd })] : [],
+        empty: t("spendsWithoutCeilingIts"),
       },
       {
         key: "capabilities",
         title: t("toolbox"),
         icon: MAP_ICONS.capabilities,
-        side: "out",
+        side: "right",
         items: spec.capabilities
           .filter((binding) => binding.enabled)
           .map((binding) => name(capabilities, binding.id)),
@@ -257,28 +274,62 @@ export default function AgentBuilderPage({ params }: PageProps) {
         key: "mcp",
         title: t("mcpServers"),
         icon: MAP_ICONS.mcp,
-        side: "out",
+        side: "right",
         items: spec.mcp_server_ids.map((entry) => name(mcpConnections, entry)),
         empty: t("noMcpServersAttached"),
+      },
+      {
+        key: "knowledge",
+        title: t("knowledge"),
+        icon: MAP_ICONS.knowledge,
+        side: "right",
+        items: spec.collection_ids.map((entry) => name(collections, entry)),
+        empty: t("noCollectionsAttached"),
       },
       {
         key: "skills",
         title: t("skills"),
         icon: MAP_ICONS.skills,
-        side: "out",
+        side: "right",
         items: spec.skill_ids.map((entry) => name(skills, entry)),
         empty: t("noSkillsAttached"),
       },
-      {
-        key: "budget",
-        title: t("budget"),
-        icon: MAP_ICONS.budget,
-        side: "out",
-        items: spec.budget?.monthly_usd ? [t("perMonth", { amount: spec.budget.monthly_usd })] : [],
-        empty: t("spendsWithoutCeilingIts"),
-      },
     ];
-  }, [spec, exposures, collections, profiles, capabilities, mcpConnections, skills, t]);
+
+    // The delegation policy, next to the delegates it governs. `allow_dynamic`
+    // is the setting with the widest consequences on this page - an agent that
+    // may invent specialists mid-run - so the map says it either way.
+    const subagentsBinding = spec.capabilities.find((binding) => binding.id === SUBAGENTS_ID);
+    if (subagentsBinding?.enabled) {
+      const config = readSubagentsConfig(subagentsBinding);
+      nodes.push({
+        key: "delegation",
+        title: tAgents("delegation"),
+        icon: MAP_ICONS.delegation,
+        side: "bottom",
+        items: [
+          tAgents("mapHandsBack", { mode: tAgents(MODE_LABEL[config.mode]) }),
+          config.allow_dynamic ? t("mapMayInventSpecialists") : t("mapFixedRosterOnly"),
+          t("mapDepthLimit", { depth: config.max_depth }),
+          t("mapFanoutLimit", { fanout: config.max_fanout }),
+        ],
+        empty: "",
+      });
+    }
+
+    return nodes;
+  }, [
+    spec,
+    exposures,
+    embeds,
+    collections,
+    profiles,
+    capabilities,
+    mcpConnections,
+    skills,
+    t,
+    tAgents,
+  ]);
 
   // Subagents as their own kind of node - another agent this one reaches for,
   // not a tool. A pinned delegate carries a link to its own page, so the map

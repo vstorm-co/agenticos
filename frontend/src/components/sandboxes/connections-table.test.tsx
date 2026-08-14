@@ -85,6 +85,22 @@ describe("ConnectionsTable", () => {
     expect(screen.getAllByRole("button", { name: /What .* allows/ })).toHaveLength(1);
   });
 
+  it("sorts by name when its header is pressed, since the caller holds every row", async () => {
+    mount([
+      connection({ id: "c-1", name: "Local Docker" }),
+      connection({ id: "c-2", name: "Big box", is_default: false }),
+    ]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Name" }));
+    await userEvent.click(screen.getByRole("button", { name: "Name" }));
+
+    const names = Array.from(
+      screen.getAllByRole("rowgroup")[1]!.querySelectorAll("tr > td:first-child"),
+      (cell) => cell.textContent,
+    );
+    expect(names).toEqual(["Big box", expect.stringContaining("Local Docker")]);
+  });
+
   it("hands each action the row it was pressed on", async () => {
     const handlers = mount([connection()]);
 

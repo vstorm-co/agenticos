@@ -993,3 +993,117 @@
     background-color: #67060c;
   }
 }
+
+/* The theme switch as a sweep: the new theme's snapshot grows as a circle
+   anchored at the bottom-left corner, reaching the top-right last. Driven by
+   `document.startViewTransition` in theme-provider.tsx, which already skips
+   browsers without the API and readers who asked for reduced motion - so this
+   only ever styles a transition that was deliberately started. The default
+   cross-fade is turned off on both snapshots: blended with the clip-path it
+   reads as a flash, not a sweep. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-new(root) {
+  animation: theme-sweep 0.5s ease-in-out both;
+}
+@keyframes theme-sweep {
+  from {
+    /* Radius percentages resolve against the normalized diagonal, so 142%
+       (~sqrt(2) of it) is the first radius that covers the far corner. */
+    clip-path: circle(0% at 0% 100%);
+  }
+  to {
+    clip-path: circle(142% at 0% 100%);
+  }
+}
+
+@layer utilities {
+  /* macOS-style frosted glass: a translucent card that blurs and saturates
+     whatever scrolls beneath it. It needs content behind it to read as glass -
+     over a flat background it is just a tinted card - which is why the chat
+     composer floats over the transcript rather than sitting below it. The
+     inset highlight is the pane's top edge catching light; without it the
+     blur reads as fog rather than glass. */
+  .glass {
+    border: 1px solid color-mix(in oklab, var(--color-foreground) 16%, transparent);
+    background: color-mix(in oklab, var(--color-card) 55%, transparent);
+    -webkit-backdrop-filter: blur(24px) saturate(1.8);
+    backdrop-filter: blur(24px) saturate(1.8);
+    /* Three shadows are the materiality: the top-edge highlight that says
+       "pane, not fog", a soft lift off the page, and a wide ambient drop -
+       over a light page the see-through part is nearly invisible, so the
+       separation has to come from the edges. */
+    box-shadow:
+      inset 0 1px 0 0 color-mix(in oklab, white 20%, transparent),
+      0 1px 2px 0 rgb(0 0 0 / 0.08),
+      0 12px 40px -12px rgb(0 0 0 / 0.3);
+  }
+  /* The same pane, nearly opaque - for dialogs and drawers, which sit over a
+     dimmed overlay. At 55% the black scrim behind them wins: a light-mode
+     panel turns murky grey under its own dark text. 85% keeps the panel's
+     luminance while the blurred page still ghosts through the edges - the
+     macOS proportion too: menus are the translucent ones, window sheets
+     barely. */
+  .glass-strong {
+    border: 1px solid color-mix(in oklab, var(--color-foreground) 16%, transparent);
+    background: color-mix(in oklab, var(--color-card) 85%, transparent);
+    -webkit-backdrop-filter: blur(24px) saturate(1.8);
+    backdrop-filter: blur(24px) saturate(1.8);
+    box-shadow:
+      inset 0 1px 0 0 color-mix(in oklab, white 20%, transparent),
+      0 1px 2px 0 rgb(0 0 0 / 0.08),
+      0 12px 40px -12px rgb(0 0 0 / 0.3);
+  }
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass,
+    .glass-strong {
+      background: var(--color-card);
+    }
+  }
+
+  /* The wallpaper the glass frosts. A sidebar sits beside the content, so it
+     has nothing to blur - what macOS blurs behind its sidebars is the desktop.
+     This is that desktop: three soft washes of the one accent hue, fixed
+     behind everything (negative z, painted above the canvas background and
+     below all flow content), so a translucent column has colour to pull
+     through in both themes. Brand hue only - the surfaces stay neutral and
+     the accent stays the accent. */
+  .ambient-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: -10;
+    pointer-events: none;
+    background:
+      radial-gradient(720px circle at 8% 12%, var(--ambient-a), transparent 65%),
+      radial-gradient(860px circle at 92% 6%, var(--ambient-b), transparent 60%),
+      radial-gradient(1000px circle at 80% 98%, var(--ambient-c), transparent 65%);
+  }
+}
+
+/* The wash per theme - luminance only, no hue. Colour was tried twice here
+   (mid-ramp blue: dirty grey on white, murky navy on black; pale pastels:
+   still read as "why is my app blue") and the clean answer is light, not
+   paint: soft neutral shading on a light page, soft neutral blooms on a dark
+   one. The frosted sidebars still have something to pull through; the page
+   stays the page's own colour. Same two-selector shape as the theme blocks
+   above. */
+:root {
+  --ambient-a: color-mix(in oklab, var(--color-foreground) 5%, transparent);
+  --ambient-b: color-mix(in oklab, var(--color-foreground) 3%, transparent);
+  --ambient-c: color-mix(in oklab, var(--color-foreground) 4%, transparent);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --ambient-a: color-mix(in oklab, white 7%, transparent);
+    --ambient-b: color-mix(in oklab, white 5%, transparent);
+    --ambient-c: color-mix(in oklab, white 6%, transparent);
+  }
+}
+:root.dark {
+  --ambient-a: color-mix(in oklab, white 7%, transparent);
+  --ambient-b: color-mix(in oklab, white 5%, transparent);
+  --ambient-c: color-mix(in oklab, white 6%, transparent);
+}

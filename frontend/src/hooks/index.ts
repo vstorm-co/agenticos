@@ -10,6 +10,7 @@ export { useAdminConversations } from "./use-admin-conversations";
 export { useOrganizations, useOrganizationList, preferredOrg } from "./use-organizations";
 export { useActiveOrganizationRecovery } from "./use-active-organization";
 export { useMembers } from "./use-members";
+export { useUrlState } from "./use-url-state";
 export { useInvitations } from "./use-invitations";
 export { useKnowledgeBases, useKBDetail } from "./use-knowledge-bases";
 export { useSlashCommands, isBuiltinEnabled, BUILTIN_COMMAND_LIST } from "./use-slash-commands";
@@ -29,6 +30,7 @@ export {
 } from "./use-agents";
 export { useMcpCatalog, useMcpServers, type McpServerRow } from "./use-mcp-servers";
 export { useMcpOAuthOutcome } from "./use-mcp-oauth-outcome";
+export { useUrlSort, type UrlSort } from "./use-url-sort";
 export { useModelProviders, useProviderModels } from "./use-model-providers";
 export {
   useLocalSandboxService,
@@ -39,10 +41,12 @@ export {
 } from "./use-sandbox-connections";
 export { useSecrets, useSecretPurposes, kindInfo } from "./use-secrets";
 export {
+  useApprovalHistory,
   useApprovals,
   useDelegatedRuns,
   useRun,
   useRuns,
+  useResumeRun,
   useRunTranscript,
   useSpend,
 } from "./use-runs";
@@ -71,7 +75,7 @@ export {
 } from "./use-sandbox-workspaces";
 export { useFileActions, useFileBytes, useFileText } from "./use-file-content";
 export { useSkillChanges } from "./use-skill-changes";
-export { useSkill, useSkillLibrary, useSkillResource, useSkills } from "./use-skills";
+export { useSkill, useSkillResource, useSkills } from "./use-skills";
 export { useSharing } from "./use-sharing";
 export { useEmbeds } from "./use-embeds";
 export { useChannelBots } from "./use-channel-bots";
