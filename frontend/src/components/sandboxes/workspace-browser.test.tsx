@@ -85,7 +85,9 @@ function workspace(overrides: Partial<WorkspaceSummary> = {}): WorkspaceSummary 
     id: "w-1",
     agent_id: "a-1",
     agent_name: "Analyst",
+    agent_has_avatar: false,
     conversation_id: "c-1",
+    conversation_is_mine: false,
     conversation_title: "Refund policy",
     conversations: 1,
     scope: "conversation",
@@ -174,8 +176,13 @@ describe("WorkspaceBrowser", () => {
       workspace({ id: "w-2", backend: "service", agent_name: "Builder", bytes_total: 0 }),
     ];
     render(<WorkspaceBrowser />);
-    const firstAgent = () =>
-      screen.getAllByRole("rowgroup")[1]!.querySelector("tr > td")!.textContent;
+    // The avatar's initials are decoration inside the same cell, so the name
+    // is what is left once the aria-hidden part is dropped.
+    const firstAgent = () => {
+      const cell = screen.getAllByRole("rowgroup")[1]!.querySelector("tr > td")!;
+      cell.querySelector('[aria-hidden="true"]')?.remove();
+      return cell.textContent;
+    };
 
     await userEvent.click(screen.getByRole("button", { name: "Agent" }));
     expect(firstAgent()).toBe("Builder");
@@ -184,6 +191,34 @@ describe("WorkspaceBrowser", () => {
     // has none - and an absence is not a small number, so it sorts last.
     await userEvent.click(screen.getByRole("button", { name: "Size" }));
     expect(firstAgent()).toBe("Analyst");
+  });
+
+  it("links the reader's own conversation to its chat", () => {
+    state.workspaces = [workspace({ conversation_is_mine: true })];
+    render(<WorkspaceBrowser />);
+
+    const link = screen.getByRole("link", { name: "Open the chat these files belong to" });
+    expect(link).toHaveAttribute("href", "/chat?id=c-1");
+    expect(link).toHaveTextContent("Refund policy");
+  });
+
+  it("names an untitled chat rather than drawing a hole", () => {
+    state.workspaces = [workspace({ conversation_is_mine: true, conversation_title: null })];
+    render(<WorkspaceBrowser />);
+
+    expect(
+      screen.getByRole("link", { name: "Open the chat these files belong to" }),
+    ).toHaveTextContent("Untitled chat");
+  });
+
+  it("offers no chat link on somebody else's conversation", () => {
+    // The chat page lists its owner's threads: anybody else's link would land
+    // on an empty sidebar dressed as the conversation.
+    state.workspaces = [workspace({ conversation_is_mine: false })];
+    render(<WorkspaceBrowser />);
+
+    expect(screen.queryByRole("link", { name: "Open the chat these files belong to" })).toBeNull();
+    expect(screen.getByText("Refund policy")).toBeVisible();
   });
 
   it("measures a stored workspace and says a container's files are elsewhere", () => {

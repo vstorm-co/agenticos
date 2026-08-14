@@ -79,7 +79,13 @@ class WorkspaceOverview:
 
     row: AgentWorkspace
     agent_name: str
+    agent_has_avatar: bool
+    """Whether the agent has a face to draw - resolved here because the reader
+    of this listing may not hold `agents:view` to ask the agent list."""
     conversation_title: str | None
+    conversation_is_callers: bool
+    """Whether the linked conversation belongs to the caller. The chat page
+    lists its owner's threads, so a link is only honest for the owner."""
     conversations: int
     """How many conversations reach these files. Zero for a run-scoped workspace,
     which is gone before anybody could look."""
@@ -563,8 +569,19 @@ class SandboxWorkspaceService:
                 agent_name=(
                     agents[row.agent_id].name if row.agent_id in agents else "a deleted agent"
                 ),
+                agent_has_avatar=(
+                    agents[row.agent_id].has_avatar if row.agent_id in agents else False
+                ),
                 conversation_title=(
-                    None if row.conversation_id is None else titles.get(row.conversation_id)
+                    None
+                    if row.conversation_id is None
+                    else (head.title if (head := titles.get(row.conversation_id)) else None)
+                ),
+                conversation_is_callers=(
+                    row.conversation_id is not None
+                    and (owner := titles.get(row.conversation_id)) is not None
+                    and owner.user_id is not None
+                    and owner.user_id == ctx.user_id
                 ),
                 conversations=(
                     1

@@ -3319,6 +3319,8 @@
       "bytesStored": "· {size} stored",
       "conversation": "Conversation",
       "conversationCount": "{count, plural, =1 {1 conversation} other {# conversations}}",
+      "openTheChatBehindFiles": "Open the chat these files belong to",
+      "untitledChat": "Untitled chat",
       "files": "Files",
       "filesOf": "Files of {agent}",
       "folderEmpty": "This folder is empty.",

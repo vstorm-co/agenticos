@@ -67,7 +67,21 @@ class WorkspaceSummary(BaseSchema):
     id: UUID
     agent_id: UUID
     agent_name: str = Field(description="Resolved server-side, so a row names something readable")
+    agent_has_avatar: bool = Field(
+        default=False,
+        description=(
+            "Whether the agent has a face to draw. Resolved here because the reader "
+            "may not hold agents:view to ask the agent list."
+        ),
+    )
     conversation_id: UUID | None = None
+    conversation_is_mine: bool = Field(
+        default=False,
+        description=(
+            "Whether the linked conversation belongs to the caller. The chat page "
+            "lists its owner's threads, so a link is only offered to the owner."
+        ),
+    )
     conversation_title: str | None = Field(
         default=None,
         description=(

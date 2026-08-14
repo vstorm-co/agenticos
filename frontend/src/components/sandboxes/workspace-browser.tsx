@@ -1,11 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Download } from "lucide-react";
+import { Download, MessageSquare } from "lucide-react";
 
 import { Badge, Button, DataTable, ListCard, Skeleton, type Column } from "@/components/ui";
 import Link from "next/link";
 
+import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { FileIcon, FileViewer } from "@/components/files";
 import { useAllWorkspaceFiles, useSandboxWorkspaces } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
@@ -57,23 +58,48 @@ export function WorkspaceBrowser() {
         header: t("agent"),
         sortable: true,
         sortValue: (workspace) => workspace.agent_name,
-        cell: (workspace) => <span className="font-medium">{workspace.agent_name}</span>,
+        cell: (workspace) => (
+          <span className="flex items-center gap-2 font-medium">
+            {/* Decorative beside the name it initials - the presentation
+                every list of agents draws. */}
+            <span aria-hidden>
+              <AgentAvatar
+                agentId={workspace.agent_id}
+                name={workspace.agent_name}
+                hasAvatar={workspace.agent_has_avatar}
+                size="sm"
+              />
+            </span>
+            {workspace.agent_name}
+          </span>
+        ),
       },
       {
         key: "conversation",
         header: t("conversation"),
-        cell: (workspace) => (
-          <span className="text-muted-foreground block max-w-48 truncate text-xs">
-            {/* A conversation-scoped workspace has exactly one chat; a
-                shared one has however many the agent has answered in,
-                and that number is the difference between "my files" and
-                "everybody's". */}
-            {workspace.conversation_title ??
-              (workspace.conversations > 0
-                ? t("conversationCount", { count: workspace.conversations })
-                : "—")}
-          </span>
-        ),
+        cell: (workspace) =>
+          /* A conversation-scoped workspace has exactly one chat; a shared
+             one has however many the agent has answered in, and that number
+             is the difference between "my files" and "everybody's". The
+             reader's own thread links to the chat itself - anybody else's
+             would land on an empty sidebar dressed as the conversation. */
+          workspace.conversation_id !== null && workspace.conversation_is_mine ? (
+            <Link
+              href={`${ROUTES.CHAT}?id=${workspace.conversation_id}`}
+              className="text-muted-foreground inline-flex max-w-48 items-center gap-1 truncate text-xs underline-offset-4 hover:underline"
+              aria-label={t("openTheChatBehindFiles")}
+            >
+              <MessageSquare className="h-3 w-3 shrink-0" aria-hidden />
+              <span className="truncate">{workspace.conversation_title ?? t("untitledChat")}</span>
+            </Link>
+          ) : (
+            <span className="text-muted-foreground block max-w-48 truncate text-xs">
+              {workspace.conversation_title ??
+                (workspace.conversations > 0
+                  ? t("conversationCount", { count: workspace.conversations })
+                  : "—")}
+            </span>
+          ),
       },
       {
         key: "whoCanSeeIt",
