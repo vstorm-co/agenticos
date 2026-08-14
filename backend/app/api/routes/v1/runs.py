@@ -94,10 +94,11 @@ async def list_runs(
     `order_by=duration` sorts on `ended_at - started_at`, computed in SQL over
     the whole narrowed set - which is what gets from "p95 is 14.8s" on the
     dashboard to *those runs*. Sorting a page of twenty-five would sort the wrong
-    set. Unfinished runs have no duration and sort last in both directions rather
-    than as zero. `order_by=cost` is the same arrangement for money - the most
-    expensive runs of the whole narrowed set, not of one page - and
-    `order_by=tokens` for context weight, on input and output together.
+    set. `order_by=cost` is the same arrangement for money - the most expensive
+    runs of the whole narrowed set, not of one page - and `order_by=tokens` for
+    context weight, on input and output together. Under all three, a run still
+    going sorts last in both directions rather than as zero: it has no duration,
+    and its cost and token figures are written only when it finishes.
 
     `rated=down` is the highest-signal queue here: the answers real people said
     were wrong. A run matches if *anybody* rated a message it produced that way,
@@ -237,9 +238,11 @@ async def get_run_transcript(
     """The turns one run produced, for a run detail view to render as steps.
 
     `scope=conversation` is the detail view showing the run in context: the whole
-    thread, scrolled to the run. It widens nothing - every turn a run writes
-    carries its `run_id`, so the thread was already assemblable by iterating its
-    runs' transcripts under the same `runs:view`.
+    thread, scrolled to the run - including turns no run wrote, such as a message
+    a member appended by hand through `POST /conversations/{id}/messages`, which
+    carries `run_id: null`. That reach is deliberate: the run's model read those
+    turns as its context, so a reviewer of the run must be able to read them too,
+    and `runs:view` is the wider lens that authorizes it.
 
     No `require(...)` gate, on purpose: reading a run is authorized rather than
     owned, so the decision belongs to the service, which resolves the run against

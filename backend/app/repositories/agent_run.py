@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Any, Literal, cast
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, and_, func, or_, select, tuple_
+from sqlalchemy import ColumnElement, and_, case, func, or_, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -191,6 +191,14 @@ async def neighbor_run_ids(db: AsyncSession, run: AgentRun) -> tuple[UUID | None
     pages: a fan-out starts several runs in the same instant, and without the
     tiebreak two of them would each claim the other as both neighbours.
 
+    And the walk is level-locked. A delegated run shares its parent's
+    `conversation_id`, so a thread-wide walk from a top-level run would step
+    through the parent's own children - rows the default listing (which
+    excludes delegations) never showed, making "next" land on a run the arrows'
+    own list denies exists. A top-level run's neighbours are the other
+    top-level runs of the thread; a delegated run's are its siblings under the
+    same parent.
+
     A run that never started sits outside every timeline, and one with no
     conversation has no thread to walk - both answer no neighbours at all.
     """
@@ -198,9 +206,15 @@ async def neighbor_run_ids(db: AsyncSession, run: AgentRun) -> tuple[UUID | None
         return None, None
     position = tuple_(AgentRun.started_at, AgentRun.id)
     anchor = tuple_(run.started_at, run.id)
+    same_level = (
+        AgentRun.parent_run_id.is_(None)
+        if run.parent_run_id is None
+        else AgentRun.parent_run_id == run.parent_run_id
+    )
     base = select(AgentRun.id).where(
         AgentRun.organization_id == run.organization_id,
         AgentRun.conversation_id == run.conversation_id,
+        same_level,
         AgentRun.started_at.is_not(None),
     )
     prev_id = (
@@ -420,10 +434,13 @@ async def list_runs(
     wrongly.
 
     `order_by` sorts in SQL, over the whole narrowed set rather than over a page.
-    Both orders put nulls last in both directions, which is a decision rather
-    than a default: a run with no `ended_at` has no duration and a run with no
-    `started_at` has no place on a timeline, and either of them sorting as zero
-    would put unfinished work at the top of "the slowest runs".
+    All four orders put nulls last in both directions, which is a decision
+    rather than a default: a run with no `ended_at` has no duration and a run
+    with no `started_at` has no place on a timeline, and either of them sorting
+    as zero would put unfinished work at the top of "the slowest runs". Cost and
+    tokens need the null made rather than found - those columns default to 0 and
+    are written at finish, so without the `CASE` an ascending sort would crown a
+    run still going as the cheapest and lightest in the organization.
     """
     query = select(AgentRun).where(AgentRun.organization_id == organization_id)
     count_query = select(func.count(AgentRun.id)).where(AgentRun.organization_id == organization_id)
@@ -443,9 +460,12 @@ async def list_runs(
     if order_by is RunOrder.DURATION:
         column = _duration_ms()
     elif order_by is RunOrder.COST:
-        column = AgentRun.cost_usd
+        column = case((AgentRun.ended_at.is_(None), None), else_=AgentRun.cost_usd)
     elif order_by is RunOrder.TOKENS:
-        column = AgentRun.input_tokens + AgentRun.output_tokens
+        column = case(
+            (AgentRun.ended_at.is_(None), None),
+            else_=AgentRun.input_tokens + AgentRun.output_tokens,
+        )
     else:
         column = AgentRun.started_at
     ordering = column.desc() if descending else column.asc()

@@ -3353,7 +3353,10 @@ class AgentRunnerService:
     async def neighbor_run_ids(
         self, ctx: AuthContext, run: AgentRun
     ) -> tuple[UUID | None, UUID | None]:
-        """The runs either side of `run` in its agent's history, for the detail view.
+        """The runs either side of `run` in its conversation, for the detail view.
+
+        Its conversation, not its agent's history - the repository explains why
+        the walk stays inside the thread, and inside the run's own level of it.
 
         Takes the run rather than an id because every caller has already been
         through :meth:`get_run`, whose organization filter is the authorization -
@@ -3374,10 +3377,12 @@ class AgentRunnerService:
 
         `whole_conversation` widens the read to every turn of the thread the run
         sits in, for a detail view that shows the run *in context* and scrolls to
-        it. It is a convenience, not a reach: every turn a run writes carries its
-        `run_id` - the user's question included - so a caller holding `runs:view`
-        can already assemble the thread by iterating its runs' transcripts, and
-        this answers the same rows in one read, ordered as they were written.
+        it. That includes turns no run wrote - a message a member appended by
+        hand carries `run_id: null` and iterating the thread's runs would never
+        reach it. The reach is deliberate: those turns were the run's context,
+        so a reviewer of the run must be able to read them, and `runs:view` is
+        the wider lens that authorizes it - which is exactly why the whole-thread
+        read lives on this route and not on the owner-scoped conversation one.
 
         Reading a run is the organization's right rather than its starter's: a
         colleague holding `runs:view` reads a run somebody else began, which is

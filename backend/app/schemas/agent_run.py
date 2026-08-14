@@ -173,14 +173,19 @@ class RunTranscriptMessage(MessageRead):
 class RunTranscript(BaseSchema):
     """One run's turns, in the order they happened, as the run detail view reads them.
 
-    The messages are the same rows `GET /conversations/{id}/messages` returns, but
-    narrowed to a single run by `messages.run_id` and reached under a different
-    authorization: reading a run is the organization's right, not its owner's, so a
-    colleague holding `runs:view` reads a run somebody else started - which the
-    conversation route deliberately refuses.
+    The messages are the same rows `GET /conversations/{id}/messages` returns -
+    under `scope=run` narrowed to the one run by `messages.run_id`, under
+    `scope=conversation` the whole thread, turns nobody's run wrote included -
+    and reached under a different authorization: reading a run is the
+    organization's right, not its owner's, so a colleague holding `runs:view`
+    reads a run somebody else started - which the conversation route
+    deliberately refuses.
 
     Attributes:
-        run_id: The run these turns belong to.
+        run_id: The run that was asked about. Under `scope=conversation` the
+            items are the whole thread, so this is the anchor of the read rather
+            than the author of every turn - each item carries its own `run_id`,
+            null for a turn no run wrote.
         conversation_id: The thread the run ran inside, or `None` when it ran
             with no conversation - an API call that passed no `conversation_id`.
             A null here is the answer "this run has no transcript", which a client
