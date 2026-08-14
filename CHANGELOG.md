@@ -17,6 +17,65 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.151] - 2026-08-15
+
+Every list in the product is now one table and one card, and Activity is a
+page you can actually narrow, page and export.
+
+### Added
+
+- **One table primitive, one list shell.** `DataTable` gained sorting and
+  filtering in two modes — client-side over rows a caller holds whole, and
+  server-side as a request — so a sort header means the same thing everywhere.
+  Which mode a table uses follows where its rows live: a client-side sort of
+  page one, on a list with three pages, is worse than no header at all.
+  `ListCard`/`ListCardEmpty` replaced five per-page card copies and four inline
+  empty states, and `components/ui/table.tsx` went with its last caller. Sort
+  state survives a reload through `?sort_by=`/`?sort_dir=`, validated against
+  the same whitelist the backend route declares. (#139, #282)
+- **Activity became an observability page.** One period window feeding the
+  figures, the table, the version strip, the Spend tab and all three exports;
+  every filter the backend answers (status, surface, a three-state rating,
+  agent, person and — narrowed to an agent — version); pagination with
+  "51–100 of 1,204"; surface brand marks; a run's chat one click away; and the
+  run detail in a drawer whose prev/next walk the run's own conversation.
+  (#760, #761, #762, #764, #765, #766)
+- **Every organization starts with the shipped skill library.** Creation copies
+  each bundled skill in as an ordinary org-visible row, and the listing
+  materializes any the catalog grew since — so the install step, its endpoints
+  and its gallery are gone. (#281)
+
+### Changed
+
+- **Admin standardised onto both primitives**, one pagination control instead
+  of three dialects, organizations on their own tab, and `/admin/ratings`
+  deleted whole — ratings are read where the runs are. (#283, #284)
+- **The agent map reads in four directions** — surfaces left, model and budget
+  above, tools right, delegation below, each subagent a first-class node beside
+  a policy box naming `allow_dynamic`. (#518)
+
+### Fixed
+
+- **A CSV exported beside a narrowed table contained everything.** The export
+  passed only `agent_id`, while both docstrings promised the file was what was
+  on screen. (#763)
+- **Deciding the last outstanding approval now resumes the run.** The queue
+  posted the decision alone, which left runs approved, undisputed and parked
+  forever.
+- **Runs still going no longer sort as the cheapest or the lightest.** Cost and
+  tokens are written at finish and default to zero, so an ascending sort ranked
+  a running row above every finished one; all four orders now put an unfinished
+  run last, as duration always did.
+- **The run detail's arrows no longer step into delegations** the list itself
+  hides — a fan-out's children sat between a run and the thread's next turn.
+- **Six lists stopped reporting a failed request as an empty collection** —
+  vault, MCP, skills, channels, members and the admin users table each drew
+  "nothing here yet" over a refusal, and MCP drew it over a catalog compiled
+  into the backend. (#32's shape)
+- **Seeding a bundled skill twice costs that row, not the reader's page**, and
+  audit entries written by a seeding path now say so rather than asserting the
+  organization's owner made a write they never made.
+
 ## [0.0.150] - 2026-08-13
 
 The streaming socket was the last surface still writing blank user turns.
