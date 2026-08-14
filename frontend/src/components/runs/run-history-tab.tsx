@@ -16,10 +16,18 @@ import {
 import { RunTable, type RunSort } from "@/components/runs/run-table";
 import { VersionStrip } from "@/components/runs/version-strip";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
-import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  PaginationBar,
+} from "@/components/ui";
 import { usePermissions, useRuns } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
-import { periodEnd, periodStart, type Period } from "@/lib/dashboard/period";
+import { formatPeriodParam, periodEnd, periodStart, type Period } from "@/lib/dashboard/period";
 import { Perm } from "@/types/permissions";
 import type { RunStatus } from "@/types/runs";
 
@@ -35,6 +43,9 @@ const SLOW_RUN_THRESHOLD_MS = 30_000;
 
 /** "What went wrong" as one choice - the query the two statuses exist apart for. */
 const PROBLEM_STATUSES: RunStatus[] = ["failed", "budget_exceeded"];
+
+/** One server page - `GET /runs`' own default, so an unpaged call reads the same. */
+const PAGE_SIZE = 50;
 
 /**
  * Run history, and whichever sentence says what it has been narrowed to.
@@ -93,7 +104,25 @@ export function RunHistoryTab({
     onAgentChange(next);
   };
 
-  const { runs, isLoading, error, refetch } = useRuns(agentId ?? undefined, {
+  // Which page, keyed on everything that redefines the set being paged: page
+  // three of the failed runs is not page three of everything, so any change of
+  // window, narrowing or order snaps back to the first page (the render-time
+  // adjustment pattern - the key covers props and sibling state alike).
+  const narrowingKey = [
+    formatPeriodParam(period),
+    agentId,
+    sort.by,
+    sort.dir,
+    minDurationMs,
+    JSON.stringify(filters),
+  ].join("|");
+  const [paging, setPaging] = useState({ key: narrowingKey, page: 0 });
+  if (paging.key !== narrowingKey) {
+    setPaging({ key: narrowingKey, page: 0 });
+  }
+  const page = paging.key === narrowingKey ? paging.page : 0;
+
+  const { runs, total, isLoading, error, refetch } = useRuns(agentId ?? undefined, {
     startedFrom: periodStart(period),
     startedTo: periodEnd(period),
     orderBy: sort.by,
@@ -109,6 +138,7 @@ export function RunHistoryTab({
     surface: filters.surface === "all" ? undefined : filters.surface,
     userId: filters.userId === "all" ? undefined : filters.userId,
     agentVersionId: filters.versionId === "all" ? undefined : filters.versionId,
+    skip: page * PAGE_SIZE,
   });
   const narrowed =
     filters.rated !== "all" ||
@@ -268,7 +298,16 @@ export function RunHistoryTab({
                   />
                 )
               ) : (
-                <RunTable runs={runs} sort={sort} onSort={setSort} />
+                <>
+                  <RunTable runs={runs} sort={sort} onSort={setSort} />
+                  <PaginationBar
+                    page={page}
+                    pageSize={PAGE_SIZE}
+                    total={total}
+                    isLoading={isLoading}
+                    onPage={(next) => setPaging({ key: narrowingKey, page: next })}
+                  />
+                </>
               )}
             </div>
           )}

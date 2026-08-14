@@ -118,6 +118,12 @@ describe("run history controls", () => {
       orderBy: "started_at",
       descending: true,
       tookOverMs: undefined,
+      rated: undefined,
+      statuses: undefined,
+      surface: undefined,
+      userId: undefined,
+      agentVersionId: undefined,
+      skip: 0,
     });
   });
 
@@ -264,6 +270,45 @@ describe("run history controls", () => {
     await userEvent.click(screen.getByRole("option", { name: "v2" }));
 
     expect(lastOptions()).toMatchObject({ agentVersionId: "ver-2" });
+  });
+
+  it("pages through the whole narrowed set, and says where the reader is", async () => {
+    useRunsMock.mockReturnValue({
+      runs: [aRun()],
+      total: 120,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    renderTab();
+
+    expect(screen.getByText("1–50 of 120")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Next page" }));
+
+    expect(lastOptions()).toMatchObject({ skip: 50 });
+    expect(screen.getByText("51–100 of 120")).toBeInTheDocument();
+  });
+
+  it("snaps back to the first page when a filter redefines the set", async () => {
+    // Page three of the failed runs is not page three of everything: a filter
+    // change that kept the offset would show an arbitrary slice.
+    useRunsMock.mockReturnValue({
+      runs: [aRun()],
+      total: 120,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    renderTab();
+
+    await userEvent.click(screen.getByRole("button", { name: "Next page" }));
+    expect(lastOptions()).toMatchObject({ skip: 50 });
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Filter by status" }));
+    await userEvent.click(screen.getByRole("option", { name: "failed" }));
+
+    expect(lastOptions()).toMatchObject({ statuses: ["failed"], skip: 0 });
   });
 
   it("drops the version narrowing when the agent changes under it", async () => {
