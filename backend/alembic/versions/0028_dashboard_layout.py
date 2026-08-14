@@ -12,8 +12,8 @@ placements, validated against the widget registry at the API boundary; an empty
 array is the deliberate "hidden everything" state, distinct from no row at all,
 which means "use the audience default".
 
-Revision ID: 0022_dashboard_layout
-Revises: 0021_drop_channel_tools_bindings
+Revision ID: 0028_dashboard_layout
+Revises: 0027_message_ordinal
 Create Date: 2026-08-10
 
 """
@@ -25,8 +25,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0022_dashboard_layout"
-down_revision: str | None = "0021_drop_channel_tools_bindings"
+revision: str = "0028_dashboard_layout"
+down_revision: str | None = "0027_message_ordinal"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

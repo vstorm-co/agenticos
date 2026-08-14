@@ -1,6 +1,6 @@
 """A named dashboard preset a person switches between.
 
-`dashboard_layouts` (0013) holds the one arrangement the dashboard renders;
+`dashboard_layouts` (0028) holds the one arrangement the dashboard renders;
 this table is the shelf next to it — arrangements saved under a name and
 applied by copying their entries into the active one, so editing after
 applying never mutates the preset. Same tenant boundary as the layout:
@@ -11,8 +11,8 @@ instead of silently overwriting a snapshot the person meant to keep.
 `entries` carries the same `{"widget", "span", "rows"?}` placements as the
 active layout, validated at the API boundary on write and untrusted on read.
 
-Revision ID: 0023_dashboard_presets
-Revises: 0022_dashboard_layout
+Revision ID: 0029_dashboard_presets
+Revises: 0028_dashboard_layout
 Create Date: 2026-08-10
 
 """
@@ -24,8 +24,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0023_dashboard_presets"
-down_revision: str | None = "0022_dashboard_layout"
+revision: str = "0029_dashboard_presets"
+down_revision: str | None = "0028_dashboard_layout"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
