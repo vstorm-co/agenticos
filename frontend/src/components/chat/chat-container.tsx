@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback, useMemo } from "react";
+import { useEffect, useLayoutEffect, useRef, useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { ChatMessageFile } from "@/types";
 import { useChat, useConversationWorkspace } from "@/hooks";
@@ -332,14 +332,32 @@ function ChatUI({
   // input costs nothing extra - and appears when a conversation is *opened* rather than
   // after the next turn reports one.
   const { workspace } = useConversationWorkspace(conversationId);
+  // The composer floats over the transcript so the glass has something to blur,
+  // which means the scroll area must end where the dock begins or the last
+  // message hides behind it. The dock's height is not a constant - attachments,
+  // banners and a growing textarea all change it - so it is measured.
+  const dockRef = useRef<HTMLDivElement | null>(null);
+  const [dockHeight, setDockHeight] = useState(0);
+  useLayoutEffect(() => {
+    const dock = dockRef.current;
+    if (!dock) return;
+    const observer = new ResizeObserver(() => setDockHeight(dock.offsetHeight));
+    observer.observe(dock);
+    setDockHeight(dock.offsetHeight);
+    return () => observer.disconnect();
+  }, []);
   return (
     <div className="flex h-full w-full">
       {/* The column no longer carries the width. The scroller does, and the
           content is centred inside it - so the scrollbar sits at the edge of the
           pane where a scrollbar belongs, rather than a hundred pixels to the
           right of the text with white on both sides of it. */}
-      <div className="flex h-full min-w-0 flex-1 flex-col">
-        <div ref={scrollContainerRef} className="flex-1 scrollbar-thin overflow-y-auto">
+      <div className="relative flex h-full min-w-0 flex-1 flex-col">
+        <div
+          ref={scrollContainerRef}
+          className="flex-1 scrollbar-thin overflow-y-auto"
+          style={{ paddingBottom: dockHeight }}
+        >
           <div className="mx-auto max-w-5xl px-2 py-4 sm:px-4 sm:py-6">
             {isLoadingConversation ? (
               <ConversationSkeleton />
@@ -357,82 +375,94 @@ function ChatUI({
             <div ref={messagesEndRef} />
           </div>
         </div>
-        {pendingApproval && onResumeDecisions && (
-          <div className="mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
-            <ToolApprovalDialog
-              actionRequests={pendingApproval.actionRequests}
-              reviewConfigs={pendingApproval.reviewConfigs}
-              onDecisions={onResumeDecisions}
-              disabled={!isConnected}
-            />
-          </div>
-        )}
-        {pendingQuestions && pendingQuestions.length > 0 && onAnswerQuestions && (
-          <div className="mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
-            <QuestionPrompt
-              questions={pendingQuestions}
-              disabled={!isConnected}
-              onComplete={onAnswerQuestions}
-            />
-          </div>
-        )}
-        <div className="mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-4">
-          {queuedMessages && queuedMessages.length > 0 && onCancelQueued && (
-            <PendingMessages messages={queuedMessages} onCancel={onCancelQueued} />
-          )}
-          <div className="bg-card border-border focus-within:border-foreground/30 rounded-2xl border transition-colors">
-            <div className="px-3 pt-3 sm:px-4 sm:pt-4">
-              {isArchived && (
-                <p className="text-muted-foreground pb-2 text-center font-mono text-[11px] tracking-wider uppercase">
-                  {t("conversationArchived")}
-                </p>
-              )}
-              {/* Under the input rather than over the transcript: it is about
-                  the turn that just finished, and a strip above the messages
-                  would move the conversation every time a number changed. */}
-              <UsageStrip usage={lastUsage} workspace={workspace} />
-              <ChatInput
-                onSend={sendMessage}
-                disabled={
-                  !isConnected ||
-                  isArchived ||
-                  !!pendingApproval ||
-                  !!(pendingQuestions && pendingQuestions.length)
-                }
-                isProcessing={isProcessing}
-                onStop={onStop}
-                slashContext={slashContext}
-                commands={slashCommands}
+        {/* The floating dock: banners, the glass composer, the caption. Over
+            the transcript, not under it - the messages scrolling beneath are
+            what the blur works on. `pointer-events-none` on the wrapper so the
+            transparent gutters beside the column do not swallow clicks and the
+            scrollbar's bottom stays draggable; each child takes its own
+            pointer-events back. */}
+        <div ref={dockRef} className="pointer-events-none absolute inset-x-0 bottom-0">
+          {pendingApproval && onResumeDecisions && (
+            <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
+              <ToolApprovalDialog
+                actionRequests={pendingApproval.actionRequests}
+                reviewConfigs={pendingApproval.reviewConfigs}
+                onDecisions={onResumeDecisions}
+                disabled={!isConnected}
               />
             </div>
-            <div className="border-foreground/8 flex items-center justify-between border-t px-3 py-2 sm:px-4">
-              <div className="flex items-center gap-2">
-                <span
-                  className={`inline-flex items-center gap-1.5 font-mono text-[10px] tracking-wider uppercase ${isConnected ? "text-muted-foreground" : "text-destructive"}`}
-                >
-                  <span
-                    className={`inline-block h-1.5 w-1.5 rounded-full ${
-                      isConnected ? "bg-success" : "bg-destructive"
-                    }`}
-                  />
-                  {isConnected ? tc("live") : tc("offline")}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                {/* Who answers, first and largest: it is the most consequential
-                    choice in the composer and it was a tab inside a popover. */}
-                <AgentPicker />
-                <ChatControls
-                  onModelProfileChange={onModelProfileChange}
-                  onTemperatureChange={onTemperatureChange}
-                  onThinkingEffortChange={onThinkingEffortChange}
+          )}
+          {pendingQuestions && pendingQuestions.length > 0 && onAnswerQuestions && (
+            <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
+              <QuestionPrompt
+                questions={pendingQuestions}
+                disabled={!isConnected}
+                onComplete={onAnswerQuestions}
+              />
+            </div>
+          )}
+          <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-4">
+            {queuedMessages && queuedMessages.length > 0 && onCancelQueued && (
+              <PendingMessages messages={queuedMessages} onCancel={onCancelQueued} />
+            )}
+            <div className="glass focus-within:border-foreground/30 rounded-2xl transition-colors">
+              <div className="px-3 pt-3 sm:px-4 sm:pt-4">
+                {isArchived && (
+                  <p className="text-muted-foreground pb-2 text-center font-mono text-[11px] tracking-wider uppercase">
+                    {t("conversationArchived")}
+                  </p>
+                )}
+                {/* Under the input rather than over the transcript: it is about
+                  the turn that just finished, and a strip above the messages
+                  would move the conversation every time a number changed. */}
+                <UsageStrip usage={lastUsage} workspace={workspace} />
+                <ChatInput
+                  onSend={sendMessage}
+                  disabled={
+                    !isConnected ||
+                    isArchived ||
+                    !!pendingApproval ||
+                    !!(pendingQuestions && pendingQuestions.length)
+                  }
+                  isProcessing={isProcessing}
+                  onStop={onStop}
+                  slashContext={slashContext}
+                  commands={slashCommands}
                 />
               </div>
+              <div className="border-foreground/8 flex items-center justify-between border-t px-3 py-2 sm:px-4">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`inline-flex items-center gap-1.5 font-mono text-[10px] tracking-wider uppercase ${isConnected ? "text-muted-foreground" : "text-destructive"}`}
+                  >
+                    <span
+                      className={`inline-block h-1.5 w-1.5 rounded-full ${
+                        isConnected ? "bg-success" : "bg-destructive"
+                      }`}
+                    />
+                    {isConnected ? tc("live") : tc("offline")}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {/* Who answers, first and largest: it is the most consequential
+                    choice in the composer and it was a tab inside a popover. */}
+                  <AgentPicker />
+                  <ChatControls
+                    onModelProfileChange={onModelProfileChange}
+                    onTemperatureChange={onTemperatureChange}
+                    onThinkingEffortChange={onThinkingEffortChange}
+                  />
+                </div>
+              </div>
             </div>
+            {/* Text floating over a transcript needs its own pane behind it,
+                or it collides with whatever scrolls past. */}
+            <p className="text-center">
+              <span className="text-foreground/40 bg-background/55 mt-2 inline-block rounded-full px-3 py-0.5 text-center font-mono text-[10px] tracking-wider uppercase backdrop-blur-md">
+                {t("aiCanMakeMistakes")}
+              </span>
+            </p>
           </div>
-          <p className="text-foreground/40 mt-2 text-center font-mono text-[10px] tracking-wider uppercase">
-            {t("aiCanMakeMistakes")}
-          </p>
         </div>
       </div>
       <FilePreviewPanel />
