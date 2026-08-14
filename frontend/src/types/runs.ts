@@ -33,9 +33,10 @@ export interface AgentRun {
    */
   logfire_url?: string | null;
   /**
-   * The runs either side of this one in its agent's own history, by start
-   * time. Sent on the single-run read only, like `logfire_url`; null at the
-   * history's edge, and on a run that never started.
+   * The runs either side of this one in its own conversation, by start time.
+   * Sent on the single-run read only, like `logfire_url`; null at the thread's
+   * edge, on a run that never started, and on a run with no conversation
+   * behind it - an API call has no neighbours to step to.
    */
   prev_run_id?: string | null;
   next_run_id?: string | null;

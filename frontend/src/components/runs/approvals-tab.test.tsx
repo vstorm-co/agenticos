@@ -23,8 +23,12 @@ import type { ToolApproval } from "@/types/runs";
 
 vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
-  return { ...actual, apiClient: { ...actual.apiClient, get: vi.fn(), post: vi.fn() } };
+  return {
+    ...actual,
+    apiClient: { ...actual.apiClient, get: vi.fn(), post: vi.fn(), raw: vi.fn() },
+  };
 });
+vi.mock("@/lib/file-access", () => ({ saveBlob: vi.fn() }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/components/runs/approval-delegate", () => ({ ApprovalDelegate: () => null }));
 
@@ -63,21 +67,35 @@ const DECIDED: ToolApproval = {
 /**
  * `/approvals` twice over: the decided record asks with params (statuses + the
  * window), the queue asks bare. One endpoint, two questions - the mock keeps
- * them apart.
+ * them apart. The caller holds `approvals:decide`, which is the only state the
+ * page ever renders this tab in; `decidedTotal` lets the record report more
+ * rows than it returned, the way the capped endpoint does.
  */
-function backend({ queue = [] as ToolApproval[], decided = [] as ToolApproval[] } = {}) {
-  vi.mocked(apiClient.get).mockImplementation((_path: string, options?: unknown) =>
-    Promise.resolve(
+function backend({
+  queue = [] as ToolApproval[],
+  decided = [] as ToolApproval[],
+  decidedTotal,
+}: { queue?: ToolApproval[]; decided?: ToolApproval[]; decidedTotal?: number } = {}) {
+  vi.mocked(apiClient.get).mockImplementation((path: string, options?: unknown) => {
+    if (path === "/me/permissions")
+      return Promise.resolve({
+        organization_id: "o1",
+        role: "operator",
+        is_app_admin: false,
+        permissions: [{ permission: "approvals:decide", scope: "all" }],
+      });
+    return Promise.resolve(
       (options as { params?: unknown } | undefined)?.params
-        ? { items: decided, total: decided.length }
+        ? { items: decided, total: decidedTotal ?? decided.length }
         : { items: queue, total: queue.length },
-    ),
-  );
+    );
+  });
 }
 
 beforeEach(() => {
   vi.mocked(apiClient.get).mockReset();
   vi.mocked(apiClient.post).mockReset();
+  vi.mocked(apiClient.raw).mockReset();
   vi.mocked(apiClient.post).mockResolvedValue({ ...PARKED, status: "approved" });
 });
 
@@ -212,5 +230,87 @@ describe("the decided record in the same table", () => {
     await userEvent.click(await screen.findByText("Rejected"));
 
     expect(onFocusRun).toHaveBeenCalledWith("run-2");
+  });
+
+  it("shows a status this build does not know as the value it is, not as Expired", async () => {
+    // The backend can grow a status before the frontend learns its label; a
+    // fallback to "Expired" would put a specific, wrong claim on that row.
+    backend({ decided: [{ ...DECIDED, status: "escalated" as ToolApproval["status"] }] });
+
+    render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
+
+    expect(await screen.findByText("escalated")).toBeVisible();
+    expect(screen.queryByText("Expired")).toBeNull();
+  });
+
+  it("says the record is a page of the window's decisions when there are more", async () => {
+    // The endpoint answers fifty rows; the counted line reports the window's
+    // total, so the gap between the two needs the same footnote the queue has.
+    backend({ queue: [PARKED], decided: [DECIDED], decidedTotal: 214 });
+
+    render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
+
+    expect(
+      await screen.findByText(/Showing the newest of 214 decided in this window/),
+    ).toBeVisible();
+  });
+
+  it("says nothing about a record that fits on its one page", async () => {
+    backend({ decided: [DECIDED] });
+
+    render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
+
+    await screen.findByText("Rejected");
+    expect(screen.queryByText(/Showing the newest/)).toBeNull();
+  });
+});
+
+describe("the export beside the table", () => {
+  it("asks for every status the table shows, over the page's window", async () => {
+    backend({ queue: [PARKED], decided: [DECIDED] });
+    vi.mocked(apiClient.raw).mockResolvedValue({
+      blob: async () => new Blob(["approval_id\n"], { type: "text/csv" }),
+      headers: { get: () => null },
+    } as unknown as Response);
+
+    render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
+    await userEvent.click(await screen.findByRole("button", { name: "Export CSV" }));
+
+    await waitFor(() => expect(apiClient.raw).toHaveBeenCalledTimes(1));
+    const call = vi.mocked(apiClient.raw).mock.calls.at(-1);
+    expect(call?.[0]).toBe("/approvals/export");
+    const pairs = (call?.[1] as { params: [string, string][] }).params;
+    expect(pairs).toEqual([
+      ["status", "pending"],
+      ["status", "approved"],
+      ["status", "rejected"],
+      ["status", "expired"],
+      ["created_from", "2026-07-16T00:00:00.000Z"],
+      ["created_to", "2026-08-14T23:59:59.999Z"],
+    ]);
+  });
+
+  it("is withheld from a caller the export route would refuse", async () => {
+    // The page never renders this tab without `approvals:decide`, but the
+    // control carries its own gate like every export on the page.
+    vi.mocked(apiClient.get).mockImplementation((path: string, options?: unknown) => {
+      if (path === "/me/permissions")
+        return Promise.resolve({
+          organization_id: "o1",
+          role: "viewer",
+          is_app_admin: false,
+          permissions: [],
+        });
+      return Promise.resolve(
+        (options as { params?: unknown } | undefined)?.params
+          ? { items: [], total: 0 }
+          : { items: [PARKED], total: 1 },
+      );
+    });
+
+    render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
+
+    await screen.findByText("send_email");
+    expect(screen.queryByRole("button", { name: "Export CSV" })).toBeNull();
   });
 });

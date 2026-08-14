@@ -26,8 +26,9 @@ interface ExportMenuProps {
   /** The download's filename prefix, when the server sends none. */
   kind: string;
   /** The filters currently applied on the tab, sent verbatim so the file is what
-   * is on screen. */
-  params?: Record<string, string>;
+   * is on screen. Pairs allow a repeated key - the approvals export takes
+   * `status` several times. */
+  params?: Record<string, string> | [string, string][];
   /** What this endpoint names the window's start and end. */
   rangeParams: RangeParams;
   /** The page's window, as instants - the mandatory range the endpoint demands. */
@@ -72,11 +73,13 @@ export function ExportMenu({
   const download = async () => {
     setBusy(true);
     try {
-      const query: Record<string, string> = {
-        ...params,
-        [rangeParams.from]: range.from,
-        [rangeParams.to]: range.to,
-      };
+      const window: [string, string][] = [
+        [rangeParams.from, range.from],
+        [rangeParams.to, range.to],
+      ];
+      const query = Array.isArray(params)
+        ? [...params, ...window]
+        : { ...params, ...Object.fromEntries(window) };
       const response = await apiClient.raw(endpoint, { params: query });
       saveBlob(await response.blob(), filenameFrom(response, `${kind}_export.csv`));
     } catch (error) {

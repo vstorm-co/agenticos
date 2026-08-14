@@ -29,6 +29,7 @@ import {
 import { useAgents, useMembers, usePermissions, useRuns } from "@/hooks";
 import { useOrgStore } from "@/stores";
 import { formatPeriodParam, periodEnd, periodStart, type Period } from "@/lib/dashboard/period";
+import { setUrlParam } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 import type { RunStatus } from "@/types/runs";
 
@@ -118,6 +119,22 @@ export function RunHistoryTab({
     setFilters((current) => ({ ...current, versionId: "all" }));
     onAgentChange(next);
   };
+  // The same reset for an `?agent=` that changes without `changeAgent` - a
+  // navigation rewrites the prop directly (the useUrlState navigation-wins
+  // path), so the narrowing is keyed on the prop like the paging below.
+  const [seenAgentId, setSeenAgentId] = useState(agentId);
+  if (seenAgentId !== agentId) {
+    setSeenAgentId(agentId);
+    setFilters((current) => ({ ...current, versionId: "all" }));
+  }
+
+  // The `?sort=` in the URL is the dashboard's hand-off, not state this tab
+  // mirrors: left standing after the reader re-sorts, a copied link reasserts
+  // the duration sort over whatever they chose.
+  const changeSort = (next: RunSort) => {
+    setSort(next);
+    setUrlParam("sort", null);
+  };
 
   // Which page, keyed on everything that redefines the set being paged: page
   // three of the failed runs is not page three of everything, so any change of
@@ -154,6 +171,9 @@ export function RunHistoryTab({
     userId: filters.userId === "all" ? undefined : filters.userId,
     agentVersionId: filters.versionId === "all" ? undefined : filters.versionId,
     skip: page * PAGE_SIZE,
+    // Not asked without the permission: `GET /runs` refuses that caller, so the
+    // request would be a predictable 403 drawn as a failure card below.
+    enabled: canView,
   });
   const narrowed =
     filters.rated !== "all" ||
@@ -163,11 +183,11 @@ export function RunHistoryTab({
     filters.versionId !== "all";
 
   const showSlow = () => {
-    setSort({ by: "duration", dir: "desc" });
+    changeSort({ by: "duration", dir: "desc" });
     setMinDurationMs(SLOW_RUN_THRESHOLD_MS);
   };
   const showAll = () => {
-    setSort({ by: "started_at", dir: "desc" });
+    changeSort({ by: "started_at", dir: "desc" });
     setMinDurationMs(null);
   };
   const slowActive = minDurationMs !== null;
@@ -196,7 +216,7 @@ export function RunHistoryTab({
           builder's "did v4 behave better than v3" answered where the evidence
           is. Its completed share is the shared `completedShare`, so it reads as
           the same figure the dashboard's Outcomes donut shows (§8a.4). */}
-      {agentId !== null && <VersionStrip agentId={agentId} period={period} />}
+      {agentId !== null && canView && <VersionStrip agentId={agentId} period={period} />}
       <Card>
         {/* The shared list-card header dialect - border-b, px-5 py-4, text-sm
             title - so this card reads as the same container as the vault's or
@@ -270,7 +290,16 @@ export function RunHistoryTab({
                   />
                 </ListCardControlsRow>
               )}
-              {isLoading ? (
+              {!canView ? (
+                // Whose decision the absence is - nothing above asked, so
+                // nothing below failed, and the window's empty state would
+                // read as a history that never happened.
+                <ListCardEmpty
+                  icon={Activity}
+                  title={t("noAccessToRuns")}
+                  description={t("runsViewIsMissing")}
+                />
+              ) : isLoading ? (
                 <LoadingState variant="skeleton-table" columns={7} rows={6} className="m-5" />
               ) : error ? (
                 <ErrorState
@@ -309,7 +338,7 @@ export function RunHistoryTab({
                   <RunTable
                     runs={runs}
                     sort={sort}
-                    onSort={setSort}
+                    onSort={changeSort}
                     onOpen={(run) => onFocusRun(run.id)}
                     agentsById={canAgents ? agentsById : undefined}
                     membersById={membersById}

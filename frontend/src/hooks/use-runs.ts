@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api-error";
-import { apiClient } from "@/lib/api-client";
+import { ApiError, apiClient } from "@/lib/api-client";
 import { DASHBOARD_FRESHNESS } from "@/lib/query-freshness";
 import { qk } from "@/lib/query-keys";
 import type {
@@ -188,6 +188,7 @@ export function useDelegatedRuns(parentRunId: string) {
  * as "nothing waiting".
  */
 export function useApprovals(options?: { enabled?: boolean }) {
+  const t = useTranslations("pages.runs");
   const tErrors = useTranslations("errors");
 
   const queryClient = useQueryClient();
@@ -199,7 +200,7 @@ export function useApprovals(options?: { enabled?: boolean }) {
     enabled: options?.enabled ?? true,
   });
 
-  const resume = useResumeRun();
+  const resume = useResumeRun({ ignoreStillParked: true });
 
   const decide = useMutation({
     mutationFn: ({ id, approved, note }: { id: string; approved: boolean; note?: string }) =>
@@ -207,11 +208,15 @@ export function useApprovals(options?: { enabled?: boolean }) {
     onSuccess: async (approval) => {
       // The invalidation refetches the queue, so the read below is fresh.
       await queryClient.invalidateQueries({ queryKey: qk.runs.all() });
-      toast.success(approval.status === "approved" ? "Approved" : "Rejected");
+      toast.success(approval.status === "approved" ? t("decisionApproved") : t("decisionRejected"));
       // Deciding the last outstanding call makes the resume possible; nothing
       // performs it (the backend keeps the click and the execution apart). The
       // chat's dialog has always followed its decision with the resume - the
       // queue not doing the same left a run approved and parked forever.
+      // This read is one cached page of fifty, so a run whose other parked call
+      // sits past those fifty reads as clear; `/approvals` cannot narrow by run,
+      // so the backend's refusal is the real check and the auto path swallows
+      // exactly that refusal (see `useResumeRun`).
       const stillParked = queryClient
         .getQueryData<ApprovalList>(qk.runs.approvals())
         ?.items.some((item) => item.run_id === approval.run_id && item.status === "pending");
@@ -226,9 +231,20 @@ export function useApprovals(options?: { enabled?: boolean }) {
     isLoading,
     error,
     decide,
-    resume,
     refetch,
   };
+}
+
+/**
+ * The resume refusal that means another call on the run still awaits a decision.
+ *
+ * `POST /runs/{id}/resume` answers it as a 400 whose details name the pending
+ * approval ids - the only resume refusal carrying `pending`, which keeps a spec
+ * that can no longer be built, or a run that is not parked at all, toasting
+ * like any other failure.
+ */
+function stillAwaitingDecision(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 400 && Array.isArray(error.details?.pending);
 }
 
 /**
@@ -239,8 +255,16 @@ export function useApprovals(options?: { enabled?: boolean }) {
  * called both. The approvals queue did not, which is how a run approved from
  * the Activity page stayed `awaiting_approval` forever: approved, undisputed,
  * and never picked back up.
+ *
+ * `ignoreStillParked` is for the queue's automatic resume after a decision. The
+ * "anything still pending?" check it makes first reads one cached page of
+ * fifty, so a run whose other parked call sits past those fifty reads as clear
+ * and the resume is attempted anyway; the backend's still-parked refusal is
+ * that check's answer arriving late, not news for the person who just decided.
+ * Every other failure still toasts, and a resume somebody clicked never passes
+ * this flag.
  */
-export function useResumeRun() {
+export function useResumeRun(options?: { ignoreStillParked?: boolean }) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("pages.runs");
   const queryClient = useQueryClient();
@@ -250,7 +274,10 @@ export function useResumeRun() {
       await queryClient.invalidateQueries({ queryKey: qk.runs.all() });
       toast.success(t("runResumed"));
     },
-    onError: (error) => toast.error(getErrorMessage(error, tErrors, t("resumeFailed"))),
+    onError: (error) => {
+      if (options?.ignoreStillParked && stillAwaitingDecision(error)) return;
+      toast.error(getErrorMessage(error, tErrors, t("resumeFailed")));
+    },
   });
 }
 
@@ -302,8 +329,15 @@ export function useApprovalHistory(
  * request from a month with no spend in it. Drawn from `data` alone the two are
  * the same "nothing spent yet", and on a page about money the wrong one of those
  * is the reassuring one.
+ *
+ * `enabled` is how a caller without `runs:view` opts out, the same bargain
+ * `useApprovals` strikes: the route refuses that caller, so asking is a 403
+ * whose empty rendering would read as nothing spent.
  */
-export function useSpend(range: number | { from: string; to: string } = 30) {
+export function useSpend(
+  range: number | { from: string; to: string } = 30,
+  options?: { enabled?: boolean },
+) {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.runs.spend(range),
     queryFn: () =>
@@ -311,6 +345,7 @@ export function useSpend(range: number | { from: string; to: string } = 30) {
         params:
           typeof range === "number" ? { days: String(range) } : { from: range.from, to: range.to },
       }),
+    enabled: options?.enabled ?? true,
     ...DASHBOARD_FRESHNESS,
   });
   return { spend: data, isLoading, error, refetch };

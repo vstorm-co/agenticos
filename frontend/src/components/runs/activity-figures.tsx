@@ -2,8 +2,9 @@
 
 import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
+import { Activity } from "lucide-react";
 
-import { LoadingState } from "@/components/states";
+import { EmptyState, LoadingState } from "@/components/states";
 import { Card, CardContent } from "@/components/ui";
 import { useApprovals, useRuns, useSpend } from "@/hooks";
 import { periodEnd, periodStart, type Period } from "@/lib/dashboard/period";
@@ -29,27 +30,61 @@ import { periodEnd, periodStart, type Period } from "@/lib/dashboard/period";
  * per-agent rows are top-level runs only, so the sum counts each delegation
  * once, inside its parent.
  *
- * A skeleton until both have answered, because a nought here is a claim. "$0.00"
- * and "0 runs" are what an organization that has never run an agent looks like,
- * and drawing that for a request still in flight tells a new reader their
- * deployment is not working.
+ * A skeleton until all its queries have answered, because a nought here is a
+ * claim. "$0.00" and "0 runs" are what an organization that has never run an
+ * agent looks like, and drawing that for a request still in flight tells a new
+ * reader their deployment is not working.
+ *
+ * Without `runs:view` nothing is asked at all - `GET /runs` and `GET /spend`
+ * both refuse that caller, so the requests would be two predictable 403s drawn
+ * as failure cards. The row says whose decision the absence is instead.
  */
-export function ActivityFigures({ canDecide, period }: { canDecide: boolean; period: Period }) {
+export function ActivityFigures({
+  canView,
+  canDecide,
+  period,
+}: {
+  canView: boolean;
+  canDecide: boolean;
+  period: Period;
+}) {
   const t = useTranslations("pages.runs");
   const range = { from: periodStart(period), to: periodEnd(period) };
-  const { spend, isLoading: spendLoading, error: spendError } = useSpend(range);
+  const {
+    spend,
+    isLoading: spendLoading,
+    error: spendError,
+  } = useSpend(range, {
+    enabled: canView,
+  });
   const {
     total: organizationRuns,
     isLoading: runsLoading,
     error: runsError,
-  } = useRuns(undefined, { startedFrom: range.from, startedTo: range.to });
+  } = useRuns(undefined, { startedFrom: range.from, startedTo: range.to, enabled: canView });
   // `total`, not the length of the page. `GET /approvals` answers fifty rows at
   // a time and nothing here asks for more, so a queue of a hundred and twenty
   // read "50" and went on reading it however long the queue grew - the same
   // page-length-as-a-count defect (#198) the Runs figure beside it was fixed for.
-  const { total: waiting, error: approvalsError } = useApprovals({ enabled: canDecide });
+  const {
+    total: waiting,
+    isLoading: approvalsLoading,
+    error: approvalsError,
+  } = useApprovals({ enabled: canDecide });
 
-  if (spendLoading || runsLoading) {
+  if (!canView) {
+    return (
+      <EmptyState
+        icon={Activity}
+        title={t("noAccessToRuns")}
+        description={t("runsViewIsMissing")}
+      />
+    );
+  }
+
+  // The Waiting figure is a claim too: its own query still in flight must not
+  // print the "0" an empty queue earns.
+  if (spendLoading || runsLoading || (canDecide && approvalsLoading)) {
     return (
       <LoadingState
         variant="stats"

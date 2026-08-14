@@ -4,6 +4,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { CheckCircle2, XCircle } from "lucide-react";
 
 import { ApprovalDelegate } from "@/components/runs/approval-delegate";
+import { ExportMenu } from "@/components/runs/export-menu";
 import { ErrorState } from "@/components/states";
 import {
   Badge,
@@ -17,6 +18,7 @@ import {
 import { useApprovalHistory, useApprovals } from "@/hooks";
 import { periodEnd, periodStart, type Period } from "@/lib/dashboard/period";
 import { formatDate } from "@/lib/utils";
+import { Perm } from "@/types/permissions";
 import type { ToolApproval } from "@/types/runs";
 
 const DECISION_LABEL: Record<string, string> = {
@@ -63,8 +65,9 @@ export function ApprovalsTab({
 }) {
   const t = useTranslations("pages.runs");
   const locale = useLocale();
+  const range = { from: periodStart(period), to: periodEnd(period) };
   const { approvals, total, isLoading, error, decide, refetch } = useApprovals();
-  const history = useApprovalHistory({ from: periodStart(period), to: periodEnd(period) });
+  const history = useApprovalHistory(range);
 
   const rows: ToolApproval[] = [...approvals, ...history.approvals];
 
@@ -104,11 +107,17 @@ export function ApprovalsTab({
     {
       key: "decision",
       header: t("decisionColumn"),
-      cell: (approval) => (
-        <Badge variant={DECISION_VARIANT[approval.status] ?? "outline"}>
-          {t(DECISION_LABEL[approval.status] ?? "decisionExpired")}
-        </Badge>
-      ),
+      cell: (approval) => {
+        // A status this build does not know is shown as the data it is -
+        // labelling it "Expired" would put a specific claim on a row the
+        // backend said something newer about.
+        const labelKey = DECISION_LABEL[approval.status];
+        return (
+          <Badge variant={DECISION_VARIANT[approval.status] ?? "outline"}>
+            {labelKey ? t(labelKey) : approval.status}
+          </Badge>
+        );
+      },
     },
     {
       key: "askedBy",
@@ -177,6 +186,24 @@ export function ApprovalsTab({
           ? null
           : t("approvalsCounted", { waiting: total, decided: history.total })
       }
+      controls={
+        <ExportMenu
+          permission={Perm.approvalsDecide}
+          endpoint="/approvals/export"
+          kind="approvals"
+          // Every status the table shows, queue and record alike - absent, the
+          // route exports the pending queue alone. Pairs, because the
+          // parameter repeats.
+          params={[
+            ["status", "pending"],
+            ["status", "approved"],
+            ["status", "rejected"],
+            ["status", "expired"],
+          ]}
+          rangeParams={{ from: "created_from", to: "created_to" }}
+          range={range}
+        />
+      }
       contentClassName="p-0"
     >
       {error ? (
@@ -211,6 +238,19 @@ export function ApprovalsTab({
             <ListCardFootRow>
               <p className="text-muted-foreground text-xs" role="note">
                 {t("showingTheOldestOf", { shown: approvals.length, total })}
+              </p>
+            </ListCardFootRow>
+          )}
+          {/* The record is one page of the same fifty, newest first - the
+              counted line above reports the window's total, so without this
+              the gap between "214 decided" and fifty rows goes unexplained. */}
+          {history.total > history.approvals.length && (
+            <ListCardFootRow>
+              <p className="text-muted-foreground text-xs" role="note">
+                {t("showingTheNewestOf", {
+                  shown: history.approvals.length,
+                  total: history.total,
+                })}
               </p>
             </ListCardFootRow>
           )}

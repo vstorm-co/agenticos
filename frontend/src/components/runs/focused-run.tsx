@@ -34,9 +34,10 @@ import { RunTable } from "./run-table";
  * below answers the second one: what actually happened, turn by turn, tool call
  * by tool call, with the ratings people left where they left them.
  *
- * `prev`/`next` walk the agent's own history by start time, the ids resolved
+ * `prev`/`next` walk the run's own conversation by start time, the ids resolved
  * server-side on this read - so stepping through a bad afternoon is arrows, not
- * trips back to the list.
+ * trips back to the list. A run with no conversation behind it - an API call -
+ * has no neighbours, so its arrows stay disabled.
  *
  * A refusal is said out loud rather than drawn as an empty table. Every other
  * page here renders its empty state when a query fails, which makes "this run
@@ -90,9 +91,10 @@ export function FocusedRun({
             {run.model_label ?? "-"}
           </span>
         </div>
-        {/* The agent's history, one step either way - resolved server-side on
-            this read, disabled at the edges rather than absent so the timeline
-            keeps its shape while somebody steps through it. */}
+        {/* The run's conversation, one step either way - resolved server-side
+            on this read, disabled at the edges (and on a conversationless run)
+            rather than absent so the timeline keeps its shape while somebody
+            steps through it. */}
         <div className="flex items-center gap-1">
           {/* A parked run whose approvals were all decided is a run somebody
               still has to nudge: the resume endpoint is idempotent about the

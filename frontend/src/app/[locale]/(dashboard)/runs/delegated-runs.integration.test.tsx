@@ -324,7 +324,7 @@ describe("one run and what it delegated", () => {
   });
 });
 
-describe("walking the agent's history from the detail", () => {
+describe("walking the run's conversation from the detail", () => {
   it("steps to the next run with the arrow", async () => {
     params.set("run", "run-parent");
     backend({ neighbors: { next: "run-child-1" } });

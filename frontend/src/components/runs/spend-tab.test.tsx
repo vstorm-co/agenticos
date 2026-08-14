@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -21,8 +21,16 @@ import type { CostByAgent, CostSummary } from "@/types/runs";
 
 vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
-  return { ...actual, apiClient: { ...actual.apiClient, get: vi.fn() } };
+  return { ...actual, apiClient: { ...actual.apiClient, get: vi.fn(), raw: vi.fn() } };
 });
+vi.mock("@/lib/file-access", () => ({ saveBlob: vi.fn() }));
+
+// The tab and its export are both gated on `runs:view`; the holder is the
+// default so every table case reads as before, and the no-access case flips it.
+const holdsRunsView = vi.hoisted(() => ({ value: true }));
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({ can: () => holdsRunsView.value, isLoading: false }),
+}));
 
 const PERIOD: Period = { preset: "30d", from: "2026-07-16", to: "2026-08-14" };
 
@@ -57,7 +65,11 @@ async function facet(name: string) {
   await userEvent.click(await screen.findByRole("button", { name }));
 }
 
-beforeEach(() => vi.mocked(apiClient.get).mockReset());
+beforeEach(() => {
+  holdsRunsView.value = true;
+  vi.mocked(apiClient.get).mockReset();
+  vi.mocked(apiClient.raw).mockReset();
+});
 
 describe("the vendor and key facets", () => {
   it("names each vendor with what it was paid", async () => {
@@ -255,5 +267,43 @@ describe("the window these figures cover", () => {
     render(<SpendTab period={PERIOD} />, { wrapper });
 
     expect(await screen.findByText("Jul 1, 2026 to now.")).toBeVisible();
+  });
+});
+
+describe("a caller without runs:view", () => {
+  it("is told whose decision the absence is, and nothing is asked", async () => {
+    // `GET /spend` refuses that caller, so the request would be a predictable
+    // 403 drawn as "Spend could not be read" - a failure card for a page that
+    // never had anything to show them.
+    holdsRunsView.value = false;
+    serve({});
+
+    render(<SpendTab period={PERIOD} />, { wrapper });
+
+    expect(await screen.findByText("No access to run activity")).toBeVisible();
+    expect(apiClient.get).not.toHaveBeenCalled();
+    expect(screen.queryByText("Spend could not be read")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Export CSV" })).toBeNull();
+  });
+});
+
+describe("the export beside the facets", () => {
+  it("asks the spend export for the page's window, in the route's own names", async () => {
+    serve({});
+    vi.mocked(apiClient.raw).mockResolvedValue({
+      blob: async () => new Blob(["agent_id\n"], { type: "text/csv" }),
+      headers: { get: () => null },
+    } as unknown as Response);
+
+    render(<SpendTab period={PERIOD} />, { wrapper });
+    await userEvent.click(await screen.findByRole("button", { name: "Export CSV" }));
+
+    await waitFor(() => expect(apiClient.raw).toHaveBeenCalledTimes(1));
+    const call = vi.mocked(apiClient.raw).mock.calls.at(-1);
+    expect(call?.[0]).toBe("/spend/export");
+    expect((call?.[1] as { params: Record<string, string> }).params).toEqual({
+      from: "2026-07-16T00:00:00.000Z",
+      to: "2026-08-14T23:59:59.999Z",
+    });
   });
 });

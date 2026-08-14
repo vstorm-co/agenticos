@@ -18,12 +18,14 @@ import type { AgentRun } from "@/types/runs";
  */
 
 const useRunsMock = vi.fn();
+// The tab gates its filters on runs:view and the filter bar gates its agent
+// and version selects on agents:view; these tests exercise the sort and
+// filter controls, so the holder is given everything - except the no-access
+// case, which flips this off.
+const holdsEverything = vi.hoisted(() => ({ value: true }));
 vi.mock("@/hooks", () => ({
   useRuns: (agentId?: string, options?: unknown) => useRunsMock(agentId, options),
-  // The tab gates its filters on runs:view and the filter bar gates its agent
-  // and version selects on agents:view; these tests exercise the sort and
-  // filter controls, so the holder is given everything.
-  usePermissions: () => ({ can: () => true }),
+  usePermissions: () => ({ can: () => holdsEverything.value }),
   // What the filter bar's selects offer. One agent and two versions are enough
   // to prove the narrowing each control asks for.
   useAgents: () => ({ agents: [{ id: "agent-1", name: "Support agent" }], isLoading: false }),
@@ -100,6 +102,7 @@ const tookHeader = () => screen.getByText("Took").closest("button")!;
 const startedHeader = () => screen.getByText("Started").closest("button")!;
 
 beforeEach(() => {
+  holdsEverything.value = true;
   useRunsMock.mockReset();
   useRunsMock.mockReturnValue({
     runs: [aRun()],
@@ -126,6 +129,7 @@ describe("run history controls", () => {
       userId: undefined,
       agentVersionId: undefined,
       skip: 0,
+      enabled: true,
     });
   });
 
@@ -366,5 +370,51 @@ describe("run history controls", () => {
     renderTab();
 
     expect(screen.getByRole("button", { name: "Export CSV" })).toBeInTheDocument();
+  });
+
+  it("drops the version narrowing when navigation rewrites ?agent= under it", async () => {
+    // `changeAgent` is not the only way the agent changes: a link with its own
+    // `?agent=` lands as a new prop through useUrlState's navigation-wins path,
+    // and v2 of the first agent is not a version of the second.
+    const view = renderTab({ agentId: "agent-1" });
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Filter by version" }));
+    await userEvent.click(screen.getByRole("option", { name: "v2" }));
+    expect(lastOptions()).toMatchObject({ agentVersionId: "ver-2" });
+
+    view.rerender(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <RunHistoryTab
+          agentId="agent-2"
+          period={PERIOD}
+          onAgentChange={vi.fn()}
+          onFocusRun={vi.fn()}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    expect(lastOptions()).toMatchObject({ agentVersionId: undefined });
+  });
+
+  it("clears the dashboard's ?sort hand-off the moment the reader re-sorts", async () => {
+    // The parameter is a hand-off, not state the tab mirrors: left standing, a
+    // copied link reasserts the duration sort over whatever was chosen here.
+    window.history.replaceState({}, "", "/runs?sort=duration");
+    renderTab({ initialDurationSort: true });
+
+    await userEvent.click(startedHeader());
+
+    expect(lastOptions()).toMatchObject({ orderBy: "started_at" });
+    expect(new URL(window.location.href).searchParams.get("sort")).toBeNull();
+  });
+
+  it("asks for nothing without runs:view, and says whose decision that is", () => {
+    holdsEverything.value = false;
+    renderTab();
+
+    expect(lastOptions()).toMatchObject({ enabled: false });
+    expect(screen.getByText("No access to run activity")).toBeInTheDocument();
+    expect(screen.queryByText("No runs in this window")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Export CSV" })).toBeNull();
   });
 });

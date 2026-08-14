@@ -68,6 +68,11 @@ export default function RunsPage() {
     setUrlParam("period", formatPeriodParam(next));
   };
   const { can, isLoading: permissionsLoading } = usePermissions();
+  // Run history and spend take `runs:view` - `GET /runs` and `GET /spend` both
+  // carry it - so a caller without it is not asked for: the figures and the
+  // history tab disable their queries and say whose decision the absence is,
+  // instead of firing two predictable 403s and drawing them as failures.
+  const canView = can(Perm.runsView);
   // Reading the queue takes the same permission as deciding one - both routes
   // carry `require(Perm.APPROVALS_DECIDE)` - so for a caller without it there is
   // no queue to show, not an empty one. Asked anyway, the 403 arrived as `[]` and
@@ -86,58 +91,61 @@ export default function RunsPage() {
 
       <PeriodControl period={period} onChange={changePeriod} />
 
-      <ActivityFigures canDecide={canDecide} period={period} />
-
       {/* Not until the permission set has answered. `Tabs` is uncontrolled, so
           Radix captures `defaultValue` on first mount and never reads it again -
           mounted while `can()` still answers `false` for everything, the strip
           opens on Runs and stays there even once the Approvals tab appears
           beside it. The strip's *shape* depends on this permission, so drawing
-          it before the answer arrives is guessing at it. */}
+          it before the answer arrives is guessing at it. The figures wait with
+          it: mounted early they would draw their no-access state at a holder
+          whose `can()` simply has not answered yet. */}
       {permissionsLoading ? (
         <LoadingState variant="skeleton-table" columns={6} rows={6} />
       ) : (
-        <Tabs defaultValue="runs">
-          <TabsList>
-            {/* Runs first: the page's main question is what ran. The queue
+        <>
+          <ActivityFigures canView={canView} canDecide={canDecide} period={period} />
+          <Tabs defaultValue="runs">
+            <TabsList>
+              {/* Runs first: the page's main question is what ran. The queue
                 keeps its count badge, so what is waiting is visible from the
                 strip without opening it. */}
-            <TabsTrigger value="runs">{t("runs2")}</TabsTrigger>
+              <TabsTrigger value="runs">{t("runs2")}</TabsTrigger>
+              {canDecide && (
+                <TabsTrigger value="approvals">
+                  {t("approvals")}
+                  {waiting > 0 && (
+                    <Badge variant="secondary" className="ml-2">
+                      {waiting}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+              )}
+              <TabsTrigger value="spend">{t("spend")}</TabsTrigger>
+            </TabsList>
+
             {canDecide && (
-              <TabsTrigger value="approvals">
-                {t("approvals")}
-                {waiting > 0 && (
-                  <Badge variant="secondary" className="ml-2">
-                    {waiting}
-                  </Badge>
-                )}
-              </TabsTrigger>
+              <TabsContent value="approvals">
+                <ApprovalsTab period={period} onFocusRun={focusRun} />
+              </TabsContent>
             )}
-            <TabsTrigger value="spend">{t("spend")}</TabsTrigger>
-          </TabsList>
 
-          {canDecide && (
-            <TabsContent value="approvals">
-              <ApprovalsTab period={period} onFocusRun={focusRun} />
-            </TabsContent>
-          )}
-
-          <TabsContent value="runs">
-            {/* The export lives on the tab's control row, beside the filters it
+            <TabsContent value="runs">
+              {/* The export lives on the tab's control row, beside the filters it
                 exports the result of - see RunHistoryTab. */}
-            <RunHistoryTab
-              agentId={agentId}
-              period={period}
-              onAgentChange={changeAgent}
-              onFocusRun={focusRun}
-              initialDurationSort={sortParam === "duration"}
-            />
-          </TabsContent>
+              <RunHistoryTab
+                agentId={agentId}
+                period={period}
+                onAgentChange={changeAgent}
+                onFocusRun={focusRun}
+                initialDurationSort={sortParam === "duration"}
+              />
+            </TabsContent>
 
-          <TabsContent value="spend">
-            <SpendTab period={period} />
-          </TabsContent>
-        </Tabs>
+            <TabsContent value="spend">
+              <SpendTab period={period} />
+            </TabsContent>
+          </Tabs>
+        </>
       )}
 
       {/* The run detail, in a drawer over whichever tab opened it: a run row

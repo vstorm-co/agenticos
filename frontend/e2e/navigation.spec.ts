@@ -59,9 +59,10 @@ const DASHBOARD_PAGES: {
     path: "/runs",
     heading: "Activity",
     proof: (page) =>
-      // Data-borne either way the query resolves: rows draw the table, none
-      // draws the window's empty state - chrome alone proves nothing (#32).
-      page.getByRole("table").or(page.getByText("No runs in this window")).first(),
+      // The empty state alone: the seeded environment never has runs, and the
+      // loading skeleton draws a real <table>, so a table locator is chrome
+      // that passes before /runs has answered at all (#32).
+      page.getByText("No runs in this window").first(),
   },
   {
     path: "/rag",

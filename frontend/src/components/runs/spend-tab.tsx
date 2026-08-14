@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { KeyRound } from "lucide-react";
+import { Activity, KeyRound } from "lucide-react";
 
 import { getErrorMessage } from "@/lib/api-error";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
-import { ErrorState, LoadingState } from "@/components/states";
+import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import {
   Button,
   Card,
@@ -18,11 +18,13 @@ import {
   ListCardControlsRow,
   type Column,
 } from "@/components/ui";
+import { ExportMenu } from "@/components/runs/export-menu";
 import { SpendByPerson } from "@/components/runs/spend-by-person";
 import { ProviderIcon } from "@/components/vault/provider-icon";
-import { useSpend } from "@/hooks";
+import { usePermissions, useSpend } from "@/hooks";
 import { periodEnd, periodStart, type Period } from "@/lib/dashboard/period";
 import { formatDate } from "@/lib/utils";
+import { Perm } from "@/types/permissions";
 import type { CostByAgent, CostByKey, CostByProvider, CostSummary } from "@/types/runs";
 
 /** The four ways the same money is sliced, as one switch. */
@@ -97,12 +99,24 @@ export function SpendTab({ period }: { period: Period }) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("pages.runs");
   const locale = useLocale();
+  const { can } = usePermissions();
+  // `GET /spend` carries `runs:view` like the run list, so a caller without it
+  // is not asked for - the 403 would be drawn as a failure on a tab that never
+  // had anything to show them.
+  const canView = can(Perm.runsView);
   const [facet, setFacet] = useState<SpendFacet>("agent");
-  const { spend, isLoading, error, refetch } = useSpend({
-    from: periodStart(period),
-    to: periodEnd(period),
-  });
+  const range = { from: periodStart(period), to: periodEnd(period) };
+  const { spend, isLoading, error, refetch } = useSpend(range, { enabled: canView });
 
+  if (!canView) {
+    return (
+      <EmptyState
+        icon={Activity}
+        title={t("noAccessToRuns")}
+        description={t("runsViewIsMissing")}
+      />
+    );
+  }
   if (isLoading) return <LoadingState variant="stats" rows={2} />;
   if (error)
     return (
@@ -231,14 +245,25 @@ export function SpendTab({ period }: { period: Period }) {
       )}
 
       <Card>
-        <CardHeader className="border-b px-5 py-4">
-          <CardTitle className="text-sm">{t("whereTheMoneyWent")}</CardTitle>
-          {/* The window the server chose, said the way it was chosen. There is no
-              `?? 30` here on purpose: `period_days` is null the moment `from` is
-              sent - `runs.py` refuses to answer "30 days" and a range at once -
-              and a default in its place renders "Last 30 days" over a range that
-              is nothing of the sort. Silently, which is what a fallback buys. */}
-          <CardDescription className="text-xs">{windowLabel(spend, t, locale)}</CardDescription>
+        {/* The same header grammar as the history tab's: what the card is on
+            the left, its export on the right, carrying the page's window. */}
+        <CardHeader className="flex-row items-start justify-between space-y-0 border-b px-5 py-4">
+          <div className="space-y-1">
+            <CardTitle className="text-sm">{t("whereTheMoneyWent")}</CardTitle>
+            {/* The window the server chose, said the way it was chosen. There is no
+                `?? 30` here on purpose: `period_days` is null the moment `from` is
+                sent - `runs.py` refuses to answer "30 days" and a range at once -
+                and a default in its place renders "Last 30 days" over a range that
+                is nothing of the sort. Silently, which is what a fallback buys. */}
+            <CardDescription className="text-xs">{windowLabel(spend, t, locale)}</CardDescription>
+          </div>
+          <ExportMenu
+            permission={Perm.runsView}
+            endpoint="/spend/export"
+            kind="spend"
+            rangeParams={{ from: "from", to: "to" }}
+            range={range}
+          />
         </CardHeader>
         <CardContent className="p-0">
           {/* The facet switch lives inside the container it slices, like every
