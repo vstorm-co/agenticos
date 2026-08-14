@@ -125,6 +125,14 @@ class TestSortingIsChosenFromTwoOrdersAndNotFromAColumnName:
         assert service.list_runs.await_args.kwargs["order_by"].value == "duration"
         assert service.list_runs.await_args.kwargs["descending"] is True
 
+    async def test_the_heaviest_first(self):
+        service = _service()
+        async with _client(service) as client:
+            response = await client.get("/api/v1/runs?order_by=tokens")
+
+        assert response.status_code == 200
+        assert service.list_runs.await_args.kwargs["order_by"].value == "tokens"
+
     async def test_a_column_name_is_not_an_order(self):
         async with _client(_service()) as client:
             response = await client.get("/api/v1/runs?order_by=cost_usd")
@@ -212,6 +220,7 @@ class TestTheDownRatedMarkerReachesTheRow:
             output_tokens=5,
             cost_usd=Decimal("0.01"),
             cost_is_partial=False,
+            provider="openrouter",
         )
 
     async def test_a_run_rated_down_is_marked_and_an_unrated_one_is_not(self):
@@ -228,6 +237,8 @@ class TestTheDownRatedMarkerReachesTheRow:
         assert by_id[str(disliked.id)] is True
         assert by_id[str(clean.id)] is False
         assert service.down_rated_run_ids.await_args.args[1] == [disliked.id, clean.id]
+        # The vendor rides the row too - what the table keys a brand mark on.
+        assert {item["provider"] for item in response.json()["items"]} == {"openrouter"}
 
     async def test_an_empty_page_asks_for_no_marker_at_all(self):
         """Nothing to mark, so the marker query is skipped rather than asked with

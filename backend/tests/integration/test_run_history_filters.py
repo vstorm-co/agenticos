@@ -370,6 +370,22 @@ class TestSortingByHowLongItTook:
         assert priciest_first == [str(pricey.id), str(middling.id), str(cheap.id)]
         assert cheapest_first == [str(cheap.id), str(middling.id), str(pricey.id)]
 
+    async def test_the_heaviest_run_comes_first_under_the_tokens_order(self, db) -> None:
+        """Input and output together: a run that read a huge context and answered
+        in one line is heavier than one that chatted both ways, and an operator
+        hunting context bloat needs the sum, not either half."""
+        org, user = await _org(db)
+        agent = await _agent(db, org)
+        light = await _run(db, org, agent, input_tokens=100, output_tokens=50)
+        heavy = await _run(db, org, agent, input_tokens=90_000, output_tokens=200)
+        chatty = await _run(db, org, agent, input_tokens=1_000, output_tokens=4_000)
+
+        heaviest_first, _ = await _listed(db, org, user, order_by=RunOrder.TOKENS)
+        lightest_first, _ = await _listed(db, org, user, order_by=RunOrder.TOKENS, descending=False)
+
+        assert heaviest_first == [str(heavy.id), str(chatty.id), str(light.id)]
+        assert lightest_first == [str(light.id), str(chatty.id), str(heavy.id)]
+
     async def test_the_default_order_is_still_the_feed(self, db) -> None:
         org, user = await _org(db)
         agent = await _agent(db, org)

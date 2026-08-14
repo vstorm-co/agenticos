@@ -403,6 +403,8 @@ async def list_runs(
         column = _duration_ms()
     elif order_by is RunOrder.COST:
         column = AgentRun.cost_usd
+    elif order_by is RunOrder.TOKENS:
+        column = AgentRun.input_tokens + AgentRun.output_tokens
     else:
         column = AgentRun.started_at
     ordering = column.desc() if descending else column.asc()

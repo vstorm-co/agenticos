@@ -21,6 +21,16 @@ class AgentRunRead(BaseSchema):
     surface: str
     status: str
     model_label: str | None = None
+    provider: str | None = Field(
+        default=None,
+        description=(
+            "The vendor this run's model actually ran at, as the provider "
+            "catalog spells it - what run history keys a brand mark on. Null "
+            "for runs recorded before it was tracked. `model_label` names the "
+            "profile; this names the vendor, which a repointed profile can "
+            "change under the same label"
+        ),
+    )
     input_tokens: int
     output_tokens: int
     cost_usd: Decimal

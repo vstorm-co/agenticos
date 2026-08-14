@@ -109,8 +109,9 @@ class RunOrder(enum.StrEnum):
 
     A closed set, rather than a column name a caller supplies: an `ORDER BY`
     assembled from a query string is an injection surface, and these are the
-    orders the page has a reason to offer - the feed, the slowest, and the most
-    expensive. Newest-first is the default because run history is read as a feed.
+    orders the page has a reason to offer - the feed, the slowest, the most
+    expensive and the heaviest. Newest-first is the default because run history
+    is read as a feed.
 
     Here beside the statuses rather than with the query it parameterises, because
     it is vocabulary about a run: a route validates a query parameter against it
@@ -120,6 +121,7 @@ class RunOrder(enum.StrEnum):
     STARTED_AT = "started_at"
     DURATION = "duration"
     COST = "cost"
+    TOKENS = "tokens"
 
 
 class RunRating(enum.StrEnum):
