@@ -910,3 +910,29 @@
     background-color: #67060c;
   }
 }
+
+/* The theme switch as a sweep: the new theme's snapshot grows as a circle
+   anchored at the bottom-left corner, reaching the top-right last. Driven by
+   `document.startViewTransition` in theme-provider.tsx, which already skips
+   browsers without the API and readers who asked for reduced motion - so this
+   only ever styles a transition that was deliberately started. The default
+   cross-fade is turned off on both snapshots: blended with the clip-path it
+   reads as a flash, not a sweep. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-new(root) {
+  animation: theme-sweep 0.5s ease-in-out both;
+}
+@keyframes theme-sweep {
+  from {
+    /* Radius percentages resolve against the normalized diagonal, so 142%
+       (~sqrt(2) of it) is the first radius that covers the far corner. */
+    clip-path: circle(0% at 0% 100%);
+  }
+  to {
+    clip-path: circle(142% at 0% 100%);
+  }
+}
