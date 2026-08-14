@@ -69,10 +69,12 @@ test.describe("Activity", () => {
     await page.goto("/runs");
     await expect(pageHeading(page, "Activity")).toBeVisible();
 
-    // The page opens on Runs now; the queue is one tab over.
+    // The page opens on Runs now; the queue is one tab over. The panel is one
+    // table for the queue and the decided record together - the old
+    // "Waiting for a decision" card died with the split.
     const approvals = page.getByRole("tab", { name: /^Approvals/ });
     await approvals.click();
-    await expect(page.getByText("Waiting for a decision")).toBeVisible();
+    await expect(page.getByRole("tabpanel")).toBeVisible();
 
     // The tab carries a count badge only when something is queued, so its label
     // is the cheapest read of whether this environment can prove the empty case.
