@@ -162,7 +162,7 @@ export function CommandPalette() {
         </kbd>
       </div>
 
-      <Command.List className="max-h-[60vh] overflow-y-auto px-2 py-2">
+      <Command.List className="max-h-[60vh] scrollbar-thin overflow-y-auto px-2 py-2">
         <Command.Empty className="text-foreground/55 px-4 py-10 text-center text-sm">
           {t("noMatches")}
         </Command.Empty>

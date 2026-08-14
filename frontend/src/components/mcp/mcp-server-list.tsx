@@ -759,7 +759,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
         open={toolPicker !== null}
         onOpenChange={(open) => !open && !submitting && setToolPicker(null)}
       >
-        <DialogContent className="max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-h-[80vh] scrollbar-thin overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t("toolsFrom", { name: toolPicker?.connection.name ?? "" })}</DialogTitle>
           </DialogHeader>

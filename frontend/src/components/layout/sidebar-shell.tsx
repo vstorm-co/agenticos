@@ -49,7 +49,7 @@ export function SidebarShell({ children }: { children: ReactNode }) {
         <SidebarSearch />
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+      <div className="min-h-0 flex-1 scrollbar-thin overflow-y-auto">{children}</div>
 
       <div className="flex flex-col gap-1 border-t px-3 py-2">
         <div className="flex items-center">

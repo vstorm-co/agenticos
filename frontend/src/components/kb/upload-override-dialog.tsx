@@ -76,7 +76,7 @@ export function UploadOverrideDialog({
           <DialogDescription>{t("appliesEachFileYou")}</DialogDescription>
         </DialogHeader>
 
-        <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1">
+        <div className="-mx-1 min-h-0 flex-1 scrollbar-thin overflow-y-auto px-1">
           <IngestionSettings
             idPrefix="kb-upload-override"
             value={draft}
