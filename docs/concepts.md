@@ -106,9 +106,8 @@ convenience rather than a reach: every turn a run writes carries its `run_id` -
 the user's question included - so a holder of `runs:view` could already assemble
 the thread by iterating its runs' transcripts, and the scope answers the same
 rows in one read, each turn still naming its run. The detail read also carries
-`prev_run_id`/`next_run_id` - the runs either side in the agent's own history -
-so stepping through a bad afternoon is two arrows rather than trips back to the
-list.
+`prev_run_id`/`next_run_id` - the runs either side *in the same conversation* -
+so stepping through a thread is two arrows rather than trips back to the list.
 
 The link is a column rather than a time window on purpose. Two runs started in
 one conversation interleave, so windowing messages between `started_at` and

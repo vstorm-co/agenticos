@@ -180,24 +180,27 @@ async def get_run(db: AsyncSession, run_id: UUID, *, organization_id: UUID) -> A
 
 
 async def neighbor_run_ids(db: AsyncSession, run: AgentRun) -> tuple[UUID | None, UUID | None]:
-    """The runs either side of this one in its agent's own history, by start time.
+    """The runs either side of this one in its own conversation, by start time.
 
     How a run detail walks to its neighbours without going back to the list.
-    Same agent, delegations included - what *this agent* did before and after,
-    which is the question a reader stepping through a failure is asking. The
+    Same conversation, not the agent's whole history: the detail view shows the
+    run inside its thread, so stepping forward must stay in that thread - it
+    used to jump to whatever the agent did next in some other conversation,
+    which read as the timeline silently changing subject under the arrows. The
     order is `(started_at, id)`, the id breaking ties the same way `list_runs`
     pages: a fan-out starts several runs in the same instant, and without the
     tiebreak two of them would each claim the other as both neighbours.
 
-    A run that never started sits outside every timeline, so it has none.
+    A run that never started sits outside every timeline, and one with no
+    conversation has no thread to walk - both answer no neighbours at all.
     """
-    if run.started_at is None:
+    if run.started_at is None or run.conversation_id is None:
         return None, None
     position = tuple_(AgentRun.started_at, AgentRun.id)
     anchor = tuple_(run.started_at, run.id)
     base = select(AgentRun.id).where(
         AgentRun.organization_id == run.organization_id,
-        AgentRun.agent_id == run.agent_id,
+        AgentRun.conversation_id == run.conversation_id,
         AgentRun.started_at.is_not(None),
     )
     prev_id = (

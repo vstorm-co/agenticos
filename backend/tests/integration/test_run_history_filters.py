@@ -386,17 +386,27 @@ class TestSortingByHowLongItTook:
         assert heaviest_first == [str(heavy.id), str(chatty.id), str(light.id)]
         assert lightest_first == [str(light.id), str(chatty.id), str(heavy.id)]
 
-    async def test_a_runs_neighbours_are_its_agents_own_by_start_time(self, db) -> None:
-        """The detail view walks the agent's history without going back to the
-        list; another agent's run between the timestamps is not a neighbour, and
-        the edges answer null on their open side."""
+    async def test_a_runs_neighbours_stay_inside_its_own_conversation(self, db) -> None:
+        """The detail view shows the run inside its thread, so the arrows must
+        walk that thread - not jump to whatever the agent did next in some other
+        conversation. A run in another thread between the timestamps is not a
+        neighbour, and the edges answer null on their open side."""
         org, user = await _org(db)
         agent = await _agent(db, org)
-        other = await _agent(db, org)
-        first = await _run(db, org, agent, started_at=_NOW - timedelta(hours=2))
-        await _run(db, org, other, started_at=_NOW - timedelta(hours=1))
-        middle = await _run(db, org, agent, started_at=_NOW - timedelta(minutes=30))
-        last = await _run(db, org, agent, started_at=_NOW)
+        thread = Conversation(id=uuid.uuid4(), organization_id=org.id, user_id=user.id)
+        other_thread = Conversation(id=uuid.uuid4(), organization_id=org.id, user_id=user.id)
+        db.add_all([thread, other_thread])
+        await db.flush()
+        first = await _run(
+            db, org, agent, conversation_id=thread.id, started_at=_NOW - timedelta(hours=2)
+        )
+        await _run(
+            db, org, agent, conversation_id=other_thread.id, started_at=_NOW - timedelta(hours=1)
+        )
+        middle = await _run(
+            db, org, agent, conversation_id=thread.id, started_at=_NOW - timedelta(minutes=30)
+        )
+        last = await _run(db, org, agent, conversation_id=thread.id, started_at=_NOW)
 
         service = AgentRunnerService(db)
         ctx = _ctx(org, user)
@@ -405,24 +415,33 @@ class TestSortingByHowLongItTook:
         assert await service.neighbor_run_ids(ctx, first) == (None, middle.id)
         assert await service.neighbor_run_ids(ctx, last) == (middle.id, None)
 
-    async def test_a_run_that_never_started_sits_outside_every_timeline(self, db) -> None:
+    async def test_a_run_outside_any_timeline_has_no_neighbours(self, db) -> None:
+        """Never started, or never conversational - neither has a thread to walk."""
         org, user = await _org(db)
         agent = await _agent(db, org)
-        await _run(db, org, agent, started_at=_NOW)
-        unstarted = await _run(db, org, agent, started_at=None)
+        thread = Conversation(id=uuid.uuid4(), organization_id=org.id, user_id=user.id)
+        db.add(thread)
+        await db.flush()
+        await _run(db, org, agent, conversation_id=thread.id, started_at=_NOW)
+        unstarted = await _run(db, org, agent, conversation_id=thread.id, started_at=None)
+        no_thread = await _run(db, org, agent, started_at=_NOW)
 
-        assert await AgentRunnerService(db).neighbor_run_ids(_ctx(org, user), unstarted) == (
-            None,
-            None,
-        )
+        service = AgentRunnerService(db)
+        ctx = _ctx(org, user)
+
+        assert await service.neighbor_run_ids(ctx, unstarted) == (None, None)
+        assert await service.neighbor_run_ids(ctx, no_thread) == (None, None)
 
     async def test_fan_out_twins_starting_in_the_same_instant_are_ordered_by_id(self, db) -> None:
         """Several delegations start in one instant; without the id tiebreak two
         of them would each claim the other as both neighbours."""
         org, user = await _org(db)
         agent = await _agent(db, org)
-        twin_a = await _run(db, org, agent, started_at=_NOW)
-        twin_b = await _run(db, org, agent, started_at=_NOW)
+        thread = Conversation(id=uuid.uuid4(), organization_id=org.id, user_id=user.id)
+        db.add(thread)
+        await db.flush()
+        twin_a = await _run(db, org, agent, conversation_id=thread.id, started_at=_NOW)
+        twin_b = await _run(db, org, agent, conversation_id=thread.id, started_at=_NOW)
         low, high = sorted([twin_a, twin_b], key=lambda run: run.id)
 
         service = AgentRunnerService(db)

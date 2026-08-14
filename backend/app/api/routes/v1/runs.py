@@ -197,7 +197,7 @@ async def export_runs(
     "/runs/{run_id}", response_model=AgentRunRead, dependencies=[Depends(require(Perm.RUNS_VIEW))]
 )
 async def get_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
-    """One run, its trace link, and its neighbours in the agent's history.
+    """One run, its trace link, and its neighbours in its conversation.
 
     `logfire_url` is on this read and not on the list: resolving it needs the
     version's stored spec, because an agent may redirect its traces to a client's

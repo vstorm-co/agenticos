@@ -61,15 +61,15 @@ class AgentRunRead(BaseSchema):
     prev_run_id: UUID | None = Field(
         default=None,
         description=(
-            "The run before this one in its agent's own history, by start time - "
+            "The run before this one in its own conversation, by start time - "
             "how a run detail walks to its neighbours. Sent on the single-run "
             "read only, like `logfire_url`; null at the history's edge, and on "
-            "a run that never started"
+            "a run that never started or ran with no conversation"
         ),
     )
     next_run_id: UUID | None = Field(
         default=None,
-        description="The run after this one in its agent's own history. See `prev_run_id`",
+        description="The run after this one in its own conversation. See `prev_run_id`",
     )
     error: str | None = None
     conversation_id: UUID | None = Field(
