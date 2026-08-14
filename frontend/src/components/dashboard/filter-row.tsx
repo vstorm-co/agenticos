@@ -1,34 +1,24 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarRange, ListFilter } from "lucide-react";
+import { ListFilter } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import {
   Button,
-  DateRangePicker,
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuTrigger,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
 } from "@/components/ui";
+import { PeriodControl } from "@/components/dashboard/period-control";
 import { useApprovals, usePermissions } from "@/hooks";
 import { useOrgStore } from "@/stores";
 import { ROUTES } from "@/lib/constants";
 import type { SectionDef } from "@/lib/dashboard/layouts";
-import {
-  customPeriod,
-  PERIOD_PRESETS,
-  resolvePreset,
-  type Period,
-  type PeriodPreset,
-} from "@/lib/dashboard/period";
+import type { Period } from "@/lib/dashboard/period";
 import { filterableSectionIds } from "@/lib/dashboard/sections";
 import { Perm } from "@/types/permissions";
-import { cn } from "@/lib/utils";
 
 interface FilterRowProps {
   period: Period;
@@ -58,51 +48,7 @@ export function FilterRow({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div
-        className="flex flex-wrap items-center gap-1"
-        role="group"
-        aria-label={t("period.label")}
-      >
-        {PERIOD_PRESETS.map((preset: PeriodPreset) => (
-          <button
-            key={preset}
-            type="button"
-            aria-pressed={period.preset === preset}
-            onClick={() => onPeriodChange(resolvePreset(preset))}
-            className={cn(
-              "rounded-md px-2.5 py-1 text-xs",
-              period.preset === preset
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:bg-accent hover:text-foreground",
-            )}
-          >
-            {t(`period.${preset}`)}
-          </button>
-        ))}
-        <Popover>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              aria-pressed={period.preset === "custom"}
-              className={cn(
-                "flex items-center gap-1 rounded-md px-2.5 py-1 text-xs",
-                period.preset === "custom"
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-foreground",
-              )}
-            >
-              <CalendarRange className="size-3.5" aria-hidden />
-              {period.preset === "custom" ? `${period.from} – ${period.to}` : t("period.custom")}
-            </button>
-          </PopoverTrigger>
-          <PopoverContent align="start" className="w-auto p-4">
-            <DateRangePicker
-              value={period.preset === "custom" ? { from: period.from, to: period.to } : null}
-              onChange={(range) => onPeriodChange(customPeriod(range.from, range.to))}
-            />
-          </PopoverContent>
-        </Popover>
-      </div>
+      <PeriodControl period={period} onChange={onPeriodChange} />
 
       {filterable.length > 1 ? (
         <DropdownMenu>

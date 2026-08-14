@@ -83,7 +83,7 @@ describe("Activity, arriving from the Builder", () => {
     // Including what the agent did as somebody's delegate: narrowed to one
     // agent, that is the only record of what it itself cost.
     expect(runsCalls().map((call) => call[1])).toContainEqual({
-      params: { agent_id: "agent-42", include_delegations: "true" },
+      params: expect.objectContaining({ agent_id: "agent-42", include_delegations: "true" }),
     });
   });
 
@@ -97,7 +97,7 @@ describe("Activity, arriving from the Builder", () => {
 
     await waitFor(() => expect(runsCalls()).not.toHaveLength(0));
     // No `agent_id`, so it is still the organization's count - and windowed to
-    // the calendar month, which is what makes it comparable to the money beside
+    // the page's period, which is what makes it comparable to the money beside
     // it rather than a total since the organization was created (#198).
     const organizationCall = runsCalls()
       .map((call) => call[1])
@@ -109,11 +109,18 @@ describe("Activity, arriving from the Builder", () => {
     render(<RunsPage />, { wrapper });
     await openRunHistory();
 
-    // Unnarrowed and unwindowed: run history is every top-level run, where the
-    // count above it is one calendar month. Found rather than taken as the first
-    // call - the figures ask for their own windowed count, and which of the two
-    // lands first is not this test's subject.
-    await waitFor(() => expect(runsCalls().map((call) => call[1])).toContainEqual(undefined));
+    // Unnarrowed to any agent, but always windowed: every request this page
+    // makes carries the period control's instants, table included (#760).
+    await waitFor(() => {
+      const unnarrowed = runsCalls()
+        .map((call) => call[1])
+        .filter((options) => options?.params?.agent_id === undefined);
+      expect(unnarrowed.length).toBeGreaterThan(0);
+      for (const options of unnarrowed) {
+        expect(options?.params?.started_from).toBeDefined();
+        expect(options?.params?.started_to).toBeDefined();
+      }
+    });
   });
 
   it("says the table is narrowed, and offers the way out", async () => {

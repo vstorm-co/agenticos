@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import messages from "../../../messages/en.json";
 import { RunHistoryTab } from "./run-history-tab";
+import type { Period } from "@/lib/dashboard/period";
 import type { AgentRun } from "@/types/runs";
 
 /**
@@ -50,10 +51,12 @@ function aRun(): AgentRun {
   };
 }
 
+const PERIOD: Period = { preset: "30d", from: "2026-07-16", to: "2026-08-14" };
+
 function renderTab(props: Partial<Parameters<typeof RunHistoryTab>[0]> = {}) {
   return render(
     <NextIntlClientProvider locale="en" messages={messages}>
-      <RunHistoryTab agentId={null} focusedRunId={null} {...props} />
+      <RunHistoryTab agentId={null} focusedRunId={null} period={PERIOD} {...props} />
     </NextIntlClientProvider>,
   );
 }
@@ -78,12 +81,12 @@ beforeEach(() => {
 });
 
 describe("run history controls", () => {
-  it("opens on the feed - newest first, unfiltered", () => {
+  it("opens on the feed - newest first, over the page's window", () => {
     renderTab();
 
     expect(lastOptions()).toEqual({
-      startedFrom: undefined,
-      startedTo: undefined,
+      startedFrom: "2026-07-16T00:00:00.000Z",
+      startedTo: "2026-08-14T23:59:59.999Z",
       orderBy: "started_at",
       descending: true,
       tookOverMs: undefined,
@@ -96,11 +99,10 @@ describe("run history controls", () => {
     expect(lastOptions()).toMatchObject({ orderBy: "duration", descending: true });
   });
 
-  it("carries the p95 link's window through to the query", () => {
-    renderTab({
-      startedFrom: "2026-08-01T00:00:00.000Z",
-      startedTo: "2026-08-31T23:59:59.999Z",
-    });
+  it("widens the window's dates into whole-day instants for the query", () => {
+    // The period is inclusive whole days, so the last day must reach its final
+    // instant - cut at midnight it silently drops the day the reader picked.
+    renderTab({ period: { preset: "custom", from: "2026-08-01", to: "2026-08-31" } });
 
     expect(lastOptions()).toMatchObject({
       startedFrom: "2026-08-01T00:00:00.000Z",
@@ -211,7 +213,7 @@ describe("run history controls", () => {
     await userEvent.click(screen.getByRole("option", { name: "slack" }));
 
     expect(screen.getByText("No runs match these filters")).toBeInTheDocument();
-    expect(screen.queryByText("No runs yet")).not.toBeInTheDocument();
+    expect(screen.queryByText("No runs in this window")).not.toBeInTheDocument();
   });
 
   it("keeps the export inside the card, beside the filters it exports the result of", () => {

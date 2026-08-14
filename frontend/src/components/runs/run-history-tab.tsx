@@ -27,6 +27,7 @@ import {
 } from "@/components/ui";
 import { usePermissions, useRuns } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
+import { periodEnd, periodStart, type Period } from "@/lib/dashboard/period";
 import { Perm } from "@/types/permissions";
 import type { RunStatus } from "@/types/runs";
 
@@ -63,11 +64,11 @@ const PROBLEM_STATUSES: RunStatus[] = ["failed", "budget_exceeded"];
  * control that would 403 is not rendered - and a filtered-empty list says it was
  * the filter, not that nothing has ever run.
  *
- * `initialDurationSort`, `startedFrom` and `startedTo` are how the dashboard's
- * p95 figure hands over: it links here sorted by duration over the same window,
- * so the sort and the window arrive already chosen and this tab opens on *those
- * runs* rather than on the feed. The sort is then the reader's to change through
- * the Took header or the canned views.
+ * `period` is the page's window - the one control every tab shares - and
+ * `initialDurationSort` is how the dashboard's p95 figure hands over: it links
+ * here sorted by duration with the window already in the URL, so this tab opens
+ * on *those runs* rather than on the feed. The sort is then the reader's to
+ * change through the Took header or the canned views.
  *
  * A failed request is said out loud. `?run=` is delegated to `FocusedRun`, which
  * has its own two answers for a run that is gone versus a request that did not
@@ -77,15 +78,13 @@ const PROBLEM_STATUSES: RunStatus[] = ["failed", "budget_exceeded"];
 export function RunHistoryTab({
   agentId,
   focusedRunId,
+  period,
   initialDurationSort = false,
-  startedFrom = null,
-  startedTo = null,
 }: {
   agentId: string | null;
   focusedRunId: string | null;
+  period: Period;
   initialDurationSort?: boolean;
-  startedFrom?: string | null;
-  startedTo?: string | null;
 }) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("pages.runs");
@@ -103,8 +102,8 @@ export function RunHistoryTab({
   const [minDurationMs, setMinDurationMs] = useState<number | null>(null);
 
   const { runs, isLoading, error, refetch } = useRuns(agentId ?? undefined, {
-    startedFrom: startedFrom ?? undefined,
-    startedTo: startedTo ?? undefined,
+    startedFrom: periodStart(period),
+    startedTo: periodEnd(period),
     orderBy: sort.by,
     descending: sort.dir === "desc",
     tookOverMs: minDurationMs ?? undefined,
@@ -132,7 +131,9 @@ export function RunHistoryTab({
           the same figure the dashboard's Outcomes donut shows (§8a.4). A
           per-version summary makes no sense over a single focused run, so it is
           not drawn when `?run=` has narrowed the card below to one. */}
-      {agentId !== null && focusedRunId === null && <VersionStrip agentId={agentId} />}
+      {agentId !== null && focusedRunId === null && (
+        <VersionStrip agentId={agentId} period={period} />
+      )}
       <Card>
         <CardHeader>
           <div className="flex items-start justify-between gap-4">
@@ -167,6 +168,7 @@ export function RunHistoryTab({
                       : { agent_id: agentId, include_delegations: "true" }
                   }
                   rangeParams={{ from: "started_from", to: "started_to" }}
+                  range={{ from: periodStart(period), to: periodEnd(period) }}
                 />
               </div>
             )}
@@ -268,7 +270,7 @@ export function RunHistoryTab({
                     description={t("nothingHereWasRatedDown")}
                   />
                 ) : narrowed ? (
-                  // The filters emptied it, not the organization: "no runs yet"
+                  // The filters emptied it, not the organization: "no runs"
                   // over a narrowed list reads as a history that never happened.
                   <EmptyState
                     icon={Activity}
@@ -276,10 +278,13 @@ export function RunHistoryTab({
                     description={t("loosenAFilterAbove")}
                   />
                 ) : (
+                  // The window is always a narrowing too - an organization
+                  // whose runs are all older than it must not be told nothing
+                  // has ever run.
                   <EmptyState
                     icon={Activity}
-                    title={t("noRunsYet")}
-                    description={t("nothingHasRun")}
+                    title={t("noRunsInWindow")}
+                    description={t("widenTheWindowAbove")}
                   />
                 )
               ) : (

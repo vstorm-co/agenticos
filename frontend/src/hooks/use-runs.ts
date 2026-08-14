@@ -192,7 +192,13 @@ export function useApprovals(options?: { enabled?: boolean }) {
 }
 
 /**
- * Month-to-date spend and its breakdowns.
+ * Spend and its breakdowns, over a rolling window or an explicit one.
+ *
+ * The two window shapes are `GET /spend`'s own: a number of days for the
+ * callers that only ever want "the last month or so" (the dashboard widgets,
+ * the spending-limit control), an explicit `from`/`to` for the Activity page,
+ * whose picker can name a range no rolling count reaches. `month_to_date_usd`
+ * ignores the window either way - it is the invoice-reconciliation figure.
  *
  * Carries the dashboard's freshness even though the runs page and the
  * organization's spending-limit control read it too: a spend figure is the
@@ -204,10 +210,16 @@ export function useApprovals(options?: { enabled?: boolean }) {
  * the same "nothing spent yet", and on a page about money the wrong one of those
  * is the reassuring one.
  */
-export function useSpend(days = 30) {
+export function useSpend(window: number | { from: string; to: string } = 30) {
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: qk.runs.spend(days),
-    queryFn: () => apiClient.get<CostSummary>("/spend", { params: { days: String(days) } }),
+    queryKey: qk.runs.spend(window),
+    queryFn: () =>
+      apiClient.get<CostSummary>("/spend", {
+        params:
+          typeof window === "number"
+            ? { days: String(window) }
+            : { from: window.from, to: window.to },
+      }),
     ...DASHBOARD_FRESHNESS,
   });
   return { spend: data, isLoading, error, refetch };

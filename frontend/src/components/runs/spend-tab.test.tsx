@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SpendTab } from "./spend-tab";
+import type { Period } from "@/lib/dashboard/period";
 import { apiClient } from "@/lib/api-client";
 import type { CostByAgent, CostSummary } from "@/types/runs";
 
@@ -23,6 +24,8 @@ vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
   return { ...actual, apiClient: { ...actual.apiClient, get: vi.fn() } };
 });
+
+const PERIOD: Period = { preset: "30d", from: "2026-07-16", to: "2026-08-14" };
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -61,7 +64,7 @@ describe("the spend breakdown by vendor and by key", () => {
       ],
     });
 
-    render(<SpendTab />, { wrapper });
+    render(<SpendTab period={PERIOD} />, { wrapper });
 
     expect(await screen.findByText("openai")).toBeVisible();
     expect(row("openai")).toHaveTextContent("$1.5000");
@@ -75,7 +78,7 @@ describe("the spend breakdown by vendor and by key", () => {
     // it would disagree, and nothing on screen would say why.
     serve({ by_provider: [{ provider: null, cost_usd: "0.4000", run_count: 2 }] });
 
-    render(<SpendTab />, { wrapper });
+    render(<SpendTab period={PERIOD} />, { wrapper });
 
     expect(await screen.findByText("Not recorded")).toBeVisible();
     expect(row("Not recorded")).toHaveTextContent("$0.4000");
@@ -90,7 +93,7 @@ describe("the spend breakdown by vendor and by key", () => {
       ],
     });
 
-    render(<SpendTab />, { wrapper });
+    render(<SpendTab period={PERIOD} />, { wrapper });
 
     expect(await screen.findByText("OpenAI · production")).toBeVisible();
     expect(row("OpenAI · production")).toHaveTextContent("$2.0000");
@@ -100,7 +103,7 @@ describe("the spend breakdown by vendor and by key", () => {
     // Rotating a key must not silently take its spend out of the history.
     serve({ by_key: [{ secret_id: null, label: null, cost_usd: "0.7500", run_count: 4 }] });
 
-    render(<SpendTab />, { wrapper });
+    render(<SpendTab period={PERIOD} />, { wrapper });
 
     expect(await screen.findByText("Deleted key")).toBeVisible();
     expect(row("Deleted key")).toHaveTextContent("$0.7500");
@@ -109,7 +112,7 @@ describe("the spend breakdown by vendor and by key", () => {
   it("says nothing spent when a breakdown genuinely has no rows", async () => {
     serve({});
 
-    render(<SpendTab />, { wrapper });
+    render(<SpendTab period={PERIOD} />, { wrapper });
 
     // Three: one per vendor-and-key breakdown, and one for the per-agent card,
     // which has a message of its own with the same wording. And it is the empty
@@ -127,7 +130,7 @@ describe("the unpriced-runs caveat over the whole window", () => {
     // treating the totals as exact.
     serve({ partial_run_count: 3, month_to_date_usd: "31.20" });
 
-    render(<SpendTab />, { wrapper });
+    render(<SpendTab period={PERIOD} />, { wrapper });
 
     expect(await screen.findByText(/3 runs in this window could not be priced/)).toBeVisible();
   });
@@ -135,7 +138,7 @@ describe("the unpriced-runs caveat over the whole window", () => {
   it("says nothing when every run in the window was priced", async () => {
     serve({ partial_run_count: 0 });
 
-    render(<SpendTab />, { wrapper });
+    render(<SpendTab period={PERIOD} />, { wrapper });
 
     expect(await screen.findByText("By provider")).toBeVisible();
     expect(screen.queryByText(/could not be priced/)).toBeNull();
@@ -166,7 +169,7 @@ describe("the spend breakdown by agent", () => {
     // rows with no agent named on either.
     serve({ by_agent: [agentRow()] });
 
-    render(<SpendTab />, { wrapper });
+    render(<SpendTab period={PERIOD} />, { wrapper });
 
     expect(await screen.findByText("Billing clerk")).toBeVisible();
     expect(row("Billing clerk")).toHaveTextContent("5 runs");
@@ -176,7 +179,7 @@ describe("the spend breakdown by agent", () => {
   it("groups one agent into one row whatever it ran on", async () => {
     serve({ by_agent: [agentRow(), agentRow({ agent_id: "agent-2", agent_name: "Researcher" })] });
 
-    render(<SpendTab />, { wrapper });
+    render(<SpendTab period={PERIOD} />, { wrapper });
 
     expect(await screen.findByText("Billing clerk")).toBeVisible();
     expect(screen.getByText("Researcher")).toBeVisible();
@@ -188,7 +191,7 @@ describe("the spend breakdown by agent", () => {
     // a bare figure a reader has to take on trust is not.
     serve({ by_agent: [agentRow({ run_count: 40, partial_run_count: 3 })] });
 
-    render(<SpendTab />, { wrapper });
+    render(<SpendTab period={PERIOD} />, { wrapper });
 
     expect(await screen.findByText("3 unpriced")).toBeVisible();
   });
@@ -196,7 +199,7 @@ describe("the spend breakdown by agent", () => {
   it("says nothing about pricing when every run was priced", async () => {
     serve({ by_agent: [agentRow({ partial_run_count: 0 })] });
 
-    render(<SpendTab />, { wrapper });
+    render(<SpendTab period={PERIOD} />, { wrapper });
 
     expect(await screen.findByText("Billing clerk")).toBeVisible();
     expect(screen.queryByText(/unpriced/)).toBeNull();
@@ -205,7 +208,7 @@ describe("the spend breakdown by agent", () => {
   it("still accounts for an agent that has since been deleted", async () => {
     serve({ by_agent: [agentRow({ agent_name: null })] });
 
-    render(<SpendTab />, { wrapper });
+    render(<SpendTab period={PERIOD} />, { wrapper });
 
     expect(await screen.findByText("Deleted agent")).toBeVisible();
   });
@@ -213,7 +216,7 @@ describe("the spend breakdown by agent", () => {
   it("says nothing spent yet when no agent has cost anything", async () => {
     serve({ by_agent: [] });
 
-    render(<SpendTab />, { wrapper });
+    render(<SpendTab period={PERIOD} />, { wrapper });
 
     expect(await screen.findByText("Spend by agent")).toBeVisible();
     expect(screen.getByText("Last 30 days.")).toBeVisible();
@@ -232,7 +235,7 @@ describe("the window these figures cover", () => {
       to_date: "2026-07-31T00:00:00Z",
     });
 
-    render(<SpendTab />, { wrapper });
+    render(<SpendTab period={PERIOD} />, { wrapper });
 
     expect(await screen.findByText("Jul 1, 2026 to Jul 31, 2026.")).toBeVisible();
     expect(screen.queryByText(/Last 30 days/)).toBeNull();
@@ -244,7 +247,7 @@ describe("the window these figures cover", () => {
     // of the window should be.
     serve({ period_days: null, from_date: "2026-07-01T00:00:00Z", to_date: null });
 
-    render(<SpendTab />, { wrapper });
+    render(<SpendTab period={PERIOD} />, { wrapper });
 
     expect(await screen.findByText("Jul 1, 2026 to now.")).toBeVisible();
   });

@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RunHistoryTab } from "./run-history-tab";
 import { apiClient } from "@/lib/api-client";
+import type { Period } from "@/lib/dashboard/period";
 
 /**
  * The "rated down" filter on run history, and who is offered it.
@@ -32,6 +33,8 @@ function wrapper({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
+const PERIOD: Period = { preset: "30d", from: "2026-07-16", to: "2026-08-14" };
+
 /** Every `/runs` request made, with its options. */
 function runsCalls() {
   return vi.mocked(apiClient.get).mock.calls.filter(([path]) => path === "/runs");
@@ -45,18 +48,20 @@ beforeEach(() => {
 
 describe("the rated-down filter", () => {
   it("asks the server for only the rated-down runs when toggled on", async () => {
-    render(<RunHistoryTab agentId={null} focusedRunId={null} />, { wrapper });
+    render(<RunHistoryTab agentId={null} focusedRunId={null} period={PERIOD} />, { wrapper });
     await waitFor(() => expect(runsCalls()).not.toHaveLength(0));
 
     await userEvent.click(screen.getByRole("button", { name: /Rated down/ }));
 
     await waitFor(() =>
-      expect(runsCalls().map((call) => call[1])).toContainEqual({ params: { rated: "down" } }),
+      expect(runsCalls().at(-1)?.[1]).toMatchObject({
+        params: expect.objectContaining({ rated: "down" }),
+      }),
     );
   });
 
   it("says the list is empty because of the filter, not because nothing ran", async () => {
-    render(<RunHistoryTab agentId={null} focusedRunId={null} />, { wrapper });
+    render(<RunHistoryTab agentId={null} focusedRunId={null} period={PERIOD} />, { wrapper });
     await userEvent.click(screen.getByRole("button", { name: /Rated down/ }));
 
     expect(await screen.findByText("No runs rated down")).toBeVisible();
@@ -65,15 +70,15 @@ describe("the rated-down filter", () => {
   it("is not offered to a caller who may not read runs", async () => {
     perm.canView = false;
 
-    render(<RunHistoryTab agentId={null} focusedRunId={null} />, { wrapper });
+    render(<RunHistoryTab agentId={null} focusedRunId={null} period={PERIOD} />, { wrapper });
 
     expect(screen.queryByRole("button", { name: /Rated down/ })).toBeNull();
   });
 
-  it("says nothing has run when the unfiltered list is empty, not that a filter emptied it", async () => {
-    render(<RunHistoryTab agentId={null} focusedRunId={null} />, { wrapper });
+  it("blames the window when the unfiltered list is empty, not a filter and not the org", async () => {
+    render(<RunHistoryTab agentId={null} focusedRunId={null} period={PERIOD} />, { wrapper });
 
-    expect(await screen.findByText("No runs yet")).toBeVisible();
+    expect(await screen.findByText("No runs in this window")).toBeVisible();
     expect(screen.queryByText("No runs rated down")).toBeNull();
   });
 });

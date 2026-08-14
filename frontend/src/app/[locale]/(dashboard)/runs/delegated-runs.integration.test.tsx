@@ -42,11 +42,22 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 const SPEND = {
-  period_days: 30,
+  period_days: null,
   // What the organization was actually billed for the turn below: the parent
-  // once, its three delegations already inside it.
+  // once, its three delegations already inside it. The figure sums the
+  // per-agent rows, which are top-level runs only.
   month_to_date_usd: "1.00",
-  by_agent: [],
+  by_agent: [
+    {
+      agent_id: "agent-orchestrator",
+      agent_name: "Orchestrator",
+      cost_usd: "1.00",
+      run_count: 1,
+      partial_run_count: 0,
+      month_to_date_usd: "1.00",
+      monthly_cap_usd: null,
+    },
+  ],
   by_provider: [],
   by_key: [],
 };
@@ -146,7 +157,7 @@ describe("the run count and the spend beside it", () => {
 
     // One run and $1.00: the two figures are now answers to the same question.
     await waitFor(() => expect(figure(RUNS_CARD)).toHaveTextContent("1"));
-    expect(figure("Spend this month")).toHaveTextContent("$1.00");
+    expect(figure(/Over the window above/)).toHaveTextContent("$1.00");
   });
 
   it("reports the whole history rather than the length of one page", async () => {
@@ -167,9 +178,11 @@ describe("the run count and the spend beside it", () => {
     // rows and Radix mounts only the selected one, which is Approvals.
     await openRunsTab();
 
-    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/runs", undefined));
+    await waitFor(() =>
+      expect(vi.mocked(apiClient.get).mock.calls.some(([path]) => path === "/runs")).toBe(true),
+    );
     expect(apiClient.get).not.toHaveBeenCalledWith("/runs", {
-      params: { parent_run_id: expect.anything() },
+      params: expect.objectContaining({ parent_run_id: expect.anything() }),
     });
   });
 });

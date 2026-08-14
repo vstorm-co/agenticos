@@ -40,9 +40,21 @@ const params = new URLSearchParams();
 vi.mock("next/navigation", () => ({ useSearchParams: () => params }));
 
 const SPEND = {
-  period_days: 30,
+  period_days: null,
   month_to_date_usd: "12.40",
-  by_agent: [],
+  // The window figure sums these rows, so the $12.40 the test reads back is
+  // the window's spend, not the calendar month's.
+  by_agent: [
+    {
+      agent_id: "agent-1",
+      agent_name: "Agent",
+      cost_usd: "12.40",
+      run_count: 3,
+      partial_run_count: 0,
+      month_to_date_usd: "12.40",
+      monthly_cap_usd: null,
+    },
+  ],
   by_provider: [],
   by_key: [],
 };
@@ -144,8 +156,8 @@ describe("a tab whose request failed", () => {
   });
 
   it("still prints the figures above it, which come from their own requests", async () => {
-    // The month-to-date figure is `/spend`'s too, so a failed queue must not
-    // blank it - the tabs and the figures are separate answers.
+    // The spend figure is `/spend`'s too, so a failed queue must not blank
+    // it - the tabs and the figures are separate answers.
     backend("/approvals");
 
     render(<RunsPage />, { wrapper });

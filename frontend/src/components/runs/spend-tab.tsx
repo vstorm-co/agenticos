@@ -8,17 +8,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { SpendBreakdown } from "@/components/runs/spend-breakdown";
 import { SpendByPerson } from "@/components/runs/spend-by-person";
 import { useSpend } from "@/hooks";
+import { periodEnd, periodStart, type Period } from "@/lib/dashboard/period";
 import { formatDate } from "@/lib/utils";
 import type { CostSummary } from "@/types/runs";
 
 /**
  * What window these figures cover, in the terms it was asked for.
  *
- * Two shapes because `GET /spend` takes two: `days` for the "last N days"
- * presets, `from`/`to` for a calendar range - and it answers `period_days: null`
- * for the second, because a count of days beside an explicit range is a second
- * answer to a question already answered. Reading that null as a number is how a
- * range came to be captioned "Last 30 days".
+ * This tab always sends an explicit `from`/`to` - the page's period control -
+ * so `period_days` is always null here; the branch reads it anyway because the
+ * label describes the *response*, and a cached answer from the days shape must
+ * not be captioned as a range it is not.
  */
 function windowLabel(
   spend: CostSummary | undefined,
@@ -48,11 +48,14 @@ function windowLabel(
  * yet" for a 502 is the reassuring reading of the two, which is what makes it the
  * dangerous one on a page about money.
  */
-export function SpendTab() {
+export function SpendTab({ period }: { period: Period }) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("pages.runs");
   const locale = useLocale();
-  const { spend, isLoading, error, refetch } = useSpend(30);
+  const { spend, isLoading, error, refetch } = useSpend({
+    from: periodStart(period),
+    to: periodEnd(period),
+  });
 
   if (isLoading) return <LoadingState variant="stats" rows={2} />;
   if (error)
@@ -142,16 +145,11 @@ export function SpendTab() {
 
       {/* Who spent it, over the same window the breakdowns above read. The
           people rows come from `/stats/usage?group_by=user` rather than `/spend`,
-          so the window is handed over as the range this tab resolved to: the
-          `from`/`to` the caption already reflects, with an open-ended window read
-          as "up to now". Gated on runs:view inside the card, so it is absent for
-          a caller without it rather than a refused request. */}
-      {spend?.from_date != null && (
-        <SpendByPerson
-          from={spend.from_date.slice(0, 10)}
-          to={(spend.to_date ?? new Date().toISOString()).slice(0, 10)}
-        />
-      )}
+          so the window is handed over as the period's own dates - the same pair
+          everything on this page resolves from. Gated on runs:view inside the
+          card, so it is absent for a caller without it rather than a refused
+          request. */}
+      <SpendByPerson from={period.from} to={period.to} />
     </div>
   );
 }

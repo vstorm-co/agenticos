@@ -96,7 +96,7 @@ describe("the version strip and the Outcomes donut, rendered from the same rows"
     render(
       <>
         <OutcomesWidget title="Outcomes" period={PERIOD} />
-        <VersionStrip agentId="a1" />
+        <VersionStrip agentId="a1" period={PERIOD} />
       </>,
     );
 

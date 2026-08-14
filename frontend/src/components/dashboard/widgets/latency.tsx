@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 
 import { ROUTES } from "@/lib/constants";
-import type { Period } from "@/lib/dashboard/period";
+import { formatPeriodParam, type Period } from "@/lib/dashboard/period";
 import { formatMs } from "../format";
 import { WidgetFrame } from "../widget-frame";
 import type { DashboardWidgetProps } from "./types";
@@ -12,14 +12,14 @@ import { UsageBody } from "./usage-body";
 
 /**
  * Run history sorted by duration over this widget's window - where the p95
- * figure points. The dashboard reports a period as inclusive whole days, so the
- * window is widened to cover the last day rather than cut off at its midnight.
+ * figure points. The window travels as `?period=`, the same form the Activity
+ * page round-trips its own control through, so the link lands with the picker
+ * already set to the window the figure was computed over.
  */
 function slowestRunsHref(period: Period): string {
   const params = new URLSearchParams({
     sort: "duration",
-    started_from: `${period.from}T00:00:00.000Z`,
-    started_to: `${period.to}T23:59:59.999Z`,
+    period: formatPeriodParam(period),
   });
   return `${ROUTES.RUNS}?${params.toString()}`;
 }

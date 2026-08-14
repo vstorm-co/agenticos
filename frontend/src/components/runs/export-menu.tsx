@@ -5,13 +5,7 @@ import { Download } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
-import {
-  Button,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui";
+import { Button } from "@/components/ui";
 import { getErrorMessage } from "@/lib/api-error";
 import { usePermissions } from "@/hooks";
 import { apiClient } from "@/lib/api-client";
@@ -23,10 +17,6 @@ export interface RangeParams {
   from: string;
   to: string;
 }
-
-/** The windows offered, in days. The export refuses a request with no range, so
- * a control that could send none would be a button that only ever 422s. */
-const PRESET_DAYS = [7, 30, 90] as const;
 
 interface ExportMenuProps {
   /** The permission the tab is gated on. Without it the control is not rendered. */
@@ -40,6 +30,8 @@ interface ExportMenuProps {
   params?: Record<string, string>;
   /** What this endpoint names the window's start and end. */
   rangeParams: RangeParams;
+  /** The page's window, as instants - the mandatory range the endpoint demands. */
+  range: { from: string; to: string };
 }
 
 function filenameFrom(response: Response, fallback: string): string {
@@ -53,15 +45,23 @@ function filenameFrom(response: Response, fallback: string): string {
  * **Absent, not disabled, without the permission** - the same rule the tab it
  * sits on follows: a control somebody may not use is not shown greyed out and
  * then answered 403, it is not drawn at all. It carries the tab's current
- * filters plus a window, because the export refuses a request with no date range
- * and caps the rows above a ceiling; both refusals are surfaced as a toast, so a
- * range too wide to serialise is said out loud rather than downloaded empty.
+ * filters plus the page's window, because the export refuses a request with no
+ * date range and caps the rows above a ceiling; both refusals are surfaced as a
+ * toast, so a range too wide to serialise is said out loud rather than
+ * downloaded empty.
  *
- * The window is a preset here rather than the tab's own range picker, which the
- * Activity page does not have: the export needs a bounded window by design, and
- * the presets are the smallest control that always sends one.
+ * The window is the page's period control, not a preset of its own: the file
+ * is the table, and a control that exported a different window than the one on
+ * screen would be the #763 defect with dates instead of filters.
  */
-export function ExportMenu({ permission, endpoint, kind, params, rangeParams }: ExportMenuProps) {
+export function ExportMenu({
+  permission,
+  endpoint,
+  kind,
+  params,
+  rangeParams,
+  range,
+}: ExportMenuProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("pages.runs");
   const { can } = usePermissions();
@@ -69,15 +69,13 @@ export function ExportMenu({ permission, endpoint, kind, params, rangeParams }: 
 
   if (!can(permission)) return null;
 
-  const download = async (days: number) => {
+  const download = async () => {
     setBusy(true);
     try {
-      const now = new Date();
-      const from = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
       const query: Record<string, string> = {
         ...params,
-        [rangeParams.from]: from.toISOString(),
-        [rangeParams.to]: now.toISOString(),
+        [rangeParams.from]: range.from,
+        [rangeParams.to]: range.to,
       };
       const response = await apiClient.raw(endpoint, { params: query });
       saveBlob(await response.blob(), filenameFrom(response, `${kind}_export.csv`));
@@ -89,20 +87,15 @@ export function ExportMenu({ permission, endpoint, kind, params, rangeParams }: 
   };
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-1.5" disabled={busy}>
-          <Download className="size-3.5" aria-hidden />
-          {t("exportCsv")}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        {PRESET_DAYS.map((days) => (
-          <DropdownMenuItem key={days} onSelect={() => void download(days)}>
-            {t("exportRange", { days })}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <Button
+      variant="outline"
+      size="sm"
+      className="gap-1.5"
+      disabled={busy}
+      onClick={() => void download()}
+    >
+      <Download className="size-3.5" aria-hidden />
+      {t("exportCsv")}
+    </Button>
   );
 }

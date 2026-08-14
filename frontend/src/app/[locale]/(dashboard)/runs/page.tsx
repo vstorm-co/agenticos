@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { PageHeader } from "@/components/dashboard/page-header";
+import { PeriodControl } from "@/components/dashboard/period-control";
 import { ActivityFigures } from "@/components/runs/activity-figures";
 import { ApprovalsTab } from "@/components/runs/approvals-tab";
 import { ExportMenu } from "@/components/runs/export-menu";
@@ -11,6 +13,14 @@ import { SpendTab } from "@/components/runs/spend-tab";
 import { LoadingState } from "@/components/states";
 import { Badge, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
 import { useApprovals, usePermissions } from "@/hooks";
+import {
+  formatPeriodParam,
+  parsePeriodParam,
+  periodEnd,
+  periodStart,
+  type Period,
+} from "@/lib/dashboard/period";
+import { setUrlParam } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 
@@ -38,11 +48,17 @@ export default function RunsPage() {
   // reach one is to name it, and `FocusedRun` is what answers.
   const focusedRunId = searchParams.get("run");
   // The dashboard's p95 figure links here sorted by duration over the same
-  // window - the number and the runs behind it, one click apart. The tab reads
-  // the sort and the window off the URL so the link lands on *those runs*.
+  // window - the number and the runs behind it, one click apart. The sort
+  // arrives as `?sort=`, the window as `?period=` below.
   const sortParam = searchParams.get("sort");
-  const startedFrom = searchParams.get("started_from");
-  const startedTo = searchParams.get("started_to");
+  // The page's one window, shared by the figures, all three tabs and the
+  // exports - the same `?period=` vocabulary the dashboard round-trips, so a
+  // narrowed view survives a reload and travels in a pasted link.
+  const [period, setPeriod] = useState<Period>(() => parsePeriodParam(searchParams.get("period")));
+  const changePeriod = (next: Period) => {
+    setPeriod(next);
+    setUrlParam("period", formatPeriodParam(next));
+  };
   const { can, isLoading: permissionsLoading } = usePermissions();
   // Reading the queue takes the same permission as deciding one - both routes
   // carry `require(Perm.APPROVALS_DECIDE)` - so for a caller without it there is
@@ -60,7 +76,9 @@ export default function RunsPage() {
     <div className="space-y-6">
       <PageHeader title={t("activity2")} description={t("whatYourAgentsDid2")} />
 
-      <ActivityFigures canDecide={canDecide} />
+      <PeriodControl period={period} onChange={changePeriod} />
+
+      <ActivityFigures canDecide={canDecide} period={period} />
 
       {/* Not until the permission set has answered. `Tabs` is uncontrolled, so
           Radix captures `defaultValue` on first mount and never reads it again -
@@ -97,6 +115,7 @@ export default function RunsPage() {
                   endpoint="/approvals/export"
                   kind="approvals"
                   rangeParams={{ from: "created_from", to: "created_to" }}
+                  range={{ from: periodStart(period), to: periodEnd(period) }}
                 />
               </div>
               <ApprovalsTab />
@@ -109,9 +128,8 @@ export default function RunsPage() {
             <RunHistoryTab
               agentId={agentId}
               focusedRunId={focusedRunId}
+              period={period}
               initialDurationSort={sortParam === "duration"}
-              startedFrom={startedFrom}
-              startedTo={startedTo}
             />
           </TabsContent>
 
@@ -122,9 +140,10 @@ export default function RunsPage() {
                 endpoint="/spend/export"
                 kind="spend"
                 rangeParams={{ from: "from", to: "to" }}
+                range={{ from: periodStart(period), to: periodEnd(period) }}
               />
             </div>
-            <SpendTab />
+            <SpendTab period={period} />
           </TabsContent>
         </Tabs>
       )}
