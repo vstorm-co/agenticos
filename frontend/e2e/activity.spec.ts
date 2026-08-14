@@ -42,7 +42,12 @@ test.describe("Activity", () => {
       expect(response.status(), `${QUERIES[index]} did not answer`).toBe(200);
     }
 
-    await expect(page.getByText("Spend this month", { exact: true })).toBeVisible();
+    // The spend figure's caption, not its "Spend" label - the tab strip says
+    // "Spend" too, and an exact-text locator would match both (#760 renamed the
+    // figure from "Spend this month" to the page's shared window).
+    await expect(
+      page.getByText("Over the window above, so the two figures agree.", { exact: true }),
+    ).toBeVisible();
     await expect(page.getByText("Waiting on a person", { exact: true })).toBeVisible();
   });
 
