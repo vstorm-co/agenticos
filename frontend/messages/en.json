@@ -2888,7 +2888,8 @@
       "anyPerson": "Anyone",
       "versionFilter": "Filter by version",
       "anyVersion": "Any version",
-      "openTheChatBehind": "Open the chat this run happened in"
+      "openTheChatBehind": "Open the chat this run happened in",
+      "openTheTraceInLogfire": "Open the trace in Logfire"
     },
     "sandboxes": {
       "addConnection": "Add connection",

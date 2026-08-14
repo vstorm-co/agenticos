@@ -25,6 +25,13 @@ export interface AgentRun {
   /** True when a model in this run had no price; the cost is a floor. */
   cost_is_partial: boolean;
   logfire_trace_id: string | null;
+  /**
+   * Where this run's trace can be read, resolved server-side. Sent on the
+   * single-run read only - a list of fifty runs has no use for fifty trace
+   * links - and null when nothing was tracing or nowhere is configured to
+   * link to.
+   */
+  logfire_url?: string | null;
   error: string | null;
   /**
    * Whether an assistant answer this run produced was rated down by anybody -

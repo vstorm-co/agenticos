@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { Activity } from "lucide-react";
+import { Activity, ExternalLink } from "lucide-react";
 
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { useDelegatedRuns, useRun } from "@/hooks";
@@ -58,6 +58,24 @@ export function FocusedRun({ runId }: { runId: string }) {
           >
             {t("openTheRunItCame")}
           </Link>
+        </p>
+      )}
+
+      {/* The trace, where one can be read. The URL is the single-run read's
+          own field, resolved server-side because an agent may redirect its
+          traces to a client's Logfire project - so this is a link only when
+          there is genuinely somewhere to land, never a guess from the id. */}
+      {run.logfire_url != null && (
+        <p className="text-muted-foreground text-xs">
+          <a
+            href={run.logfire_url}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 underline underline-offset-4"
+          >
+            {t("openTheTraceInLogfire")}
+            <ExternalLink className="h-3 w-3" aria-hidden />
+          </a>
         </p>
       )}
 

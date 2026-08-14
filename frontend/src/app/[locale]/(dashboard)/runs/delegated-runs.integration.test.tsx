@@ -130,7 +130,7 @@ beforeEach(() => {
 });
 
 /** `/runs` answers the top level; `/runs/{id}` and `?parent_run_id=` answer the rest. */
-function backend(options: { total?: number; runFails?: Error } = {}) {
+function backend(options: { total?: number; runFails?: Error; traceUrl?: string } = {}) {
   vi.mocked(apiClient.get).mockImplementation((path: string, init?: unknown) => {
     if (path === "/spend") return Promise.resolve(SPEND);
     if (path === "/runs/run-child-1") {
@@ -138,7 +138,13 @@ function backend(options: { total?: number; runFails?: Error } = {}) {
         ? Promise.resolve(DELEGATED[0])
         : Promise.reject(options.runFails);
     }
-    if (path === "/runs/run-parent") return Promise.resolve(run());
+    if (path === "/runs/run-parent") {
+      // The trace link is the single-run read's own field, so it is served
+      // here and nowhere else - exactly as the API sends it.
+      return Promise.resolve(
+        options.traceUrl === undefined ? run() : run({ logfire_url: options.traceUrl }),
+      );
+    }
     if (path === "/runs") {
       const params = (init as { params?: Record<string, string> } | undefined)?.params;
       if (params?.parent_run_id === "run-parent") {
@@ -286,5 +292,32 @@ describe("one run and what it delegated", () => {
     await openRunsTab();
 
     expect(await screen.findByText("That run could not be read")).toBeVisible();
+  });
+});
+
+describe("the trace behind a run", () => {
+  it("links to Logfire when the server resolved somewhere to land", async () => {
+    params.set("run", "run-parent");
+    backend({ traceUrl: "https://logfire.pydantic.dev/acme/agents/traces/abc123" });
+
+    render(<RunsPage />, { wrapper });
+    await openRunsTab();
+
+    const link = await screen.findByRole("link", { name: /Open the trace in Logfire/ });
+    expect(link).toHaveAttribute("href", "https://logfire.pydantic.dev/acme/agents/traces/abc123");
+    expect(link).toHaveAttribute("target", "_blank");
+  });
+
+  it("offers no trace link when nothing was tracing", async () => {
+    // Null means no LOGFIRE_TOKEN or nowhere configured to link to - a dead
+    // link dressed as observability would be worse than none.
+    params.set("run", "run-parent");
+    backend();
+
+    render(<RunsPage />, { wrapper });
+    await openRunsTab();
+
+    await screen.findByRole("table");
+    expect(screen.queryByRole("link", { name: /Open the trace in Logfire/ })).toBeNull();
   });
 });
