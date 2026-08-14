@@ -980,4 +980,34 @@
       background: var(--color-card);
     }
   }
+
+  /* The wallpaper the glass frosts. A sidebar sits beside the content, so it
+     has nothing to blur - what macOS blurs behind its sidebars is the desktop.
+     This is that desktop: three soft washes of the one accent hue, fixed
+     behind everything (negative z, painted above the canvas background and
+     below all flow content), so a translucent column has colour to pull
+     through in both themes. Brand hue only - the surfaces stay neutral and
+     the accent stays the accent. */
+  .ambient-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: -10;
+    pointer-events: none;
+    background:
+      radial-gradient(
+        720px circle at 8% 12%,
+        color-mix(in oklab, var(--brand-400) 26%, transparent),
+        transparent 65%
+      ),
+      radial-gradient(
+        860px circle at 92% 6%,
+        color-mix(in oklab, var(--brand-300) 20%, transparent),
+        transparent 60%
+      ),
+      radial-gradient(
+        1000px circle at 80% 98%,
+        color-mix(in oklab, var(--brand-500) 20%, transparent),
+        transparent 65%
+      );
+  }
 }
