@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Any, Literal, cast
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, and_, func, or_, select
+from sqlalchemy import ColumnElement, and_, func, or_, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -177,6 +177,44 @@ async def get_run(db: AsyncSession, run_id: UUID, *, organization_id: UUID) -> A
         select(AgentRun).where(AgentRun.id == run_id, AgentRun.organization_id == organization_id)
     )
     return result.scalar_one_or_none()
+
+
+async def neighbor_run_ids(db: AsyncSession, run: AgentRun) -> tuple[UUID | None, UUID | None]:
+    """The runs either side of this one in its agent's own history, by start time.
+
+    How a run detail walks to its neighbours without going back to the list.
+    Same agent, delegations included - what *this agent* did before and after,
+    which is the question a reader stepping through a failure is asking. The
+    order is `(started_at, id)`, the id breaking ties the same way `list_runs`
+    pages: a fan-out starts several runs in the same instant, and without the
+    tiebreak two of them would each claim the other as both neighbours.
+
+    A run that never started sits outside every timeline, so it has none.
+    """
+    if run.started_at is None:
+        return None, None
+    position = tuple_(AgentRun.started_at, AgentRun.id)
+    anchor = tuple_(run.started_at, run.id)
+    base = select(AgentRun.id).where(
+        AgentRun.organization_id == run.organization_id,
+        AgentRun.agent_id == run.agent_id,
+        AgentRun.started_at.is_not(None),
+    )
+    prev_id = (
+        await db.execute(
+            base.where(position < anchor)
+            .order_by(AgentRun.started_at.desc(), AgentRun.id.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    next_id = (
+        await db.execute(
+            base.where(position > anchor)
+            .order_by(AgentRun.started_at.asc(), AgentRun.id.asc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    return prev_id, next_id
 
 
 async def claim_parked_run(

@@ -258,3 +258,35 @@ class TestTheDownRatedMarkerReachesTheRow:
 
         assert response.status_code == 200
         service.down_rated_run_ids.assert_not_awaited()
+
+
+class TestTheDetailReadCarriesItsNeighbours:
+    """`prev_run_id`/`next_run_id` ride the single-run read, like `logfire_url` -
+    a detail view walks to its neighbours, a list already is the neighbours."""
+
+    async def test_prev_and_next_ride_the_single_run_read(self):
+        run = AgentRun(
+            id=uuid4(),
+            organization_id=_ORGANIZATION_ID,
+            agent_id=uuid4(),
+            surface="web",
+            status="completed",
+            input_tokens=10,
+            output_tokens=5,
+            cost_usd=Decimal("0.01"),
+            cost_is_partial=False,
+        )
+        prev_id, next_id = uuid4(), uuid4()
+        service = _service()
+        service.get_run = AsyncMock(return_value=run)
+        service.down_rated_run_ids = AsyncMock(return_value=set())
+        service.trace_url = AsyncMock(return_value=None)
+        service.neighbor_run_ids = AsyncMock(return_value=(prev_id, next_id))
+
+        async with _client(service) as client:
+            response = await client.get(f"/api/v1/runs/{run.id}")
+
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["prev_run_id"] == str(prev_id)
+        assert body["next_run_id"] == str(next_id)

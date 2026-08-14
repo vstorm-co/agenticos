@@ -386,6 +386,51 @@ class TestSortingByHowLongItTook:
         assert heaviest_first == [str(heavy.id), str(chatty.id), str(light.id)]
         assert lightest_first == [str(light.id), str(chatty.id), str(heavy.id)]
 
+    async def test_a_runs_neighbours_are_its_agents_own_by_start_time(self, db) -> None:
+        """The detail view walks the agent's history without going back to the
+        list; another agent's run between the timestamps is not a neighbour, and
+        the edges answer null on their open side."""
+        org, user = await _org(db)
+        agent = await _agent(db, org)
+        other = await _agent(db, org)
+        first = await _run(db, org, agent, started_at=_NOW - timedelta(hours=2))
+        await _run(db, org, other, started_at=_NOW - timedelta(hours=1))
+        middle = await _run(db, org, agent, started_at=_NOW - timedelta(minutes=30))
+        last = await _run(db, org, agent, started_at=_NOW)
+
+        service = AgentRunnerService(db)
+        ctx = _ctx(org, user)
+
+        assert await service.neighbor_run_ids(ctx, middle) == (first.id, last.id)
+        assert await service.neighbor_run_ids(ctx, first) == (None, middle.id)
+        assert await service.neighbor_run_ids(ctx, last) == (middle.id, None)
+
+    async def test_a_run_that_never_started_sits_outside_every_timeline(self, db) -> None:
+        org, user = await _org(db)
+        agent = await _agent(db, org)
+        await _run(db, org, agent, started_at=_NOW)
+        unstarted = await _run(db, org, agent, started_at=None)
+
+        assert await AgentRunnerService(db).neighbor_run_ids(_ctx(org, user), unstarted) == (
+            None,
+            None,
+        )
+
+    async def test_fan_out_twins_starting_in_the_same_instant_are_ordered_by_id(self, db) -> None:
+        """Several delegations start in one instant; without the id tiebreak two
+        of them would each claim the other as both neighbours."""
+        org, user = await _org(db)
+        agent = await _agent(db, org)
+        twin_a = await _run(db, org, agent, started_at=_NOW)
+        twin_b = await _run(db, org, agent, started_at=_NOW)
+        low, high = sorted([twin_a, twin_b], key=lambda run: run.id)
+
+        service = AgentRunnerService(db)
+        ctx = _ctx(org, user)
+
+        assert await service.neighbor_run_ids(ctx, low) == (None, high.id)
+        assert await service.neighbor_run_ids(ctx, high) == (low.id, None)
+
     async def test_the_default_order_is_still_the_feed(self, db) -> None:
         org, user = await _org(db)
         agent = await _agent(db, org)

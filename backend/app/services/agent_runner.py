@@ -3350,6 +3350,17 @@ class AgentRunnerService:
             raise NotFoundError(message="Run not found", details={"run_id": str(run_id)})
         return run
 
+    async def neighbor_run_ids(
+        self, ctx: AuthContext, run: AgentRun
+    ) -> tuple[UUID | None, UUID | None]:
+        """The runs either side of `run` in its agent's history, for the detail view.
+
+        Takes the run rather than an id because every caller has already been
+        through :meth:`get_run`, whose organization filter is the authorization -
+        the row in hand is proof the caller may ask about its neighbours.
+        """
+        return await agent_run_repo.neighbor_run_ids(self.db, run)
+
     async def get_run_transcript(
         self, ctx: AuthContext, run_id: UUID, *, skip: int = 0, limit: int = 100
     ) -> tuple[AgentRun, list[Message], int]:
