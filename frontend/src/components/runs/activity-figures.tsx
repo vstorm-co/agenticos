@@ -36,13 +36,13 @@ import { periodEnd, periodStart, type Period } from "@/lib/dashboard/period";
  */
 export function ActivityFigures({ canDecide, period }: { canDecide: boolean; period: Period }) {
   const t = useTranslations("pages.runs");
-  const window = { from: periodStart(period), to: periodEnd(period) };
-  const { spend, isLoading: spendLoading, error: spendError } = useSpend(window);
+  const range = { from: periodStart(period), to: periodEnd(period) };
+  const { spend, isLoading: spendLoading, error: spendError } = useSpend(range);
   const {
     total: organizationRuns,
     isLoading: runsLoading,
     error: runsError,
-  } = useRuns(undefined, { startedFrom: window.from, startedTo: window.to });
+  } = useRuns(undefined, { startedFrom: range.from, startedTo: range.to });
   // `total`, not the length of the page. `GET /approvals` answers fifty rows at
   // a time and nothing here asks for more, so a queue of a hundred and twenty
   // read "50" and went on reading it however long the queue grew - the same

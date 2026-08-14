@@ -122,7 +122,7 @@ export const qk = {
     approvals: () => ["runs", "approvals"] as const,
     // A rolling day count and an explicit range are different answers, so the
     // window descriptor is the key, whichever shape it takes.
-    spend: (window: number | { from: string; to: string }) => ["runs", "spend", window] as const,
+    spend: (range: number | { from: string; to: string }) => ["runs", "spend", range] as const,
     /** Failed or out-of-budget runs, for the dashboard's recent-failures card. */
     failures: (limit: number) => ["runs", "failures", limit] as const,
   },

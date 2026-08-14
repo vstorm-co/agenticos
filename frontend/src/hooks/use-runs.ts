@@ -233,15 +233,13 @@ export function useApprovals(options?: { enabled?: boolean }) {
  * the same "nothing spent yet", and on a page about money the wrong one of those
  * is the reassuring one.
  */
-export function useSpend(window: number | { from: string; to: string } = 30) {
+export function useSpend(range: number | { from: string; to: string } = 30) {
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: qk.runs.spend(window),
+    queryKey: qk.runs.spend(range),
     queryFn: () =>
       apiClient.get<CostSummary>("/spend", {
         params:
-          typeof window === "number"
-            ? { days: String(window) }
-            : { from: window.from, to: window.to },
+          typeof range === "number" ? { days: String(range) } : { from: range.from, to: range.to },
       }),
     ...DASHBOARD_FRESHNESS,
   });
