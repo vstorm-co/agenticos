@@ -75,12 +75,9 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
   platform: { id: "platform", gate: adminOnly, defaultSpan: "s8", seeAll: ROUTES.ADMIN },
   health: { id: "health", gate: adminOnly, defaultSpan: "s4", seeAll: ROUTES.ADMIN_SYSTEM },
   "top-orgs": { id: "top-orgs", gate: adminOnly, defaultSpan: "s7", seeAll: ROUTES.ADMIN },
-  "platform-ratings": {
-    id: "platform-ratings",
-    gate: adminOnly,
-    defaultSpan: "s5",
-    seeAll: ROUTES.ADMIN_RATINGS,
-  },
+  // No seeAll: the deployment-wide ratings page left with the admin overhaul -
+  // ratings are read where the runs are, on the Activity page, per org.
+  "platform-ratings": { id: "platform-ratings", gate: adminOnly, defaultSpan: "s5" },
   runs: { id: "runs", gate: holds(Perm.runsView), defaultSpan: "s8", seeAll: ROUTES.RUNS },
   outcomes: { id: "outcomes", gate: holds(Perm.runsView), defaultSpan: "s4", seeAll: ROUTES.RUNS },
   surfaces: { id: "surfaces", gate: holds(Perm.runsView), defaultSpan: "s6" },

@@ -1,32 +1,18 @@
 "use client";
 
-import { useState } from "react";
-import { Download, FolderOpen } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Download, MessageSquare } from "lucide-react";
 
-import {
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Skeleton,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui";
+import { Badge, Button, DataTable, ListCard, Skeleton, type Column } from "@/components/ui";
 import Link from "next/link";
 
+import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { FileIcon, FileViewer } from "@/components/files";
 import { useAllWorkspaceFiles, useSandboxWorkspaces } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { workspaceFileAccess } from "@/lib/workspace-files";
 import { formatBytes } from "@/lib/utils";
-import type { FlatFile } from "@/lib/sandbox-workspaces-api";
+import type { FlatFile, WorkspaceSummary } from "@/lib/sandbox-workspaces-api";
 import { useTranslations } from "next-intl";
 
 /** One file's identity across workspaces: the same path exists in several. */
@@ -65,21 +51,123 @@ export function WorkspaceBrowser() {
   const { workspaces, isLoading, error } = useSandboxWorkspaces();
   const [flat, setFlat] = useState(false);
 
+  const columns = useMemo<Column<WorkspaceSummary>[]>(
+    () => [
+      {
+        key: "agent",
+        header: t("agent"),
+        sortable: true,
+        sortValue: (workspace) => workspace.agent_name,
+        cell: (workspace) => (
+          <span className="flex items-center gap-2 font-medium">
+            {/* Decorative beside the name it initials - the presentation
+                every list of agents draws. */}
+            <span aria-hidden>
+              <AgentAvatar
+                agentId={workspace.agent_id}
+                name={workspace.agent_name}
+                hasAvatar={workspace.agent_has_avatar}
+                size="sm"
+              />
+            </span>
+            {workspace.agent_name}
+          </span>
+        ),
+      },
+      {
+        key: "conversation",
+        header: t("conversation"),
+        cell: (workspace) =>
+          /* A conversation-scoped workspace has exactly one chat; a shared
+             one has however many the agent has answered in, and that number
+             is the difference between "my files" and "everybody's". The
+             reader's own thread links to the chat itself - anybody else's
+             would land on an empty sidebar dressed as the conversation. */
+          workspace.conversation_id !== null && workspace.conversation_is_mine ? (
+            <Link
+              href={`${ROUTES.CHAT}?id=${workspace.conversation_id}`}
+              className="text-muted-foreground inline-flex max-w-48 items-center gap-1 truncate text-xs underline-offset-4 hover:underline"
+              aria-label={t("openTheChatBehindFiles")}
+            >
+              <MessageSquare className="h-3 w-3 shrink-0" aria-hidden />
+              <span className="truncate">{workspace.conversation_title ?? t("untitledChat")}</span>
+            </Link>
+          ) : (
+            <span className="text-muted-foreground block max-w-48 truncate text-xs">
+              {workspace.conversation_title ??
+                (workspace.conversations > 0
+                  ? t("conversationCount", { count: workspace.conversations })
+                  : "—")}
+            </span>
+          ),
+      },
+      {
+        key: "whoCanSeeIt",
+        header: t("whoCanSeeIt"),
+        cell: (workspace) => (
+          <span className="text-muted-foreground text-xs">{workspace.access_label}</span>
+        ),
+      },
+      {
+        key: "backend",
+        header: t("backend"),
+        cell: (workspace) => (
+          <Badge variant="outline">{workspace.backend === "state" ? "stored" : "container"}</Badge>
+        ),
+      },
+      {
+        key: "size",
+        header: t("size"),
+        sortable: true,
+        sortValue: (workspace) => (workspace.backend === "state" ? workspace.bytes_total : null),
+        cell: (workspace) => (
+          <span className="text-muted-foreground text-xs">
+            {/* Only meaningful for a stored workspace: a container's
+                files are on its host volume and this column is the
+                JSONB document's size. */}
+            {workspace.backend === "state" ? formatBytes(workspace.bytes_total) : t("host")}
+          </span>
+        ),
+      },
+      {
+        key: "lastUsed",
+        header: t("lastUsed"),
+        cell: (workspace) => (
+          <span className="text-muted-foreground text-xs">{used(workspace.last_used_at, t)}</span>
+        ),
+      },
+      {
+        key: "files",
+        header: t("files"),
+        align: "right",
+        cell: (workspace) => (
+          /* A page, not a panel below the table. A workspace with a
+             `skills/` directory is a tree, and it is worth having a
+             URL somebody can send. */
+          <Button variant="ghost" size="sm" asChild>
+            <Link
+              href={ROUTES.WORKSPACE_DETAIL(workspace.id)}
+              aria-label={t("filesOf", { agent: workspace.agent_name })}
+            >
+              {t("open")}
+            </Link>
+          </Button>
+        ),
+      },
+    ],
+    [t],
+  );
+
   return (
     <div className="space-y-4">
-      <Card>
-        <CardHeader className="flex-row items-start justify-between space-y-0 border-b px-5 py-4">
-          <div className="space-y-1">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <FolderOpen className="h-4 w-4" aria-hidden />
-              {t("workspacesHeading")}
-            </CardTitle>
-            <CardDescription className="text-xs">{t("whatAgentsAreKeeping")}</CardDescription>
-          </div>
-          {/* Two questions, not two designs: "which workspaces exist" is a table
-              of rows, and "who is holding a copy of that CSV" is a flat list of
-              files. The second cannot be answered by opening the first one row at
-              a time, which is what this exists for. */}
+      <ListCard
+        title={t("workspacesHeading")}
+        counted={isLoading ? null : t("whatAgentsAreKeeping")}
+        controls={
+          /* Two questions, not two designs: "which workspaces exist" is a table
+             of rows, and "who is holding a copy of that CSV" is a flat list of
+             files. The second cannot be answered by opening the first one row at
+             a time, which is what this exists for. */
           <div className="flex shrink-0 gap-1">
             <Button
               variant={flat ? "ghost" : "secondary"}
@@ -98,94 +186,23 @@ export function WorkspaceBrowser() {
               {t("allFiles")}
             </Button>
           </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {flat && <FlatFiles />}
-
-          {!flat && isLoading && (
-            <div className="space-y-3 p-5">
-              {[0, 1].map((row) => (
-                <Skeleton key={row} className="h-10 w-full" />
-              ))}
-            </div>
-          )}
-
-          {!flat && error !== null && <p className="text-destructive px-5 py-4 text-sm">{error}</p>}
-
-          {!flat && !isLoading && error === null && workspaces.length === 0 && (
-            <p className="text-muted-foreground px-5 py-8 text-center text-sm">
-              {t("noAgentKeepingFiles")}
-            </p>
-          )}
-
-          {!flat && workspaces.length > 0 && (
-            <div className="overflow-x-auto px-5 pb-2">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t("agent")}</TableHead>
-                    <TableHead>{t("conversation")}</TableHead>
-                    <TableHead>{t("whoCanSeeIt")}</TableHead>
-                    <TableHead>{t("backend")}</TableHead>
-                    <TableHead>{t("size")}</TableHead>
-                    <TableHead>{t("lastUsed")}</TableHead>
-                    <TableHead className="text-right">{t("files")}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {workspaces.map((workspace) => (
-                    <TableRow key={workspace.id}>
-                      <TableCell className="font-medium">{workspace.agent_name}</TableCell>
-                      <TableCell className="text-muted-foreground max-w-48 truncate text-xs">
-                        {/* A conversation-scoped workspace has exactly one chat; a
-                            shared one has however many the agent has answered in,
-                            and that number is the difference between "my files" and
-                            "everybody's". */}
-                        {workspace.conversation_title ??
-                          (workspace.conversations > 0
-                            ? t("conversationCount", { count: workspace.conversations })
-                            : "—")}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-xs">
-                        {workspace.access_label}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          {workspace.backend === "state" ? "stored" : "container"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-xs">
-                        {/* Only meaningful for a stored workspace: a container's
-                            files are on its host volume and this column is the
-                            JSONB document's size. */}
-                        {workspace.backend === "state"
-                          ? formatBytes(workspace.bytes_total)
-                          : t("host")}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-xs">
-                        {used(workspace.last_used_at, t)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {/* A page, not a panel below the table. A workspace with a
-                            `skills/` directory is a tree, and it is worth having a
-                            URL somebody can send. */}
-                        <Button variant="ghost" size="sm" asChild>
-                          <Link
-                            href={ROUTES.WORKSPACE_DETAIL(workspace.id)}
-                            aria-label={t("filesOf", { agent: workspace.agent_name })}
-                          >
-                            {t("open")}
-                          </Link>
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        }
+        contentClassName="p-0"
+      >
+        {flat ? (
+          <FlatFiles />
+        ) : (
+          <DataTable<WorkspaceSummary>
+            columns={columns}
+            rows={workspaces}
+            getRowKey={(workspace) => workspace.id}
+            loading={isLoading}
+            error={error}
+            empty={t("noAgentKeepingFiles")}
+            className="rounded-none border-0 bg-transparent"
+          />
+        )}
+      </ListCard>
     </div>
   );
 }

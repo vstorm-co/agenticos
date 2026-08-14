@@ -15,9 +15,9 @@ import {
 import { toast } from "sonner";
 
 import { ApiError, getErrorMessage, parseErrorMessage } from "@/lib/api-error";
+import { ErrorState } from "@/components/states";
 import { InviteLinkDialog, InviteMemberDialog, OrgSpendingLimit } from "@/components/teams";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { EmptyState } from "@/components/states";
 import {
   Avatar,
   AvatarFallback,
@@ -25,6 +25,8 @@ import {
   Button,
   DataTable,
   Input,
+  ListCard,
+  ListCardEmpty,
   Select,
   SelectContent,
   SelectItem,
@@ -76,7 +78,8 @@ export default function OrgMembersPage({ params }: PageProps) {
   const locale = useLocale();
   const { id } = use(params);
   const { user } = useAuth();
-  const { members, total, isLoading, fetchMembers, changeRole, removeMember } = useMembers(id);
+  const { members, total, isLoading, error, fetchMembers, changeRole, removeMember } =
+    useMembers(id);
   const { invitations, fetchInvitations, revokeInvitation } = useInvitations(id);
   const { orgs, fetchOrgs, patchOrg } = useOrganizations();
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -149,6 +152,7 @@ export default function OrgMembersPage({ params }: PageProps) {
     const cols: Column<OrganizationMember>[] = [
       {
         key: "member",
+        className: "pl-5",
         header: t("member"),
         cell: (m) => {
           const isSelf = m.user_id === user?.id;
@@ -216,7 +220,7 @@ export default function OrgMembersPage({ params }: PageProps) {
         key: "actions",
         header: "",
         align: "right",
-        className: "w-0",
+        className: "w-0 pr-5",
         cell: (m) => {
           const isSelf = m.user_id === user?.id;
           const isOwner = m.role === "owner";
@@ -352,28 +356,40 @@ export default function OrgMembersPage({ params }: PageProps) {
 
       {/* The table draws its own skeleton from the same column definitions, so
           the header and every column width are already right while it loads -
-          a stand-in list could only approximate them. */}
-      {!isLoading && members.length === 0 ? (
-        <EmptyState
-          icon={Users}
-          title={t("noMembersYet")}
-          description={t("inviteTeammatesByEmail")}
-          cta={
-            canManage
-              ? { label: t("inviteTeammate"), onClick: () => setInviteOpen(true) }
-              : undefined
-          }
-        />
-      ) : (
-        <DataTable<OrganizationMember>
-          columns={columns}
-          rows={members}
-          loading={isLoading}
-          skeletonRows={4}
-          getRowKey={(m) => m.id}
-          empty={t("noMembersYet")}
-        />
-      )}
+          a stand-in list could only approximate them. The shared list card
+          keeps the page's shape whether it is empty, loading or full. */}
+      <ListCard
+        title={t("membersCard")}
+        counted={isLoading || error ? null : t("memberCount", { count: members.length })}
+        contentClassName="p-0"
+      >
+        {error ? (
+          // Every organization has at least its owner, so "no members yet"
+          // over a failed read is a sentence that cannot be true (#32).
+          <ErrorState description={getErrorMessage(error, tErrors)} className="m-5" />
+        ) : !isLoading && members.length === 0 ? (
+          <ListCardEmpty
+            icon={Users}
+            title={t("noMembersYet")}
+            description={t("inviteTeammatesByEmail")}
+            cta={
+              canManage
+                ? { label: t("inviteTeammate"), onClick: () => setInviteOpen(true) }
+                : undefined
+            }
+          />
+        ) : (
+          <DataTable<OrganizationMember>
+            columns={columns}
+            rows={members}
+            loading={isLoading}
+            skeletonRows={4}
+            getRowKey={(m) => m.id}
+            empty={t("noMembersYet")}
+            className="rounded-none border-0 bg-transparent"
+          />
+        )}
+      </ListCard>
 
       {pendingInvitations.length > 0 && (
         <section className="space-y-3">

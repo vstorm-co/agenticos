@@ -34,7 +34,10 @@ export interface PromoteSpecialist {
  * version pointer change as a side effect of publishing, and guessing what the
  * server did is how a Builder starts showing a draft as published.
  */
-export function useAgents({ includeArchived = false }: { includeArchived?: boolean } = {}) {
+export function useAgents({
+  includeArchived = false,
+  enabled = true,
+}: { includeArchived?: boolean; enabled?: boolean } = {}) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
   const queryClient = useQueryClient();
@@ -46,6 +49,9 @@ export function useAgents({ includeArchived = false }: { includeArchived?: boole
         "/agents",
         includeArchived ? { params: { include_archived: "true" } } : undefined,
       ),
+    // How a surface without agents:view stays out of the network log - the
+    // run table's agent column and the filter bar both read this gated.
+    enabled,
   });
 
   const invalidate = useCallback(

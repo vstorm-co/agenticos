@@ -209,12 +209,14 @@ test("an agent delegates to another, and both runs are recorded", async ({ page 
   // everywhere else. The cost beside it is deliberately only checked for shape: a
   // delegation this small prices to $0.0000, so the number says the cell rendered
   // rather than that money was counted.
+  // Cells by position: status, agent, user, surface, model, tokens, cost - the
+  // agent and user columns render for this caller, who holds agents:view.
   const delegateRun = delegateRuns.first();
   await expect(
-    delegateRun.getByRole("cell").nth(3),
+    delegateRun.getByRole("cell").nth(5),
     "the delegate's run was recorded with no tokens against it",
   ).toHaveText(/^[1-9]\d*$/);
-  await expect(delegateRun.getByRole("cell").nth(4)).toContainText(/^\$\d+\.\d{4}/);
+  await expect(delegateRun.getByRole("cell").nth(6)).toContainText(/^\$\d+\.\d{4}/);
 
   // And the parent's, which is the other one of the two. Read the same way, from
   // the same page, so a change that merged the two histories fails here.

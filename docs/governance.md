@@ -397,7 +397,7 @@ being deleted and a widget's visitor is anonymous to begin with.
 | `agent_version_id` | Runs that executed one frozen spec — the version strip's "show me the rows behind this number" |
 | `took_over_ms` | Only runs slower than this. A run that has not finished has no duration and is excluded, not counted as zero |
 | `rated` | `down` or `up` — runs where somebody rated a message the run produced |
-| `order_by`, `descending` | `started_at` (the default, newest first) or `duration` |
+| `order_by`, `descending` | `started_at` (the default, newest first), `duration`, `cost` or `tokens` |
 
 **Every filter narrows the count as well as the page**, so `total` always
 describes the rows under it. The list and the count are two queries, and a filter
@@ -412,17 +412,20 @@ on one screen share one window, or they say which window each is.
 A value outside its type is refused with a 422 rather than matched against
 nothing: `status` and `surface` are string columns, so `?status=complete` would
 otherwise answer with an empty page — and an empty page reads as *nothing went
-wrong this week*. `order_by` takes one of two orders rather than a column name,
+wrong this week*. `order_by` takes one of four orders rather than a column name,
 for the same reason plus one more: an `ORDER BY` assembled from a query string is
 an injection surface.
 
 **Duration is computed in SQL, over the whole narrowed set.** That is what gets
 from *"p95 is 14.8s"* on the dashboard to **those runs** — sorting one page of
 twenty-five sorts the wrong set, because the slowest run of a month is not in
-whichever rows a newest-first page happened to return. A run with no `ended_at`
-sorts **last in both directions**: it has no duration, and it is not the fastest
-run either. How long a *still-running* run has been going is a different question
-and this column deliberately does not answer it.
+whichever rows a newest-first page happened to return. `cost` and `tokens` are
+the same arrangement for money and context weight. A run with no `ended_at`
+sorts **last in both directions under all three**: it has no duration, it is not
+the fastest run either, and its cost and token figures are written only when it
+finishes — sorted as stored, a run still going would read as the cheapest and
+lightest in the organization. How long a *still-running* run has been going is a
+different question and none of these orders answers it.
 
 Activity surfaces that duration three ways, and all three lead to the same query.
 The **Took** column header is a sort control — like the Started header beside it,

@@ -80,7 +80,7 @@ export function MemberPicker({
             />
           </div>
 
-          <Command.List className={cn(TEN_ROWS, "overflow-y-auto p-1")}>
+          <Command.List className={cn(TEN_ROWS, "scrollbar-thin overflow-y-auto p-1")}>
             <Command.Empty className="text-muted-foreground px-3 py-6 text-center text-sm">
               {t("nobodyHereMatches")}
             </Command.Empty>

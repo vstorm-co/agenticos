@@ -122,7 +122,7 @@ export function GenericToolResult({
             {prettyJson}
           </pre>
         ) : (
-          <p className="text-foreground/80 max-h-80 overflow-y-auto text-[13px] leading-relaxed break-words whitespace-pre-wrap">
+          <p className="text-foreground/80 max-h-80 scrollbar-thin overflow-y-auto text-[13px] leading-relaxed break-words whitespace-pre-wrap">
             {resultText}
           </p>
         ))}

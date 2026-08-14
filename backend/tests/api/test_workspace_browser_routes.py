@@ -58,7 +58,9 @@ def _overview(**overrides: Any) -> SimpleNamespace:
     fields: dict[str, Any] = {
         "row": _row(),
         "agent_name": "Analyst",
+        "agent_has_avatar": True,
         "conversation_title": "Refund policy",
+        "conversation_is_callers": True,
         "conversations": 1,
         "access_label": "Whoever is in that conversation",
     }
@@ -124,9 +126,12 @@ class TestListing:
         assert body["items"][0]["owner_label"] == "This conversation"
         assert body["items"][0]["bytes_total"] == 2048
         # What the table needs beside a row: the chat these files came from, named
-        # rather than left as an id, and who can see them.
+        # rather than left as an id, and who can see them - plus the face and the
+        # ownership flag the row draws its avatar and chat link from.
         assert body["items"][0]["conversation_title"] == "Refund policy"
         assert body["items"][0]["access_label"] == "Whoever is in that conversation"
+        assert body["items"][0]["agent_has_avatar"] is True
+        assert body["items"][0]["conversation_is_mine"] is True
 
     async def test_the_listing_carries_no_files(self, client) -> None:
         """One per warm conversation, and reading each would be a round trip per

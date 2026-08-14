@@ -2,10 +2,17 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
+/**
+ * Which side of the agent a box hangs off (#518). Each answers its own
+ * question: left is what reaches the agent, top is what it runs as, right is
+ * what it reaches for, bottom is what it hands work to.
+ */
+export type MapSide = "left" | "right" | "top" | "bottom";
+
 /** One box to draw an edge for: its key in the ref map, and which side it hangs off. */
 export interface EdgeInput {
   key: string;
-  side: "in" | "out";
+  side: MapSide;
 }
 
 /** A measured edge, kept by node key so the focused node can pick its own out. */
@@ -22,6 +29,12 @@ const MAX_SCALE = 2.5;
 function curve(from: { x: number; y: number }, to: { x: number; y: number }): string {
   const bend = Math.max(32, Math.abs(to.x - from.x) / 2);
   return `M ${from.x} ${from.y} C ${from.x + bend} ${from.y}, ${to.x - bend} ${to.y}, ${to.x} ${to.y}`;
+}
+
+/** The same curve turned vertical, for a box above or below the hub. */
+function verticalCurve(from: { x: number; y: number }, to: { x: number; y: number }): string {
+  const bend = Math.max(32, Math.abs(to.y - from.y) / 2);
+  return `M ${from.x} ${from.y} C ${from.x} ${from.y + bend}, ${to.x} ${to.y - bend}, ${to.x} ${to.y}`;
 }
 
 /**
@@ -78,20 +91,48 @@ export function useMapView(edgeInputs: EdgeInput[]) {
     const hubBox = centre.getBoundingClientRect();
     const paths: MapEdge[] = [];
 
+    // Everything below is in the content's local coordinates.
+    const local = (x: number, y: number) => ({
+      x: (x - origin.left) / scale,
+      y: (y - origin.top) / scale,
+    });
+
     for (const node of edgeInputs) {
       const element = boxes.current.get(node.key);
       /* v8 ignore next -- every node renders a box and registers it by key */
       if (!element) continue;
       const box = element.getBoundingClientRect();
-      const anchor = {
-        x: ((node.side === "in" ? box.right : box.left) - origin.left) / scale,
-        y: (box.top + box.height / 2 - origin.top) / scale,
-      };
-      const hubSide = {
-        x: ((node.side === "in" ? hubBox.left : hubBox.right) - origin.left) / scale,
-        y: (hubBox.top + hubBox.height / 2 - origin.top) / scale,
-      };
-      const path = node.side === "in" ? curve(anchor, hubSide) : curve(hubSide, anchor);
+
+      // Each side anchors on the face looking at the hub, and the edge flows
+      // the way the data does: into the agent from the left and the top, out
+      // of it to the right and the bottom.
+      let path: string;
+      switch (node.side) {
+        case "left":
+          path = curve(
+            local(box.right, box.top + box.height / 2),
+            local(hubBox.left, hubBox.top + hubBox.height / 2),
+          );
+          break;
+        case "right":
+          path = curve(
+            local(hubBox.right, hubBox.top + hubBox.height / 2),
+            local(box.left, box.top + box.height / 2),
+          );
+          break;
+        case "top":
+          path = verticalCurve(
+            local(box.left + box.width / 2, box.bottom),
+            local(hubBox.left + hubBox.width / 2, hubBox.top),
+          );
+          break;
+        case "bottom":
+          path = verticalCurve(
+            local(hubBox.left + hubBox.width / 2, hubBox.bottom),
+            local(box.left + box.width / 2, box.top),
+          );
+          break;
+      }
       paths.push({ key: node.key, path });
     }
 

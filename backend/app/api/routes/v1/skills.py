@@ -19,7 +19,6 @@ from app.api.deps import Auth, SkillSvc, require
 from app.core.permissions import Perm
 from app.repositories.skill import SkillSort
 from app.schemas.skill import (
-    LibrarySkillList,
     SkillCreate,
     SkillList,
     SkillRead,
@@ -76,34 +75,6 @@ async def create_skill(data: SkillCreate, service: SkillSvc, ctx: Auth) -> Any:
         content=data.content,
         category=data.category,
     )
-
-
-@router.get(
-    "/library",
-    response_model=LibrarySkillList,
-    dependencies=[Depends(require(Perm.SKILLS_VIEW))],
-)
-async def list_library(service: SkillSvc, ctx: Auth) -> Any:
-    """The skills this deployment ships with, and whether they are installed.
-
-    Declared above `/{skill_id}` because that route parses its segment as a
-    UUID and would answer this path with a 422 instead.
-    """
-    return await service.list_library(ctx)
-
-
-@router.post(
-    "/library/{key}/install",
-    response_model=SkillRead,
-    status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require(Perm.SKILLS_EDIT))],
-)
-async def install_from_library(key: str, service: SkillSvc, ctx: Auth) -> Any:
-    """Copy a bundled skill into this organization, files and all.
-
-    A copy: from here it is an ordinary skill the organization owns and edits.
-    """
-    return await service.install_from_library(ctx, key)
 
 
 @router.get("/{skill_id}", response_model=SkillRead)

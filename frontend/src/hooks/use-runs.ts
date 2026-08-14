@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api-error";
-import { apiClient } from "@/lib/api-client";
+import { ApiError, apiClient } from "@/lib/api-client";
 import { DASHBOARD_FRESHNESS } from "@/lib/query-freshness";
 import { qk } from "@/lib/query-keys";
 import type {
@@ -12,6 +12,8 @@ import type {
   AgentRunList,
   ApprovalList,
   CostSummary,
+  RunStatus,
+  ResumedRun,
   RunTranscript,
   ToolApproval,
 } from "@/types/runs";
@@ -47,13 +49,34 @@ export function useRuns(
     enabled?: boolean;
     startedFrom?: string;
     startedTo?: string;
-    orderBy?: "started_at" | "duration";
+    orderBy?: "started_at" | "duration" | "cost" | "tokens";
     descending?: boolean;
     tookOverMs?: number;
     rated?: "down" | "up";
+    /** Narrows to these statuses - `failed,budget_exceeded` is "the problems". */
+    statuses?: RunStatus[];
+    surface?: string;
+    /** Who the run ran as. */
+    userId?: string;
+    /** The frozen spec the run executed - "did v4 behave better than v3", as rows. */
+    agentVersionId?: string;
+    /** Rows to skip - the pager's, always a multiple of the page size. */
+    skip?: number;
   },
 ) {
-  const { startedFrom, startedTo, orderBy, descending, tookOverMs, rated } = options ?? {};
+  const {
+    startedFrom,
+    startedTo,
+    orderBy,
+    descending,
+    tookOverMs,
+    rated,
+    statuses,
+    surface,
+    userId,
+    agentVersionId,
+    skip,
+  } = options ?? {};
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.runs.list({
       agentId,
@@ -63,6 +86,11 @@ export function useRuns(
       descending,
       tookOverMs,
       rated,
+      statuses,
+      surface,
+      userId,
+      agentVersionId,
+      skip,
     }),
     queryFn: () => {
       const params: Record<string, string> = {};
@@ -78,6 +106,11 @@ export function useRuns(
       // The highest-signal queue on this page: the runs somebody said were
       // wrong. A run matches if anybody rated a message it produced that way.
       if (rated) params.rated = rated;
+      if (statuses && statuses.length > 0) params.status = statuses.join(",");
+      if (surface) params.surface = surface;
+      if (userId) params.user_id = userId;
+      if (agentVersionId) params.agent_version_id = agentVersionId;
+      if (skip) params.skip = String(skip);
       return apiClient.get<AgentRunList>(
         "/runs",
         Object.keys(params).length > 0 ? { params } : undefined,
@@ -119,10 +152,14 @@ export function useRun(runId: string) {
  * every page here renders its empty state on a failed query, and those two must
  * not be the same pixels.
  */
-export function useRunTranscript(runId: string) {
+export function useRunTranscript(runId: string, scope: "run" | "conversation" = "run") {
   const { data, isLoading, error } = useQuery({
-    queryKey: qk.runs.transcript(runId),
-    queryFn: () => apiClient.get<RunTranscript>(`/runs/${runId}/transcript`),
+    queryKey: qk.runs.transcript(runId, scope),
+    queryFn: () =>
+      apiClient.get<RunTranscript>(
+        `/runs/${runId}/transcript`,
+        scope === "run" ? undefined : { params: { scope } },
+      ),
   });
   return { transcript: data, isLoading, error };
 }
@@ -151,6 +188,7 @@ export function useDelegatedRuns(parentRunId: string) {
  * as "nothing waiting".
  */
 export function useApprovals(options?: { enabled?: boolean }) {
+  const t = useTranslations("pages.runs");
   const tErrors = useTranslations("errors");
 
   const queryClient = useQueryClient();
@@ -162,12 +200,27 @@ export function useApprovals(options?: { enabled?: boolean }) {
     enabled: options?.enabled ?? true,
   });
 
+  const resume = useResumeRun({ ignoreStillParked: true });
+
   const decide = useMutation({
     mutationFn: ({ id, approved, note }: { id: string; approved: boolean; note?: string }) =>
       apiClient.post<ToolApproval>(`/approvals/${id}`, { approved, note }),
     onSuccess: async (approval) => {
+      // The invalidation refetches the queue, so the read below is fresh.
       await queryClient.invalidateQueries({ queryKey: qk.runs.all() });
-      toast.success(approval.status === "approved" ? "Approved" : "Rejected");
+      toast.success(approval.status === "approved" ? t("decisionApproved") : t("decisionRejected"));
+      // Deciding the last outstanding call makes the resume possible; nothing
+      // performs it (the backend keeps the click and the execution apart). The
+      // chat's dialog has always followed its decision with the resume - the
+      // queue not doing the same left a run approved and parked forever.
+      // This read is one cached page of fifty, so a run whose other parked call
+      // sits past those fifty reads as clear; `/approvals` cannot narrow by run,
+      // so the backend's refusal is the real check and the auto path swallows
+      // exactly that refusal (see `useResumeRun`).
+      const stillParked = queryClient
+        .getQueryData<ApprovalList>(qk.runs.approvals())
+        ?.items.some((item) => item.run_id === approval.run_id && item.status === "pending");
+      if (!stillParked) resume.mutate(approval.run_id);
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
@@ -183,7 +236,89 @@ export function useApprovals(options?: { enabled?: boolean }) {
 }
 
 /**
- * Month-to-date spend and its breakdowns.
+ * The resume refusal that means another call on the run still awaits a decision.
+ *
+ * `POST /runs/{id}/resume` answers it as a 400 whose details name the pending
+ * approval ids - the only resume refusal carrying `pending`, which keeps a spec
+ * that can no longer be built, or a run that is not parked at all, toasting
+ * like any other failure.
+ */
+function stillAwaitingDecision(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 400 && Array.isArray(error.details?.pending);
+}
+
+/**
+ * Continue a run whose parked tool calls have all been decided.
+ *
+ * A decision is a click; continuing the run executes an agent - the backend
+ * keeps the two apart on purpose, and the chat's approval dialog has always
+ * called both. The approvals queue did not, which is how a run approved from
+ * the Activity page stayed `awaiting_approval` forever: approved, undisputed,
+ * and never picked back up.
+ *
+ * `ignoreStillParked` is for the queue's automatic resume after a decision. The
+ * "anything still pending?" check it makes first reads one cached page of
+ * fifty, so a run whose other parked call sits past those fifty reads as clear
+ * and the resume is attempted anyway; the backend's still-parked refusal is
+ * that check's answer arriving late, not news for the person who just decided.
+ * Every other failure still toasts, and a resume somebody clicked never passes
+ * this flag.
+ */
+export function useResumeRun(options?: { ignoreStillParked?: boolean }) {
+  const tErrors = useTranslations("errors");
+  const t = useTranslations("pages.runs");
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (runId: string) => apiClient.post<ResumedRun>(`/runs/${runId}/resume`),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: qk.runs.all() });
+      toast.success(t("runResumed"));
+    },
+    onError: (error) => {
+      if (options?.ignoreStillParked && stillAwaitingDecision(error)) return;
+      toast.error(getErrorMessage(error, tErrors, t("resumeFailed")));
+    },
+  });
+}
+
+/**
+ * The record of decided approvals over a window - the queue's counterpart.
+ *
+ * Newest first, because a record is read backwards from now, where the queue
+ * drains oldest-first. Its own query and key: a decision must refresh the
+ * queue at once, while the record only moves with the window.
+ */
+export function useApprovalHistory(
+  range: { from: string; to: string },
+  options?: { enabled?: boolean },
+) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: qk.runs.approvalHistory(range.from, range.to),
+    queryFn: () =>
+      apiClient.get<ApprovalList>("/approvals", {
+        // Pairs, because `status` repeats - everything except the queue.
+        params: [
+          ["status", "approved"],
+          ["status", "rejected"],
+          ["status", "expired"],
+          ["created_from", range.from],
+          ["created_to", range.to],
+          ["oldest_first", "false"],
+        ],
+      }),
+    enabled: options?.enabled ?? true,
+  });
+  return { approvals: data?.items ?? [], total: data?.total ?? 0, isLoading, error };
+}
+
+/**
+ * Spend and its breakdowns, over a rolling window or an explicit one.
+ *
+ * The two window shapes are `GET /spend`'s own: a number of days for the
+ * callers that only ever want "the last month or so" (the dashboard widgets,
+ * the spending-limit control), an explicit `from`/`to` for the Activity page,
+ * whose picker can name a range no rolling count reaches. `month_to_date_usd`
+ * ignores the window either way - it is the invoice-reconciliation figure.
  *
  * Carries the dashboard's freshness even though the runs page and the
  * organization's spending-limit control read it too: a spend figure is the
@@ -194,11 +329,23 @@ export function useApprovals(options?: { enabled?: boolean }) {
  * request from a month with no spend in it. Drawn from `data` alone the two are
  * the same "nothing spent yet", and on a page about money the wrong one of those
  * is the reassuring one.
+ *
+ * `enabled` is how a caller without `runs:view` opts out, the same bargain
+ * `useApprovals` strikes: the route refuses that caller, so asking is a 403
+ * whose empty rendering would read as nothing spent.
  */
-export function useSpend(days = 30) {
+export function useSpend(
+  range: number | { from: string; to: string } = 30,
+  options?: { enabled?: boolean },
+) {
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: qk.runs.spend(days),
-    queryFn: () => apiClient.get<CostSummary>("/spend", { params: { days: String(days) } }),
+    queryKey: qk.runs.spend(range),
+    queryFn: () =>
+      apiClient.get<CostSummary>("/spend", {
+        params:
+          typeof range === "number" ? { days: String(range) } : { from: range.from, to: range.to },
+      }),
+    enabled: options?.enabled ?? true,
     ...DASHBOARD_FRESHNESS,
   });
   return { spend: data, isLoading, error, refetch };
