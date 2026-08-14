@@ -123,8 +123,15 @@ the organization. There is no Install button and no separate "ready-made" list �
 the skills page shows one list, with a `built-in` badge on anything whose name
 matches the shipped library.
 
-For an organization created before a deployment gained a new bundled skill, the
-seed command copies whatever is missing:
+**And they stay there.** The catalog grows with deploys, so the skills listing
+tops itself up: a bundled skill the organization does not have yet is copied in
+the next time anyone opens the page, matched by name so an edited copy is left
+exactly as it is. An organization created before a deployment gained a new
+bundled skill sees it on its next visit rather than never. The consequence to
+know about: deleting a built-in brings it back on the next listing — **disable**
+one to retire it.
+
+The seed command does the same from a terminal, for scripted setups:
 
 ```bash
 uv run agenticos cmd seed-skills                    # every organization
@@ -146,8 +153,10 @@ moment the organization exists. It is a copy, not a link.
 That is deliberate. The point of a skill is that a support lead can fix the refund
 policy without a deploy, and a live link back to the repository's copy would take
 exactly that away — the organization would be reading a file only an engineer can
-change. It also means deleting one is final in the ordinary way: nothing puts a
-deleted built-in back unasked, and a reseed is an explicit command.
+change. Editing is final in the ordinary way; deleting is not, because the
+listing's top-up treats an absent bundled name as a gap to close. A built-in the
+organization does not want is disabled, which every agent respects and nothing
+overwrites.
 
 ### Why the library is bundled and not fetched
 

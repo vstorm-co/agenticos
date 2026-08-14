@@ -14,7 +14,6 @@ import asyncio
 from uuid import UUID
 
 import click
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.commands import command, info, success, warning
 from app.core.exceptions import AlreadyExistsError
@@ -31,15 +30,6 @@ from app.services.skills import SkillService
 def seed_skills(org_id: str | None, dry_run: bool) -> None:
     """Copy every skill in `app/core/catalog/skills` into an organization."""
     asyncio.run(_run(org_id, dry_run))
-
-
-async def _owner_of(db: AsyncSession, organization_id: UUID) -> UUID | None:
-    """The first owner of an organization, or None if it somehow has none."""
-    members = await member_repo.list_for_org(db, organization_id)
-    return next(
-        (member.user_id for member, *_ in members if member.role == OrgRoleName.OWNER),
-        None,
-    )
 
 
 async def _run(org_id: str | None, dry_run: bool) -> None:
@@ -72,7 +62,7 @@ async def _run(org_id: str | None, dry_run: bool) -> None:
             # a skill records who owns it, that column is a foreign key to a
             # real person, and an owner is the one member guaranteed to exist
             # and to be allowed to edit what lands here.
-            owner = await _owner_of(db, organization.id)
+            owner = await member_repo.first_owner_id(db, organization_id=organization.id)
             if owner is None:
                 warning("    no owner - skipped")
                 continue

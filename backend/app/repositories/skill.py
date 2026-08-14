@@ -145,6 +145,12 @@ async def list_categories(db: AsyncSession, *, organization_id: UUID) -> list[st
     return [category for category in result.scalars().all() if category is not None]
 
 
+async def list_names(db: AsyncSession, *, organization_id: UUID) -> set[str]:
+    """Every skill name in one organization - what the catalog top-up compares against."""
+    result = await db.execute(select(Skill.name).where(Skill.organization_id == organization_id))
+    return set(result.scalars().all())
+
+
 async def create(
     db: AsyncSession,
     *,

@@ -14,16 +14,17 @@ from typing import Annotated
 from uuid import UUID
 
 from pydantic import StringConstraints, TypeAdapter
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import catalog
 from app.core.audit import record_audit
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
-from app.core.permissions import AuthContext, Perm
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill, SkillResource
 from app.db.updates import writable
-from app.repositories import resource_grant_repo, skill_repo
+from app.repositories import member_repo, resource_grant_repo, skill_repo
 from app.repositories.skill import SkillSort
 from app.schemas.skill import (
     SkillList,
@@ -214,6 +215,7 @@ class SkillService:
         chips describe what can be filtered to, and narrowing them to the
         shared subset would make the filter disappear as soon as it was used.
         """
+        await self._ensure_bundled(ctx)
         items, total = await self.list_skills(
             ctx,
             shared_with_me=shared_with_me,
@@ -234,6 +236,46 @@ class SkillService:
     async def list_categories(self, ctx: AuthContext) -> list[str]:
         """Every distinct category in this organization, for the listing's filter."""
         return await skill_repo.list_categories(self.db, organization_id=ctx.organization_id)
+
+    async def _ensure_bundled(self, ctx: AuthContext) -> None:
+        """Materialize any bundled skill this organization does not have yet.
+
+        Organizations are seeded at creation (#281), but the catalog grows with
+        deploys, and a skill added later never reached an existing organization
+        - its page showed one bundled skill where the deployment ships three.
+        The listing is where that gap is visible, so it is where it closes.
+
+        Matched by name, so an edited copy is left exactly as it is. A deleted
+        one returns on the next listing - the catalog is always present, and
+        *disabling* is how a bundled skill is retired. Attributed to the
+        organization's first owner, the same shape creation-time seeding
+        writes: the reader whose visit triggers the top-up may be a viewer,
+        and ownership would widen what they could edit.
+
+        Each install under its own savepoint: two first listings can race, and
+        the loser's unique-name violation must cost that one row, never the
+        reader's whole page.
+        """
+        names = await skill_repo.list_names(self.db, organization_id=ctx.organization_id)
+        missing = [entry for entry in skill_library.library() if entry.name not in names]
+        if not missing:
+            return
+        owner_id = await member_repo.first_owner_id(self.db, organization_id=ctx.organization_id)
+        if owner_id is None:
+            return
+        owner_ctx = AuthContext(
+            user_id=owner_id,
+            organization_id=ctx.organization_id,
+            role=OrgRoleName.OWNER,
+        )
+        for entry in missing:
+            try:
+                async with self.db.begin_nested():
+                    await self.install_from_library(owner_ctx, entry.key)
+            except (AlreadyExistsError, IntegrityError):
+                logger.warning(
+                    "Bundled skill %r arrived while the listing topped up; skipped", entry.key
+                )
 
     async def resolve_for_agent(self, ctx: AuthContext, skill_ids: list[UUID]) -> list[Skill]:
         """The enabled skills an agent is bound to.
@@ -355,8 +397,8 @@ class SkillService:
 
         Always organization-visible, set at creation rather than by a follow-up
         edit: a bundled skill is for everybody, and the only callers left are
-        the seeding paths - organization creation and `seed-skills` - since the
-        per-person Install button was dropped (#281).
+        the seeding paths - organization creation, the listing's top-up and
+        `seed-skills` - since the per-person Install button was dropped (#281).
 
         Raises:
             NotFoundError: If no such skill ships with this deployment.
