@@ -3564,8 +3564,6 @@
     "confirm": "to confirm",
     "dismissQuestions": "Dismiss questions",
     "done": "Done",
-    "filterAny": "Any",
-    "filterColumn": "Filter",
     "labelPreview": "{label} preview",
     "markdown": "Markdown",
     "matchedOfTotal": "{matched} of {counted}",
@@ -3655,6 +3653,8 @@
     "whichOne": "Which one",
     "whoCanUse": "Who can use it",
     "yoursAloneYouCan": "Yours alone. You can share it with named people afterwards.",
-    "zendeskApiToken": "Zendesk API token"
+    "zendeskApiToken": "Zendesk API token",
+    "filterByService": "Filter by service",
+    "anyService": "Any service"
   }
 }

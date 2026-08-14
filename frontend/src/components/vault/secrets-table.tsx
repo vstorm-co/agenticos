@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Lock, RotateCw, Trash2, Users } from "lucide-react";
 
 import { ProviderIcon } from "@/components/vault/provider-icon";
@@ -11,6 +11,12 @@ import {
   Badge,
   Button,
   DataTable,
+  ListCardControlsRow,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   type Column,
 } from "@/components/ui";
 import type { Secret, SecretPurpose } from "@/types/secrets";
@@ -83,7 +89,14 @@ export function SecretsTable({
   const t = useTranslations("vault");
   const tc = useTranslations("common");
 
-  const rows = useMemo(() => [...secrets], [secrets]);
+  // The service narrowing, in the controls strip like every list's filters -
+  // never a second header row under the columns (the rejected pattern).
+  const [purpose, setPurpose] = useState("all");
+  const rows = useMemo(
+    () =>
+      purpose === "all" ? [...secrets] : secrets.filter((secret) => purposeId(secret) === purpose),
+    [secrets, purpose],
+  );
 
   const purposeOptions = useMemo(() => {
     const present = new Map<string, string>();
@@ -120,9 +133,6 @@ export function SecretsTable({
       {
         key: "for",
         header: t("for"),
-        filter: "select",
-        filterOptions: purposeOptions,
-        filterValue: purposeId,
         cell: (secret) => (
           <span className="text-muted-foreground text-sm">
             {purposeLabel(purposes, secret.purpose, t)}
@@ -226,14 +236,31 @@ export function SecretsTable({
     }
 
     return cols;
-  }, [purposes, purposeOptions, canManage, onShare, onRotate, onDelete, t, tc]);
+  }, [purposes, canManage, onShare, onRotate, onDelete, t, tc]);
 
   return (
-    <DataTable
-      columns={columns}
-      rows={rows}
-      getRowKey={(secret) => secret.id}
-      className="rounded-none border-0 bg-transparent"
-    />
+    <>
+      <ListCardControlsRow>
+        <Select value={purpose} onValueChange={setPurpose}>
+          <SelectTrigger className="h-8 w-[200px]" aria-label={t("filterByService")}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{t("anyService")}</SelectItem>
+            {purposeOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </ListCardControlsRow>
+      <DataTable
+        columns={columns}
+        rows={rows}
+        getRowKey={(secret) => secret.id}
+        className="rounded-none border-0 bg-transparent"
+      />
+    </>
   );
 }

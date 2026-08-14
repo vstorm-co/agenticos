@@ -2,7 +2,6 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 
-import { Input } from "@/components/ui/input";
 import { SortButton } from "@/components/ui/sort-button";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
@@ -33,16 +32,6 @@ export interface Column<T> {
    * a fast-to-slow scale, which is a different fact from having been fast.
    */
   sortValue?: (row: T) => string | number | null;
-  /** Draws a filter control in a second header row. */
-  filter?: "text" | "select";
-  /** The choices a `"select"` filter offers. Labels are the caller's copy. */
-  filterOptions?: { value: string; label: string }[];
-  /**
-   * What a client-side filter matches against — substring for `"text"`,
-   * equality for `"select"`. With `onFilter` on the table the matching is the
-   * server's and this is not read.
-   */
-  filterValue?: (row: T) => string;
 }
 
 export interface TableSort {
@@ -88,10 +77,6 @@ interface DataTableProps<T> {
   onSort?: (sort: TableSort) => void;
   /** Where client-side sorting starts. Ignored when `onSort` is given. */
   defaultSort?: TableSort;
-  /** Current filter values by column key when the server filters. */
-  filters?: Record<string, string>;
-  /** Asked to filter. Omit to filter client-side via `filterValue`. */
-  onFilter?: (key: string, value: string) => void;
 }
 
 const alignClass = { left: "text-left", right: "text-right", center: "text-center" } as const;
@@ -104,14 +89,16 @@ function compare(a: string | number | null, b: string | number | null, dir: "asc
 }
 
 /**
- * Flat, theme-aware table with built-in loading, empty and error states,
- * sortable headers and per-column filters — the one table primitive (#139).
+ * Flat, theme-aware table with built-in loading, empty and error states and
+ * sortable headers — the one table primitive (#139).
  *
- * Two modes for sorting and filtering, because the two kinds of list in this
- * product are genuinely different: a list the client holds whole is this
- * component's problem (`sortValue`/`filterValue`), and a list the server pages
- * is a request (`sort`/`onSort`, `filters`/`onFilter`) — a client-side sort of
- * page one, on a list with three pages, is worse than no header.
+ * Two modes for sorting, because the two kinds of list in this product are
+ * genuinely different: a list the client holds whole is this component's
+ * problem (`sortValue`), and a list the server pages is a request
+ * (`sort`/`onSort`) — a client-side sort of page one, on a list with three
+ * pages, is worse than no header. Filtering deliberately lives outside: the
+ * standard is a control strip inside the list card (`ListCardControlsRow`),
+ * never a second header row under the columns.
  */
 export function DataTable<T>({
   columns,
@@ -126,18 +113,12 @@ export function DataTable<T>({
   sort,
   onSort,
   defaultSort,
-  filters,
-  onFilter,
 }: DataTableProps<T>) {
   const t = useTranslations("ui");
   const [clientSort, setClientSort] = useState<TableSort | null>(defaultSort ?? null);
-  const [clientFilters, setClientFilters] = useState<Record<string, string>>({});
 
   const serverSorted = onSort !== undefined;
   const activeSort = serverSorted ? (sort ?? null) : clientSort;
-  const serverFiltered = onFilter !== undefined;
-  const activeFilters = serverFiltered ? (filters ?? {}) : clientFilters;
-  const hasFilterRow = columns.some((col) => col.filter !== undefined);
 
   const requestSort = (key: string) => {
     const next: TableSort =
@@ -148,33 +129,16 @@ export function DataTable<T>({
     else setClientSort(next);
   };
 
-  const requestFilter = (key: string, value: string) => {
-    if (onFilter) onFilter(key, value);
-    else setClientFilters((current) => ({ ...current, [key]: value }));
-  };
-
   const visible = useMemo(() => {
     if (!rows) return rows;
     let result = rows;
-    if (!serverFiltered) {
-      for (const col of columns) {
-        const needle = clientFilters[col.key]?.trim().toLowerCase();
-        if (!needle || !col.filter || !col.filterValue) continue;
-        const read = col.filterValue;
-        result = result.filter((row) =>
-          col.filter === "select"
-            ? read(row).toLowerCase() === needle
-            : read(row).toLowerCase().includes(needle),
-        );
-      }
-    }
     if (!serverSorted && clientSort) {
       const col = columns.find((entry) => entry.key === clientSort.by);
       const read = col?.sortValue;
       if (read) result = [...result].sort((a, b) => compare(read(a), read(b), clientSort.dir));
     }
     return result;
-  }, [rows, columns, serverFiltered, clientFilters, serverSorted, clientSort]);
+  }, [rows, columns, serverSorted, clientSort]);
 
   // A failure wins over emptiness, because a failed request has no rows either
   // and would otherwise be drawn as a collection with nothing in it.
@@ -218,47 +182,6 @@ export function DataTable<T>({
                 );
               })}
             </tr>
-            {hasFilterRow && (
-              <tr className="border-border border-b">
-                {columns.map((col) => (
-                  <td
-                    key={col.key}
-                    className={cn(
-                      "px-4 py-1.5",
-                      col.hideBelow && hideBelowClass[col.hideBelow],
-                      col.className,
-                    )}
-                  >
-                    {col.filter === "text" && (
-                      <Input
-                        value={activeFilters[col.key] ?? ""}
-                        onChange={(event) => requestFilter(col.key, event.target.value)}
-                        aria-label={t("filterColumn")}
-                        placeholder={t("filterColumn")}
-                        className="h-8"
-                      />
-                    )}
-                    {col.filter === "select" && (
-                      // Native rather than the Radix Select: an empty value has
-                      // to mean "no filter", which Radix items refuse to carry.
-                      <select
-                        value={activeFilters[col.key] ?? ""}
-                        onChange={(event) => requestFilter(col.key, event.target.value)}
-                        aria-label={t("filterColumn")}
-                        className="border-input focus-visible:ring-ring h-8 w-full rounded-md border bg-transparent px-2 text-sm font-normal normal-case focus-visible:ring-1 focus-visible:outline-none"
-                      >
-                        <option value="">{t("filterAny")}</option>
-                        {col.filterOptions?.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                  </td>
-                ))}
-              </tr>
-            )}
           </thead>
           <tbody>
             {loading &&
