@@ -1,19 +1,38 @@
 "use client";
 
+import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { KeyRound } from "lucide-react";
 
 import { getErrorMessage } from "@/lib/api-error";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { ErrorState, LoadingState } from "@/components/states";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
-import { SpendBreakdown } from "@/components/runs/spend-breakdown";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  DataTable,
+  type Column,
+} from "@/components/ui";
 import { SpendByPerson } from "@/components/runs/spend-by-person";
 import { ProviderIcon } from "@/components/vault/provider-icon";
 import { useSpend } from "@/hooks";
 import { periodEnd, periodStart, type Period } from "@/lib/dashboard/period";
 import { formatDate } from "@/lib/utils";
-import type { CostSummary } from "@/types/runs";
+import type { CostByAgent, CostByKey, CostByProvider, CostSummary } from "@/types/runs";
+
+/** The four ways the same money is sliced, as one switch. */
+const FACETS = [
+  { id: "agent", labelKey: "byAgent" },
+  { id: "provider", labelKey: "byProvider" },
+  { id: "key", labelKey: "byKey" },
+  { id: "person", labelKey: "byPerson" },
+] as const;
+
+type SpendFacet = (typeof FACETS)[number]["id"];
 
 /**
  * What window these figures cover, in the terms it was asked for.
@@ -38,23 +57,46 @@ function windowLabel(
     : t("fromDateToDate", { from, to: formatDate(spend.to_date, locale) });
 }
 
+/** A right-aligned money cell; `partial` marks a floor the way the run table does. */
+function CostCell({ cost, partial, title }: { cost: string; partial?: boolean; title: string }) {
+  return (
+    <span className="font-mono text-xs tabular-nums">
+      ${Number(cost).toFixed(4)}
+      {partial && (
+        <span className="text-muted-foreground" title={title}>
+          {" +"}
+        </span>
+      )}
+    </span>
+  );
+}
+
 /**
- * Where the money went, asked three ways.
+ * Where the money went, asked four ways - one table, one switch.
  *
- * They are three different questions, not one answer sliced for presentation:
- * which agent is expensive, which vendor is being paid, and which key is being
- * spent through. Only the first existed, and it is the one that cannot be checked
- * against a bill - an invoice arrives from a vendor, and a leaked key is found by
- * what was spent through it.
+ * They are four different questions, not one answer sliced for presentation:
+ * which agent is expensive, which vendor is being paid, which key is being
+ * spent through, and who is spending. An invoice arrives from a vendor, a
+ * leaked key is found by what was spent through it - so each facet keeps its
+ * own subject column, and a row whose subject no longer exists (a vendor from
+ * before it was recorded, a key since deleted, a deleted agent) is kept and
+ * muted rather than dropped: the money was spent either way, and a breakdown
+ * that silently stops adding up to the total is worse than one with an honest
+ * "not recorded" line in it.
+ *
+ * The person facet is its own component: its rows come from
+ * `/stats/usage?group_by=user` rather than `/spend`, with its own gate,
+ * failure state and audience note.
  *
  * A failed request says so rather than reporting nothing spent. "Nothing spent
- * yet" for a 502 is the reassuring reading of the two, which is what makes it the
- * dangerous one on a page about money.
+ * yet" for a 502 is the reassuring reading of the two, which is what makes it
+ * the dangerous one on a page about money.
  */
 export function SpendTab({ period }: { period: Period }) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("pages.runs");
   const locale = useLocale();
+  const [facet, setFacet] = useState<SpendFacet>("agent");
   const { spend, isLoading, error, refetch } = useSpend({
     from: periodStart(period),
     to: periodEnd(period),
@@ -70,54 +112,136 @@ export function SpendTab({ period }: { period: Period }) {
       />
     );
 
+  const agentColumns: Column<CostByAgent>[] = [
+    {
+      key: "agent",
+      header: t("agentColumn"),
+      cell: (row) => (
+        <span className="flex items-center gap-2">
+          <span aria-hidden>
+            <AgentAvatar
+              agentId={row.agent_id}
+              name={row.agent_name ?? t("deletedAgent")}
+              size="sm"
+              className="h-5 w-5"
+            />
+          </span>
+          <span className={row.agent_name === null ? "text-muted-foreground italic" : ""}>
+            {row.agent_name ?? t("deletedAgent")}
+          </span>
+        </span>
+      ),
+    },
+    {
+      key: "runs",
+      header: t("runs2"),
+      align: "right",
+      cell: (row) => <span className="font-mono text-xs tabular-nums">{row.run_count}</span>,
+    },
+    {
+      key: "cost",
+      header: t("cost"),
+      align: "right",
+      cell: (row) => (
+        <CostCell
+          cost={row.cost_usd}
+          partial={row.partial_run_count > 0}
+          // The count, not just a marker: "3 unpriced" is actionable where a
+          // bare figure a reader has to take on trust is not.
+          title={t("unpricedRuns", { count: row.partial_run_count })}
+        />
+      ),
+    },
+  ];
+
+  const providerColumns: Column<CostByProvider>[] = [
+    {
+      key: "provider",
+      header: t("providerColumn"),
+      cell: (row) =>
+        row.provider === null ? (
+          <span className="text-muted-foreground italic">{t("notRecorded")}</span>
+        ) : (
+          <span className="flex items-center gap-2">
+            <ProviderIcon provider={row.provider} className="h-4 w-4" />
+            {row.provider}
+          </span>
+        ),
+    },
+    {
+      key: "runs",
+      header: t("runs2"),
+      align: "right",
+      cell: (row) => <span className="font-mono text-xs tabular-nums">{row.run_count}</span>,
+    },
+    {
+      key: "cost",
+      header: t("cost"),
+      align: "right",
+      cell: (row) => <CostCell cost={row.cost_usd} title={t("theCostIsAFloor")} />,
+    },
+  ];
+
+  const keyColumns: Column<CostByKey>[] = [
+    {
+      key: "key",
+      header: t("keyColumn"),
+      cell: (row) =>
+        row.label === null ? (
+          <span className="text-muted-foreground italic">{t("deletedKey")}</span>
+        ) : (
+          <span className="flex items-center gap-2">
+            <KeyRound className="text-muted-foreground h-4 w-4" aria-hidden />
+            {row.label}
+          </span>
+        ),
+    },
+    {
+      key: "runs",
+      header: t("runs2"),
+      align: "right",
+      cell: (row) => <span className="font-mono text-xs tabular-nums">{row.run_count}</span>,
+    },
+    {
+      key: "cost",
+      header: t("cost"),
+      align: "right",
+      cell: (row) => <CostCell cost={row.cost_usd} title={t("theCostIsAFloor")} />,
+    },
+  ];
+
   return (
     <div className="space-y-4">
       {/* The one caveat that governs every figure below: how many of the
           window's run trees could not be fully priced. Saying it once at
           the top is what stops a reader treating the totals as exact. It marks
-          By provider and By key without measuring them, and measures By agent -
-          see `CostSummary.partial_run_count` for which is which. */}
+          the provider and key facets without measuring them, and measures the
+          agent facet - see `CostSummary.partial_run_count` for which is which. */}
       {spend != null && spend.partial_run_count > 0 && (
         <p className="text-muted-foreground text-sm" role="note">
           {t("someRunsCouldNotBePriced", { count: spend.partial_run_count })}
         </p>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <SpendBreakdown
-          title={t("byProvider")}
-          description={t("whatEachVendorWas")}
-          rows={(spend?.by_provider ?? []).map((entry) => ({
-            key: entry.provider ?? "unrecorded",
-            label: entry.provider ?? t("notRecorded"),
-            muted: entry.provider === null,
-            runs: entry.run_count,
-            cost: entry.cost_usd,
-            // The vendor's own mark, the same one the vault and the run table
-            // draw - an invoice is checked against a brand, not a lowercase id.
-            icon:
-              entry.provider === null ? undefined : (
-                <ProviderIcon provider={entry.provider} className="h-4 w-4" />
-              ),
-          }))}
-        />
-        <SpendBreakdown
-          title={t("byKey")}
-          description={t("whichStoredCredentialWas")}
-          rows={(spend?.by_key ?? []).map((entry) => ({
-            key: entry.secret_id ?? "deleted",
-            label: entry.label ?? t("deletedKey"),
-            muted: entry.label === null,
-            runs: entry.run_count,
-            cost: entry.cost_usd,
-            icon: entry.label === null ? undefined : <KeyRound className="h-4 w-4" />,
-          }))}
-        />
+      {/* The tab's control row, same grammar as Runs: the narrowing first.
+          One table below, four subjects to slice it by. */}
+      <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t("spendFacet")}>
+        {FACETS.map((entry) => (
+          <Button
+            key={entry.id}
+            variant={facet === entry.id ? "secondary" : "outline"}
+            size="sm"
+            aria-pressed={facet === entry.id}
+            onClick={() => setFacet(entry.id)}
+          >
+            {t(entry.labelKey)}
+          </Button>
+        ))}
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>{t("spendByAgent")}</CardTitle>
+          <CardTitle>{t("whereTheMoneyWent")}</CardTitle>
           {/* The window the server chose, said the way it was chosen. There is no
               `?? 30` here on purpose: `period_days` is null the moment `from` is
               sent - `runs.py` refuses to answer "30 days" and a range at once -
@@ -125,58 +249,37 @@ export function SpendTab({ period }: { period: Period }) {
               is nothing of the sort. Silently, which is what a fallback buys. */}
           <CardDescription>{windowLabel(spend, t, locale)}</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-2">
-          {!spend || spend.by_agent.length === 0 ? (
-            <p className="text-muted-foreground text-sm">{t("nothingSpentYet")}</p>
-          ) : (
-            // Labelled by the agent, which is what the row is - with the same
-            // face every list of agents draws, initials when nobody uploaded a
-            // picture. `model_label` is on the type but null on every row this
-            // endpoint returns - it is the usage email's per-model field, not
-            // this screen's.
-            spend.by_agent.map((entry) => (
-              <div
-                key={entry.agent_id}
-                className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm"
-              >
-                <span aria-hidden>
-                  <AgentAvatar
-                    agentId={entry.agent_id}
-                    name={entry.agent_name ?? t("deletedAgent")}
-                    size="sm"
-                  />
-                </span>
-                <span
-                  className={
-                    entry.agent_name === null
-                      ? "text-muted-foreground truncate italic"
-                      : "truncate font-medium"
-                  }
-                >
-                  {entry.agent_name ?? t("deletedAgent")}
-                </span>
-                <span className="text-muted-foreground ml-auto text-xs whitespace-nowrap">
-                  {t("runCount", { count: entry.run_count })}
-                </span>
-                {entry.partial_run_count > 0 && (
-                  <span className="text-muted-foreground text-xs" title={t("theCostIsAFloor")}>
-                    {t("couldNotBePriced", { count: entry.partial_run_count })}
-                  </span>
-                )}
-                <span className="font-mono tabular-nums">${Number(entry.cost_usd).toFixed(4)}</span>
-              </div>
-            ))
+        <CardContent>
+          {facet === "agent" && (
+            <DataTable<CostByAgent>
+              columns={agentColumns}
+              rows={spend?.by_agent ?? []}
+              getRowKey={(row) => row.agent_id}
+              empty={t("nothingSpentYet")}
+              className="rounded-none border-0 bg-transparent"
+            />
           )}
+          {facet === "provider" && (
+            <DataTable<CostByProvider>
+              columns={providerColumns}
+              rows={spend?.by_provider ?? []}
+              getRowKey={(row) => row.provider ?? "unrecorded"}
+              empty={t("nothingSpentYet")}
+              className="rounded-none border-0 bg-transparent"
+            />
+          )}
+          {facet === "key" && (
+            <DataTable<CostByKey>
+              columns={keyColumns}
+              rows={spend?.by_key ?? []}
+              getRowKey={(row) => row.secret_id ?? "deleted"}
+              empty={t("nothingSpentYet")}
+              className="rounded-none border-0 bg-transparent"
+            />
+          )}
+          {facet === "person" && <SpendByPerson from={period.from} to={period.to} />}
         </CardContent>
       </Card>
-
-      {/* Who spent it, over the same window the breakdowns above read. The
-          people rows come from `/stats/usage?group_by=user` rather than `/spend`,
-          so the window is handed over as the period's own dates - the same pair
-          everything on this page resolves from. Gated on runs:view inside the
-          card, so it is absent for a caller without it rather than a refused
-          request. */}
-      <SpendByPerson from={period.from} to={period.to} />
     </div>
   );
 }

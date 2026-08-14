@@ -9,30 +9,28 @@ import {
   AvatarFallback,
   AvatarImage,
   Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+  DataTable,
+  type Column,
 } from "@/components/ui";
 import { usePeopleUsage, usePermissions, useUsageStats } from "@/hooks";
 import { Perm } from "@/types/permissions";
+import type { PersonUsageRow } from "@/types/stats";
 
-/** A card, not a directory: the busiest few, with the disclosure under them. */
+/** A slice, not a directory: the busiest few, with the disclosure under them. */
 const ROWS = 10;
 
 /**
- * Who spent the money, over the window the rest of the tab already shows.
+ * Who spent the money - the Spend table's person facet.
  *
- * The one breakdown on this page that answers with people rather than vendors or
+ * The one slice on this page that answers with people rather than vendors or
  * agents, so it carries its own audience note: the gate is `runs:view`, which
  * builder and operator hold as well as the two stewards, and somebody named here
  * deserves to know how far the list reaches. Absent entirely - never disabled or
  * refused after the fact - for a caller without it, and its request is not made.
  *
- * Its own query against `/stats/usage?group_by=user`, so it fails on its own card
- * rather than taking the vendor and key breakdowns down with it - which is why a
- * failed request says so here rather than reporting that nobody spent anything.
+ * Its own query against `/stats/usage?group_by=user`, so it fails on its own
+ * facet rather than taking the vendor and key slices down with it - which is why
+ * a failed request says so here rather than reporting that nobody spent anything.
  * The rows exclude delegated runs, the same as every other figure on the page, so
  * a delegate's cost is counted once inside the run that started it.
  */
@@ -50,60 +48,66 @@ export function SpendByPerson({ from, to }: { from: string; to: string }) {
   const others = Math.max((usage?.active_users?.active ?? 0) - byUser.length, 0);
 
   if (!maySee) return null;
+  if (isLoading) return <LoadingState variant="skeleton-panel" rows={3} />;
+  if (error)
+    return (
+      <div className="space-y-2">
+        <p className="text-muted-foreground text-sm">{t("whoIsSpendingCouldNotBeRead")}</p>
+        <Button variant="outline" size="sm" onClick={() => void refetch()}>
+          {t("tryAgain")}
+        </Button>
+      </div>
+    );
+
+  const columns: Column<PersonUsageRow>[] = [
+    {
+      key: "person",
+      header: t("personColumn"),
+      cell: (person) => (
+        <span className="flex items-center gap-2">
+          {/* The application's one way of drawing a person - the same face the
+              member lists and the run filter show. */}
+          <Avatar className="h-5 w-5 shrink-0" aria-hidden>
+            <AvatarImage src={`/api/users/avatar/${person.user_id}`} alt="" />
+            <AvatarFallback className="text-[9px]">
+              {initialsOf(person.full_name || person.email)}
+            </AvatarFallback>
+          </Avatar>
+          {person.full_name ?? person.email}
+        </span>
+      ),
+    },
+    {
+      key: "runs",
+      header: t("runs2"),
+      align: "right",
+      cell: (person) => <span className="font-mono text-xs tabular-nums">{person.runs}</span>,
+    },
+    {
+      key: "cost",
+      header: t("cost"),
+      align: "right",
+      cell: (person) => (
+        <span className="font-mono text-xs tabular-nums">
+          ${Number(person.cost_usd).toFixed(4)}
+        </span>
+      ),
+    },
+  ];
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t("byPerson")}</CardTitle>
-        <CardDescription>{t("whoRanAgentsAndWhatItCost")}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-2">
-        {isLoading ? (
-          <LoadingState variant="skeleton-panel" rows={3} />
-        ) : error ? (
-          <div className="space-y-2">
-            <p className="text-muted-foreground text-sm">{t("whoIsSpendingCouldNotBeRead")}</p>
-            <Button variant="outline" size="sm" onClick={() => void refetch()}>
-              {t("tryAgain")}
-            </Button>
-          </div>
-        ) : byUser.length === 0 ? (
-          <p className="text-muted-foreground text-sm">{t("nobodyHasRunAnything")}</p>
-        ) : (
-          <>
-            {byUser.map((person) => (
-              <div
-                key={person.user_id}
-                className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm"
-              >
-                {/* The application's one way of drawing a person - the same
-                    face the member lists and the run filter show. */}
-                <Avatar className="h-6 w-6 shrink-0" aria-hidden>
-                  <AvatarImage src={`/api/users/avatar/${person.user_id}`} alt="" />
-                  <AvatarFallback className="text-[9px]">
-                    {initialsOf(person.full_name || person.email)}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="min-w-0 flex-1 truncate font-medium">
-                  {person.full_name ?? person.email}
-                </span>
-                <span className="text-muted-foreground text-xs whitespace-nowrap">
-                  {t("runCount", { count: person.runs })}
-                </span>
-                <span className="font-mono tabular-nums">
-                  ${Number(person.cost_usd).toFixed(4)}
-                </span>
-              </div>
-            ))}
-            {others > 0 ? (
-              <p className="text-muted-foreground text-xs">
-                {t("othersRanAgents", { count: others })}
-              </p>
-            ) : null}
-            <p className="text-muted-foreground text-xs">{t("perPersonDisclosure")}</p>
-          </>
-        )}
-      </CardContent>
-    </Card>
+    <div className="space-y-2">
+      <DataTable<PersonUsageRow>
+        columns={columns}
+        rows={byUser}
+        getRowKey={(person) => person.user_id}
+        empty={t("nobodyHasRunAnything")}
+        className="rounded-none border-0 bg-transparent"
+      />
+      {others > 0 ? (
+        <p className="text-muted-foreground text-xs">{t("othersRanAgents", { count: others })}</p>
+      ) : null}
+      <p className="text-muted-foreground text-xs">{t("perPersonDisclosure")}</p>
+    </div>
   );
 }
