@@ -994,20 +994,31 @@
     z-index: -10;
     pointer-events: none;
     background:
-      radial-gradient(
-        720px circle at 8% 12%,
-        color-mix(in oklab, var(--brand-400) 26%, transparent),
-        transparent 65%
-      ),
-      radial-gradient(
-        860px circle at 92% 6%,
-        color-mix(in oklab, var(--brand-300) 20%, transparent),
-        transparent 60%
-      ),
-      radial-gradient(
-        1000px circle at 80% 98%,
-        color-mix(in oklab, var(--brand-500) 20%, transparent),
-        transparent 65%
-      );
+      radial-gradient(720px circle at 8% 12%, var(--ambient-a), transparent 65%),
+      radial-gradient(860px circle at 92% 6%, var(--ambient-b), transparent 60%),
+      radial-gradient(1000px circle at 80% 98%, var(--ambient-c), transparent 65%);
   }
+}
+
+/* The wash per theme. One set of blobs, two palettes: a light page takes airy
+   pastels from the pale end of the ramp - mid-ramp steps read grey-blue and
+   dirty on white - while a dark page takes only a faint glow, because the same
+   percentages that disappear on white pool into murky navy on black. Same
+   two-selector shape as the theme blocks above. */
+:root {
+  --ambient-a: color-mix(in oklab, var(--brand-200) 45%, transparent);
+  --ambient-b: color-mix(in oklab, var(--brand-100) 42%, transparent);
+  --ambient-c: color-mix(in oklab, var(--brand-300) 26%, transparent);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --ambient-a: color-mix(in oklab, var(--brand-400) 12%, transparent);
+    --ambient-b: color-mix(in oklab, var(--brand-300) 10%, transparent);
+    --ambient-c: color-mix(in oklab, var(--brand-500) 8%, transparent);
+  }
+}
+:root.dark {
+  --ambient-a: color-mix(in oklab, var(--brand-400) 12%, transparent);
+  --ambient-b: color-mix(in oklab, var(--brand-300) 10%, transparent);
+  --ambient-c: color-mix(in oklab, var(--brand-500) 8%, transparent);
 }
