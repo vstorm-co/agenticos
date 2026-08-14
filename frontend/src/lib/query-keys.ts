@@ -316,7 +316,6 @@ export const qk = {
   },
   admin: {
     stats: () => ["admin", "stats"] as const,
-    events: () => ["admin", "events"] as const,
     users: (params?: unknown) => ["admin", "users", params] as const,
     conversations: (params?: unknown) => ["admin", "conversations", params] as const,
     system: () => ["admin", "system"] as const,

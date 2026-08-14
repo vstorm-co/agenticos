@@ -31,7 +31,8 @@ import { ROUTES } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
 import { useChanged } from "@/hooks/use-changed";
 
-const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
+/** One server page - the same fixed size every other paged list uses. */
+const PAGE_SIZE = 50;
 // Keys the backend can sort on (route → service → repo).
 const SORT_KEYS = ["title", "owner", "messages", "created_at", "updated_at"] as const;
 type Status = "active" | "archived" | "all";
@@ -68,7 +69,6 @@ function UserAvatar({
 export default function AdminConversationsPage() {
   const t = useTranslations("admin");
   const tAdminPages = useTranslations("pages.admin");
-  const tc = useTranslations("common");
   const locale = useLocale();
   const {
     conversations,
@@ -86,7 +86,6 @@ export default function AdminConversationsPage() {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>("active");
-  const [pageSize, setPageSize] = useState<number>(50);
   const [page, setPage] = useState(0);
   const { sort, setSort } = useUrlSort(SORT_KEYS, { by: "updated_at", dir: "desc" });
 
@@ -94,9 +93,7 @@ export default function AdminConversationsPage() {
   // now has one page shows nothing. During render, so the empty page is never
   // painted on the way.
   if (
-    useChanged(
-      `${search}|${selectedUserId}|${selectedAgentId}|${status}|${pageSize}|${sort.by}|${sort.dir}`,
-    )
+    useChanged(`${search}|${selectedUserId}|${selectedAgentId}|${status}|${sort.by}|${sort.dir}`)
   ) {
     setPage(0);
   }
@@ -115,8 +112,8 @@ export default function AdminConversationsPage() {
         status,
         sort_by: sort.by,
         sort_dir: sort.dir,
-        skip: page * pageSize,
-        limit: pageSize,
+        skip: page * PAGE_SIZE,
+        limit: PAGE_SIZE,
       });
     }, 300);
     return () => clearTimeout(timer);
@@ -128,7 +125,6 @@ export default function AdminConversationsPage() {
     sort.by,
     sort.dir,
     page,
-    pageSize,
     fetchConversations,
   ]);
 
@@ -142,6 +138,7 @@ export default function AdminConversationsPage() {
       {
         key: "title",
         header: t("title"),
+        className: "pl-5",
         sortable: true,
         cell: (conv) => (
           <span className="text-foreground font-medium">{conv.title || t("untitled")}</span>
@@ -206,13 +203,16 @@ export default function AdminConversationsPage() {
         key: "actions",
         align: "right",
         header: "",
+        className: "w-0 pr-5",
+        // The same door the run table draws: an icon-only link with the
+        // action's whole sentence in its accessible name.
         cell: (conv) => (
           <Link
             href={`${ROUTES.CHAT}?id=${conv.id}`}
-            className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 font-mono text-[11px] tracking-wider uppercase transition-colors"
+            aria-label={t("openConversation")}
+            className="text-muted-foreground hover:text-foreground inline-flex h-7 w-7 items-center justify-center rounded-md transition-colors"
           >
-            <ExternalLink className="h-3 w-3" />
-            {t("view")}
+            <ExternalLink className="h-3.5 w-3.5" aria-hidden />
           </Link>
         ),
       },
@@ -283,19 +283,6 @@ export default function AdminConversationsPage() {
               ))}
             </SelectContent>
           </Select>
-
-          <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
-            <SelectTrigger className="w-[110px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PAGE_SIZE_OPTIONS.map((n) => (
-                <SelectItem key={n} value={String(n)}>
-                  {tc("perPage", { count: n })}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
         </ListCardControlsRow>
 
         {/* "No conversations found" and "the request was refused" are the same
@@ -322,7 +309,7 @@ export default function AdminConversationsPage() {
         <ListCardFootRow>
           <PaginationBar
             page={page}
-            pageSize={pageSize}
+            pageSize={PAGE_SIZE}
             total={conversationsTotal}
             isLoading={isLoading}
             onPage={setPage}

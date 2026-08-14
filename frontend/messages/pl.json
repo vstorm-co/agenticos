@@ -28,7 +28,6 @@
     "editNamed": "Edytuj {name}",
     "language": "Język",
     "openNamed": "Otwórz {name}",
-    "perPage": "{count} / stronę",
     "rangeOfTotal": "{start, number}–{end, number} z {total, number}",
     "removeNamed": "Usuń {name}",
     "removeNamedConfirm": "Usunąć {name}?"
@@ -70,7 +69,6 @@
     "toggleMenu": "Przełącz menu",
     "navigate": "Nawigacja",
     "apiDocs": "Dokumentacja API",
-    "responseRatings": "Oceny odpowiedzi",
     "settingsSection": "Ustawienia",
     "agents": "Agenci",
     "skills": "Skille",
@@ -93,7 +91,8 @@
     "quickActions": "Szybkie akcje",
     "searchJump": "Szukaj lub przejdź do…",
     "startNewChat": "Zacznij nowy czat",
-    "untitledConversation": "Rozmowa bez tytułu"
+    "untitledConversation": "Rozmowa bez tytułu",
+    "allOrganizations": "Wszystkie organizacje"
   },
   "auth": {
     "login": "Zaloguj się",
@@ -271,17 +270,9 @@
     "name": "Imię",
     "joined": "Dołączył",
     "total": "{count} łącznie",
-    "allRatings": "Wszystkie oceny",
-    "likesOnly": "Tylko polubienia",
-    "dislikesOnly": "Tylko nieprzydatne",
-    "withCommentsOnly": "Tylko z komentarzem",
-    "export": "Eksportuj",
-    "totalRatings": "Łączna liczba ocen",
     "likes": "Polubienia",
     "dislikes": "Nieprzydatne",
     "date": "Data",
-    "rating": "Ocena",
-    "comment": "Komentarz",
     "message": "Wiadomość",
     "user": "Użytkownik",
     "actions": "Akcje"

@@ -11,15 +11,9 @@ import {
   Button,
   DataTable,
   ListCard,
-  ListCardControlsRow,
   ListCardFootRow,
   PaginationBar,
   SearchInput,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
   type Column,
 } from "@/components/ui";
 import { useAdminUsers, useUrlSort } from "@/hooks";
@@ -28,7 +22,8 @@ import { formatDate } from "@/lib/utils";
 import { useChanged } from "@/hooks/use-changed";
 
 import { useLocale, useTranslations } from "next-intl";
-const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
+/** One server page - the same fixed size every other paged list uses. */
+const PAGE_SIZE = 50;
 // Keys the backend can sort on (route → service → repo).
 const SORT_KEYS = ["email", "full_name", "conversations", "created_at"] as const;
 
@@ -43,12 +38,10 @@ function getInitials(nameOrEmail: string): string {
 
 export default function AdminUsersPage() {
   const t = useTranslations("pages.admin");
-  const tc = useTranslations("common");
   const locale = useLocale();
   const { users, total, isLoading, error, fetchUsers, updateUser, deleteUser, impersonateUser } =
     useAdminUsers();
   const [search, setSearch] = useState("");
-  const [pageSize, setPageSize] = useState(50);
   const [page, setPage] = useState(0);
   const { sort, setSort } = useUrlSort(SORT_KEYS, { by: "created_at", dir: "desc" });
   // The id, not the row. Holding the object meant it went stale the moment the
@@ -60,15 +53,15 @@ export default function AdminUsersPage() {
 
   // Back to the first page whenever the filters move - see the conversations
   // page for the same reasoning.
-  if (useChanged(`${search}|${pageSize}|${sort.by}|${sort.dir}`)) {
+  if (useChanged(`${search}|${sort.by}|${sort.dir}`)) {
     setPage(0);
   }
 
   const load = useCallback(
-    (pg: number, q: string, ps: number, sortBy: string, sortDir: "asc" | "desc") => {
+    (pg: number, q: string, sortBy: string, sortDir: "asc" | "desc") => {
       fetchUsers({
-        skip: pg * ps,
-        limit: ps,
+        skip: pg * PAGE_SIZE,
+        limit: PAGE_SIZE,
         search: q || undefined,
         sortBy,
         sortDir,
@@ -80,10 +73,10 @@ export default function AdminUsersPage() {
   // Debounced fetch - the server does filtering, sorting, and pagination.
   useEffect(() => {
     const timer = setTimeout(() => {
-      load(page, search, pageSize, sort.by, sort.dir);
+      load(page, search, sort.by, sort.dir);
     }, 300);
     return () => clearTimeout(timer);
-  }, [load, page, search, pageSize, sort.by, sort.dir]);
+  }, [load, page, search, sort.by, sort.dir]);
 
   const handleOpenUser = useCallback((user: AdminUser) => {
     setDrawerUserId(user.id);
@@ -95,6 +88,7 @@ export default function AdminUsersPage() {
       {
         key: "email",
         header: t("user"),
+        className: "pl-5",
         sortable: true,
         cell: (u) => (
           <div className="flex min-w-0 items-center gap-3">
@@ -165,7 +159,7 @@ export default function AdminUsersPage() {
         key: "actions",
         header: "",
         align: "right",
-        className: "w-0",
+        className: "w-0 pr-5",
         cell: (u) => (
           <Button
             variant="outline"
@@ -193,21 +187,6 @@ export default function AdminUsersPage() {
         }
         contentClassName="p-0"
       >
-        <ListCardControlsRow>
-          <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
-            <SelectTrigger className="w-[120px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PAGE_SIZE_OPTIONS.map((n) => (
-                <SelectItem key={n} value={String(n)}>
-                  {tc("perPage", { count: n })}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </ListCardControlsRow>
-
         <DataTable<AdminUser>
           columns={columns}
           rows={users}
@@ -224,7 +203,7 @@ export default function AdminUsersPage() {
         <ListCardFootRow>
           <PaginationBar
             page={page}
-            pageSize={pageSize}
+            pageSize={PAGE_SIZE}
             total={total}
             isLoading={isLoading}
             onPage={setPage}
