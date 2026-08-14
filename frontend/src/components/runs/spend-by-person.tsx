@@ -2,8 +2,19 @@
 
 import { useTranslations } from "next-intl";
 
+import { initialsOf } from "@/components/orgs/member-identity";
 import { LoadingState } from "@/components/states";
-import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui";
 import { usePeopleUsage, usePermissions, useUsageStats } from "@/hooks";
 import { Perm } from "@/types/permissions";
 
@@ -65,13 +76,23 @@ export function SpendByPerson({ from, to }: { from: string; to: string }) {
                 key={person.user_id}
                 className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm"
               >
+                {/* The application's one way of drawing a person - the same
+                    face the member lists and the run filter show. */}
+                <Avatar className="h-6 w-6 shrink-0" aria-hidden>
+                  <AvatarImage src={`/api/users/avatar/${person.user_id}`} alt="" />
+                  <AvatarFallback className="text-[9px]">
+                    {initialsOf(person.full_name || person.email)}
+                  </AvatarFallback>
+                </Avatar>
                 <span className="min-w-0 flex-1 truncate font-medium">
                   {person.full_name ?? person.email}
                 </span>
-                <span className="text-muted-foreground text-xs">
+                <span className="text-muted-foreground text-xs whitespace-nowrap">
                   {t("runCount", { count: person.runs })}
                 </span>
-                <span className="font-mono">${Number(person.cost_usd).toFixed(4)}</span>
+                <span className="font-mono tabular-nums">
+                  ${Number(person.cost_usd).toFixed(4)}
+                </span>
               </div>
             ))}
             {others > 0 ? (

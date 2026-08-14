@@ -1,12 +1,15 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
+import { KeyRound } from "lucide-react";
 
 import { getErrorMessage } from "@/lib/api-error";
+import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
 import { SpendBreakdown } from "@/components/runs/spend-breakdown";
 import { SpendByPerson } from "@/components/runs/spend-by-person";
+import { ProviderIcon } from "@/components/vault/provider-icon";
 import { useSpend } from "@/hooks";
 import { periodEnd, periodStart, type Period } from "@/lib/dashboard/period";
 import { formatDate } from "@/lib/utils";
@@ -90,6 +93,12 @@ export function SpendTab({ period }: { period: Period }) {
             muted: entry.provider === null,
             runs: entry.run_count,
             cost: entry.cost_usd,
+            // The vendor's own mark, the same one the vault and the run table
+            // draw - an invoice is checked against a brand, not a lowercase id.
+            icon:
+              entry.provider === null ? undefined : (
+                <ProviderIcon provider={entry.provider} className="h-4 w-4" />
+              ),
           }))}
         />
         <SpendBreakdown
@@ -101,6 +110,7 @@ export function SpendTab({ period }: { period: Period }) {
             muted: entry.label === null,
             runs: entry.run_count,
             cost: entry.cost_usd,
+            icon: entry.label === null ? undefined : <KeyRound className="h-4 w-4" />,
           }))}
         />
       </div>
@@ -119,16 +129,33 @@ export function SpendTab({ period }: { period: Period }) {
           {!spend || spend.by_agent.length === 0 ? (
             <p className="text-muted-foreground text-sm">{t("nothingSpentYet")}</p>
           ) : (
-            // Labelled by the agent, which is what the row is. `model_label` is
-            // on the type but null on every row this endpoint returns - it is the
-            // usage email's per-model field, not this screen's.
+            // Labelled by the agent, which is what the row is - with the same
+            // face every list of agents draws, initials when nobody uploaded a
+            // picture. `model_label` is on the type but null on every row this
+            // endpoint returns - it is the usage email's per-model field, not
+            // this screen's.
             spend.by_agent.map((entry) => (
               <div
                 key={entry.agent_id}
                 className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm"
               >
-                <span className="font-medium">{entry.agent_name ?? t("deletedAgent")}</span>
-                <span className="text-muted-foreground ml-auto text-xs">
+                <span aria-hidden>
+                  <AgentAvatar
+                    agentId={entry.agent_id}
+                    name={entry.agent_name ?? t("deletedAgent")}
+                    size="sm"
+                  />
+                </span>
+                <span
+                  className={
+                    entry.agent_name === null
+                      ? "text-muted-foreground truncate italic"
+                      : "truncate font-medium"
+                  }
+                >
+                  {entry.agent_name ?? t("deletedAgent")}
+                </span>
+                <span className="text-muted-foreground ml-auto text-xs whitespace-nowrap">
                   {t("runCount", { count: entry.run_count })}
                 </span>
                 {entry.partial_run_count > 0 && (
@@ -136,7 +163,7 @@ export function SpendTab({ period }: { period: Period }) {
                     {t("couldNotBePriced", { count: entry.partial_run_count })}
                   </span>
                 )}
-                <span className="font-mono">${Number(entry.cost_usd).toFixed(4)}</span>
+                <span className="font-mono tabular-nums">${Number(entry.cost_usd).toFixed(4)}</span>
               </div>
             ))
           )}
