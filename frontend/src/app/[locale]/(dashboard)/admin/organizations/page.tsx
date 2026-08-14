@@ -15,6 +15,10 @@ import type { AdminOrganization } from "@/types/admin";
  * Every tenant on the deployment, one row each - its own tab rather than a
  * table at the bottom of the overview, where it competed with the figures for
  * a reader who came for exactly one of the two.
+ *
+ * No sort headers on purpose: the fetch is one server page, so a client sort
+ * would claim a whole-collection order fifty rows cannot deliver - the same
+ * reasoning that keeps them off the org members table.
  */
 export default function AdminOrganizationsPage() {
   const t = useTranslations("pages.admin");
@@ -36,8 +40,6 @@ export default function AdminOrganizationsPage() {
         key: "name",
         header: t("name"),
         className: "pl-5",
-        sortable: true,
-        sortValue: (org) => org.name,
         cell: (org) => (
           <>
             <span className="text-foreground font-medium">{org.name}</span>
@@ -58,16 +60,12 @@ export default function AdminOrganizationsPage() {
         key: "members",
         header: t("members"),
         align: "right",
-        sortable: true,
-        sortValue: (org) => org.member_count,
         cell: (org) => <span className="tabular-nums">{org.member_count}</span>,
       },
       {
         key: "agents",
         header: t("agents2"),
         align: "right",
-        sortable: true,
-        sortValue: (org) => org.agent_count,
         cell: (org) => <span className="tabular-nums">{org.agent_count}</span>,
       },
       {
@@ -75,8 +73,6 @@ export default function AdminOrganizationsPage() {
         header: t("created"),
         align: "right",
         className: "pr-5",
-        sortable: true,
-        sortValue: (org) => org.created_at,
         cell: (org) => (
           <span className="text-muted-foreground text-xs">
             {formatDate(org.created_at, locale)}

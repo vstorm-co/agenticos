@@ -168,6 +168,21 @@ describe("DataTable client-side sorting", () => {
     expect(screen.getAllByRole("columnheader")[0]!).toHaveAttribute("aria-sort", "ascending");
     expect(screen.getAllByRole("columnheader")[1]!).not.toHaveAttribute("aria-sort");
   });
+
+  // `sortable: true` without `sortValue` in client mode would be a control that
+  // flips its arrow over rows that never move — so it is not a control at all.
+  it("renders a plain header for a client-mode column with nothing to sort by", () => {
+    renderRuns({
+      columns: [
+        { key: "name", header: "Name", cell: (row: Run) => row.name, sortable: true },
+        ...runColumns.slice(1),
+      ],
+      defaultSort: { by: "name", dir: "asc" },
+    });
+
+    expect(screen.queryByRole("button", { name: "Name" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("columnheader")[0]!).not.toHaveAttribute("aria-sort");
+  });
 });
 
 describe("DataTable server-side sorting", () => {

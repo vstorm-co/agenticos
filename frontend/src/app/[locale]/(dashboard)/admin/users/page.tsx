@@ -181,7 +181,7 @@ export default function AdminUsersPage() {
     <div className="space-y-4">
       <ListCard
         title={t("usersCard")}
-        counted={t("totalCount", { count: total })}
+        counted={isLoading && users.length === 0 ? null : t("totalCount", { count: total })}
         controls={
           <SearchInput value={search} onChange={setSearch} placeholder={t("searchByEmailName")} />
         }
@@ -200,15 +200,17 @@ export default function AdminUsersPage() {
           className="rounded-none border-0 bg-transparent"
         />
 
-        <ListCardFootRow>
-          <PaginationBar
-            page={page}
-            pageSize={PAGE_SIZE}
-            total={total}
-            isLoading={isLoading}
-            onPage={setPage}
-          />
-        </ListCardFootRow>
+        {total > 0 && (
+          <ListCardFootRow>
+            <PaginationBar
+              page={page}
+              pageSize={PAGE_SIZE}
+              total={total}
+              isLoading={isLoading}
+              onPage={setPage}
+            />
+          </ListCardFootRow>
+        )}
       </ListCard>
 
       <UserDetailDrawer

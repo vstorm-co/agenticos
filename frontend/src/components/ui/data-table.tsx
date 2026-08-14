@@ -23,7 +23,9 @@ export interface Column<T> {
   /**
    * Renders the header as a sort control. With `onSort` on the table the click
    * is the caller's (server-side sorting); without it the table sorts the rows
-   * it holds, which needs `sortValue`.
+   * it holds, which needs `sortValue` — a client-mode column without one renders
+   * a plain header rather than a control that flips its arrow over rows that
+   * never move.
    */
   sortable?: boolean;
   /**
@@ -152,7 +154,8 @@ export function DataTable<T>({
           <thead>
             <tr className="border-border border-b">
               {columns.map((col) => {
-                const sorted = activeSort?.by === col.key ? activeSort : null;
+                const sortsHere = col.sortable && (serverSorted || col.sortValue !== undefined);
+                const sorted = sortsHere && activeSort?.by === col.key ? activeSort : null;
                 return (
                   <th
                     key={col.key}
@@ -167,7 +170,7 @@ export function DataTable<T>({
                       col.className,
                     )}
                   >
-                    {col.sortable ? (
+                    {sortsHere ? (
                       <SortButton
                         active={sorted !== null}
                         direction={sorted?.dir ?? "desc"}

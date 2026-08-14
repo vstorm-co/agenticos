@@ -224,7 +224,9 @@ export default function AdminConversationsPage() {
     <div className="space-y-4">
       <ListCard
         title={tAdminPages("conversationsCard")}
-        counted={t("total", { count: conversationsTotal })}
+        counted={
+          isLoading && conversations.length === 0 ? null : t("total", { count: conversationsTotal })
+        }
         controls={<SearchInput value={search} onChange={setSearch} placeholder={t("search")} />}
         contentClassName="p-0"
       >
@@ -306,15 +308,17 @@ export default function AdminConversationsPage() {
           className="rounded-none border-0 bg-transparent"
         />
 
-        <ListCardFootRow>
-          <PaginationBar
-            page={page}
-            pageSize={PAGE_SIZE}
-            total={conversationsTotal}
-            isLoading={isLoading}
-            onPage={setPage}
-          />
-        </ListCardFootRow>
+        {conversationsTotal > 0 && (
+          <ListCardFootRow>
+            <PaginationBar
+              page={page}
+              pageSize={PAGE_SIZE}
+              total={conversationsTotal}
+              isLoading={isLoading}
+              onPage={setPage}
+            />
+          </ListCardFootRow>
+        )}
       </ListCard>
     </div>
   );
