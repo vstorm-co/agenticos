@@ -7,8 +7,10 @@ import { MessagesSquare, Plus } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { AddChannelDialog } from "@/components/channels/add-channel-dialog";
 import { ChannelBotsTable } from "@/components/channels/channel-bots-table";
+import { ErrorState } from "@/components/states";
 import { Button, ListCard, ListCardEmpty, Skeleton } from "@/components/ui";
 import { useChannelBots, usePermissions } from "@/hooks";
+import { getErrorMessage } from "@/lib/api-error";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 
@@ -43,12 +45,13 @@ function BotsCard({ count, children }: { count: number | null; children: ReactNo
  */
 export default function ChannelsPage() {
   const t = useTranslations("pages.channels");
+  const tErrors = useTranslations("errors");
   const { can } = usePermissions();
   // The backend gates every write here on `channels:manage`, and the listing
   // too - so the hook is told not to fetch at all for somebody without it,
   // rather than putting a 403 in the network log of every member who visits.
   const canManage = can(Perm.channelsManage);
-  const { bots, isLoading, create, setActive, remove } = useChannelBots(canManage);
+  const { bots, isLoading, error, create, setActive, remove } = useChannelBots(canManage);
   const [adding, setAdding] = useState(false);
 
   if (!canManage) {
@@ -101,8 +104,12 @@ export default function ChannelsPage() {
         }
       />
 
-      <BotsCard count={bots.length}>
-        {bots.length === 0 ? (
+      <BotsCard count={error ? null : bots.length}>
+        {error ? (
+          // A failed read has no rows either, and "No channels yet" over a 502
+          // is a refusal dressed as reassurance (#32's shape).
+          <ErrorState description={getErrorMessage(error, tErrors)} className="m-5" />
+        ) : bots.length === 0 ? (
           <ListCardEmpty
             icon={MessagesSquare}
             title={t("noChannelsYet")}

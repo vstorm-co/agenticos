@@ -70,9 +70,10 @@ async function personal() {
  * The scope distinction is the point: `useMcpConnections` is one person's
  * credentials, `useOrgMcpConnections` is the organization's, and an agent may be
  * bound only to the second. `useMcpServers` joins both onto the catalog so one
- * page can answer "what exists, and who has connected it" - which is why only the
- * *personal* failure is surfaced as the page's error: a member without
- * `connections:manage` gets a 403 on the org list and can still read the rest.
+ * page can answer "what exists, and who has connected it" - which is why the
+ * *catalog's* and the *personal* failures are surfaced as the page's error and
+ * the organization's is not: a member without `connections:manage` gets a 403
+ * on the org list and can still read the rest.
  */
 describe("a person's own connections", () => {
   it("reads their connections", async () => {
@@ -206,6 +207,18 @@ describe("every server, with who has connected it", () => {
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.error).toBeNull();
+  });
+
+  it("reports a failed catalog instead of drawing an empty deployment", async () => {
+    // Without the catalog `mergeServers` yields [] with no error - "No servers"
+    // on the one deployment state that cannot be true (it ships compiled in).
+    vi.mocked(apiClient.get).mockRejectedValue(new Error("catalog down"));
+    vi.mocked(personalApi.listMcpConnections).mockResolvedValue([]);
+    vi.mocked(orgApi.listOrgMcpConnections).mockResolvedValue([]);
+
+    const { result } = renderHook(() => useMcpServers(), { wrapper });
+
+    await waitFor(() => expect(result.current.error).not.toBeNull());
   });
 
   it("remembers the tools a check discovered, keyed by connection", async () => {

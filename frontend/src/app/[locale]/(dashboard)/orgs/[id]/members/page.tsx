@@ -15,6 +15,7 @@ import {
 import { toast } from "sonner";
 
 import { ApiError, getErrorMessage, parseErrorMessage } from "@/lib/api-error";
+import { ErrorState } from "@/components/states";
 import { InviteLinkDialog, InviteMemberDialog, OrgSpendingLimit } from "@/components/teams";
 import { PageHeader } from "@/components/dashboard/page-header";
 import {
@@ -77,7 +78,8 @@ export default function OrgMembersPage({ params }: PageProps) {
   const locale = useLocale();
   const { id } = use(params);
   const { user } = useAuth();
-  const { members, total, isLoading, fetchMembers, changeRole, removeMember } = useMembers(id);
+  const { members, total, isLoading, error, fetchMembers, changeRole, removeMember } =
+    useMembers(id);
   const { invitations, fetchInvitations, revokeInvitation } = useInvitations(id);
   const { orgs, fetchOrgs, patchOrg } = useOrganizations();
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -358,10 +360,14 @@ export default function OrgMembersPage({ params }: PageProps) {
           keeps the page's shape whether it is empty, loading or full. */}
       <ListCard
         title={t("membersCard")}
-        counted={isLoading ? null : t("memberCount", { count: members.length })}
+        counted={isLoading || error ? null : t("memberCount", { count: members.length })}
         contentClassName="p-0"
       >
-        {!isLoading && members.length === 0 ? (
+        {error ? (
+          // Every organization has at least its owner, so "no members yet"
+          // over a failed read is a sentence that cannot be true (#32).
+          <ErrorState description={getErrorMessage(error, tErrors)} className="m-5" />
+        ) : !isLoading && members.length === 0 ? (
           <ListCardEmpty
             icon={Users}
             title={t("noMembersYet")}
