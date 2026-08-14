@@ -84,9 +84,12 @@ test.describe("Activity", () => {
     }
 
     // An operator seeing a blank panel cannot tell "no agent needed you" from
-    // "the approvals request failed". The empty state has to state which.
+    // "the approvals request failed", so the empty queue is said in words
+    // either way: the standalone empty state when the whole table is empty,
+    // the counted line above it when the window still holds decided rows
+    // (which earlier specs in this suite legitimately leave behind). A failed
+    // request draws neither sentence.
     const panel = page.getByRole("tabpanel");
-    await expect(panel.getByRole("heading", { name: "Nothing waiting" })).toBeVisible();
-    await expect(panel.getByText("Agents are running without needing you.")).toBeVisible();
+    await expect(panel.getByText("Nothing waiting").first()).toBeVisible();
   });
 });
