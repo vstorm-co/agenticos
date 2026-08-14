@@ -1,4 +1,4 @@
-import { Code2, Globe, TerminalSquare } from "lucide-react";
+import { Code2, Globe, MessageSquare } from "lucide-react";
 import { FaSlack } from "react-icons/fa6";
 import { SiMattermost, SiTelegram } from "react-icons/si";
 
@@ -11,13 +11,16 @@ import { cn } from "@/lib/utils";
  *
  * The messaging channels get their brand marks, the same components the
  * channels list draws, monochrome `currentColor` like every brand mark in the
- * console. The console's own surfaces get glyphs: the web chat a globe, the
- * embedded widget a code tag, the HTTP API a terminal.
+ * console. The console's own surfaces speak the exposure cards' vocabulary
+ * (`surface-picker.tsx`): a run from the widget wears the Website widget
+ * card's globe, an API run the Public API card's code tag - so what somebody
+ * published and what ran through it carry the same face. The dashboard chat,
+ * which no card publishes, is the chat bubble.
  */
 const MARKS = {
-  web: Globe,
-  embed: Code2,
-  api: TerminalSquare,
+  web: MessageSquare,
+  embed: Globe,
+  api: Code2,
   slack: FaSlack,
   telegram: SiTelegram,
   mattermost: SiMattermost,

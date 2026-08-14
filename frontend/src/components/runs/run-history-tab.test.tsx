@@ -74,6 +74,7 @@ function aRun(): AgentRun {
     subagent_task_id: null,
     down_rated: false,
     conversation_id: null,
+    provider: null,
   };
 }
 
@@ -211,11 +212,19 @@ describe("run history controls", () => {
     expect(lastOptions()).toMatchObject({ orderBy: "cost", descending: true });
   });
 
+  it("the Tokens header asks for the heaviest of the whole set", async () => {
+    renderTab();
+
+    await userEvent.click(screen.getByText("Tokens").closest("button")!);
+
+    expect(lastOptions()).toMatchObject({ orderBy: "tokens", descending: true });
+  });
+
   it("narrows to one status the server filters by", async () => {
     renderTab();
 
     await userEvent.click(screen.getByRole("combobox", { name: "Filter by status" }));
-    await userEvent.click(screen.getByRole("option", { name: "failed" }));
+    await userEvent.click(screen.getByRole("option", { name: "Failed" }));
 
     expect(lastOptions()).toMatchObject({ statuses: ["failed"] });
   });
@@ -311,7 +320,7 @@ describe("run history controls", () => {
     expect(lastOptions()).toMatchObject({ skip: 50 });
 
     await userEvent.click(screen.getByRole("combobox", { name: "Filter by status" }));
-    await userEvent.click(screen.getByRole("option", { name: "failed" }));
+    await userEvent.click(screen.getByRole("option", { name: "Failed" }));
 
     expect(lastOptions()).toMatchObject({ statuses: ["failed"], skip: 0 });
   });

@@ -141,7 +141,7 @@ describe("the export beside the filters", () => {
     );
 
     await userEvent.click(screen.getByRole("combobox", { name: "Filter by status" }));
-    await userEvent.click(await screen.findByRole("option", { name: "failed" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Failed" }));
     await userEvent.click(screen.getByRole("combobox", { name: "Filter by surface" }));
     await userEvent.click(await screen.findByRole("option", { name: "slack" }));
 

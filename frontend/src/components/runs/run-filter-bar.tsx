@@ -2,9 +2,20 @@
 
 import { useTranslations } from "next-intl";
 
+import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { RUN_LABEL } from "@/components/agents/status-badge";
+import { displayName, initialsOf } from "@/components/orgs/member-identity";
 import { SurfaceIcon } from "@/components/runs/surface-icon";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui";
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui";
 import { useAgents, useAgentVersions, useMembers, usePermissions } from "@/hooks";
 import { useOrgStore } from "@/stores";
 import { Perm } from "@/types/permissions";
@@ -155,9 +166,24 @@ function AgentSelect({
       </SelectTrigger>
       <SelectContent>
         <SelectItem value="all">{t("anyAgent")}</SelectItem>
+        {/* The face beside the name, the same presentation every list of
+            agents draws - initials when nobody uploaded a picture. */}
         {agents.map((agent) => (
           <SelectItem key={agent.id} value={agent.id}>
-            {agent.name}
+            <span className="flex items-center gap-2">
+              {/* Decorative beside the name it initials - in the accessible
+                  name the option would read "SA Support agent". */}
+              <span aria-hidden>
+                <AgentAvatar
+                  agentId={agent.id}
+                  name={agent.name}
+                  hasAvatar={agent.has_avatar ?? false}
+                  size="sm"
+                  className="h-5 w-5"
+                />
+              </span>
+              {agent.name}
+            </span>
           </SelectItem>
         ))}
       </SelectContent>
@@ -184,9 +210,20 @@ function PersonSelect({
       </SelectTrigger>
       <SelectContent>
         <SelectItem value="all">{t("anyPerson")}</SelectItem>
+        {/* The application's one way of drawing a person - a face, initials
+            when nobody uploaded one, the name over the address (see
+            MemberIdentity, compacted to a menu row). */}
         {members.map((member) => (
           <SelectItem key={member.user_id} value={member.user_id}>
-            {member.full_name ?? member.email}
+            <span className="flex items-center gap-2">
+              <Avatar className="h-5 w-5 shrink-0" aria-hidden>
+                <AvatarImage src={`/api/users/avatar/${member.user_id}`} alt="" />
+                <AvatarFallback className="text-[9px]">
+                  {initialsOf(member.full_name || member.email)}
+                </AvatarFallback>
+              </Avatar>
+              {displayName(member)}
+            </span>
           </SelectItem>
         ))}
       </SelectContent>

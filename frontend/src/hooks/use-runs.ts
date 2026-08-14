@@ -48,7 +48,7 @@ export function useRuns(
     enabled?: boolean;
     startedFrom?: string;
     startedTo?: string;
-    orderBy?: "started_at" | "duration" | "cost";
+    orderBy?: "started_at" | "duration" | "cost" | "tokens";
     descending?: boolean;
     tookOverMs?: number;
     rated?: "down" | "up";

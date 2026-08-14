@@ -34,6 +34,7 @@ function run(overrides: Partial<AgentRun> = {}): AgentRun {
     error: null,
     down_rated: false,
     conversation_id: null,
+    provider: null,
     started_at: "2026-08-04T09:00:00Z",
     ended_at: "2026-08-04T09:00:30Z",
     parent_run_id: null,
@@ -77,6 +78,20 @@ describe("a run history row", () => {
     render(<RunTable runs={[run({ input_tokens: 1000, output_tokens: 100 })]} />);
 
     expect(within(row()).getByText("1100")).toBeVisible();
+  });
+
+  it("draws the vendor's mark beside the model it ran", () => {
+    // The same presentation the Builder's current-model row uses: the brand
+    // mark keyed on `provider`, never parsed out of the display label.
+    render(<RunTable runs={[run({ provider: "openai" })]} />);
+
+    expect(within(row()).getByText("openai · gpt-5").querySelector("svg")).not.toBeNull();
+  });
+
+  it("draws no vendor mark for a run recorded before the vendor was tracked", () => {
+    render(<RunTable runs={[run({ provider: null })]} />);
+
+    expect(within(row()).getByText("openai · gpt-5").querySelector("svg")).toBeNull();
   });
 
   it("marks a cost that is only a floor rather than presenting it as the price", () => {
@@ -142,6 +157,15 @@ describe("a sortable run table", () => {
     await userEvent.click(screen.getByRole("button", { name: "Took" }));
 
     expect(onSort).toHaveBeenCalledWith({ by: "duration", dir: "asc" });
+  });
+
+  it("sorts by token weight when the Tokens header is used, heaviest first", async () => {
+    const onSort = vi.fn();
+    render(<RunTable runs={[run()]} sort={{ by: "started_at", dir: "desc" }} onSort={onSort} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Tokens" }));
+
+    expect(onSort).toHaveBeenCalledWith({ by: "tokens", dir: "desc" });
   });
 
   it("marks a run somebody rated down, and says nothing on one nobody did", () => {

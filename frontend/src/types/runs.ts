@@ -11,6 +11,13 @@ export interface AgentRun {
   surface: string;
   status: RunStatus;
   model_label: string | null;
+  /**
+   * The vendor the model actually ran at, as the provider catalog spells it -
+   * what the table keys a brand mark on. `model_label` names the profile; a
+   * repointed profile can change vendor under the same label. Null for runs
+   * recorded before it was tracked.
+   */
+  provider: string | null;
   input_tokens: number;
   output_tokens: number;
   /** Serialised Decimal - never parse into a float for arithmetic. */

@@ -6,6 +6,7 @@ import { MessageSquare, ThumbsDown } from "lucide-react";
 
 import { RunStatusBadge } from "@/components/agents/status-badge";
 import { SurfaceIcon } from "@/components/runs/surface-icon";
+import { ProviderIcon } from "@/components/vault/provider-icon";
 import { Badge, DataTable, type Column } from "@/components/ui";
 import { useAuthStore } from "@/stores";
 import { ROUTES } from "@/lib/constants";
@@ -13,7 +14,7 @@ import { formatDateTime, formatRunDuration, timeAgo } from "@/lib/utils";
 import type { AgentRun } from "@/types/runs";
 
 /** The orders `GET /runs` offers, matching `RunOrder` on the backend. */
-export type RunSortKey = "started_at" | "duration" | "cost";
+export type RunSortKey = "started_at" | "duration" | "cost" | "tokens";
 export interface RunSort {
   by: RunSortKey;
   dir: "asc" | "desc";
@@ -106,12 +107,22 @@ export function RunTable({
     {
       key: "model",
       header: t("model"),
-      cell: (run) => <span className="font-mono text-xs">{run.model_label ?? "-"}</span>,
+      // The vendor's mark beside the profile label, the way the Builder's
+      // current-model row draws it - one presentation for a model everywhere.
+      cell: (run) => (
+        <span className="flex items-center gap-1.5 font-mono text-xs">
+          {run.provider !== null && (
+            <ProviderIcon provider={run.provider} className="h-3.5 w-3.5" />
+          )}
+          {run.model_label ?? "-"}
+        </span>
+      ),
     },
     {
       key: "tokens",
       header: t("tokens"),
       align: "right",
+      sortable,
       cell: (run) => (
         <span className="font-mono text-xs">{run.input_tokens + run.output_tokens}</span>
       ),

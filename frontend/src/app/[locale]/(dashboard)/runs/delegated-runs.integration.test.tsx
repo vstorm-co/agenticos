@@ -79,6 +79,7 @@ function run(overrides: Partial<AgentRun> = {}): AgentRun {
     error: null,
     down_rated: false,
     conversation_id: null,
+    provider: null,
     started_at: "2026-08-04T09:00:00Z",
     ended_at: "2026-08-04T09:00:30Z",
     parent_run_id: null,
