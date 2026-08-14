@@ -63,22 +63,39 @@ describe("the Runs figure and the Spend figure", () => {
     await waitFor(() => {
       const spendCall = vi
         .mocked(apiClient.get)
-        .mock.calls.find(([path, options]) => path === "/spend" && options?.params?.from);
+        .mock.calls.find(
+          ([path, options]) =>
+            path === "/spend" && (options?.params as Record<string, string> | undefined)?.from,
+        );
       expect(spendCall).toBeDefined();
     });
 
     const [, spendOptions] = vi
       .mocked(apiClient.get)
-      .mock.calls.find(([path, opts]) => path === "/spend" && opts?.params?.from)!;
+      .mock.calls.find(
+        ([path, opts]) =>
+          path === "/spend" && (opts?.params as Record<string, string> | undefined)?.from,
+      )!;
     const [, runsOptions] = vi
       .mocked(apiClient.get)
-      .mock.calls.find(([path, opts]) => path === "/runs" && opts?.params?.started_from)!;
+      .mock.calls.find(
+        ([path, opts]) =>
+          path === "/runs" && (opts?.params as Record<string, string> | undefined)?.started_from,
+      )!;
 
-    expect(runsOptions?.params?.started_from).toBe(spendOptions?.params?.from);
-    expect(runsOptions?.params?.started_to).toBe(spendOptions?.params?.to);
+    expect((runsOptions?.params as Record<string, string> | undefined)?.started_from).toBe(
+      (spendOptions?.params as Record<string, string> | undefined)?.from,
+    );
+    expect((runsOptions?.params as Record<string, string> | undefined)?.started_to).toBe(
+      (spendOptions?.params as Record<string, string> | undefined)?.to,
+    );
     // Whole days, ends inclusive - the shape `periodStart`/`periodEnd` promise.
-    expect(String(spendOptions?.params?.from)).toMatch(/T00:00:00\.000Z$/);
-    expect(String(spendOptions?.params?.to)).toMatch(/T23:59:59\.999Z$/);
+    expect(String((spendOptions?.params as Record<string, string> | undefined)?.from)).toMatch(
+      /T00:00:00\.000Z$/,
+    );
+    expect(String((spendOptions?.params as Record<string, string> | undefined)?.to)).toMatch(
+      /T23:59:59\.999Z$/,
+    );
   });
 
   it("says on screen which window the count is over", async () => {
@@ -107,10 +124,15 @@ describe("the Runs figure and the Spend figure", () => {
     await waitFor(() => {
       const call = vi
         .mocked(apiClient.get)
-        .mock.calls.find(([path, opts]) => path === "/runs" && opts?.params?.started_from);
+        .mock.calls.find(
+          ([path, opts]) =>
+            path === "/runs" && (opts?.params as Record<string, string> | undefined)?.started_from,
+        );
       expect(call).toBeDefined();
       const [, options] = call!;
-      const from = new Date(String(options?.params?.started_from));
+      const from = new Date(
+        String((options?.params as Record<string, string> | undefined)?.started_from),
+      );
       const days = Math.round((Date.now() - from.getTime()) / 86_400_000);
       expect(days).toBeGreaterThanOrEqual(89);
       expect(days).toBeLessThanOrEqual(90);
@@ -122,9 +144,14 @@ describe("the Runs figure and the Spend figure", () => {
     await waitFor(() => {
       const calls = vi
         .mocked(apiClient.get)
-        .mock.calls.filter(([path, opts]) => path === "/runs" && opts?.params?.started_from);
+        .mock.calls.filter(
+          ([path, opts]) =>
+            path === "/runs" && (opts?.params as Record<string, string> | undefined)?.started_from,
+        );
       const [, options] = calls.at(-1)!;
-      const from = new Date(String(options?.params?.started_from));
+      const from = new Date(
+        String((options?.params as Record<string, string> | undefined)?.started_from),
+      );
       const days = Math.round((Date.now() - from.getTime()) / 86_400_000);
       expect(days).toBeGreaterThanOrEqual(6);
       expect(days).toBeLessThanOrEqual(7);

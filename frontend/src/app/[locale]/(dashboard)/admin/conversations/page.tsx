@@ -3,22 +3,25 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
-import { ExternalLink, Search } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
   Badge,
-  type Column,
   DataTable,
-  Input,
+  ListCard,
+  ListCardControlsRow,
+  ListCardFootRow,
   PaginationBar,
+  SearchInput,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
+  type Column,
 } from "@/components/ui";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { ConversationAgents } from "@/components/agents/conversation-agents";
@@ -64,6 +67,7 @@ function UserAvatar({
 
 export default function AdminConversationsPage() {
   const t = useTranslations("admin");
+  const tAdminPages = useTranslations("pages.admin");
   const tc = useTranslations("common");
   const locale = useLocale();
   const {
@@ -218,113 +222,113 @@ export default function AdminConversationsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[240px] flex-1">
-          <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
-          <Input
-            placeholder={t("search")}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-10"
-          />
-        </div>
+      <ListCard
+        title={tAdminPages("conversationsCard")}
+        counted={t("total", { count: conversationsTotal })}
+        controls={<SearchInput value={search} onChange={setSearch} placeholder={t("search")} />}
+        contentClassName="p-0"
+      >
+        <ListCardControlsRow>
+          <Select value={status} onValueChange={(v) => setStatus(v as Status)}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">{t("active")}</SelectItem>
+              <SelectItem value="archived">{t("archived")}</SelectItem>
+              <SelectItem value="all">{t("all")}</SelectItem>
+            </SelectContent>
+          </Select>
 
-        <Select value={status} onValueChange={(v) => setStatus(v as Status)}>
-          <SelectTrigger className="w-[140px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="active">{t("active")}</SelectItem>
-            <SelectItem value="archived">{t("archived")}</SelectItem>
-            <SelectItem value="all">{t("all")}</SelectItem>
-          </SelectContent>
-        </Select>
+          <Select
+            value={selectedUserId ?? "all"}
+            onValueChange={(v) => setSelectedUserId(v === "all" ? null : v)}
+          >
+            <SelectTrigger className="w-[260px]">
+              <SelectValue placeholder={t("allOwners")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("allOwners")}</SelectItem>
+              {userOptions.map((u) => (
+                <SelectItem key={u.id} value={u.id}>
+                  <span className="flex items-center gap-2">
+                    <UserAvatar userId={u.id} label={u.fullName || u.email} size="sm" />
+                    <span className="truncate">{u.email}</span>
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-        <Select
-          value={selectedUserId ?? "all"}
-          onValueChange={(v) => setSelectedUserId(v === "all" ? null : v)}
-        >
-          <SelectTrigger className="w-[260px]">
-            <SelectValue placeholder={t("allOwners")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("allOwners")}</SelectItem>
-            {userOptions.map((u) => (
-              <SelectItem key={u.id} value={u.id}>
-                <span className="flex items-center gap-2">
-                  <UserAvatar userId={u.id} label={u.fullName || u.email} size="sm" />
-                  <span className="truncate">{u.email}</span>
-                </span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {/* By agent, not only by owner. "Which threads did the support agent
+          {/* By agent, not only by owner. "Which threads did the support agent
             answer in" is the question an operator has after a bad answer, and
             an agent is not a property of a thread - the picker can be changed
             mid-conversation, so this matches threads it *answered in*. */}
-        <Select
-          value={selectedAgentId ?? "all"}
-          onValueChange={(v) => setSelectedAgentId(v === "all" ? null : v)}
-        >
-          <SelectTrigger className="w-[220px]">
-            <SelectValue placeholder={t("allAgents")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("allAgents")}</SelectItem>
-            {agents.map((agent) => (
-              <SelectItem key={agent.id} value={agent.id}>
-                <span className="flex items-center gap-2">
-                  <AgentAvatar agentId={agent.id} name={agent.name} size="sm" />
-                  <span className="truncate">{agent.name}</span>
-                </span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <Select
+            value={selectedAgentId ?? "all"}
+            onValueChange={(v) => setSelectedAgentId(v === "all" ? null : v)}
+          >
+            <SelectTrigger className="w-[220px]">
+              <SelectValue placeholder={t("allAgents")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("allAgents")}</SelectItem>
+              {agents.map((agent) => (
+                <SelectItem key={agent.id} value={agent.id}>
+                  <span className="flex items-center gap-2">
+                    <AgentAvatar agentId={agent.id} name={agent.name} size="sm" />
+                    <span className="truncate">{agent.name}</span>
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-        <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
-          <SelectTrigger className="w-[110px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {PAGE_SIZE_OPTIONS.map((n) => (
-              <SelectItem key={n} value={String(n)}>
-                {tc("perPage", { count: n })}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+          <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
+            <SelectTrigger className="w-[110px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PAGE_SIZE_OPTIONS.map((n) => (
+                <SelectItem key={n} value={String(n)}>
+                  {tc("perPage", { count: n })}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </ListCardControlsRow>
 
-      <div className="text-muted-foreground text-xs">
-        {t("total", { count: conversationsTotal })}
-      </div>
+        {/* "No conversations found" and "the request was refused" are the same
+            pixels, and this screen fans out to two lists - the threads and the
+            owners the filter above is built from. Whichever failed, say so here
+            rather than leaving an empty table to be read as an empty deployment. */}
+        <DataTable<Conversation>
+          columns={columns}
+          rows={conversations}
+          getRowKey={(conv) => conv.id}
+          loading={isLoading && conversations.length === 0}
+          sort={sort}
+          onSort={setSort}
+          error={
+            error ? (
+              <ErrorState title={t("couldnTLoadThisScreen")} description={error} className="m-5" />
+            ) : null
+          }
+          empty={t("noConversations")}
+          skeletonRows={5}
+          className="rounded-none border-0 bg-transparent"
+        />
 
-      {/* "No conversations found" and "the request was refused" are the same
-          pixels, and this screen fans out to two lists - the threads and the
-          owners the filter above is built from. Whichever failed, say so here
-          rather than leaving an empty table to be read as an empty deployment. */}
-      <DataTable<Conversation>
-        columns={columns}
-        rows={conversations}
-        getRowKey={(conv) => conv.id}
-        loading={isLoading && conversations.length === 0}
-        sort={sort}
-        onSort={setSort}
-        error={error ? <ErrorState title={t("couldnTLoadThisScreen")} description={error} /> : null}
-        empty={t("noConversations")}
-        skeletonRows={5}
-      />
-
-      <PaginationBar
-        page={page}
-        pageSize={pageSize}
-        total={conversationsTotal}
-        isLoading={isLoading}
-        onPage={setPage}
-      />
+        <ListCardFootRow>
+          <PaginationBar
+            page={page}
+            pageSize={pageSize}
+            total={conversationsTotal}
+            isLoading={isLoading}
+            onPage={setPage}
+          />
+        </ListCardFootRow>
+      </ListCard>
     </div>
   );
 }

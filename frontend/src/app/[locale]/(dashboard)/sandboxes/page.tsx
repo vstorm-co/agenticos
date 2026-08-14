@@ -97,17 +97,15 @@ export default function SandboxesPage() {
             description={t("agentsCanStillKeep")}
           />
         ) : (
-          <div className="overflow-x-auto px-5 pb-2">
-            <ConnectionsTable
-              connections={connections}
-              onEdit={(connection) => {
-                setEditing(connection);
-                setDialogOpen(true);
-              }}
-              onInspect={setInspecting}
-              onDelete={(connection) => void remove(connection.id)}
-            />
-          </div>
+          <ConnectionsTable
+            connections={connections}
+            onEdit={(connection) => {
+              setEditing(connection);
+              setDialogOpen(true);
+            }}
+            onInspect={setInspecting}
+            onDelete={(connection) => void remove(connection.id)}
+          />
         )}
       </ListCard>
 

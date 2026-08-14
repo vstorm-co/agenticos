@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import userEvent from "@testing-library/user-event";
 import { render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -60,7 +61,11 @@ function wrapper({ children }: { children: ReactNode }) {
  * test would pass against the defect it exists to catch.
  */
 function serve(permissions: Permission[]) {
-  vi.mocked(apiClient.get).mockImplementation((path: string) => {
+  vi.mocked(apiClient.get).mockImplementation((path: string, options?: unknown) => {
+    // The decided record asks /approvals with params; the queue asks bare.
+    if (path === "/approvals" && (options as { params?: unknown } | undefined)?.params) {
+      return Promise.resolve({ items: [], total: 0 });
+    }
     if (path === "/spend") return Promise.resolve(EMPTY_SPEND);
     if (path === "/approvals")
       return Promise.resolve({
@@ -99,6 +104,11 @@ const asked = (path: string) =>
 beforeEach(() => {
   vi.mocked(apiClient.get).mockReset();
 });
+
+/** The page opens on Runs now; the queue is one tab over. */
+async function openApprovals() {
+  await userEvent.click(await screen.findByRole("tab", { name: /^Approvals/ }));
+}
 
 describe("the Approvals tab without approvals:decide", () => {
   it("is absent, rather than showing a refusal as an empty queue", async () => {
@@ -163,6 +173,7 @@ describe("the Approvals tab with approvals:decide", () => {
     serve(["runs:view", "approvals:decide"]);
 
     render(<RunsPage />, { wrapper });
+    await openApprovals();
 
     expect(await screen.findByRole("button", { name: "Approve" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Reject" })).toBeVisible();

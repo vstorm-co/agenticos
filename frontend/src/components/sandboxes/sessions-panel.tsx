@@ -72,6 +72,7 @@ export function SessionsPanel({ connection }: SessionsPanelProps) {
     () => [
       {
         key: "session",
+        className: "pl-5",
         header: t("session"),
         cell: (session) => <span className="font-mono text-xs">{session.session_id}</span>,
       },
@@ -110,6 +111,7 @@ export function SessionsPanel({ connection }: SessionsPanelProps) {
       },
       {
         key: "activity",
+        className: "pr-5",
         header: t("activity"),
         align: "right",
         cell: (session) => (
@@ -133,7 +135,7 @@ export function SessionsPanel({ connection }: SessionsPanelProps) {
 
   return (
     <Card>
-      <CardHeader className="flex-row items-start justify-between space-y-0 border-b px-5 py-4">
+      <CardHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-4">
         <div className="space-y-1">
           <CardTitle className="flex items-center gap-2 text-sm">
             <Activity className="h-4 w-4" aria-hidden />
@@ -150,7 +152,7 @@ export function SessionsPanel({ connection }: SessionsPanelProps) {
           <Switch checked={usage} onCheckedChange={setUsage} aria-label={t("sampleMemoryAndCpu")} />
         </label>
       </CardHeader>
-      <CardContent className="space-y-3 p-5">
+      <CardContent className="p-0">
         <DataTable<SandboxSession>
           columns={columns}
           rows={sessions}
@@ -168,7 +170,11 @@ export function SessionsPanel({ connection }: SessionsPanelProps) {
           className="rounded-none border-0 bg-transparent"
         />
 
-        {watching !== null && <ActivityLog connectionId={connection.id} sessionId={watching} />}
+        {watching !== null && (
+          <div className="px-5 py-4">
+            <ActivityLog connectionId={connection.id} sessionId={watching} />
+          </div>
+        )}
       </CardContent>
     </Card>
   );

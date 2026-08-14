@@ -123,6 +123,11 @@ export const qk = {
     // caching one as the other would show a run's children as the whole history.
     delegations: (parentRunId: string) => ["runs", "list", "delegations", parentRunId] as const,
     approvals: () => ["runs", "approvals"] as const,
+    // The decided record over a window - a different question from the queue,
+    // so a different key: the queue must refresh on a decision, the record on
+    // a window change.
+    approvalHistory: (from: string, to: string) =>
+      ["runs", "approvals", "history", from, to] as const,
     // A rolling day count and an explicit range are different answers, so the
     // window descriptor is the key, whichever shape it takes.
     spend: (range: number | { from: string; to: string }) => ["runs", "spend", range] as const,

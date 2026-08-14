@@ -136,6 +136,7 @@ function backend(
     runFails?: Error;
     traceUrl?: string;
     neighbors?: { prev?: string; next?: string };
+    status?: AgentRun["status"];
   } = {},
 ) {
   vi.mocked(apiClient.get).mockImplementation((path: string, init?: unknown) => {
@@ -159,6 +160,7 @@ function backend(
       return Promise.resolve(
         run({
           ...(options.traceUrl === undefined ? {} : { logfire_url: options.traceUrl }),
+          ...(options.status === undefined ? {} : { status: options.status }),
           prev_run_id: options.neighbors?.prev ?? null,
           next_run_id: options.neighbors?.next ?? null,
         }),
@@ -225,7 +227,8 @@ describe("one run and what it delegated", () => {
     // Three rows: the run somebody started and the two it delegated - reached by
     // the delegation handle each carries, which is what ties a row here to a
     // panel in the transcript.
-    const table = await screen.findByRole("table");
+    const drawer = await screen.findByRole("dialog");
+    const table = await within(drawer).findByRole("table");
     expect(within(table).getByText("Delegated · 4f2a1b8c")).toBeVisible();
     expect(within(table).getByText("Delegated · 9abbab49")).toBeVisible();
     expect(within(table).getAllByRole("row")).toHaveLength(4);
@@ -264,15 +267,20 @@ describe("one run and what it delegated", () => {
     expect(await screen.findByText("Delegated · 4f2a1b8c")).toBeVisible();
   });
 
-  it("says it is narrowed, and offers the way out", async () => {
+  it("keeps the list on screen behind the drawer", async () => {
+    // The detail is a drawer over the list, not a replacement for it - the
+    // list is the context the run is read against, and closing the drawer
+    // must land the reader exactly where they were.
     params.set("run", "run-parent");
     backend();
 
     render(<RunsPage />, { wrapper });
     await openRunsTab();
 
-    expect(await screen.findByText(/Narrowed to one run/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Show every run" })).toBeVisible();
+    const drawer = await screen.findByRole("dialog");
+    expect(within(drawer).getByText("Run detail")).toBeVisible();
+    // Two tables: the drawer's delegations and the list still behind it.
+    expect(screen.getAllByRole("table").length).toBeGreaterThanOrEqual(2);
   });
 
   it("says a run could not be read instead of drawing an empty table", async () => {
@@ -285,7 +293,8 @@ describe("one run and what it delegated", () => {
     await openRunsTab();
 
     expect(await screen.findByText("That run could not be read")).toBeVisible();
-    expect(screen.queryByRole("table")).toBeNull();
+    // No table in the drawer - the list's own table behind it is not the run.
+    expect(within(screen.getByRole("dialog")).queryByRole("table")).toBeNull();
   });
 
   it("calls a run that is not there a run that is not there", async () => {
@@ -329,19 +338,32 @@ describe("walking the agent's history from the detail", () => {
     expect(await screen.findByRole("button", { name: "Open the run it came from" })).toBeVisible();
   });
 
-  it("returns to the run list with the back button", async () => {
-    // The detail is a state of the history tab; a reader who arrived by a
-    // pasted link has no other door out.
+  it("closes the drawer back onto the list", async () => {
     params.set("run", "run-parent");
     backend();
 
     render(<RunsPage />, { wrapper });
     await openRunsTab();
 
-    await userEvent.click(await screen.findByRole("button", { name: "Back to runs" }));
+    await userEvent.click(
+      within(await screen.findByRole("dialog")).getByRole("button", { name: "Close" }),
+    );
 
-    expect(await screen.findByRole("button", { name: "All runs" })).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Back to runs" })).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("button", { name: "All runs" })).toBeVisible();
+  });
+
+  it("clicking the backdrop closes the drawer too", async () => {
+    params.set("run", "run-parent");
+    backend();
+
+    const { baseElement } = render(<RunsPage />, { wrapper });
+    await openRunsTab();
+    await screen.findByRole("dialog");
+
+    await userEvent.click(baseElement.querySelector('[aria-hidden="true"].fixed') as HTMLElement);
+
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("steps back to the previous run with the other arrow", async () => {
@@ -383,6 +405,35 @@ describe("walking the agent's history from the detail", () => {
   });
 });
 
+describe("resuming a parked run from its detail", () => {
+  it("offers Resume on a run awaiting approval, and posts the continuation", async () => {
+    // The queue resumes a run when its last call is decided - but a run decided
+    // before that wiring existed, or whose resume failed, stays parked with
+    // nothing outstanding. This button is how such a run gets unstuck.
+    params.set("run", "run-parent");
+    backend({ status: "awaiting_approval" });
+    vi.mocked(apiClient.post).mockResolvedValue({ run_id: "run-parent", status: "running" });
+
+    render(<RunsPage />, { wrapper });
+    await openRunsTab();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Resume" }));
+
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalledWith("/runs/run-parent/resume"));
+  });
+
+  it("offers no Resume on a run that is not parked", async () => {
+    params.set("run", "run-parent");
+    backend();
+
+    render(<RunsPage />, { wrapper });
+    await openRunsTab();
+
+    await within(await screen.findByRole("dialog")).findByRole("table");
+    expect(screen.queryByRole("button", { name: "Resume" })).toBeNull();
+  });
+});
+
 describe("the trace behind a run", () => {
   it("links to Logfire when the server resolved somewhere to land", async () => {
     params.set("run", "run-parent");
@@ -405,7 +456,8 @@ describe("the trace behind a run", () => {
     render(<RunsPage />, { wrapper });
     await openRunsTab();
 
-    await screen.findByRole("table");
-    expect(screen.queryByRole("link", { name: /Open the trace in Logfire/ })).toBeNull();
+    const drawer = await screen.findByRole("dialog");
+    await within(drawer).findByRole("table");
+    expect(within(drawer).queryByRole("link", { name: /Open the trace in Logfire/ })).toBeNull();
   });
 });

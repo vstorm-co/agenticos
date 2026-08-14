@@ -53,6 +53,7 @@ export function ConnectionsTable({
     () => [
       {
         key: "name",
+        className: "pl-5",
         header: t("name"),
         sortable: true,
         sortValue: (connection) => connection.name,
@@ -114,6 +115,7 @@ export function ConnectionsTable({
       },
       {
         key: "actions",
+        className: "pr-5",
         header: t("actions"),
         align: "right",
         cell: (connection) => (

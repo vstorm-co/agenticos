@@ -4,10 +4,19 @@ import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { MessageSquare, ThumbsDown } from "lucide-react";
 
+import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { RunStatusBadge } from "@/components/agents/status-badge";
-import { SurfaceIcon } from "@/components/runs/surface-icon";
+import { displayName, initialsOf, type IdentifiedMember } from "@/components/orgs/member-identity";
+import { SurfaceIcon, surfaceLabel } from "@/components/runs/surface-icon";
 import { ProviderIcon } from "@/components/vault/provider-icon";
-import { Badge, DataTable, type Column } from "@/components/ui";
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+  Badge,
+  DataTable,
+  type Column,
+} from "@/components/ui";
 import { useAuthStore } from "@/stores";
 import { ROUTES } from "@/lib/constants";
 import { formatDateTime, formatRunDuration, timeAgo } from "@/lib/utils";
@@ -44,6 +53,8 @@ export function RunTable({
   sort,
   onSort,
   onOpen,
+  agentsById,
+  membersById,
 }: {
   runs: AgentRun[];
   sort?: RunSort;
@@ -51,6 +62,12 @@ export function RunTable({
   /** Opens a row's detail. Given, every row becomes clickable; a delegations
    * table and a focused run pass nothing - the detail is already on screen. */
   onOpen?: (run: AgentRun) => void;
+  /** Names for the Agent column, keyed by id. Given only by a caller whose
+   * reader holds agents:view - the column is withheld, not dashed out, when
+   * the names cannot be resolved. */
+  agentsById?: Map<string, { name: string; has_avatar?: boolean }>;
+  /** Faces for the User column, from the member list any member may read. */
+  membersById?: Map<string, IdentifiedMember>;
 }) {
   const t = useTranslations("pages.runs");
   const tTime = useTranslations("time");
@@ -62,6 +79,7 @@ export function RunTable({
     {
       key: "status",
       header: t("status"),
+      className: "pl-5",
       cell: (run) => (
         <div className="space-y-1">
           <div className="flex items-center gap-1.5">
@@ -92,6 +110,59 @@ export function RunTable({
         </div>
       ),
     },
+    ...(agentsById !== undefined
+      ? ([
+          {
+            key: "agent",
+            header: t("agentColumn"),
+            cell: (run) => {
+              const agent = agentsById.get(run.agent_id);
+              if (agent === undefined) {
+                return <span className="text-muted-foreground text-xs">-</span>;
+              }
+              return (
+                <span className="flex items-center gap-2 text-xs">
+                  <span aria-hidden>
+                    <AgentAvatar
+                      agentId={run.agent_id}
+                      name={agent.name}
+                      hasAvatar={agent.has_avatar ?? false}
+                      size="sm"
+                      className="h-5 w-5"
+                    />
+                  </span>
+                  {agent.name}
+                </span>
+              );
+            },
+          },
+        ] as Column<AgentRun>[])
+      : []),
+    ...(membersById !== undefined
+      ? ([
+          {
+            key: "user",
+            header: t("personColumn"),
+            cell: (run) => {
+              const member = run.user_id === null ? undefined : membersById.get(run.user_id);
+              if (member === undefined) {
+                return <span className="text-muted-foreground text-xs">-</span>;
+              }
+              return (
+                <span className="flex items-center gap-2 text-xs">
+                  <Avatar className="h-5 w-5 shrink-0" aria-hidden>
+                    <AvatarImage src={`/api/users/avatar/${member.user_id}`} alt="" />
+                    <AvatarFallback className="text-[9px]">
+                      {initialsOf(member.full_name || member.email)}
+                    </AvatarFallback>
+                  </Avatar>
+                  {displayName(member)}
+                </span>
+              );
+            },
+          },
+        ] as Column<AgentRun>[])
+      : []),
     {
       key: "surface",
       header: t("surface"),
@@ -100,7 +171,7 @@ export function RunTable({
       cell: (run) => (
         <span className="text-muted-foreground flex items-center gap-1.5">
           <SurfaceIcon surface={run.surface} />
-          {run.surface}
+          {surfaceLabel(run.surface, t)}
         </span>
       ),
     },
@@ -180,6 +251,7 @@ export function RunTable({
       key: "conversation",
       header: "",
       align: "right",
+      className: "pr-5",
       // The chat behind the run, one click away (#765) - only when there is a
       // conversation to open, and only on the reader's own runs: the chat page
       // lists its owner's threads, so anybody else's link would land on an

@@ -194,7 +194,7 @@ export interface ToolApproval {
    * be shown as one.
    */
   subagent_agent_id: string | null;
-  status: "pending" | "approved" | "rejected";
+  status: "pending" | "approved" | "rejected" | "expired";
   decided_by_user_id: string | null;
   decided_at: string | null;
   note: string | null;

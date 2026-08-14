@@ -13,6 +13,7 @@ import type {
   ApprovalList,
   CostSummary,
   RunStatus,
+  ResumedRun,
   RunTranscript,
   ToolApproval,
 } from "@/types/runs";
@@ -198,12 +199,23 @@ export function useApprovals(options?: { enabled?: boolean }) {
     enabled: options?.enabled ?? true,
   });
 
+  const resume = useResumeRun();
+
   const decide = useMutation({
     mutationFn: ({ id, approved, note }: { id: string; approved: boolean; note?: string }) =>
       apiClient.post<ToolApproval>(`/approvals/${id}`, { approved, note }),
     onSuccess: async (approval) => {
+      // The invalidation refetches the queue, so the read below is fresh.
       await queryClient.invalidateQueries({ queryKey: qk.runs.all() });
       toast.success(approval.status === "approved" ? "Approved" : "Rejected");
+      // Deciding the last outstanding call makes the resume possible; nothing
+      // performs it (the backend keeps the click and the execution apart). The
+      // chat's dialog has always followed its decision with the resume - the
+      // queue not doing the same left a run approved and parked forever.
+      const stillParked = queryClient
+        .getQueryData<ApprovalList>(qk.runs.approvals())
+        ?.items.some((item) => item.run_id === approval.run_id && item.status === "pending");
+      if (!stillParked) resume.mutate(approval.run_id);
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
@@ -214,8 +226,62 @@ export function useApprovals(options?: { enabled?: boolean }) {
     isLoading,
     error,
     decide,
+    resume,
     refetch,
   };
+}
+
+/**
+ * Continue a run whose parked tool calls have all been decided.
+ *
+ * A decision is a click; continuing the run executes an agent - the backend
+ * keeps the two apart on purpose, and the chat's approval dialog has always
+ * called both. The approvals queue did not, which is how a run approved from
+ * the Activity page stayed `awaiting_approval` forever: approved, undisputed,
+ * and never picked back up.
+ */
+export function useResumeRun() {
+  const tErrors = useTranslations("errors");
+  const t = useTranslations("pages.runs");
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (runId: string) => apiClient.post<ResumedRun>(`/runs/${runId}/resume`),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: qk.runs.all() });
+      toast.success(t("runResumed"));
+    },
+    onError: (error) => toast.error(getErrorMessage(error, tErrors, t("resumeFailed"))),
+  });
+}
+
+/**
+ * The record of decided approvals over a window - the queue's counterpart.
+ *
+ * Newest first, because a record is read backwards from now, where the queue
+ * drains oldest-first. Its own query and key: a decision must refresh the
+ * queue at once, while the record only moves with the window.
+ */
+export function useApprovalHistory(
+  range: { from: string; to: string },
+  options?: { enabled?: boolean },
+) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: qk.runs.approvalHistory(range.from, range.to),
+    queryFn: () =>
+      apiClient.get<ApprovalList>("/approvals", {
+        // Pairs, because `status` repeats - everything except the queue.
+        params: [
+          ["status", "approved"],
+          ["status", "rejected"],
+          ["status", "expired"],
+          ["created_from", range.from],
+          ["created_to", range.to],
+          ["oldest_first", "false"],
+        ],
+      }),
+    enabled: options?.enabled ?? true,
+  });
+  return { approvals: data?.items ?? [], total: data?.total ?? 0, isLoading, error };
 }
 
 /**

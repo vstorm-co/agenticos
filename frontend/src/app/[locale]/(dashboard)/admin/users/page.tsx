@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, Shield } from "lucide-react";
+import { Shield } from "lucide-react";
 
 import { UserDetailDrawer } from "@/components/admin/user-detail-drawer";
 import { ErrorState } from "@/components/states";
@@ -10,8 +10,11 @@ import {
   Badge,
   Button,
   DataTable,
-  Input,
+  ListCard,
+  ListCardControlsRow,
+  ListCardFootRow,
   PaginationBar,
+  SearchInput,
   Select,
   SelectContent,
   SelectItem,
@@ -182,54 +185,52 @@ export default function AdminUsersPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[240px] flex-1">
-          <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
-          <Input
-            placeholder={t("searchByEmailName")}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-10"
+      <ListCard
+        title={t("usersCard")}
+        counted={t("totalCount", { count: total })}
+        controls={
+          <SearchInput value={search} onChange={setSearch} placeholder={t("searchByEmailName")} />
+        }
+        contentClassName="p-0"
+      >
+        <ListCardControlsRow>
+          <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
+            <SelectTrigger className="w-[120px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PAGE_SIZE_OPTIONS.map((n) => (
+                <SelectItem key={n} value={String(n)}>
+                  {tc("perPage", { count: n })}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </ListCardControlsRow>
+
+        <DataTable<AdminUser>
+          columns={columns}
+          rows={users}
+          getRowKey={(u) => u.id}
+          loading={isLoading && users.length === 0}
+          onRowClick={handleOpenUser}
+          sort={sort}
+          onSort={setSort}
+          error={error ? <ErrorState description={error} className="m-5" /> : null}
+          empty={search ? t("noUsersMatch", { query: search }) : t("noUsersYet")}
+          className="rounded-none border-0 bg-transparent"
+        />
+
+        <ListCardFootRow>
+          <PaginationBar
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            isLoading={isLoading}
+            onPage={setPage}
           />
-        </div>
-
-        <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
-          <SelectTrigger className="w-[120px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {PAGE_SIZE_OPTIONS.map((n) => (
-              <SelectItem key={n} value={String(n)}>
-                {tc("perPage", { count: n })}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <span className="text-muted-foreground ml-auto text-xs">
-          {t("totalCount", { count: total })}
-        </span>
-      </div>
-
-      <DataTable<AdminUser>
-        columns={columns}
-        rows={users}
-        getRowKey={(u) => u.id}
-        loading={isLoading && users.length === 0}
-        onRowClick={handleOpenUser}
-        sort={sort}
-        onSort={setSort}
-        error={error ? <ErrorState description={error} /> : null}
-        empty={search ? t("noUsersMatch", { query: search }) : t("noUsersYet")}
-      />
-
-      <PaginationBar
-        page={page}
-        pageSize={pageSize}
-        total={total}
-        isLoading={isLoading}
-        onPage={setPage}
-      />
+        </ListCardFootRow>
+      </ListCard>
 
       <UserDetailDrawer
         user={drawerUser}

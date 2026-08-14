@@ -2,16 +2,16 @@
 
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
-import { Activity, ArrowLeft, ArrowRight, ExternalLink, MessageSquare } from "lucide-react";
+import { Activity, ArrowLeft, ArrowRight, ExternalLink, MessageSquare, Play } from "lucide-react";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { RunStatusBadge } from "@/components/agents/status-badge";
-import { SurfaceIcon } from "@/components/runs/surface-icon";
+import { SurfaceIcon, surfaceLabel } from "@/components/runs/surface-icon";
 import { RunTimeline } from "@/components/runs/run-timeline";
 import { ProviderIcon } from "@/components/vault/provider-icon";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Button } from "@/components/ui";
-import { useAgent, useDelegatedRuns, usePermissions, useRun } from "@/hooks";
+import { useAgent, useDelegatedRuns, usePermissions, useResumeRun, useRun } from "@/hooks";
 import { useAuthStore } from "@/stores";
 import { ApiError } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
@@ -55,6 +55,7 @@ export function FocusedRun({
   const meId = useAuthStore((state) => state.user?.id ?? null);
   const { run, isLoading, error } = useRun(runId);
   const { runs: delegated } = useDelegatedRuns(runId);
+  const resume = useResumeRun();
 
   if (isLoading) return <LoadingState variant="skeleton-table" columns={6} rows={2} />;
   if (run === undefined) {
@@ -74,20 +75,13 @@ export function FocusedRun({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
-          {/* The way back out, first and unmissable: the detail is a state of
-              the history tab, and a reader who arrived by a pasted link has no
-              other door. */}
-          <Button variant="outline" size="sm" onClick={() => onFocusRun(null)} className="gap-1.5">
-            <ArrowLeft className="h-4 w-4" aria-hidden />
-            {t("backToRuns")}
-          </Button>
           {/* The agent's identity needs agents:view to resolve; without it the
               header simply starts at the status - never a request that 403s. */}
           {can(Perm.agentsView) && <AgentIdentity agentId={run.agent_id} />}
           <RunStatusBadge status={run.status} />
           <span className="text-muted-foreground flex items-center gap-1.5 text-sm">
             <SurfaceIcon surface={run.surface} />
-            {run.surface}
+            {surfaceLabel(run.surface, t)}
           </span>
           <span className="flex items-center gap-1.5 font-mono text-xs">
             {run.provider !== null && (
@@ -100,6 +94,22 @@ export function FocusedRun({
             this read, disabled at the edges rather than absent so the timeline
             keeps its shape while somebody steps through it. */}
         <div className="flex items-center gap-1">
+          {/* A parked run whose approvals were all decided is a run somebody
+              still has to nudge: the resume endpoint is idempotent about the
+              decision - a call still parked answers a refusal, not a second
+              decision - so the button asks for approvals:decide, the same
+              permission the endpoint carries. */}
+          {run.status === "awaiting_approval" && can(Perm.approvalsDecide) && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={resume.isPending}
+              onClick={() => resume.mutate(run.id)}
+            >
+              <Play className="h-4 w-4" aria-hidden />
+              {t("resumeRun")}
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"

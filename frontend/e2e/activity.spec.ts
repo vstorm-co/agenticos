@@ -61,14 +61,17 @@ test.describe("Activity", () => {
     await expect(page.getByText("Run history")).toBeVisible();
 
     await page.getByRole("tab", { name: "Spend", exact: true }).click();
-    await expect(page.getByText("Spend by agent")).toBeVisible();
+    // The facet table's own title - "Spend by agent" died with the tile cards.
+    await expect(page.getByText("Where the money went")).toBeVisible();
   });
 
   test("an empty approval queue says so", async ({ page }) => {
     await page.goto("/runs");
     await expect(pageHeading(page, "Activity")).toBeVisible();
 
+    // The page opens on Runs now; the queue is one tab over.
     const approvals = page.getByRole("tab", { name: /^Approvals/ });
+    await approvals.click();
     await expect(page.getByText("Waiting for a decision")).toBeVisible();
 
     // The tab carries a count badge only when something is queued, so its label

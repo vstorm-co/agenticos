@@ -15,6 +15,7 @@ import {
   CardHeader,
   CardTitle,
   DataTable,
+  ListCardControlsRow,
   type Column,
 } from "@/components/ui";
 import { SpendByPerson } from "@/components/runs/spend-by-person";
@@ -116,6 +117,7 @@ export function SpendTab({ period }: { period: Period }) {
     {
       key: "agent",
       header: t("agentColumn"),
+      className: "pl-5",
       cell: (row) => (
         <span className="flex items-center gap-2">
           <span aria-hidden>
@@ -142,6 +144,7 @@ export function SpendTab({ period }: { period: Period }) {
       key: "cost",
       header: t("cost"),
       align: "right",
+      className: "pr-5",
       cell: (row) => (
         <CostCell
           cost={row.cost_usd}
@@ -158,6 +161,7 @@ export function SpendTab({ period }: { period: Period }) {
     {
       key: "provider",
       header: t("providerColumn"),
+      className: "pl-5",
       cell: (row) =>
         row.provider === null ? (
           <span className="text-muted-foreground italic">{t("notRecorded")}</span>
@@ -178,6 +182,7 @@ export function SpendTab({ period }: { period: Period }) {
       key: "cost",
       header: t("cost"),
       align: "right",
+      className: "pr-5",
       cell: (row) => <CostCell cost={row.cost_usd} title={t("theCostIsAFloor")} />,
     },
   ];
@@ -186,6 +191,7 @@ export function SpendTab({ period }: { period: Period }) {
     {
       key: "key",
       header: t("keyColumn"),
+      className: "pl-5",
       cell: (row) =>
         row.label === null ? (
           <span className="text-muted-foreground italic">{t("deletedKey")}</span>
@@ -206,6 +212,7 @@ export function SpendTab({ period }: { period: Period }) {
       key: "cost",
       header: t("cost"),
       align: "right",
+      className: "pr-5",
       cell: (row) => <CostCell cost={row.cost_usd} title={t("theCostIsAFloor")} />,
     },
   ];
@@ -223,33 +230,32 @@ export function SpendTab({ period }: { period: Period }) {
         </p>
       )}
 
-      {/* The tab's control row, same grammar as Runs: the narrowing first.
-          One table below, four subjects to slice it by. */}
-      <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t("spendFacet")}>
-        {FACETS.map((entry) => (
-          <Button
-            key={entry.id}
-            variant={facet === entry.id ? "secondary" : "outline"}
-            size="sm"
-            aria-pressed={facet === entry.id}
-            onClick={() => setFacet(entry.id)}
-          >
-            {t(entry.labelKey)}
-          </Button>
-        ))}
-      </div>
-
       <Card>
-        <CardHeader>
-          <CardTitle>{t("whereTheMoneyWent")}</CardTitle>
+        <CardHeader className="border-b px-5 py-4">
+          <CardTitle className="text-sm">{t("whereTheMoneyWent")}</CardTitle>
           {/* The window the server chose, said the way it was chosen. There is no
               `?? 30` here on purpose: `period_days` is null the moment `from` is
               sent - `runs.py` refuses to answer "30 days" and a range at once -
               and a default in its place renders "Last 30 days" over a range that
               is nothing of the sort. Silently, which is what a fallback buys. */}
-          <CardDescription>{windowLabel(spend, t, locale)}</CardDescription>
+          <CardDescription className="text-xs">{windowLabel(spend, t, locale)}</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
+          {/* The facet switch lives inside the container it slices, like every
+              list card's filters. One table below, four subjects. */}
+          <ListCardControlsRow role="group" aria-label={t("spendFacet")}>
+            {FACETS.map((entry) => (
+              <Button
+                key={entry.id}
+                variant={facet === entry.id ? "secondary" : "outline"}
+                size="sm"
+                aria-pressed={facet === entry.id}
+                onClick={() => setFacet(entry.id)}
+              >
+                {t(entry.labelKey)}
+              </Button>
+            ))}
+          </ListCardControlsRow>
           {facet === "agent" && (
             <DataTable<CostByAgent>
               columns={agentColumns}

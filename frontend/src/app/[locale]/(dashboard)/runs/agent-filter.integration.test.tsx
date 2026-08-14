@@ -101,8 +101,13 @@ describe("Activity, arriving from the Builder", () => {
     // it rather than a total since the organization was created (#198).
     const organizationCall = runsCalls()
       .map((call) => call[1])
-      .find((options) => options?.params?.agent_id === undefined);
-    expect(organizationCall?.params?.started_from).toBeDefined();
+      .find(
+        (options) =>
+          (options?.params as Record<string, string> | undefined)?.agent_id === undefined,
+      );
+    expect(
+      (organizationCall?.params as Record<string, string> | undefined)?.started_from,
+    ).toBeDefined();
   });
 
   it("asks for the whole organization when the URL names nobody", async () => {
@@ -114,11 +119,14 @@ describe("Activity, arriving from the Builder", () => {
     await waitFor(() => {
       const unnarrowed = runsCalls()
         .map((call) => call[1])
-        .filter((options) => options?.params?.agent_id === undefined);
+        .filter(
+          (options) =>
+            (options?.params as Record<string, string> | undefined)?.agent_id === undefined,
+        );
       expect(unnarrowed.length).toBeGreaterThan(0);
       for (const options of unnarrowed) {
-        expect(options?.params?.started_from).toBeDefined();
-        expect(options?.params?.started_to).toBeDefined();
+        expect((options?.params as Record<string, string> | undefined)?.started_from).toBeDefined();
+        expect((options?.params as Record<string, string> | undefined)?.started_to).toBeDefined();
       }
     });
   });
@@ -142,7 +150,10 @@ describe("Activity, arriving from the Builder", () => {
     await waitFor(() => {
       const widened = runsCalls()
         .map((call) => call[1])
-        .filter((options) => options?.params?.agent_id === undefined);
+        .filter(
+          (options) =>
+            (options?.params as Record<string, string> | undefined)?.agent_id === undefined,
+        );
       expect(widened.length).toBeGreaterThan(0);
     });
   });

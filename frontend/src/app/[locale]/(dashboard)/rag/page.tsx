@@ -9,9 +9,17 @@ import { CreateKBDialog, ReusableIntegrations } from "@/components/kb";
 import { SearchTab } from "@/components/rag/search-tab";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ErrorState } from "@/components/states";
-import { Badge, Button, ListCard, ListCardEmpty, Skeleton } from "@/components/ui";
+import {
+  Badge,
+  Button,
+  ListCard,
+  ListCardEmpty,
+  Skeleton,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui";
 import { useKnowledgeBases, usePermissions } from "@/hooks";
-import { cn } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants";
 import type { KBScope, KnowledgeBase } from "@/types";
 import { Perm } from "@/types/permissions";
@@ -83,23 +91,13 @@ export default function RAGPage() {
         }
       />
 
-      <div className="border-border flex gap-6 border-b">
-        {(["bases", "search"] as const).map((id) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => setTab(id)}
-            className={cn(
-              "-mb-px border-b-2 px-1 pb-3 text-sm font-medium transition-colors",
-              tab === id
-                ? "border-foreground text-foreground"
-                : "text-muted-foreground hover:text-foreground border-transparent",
-            )}
-          >
-            {id === "bases" ? t("knowledgeBases") : t("search")}
-          </button>
-        ))}
-      </div>
+      {/* The shared underline strip - this page's look, now the primitive's. */}
+      <Tabs value={tab} onValueChange={(next) => setTab(next as RagTab)}>
+        <TabsList>
+          <TabsTrigger value="bases">{t("knowledgeBases")}</TabsTrigger>
+          <TabsTrigger value="search">{t("search")}</TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       {tab === "search" ? (
         // The scope selector is built from the base list, so a failed list is a

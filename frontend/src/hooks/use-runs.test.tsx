@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   useApprovals,
   useDelegatedRuns,
+  useResumeRun,
   useRun,
   useRuns,
   useRunTranscript,
@@ -274,6 +275,38 @@ describe("useApprovals", () => {
     expect(toast.success).toHaveBeenCalledWith("Approved");
   });
 
+  it("resumes the run once its last outstanding call is decided", async () => {
+    // A decision is a click; continuing the run is a separate call the backend
+    // keeps apart on purpose. The queue used to make only the first, which left
+    // a run approved, undisputed, and parked forever (found on a live run).
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(apiClient.post).mockResolvedValue({ status: "approved", run_id: "run-9" });
+    const { result } = renderHook(() => useApprovals(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.decide.mutateAsync({ id: "ap1", approved: true });
+
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalledWith("/runs/run-9/resume"));
+  });
+
+  it("does not resume while another call on the same run is still parked", async () => {
+    // Resuming with a decision outstanding is a refusal the backend would make;
+    // more importantly the run is not ready - the second call still needs its
+    // answer, and the queue is where it gets one.
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [{ id: "ap2", run_id: "run-9", status: "pending" }],
+      total: 1,
+    });
+    vi.mocked(apiClient.post).mockResolvedValue({ status: "approved", run_id: "run-9" });
+    const { result } = renderHook(() => useApprovals(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.decide.mutateAsync({ id: "ap1", approved: true });
+
+    expect(apiClient.post).toHaveBeenCalledTimes(1);
+    expect(apiClient.post).not.toHaveBeenCalledWith("/runs/run-9/resume");
+  });
+
   it("surfaces a refused second decision instead of leaving the queue silent", async () => {
     // The server refuses a decision on an approval somebody else already decided,
     // which is exactly what two people opening the queue at once produces.
@@ -288,6 +321,35 @@ describe("useApprovals", () => {
     );
 
     expect(toast.error).toHaveBeenCalledWith("Already decided");
+  });
+});
+
+describe("useResumeRun", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("continues the parked run and says so", async () => {
+    const { toast } = await import("sonner");
+    vi.mocked(apiClient.post).mockResolvedValue({ run_id: "run-9", status: "running" });
+    const { result } = renderHook(() => useResumeRun(), { wrapper });
+
+    await result.current.mutateAsync("run-9");
+
+    expect(apiClient.post).toHaveBeenCalledWith("/runs/run-9/resume");
+    expect(toast.success).toHaveBeenCalledWith(
+      "Run resumed - the agent picked up where it parked.",
+    );
+  });
+
+  it("says a resume was refused rather than leaving the run looking picked up", async () => {
+    const { toast } = await import("sonner");
+    vi.mocked(apiClient.post).mockRejectedValue(new Error("Approvals are still pending"));
+    const { result } = renderHook(() => useResumeRun(), { wrapper });
+
+    await expect(result.current.mutateAsync("run-9")).rejects.toThrow(
+      "Approvals are still pending",
+    );
+
+    expect(toast.error).toHaveBeenCalledWith("Approvals are still pending");
   });
 });
 

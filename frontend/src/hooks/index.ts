@@ -39,10 +39,12 @@ export {
 } from "./use-sandbox-connections";
 export { useSecrets, useSecretPurposes, kindInfo } from "./use-secrets";
 export {
+  useApprovalHistory,
   useApprovals,
   useDelegatedRuns,
   useRun,
   useRuns,
+  useResumeRun,
   useRunTranscript,
   useSpend,
 } from "./use-runs";

@@ -3,25 +3,22 @@
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Bot, Plus, Search } from "lucide-react";
+import { Bot, Plus } from "lucide-react";
 
 import { AgentCard } from "@/components/agents/agent-card";
 import { CreateAgentDialog } from "@/components/agents/create-agent-dialog";
 import { PageHeader } from "@/components/dashboard/page-header";
 import {
   Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   ConfirmDialog,
-  Input,
+  ListCard,
+  ListCardEmpty,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SearchInput,
   Skeleton,
 } from "@/components/ui";
 import { useAgents, usePermissions } from "@/hooks";
@@ -39,40 +36,34 @@ const FILTERS: { label: string; value: Filter }[] = [
   { label: "Archived", value: "archived" },
 ];
 
-/**
- * The gallery's frame, drawn whether or not anything is in it - the same
- * bargain as the shared ListCard: one panel with one header in every state,
- * so an emptied filter changes what is inside the panel, never the page shape.
- */
+/** The shared list-card, with this page's count line - honest about a filter
+ * narrowing the view. */
 function AgentsCard({
   visible,
   total,
+  controls,
   children,
 }: {
   visible: number | null;
   total: number;
+  controls?: ReactNode;
   children: ReactNode;
 }) {
   const t = useTranslations("pages.agents");
   return (
-    <Card>
-      <CardHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-4">
-        <div className="space-y-1">
-          <CardTitle className="text-sm">{t("catalog")}</CardTitle>
-          <CardDescription className="text-xs">
-            {visible === null ? (
-              <Skeleton className="h-3 w-24" />
-            ) : visible === total ? (
-              t("shownCount", { count: total })
-            ) : (
-              /* Honest about a filter narrowing the view. */
-              t("shownOfTotal", { visible, total })
-            )}
-          </CardDescription>
-        </div>
-      </CardHeader>
-      <CardContent className="p-5">{children}</CardContent>
-    </Card>
+    <ListCard
+      title={t("catalog")}
+      counted={
+        visible === null
+          ? null
+          : visible === total
+            ? t("shownCount", { count: total })
+            : t("shownOfTotal", { visible, total })
+      }
+      controls={controls}
+    >
+      {children}
+    </ListCard>
   );
 }
 
@@ -113,6 +104,26 @@ export default function AgentsPage() {
       ? (clone.variables ?? archive.variables ?? unarchive.variables ?? remove.variables)
       : undefined;
 
+  // Both controls narrow the gallery, so they live in its card header - the
+  // container's own controls slot, like every list card's.
+  const galleryControls = (
+    <div className="flex flex-wrap items-center gap-2">
+      <Select value={filter} onValueChange={(value) => setFilter(value as Filter)}>
+        <SelectTrigger className="w-40" aria-label={t("filterByStatus")}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {FILTERS.map((entry) => (
+            <SelectItem key={entry.value} value={entry.value}>
+              {entry.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <SearchInput value={query} onChange={setQuery} placeholder={t("searchAgents2")} />
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -128,41 +139,12 @@ export default function AgentsPage() {
         }
       />
 
-      {/* Both controls narrow the same list, so they sit together on the right
-          rather than at opposite ends of the row. As a segmented control the
-          four statuses took the width of a heading on the left, which read as a
-          section title for the page rather than as a filter on the gallery. */}
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        <Select value={filter} onValueChange={(value) => setFilter(value as Filter)}>
-          <SelectTrigger className="w-full sm:w-40" aria-label={t("filterByStatus")}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {FILTERS.map((entry) => (
-              <SelectItem key={entry.value} value={entry.value}>
-                {entry.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <div className="relative w-full sm:w-64">
-          <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder={t("searchAgents")}
-            aria-label={t("searchAgents2")}
-            className="pl-9"
-          />
-        </div>
-      </div>
-
       {/* The header and the controls are static, so they stay put while the
           list loads rather than being replaced by a placeholder of themselves.
           The panel below is equally static - loading, empty and populated all
           render inside the same frame. */}
       {isLoading ? (
-        <AgentsCard visible={null} total={0}>
+        <AgentsCard visible={null} total={0} controls={galleryControls}>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {[0, 1, 2].map((row) => (
               <div key={row} className="border-border rounded-xl border p-4">
@@ -179,36 +161,30 @@ export default function AgentsPage() {
           </div>
         </AgentsCard>
       ) : (
-        <AgentsCard visible={visible.length} total={agents.length}>
+        <AgentsCard visible={visible.length} total={agents.length} controls={galleryControls}>
           {visible.length === 0 ? (
-            <div className="px-6 py-16 text-center">
-              <div className="bg-muted text-muted-foreground mx-auto flex h-11 w-11 items-center justify-center rounded-xl">
-                <Bot className="h-5 w-5" />
-              </div>
-              <p className="text-foreground mt-4 text-sm font-medium">
-                {agents.length === 0 ? t("noAgentsYet") : t("nothingMatches")}
-              </p>
-              <p className="text-muted-foreground mx-auto mt-1 max-w-sm text-sm">
-                {agents.length === 0
+            <ListCardEmpty
+              icon={Bot}
+              title={agents.length === 0 ? t("noAgentsYet") : t("nothingMatches")}
+              description={
+                agents.length === 0
                   ? canEdit
                     ? t("createOneGiveInstructions")
                     : t("nobodyHasSharedAgent")
-                  : t("noAgentHereMatches")}
-              </p>
-              {agents.length > 0 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-5"
-                  onClick={() => {
-                    setFilter("all");
-                    setQuery("");
-                  }}
-                >
-                  {t("clearFilters")}
-                </Button>
-              )}
-            </div>
+                  : t("noAgentHereMatches")
+              }
+              cta={
+                agents.length > 0
+                  ? {
+                      label: t("clearFilters"),
+                      onClick: () => {
+                        setFilter("all");
+                        setQuery("");
+                      },
+                    }
+                  : undefined
+              }
+            />
           ) : (
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {visible.map((agent) => (

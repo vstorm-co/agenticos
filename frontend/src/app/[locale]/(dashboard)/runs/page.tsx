@@ -7,10 +7,22 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { PeriodControl } from "@/components/dashboard/period-control";
 import { ActivityFigures } from "@/components/runs/activity-figures";
 import { ApprovalsTab } from "@/components/runs/approvals-tab";
+import { FocusedRun } from "@/components/runs/focused-run";
 import { RunHistoryTab } from "@/components/runs/run-history-tab";
 import { SpendTab } from "@/components/runs/spend-tab";
 import { LoadingState } from "@/components/states";
-import { Badge, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
+import {
+  Badge,
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui";
 import { useApprovals, usePermissions, useUrlState } from "@/hooks";
 import { formatPeriodParam, parsePeriodParam, type Period } from "@/lib/dashboard/period";
 import { setUrlParam } from "@/lib/utils";
@@ -85,8 +97,12 @@ export default function RunsPage() {
       {permissionsLoading ? (
         <LoadingState variant="skeleton-table" columns={6} rows={6} />
       ) : (
-        <Tabs defaultValue={sortParam ? "runs" : canDecide ? "approvals" : "runs"}>
+        <Tabs defaultValue="runs">
           <TabsList>
+            {/* Runs first: the page's main question is what ran. The queue
+                keeps its count badge, so what is waiting is visible from the
+                strip without opening it. */}
+            <TabsTrigger value="runs">{t("runs2")}</TabsTrigger>
             {canDecide && (
               <TabsTrigger value="approvals">
                 {t("approvals")}
@@ -97,13 +113,12 @@ export default function RunsPage() {
                 )}
               </TabsTrigger>
             )}
-            <TabsTrigger value="runs">{t("runs2")}</TabsTrigger>
             <TabsTrigger value="spend">{t("spend")}</TabsTrigger>
           </TabsList>
 
           {canDecide && (
             <TabsContent value="approvals">
-              <ApprovalsTab />
+              <ApprovalsTab period={period} onFocusRun={focusRun} />
             </TabsContent>
           )}
 
@@ -112,7 +127,6 @@ export default function RunsPage() {
                 exports the result of - see RunHistoryTab. */}
             <RunHistoryTab
               agentId={agentId}
-              focusedRunId={focusedRunId}
               period={period}
               onAgentChange={changeAgent}
               onFocusRun={focusRun}
@@ -125,6 +139,27 @@ export default function RunsPage() {
           </TabsContent>
         </Tabs>
       )}
+
+      {/* The run detail, in a drawer over whichever tab opened it: a run row
+          and an approval row are both doors to the same view, so the drawer
+          belongs to the page rather than to one tab. `?run=` still deep-links
+          here - the page opens with the drawer already out. */}
+      <Sheet
+        open={focusedRunId !== null}
+        onOpenChange={(open) => {
+          if (!open) focusRun(null);
+        }}
+      >
+        <SheetContent side="right" className="w-full sm:max-w-3xl">
+          <SheetHeader className="px-5">
+            <SheetTitle className="text-sm">{t("runDetail")}</SheetTitle>
+            <SheetClose onClick={() => focusRun(null)} />
+          </SheetHeader>
+          <div className="flex-1 overflow-y-auto p-5">
+            {focusedRunId !== null && <FocusedRun runId={focusedRunId} onFocusRun={focusRun} />}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

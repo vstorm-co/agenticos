@@ -54,11 +54,14 @@ const DASHBOARD_PAGES: {
   },
   {
     // Activity has no seeded row — a run needs a real provider key. Its queries
-    // are asserted directly in `activity.spec.ts`; here the proof is the one
-    // control on the page that only renders once the approvals query resolved.
+    // are asserted directly in `activity.spec.ts`; here the proof is the run
+    // history card's own empty state, which only renders once /runs resolved.
     path: "/runs",
     heading: "Activity",
-    proof: (page) => page.getByRole("heading", { name: "Nothing waiting" }),
+    proof: (page) =>
+      // Data-borne either way the query resolves: rows draw the table, none
+      // draws the window's empty state - chrome alone proves nothing (#32).
+      page.getByRole("table").or(page.getByText("No runs in this window")).first(),
   },
   {
     path: "/rag",

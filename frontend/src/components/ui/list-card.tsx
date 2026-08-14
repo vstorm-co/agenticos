@@ -1,7 +1,7 @@
 "use client";
 
 import type { LucideIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import type { HTMLAttributes, ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,6 +51,50 @@ export function ListCard({
       <CardContent className={cn("p-5", contentClassName)}>{children}</CardContent>
     </Card>
   );
+}
+
+/**
+ * The filter strip at the top of a `ListCard`'s flush (`p-0`) content -
+ * selects, facet pills, canned views, whatever narrows the table below it.
+ *
+ * Inside the card on purpose: a control that narrows a table belongs in the
+ * container the table lives in, and half the pages had grown their own row
+ * floating above the card - each with its own gap, its own alignment, and no
+ * divider. One strip, one set of classes.
+ */
+export function ListCardControlsRow({
+  className,
+  children,
+  ...props
+}: {
+  className?: string;
+  children: ReactNode;
+} & HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div
+      className={cn(
+        "border-border flex flex-wrap items-center gap-2 border-b px-5 py-3",
+        className,
+      )}
+      {...props}
+    >
+      {children}
+    </div>
+  );
+}
+
+/**
+ * The foot strip of a `ListCard`'s flush content - a pager, a load-more, a
+ * "showing X of Y" line. The counterpart of `ListCardControlsRow`.
+ */
+export function ListCardFootRow({
+  className,
+  children,
+}: {
+  className?: string;
+  children: ReactNode;
+}) {
+  return <div className={cn("border-border border-t px-5 py-3", className)}>{children}</div>;
 }
 
 /**

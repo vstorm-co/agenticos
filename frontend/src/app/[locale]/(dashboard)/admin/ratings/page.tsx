@@ -23,7 +23,14 @@ import { getErrorMessage } from "@/lib/api-error";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { DataTable, PaginationBar, type Column } from "@/components/ui";
+import {
+  DataTable,
+  ListCard,
+  ListCardControlsRow,
+  ListCardFootRow,
+  PaginationBar,
+  type Column,
+} from "@/components/ui";
 import {
   Select,
   SelectContent,
@@ -253,8 +260,12 @@ export default function AdminRatingsPage() {
         </section>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
+      <ListCard
+        title={t("ratingsCard")}
+        counted={ratings && !ratingsPending ? t("resultCount", { count: ratings.total }) : null}
+        contentClassName="p-0"
+      >
+        <ListCardControlsRow>
           <Select
             value={filter}
             onValueChange={(v) => {
@@ -262,7 +273,7 @@ export default function AdminRatingsPage() {
               setPage(0);
             }}
           >
-            <SelectTrigger className="w-36 text-xs">
+            <SelectTrigger className="w-36" aria-label={t("allRatings")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -281,49 +292,48 @@ export default function AdminRatingsPage() {
             />
             <span className="text-muted-foreground">{t("withCommentsOnly")}</span>
           </label>
-        </div>
-        {ratings && !ratingsPending && (
-          <span className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
-            {t("resultCount", { count: ratings.total })}
-          </span>
-        )}
-      </div>
+        </ListCardControlsRow>
 
-      <DataTable
-        columns={columns}
-        rows={ratings?.items}
-        getRowKey={(r) => r.id}
-        loading={ratingsPending}
-        skeletonRows={8}
-        // Through `error`, not folded into `empty`. Folded in it never rendered
-        // at all: a failed request leaves `ratings` null, so `rows` is undefined,
-        // and `showEmpty` requires rows to be an array - the table drew its header
-        // and nothing under it, with the refusal sitting in a prop nothing reached.
-        error={
-          ratingsError ? (
-            <ErrorState
-              title={t("couldnTLoadRatings")}
-              description={getErrorMessage(ratingsError, tErrors, t("ratingsRequestFailed"))}
-              cta={{ label: t("tryAgain2"), onClick: () => void refetchRatings() }}
-            />
-          ) : null
-        }
-        empty={
-          <div className="py-8">
-            <MessageSquare className="text-muted-foreground mx-auto mb-3 h-8 w-8" />
-            <p className="text-foreground text-sm">{t("noRatingsFound")}</p>
-            <p className="text-muted-foreground mt-1 text-xs">{t("tryAdjustingFiltersAbove")}</p>
-          </div>
-        }
-      />
+        <DataTable
+          columns={columns}
+          rows={ratings?.items}
+          getRowKey={(r) => r.id}
+          loading={ratingsPending}
+          skeletonRows={8}
+          // Through `error`, not folded into `empty`. Folded in it never rendered
+          // at all: a failed request leaves `ratings` null, so `rows` is undefined,
+          // and `showEmpty` requires rows to be an array - the table drew its header
+          // and nothing under it, with the refusal sitting in a prop nothing reached.
+          error={
+            ratingsError ? (
+              <ErrorState
+                title={t("couldnTLoadRatings")}
+                description={getErrorMessage(ratingsError, tErrors, t("ratingsRequestFailed"))}
+                cta={{ label: t("tryAgain2"), onClick: () => void refetchRatings() }}
+                className="m-5"
+              />
+            ) : null
+          }
+          empty={
+            <div className="py-8">
+              <MessageSquare className="text-muted-foreground mx-auto mb-3 h-8 w-8" />
+              <p className="text-foreground text-sm">{t("noRatingsFound")}</p>
+              <p className="text-muted-foreground mt-1 text-xs">{t("tryAdjustingFiltersAbove")}</p>
+            </div>
+          }
+          className="rounded-none border-0 bg-transparent"
+        />
 
-      <PaginationBar
-        page={page}
-        pageSize={PAGE_SIZE}
-        total={ratings?.total ?? 0}
-        isLoading={ratingsPending}
-        onPage={setPage}
-      />
+        <ListCardFootRow>
+          <PaginationBar
+            page={page}
+            pageSize={PAGE_SIZE}
+            total={ratings?.total ?? 0}
+            isLoading={ratingsPending}
+            onPage={setPage}
+          />
+        </ListCardFootRow>
+      </ListCard>
     </div>
   );
 }

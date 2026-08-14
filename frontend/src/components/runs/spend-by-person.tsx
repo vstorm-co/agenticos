@@ -48,10 +48,10 @@ export function SpendByPerson({ from, to }: { from: string; to: string }) {
   const others = Math.max((usage?.active_users?.active ?? 0) - byUser.length, 0);
 
   if (!maySee) return null;
-  if (isLoading) return <LoadingState variant="skeleton-panel" rows={3} />;
+  if (isLoading) return <LoadingState variant="skeleton-panel" rows={3} className="m-5" />;
   if (error)
     return (
-      <div className="space-y-2">
+      <div className="m-5 space-y-2">
         <p className="text-muted-foreground text-sm">{t("whoIsSpendingCouldNotBeRead")}</p>
         <Button variant="outline" size="sm" onClick={() => void refetch()}>
           {t("tryAgain")}
@@ -63,6 +63,7 @@ export function SpendByPerson({ from, to }: { from: string; to: string }) {
     {
       key: "person",
       header: t("personColumn"),
+      className: "pl-5",
       cell: (person) => (
         <span className="flex items-center gap-2">
           {/* The application's one way of drawing a person - the same face the
@@ -87,6 +88,7 @@ export function SpendByPerson({ from, to }: { from: string; to: string }) {
       key: "cost",
       header: t("cost"),
       align: "right",
+      className: "pr-5",
       cell: (person) => (
         <span className="font-mono text-xs tabular-nums">
           ${Number(person.cost_usd).toFixed(4)}
@@ -96,7 +98,7 @@ export function SpendByPerson({ from, to }: { from: string; to: string }) {
   ];
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 pb-4">
       <DataTable<PersonUsageRow>
         columns={columns}
         rows={byUser}
@@ -105,9 +107,11 @@ export function SpendByPerson({ from, to }: { from: string; to: string }) {
         className="rounded-none border-0 bg-transparent"
       />
       {others > 0 ? (
-        <p className="text-muted-foreground text-xs">{t("othersRanAgents", { count: others })}</p>
+        <p className="text-muted-foreground px-5 text-xs">
+          {t("othersRanAgents", { count: others })}
+        </p>
       ) : null}
-      <p className="text-muted-foreground text-xs">{t("perPersonDisclosure")}</p>
+      <p className="text-muted-foreground px-5 text-xs">{t("perPersonDisclosure")}</p>
     </div>
   );
 }

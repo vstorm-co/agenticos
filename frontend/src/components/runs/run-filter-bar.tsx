@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { RUN_LABEL } from "@/components/agents/status-badge";
 import { displayName, initialsOf } from "@/components/orgs/member-identity";
-import { SurfaceIcon } from "@/components/runs/surface-icon";
+import { SurfaceIcon, surfaceLabel } from "@/components/runs/surface-icon";
 import {
   Avatar,
   AvatarFallback,
@@ -102,10 +102,10 @@ export function RunFilterBar({
         <SelectContent>
           <SelectItem value="all">{t("anySurface")}</SelectItem>
           {SURFACES.map((entry) => (
-            <SelectItem key={entry} value={entry} className="font-mono text-xs">
+            <SelectItem key={entry} value={entry}>
               <span className="flex items-center gap-1.5">
                 <SurfaceIcon surface={entry} />
-                {entry}
+                {surfaceLabel(entry, t)}
               </span>
             </SelectItem>
           ))}

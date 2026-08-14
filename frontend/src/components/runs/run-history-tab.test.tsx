@@ -20,9 +20,6 @@ import type { AgentRun } from "@/types/runs";
 const useRunsMock = vi.fn();
 vi.mock("@/hooks", () => ({
   useRuns: (agentId?: string, options?: unknown) => useRunsMock(agentId, options),
-  // Imported by FocusedRun, which never renders on the list path exercised here.
-  useRun: () => ({ run: undefined, isLoading: false, error: null }),
-  useDelegatedRuns: () => ({ runs: [], total: 0, isLoading: false }),
   // The tab gates its filters on runs:view and the filter bar gates its agent
   // and version selects on agents:view; these tests exercise the sort and
   // filter controls, so the holder is given everything.
@@ -85,7 +82,6 @@ function renderTab(props: Partial<Parameters<typeof RunHistoryTab>[0]> = {}) {
     <NextIntlClientProvider locale="en" messages={messages}>
       <RunHistoryTab
         agentId={null}
-        focusedRunId={null}
         period={PERIOD}
         onAgentChange={vi.fn()}
         onFocusRun={vi.fn()}
@@ -242,7 +238,7 @@ describe("run history controls", () => {
     renderTab();
 
     await userEvent.click(screen.getByRole("combobox", { name: "Filter by surface" }));
-    await userEvent.click(screen.getByRole("option", { name: "slack" }));
+    await userEvent.click(screen.getByRole("option", { name: "Slack" }));
 
     expect(lastOptions()).toMatchObject({ surface: "slack" });
   });
@@ -334,15 +330,6 @@ describe("run history controls", () => {
     expect(onFocusRun).toHaveBeenCalledWith("run-1");
   });
 
-  it("the focused notice's way out clears the focus it names", async () => {
-    const onFocusRun = vi.fn();
-    renderTab({ focusedRunId: "run-1", onFocusRun });
-
-    await userEvent.click(screen.getByRole("button", { name: "Show every run" }));
-
-    expect(onFocusRun).toHaveBeenCalledWith(null);
-  });
-
   it("drops the version narrowing when the agent changes under it", async () => {
     // v2 of one agent is not a version of the next: carried across, the filter
     // would silently empty the other agent's history.
@@ -369,7 +356,7 @@ describe("run history controls", () => {
     renderTab();
 
     await userEvent.click(screen.getByRole("combobox", { name: "Filter by surface" }));
-    await userEvent.click(screen.getByRole("option", { name: "slack" }));
+    await userEvent.click(screen.getByRole("option", { name: "Slack" }));
 
     expect(screen.getByText("No runs match these filters")).toBeInTheDocument();
     expect(screen.queryByText("No runs in this window")).not.toBeInTheDocument();

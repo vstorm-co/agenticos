@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Activity, ThumbsDown } from "lucide-react";
 
 import { getErrorMessage } from "@/lib/api-error";
 import { ExportMenu } from "@/components/runs/export-menu";
-import { FocusedRun } from "@/components/runs/focused-run";
 import {
   DEFAULT_RUN_FILTERS,
   RunFilterBar,
@@ -14,7 +13,7 @@ import {
 } from "@/components/runs/run-filter-bar";
 import { RunTable, type RunSort } from "@/components/runs/run-table";
 import { VersionStrip } from "@/components/runs/version-strip";
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { ErrorState, LoadingState } from "@/components/states";
 import {
   Button,
   Card,
@@ -22,9 +21,13 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  ListCardControlsRow,
+  ListCardEmpty,
+  ListCardFootRow,
   PaginationBar,
 } from "@/components/ui";
-import { usePermissions, useRuns } from "@/hooks";
+import { useAgents, useMembers, usePermissions, useRuns } from "@/hooks";
+import { useOrgStore } from "@/stores";
 import { formatPeriodParam, periodEnd, periodStart, type Period } from "@/lib/dashboard/period";
 import { Perm } from "@/types/permissions";
 import type { RunStatus } from "@/types/runs";
@@ -65,21 +68,18 @@ const PAGE_SIZE = 50;
  * on *those runs* rather than on the feed. The sort is then the reader's to
  * change through the Took header or the canned views.
  *
- * A failed request is said out loud. `?run=` is delegated to `FocusedRun`, which
- * has its own two answers for a run that is gone versus a request that did not
- * arrive - and the difference matters more there, because a link brought somebody
- * to that run on purpose.
+ * A failed request is said out loud. A row click hands the run to `onFocusRun`;
+ * the drawer that answers is the page's, because the approvals tab opens runs
+ * through the same door.
  */
 export function RunHistoryTab({
   agentId,
-  focusedRunId,
   period,
   onAgentChange,
   onFocusRun,
   initialDurationSort = false,
 }: {
   agentId: string | null;
-  focusedRunId: string | null;
   period: Period;
   onAgentChange: (agentId: string | null) => void;
   onFocusRun: (runId: string | null) => void;
@@ -89,6 +89,21 @@ export function RunHistoryTab({
   const t = useTranslations("pages.runs");
   const { can } = usePermissions();
   const canView = can(Perm.runsView);
+  // Names and faces for the table's Agent and User columns. The agent list
+  // takes agents:view, so it is only asked for by a holder - withheld, the
+  // column is too. The member list is any member's to read.
+  const canAgents = can(Perm.agentsView);
+  const { agents: agentRows } = useAgents({ enabled: canAgents });
+  const activeOrgId = useOrgStore((state) => state.activeOrgId);
+  const { members } = useMembers(activeOrgId ?? "");
+  const agentsById = useMemo(
+    () => new Map(agentRows.map((agent) => [agent.id, agent])),
+    [agentRows],
+  );
+  const membersById = useMemo(
+    () => new Map(members.map((member) => [member.user_id, member])),
+    [members],
+  );
   const [filters, setFilters] = useState<RunFilters>(DEFAULT_RUN_FILTERS);
   const [sort, setSort] = useState<RunSort>(
     initialDurationSort ? { by: "duration", dir: "desc" } : { by: "started_at", dir: "desc" },
@@ -180,81 +195,25 @@ export function RunHistoryTab({
       {/* Narrowed to an agent, a per-version summary sits above the table - the
           builder's "did v4 behave better than v3" answered where the evidence
           is. Its completed share is the shared `completedShare`, so it reads as
-          the same figure the dashboard's Outcomes donut shows (§8a.4). A
-          per-version summary makes no sense over a single focused run, so it is
-          not drawn when `?run=` has narrowed the card below to one. */}
-      {agentId !== null && focusedRunId === null && (
-        <VersionStrip agentId={agentId} period={period} />
-      )}
-      {/* The tab's one control row, LangSmith's grammar: canned views, then the
-          filters, export on the right - above the card, so the card is the
-          table and nothing else. Offered only in list mode and only to a
-          caller who may read runs: a filter over a list that is not shown, or
-          one whose request would be refused, is a control with nothing to do.
-          The export carries exactly these filters, so they share the row. */}
-      {focusedRunId === null && canView && (
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant={slowActive ? "outline" : "secondary"}
-            size="sm"
-            aria-pressed={!slowActive}
-            onClick={showAll}
-          >
-            {t("allRuns")}
-          </Button>
-          <Button
-            variant={slowActive ? "secondary" : "outline"}
-            size="sm"
-            aria-pressed={slowActive}
-            onClick={showSlow}
-          >
-            {t("slowRuns")}
-          </Button>
-          <RunFilterBar
-            filters={filters}
-            onChange={setFilters}
-            agentId={agentId}
-            onAgentChange={changeAgent}
-          />
-          <div className="ml-auto">
-            <ExportMenu
-              permission={Perm.runsView}
-              endpoint="/runs/export"
-              kind="runs"
-              params={Object.keys(exportParams).length > 0 ? exportParams : undefined}
-              rangeParams={{ from: "started_from", to: "started_to" }}
-              range={{ from: periodStart(period), to: periodEnd(period) }}
-            />
-          </div>
-        </div>
-      )}
+          the same figure the dashboard's Outcomes donut shows (§8a.4). */}
+      {agentId !== null && <VersionStrip agentId={agentId} period={period} />}
       <Card>
-        <CardHeader>
-          <div className="space-y-1.5">
-            <CardTitle>{t("runHistory2")}</CardTitle>
-            <CardDescription>
+        {/* The shared list-card header dialect - border-b, px-5 py-4, text-sm
+            title - so this card reads as the same container as the vault's or
+            the workspaces'. The export sits in the header's right, where every
+            list card keeps its primary control. */}
+        <CardHeader className="flex-row items-start justify-between space-y-0 border-b px-5 py-4">
+          <div className="space-y-1">
+            <CardTitle className="text-sm">{t("runHistory2")}</CardTitle>
+            <CardDescription className="text-xs">
               {t.rich("runHistoryDescription", { em: (chunks) => <em>{chunks}</em> })}
             </CardDescription>
-          </div>
-          {/* Said out loud, with the way out beside it. A filtered table that
-              does not mention the filter is a table somebody reads as the
-              whole history, and then wonders where the rest of the runs went.
-              `?run=` narrows harder than `?agent=` and so says so first. Both
-              ways out are actions that clear the state the page shares - a
-              plain link to /runs would rewrite the URL and leave it standing. */}
-          {focusedRunId !== null ? (
-            <p className="text-muted-foreground text-xs">
-              {t("narrowedToOneRun")}{" "}
-              <button
-                type="button"
-                onClick={() => onFocusRun(null)}
-                className="underline underline-offset-4"
-              >
-                {t("showEveryRun")}
-              </button>
-            </p>
-          ) : (
-            agentId !== null && (
+            {/* Said out loud, with the way out beside it. A narrowed table
+                that does not mention the filter is a table somebody reads as
+                the whole history, and then wonders where the rest went. The
+                way out is an action that clears the state the page shares - a
+                plain link to /runs would rewrite the URL and leave it standing. */}
+            {agentId !== null && (
               <p className="text-muted-foreground text-xs">
                 {t("narrowedToOneAgent")}{" "}
                 <button
@@ -265,25 +224,64 @@ export function RunHistoryTab({
                   {t("showEveryAgent")}
                 </button>
               </p>
-            )
+            )}
+          </div>
+          {canView && (
+            <ExportMenu
+              permission={Perm.runsView}
+              endpoint="/runs/export"
+              kind="runs"
+              params={Object.keys(exportParams).length > 0 ? exportParams : undefined}
+              rangeParams={{ from: "started_from", to: "started_to" }}
+              range={{ from: periodStart(period), to: periodEnd(period) }}
+            />
           )}
         </CardHeader>
-        <CardContent>
-          {focusedRunId !== null ? (
-            <FocusedRun runId={focusedRunId} onFocusRun={onFocusRun} />
-          ) : (
-            <div className="space-y-3">
+        <CardContent className="p-0">
+          {
+            <>
+              {/* The filters live inside the container they narrow, like every
+                  list card's. Offered only to a caller who may read runs: a
+                  filter over a list whose request would be refused is a
+                  control with nothing to do. */}
+              {canView && (
+                <ListCardControlsRow>
+                  <Button
+                    variant={slowActive ? "outline" : "secondary"}
+                    size="sm"
+                    aria-pressed={!slowActive}
+                    onClick={showAll}
+                  >
+                    {t("allRuns")}
+                  </Button>
+                  <Button
+                    variant={slowActive ? "secondary" : "outline"}
+                    size="sm"
+                    aria-pressed={slowActive}
+                    onClick={showSlow}
+                  >
+                    {t("slowRuns")}
+                  </Button>
+                  <RunFilterBar
+                    filters={filters}
+                    onChange={setFilters}
+                    agentId={agentId}
+                    onAgentChange={changeAgent}
+                  />
+                </ListCardControlsRow>
+              )}
               {isLoading ? (
-                <LoadingState variant="skeleton-table" columns={7} rows={6} />
+                <LoadingState variant="skeleton-table" columns={7} rows={6} className="m-5" />
               ) : error ? (
                 <ErrorState
                   title={t("runHistoryCouldNot")}
                   description={getErrorMessage(error, tErrors, t("theseRunsHappenedThe"))}
                   cta={{ label: t("tryAgain"), onClick: () => void refetch() }}
+                  className="m-5"
                 />
               ) : runs.length === 0 ? (
                 filters.rated === "down" ? (
-                  <EmptyState
+                  <ListCardEmpty
                     icon={ThumbsDown}
                     title={t("noRunsRatedDown")}
                     description={t("nothingHereWasRatedDown")}
@@ -291,7 +289,7 @@ export function RunHistoryTab({
                 ) : narrowed ? (
                   // The filters emptied it, not the organization: "no runs"
                   // over a narrowed list reads as a history that never happened.
-                  <EmptyState
+                  <ListCardEmpty
                     icon={Activity}
                     title={t("noRunsMatch")}
                     description={t("loosenAFilterAbove")}
@@ -300,7 +298,7 @@ export function RunHistoryTab({
                   // The window is always a narrowing too - an organization
                   // whose runs are all older than it must not be told nothing
                   // has ever run.
-                  <EmptyState
+                  <ListCardEmpty
                     icon={Activity}
                     title={t("noRunsInWindow")}
                     description={t("widenTheWindowAbove")}
@@ -313,18 +311,22 @@ export function RunHistoryTab({
                     sort={sort}
                     onSort={setSort}
                     onOpen={(run) => onFocusRun(run.id)}
+                    agentsById={canAgents ? agentsById : undefined}
+                    membersById={membersById}
                   />
-                  <PaginationBar
-                    page={page}
-                    pageSize={PAGE_SIZE}
-                    total={total}
-                    isLoading={isLoading}
-                    onPage={(next) => setPaging({ key: narrowingKey, page: next })}
-                  />
+                  <ListCardFootRow>
+                    <PaginationBar
+                      page={page}
+                      pageSize={PAGE_SIZE}
+                      total={total}
+                      isLoading={isLoading}
+                      onPage={(next) => setPaging({ key: narrowingKey, page: next })}
+                    />
+                  </ListCardFootRow>
                 </>
               )}
-            </div>
-          )}
+            </>
+          }
         </CardContent>
       </Card>
     </div>

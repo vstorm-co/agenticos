@@ -254,3 +254,43 @@ describe("the chat behind a run", () => {
     expect(within(row()).queryByRole("link", { name: CHAT_LINK })).toBeNull();
   });
 });
+
+describe("who ran it, and which agent", () => {
+  it("names the agent and the person when the lookups are given", () => {
+    render(
+      <RunTable
+        runs={[run()]}
+        agentsById={new Map([["agent-1", { name: "Support agent" }]])}
+        membersById={
+          new Map([["user-1", { user_id: "user-1", email: "kim@acme.test", full_name: "Kim" }]])
+        }
+      />,
+    );
+
+    expect(within(row()).getByText("Support agent")).toBeVisible();
+    expect(within(row()).getByText("Kim")).toBeVisible();
+  });
+
+  it("admits an id the lookups cannot name", () => {
+    // A deleted agent or a member no longer in the organization reads "-",
+    // never a guess.
+    render(
+      <RunTable
+        runs={[run({ agent_id: "agent-gone", user_id: "user-gone" })]}
+        agentsById={new Map()}
+        membersById={new Map()}
+      />,
+    );
+
+    expect(within(row()).getAllByText("-").length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("withholds the Agent column entirely when the names cannot be resolved", () => {
+    // No agents:view means no agent list - a column of dashes would read as
+    // data missing rather than a permission withheld.
+    render(<RunTable runs={[run()]} />);
+
+    expect(screen.queryByText("Support agent")).toBeNull();
+    expect(screen.queryByRole("columnheader", { name: "Agent" })).toBeNull();
+  });
+});

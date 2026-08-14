@@ -2337,7 +2337,10 @@
       "view": "View",
       "withCommentsOnly": "With comments only",
       "workspaceAdministration": "Workspace administration",
-      "workspaceWideEventsAcross": "Workspace-wide events across all users."
+      "workspaceWideEventsAcross": "Workspace-wide events across all users.",
+      "usersCard": "Users",
+      "conversationsCard": "Conversations",
+      "ratingsCard": "Ratings"
     },
     "agentDetail": {
       "perMonth": "${amount} per month"
@@ -2420,7 +2423,6 @@
       "restore": "Restore",
       "runLimits": "Run limits",
       "saving": "Saving…",
-      "searchAgents": "Search agents…",
       "searchAgents2": "Search agents",
       "shownCount": "{count, plural, =1 {1 agent} other {# agents}}",
       "shownOfTotal": "{visible} of {total} shown",
@@ -2716,7 +2718,9 @@
       "workspaceProfile": "Workspace profile",
       "workspaces": "Workspaces",
       "you": "(you)",
-      "yourRoleHere": "Your role here is <badge>{role}</badge>"
+      "yourRoleHere": "Your role here is <badge>{role}</badge>",
+      "membersCard": "Members",
+      "memberCount": "{count, plural, =1 {1 member} other {# members}}"
     },
     "rag": {
       "active": "Active",
@@ -2782,7 +2786,6 @@
       "anySurface": "Any surface",
       "approvals": "Approvals",
       "approve": "Approve",
-      "argumentsAreShownFull": "The arguments are shown in full. Approving a tool name without seeing what it will do is a rubber stamp, not approval.",
       "askedBy": "Asked by {name}",
       "byKey": "By key",
       "byPerson": "By person",
@@ -2808,7 +2811,6 @@
       "model": "Model",
       "modelRunHadNo": "A model in this run had no price, so this is a floor",
       "narrowedToOneAgent": "Narrowed to one agent, including what it did as somebody's delegate.",
-      "narrowedToOneRun": "Narrowed to one run and what it delegated.",
       "noRunsMatch": "No runs match these filters",
       "noRunsRatedDown": "No runs rated down",
       "noSuchRun": "No such run",
@@ -2835,7 +2837,6 @@
       "runs": "Runs",
       "runs2": "Runs",
       "showEveryAgent": "Show every agent",
-      "showEveryRun": "Show every run",
       "showingTheOldestOf": "{shown, plural, =1 {Showing the oldest of {total} waiting} other {Showing the oldest # of {total} waiting}}. The queue drains from the top, so deciding these brings up the next.",
       "slowRuns": "Slow runs",
       "someRunsCouldNotBePriced": "{count, plural, =1 {1 run in this window could not be priced, so the figures below are a floor} other {# runs in this window could not be priced, so the figures below are a floor}}",
@@ -2858,7 +2859,6 @@
       "versionStripCouldNot": "The per-version summary could not be read",
       "versionsCaption": "The last 30 days, so a version can show fewer runs than the whole history in the table below. Completed counts every status - nothing excluded, so it reads the same as the dashboard's Outcomes donut. Runs include what this version did as a delegate.",
       "versionsTitle": "By version",
-      "waitingDecision": "Waiting for a decision",
       "waitingPerson": "Waiting on a person",
       "whatYourAgentsDid2": "What your agents did, what it cost, and what is waiting on a person.",
       "whoIsSpendingCouldNotBeRead": "Who is spending could not be read.",
@@ -2901,7 +2901,29 @@
       "thisRun": "This run",
       "toolInput": "Input",
       "toolOutput": "Output",
-      "backToRuns": "Back to runs"
+      "runDetail": "Run detail",
+      "approvalsTitle": "Approvals",
+      "approvalsCounted": "{waiting, plural, =0 {Nothing waiting} =1 {1 waiting} other {# waiting}} · {decided, plural, =1 {1 decided in this window} other {# decided in this window}}",
+      "decisionPending": "Pending",
+      "showArguments": "Arguments",
+      "resumeRun": "Resume",
+      "decisionsCouldNotBeRead": "The decided record could not be read.",
+      "toolColumn": "Tool",
+      "decisionColumn": "Decision",
+      "decidedBy": "Decided by",
+      "parkedColumn": "Parked",
+      "decisionApproved": "Approved",
+      "decisionRejected": "Rejected",
+      "decisionExpired": "Expired",
+      "askedByColumn": "Asked by",
+      "surfaceWeb": "Web",
+      "surfaceEmbed": "Embed",
+      "surfaceApi": "API",
+      "surfaceSlack": "Slack",
+      "surfaceTelegram": "Telegram",
+      "surfaceMattermost": "Mattermost",
+      "runResumed": "Run resumed - the agent picked up where it parked.",
+      "resumeFailed": "The run could not be resumed."
     },
     "sandboxes": {
       "addConnection": "Add connection",
