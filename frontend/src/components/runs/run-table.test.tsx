@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { RunTable } from "./run-table";
+import { useAuthStore } from "@/stores";
 import type { AgentRun } from "@/types/runs";
 
 /**
@@ -32,6 +33,7 @@ function run(overrides: Partial<AgentRun> = {}): AgentRun {
     logfire_trace_id: null,
     error: null,
     down_rated: false,
+    conversation_id: null,
     started_at: "2026-08-04T09:00:00Z",
     ended_at: "2026-08-04T09:00:30Z",
     parent_run_id: null,
@@ -154,5 +156,36 @@ describe("a sortable run table", () => {
     render(<RunTable runs={[run({ down_rated: false })]} />);
 
     expect(within(row()).queryByRole("img", { name: "Rated down" })).toBeNull();
+  });
+});
+
+describe("the chat behind a run", () => {
+  const CHAT_LINK = "Open the chat this run happened in";
+
+  it("links the reader's own run to its conversation", () => {
+    useAuthStore.setState({ user: { id: "user-1" } as never });
+    render(<RunTable runs={[run({ conversation_id: "conv-9" })]} />);
+
+    expect(within(row()).getByRole("link", { name: CHAT_LINK })).toHaveAttribute(
+      "href",
+      "/chat?id=conv-9",
+    );
+  });
+
+  it("offers nothing for a run with no conversation behind it", () => {
+    // An API call has a run and no thread - a link would land on nothing.
+    useAuthStore.setState({ user: { id: "user-1" } as never });
+    render(<RunTable runs={[run({ conversation_id: null })]} />);
+
+    expect(within(row()).queryByRole("link", { name: CHAT_LINK })).toBeNull();
+  });
+
+  it("offers nothing on somebody else's run", () => {
+    // The chat page lists its owner's threads: anybody else's link would land
+    // on an empty sidebar dressed as the conversation.
+    useAuthStore.setState({ user: { id: "user-2" } as never });
+    render(<RunTable runs={[run({ conversation_id: "conv-9" })]} />);
+
+    expect(within(row()).queryByRole("link", { name: CHAT_LINK })).toBeNull();
   });
 });

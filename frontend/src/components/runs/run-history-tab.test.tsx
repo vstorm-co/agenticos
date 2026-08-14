@@ -48,6 +48,9 @@ vi.mock("@/hooks", () => ({
 vi.mock("@/stores", () => ({
   useOrgStore: (selector: (state: { activeOrgId: string | null }) => unknown) =>
     selector({ activeOrgId: "org-1" }),
+  // Read by the run table for the chat-behind-a-run link; nobody signed in
+  // means no link, which is not what these tests are about.
+  useAuthStore: (selector: (state: { user: null }) => unknown) => selector({ user: null }),
 }));
 
 function aRun(): AgentRun {
@@ -70,6 +73,7 @@ function aRun(): AgentRun {
     parent_run_id: null,
     subagent_task_id: null,
     down_rated: false,
+    conversation_id: null,
   };
 }
 

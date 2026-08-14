@@ -2887,7 +2887,8 @@
       "personFilter": "Filter by person",
       "anyPerson": "Anyone",
       "versionFilter": "Filter by version",
-      "anyVersion": "Any version"
+      "anyVersion": "Any version",
+      "openTheChatBehind": "Open the chat this run happened in"
     },
     "sandboxes": {
       "addConnection": "Add connection",

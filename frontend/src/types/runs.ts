@@ -28,6 +28,12 @@ export interface AgentRun {
    * it is `false` on any surface that does not, never absent.
    */
   down_rated: boolean;
+  /**
+   * The thread the run ran inside, or null when it ran with no conversation -
+   * an API call, a resumed run. `AgentRunRead` has carried it all along; the
+   * run table reads it to offer the chat behind a run (#765).
+   */
+  conversation_id: string | null;
   started_at: string | null;
   ended_at: string | null;
   /**

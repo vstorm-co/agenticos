@@ -1,11 +1,14 @@
 "use client";
 
+import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
-import { ThumbsDown } from "lucide-react";
+import { MessageSquare, ThumbsDown } from "lucide-react";
 
 import { RunStatusBadge } from "@/components/agents/status-badge";
 import { SurfaceIcon } from "@/components/runs/surface-icon";
 import { Badge, DataTable, type Column } from "@/components/ui";
+import { useAuthStore } from "@/stores";
+import { ROUTES } from "@/lib/constants";
 import { formatDate, formatRunDuration } from "@/lib/utils";
 import type { AgentRun } from "@/types/runs";
 
@@ -46,6 +49,7 @@ export function RunTable({
 }) {
   const t = useTranslations("pages.runs");
   const locale = useLocale();
+  const meId = useAuthStore((state) => state.user?.id ?? null);
   const sortable = sort !== undefined && onSort !== undefined;
 
   const columns: Column<AgentRun>[] = [
@@ -146,6 +150,26 @@ export function RunTable({
           {run.started_at === null ? "-" : formatDate(run.started_at, locale)}
         </span>
       ),
+    },
+    {
+      key: "conversation",
+      header: "",
+      align: "right",
+      // The chat behind the run, one click away (#765) - only when there is a
+      // conversation to open, and only on the reader's own runs: the chat page
+      // lists its owner's threads, so anybody else's link would land on an
+      // empty sidebar dressed as the conversation.
+      cell: (run) =>
+        run.conversation_id !== null && run.user_id !== null && run.user_id === meId ? (
+          <Link
+            href={`${ROUTES.CHAT}?id=${run.conversation_id}`}
+            aria-label={t("openTheChatBehind")}
+            title={t("openTheChatBehind")}
+            className="text-muted-foreground hover:text-foreground inline-flex"
+          >
+            <MessageSquare className="h-4 w-4" aria-hidden />
+          </Link>
+        ) : null,
     },
   ];
 
