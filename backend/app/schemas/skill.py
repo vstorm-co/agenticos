@@ -133,23 +133,3 @@ class SkillUpdate(BaseSchema):
     content: str | None = None
     enabled: bool | None = None
     category: str | None = Field(default=None, min_length=1, max_length=64)
-
-
-class LibrarySkillRead(BaseSchema):
-    """One skill this deployment ships with, as the gallery shows it."""
-
-    key: str = Field(description="The folder it lives in - how an install names it")
-    name: str
-    description: str
-    category: str | None = None
-    content: str = Field(description="The body, so the gallery can show it before installing")
-    resources: list[SkillResourceSummary] = Field(default_factory=list)
-    installed: bool = Field(
-        default=False,
-        description="Whether this organization already has a skill by that name",
-    )
-
-
-class LibrarySkillList(BaseSchema):
-    items: list[LibrarySkillRead]
-    total: int

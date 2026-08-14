@@ -2276,7 +2276,13 @@ class TestBrowsingEveryWorkspace:
         monkeypatch.setattr(
             conversation_repo,
             "titles_for",
-            AsyncMock(return_value={row.conversation_id: "Refund policy"}),
+            AsyncMock(
+                return_value={
+                    row.conversation_id: conversation_repo.ConversationHead(
+                        "Refund policy", uuid4()
+                    )
+                }
+            ),
         )
         monkeypatch.setattr(conversation_repo, "count_by_agent", AsyncMock(return_value={}))
 
@@ -2284,6 +2290,65 @@ class TestBrowsingEveryWorkspace:
 
         assert overview.conversation_title == "Refund policy"
         assert overview.conversations == 1
+
+    async def test_the_chat_link_is_offered_to_the_conversations_owner_and_nobody_else(
+        self, monkeypatch, mock_db_session
+    ):
+        """The chat page lists its owner's threads, so anybody else's link would
+        land on an empty sidebar dressed as the conversation - the same rule the
+        run table follows."""
+        from app.repositories import agent as agent_repo
+        from app.repositories import conversation as conversation_repo
+
+        owner = _ctx()
+        row = _row(scope="conversation", conversation_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_reader", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        monkeypatch.setattr(
+            conversation_repo,
+            "titles_for",
+            AsyncMock(
+                return_value={
+                    row.conversation_id: conversation_repo.ConversationHead(
+                        "Refund policy", owner.user_id
+                    )
+                }
+            ),
+        )
+        monkeypatch.setattr(conversation_repo, "count_by_agent", AsyncMock(return_value={}))
+
+        [mine] = await SandboxWorkspaceService(mock_db_session).visible_to(owner)
+        [theirs] = await SandboxWorkspaceService(mock_db_session).visible_to(_ctx())
+
+        assert mine.conversation_is_callers is True
+        assert theirs.conversation_is_callers is False
+
+    async def test_the_agents_face_travels_with_its_name(self, monkeypatch, mock_db_session):
+        """Resolved server-side like the name, because the reader of this listing
+        may not hold agents:view to ask the agent list - and a deleted agent has
+        neither a name nor a face."""
+        from app.repositories import agent as agent_repo
+        from app.repositories import conversation as conversation_repo
+
+        with_face = _row(scope="agent", conversation_id=None)
+        orphaned = _row(scope="agent", conversation_id=None)
+        agent = MagicMock()
+        agent.name = "Support agent"
+        agent.has_avatar = True
+        monkeypatch.setattr(
+            workspace_repo, "list_for_reader", AsyncMock(return_value=[with_face, orphaned])
+        )
+        monkeypatch.setattr(
+            agent_repo, "get_many", AsyncMock(return_value={with_face.agent_id: agent})
+        )
+        monkeypatch.setattr(conversation_repo, "titles_for", AsyncMock(return_value={}))
+        monkeypatch.setattr(conversation_repo, "count_by_agent", AsyncMock(return_value={}))
+
+        [first, second] = await SandboxWorkspaceService(mock_db_session).visible_to(_ctx())
+
+        assert first.agent_has_avatar is True
+        assert second.agent_has_avatar is False
+        assert second.agent_name == "a deleted agent"
 
     async def test_a_shared_workspace_says_how_many_chats_reach_it(
         self, monkeypatch, mock_db_session

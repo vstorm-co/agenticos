@@ -99,23 +99,6 @@ export interface Skill {
   resources?: SkillResourceSummary[];
 }
 
-/** One skill this deployment ships with, as the gallery shows it. */
-export interface LibrarySkill {
-  key: string;
-  name: string;
-  description: string;
-  category: string | null;
-  content: string;
-  resources: SkillResourceSummary[];
-  /** Whether this organization already has a skill by that name. */
-  installed: boolean;
-}
-
-export interface LibrarySkillList {
-  items: LibrarySkill[];
-  total: number;
-}
-
 export interface SkillSummary {
   id: string;
   name: string;

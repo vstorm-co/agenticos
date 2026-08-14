@@ -200,6 +200,59 @@ class TestARunWithNoConversationReportsNoTranscript:
         assert (messages, total) == ([], 0)
 
 
+class TestTheConversationScopeReadsTurnsNoRunWrote:
+    async def test_a_hand_appended_message_is_in_the_thread_but_not_in_the_runs_turns(
+        self, db
+    ) -> None:
+        """`POST /conversations/{id}/messages` writes a turn with `run_id: null`,
+        so iterating the thread's runs would never reach it - the conversation
+        scope deliberately does, because that turn was the run's context, while
+        the run scope stays exactly the turns the run wrote.
+        """
+        organization, owner = await _org(db)
+        agent = await _agent(db, organization)
+        conversation = await _conversation(db, organization, owner)
+        run = await _run(db, organization, agent, conversation=conversation)
+        await _turn(db, conversation, run, role="user", content="how many are open?", at=_START)
+        await _turn(
+            db,
+            conversation,
+            run,
+            role="assistant",
+            content="two",
+            at=_START + timedelta(minutes=1),
+        )
+        db.add(
+            Message(
+                id=uuid.uuid4(),
+                conversation_id=conversation.id,
+                run_id=None,
+                role="user",
+                content="a note a member appended by hand",
+                created_at=_START + timedelta(minutes=2),
+            )
+        )
+        await db.flush()
+
+        colleague = await _user(db)
+        service = AgentRunnerService(db)
+        ctx = _operator(organization, colleague.id)
+
+        _, run_turns, run_total = await service.get_run_transcript(ctx, run.id)
+        _, thread_turns, thread_total = await service.get_run_transcript(
+            ctx, run.id, whole_conversation=True
+        )
+
+        assert [turn.content for turn in run_turns] == ["how many are open?", "two"]
+        assert run_total == 2
+        assert [turn.content for turn in thread_turns] == [
+            "how many are open?",
+            "two",
+            "a note a member appended by hand",
+        ]
+        assert thread_total == 3
+
+
 class TestTheConversationEndpointStaysOwnerScoped:
     async def test_a_colleague_who_may_read_the_run_still_cannot_read_the_thread(self, db) -> None:
         """The guard against fixing this by loosening the wrong route.

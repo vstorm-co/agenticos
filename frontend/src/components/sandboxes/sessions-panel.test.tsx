@@ -200,12 +200,13 @@ describe("SessionsPanel", () => {
     expect(screen.getByText(/did not answer/)).toBeVisible();
   });
 
-  it("draws a placeholder while the host is being asked", () => {
+  it("claims neither idleness nor failure while the host is being asked", () => {
     state.listing = null;
     state.sessionsLoading = true;
     render(<SessionsPanel connection={connection()} />);
 
-    expect(document.querySelector(".h-20")).not.toBeNull();
+    expect(screen.queryByText(/Nothing running/)).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   describe("the activity log", () => {

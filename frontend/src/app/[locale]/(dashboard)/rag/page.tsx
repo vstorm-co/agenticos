@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Database, Lock, Plus, Sparkles, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -13,15 +12,14 @@ import { ErrorState } from "@/components/states";
 import {
   Badge,
   Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+  ListCard,
+  ListCardEmpty,
   Skeleton,
+  Tabs,
+  TabsList,
+  TabsTrigger,
 } from "@/components/ui";
 import { useKnowledgeBases, usePermissions } from "@/hooks";
-import { cn } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants";
 import type { KBScope, KnowledgeBase } from "@/types";
 import { Perm } from "@/types/permissions";
@@ -38,30 +36,6 @@ const SCOPE_META: Record<KBScope, { labelKey: string; icon: LucideIcon }> = {
   org: { labelKey: "scopeOrg", icon: Users },
   app: { labelKey: "scopeApp", icon: Sparkles },
 };
-
-/**
- * The list's frame, drawn whether or not there is anything in it - the same
- * always-visible container the vault draws around its keys. Same header, same
- * border, in every state: what changes is what is inside it.
- */
-function BasesCard({ count, children }: { count: number | null; children: ReactNode }) {
-  const t = useTranslations("pages.kb");
-  return (
-    <Card>
-      <CardHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-4">
-        <div className="space-y-1">
-          <CardTitle className="text-sm">{t("bases")}</CardTitle>
-          <CardDescription className="text-xs">
-            {/* `null` is "the request has not answered". Rendering "0 knowledge
-                bases" there would state something nothing has said yet. */}
-            {count === null ? <Skeleton className="h-3 w-32" /> : t("storedCount", { count })}
-          </CardDescription>
-        </div>
-      </CardHeader>
-      <CardContent className="p-4">{children}</CardContent>
-    </Card>
-  );
-}
 
 type RagTab = "bases" | "search";
 
@@ -117,23 +91,13 @@ export default function RAGPage() {
         }
       />
 
-      <div className="border-border flex gap-6 border-b">
-        {(["bases", "search"] as const).map((id) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => setTab(id)}
-            className={cn(
-              "-mb-px border-b-2 px-1 pb-3 text-sm font-medium transition-colors",
-              tab === id
-                ? "border-foreground text-foreground"
-                : "text-muted-foreground hover:text-foreground border-transparent",
-            )}
-          >
-            {id === "bases" ? t("knowledgeBases") : t("search")}
-          </button>
-        ))}
-      </div>
+      {/* The shared underline strip - this page's look, now the primitive's. */}
+      <Tabs value={tab} onValueChange={(next) => setTab(next as RagTab)}>
+        <TabsList>
+          <TabsTrigger value="bases">{t("knowledgeBases")}</TabsTrigger>
+          <TabsTrigger value="search">{t("search")}</TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       {tab === "search" ? (
         // The scope selector is built from the base list, so a failed list is a
@@ -152,7 +116,11 @@ export default function RAGPage() {
         )
       ) : (
         <>
-          <BasesCard count={loading || listError ? null : kbs.length}>
+          <ListCard
+            title={t("bases")}
+            counted={loading || listError ? null : t("storedCount", { count: kbs.length })}
+            contentClassName="p-4"
+          >
             {loading ? (
               // The same tiles the populated grid draws, as skeletons - a skeleton
               // that draws a different shape is a layout jump on every load.
@@ -175,30 +143,24 @@ export default function RAGPage() {
                 cta={{ label: t("retry"), onClick: () => fetchKBs() }}
               />
             ) : kbs.length === 0 ? (
-              // Inline rather than an `EmptyState`: that component draws its own
-              // bordered box, and inside a card it would frame one message twice.
-              <div className="px-6 py-12 text-center">
-                <div className="bg-muted text-muted-foreground mx-auto flex h-11 w-11 items-center justify-center rounded-xl">
-                  <Database className="h-5 w-5" />
-                </div>
-                <p className="text-foreground mt-4 text-sm font-medium">
-                  {t("noKnowledgeBasesYet")}
-                </p>
-                <p className="text-muted-foreground mx-auto mt-1 max-w-sm text-sm">
-                  {mayEdit ? t("createOneGiveYour") : t("nothingHasBeenShared")}
-                </p>
-                {mayEdit && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="mt-5"
-                    onClick={() => setCreateOpen(true)}
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    {t("createKnowledgeBase")}
-                  </Button>
-                )}
-              </div>
+              <ListCardEmpty
+                icon={Database}
+                title={t("noKnowledgeBasesYet")}
+                description={mayEdit ? t("createOneGiveYour") : t("nothingHasBeenShared")}
+                cta={
+                  mayEdit
+                    ? {
+                        label: (
+                          <>
+                            <Plus className="h-3.5 w-3.5" />
+                            {t("createKnowledgeBase")}
+                          </>
+                        ),
+                        onClick: () => setCreateOpen(true),
+                      }
+                    : undefined
+                }
+              />
             ) : (
               <div className="grid auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {sorted.map((kb) => (
@@ -206,7 +168,7 @@ export default function RAGPage() {
                 ))}
               </div>
             )}
-          </BasesCard>
+          </ListCard>
 
           {/* Below the collections, because it is the thing they are fed from: a
           connector configured once and cloned into each base that needs it. */}

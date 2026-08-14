@@ -86,7 +86,7 @@ function mockApi(kbList: KnowledgeBase[] | Error) {
 
 async function openSearchTab() {
   const user = userEvent.setup();
-  await user.click(await screen.findByRole("button", { name: "pages.kb.search" }));
+  await user.click(await screen.findByRole("tab", { name: "pages.kb.search" }));
   return user;
 }
 

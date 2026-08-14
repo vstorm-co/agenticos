@@ -97,6 +97,11 @@ describe("the query key factory", () => {
       true,
       "no-min",
       "any-rating",
+      "any-status",
+      "any-surface",
+      "anyone",
+      "any-version",
+      0,
     ]);
     expect(qk.runs.list({ agentId: "a1" })).toEqual([
       "runs",
@@ -108,6 +113,11 @@ describe("the query key factory", () => {
       true,
       "no-min",
       "any-rating",
+      "any-status",
+      "any-surface",
+      "anyone",
+      "any-version",
+      0,
     ]);
   });
 
@@ -135,6 +145,11 @@ describe("the query key factory", () => {
       true,
       30_000,
       "any-rating",
+      "any-status",
+      "any-surface",
+      "anyone",
+      "any-version",
+      0,
     ]);
   });
 
@@ -151,12 +166,19 @@ describe("the query key factory", () => {
       true,
       "no-min",
       "down",
+      "any-status",
+      "any-surface",
+      "anyone",
+      "any-version",
+      0,
     ]);
     expect(qk.runs.list({ rated: "down" })).not.toEqual(qk.runs.list());
   });
 
   it("keys a run's transcript apart from the run row it belongs to", () => {
-    expect(qk.runs.transcript("run-1")).toEqual(["runs", "run-1", "transcript"]);
+    expect(qk.runs.transcript("run-1")).toEqual(["runs", "run-1", "transcript", "run"]);
+    // The whole thread is a different answer from the run's own turns.
+    expect(qk.runs.transcript("run-1", "conversation")).not.toEqual(qk.runs.transcript("run-1"));
     expect(qk.runs.transcript("run-1")).not.toEqual(qk.runs.detail("run-1"));
   });
 

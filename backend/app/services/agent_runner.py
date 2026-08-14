@@ -3350,10 +3350,39 @@ class AgentRunnerService:
             raise NotFoundError(message="Run not found", details={"run_id": str(run_id)})
         return run
 
+    async def neighbor_run_ids(
+        self, ctx: AuthContext, run: AgentRun
+    ) -> tuple[UUID | None, UUID | None]:
+        """The runs either side of `run` in its conversation, for the detail view.
+
+        Its conversation, not its agent's history - the repository explains why
+        the walk stays inside the thread, and inside the run's own level of it.
+
+        Takes the run rather than an id because every caller has already been
+        through :meth:`get_run`, whose organization filter is the authorization -
+        the row in hand is proof the caller may ask about its neighbours.
+        """
+        return await agent_run_repo.neighbor_run_ids(self.db, run)
+
     async def get_run_transcript(
-        self, ctx: AuthContext, run_id: UUID, *, skip: int = 0, limit: int = 100
+        self,
+        ctx: AuthContext,
+        run_id: UUID,
+        *,
+        skip: int = 0,
+        limit: int = 100,
+        whole_conversation: bool = False,
     ) -> tuple[AgentRun, list[Message], int]:
         """One run, and the turns it produced - authorized, not owned.
+
+        `whole_conversation` widens the read to every turn of the thread the run
+        sits in, for a detail view that shows the run *in context* and scrolls to
+        it. That includes turns no run wrote - a message a member appended by
+        hand carries `run_id: null` and iterating the thread's runs would never
+        reach it. The reach is deliberate: those turns were the run's context,
+        so a reviewer of the run must be able to read them, and `runs:view` is
+        the wider lens that authorizes it - which is exactly why the whole-thread
+        read lives on this route and not on the owner-scoped conversation one.
 
         Reading a run is the organization's right rather than its starter's: a
         colleague holding `runs:view` reads a run somebody else began, which is
@@ -3397,10 +3426,16 @@ class AgentRunnerService:
             )
         if run.conversation_id is None:
             return run, [], 0
-        messages = await conversation_repo.get_messages_by_run(
-            self.db, run.id, skip=skip, limit=limit, include_tool_calls=True
-        )
-        total = await conversation_repo.count_messages_by_run(self.db, run.id)
+        if whole_conversation:
+            messages = await conversation_repo.get_messages_by_conversation(
+                self.db, run.conversation_id, skip=skip, limit=limit, include_tool_calls=True
+            )
+            total = await conversation_repo.count_messages(self.db, run.conversation_id)
+        else:
+            messages = await conversation_repo.get_messages_by_run(
+                self.db, run.id, skip=skip, limit=limit, include_tool_calls=True
+            )
+            total = await conversation_repo.count_messages_by_run(self.db, run.id)
         return run, messages, total
 
     async def transcript_ratings(

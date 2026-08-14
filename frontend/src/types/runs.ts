@@ -11,6 +11,13 @@ export interface AgentRun {
   surface: string;
   status: RunStatus;
   model_label: string | null;
+  /**
+   * The vendor the model actually ran at, as the provider catalog spells it -
+   * what the table keys a brand mark on. `model_label` names the profile; a
+   * repointed profile can change vendor under the same label. Null for runs
+   * recorded before it was tracked.
+   */
+  provider: string | null;
   input_tokens: number;
   output_tokens: number;
   /** Serialised Decimal - never parse into a float for arithmetic. */
@@ -18,6 +25,21 @@ export interface AgentRun {
   /** True when a model in this run had no price; the cost is a floor. */
   cost_is_partial: boolean;
   logfire_trace_id: string | null;
+  /**
+   * Where this run's trace can be read, resolved server-side. Sent on the
+   * single-run read only - a list of fifty runs has no use for fifty trace
+   * links - and null when nothing was tracing or nowhere is configured to
+   * link to.
+   */
+  logfire_url?: string | null;
+  /**
+   * The runs either side of this one in its own conversation, by start time.
+   * Sent on the single-run read only, like `logfire_url`; null at the thread's
+   * edge, on a run that never started, and on a run with no conversation
+   * behind it - an API call has no neighbours to step to.
+   */
+  prev_run_id?: string | null;
+  next_run_id?: string | null;
   error: string | null;
   /**
    * Whether an assistant answer this run produced was rated down by anybody -
@@ -28,6 +50,12 @@ export interface AgentRun {
    * it is `false` on any surface that does not, never absent.
    */
   down_rated: boolean;
+  /**
+   * The thread the run ran inside, or null when it ran with no conversation -
+   * an API call, a resumed run. `AgentRunRead` has carried it all along; the
+   * run table reads it to offer the chat behind a run (#765).
+   */
+  conversation_id: string | null;
   started_at: string | null;
   ended_at: string | null;
   /**
@@ -60,16 +88,48 @@ export interface AgentRunList {
 /**
  * One turn of a run's transcript, as `GET /runs/{run_id}/transcript` returns it.
  *
- * The run-detail surface reads the transcript to show the answers people rated
- * down and what they said was wrong. `user_rating` is the reader's own thumb
- * (`1`/`-1`/absent) and `rating_count` the aggregate; `rating_comment` is the
- * free text left with a thumb down, which is the highest-signal half - a rating
- * with words is a complaint you can act on.
+ * The wire is `MessageRead` plus the ratings, and has been all along - this
+ * type under-declared it for months, which is why the run detail could only
+ * ever show role and content while the steps, the reasoning and the tool calls
+ * sat unread in the response. Declared structurally compatible with the
+ * conversation reader's `RawMessage`, so the run timeline replays a turn with
+ * the same machinery a reopened chat does.
+ *
+ * `user_rating` is the reading caller's own thumb (`1`/`-1`/absent),
+ * `rating_count` the aggregate; `rating_comment` is the free text left with a
+ * thumb down, which is the highest-signal half - a rating with words is a
+ * complaint you can act on.
  */
 export interface RunTranscriptMessage {
   id: string;
   role: string;
   content: string;
+  created_at?: string;
+  /**
+   * The run that produced this turn. What tells the focused run's own turns
+   * from the rest of the thread when the transcript is read conversation-wide.
+   */
+  run_id?: string | null;
+  /** Reasoning trace, assistant turns only. */
+  thinking?: string | null;
+  /**
+   * The turn's timeline in the order it happened - text, reasoning and tool
+   * entries interleaved. Null on a user turn and on an assistant turn written
+   * before it was recorded, which is the signal to reconstruct an order from
+   * `content`, `thinking` and `tool_calls` instead.
+   */
+  parts?:
+    | { type: "text" | "thinking" | "tool"; text?: string | null; tool_call_id?: string | null }[]
+    | null;
+  tool_calls?:
+    | {
+        tool_call_id: string;
+        tool_name: string;
+        args: Record<string, unknown>;
+        result?: unknown;
+        status: string;
+      }[]
+    | null;
   /** The current reader's own rating: 1 (up), -1 (down), or absent for none. */
   user_rating?: number | null;
   /** Aggregate counts across everyone who rated this answer. */
@@ -135,7 +195,7 @@ export interface ToolApproval {
    * be shown as one.
    */
   subagent_agent_id: string | null;
-  status: "pending" | "approved" | "rejected";
+  status: "pending" | "approved" | "rejected" | "expired";
   decided_by_user_id: string | null;
   decided_at: string | null;
   note: string | null;

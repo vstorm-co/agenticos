@@ -22,7 +22,10 @@ import {
   Badge,
   Button,
   Sheet,
+  SheetClose,
   SheetContent,
+  SheetHeader,
+  SheetTitle,
 } from "@/components/ui";
 import type { AdminUser } from "@/types";
 import { apiClient } from "@/lib/api-client";
@@ -119,24 +122,28 @@ export function UserDetailDrawer({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="border-foreground/10 bg-card flex w-full max-w-md flex-col overflow-hidden p-0 sm:max-w-lg"
-      >
-        <header className="border-foreground/10 flex items-center gap-4 border-b px-6 py-5">
-          <Avatar className="h-12 w-12 shrink-0">
-            <AvatarImage src={`/api/users/avatar/${subject.id}`} alt={subject.email} />
-            <AvatarFallback className="font-mono text-sm">{initials || "?"}</AvatarFallback>
-          </Avatar>
-          <div className="min-w-0 flex-1">
-            <p className="text-foreground truncate text-base font-semibold">
-              {subject.full_name || subject.email.split("@")[0]}
-            </p>
-            <p className="text-foreground/55 truncate text-xs">{subject.email}</p>
-          </div>
-        </header>
+      {/* The same drawer dialect as the run detail: SheetHeader with the
+          title and its close, the body scrolling under it, standard tokens. */}
+      <SheetContent side="right" className="w-full sm:max-w-lg">
+        <SheetHeader className="px-5">
+          <SheetTitle className="flex min-w-0 items-center gap-3 text-sm">
+            <Avatar className="h-8 w-8 shrink-0" aria-hidden>
+              <AvatarImage src={`/api/users/avatar/${subject.id}`} alt="" />
+              <AvatarFallback className="font-mono text-xs">{initials || "?"}</AvatarFallback>
+            </Avatar>
+            <span className="min-w-0">
+              <span className="text-foreground block truncate">
+                {subject.full_name || subject.email.split("@")[0]}
+              </span>
+              <span className="text-muted-foreground block truncate text-xs font-normal">
+                {subject.email}
+              </span>
+            </span>
+          </SheetTitle>
+          <SheetClose onClick={() => onOpenChange(false)} />
+        </SheetHeader>
 
-        <div className="flex-1 scrollbar-thin overflow-y-auto px-6 py-5">
+        <div className="flex-1 scrollbar-thin overflow-y-auto p-5">
           <div className="flex flex-wrap gap-1.5">
             <Badge variant={subject.is_active ? "default" : "secondary"} className="text-[10px]">
               {subject.is_active ? t("active") : t("suspended")}
@@ -152,7 +159,7 @@ export function UserDetailDrawer({
             )}
           </div>
 
-          <dl className="border-foreground/10 divide-foreground/10 mt-5 divide-y rounded-xl border">
+          <dl className="border-border divide-border mt-5 divide-y rounded-xl border">
             <KV label={t("userId")} value={subject.id} mono onCopy={handleCopyId} />
             <KV label={t("email")} value={subject.email} mono />
             {subject.full_name && <KV label={t("displayName")} value={subject.full_name} />}
@@ -160,7 +167,7 @@ export function UserDetailDrawer({
           </dl>
 
           <section className="mt-7">
-            <h3 className="text-foreground/55 mb-3 font-mono text-[11px] tracking-wider uppercase">
+            <h3 className="text-foreground mb-3 text-sm font-semibold">
               {t("recentConversations")}
             </h3>
             {convsLoading ? (
@@ -173,19 +180,19 @@ export function UserDetailDrawer({
                 {getErrorMessage(convsError, tErrors, t("couldnTLoadConversations"))}
               </p>
             ) : !conversations || conversations.length === 0 ? (
-              <p className="text-foreground/55 text-xs">{t("noConversationsFound")}</p>
+              <p className="text-muted-foreground text-xs">{t("noConversationsFound")}</p>
             ) : (
               <ul className="space-y-1">
                 {conversations.map((c) => (
                   <li
                     key={c.id}
-                    className="border-foreground/10 bg-background flex items-center justify-between gap-2 rounded-lg border px-3 py-2"
+                    className="border-border bg-background flex items-center justify-between gap-2 rounded-lg border px-3 py-2"
                   >
                     <div className="min-w-0 flex-1">
                       <p className="text-foreground truncate text-xs font-medium">
                         {c.title || t("untitled")}
                       </p>
-                      <p className="text-foreground/45 truncate font-mono text-[10px] tracking-wider uppercase">
+                      <p className="text-muted-foreground truncate text-xs">
                         {formatDateTime(c.created_at, locale)}
                         {typeof c.message_count === "number" &&
                           ` · ${t("messageCountShort", { count: c.message_count })}`}
@@ -193,7 +200,7 @@ export function UserDetailDrawer({
                     </div>
                     <a
                       href={`${ROUTES.ADMIN_CONVERSATIONS}?id=${c.id}`}
-                      className="text-foreground/55 hover:text-foreground inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors"
+                      className="text-muted-foreground hover:text-foreground inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors"
                       title={t("openConversation")}
                     >
                       <ArrowUpRight className="h-3.5 w-3.5" />
@@ -205,12 +212,11 @@ export function UserDetailDrawer({
           </section>
         </div>
 
-        <footer className="border-foreground/10 flex flex-wrap items-center gap-2 border-t px-6 py-4">
+        <footer className="border-border flex flex-wrap items-center gap-2 border-t px-5 py-4">
           <Button
             variant="outline"
             size="sm"
             onClick={() => onUpdate(subject.id, { is_active: !subject.is_active })}
-            className="rounded-full"
           >
             {subject.is_active ? (
               <>
@@ -228,7 +234,6 @@ export function UserDetailDrawer({
             variant="outline"
             size="sm"
             onClick={() => onUpdate(subject.id, { is_app_admin: !subject.is_app_admin })}
-            className="rounded-full"
           >
             {subject.is_app_admin ? (
               <>
@@ -242,7 +247,7 @@ export function UserDetailDrawer({
               </>
             )}
           </Button>
-          <Button variant="outline" size="sm" onClick={handleImpersonate} className="rounded-full">
+          <Button variant="outline" size="sm" onClick={handleImpersonate}>
             <KeyRound className="mr-1.5 h-3.5 w-3.5" />
             {t("impersonate")}
           </Button>
@@ -252,7 +257,7 @@ export function UserDetailDrawer({
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-destructive hover:text-destructive ml-auto rounded-full"
+                className="text-destructive hover:text-destructive ml-auto"
               >
                 <Trash2 className="mr-1.5 h-3.5 w-3.5" />
                 {t("delete")}
@@ -299,7 +304,7 @@ function KV({
   const t = useTranslations("admin");
   return (
     <div className="flex items-center justify-between gap-3 px-4 py-2.5">
-      <dt className="text-foreground/55 font-mono text-[10px] tracking-wider uppercase">{label}</dt>
+      <dt className="text-muted-foreground text-xs tracking-wide uppercase">{label}</dt>
       <dd className="flex items-center gap-2">
         <span className={mono ? "text-foreground font-mono text-xs" : "text-foreground text-xs"}>
           {value}
@@ -308,7 +313,7 @@ function KV({
           <button
             type="button"
             onClick={onCopy}
-            className="text-foreground/45 hover:text-foreground inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors"
+            className="text-muted-foreground hover:text-foreground inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors"
             title={t("copy")}
           >
             <Copy className="h-3 w-3" />

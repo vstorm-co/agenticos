@@ -87,6 +87,11 @@ export const qk = {
         descending?: boolean;
         tookOverMs?: number;
         rated?: string;
+        statuses?: string[];
+        surface?: string;
+        userId?: string;
+        agentVersionId?: string;
+        skip?: number;
       } = {},
     ) =>
       [
@@ -99,18 +104,33 @@ export const qk = {
         opts.descending ?? true,
         opts.tookOverMs ?? "no-min",
         opts.rated ?? "any-rating",
+        opts.statuses?.join(",") ?? "any-status",
+        opts.surface ?? "any-surface",
+        opts.userId ?? "anyone",
+        opts.agentVersionId ?? "any-version",
+        opts.skip ?? 0,
       ] as const,
     detail: (id: string) => ["runs", id] as const,
     // One run's transcript, where the run-detail surface reads the answers
     // people rated down and their comments. Its own key: it is a different body
     // from the run row, and a caching collision would draw one as the other.
-    transcript: (runId: string) => ["runs", runId, "transcript"] as const,
+    // The scope is part of it - the run's own turns and the whole thread are
+    // two different answers.
+    transcript: (runId: string, scope: "run" | "conversation" = "run") =>
+      ["runs", runId, "transcript", scope] as const,
     // A separate key from `list`, because it is a separate question: `list`
     // answers "the top level", this answers "what did this run delegate", and
     // caching one as the other would show a run's children as the whole history.
     delegations: (parentRunId: string) => ["runs", "list", "delegations", parentRunId] as const,
     approvals: () => ["runs", "approvals"] as const,
-    spend: (days: number) => ["runs", "spend", days] as const,
+    // The decided record over a window - a different question from the queue,
+    // so a different key: the queue must refresh on a decision, the record on
+    // a window change.
+    approvalHistory: (from: string, to: string) =>
+      ["runs", "approvals", "history", from, to] as const,
+    // A rolling day count and an explicit range are different answers, so the
+    // window descriptor is the key, whichever shape it takes.
+    spend: (range: number | { from: string; to: string }) => ["runs", "spend", range] as const,
     /** Failed or out-of-budget runs, for the dashboard's recent-failures card. */
     failures: (limit: number) => ["runs", "failures", limit] as const,
   },
@@ -150,8 +170,6 @@ export const qk = {
     detail: (id: string) => ["skills", id] as const,
     resource: (skillId: string, resourceId: string) =>
       ["skills", skillId, "resources", resourceId] as const,
-    /** What this deployment ships with - changes on redeploy, not on a mutation. */
-    library: () => ["skills", "library"] as const,
   },
   invitations: {
     all: () => ["invitations"] as const,
@@ -298,7 +316,6 @@ export const qk = {
   },
   admin: {
     stats: () => ["admin", "stats"] as const,
-    events: () => ["admin", "events"] as const,
     users: (params?: unknown) => ["admin", "users", params] as const,
     conversations: (params?: unknown) => ["admin", "conversations", params] as const,
     system: () => ["admin", "system"] as const,

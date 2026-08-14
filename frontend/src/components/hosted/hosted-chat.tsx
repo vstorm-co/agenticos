@@ -506,7 +506,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
         )}
       </header>
 
-      <div ref={threadRef} className="flex-1 space-y-3 overflow-y-auto py-4">
+      <div ref={threadRef} className="flex-1 scrollbar-thin space-y-3 overflow-y-auto py-4">
         {/* Markdown, like the answer and for the same reason: the operator writes it
             in a Markdown editor, so printing the asterisks would be the one place on
             this page that shows the source instead of the text. Never sent to the

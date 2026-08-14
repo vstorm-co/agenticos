@@ -20,6 +20,8 @@ function run(overrides: Partial<AgentRun> = {}): AgentRun {
     logfire_trace_id: null,
     error: null,
     down_rated: false,
+    conversation_id: null,
+    provider: null,
     started_at: "2026-07-30T10:00:00Z",
     ended_at: "2026-07-30T10:00:05Z",
     parent_run_id: null,
@@ -30,8 +32,14 @@ function run(overrides: Partial<AgentRun> = {}): AgentRun {
 
 function figure(label: string) {
   // Each figure is a label above a value, so the value is read relative to its
-  // own label rather than by position in the grid.
-  return screen.getByText(label).parentElement as HTMLElement;
+  // own label rather than by position in the grid. The label is the uppercase
+  // caption paragraph - "Failed" is also a status badge's text since the run
+  // vocabulary went sentence case, so a bare text match can find two.
+  const caption = screen
+    .getAllByText(label)
+    .find((element) => element.className.includes("uppercase"));
+  if (!caption) throw new Error(`no figure labelled ${label}`);
+  return caption.parentElement as HTMLElement;
 }
 
 describe("the run summary", () => {

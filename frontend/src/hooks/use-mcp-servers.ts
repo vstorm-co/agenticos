@@ -61,12 +61,15 @@ export function useMcpServers() {
     rows,
     isLoading: catalog.isLoading || organization.isLoading || personal.isLoading,
     /**
-     * Only the organization list's failure is reported. A member without
-     * `connections:manage` gets a 403 there and can still read the catalog and
-     * their own connections, so surfacing it as the page's error would replace
-     * a usable screen with a refusal about one column of it.
+     * A failure everybody's view depends on is reported — the catalog and the
+     * caller's own connections. The organization list's is not: a member
+     * without `connections:manage` gets a 403 there and can still read the
+     * other two, so surfacing it as the page's error would replace a usable
+     * screen with a refusal about one column of it. A failed catalog is the
+     * opposite case — without it `mergeServers` yields an empty page dressed
+     * as "no servers", on the one deployment state that cannot be true.
      */
-    error: personal.error,
+    error: catalog.error ?? personal.error,
     organization,
     personal,
     /** Tools discovered by a check in this session, keyed by connection id. */
