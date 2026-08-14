@@ -8,8 +8,8 @@ import { Badge, DataTable, type Column } from "@/components/ui";
 import { formatDate, formatRunDuration } from "@/lib/utils";
 import type { AgentRun } from "@/types/runs";
 
-/** The two orders `GET /runs` offers, matching `RunOrder` on the backend. */
-export type RunSortKey = "started_at" | "duration";
+/** The orders `GET /runs` offers, matching `RunOrder` on the backend. */
+export type RunSortKey = "started_at" | "duration" | "cost";
 export interface RunSort {
   by: RunSortKey;
   dir: "asc" | "desc";
@@ -26,12 +26,13 @@ export interface RunSort {
  * is the bug this badge exists for, next to a month-to-date figure that counts
  * each parent once.
  *
- * `sort`/`onSort` turn the Started and Took headers into sort controls. Both are
- * optional and travel together: a delegations table and a focused run render the
- * same rows with nothing to sort - the order came from the one query that asked
- * for them - so they pass neither and get plain headers. When they are given,
- * the sort is the server's over the whole narrowed set, never this page of rows:
- * the slowest run of a month is not in whichever twenty-five a feed returned.
+ * `sort`/`onSort` turn the Started, Took and Cost headers into sort controls.
+ * Both are optional and travel together: a delegations table and a focused run
+ * render the same rows with nothing to sort - the order came from the one query
+ * that asked for them - so they pass neither and get plain headers. When they
+ * are given, the sort is the server's over the whole narrowed set, never this
+ * page of rows: the slowest run of a month is not in whichever twenty-five a
+ * feed returned.
  */
 export function RunTable({
   runs,
@@ -102,6 +103,7 @@ export function RunTable({
       key: "cost",
       header: t("cost"),
       align: "right",
+      sortable,
       cell: (run) => (
         <span className="font-mono text-xs">
           ${Number(run.cost_usd).toFixed(4)}

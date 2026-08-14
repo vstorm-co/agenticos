@@ -107,10 +107,10 @@ class RunSurface(enum.StrEnum):
 class RunOrder(enum.StrEnum):
     """What run history is sorted by.
 
-    Two, rather than a column name a caller supplies: an `ORDER BY` assembled
-    from a query string is an injection surface, and these are the two orders the
-    page has a reason to offer. Newest-first is the default because run history
-    is read as a feed.
+    A closed set, rather than a column name a caller supplies: an `ORDER BY`
+    assembled from a query string is an injection surface, and these are the
+    orders the page has a reason to offer - the feed, the slowest, and the most
+    expensive. Newest-first is the default because run history is read as a feed.
 
     Here beside the statuses rather than with the query it parameterises, because
     it is vocabulary about a run: a route validates a query parameter against it
@@ -119,6 +119,7 @@ class RunOrder(enum.StrEnum):
 
     STARTED_AT = "started_at"
     DURATION = "duration"
+    COST = "cost"
 
 
 class RunRating(enum.StrEnum):

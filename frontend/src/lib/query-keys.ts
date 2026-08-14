@@ -87,6 +87,8 @@ export const qk = {
         descending?: boolean;
         tookOverMs?: number;
         rated?: string;
+        statuses?: string[];
+        surface?: string;
       } = {},
     ) =>
       [
@@ -99,6 +101,8 @@ export const qk = {
         opts.descending ?? true,
         opts.tookOverMs ?? "no-min",
         opts.rated ?? "any-rating",
+        opts.statuses?.join(",") ?? "any-status",
+        opts.surface ?? "any-surface",
       ] as const,
     detail: (id: string) => ["runs", id] as const,
     // One run's transcript, where the run-detail surface reads the answers

@@ -84,6 +84,27 @@ describe("useRuns", () => {
     });
   });
 
+  it("narrows by status set, surface and cost order on the wire", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    const { result } = renderHook(
+      () =>
+        useRuns(undefined, {
+          orderBy: "cost",
+          statuses: ["failed", "budget_exceeded"],
+          surface: "slack",
+        }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith("/runs", {
+      params: {
+        order_by: "cost",
+        status: "failed,budget_exceeded",
+        surface: "slack",
+      },
+    });
+  });
+
   it("fetches nothing for a caller that is not ready to ask", () => {
     // The Activity tab mounts before the organization is resolved; a request sent
     // then reads another organization's runs or none at all.

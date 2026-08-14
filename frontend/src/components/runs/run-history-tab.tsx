@@ -6,14 +6,29 @@ import { useTranslations } from "next-intl";
 import { Activity, ThumbsDown } from "lucide-react";
 
 import { getErrorMessage } from "@/lib/api-error";
+import { RUN_LABEL } from "@/components/agents/status-badge";
+import { ExportMenu } from "@/components/runs/export-menu";
 import { FocusedRun } from "@/components/runs/focused-run";
 import { RunTable, type RunSort } from "@/components/runs/run-table";
 import { VersionStrip } from "@/components/runs/version-strip";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
-import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui";
 import { usePermissions, useRuns } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
+import type { RunStatus } from "@/types/runs";
 
 /**
  * The "slow runs" preset's threshold, in milliseconds.
@@ -24,6 +39,15 @@ import { Perm } from "@/types/permissions";
  * definition of slow; the sort beside it is what finds the genuine outliers.
  */
 const SLOW_RUN_THRESHOLD_MS = 30_000;
+
+/** What the status filter offers, in the order the badge vocabulary lists them. */
+const STATUSES = Object.keys(RUN_LABEL) as RunStatus[];
+
+/** `RunSurface` on the backend - every value something assigns, none invented. */
+const SURFACES = ["web", "embed", "api", "slack", "telegram", "mattermost"] as const;
+
+/** "What went wrong" as one choice - the query the two statuses exist apart for. */
+const PROBLEM_STATUSES: RunStatus[] = ["failed", "budget_exceeded"];
 
 /**
  * Run history, and whichever sentence says what it has been narrowed to.
@@ -65,9 +89,12 @@ export function RunHistoryTab({
 }) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("pages.runs");
+  const tAgents = useTranslations("agents");
   const { can } = usePermissions();
   const canView = can(Perm.runsView);
   const [ratedDown, setRatedDown] = useState(false);
+  const [status, setStatus] = useState<RunStatus | "all" | "problems">("all");
+  const [surface, setSurface] = useState<string>("all");
   const [sort, setSort] = useState<RunSort>(
     initialDurationSort ? { by: "duration", dir: "desc" } : { by: "started_at", dir: "desc" },
   );
@@ -82,7 +109,10 @@ export function RunHistoryTab({
     descending: sort.dir === "desc",
     tookOverMs: minDurationMs ?? undefined,
     rated: ratedDown ? "down" : undefined,
+    statuses: status === "all" ? undefined : status === "problems" ? PROBLEM_STATUSES : [status],
+    surface: surface === "all" ? undefined : surface,
   });
+  const narrowed = ratedDown || status !== "all" || surface !== "all";
 
   const showSlow = () => {
     setSort({ by: "duration", dir: "desc" });
@@ -114,18 +144,31 @@ export function RunHistoryTab({
             </div>
             {/* Offered only in list mode and only to a caller who may read runs:
                 a filter over a list that is not shown, or one whose request would
-                be refused, is a control with nothing to do. */}
+                be refused, is a control with nothing to do. The export sits in
+                the same corner because it exports exactly this table. */}
             {focusedRunId === null && canView && (
-              <Button
-                variant={ratedDown ? "default" : "outline"}
-                size="sm"
-                aria-pressed={ratedDown}
-                onClick={() => setRatedDown((on) => !on)}
-                className="shrink-0"
-              >
-                <ThumbsDown className="mr-1.5 h-4 w-4" />
-                {t("ratedDown")}
-              </Button>
+              <div className="flex shrink-0 items-center gap-2">
+                <Button
+                  variant={ratedDown ? "default" : "outline"}
+                  size="sm"
+                  aria-pressed={ratedDown}
+                  onClick={() => setRatedDown((on) => !on)}
+                >
+                  <ThumbsDown className="mr-1.5 h-4 w-4" />
+                  {t("ratedDown")}
+                </Button>
+                <ExportMenu
+                  permission={Perm.runsView}
+                  endpoint="/runs/export"
+                  kind="runs"
+                  params={
+                    agentId === null
+                      ? undefined
+                      : { agent_id: agentId, include_delegations: "true" }
+                  }
+                  rangeParams={{ from: "started_from", to: "started_to" }}
+                />
+              </div>
             )}
           </div>
           {/* Said out loud, with the way out beside it. A filtered table that
@@ -175,6 +218,39 @@ export function RunHistoryTab({
                 >
                   {t("slowRuns")}
                 </Button>
+
+                {/* Server-side narrowing, like the sort: the page holds fifty
+                    rows and the statuses live on the whole history. */}
+                <Select
+                  value={status}
+                  onValueChange={(value) => setStatus(value as RunStatus | "all" | "problems")}
+                >
+                  <SelectTrigger className="h-8 w-[170px]" aria-label={t("statusFilter")}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{t("anyStatus")}</SelectItem>
+                    <SelectItem value="problems">{t("problemsOnly")}</SelectItem>
+                    {STATUSES.map((entry) => (
+                      <SelectItem key={entry} value={entry}>
+                        {tAgents(RUN_LABEL[entry])}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={surface} onValueChange={setSurface}>
+                  <SelectTrigger className="h-8 w-[150px]" aria-label={t("surfaceFilter")}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{t("anySurface")}</SelectItem>
+                    {SURFACES.map((entry) => (
+                      <SelectItem key={entry} value={entry} className="font-mono text-xs">
+                        {entry}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               {isLoading ? (
                 <LoadingState variant="skeleton-table" columns={7} rows={6} />
@@ -190,6 +266,14 @@ export function RunHistoryTab({
                     icon={ThumbsDown}
                     title={t("noRunsRatedDown")}
                     description={t("nothingHereWasRatedDown")}
+                  />
+                ) : narrowed ? (
+                  // The filters emptied it, not the organization: "no runs yet"
+                  // over a narrowed list reads as a history that never happened.
+                  <EmptyState
+                    icon={Activity}
+                    title={t("noRunsMatch")}
+                    description={t("loosenAFilterAbove")}
                   />
                 ) : (
                   <EmptyState

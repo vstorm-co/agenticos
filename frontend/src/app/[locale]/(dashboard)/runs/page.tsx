@@ -104,23 +104,8 @@ export default function RunsPage() {
           )}
 
           <TabsContent value="runs">
-            {/* Not on a single-run view: a CSV of one run is a download nobody
-                asked for, and `?run=` is the only shape that has no history. */}
-            {focusedRunId === null && (
-              <div className="mb-3 flex justify-end">
-                <ExportMenu
-                  permission={Perm.runsView}
-                  endpoint="/runs/export"
-                  kind="runs"
-                  params={
-                    agentId === null
-                      ? undefined
-                      : { agent_id: agentId, include_delegations: "true" }
-                  }
-                  rangeParams={{ from: "started_from", to: "started_to" }}
-                />
-              </div>
-            )}
+            {/* The export lives inside the history card, beside the filters it
+                exports the result of - see RunHistoryTab. */}
             <RunHistoryTab
               agentId={agentId}
               focusedRunId={focusedRunId}

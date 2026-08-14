@@ -399,7 +399,12 @@ async def list_runs(
         query = query.where(clause)
         count_query = count_query.where(clause)
 
-    column = _duration_ms() if order_by is RunOrder.DURATION else AgentRun.started_at
+    if order_by is RunOrder.DURATION:
+        column = _duration_ms()
+    elif order_by is RunOrder.COST:
+        column = AgentRun.cost_usd
+    else:
+        column = AgentRun.started_at
     ordering = column.desc() if descending else column.asc()
     # `id` breaks ties, because neither sort column is unique: a fan-out starts
     # several runs in the same instant and `started_at` alone lets two rows swap

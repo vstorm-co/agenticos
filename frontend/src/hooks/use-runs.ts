@@ -12,6 +12,7 @@ import type {
   AgentRunList,
   ApprovalList,
   CostSummary,
+  RunStatus,
   RunTranscript,
   ToolApproval,
 } from "@/types/runs";
@@ -47,13 +48,17 @@ export function useRuns(
     enabled?: boolean;
     startedFrom?: string;
     startedTo?: string;
-    orderBy?: "started_at" | "duration";
+    orderBy?: "started_at" | "duration" | "cost";
     descending?: boolean;
     tookOverMs?: number;
     rated?: "down" | "up";
+    /** Narrows to these statuses - `failed,budget_exceeded` is "the problems". */
+    statuses?: RunStatus[];
+    surface?: string;
   },
 ) {
-  const { startedFrom, startedTo, orderBy, descending, tookOverMs, rated } = options ?? {};
+  const { startedFrom, startedTo, orderBy, descending, tookOverMs, rated, statuses, surface } =
+    options ?? {};
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.runs.list({
       agentId,
@@ -63,6 +68,8 @@ export function useRuns(
       descending,
       tookOverMs,
       rated,
+      statuses,
+      surface,
     }),
     queryFn: () => {
       const params: Record<string, string> = {};
@@ -78,6 +85,8 @@ export function useRuns(
       // The highest-signal queue on this page: the runs somebody said were
       // wrong. A run matches if anybody rated a message it produced that way.
       if (rated) params.rated = rated;
+      if (statuses && statuses.length > 0) params.status = statuses.join(",");
+      if (surface) params.surface = surface;
       return apiClient.get<AgentRunList>(
         "/runs",
         Object.keys(params).length > 0 ? { params } : undefined,

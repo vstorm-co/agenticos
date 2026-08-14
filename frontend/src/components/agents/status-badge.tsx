@@ -63,7 +63,9 @@ const RUN_DOT: Record<RunStatus, string> = {
   failed: "bg-destructive",
 };
 
-const RUN_LABEL: Record<RunStatus, string> = {
+// Exported for the run-history filter, whose Select options are these same
+// words - one catalog key per status, never a second copy.
+export const RUN_LABEL: Record<RunStatus, string> = {
   completed: "runCompleted",
   running: "runRunning",
   awaiting_approval: "runAwaitingApproval",

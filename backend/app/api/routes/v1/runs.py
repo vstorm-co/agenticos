@@ -68,8 +68,10 @@ async def list_runs(
         None, ge=0, description="Only runs slower than this. A run still going has no duration"
     ),
     rated: RunRating | None = Query(None, description="Only runs somebody rated this way"),
-    order_by: RunOrder = Query(RunOrder.STARTED_AT, description="Sort by start time or duration"),
-    descending: bool = Query(True, description="Newest or slowest first"),
+    order_by: RunOrder = Query(
+        RunOrder.STARTED_AT, description="Sort by start time, duration or cost"
+    ),
+    descending: bool = Query(True, description="Newest, slowest or most expensive first"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
@@ -93,7 +95,8 @@ async def list_runs(
     the whole narrowed set - which is what gets from "p95 is 14.8s" on the
     dashboard to *those runs*. Sorting a page of twenty-five would sort the wrong
     set. Unfinished runs have no duration and sort last in both directions rather
-    than as zero.
+    than as zero. `order_by=cost` is the same arrangement for money: the most
+    expensive runs of the whole narrowed set, not of one page.
 
     `rated=down` is the highest-signal queue here: the answers real people said
     were wrong. A run matches if *anybody* rated a message it produced that way,

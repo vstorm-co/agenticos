@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 
 import pytest
 from sqlalchemy import select
@@ -352,6 +353,22 @@ class TestSortingByHowLongItTook:
         assert slowest_first == [str(slow.id), str(running.id)]
         # Last in *both* directions - not "the fastest run" either.
         assert quickest_first == [str(slow.id), str(running.id)]
+
+    async def test_the_most_expensive_run_comes_first_under_the_cost_order(self, db) -> None:
+        """Same arrangement as duration, for money: SQL over the whole narrowed
+        set, so the priciest run of a month is found even when the newest-first
+        page would never have shown it."""
+        org, user = await _org(db)
+        agent = await _agent(db, org)
+        cheap = await _run(db, org, agent, cost_usd=Decimal("0.01"))
+        pricey = await _run(db, org, agent, cost_usd=Decimal("4.20"))
+        middling = await _run(db, org, agent, cost_usd=Decimal("0.90"))
+
+        priciest_first, _ = await _listed(db, org, user, order_by=RunOrder.COST)
+        cheapest_first, _ = await _listed(db, org, user, order_by=RunOrder.COST, descending=False)
+
+        assert priciest_first == [str(pricey.id), str(middling.id), str(cheap.id)]
+        assert cheapest_first == [str(cheap.id), str(middling.id), str(pricey.id)]
 
     async def test_the_default_order_is_still_the_feed(self, db) -> None:
         org, user = await _org(db)

@@ -161,4 +161,62 @@ describe("run history controls", () => {
 
     expect(lastOptions()).toMatchObject({ orderBy: "started_at", descending: false });
   });
+
+  it("the Cost header asks for the most expensive of the whole set", async () => {
+    renderTab();
+
+    await userEvent.click(screen.getByText("Cost").closest("button")!);
+
+    expect(lastOptions()).toMatchObject({ orderBy: "cost", descending: true });
+  });
+
+  it("narrows to one status the server filters by", async () => {
+    renderTab();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Filter by status" }));
+    await userEvent.click(screen.getByRole("option", { name: "failed" }));
+
+    expect(lastOptions()).toMatchObject({ statuses: ["failed"] });
+  });
+
+  it("problems is failed and stopped-by-budget together, the way they are stored apart", async () => {
+    renderTab();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Filter by status" }));
+    await userEvent.click(screen.getByRole("option", { name: "Problems" }));
+
+    expect(lastOptions()).toMatchObject({ statuses: ["failed", "budget_exceeded"] });
+  });
+
+  it("narrows to one surface", async () => {
+    renderTab();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Filter by surface" }));
+    await userEvent.click(screen.getByRole("option", { name: "slack" }));
+
+    expect(lastOptions()).toMatchObject({ surface: "slack" });
+  });
+
+  it("says the filters emptied the list, not that nothing has ever run", async () => {
+    useRunsMock.mockReturnValue({
+      runs: [],
+      total: 0,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    renderTab();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Filter by surface" }));
+    await userEvent.click(screen.getByRole("option", { name: "slack" }));
+
+    expect(screen.getByText("No runs match these filters")).toBeInTheDocument();
+    expect(screen.queryByText("No runs yet")).not.toBeInTheDocument();
+  });
+
+  it("keeps the export inside the card, beside the filters it exports the result of", () => {
+    renderTab();
+
+    expect(screen.getByRole("button", { name: "Export CSV" })).toBeInTheDocument();
+  });
 });
