@@ -87,6 +87,7 @@ function renderTab(props: Partial<Parameters<typeof RunHistoryTab>[0]> = {}) {
         focusedRunId={null}
         period={PERIOD}
         onAgentChange={vi.fn()}
+        onFocusRun={vi.fn()}
         {...props}
       />
     </NextIntlClientProvider>,
@@ -313,6 +314,24 @@ describe("run history controls", () => {
     await userEvent.click(screen.getByRole("option", { name: "failed" }));
 
     expect(lastOptions()).toMatchObject({ statuses: ["failed"], skip: 0 });
+  });
+
+  it("opens a run's detail when its row is clicked", async () => {
+    const onFocusRun = vi.fn();
+    renderTab({ onFocusRun });
+
+    await userEvent.click(screen.getByText("openai · gpt-5"));
+
+    expect(onFocusRun).toHaveBeenCalledWith("run-1");
+  });
+
+  it("the focused notice's way out clears the focus it names", async () => {
+    const onFocusRun = vi.fn();
+    renderTab({ focusedRunId: "run-1", onFocusRun });
+
+    await userEvent.click(screen.getByRole("button", { name: "Show every run" }));
+
+    expect(onFocusRun).toHaveBeenCalledWith(null);
   });
 
   it("drops the version narrowing when the agent changes under it", async () => {

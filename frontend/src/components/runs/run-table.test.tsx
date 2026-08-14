@@ -159,6 +159,47 @@ describe("a sortable run table", () => {
   });
 });
 
+describe("opening a run from its row", () => {
+  it("hands the clicked run to the caller", async () => {
+    const onOpen = vi.fn();
+    render(<RunTable runs={[run()]} onOpen={onOpen} />);
+
+    await userEvent.click(within(row()).getByText("openai · gpt-5"));
+
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(onOpen.mock.calls[0]?.[0]).toMatchObject({ id: "run-1" });
+  });
+
+  it("does not open the run under the chat link's navigation", async () => {
+    // The chat link leaves the page; a row click firing beneath it would open
+    // the run detail under the navigation.
+    useAuthStore.setState({ user: { id: "user-1" } as never });
+    const onOpen = vi.fn();
+    render(<RunTable runs={[run({ conversation_id: "conv-9" })]} onOpen={onOpen} />);
+
+    await userEvent.click(
+      within(row()).getByRole("link", { name: "Open the chat this run happened in" }),
+    );
+
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+});
+
+describe("when a run started", () => {
+  it("reads relative on the row with the absolute instant on hover", () => {
+    // Recent, so the relative branch renders rather than the past-a-week date
+    // fallback - the test must not age into a different branch.
+    const startedAt = new Date(Date.now() - 2 * 3600 * 1000).toISOString();
+    render(<RunTable runs={[run({ started_at: startedAt })]} />);
+
+    const cell = within(row()).getByText("2h ago");
+    expect(cell).toHaveAttribute(
+      "title",
+      expect.stringContaining(String(new Date().getFullYear())),
+    );
+  });
+});
+
 describe("the chat behind a run", () => {
   const CHAT_LINK = "Open the chat this run happened in";
 

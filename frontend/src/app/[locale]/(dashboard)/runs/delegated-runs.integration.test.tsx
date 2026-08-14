@@ -245,7 +245,7 @@ describe("one run and what it delegated", () => {
     await openRunsTab();
 
     expect(await screen.findByText(/Narrowed to one run/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Show every run" })).toHaveAttribute("href", "/runs");
+    expect(screen.getByRole("button", { name: "Show every run" })).toBeVisible();
   });
 
   it("says a run could not be read instead of drawing an empty table", async () => {

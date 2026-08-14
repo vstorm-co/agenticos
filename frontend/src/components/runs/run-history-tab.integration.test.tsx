@@ -55,7 +55,13 @@ beforeEach(() => {
 describe("the rated-down filter", () => {
   it("asks the server for only the rated-down runs when narrowed to them", async () => {
     render(
-      <RunHistoryTab agentId={null} focusedRunId={null} period={PERIOD} onAgentChange={vi.fn()} />,
+      <RunHistoryTab
+        agentId={null}
+        focusedRunId={null}
+        period={PERIOD}
+        onAgentChange={vi.fn()}
+        onFocusRun={vi.fn()}
+      />,
       { wrapper },
     );
     await waitFor(() => expect(runsCalls()).not.toHaveLength(0));
@@ -72,7 +78,13 @@ describe("the rated-down filter", () => {
 
   it("says the list is empty because of the filter, not because nothing ran", async () => {
     render(
-      <RunHistoryTab agentId={null} focusedRunId={null} period={PERIOD} onAgentChange={vi.fn()} />,
+      <RunHistoryTab
+        agentId={null}
+        focusedRunId={null}
+        period={PERIOD}
+        onAgentChange={vi.fn()}
+        onFocusRun={vi.fn()}
+      />,
       { wrapper },
     );
     await userEvent.click(screen.getByRole("combobox", { name: "Filter by rating" }));
@@ -85,7 +97,13 @@ describe("the rated-down filter", () => {
     perm.canView = false;
 
     render(
-      <RunHistoryTab agentId={null} focusedRunId={null} period={PERIOD} onAgentChange={vi.fn()} />,
+      <RunHistoryTab
+        agentId={null}
+        focusedRunId={null}
+        period={PERIOD}
+        onAgentChange={vi.fn()}
+        onFocusRun={vi.fn()}
+      />,
       { wrapper },
     );
 
@@ -94,7 +112,13 @@ describe("the rated-down filter", () => {
 
   it("blames the window when the unfiltered list is empty, not a filter and not the org", async () => {
     render(
-      <RunHistoryTab agentId={null} focusedRunId={null} period={PERIOD} onAgentChange={vi.fn()} />,
+      <RunHistoryTab
+        agentId={null}
+        focusedRunId={null}
+        period={PERIOD}
+        onAgentChange={vi.fn()}
+        onFocusRun={vi.fn()}
+      />,
       { wrapper },
     );
 
@@ -106,7 +130,13 @@ describe("the rated-down filter", () => {
 describe("the export beside the filters", () => {
   it("carries exactly the filters on screen, so the file is the table (#763)", async () => {
     render(
-      <RunHistoryTab agentId={null} focusedRunId={null} period={PERIOD} onAgentChange={vi.fn()} />,
+      <RunHistoryTab
+        agentId={null}
+        focusedRunId={null}
+        period={PERIOD}
+        onAgentChange={vi.fn()}
+        onFocusRun={vi.fn()}
+      />,
       { wrapper },
     );
 
@@ -128,7 +158,13 @@ describe("the export beside the filters", () => {
 
   it("sends the problems narrowing as the two statuses it stands for", async () => {
     render(
-      <RunHistoryTab agentId={null} focusedRunId={null} period={PERIOD} onAgentChange={vi.fn()} />,
+      <RunHistoryTab
+        agentId={null}
+        focusedRunId={null}
+        period={PERIOD}
+        onAgentChange={vi.fn()}
+        onFocusRun={vi.fn()}
+      />,
       { wrapper },
     );
 

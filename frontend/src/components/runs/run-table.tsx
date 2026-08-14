@@ -9,7 +9,7 @@ import { SurfaceIcon } from "@/components/runs/surface-icon";
 import { Badge, DataTable, type Column } from "@/components/ui";
 import { useAuthStore } from "@/stores";
 import { ROUTES } from "@/lib/constants";
-import { formatDate, formatRunDuration } from "@/lib/utils";
+import { formatDateTime, formatRunDuration, timeAgo } from "@/lib/utils";
 import type { AgentRun } from "@/types/runs";
 
 /** The orders `GET /runs` offers, matching `RunOrder` on the backend. */
@@ -42,12 +42,17 @@ export function RunTable({
   runs,
   sort,
   onSort,
+  onOpen,
 }: {
   runs: AgentRun[];
   sort?: RunSort;
   onSort?: (sort: RunSort) => void;
+  /** Opens a row's detail. Given, every row becomes clickable; a delegations
+   * table and a focused run pass nothing - the detail is already on screen. */
+  onOpen?: (run: AgentRun) => void;
 }) {
   const t = useTranslations("pages.runs");
+  const tTime = useTranslations("time");
   const locale = useLocale();
   const meId = useAuthStore((state) => state.user?.id ?? null);
   const sortable = sort !== undefined && onSort !== undefined;
@@ -145,11 +150,20 @@ export function RunTable({
       key: "started_at",
       header: t("started"),
       sortable,
-      cell: (run) => (
-        <span className="text-muted-foreground text-xs">
-          {run.started_at === null ? "-" : formatDate(run.started_at, locale)}
-        </span>
-      ),
+      // Relative on the row, absolute on hover: a feed is scanned as "how long
+      // ago", and the instant is one hover away when a reader needs to line a
+      // run up against a deploy or a bill.
+      cell: (run) =>
+        run.started_at === null ? (
+          <span className="text-muted-foreground text-xs">-</span>
+        ) : (
+          <span
+            className="text-muted-foreground text-xs whitespace-nowrap"
+            title={formatDateTime(run.started_at, locale)}
+          >
+            {timeAgo(run.started_at, tTime, locale)}
+          </span>
+        ),
     },
     {
       key: "conversation",
@@ -166,6 +180,9 @@ export function RunTable({
             aria-label={t("openTheChatBehind")}
             title={t("openTheChatBehind")}
             className="text-muted-foreground hover:text-foreground inline-flex"
+            // The link leaves the page; without this a clickable row would
+            // also open the run detail underneath the navigation.
+            onClick={(event) => event.stopPropagation()}
           >
             <MessageSquare className="h-4 w-4" aria-hidden />
           </Link>
@@ -182,6 +199,7 @@ export function RunTable({
       // The keys the two sortable columns carry are exactly `RunSortKey`, so the
       // widening to `string` on the way through the primitive is undone here.
       onSort={onSort ? (next) => onSort({ by: next.by as RunSortKey, dir: next.dir }) : undefined}
+      onRowClick={onOpen}
       className="rounded-none border-0 bg-transparent [&_table]:min-w-[46rem]"
     />
   );

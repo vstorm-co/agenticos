@@ -12,7 +12,7 @@ import { RunHistoryTab } from "@/components/runs/run-history-tab";
 import { SpendTab } from "@/components/runs/spend-tab";
 import { LoadingState } from "@/components/states";
 import { Badge, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
-import { useApprovals, usePermissions } from "@/hooks";
+import { useApprovals, usePermissions, useUrlState } from "@/hooks";
 import {
   formatPeriodParam,
   parsePeriodParam,
@@ -43,27 +43,13 @@ export default function RunsPage() {
   // link a dead end dressed as a filter. The filter bar can change it too, so
   // it is state mirrored into the URL, like the period below.
   const searchParams = useSearchParams();
-  const agentParam = searchParams.get("agent");
-  // A navigation can change `?agent=` under the state - the focused-run notice
-  // links to a bare /runs - and the two must not disagree about the narrowing,
-  // so the param seen last is stored beside the value and a fresh param wins
-  // (the render-time adjustment React documents, not an effect).
-  const [agent, setAgent] = useState<{ seenParam: string | null; value: string | null }>({
-    seenParam: agentParam,
-    value: agentParam,
-  });
-  if (agent.seenParam !== agentParam) {
-    setAgent({ seenParam: agentParam, value: agentParam });
-  }
-  const agentId = agent.seenParam === agentParam ? agent.value : agentParam;
-  const changeAgent = (next: string | null) => {
-    setAgent({ seenParam: agentParam, value: next });
-    setUrlParam("agent", next);
-  };
+  const [agentId, changeAgent] = useUrlState("agent");
   // `?run=` is how a delegation panel in a chat hands over. A delegated run is
   // deliberately not in the top-level list - see `useRuns` - so the only way to
-  // reach one is to name it, and `FocusedRun` is what answers.
-  const focusedRunId = searchParams.get("run");
+  // reach one is to name it, and `FocusedRun` is what answers. A row in the
+  // table opens the same view, which is why this too is state and not only a
+  // parameter somebody arrives with.
+  const [focusedRunId, focusRun] = useUrlState("run");
   // The dashboard's p95 figure links here sorted by duration over the same
   // window - the number and the runs behind it, one click apart. The sort
   // arrives as `?sort=`, the window as `?period=` below.
@@ -126,7 +112,7 @@ export default function RunsPage() {
             <TabsContent value="approvals">
               {/* Export the record for whatever window, gated on the same
                   permission the tab is - absent, not disabled, without it. */}
-              <div className="mb-3 flex justify-end">
+              <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
                 <ExportMenu
                   permission={Perm.approvalsDecide}
                   endpoint="/approvals/export"
@@ -140,19 +126,20 @@ export default function RunsPage() {
           )}
 
           <TabsContent value="runs">
-            {/* The export lives inside the history card, beside the filters it
+            {/* The export lives on the tab's control row, beside the filters it
                 exports the result of - see RunHistoryTab. */}
             <RunHistoryTab
               agentId={agentId}
               focusedRunId={focusedRunId}
               period={period}
               onAgentChange={changeAgent}
+              onFocusRun={focusRun}
               initialDurationSort={sortParam === "duration"}
             />
           </TabsContent>
 
           <TabsContent value="spend">
-            <div className="mb-3 flex justify-end">
+            <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
               <ExportMenu
                 permission={Perm.runsView}
                 endpoint="/spend/export"

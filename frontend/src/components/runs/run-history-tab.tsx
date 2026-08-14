@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Activity, ThumbsDown } from "lucide-react";
 
@@ -26,7 +25,6 @@ import {
   PaginationBar,
 } from "@/components/ui";
 import { usePermissions, useRuns } from "@/hooks";
-import { ROUTES } from "@/lib/constants";
 import { formatPeriodParam, periodEnd, periodStart, type Period } from "@/lib/dashboard/period";
 import { Perm } from "@/types/permissions";
 import type { RunStatus } from "@/types/runs";
@@ -77,12 +75,14 @@ export function RunHistoryTab({
   focusedRunId,
   period,
   onAgentChange,
+  onFocusRun,
   initialDurationSort = false,
 }: {
   agentId: string | null;
   focusedRunId: string | null;
   period: Period;
   onAgentChange: (agentId: string | null) => void;
+  onFocusRun: (runId: string | null) => void;
   initialDurationSort?: boolean;
 }) {
   const tErrors = useTranslations("errors");
@@ -186,44 +186,72 @@ export function RunHistoryTab({
       {agentId !== null && focusedRunId === null && (
         <VersionStrip agentId={agentId} period={period} />
       )}
+      {/* The tab's one control row, LangSmith's grammar: canned views, then the
+          filters, export on the right - above the card, so the card is the
+          table and nothing else. Offered only in list mode and only to a
+          caller who may read runs: a filter over a list that is not shown, or
+          one whose request would be refused, is a control with nothing to do.
+          The export carries exactly these filters, so they share the row. */}
+      {focusedRunId === null && canView && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant={slowActive ? "outline" : "secondary"}
+            size="sm"
+            aria-pressed={!slowActive}
+            onClick={showAll}
+          >
+            {t("allRuns")}
+          </Button>
+          <Button
+            variant={slowActive ? "secondary" : "outline"}
+            size="sm"
+            aria-pressed={slowActive}
+            onClick={showSlow}
+          >
+            {t("slowRuns")}
+          </Button>
+          <RunFilterBar
+            filters={filters}
+            onChange={setFilters}
+            agentId={agentId}
+            onAgentChange={changeAgent}
+          />
+          <div className="ml-auto">
+            <ExportMenu
+              permission={Perm.runsView}
+              endpoint="/runs/export"
+              kind="runs"
+              params={Object.keys(exportParams).length > 0 ? exportParams : undefined}
+              rangeParams={{ from: "started_from", to: "started_to" }}
+              range={{ from: periodStart(period), to: periodEnd(period) }}
+            />
+          </div>
+        </div>
+      )}
       <Card>
         <CardHeader>
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-1.5">
-              <CardTitle>{t("runHistory2")}</CardTitle>
-              <CardDescription>
-                {t.rich("runHistoryDescription", { em: (chunks) => <em>{chunks}</em> })}
-              </CardDescription>
-            </div>
-            {/* Offered only in list mode and only to a caller who may read runs:
-                a filter over a list that is not shown, or one whose request would
-                be refused, is a control with nothing to do. The export sits in
-                the same corner because it exports exactly this table. */}
-            {focusedRunId === null && canView && (
-              <div className="flex shrink-0 items-center gap-2">
-                <ExportMenu
-                  permission={Perm.runsView}
-                  endpoint="/runs/export"
-                  kind="runs"
-                  params={Object.keys(exportParams).length > 0 ? exportParams : undefined}
-                  rangeParams={{ from: "started_from", to: "started_to" }}
-                  range={{ from: periodStart(period), to: periodEnd(period) }}
-                />
-              </div>
-            )}
+          <div className="space-y-1.5">
+            <CardTitle>{t("runHistory2")}</CardTitle>
+            <CardDescription>
+              {t.rich("runHistoryDescription", { em: (chunks) => <em>{chunks}</em> })}
+            </CardDescription>
           </div>
           {/* Said out loud, with the way out beside it. A filtered table that
               does not mention the filter is a table somebody reads as the
               whole history, and then wonders where the rest of the runs went.
-              `?run=` narrows harder than `?agent=` and so says so first. The
-              agent's way out clears the state the filter bar shares - a plain
-              link to /runs would rewrite the URL and leave the narrowing. */}
+              `?run=` narrows harder than `?agent=` and so says so first. Both
+              ways out are actions that clear the state the page shares - a
+              plain link to /runs would rewrite the URL and leave it standing. */}
           {focusedRunId !== null ? (
             <p className="text-muted-foreground text-xs">
               {t("narrowedToOneRun")}{" "}
-              <Link href={ROUTES.RUNS} className="underline underline-offset-4">
+              <button
+                type="button"
+                onClick={() => onFocusRun(null)}
+                className="underline underline-offset-4"
+              >
                 {t("showEveryRun")}
-              </Link>
+              </button>
             </p>
           ) : (
             agentId !== null && (
@@ -245,39 +273,6 @@ export function RunHistoryTab({
             <FocusedRun runId={focusedRunId} />
           ) : (
             <div className="space-y-3">
-              {/* Canned views: the common questions as one click each. "Slow runs"
-                  is duration descending over a threshold - the gap the dashboard's
-                  p95 figure points at - and "All runs" is the way back to the feed. */}
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  variant={slowActive ? "outline" : "secondary"}
-                  size="sm"
-                  aria-pressed={!slowActive}
-                  onClick={showAll}
-                >
-                  {t("allRuns")}
-                </Button>
-                <Button
-                  variant={slowActive ? "secondary" : "outline"}
-                  size="sm"
-                  aria-pressed={slowActive}
-                  onClick={showSlow}
-                >
-                  {t("slowRuns")}
-                </Button>
-
-                {/* Server-side narrowing, like the sort: the page holds fifty
-                    rows and the filters live on the whole history. Offered only
-                    to a caller who may read runs - see the export above. */}
-                {canView && (
-                  <RunFilterBar
-                    filters={filters}
-                    onChange={setFilters}
-                    agentId={agentId}
-                    onAgentChange={changeAgent}
-                  />
-                )}
-              </div>
               {isLoading ? (
                 <LoadingState variant="skeleton-table" columns={7} rows={6} />
               ) : error ? (
@@ -313,7 +308,12 @@ export function RunHistoryTab({
                 )
               ) : (
                 <>
-                  <RunTable runs={runs} sort={sort} onSort={setSort} />
+                  <RunTable
+                    runs={runs}
+                    sort={sort}
+                    onSort={setSort}
+                    onOpen={(run) => onFocusRun(run.id)}
+                  />
                   <PaginationBar
                     page={page}
                     pageSize={PAGE_SIZE}
