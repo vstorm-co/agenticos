@@ -161,7 +161,24 @@ describe("useRunTranscript", () => {
     const { result } = renderHook(() => useRunTranscript("run-9"), { wrapper });
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(apiClient.get).toHaveBeenCalledWith("/runs/run-9/transcript");
+    expect(apiClient.get).toHaveBeenCalledWith("/runs/run-9/transcript", undefined);
+  });
+
+  it("reads the whole thread when asked for the conversation scope", async () => {
+    // The detail view shows the run in context, so it asks for the thread and
+    // scrolls to the run - the run-only scope stays the wire's default.
+    vi.mocked(apiClient.get).mockResolvedValue({
+      run_id: "run-9",
+      conversation_id: "c1",
+      items: [],
+      total: 0,
+    });
+    const { result } = renderHook(() => useRunTranscript("run-9", "conversation"), { wrapper });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith("/runs/run-9/transcript", {
+      params: { scope: "conversation" },
+    });
   });
 
   it("hands back the failure rather than an empty transcript", async () => {

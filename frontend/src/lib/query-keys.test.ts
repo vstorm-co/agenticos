@@ -176,7 +176,9 @@ describe("the query key factory", () => {
   });
 
   it("keys a run's transcript apart from the run row it belongs to", () => {
-    expect(qk.runs.transcript("run-1")).toEqual(["runs", "run-1", "transcript"]);
+    expect(qk.runs.transcript("run-1")).toEqual(["runs", "run-1", "transcript", "run"]);
+    // The whole thread is a different answer from the run's own turns.
+    expect(qk.runs.transcript("run-1", "conversation")).not.toEqual(qk.runs.transcript("run-1"));
     expect(qk.runs.transcript("run-1")).not.toEqual(qk.runs.detail("run-1"));
   });
 

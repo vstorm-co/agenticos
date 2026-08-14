@@ -130,19 +130,38 @@ beforeEach(() => {
 });
 
 /** `/runs` answers the top level; `/runs/{id}` and `?parent_run_id=` answer the rest. */
-function backend(options: { total?: number; runFails?: Error; traceUrl?: string } = {}) {
+function backend(
+  options: {
+    total?: number;
+    runFails?: Error;
+    traceUrl?: string;
+    neighbors?: { prev?: string; next?: string };
+  } = {},
+) {
   vi.mocked(apiClient.get).mockImplementation((path: string, init?: unknown) => {
     if (path === "/spend") return Promise.resolve(SPEND);
+    // The detail header resolves the agent's identity; the timeline reads the
+    // thread. Neither is this suite's subject, so both answer minimally.
+    if (path.startsWith("/agents/")) {
+      return Promise.resolve({ id: path.split("/").at(-1), name: "Orchestrator" });
+    }
+    if (path.endsWith("/transcript")) {
+      return Promise.resolve({ run_id: "run-parent", conversation_id: null, items: [], total: 0 });
+    }
     if (path === "/runs/run-child-1") {
       return options.runFails === undefined
         ? Promise.resolve(DELEGATED[0])
         : Promise.reject(options.runFails);
     }
     if (path === "/runs/run-parent") {
-      // The trace link is the single-run read's own field, so it is served
-      // here and nowhere else - exactly as the API sends it.
+      // The trace link and the neighbour ids are the single-run read's own
+      // fields, so they are served here and nowhere else - as the API sends them.
       return Promise.resolve(
-        options.traceUrl === undefined ? run() : run({ logfire_url: options.traceUrl }),
+        run({
+          ...(options.traceUrl === undefined ? {} : { logfire_url: options.traceUrl }),
+          prev_run_id: options.neighbors?.prev ?? null,
+          next_run_id: options.neighbors?.next ?? null,
+        }),
       );
     }
     if (path === "/runs") {
@@ -238,10 +257,11 @@ describe("one run and what it delegated", () => {
     render(<RunsPage />, { wrapper });
     await openRunsTab();
 
-    expect(await screen.findByRole("link", { name: "Open the run it came from" })).toHaveAttribute(
-      "href",
-      "/runs?run=run-parent",
-    );
+    // An action, not a link: focusing the parent goes through the page's own
+    // run state, so the period and the agent narrowing survive the step up.
+    await userEvent.click(await screen.findByRole("button", { name: "Open the run it came from" }));
+
+    expect(await screen.findByText("Delegated · 4f2a1b8c")).toBeVisible();
   });
 
   it("says it is narrowed, and offers the way out", async () => {
@@ -292,6 +312,74 @@ describe("one run and what it delegated", () => {
     await openRunsTab();
 
     expect(await screen.findByText("That run could not be read")).toBeVisible();
+  });
+});
+
+describe("walking the agent's history from the detail", () => {
+  it("steps to the next run with the arrow", async () => {
+    params.set("run", "run-parent");
+    backend({ neighbors: { next: "run-child-1" } });
+
+    render(<RunsPage />, { wrapper });
+    await openRunsTab();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Next run" }));
+
+    // Landed on the child, whose own view offers the way back up.
+    expect(await screen.findByRole("button", { name: "Open the run it came from" })).toBeVisible();
+  });
+
+  it("returns to the run list with the back button", async () => {
+    // The detail is a state of the history tab; a reader who arrived by a
+    // pasted link has no other door out.
+    params.set("run", "run-parent");
+    backend();
+
+    render(<RunsPage />, { wrapper });
+    await openRunsTab();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Back to runs" }));
+
+    expect(await screen.findByRole("button", { name: "All runs" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Back to runs" })).toBeNull();
+  });
+
+  it("steps back to the previous run with the other arrow", async () => {
+    params.set("run", "run-parent");
+    backend({ neighbors: { prev: "run-child-1" } });
+
+    render(<RunsPage />, { wrapper });
+    await openRunsTab();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Previous run" }));
+
+    expect(await screen.findByRole("button", { name: "Open the run it came from" })).toBeVisible();
+  });
+
+  it("disables the arrows at the history's edge rather than hiding them", async () => {
+    params.set("run", "run-parent");
+    backend();
+
+    render(<RunsPage />, { wrapper });
+    await openRunsTab();
+
+    expect(await screen.findByRole("button", { name: "Previous run" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Next run" })).toBeDisabled();
+  });
+
+  it("answers the operator's first questions in the header, without a click", async () => {
+    params.set("run", "run-parent");
+    backend();
+
+    render(<RunsPage />, { wrapper });
+    await openRunsTab();
+
+    // Tokens in → out, the cost, and the agent's name resolved from its id.
+    // The cost also sits in the delegations table below, so the header's copy
+    // is read as the first of the two rather than as the only one.
+    expect(await screen.findByText("1000 → 100")).toBeVisible();
+    expect(screen.getAllByText("$1.0000").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Orchestrator")).toBeVisible();
   });
 });
 

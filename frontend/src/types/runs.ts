@@ -32,6 +32,13 @@ export interface AgentRun {
    * link to.
    */
   logfire_url?: string | null;
+  /**
+   * The runs either side of this one in its agent's own history, by start
+   * time. Sent on the single-run read only, like `logfire_url`; null at the
+   * history's edge, and on a run that never started.
+   */
+  prev_run_id?: string | null;
+  next_run_id?: string | null;
   error: string | null;
   /**
    * Whether an assistant answer this run produced was rated down by anybody -
@@ -80,16 +87,48 @@ export interface AgentRunList {
 /**
  * One turn of a run's transcript, as `GET /runs/{run_id}/transcript` returns it.
  *
- * The run-detail surface reads the transcript to show the answers people rated
- * down and what they said was wrong. `user_rating` is the reader's own thumb
- * (`1`/`-1`/absent) and `rating_count` the aggregate; `rating_comment` is the
- * free text left with a thumb down, which is the highest-signal half - a rating
- * with words is a complaint you can act on.
+ * The wire is `MessageRead` plus the ratings, and has been all along - this
+ * type under-declared it for months, which is why the run detail could only
+ * ever show role and content while the steps, the reasoning and the tool calls
+ * sat unread in the response. Declared structurally compatible with the
+ * conversation reader's `RawMessage`, so the run timeline replays a turn with
+ * the same machinery a reopened chat does.
+ *
+ * `user_rating` is the reading caller's own thumb (`1`/`-1`/absent),
+ * `rating_count` the aggregate; `rating_comment` is the free text left with a
+ * thumb down, which is the highest-signal half - a rating with words is a
+ * complaint you can act on.
  */
 export interface RunTranscriptMessage {
   id: string;
   role: string;
   content: string;
+  created_at?: string;
+  /**
+   * The run that produced this turn. What tells the focused run's own turns
+   * from the rest of the thread when the transcript is read conversation-wide.
+   */
+  run_id?: string | null;
+  /** Reasoning trace, assistant turns only. */
+  thinking?: string | null;
+  /**
+   * The turn's timeline in the order it happened - text, reasoning and tool
+   * entries interleaved. Null on a user turn and on an assistant turn written
+   * before it was recorded, which is the signal to reconstruct an order from
+   * `content`, `thinking` and `tool_calls` instead.
+   */
+  parts?:
+    | { type: "text" | "thinking" | "tool"; text?: string | null; tool_call_id?: string | null }[]
+    | null;
+  tool_calls?:
+    | {
+        tool_call_id: string;
+        tool_name: string;
+        args: Record<string, unknown>;
+        result?: unknown;
+        status: string;
+      }[]
+    | null;
   /** The current reader's own rating: 1 (up), -1 (down), or absent for none. */
   user_rating?: number | null;
   /** Aggregate counts across everyone who rated this answer. */

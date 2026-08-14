@@ -270,7 +270,7 @@ export function RunHistoryTab({
         </CardHeader>
         <CardContent>
           {focusedRunId !== null ? (
-            <FocusedRun runId={focusedRunId} />
+            <FocusedRun runId={focusedRunId} onFocusRun={onFocusRun} />
           ) : (
             <div className="space-y-3">
               {isLoading ? (

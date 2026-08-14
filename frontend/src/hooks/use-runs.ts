@@ -151,10 +151,14 @@ export function useRun(runId: string) {
  * every page here renders its empty state on a failed query, and those two must
  * not be the same pixels.
  */
-export function useRunTranscript(runId: string) {
+export function useRunTranscript(runId: string, scope: "run" | "conversation" = "run") {
   const { data, isLoading, error } = useQuery({
-    queryKey: qk.runs.transcript(runId),
-    queryFn: () => apiClient.get<RunTranscript>(`/runs/${runId}/transcript`),
+    queryKey: qk.runs.transcript(runId, scope),
+    queryFn: () =>
+      apiClient.get<RunTranscript>(
+        `/runs/${runId}/transcript`,
+        scope === "run" ? undefined : { params: { scope } },
+      ),
   });
   return { transcript: data, isLoading, error };
 }

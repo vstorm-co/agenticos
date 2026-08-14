@@ -114,7 +114,10 @@ export const qk = {
     // One run's transcript, where the run-detail surface reads the answers
     // people rated down and their comments. Its own key: it is a different body
     // from the run row, and a caching collision would draw one as the other.
-    transcript: (runId: string) => ["runs", runId, "transcript"] as const,
+    // The scope is part of it - the run's own turns and the whole thread are
+    // two different answers.
+    transcript: (runId: string, scope: "run" | "conversation" = "run") =>
+      ["runs", runId, "transcript", scope] as const,
     // A separate key from `list`, because it is a separate question: `list`
     // answers "the top level", this answers "what did this run delegate", and
     // caching one as the other would show a run's children as the whole history.
