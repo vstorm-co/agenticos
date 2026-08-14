@@ -400,6 +400,11 @@ class SkillService:
         the seeding paths - organization creation, the listing's top-up and
         `seed-skills` - since the per-person Install button was dropped (#281).
 
+        All three seed as the organization's first owner, so the audit entry's
+        actor is an attribution rather than a person who acted. `seeded: true`
+        in its details is what keeps that honest - it is how a reader tells
+        "the platform seeded this as the owner" from a write the owner made.
+
         Raises:
             NotFoundError: If no such skill ships with this deployment.
             AlreadyExistsError: If the organization already has one by that
@@ -433,7 +438,12 @@ class SkillService:
             action="skill.installed",
             target_type="skill",
             target_id=str(skill.id),
-            details={"key": key, "name": bundled.name, "resources": len(bundled.resources)},
+            details={
+                "key": key,
+                "name": bundled.name,
+                "resources": len(bundled.resources),
+                "seeded": True,
+            },
         )
         return skill
 

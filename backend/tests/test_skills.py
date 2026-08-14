@@ -857,6 +857,9 @@ class TestSkillLibrary:
             "skill.created",
             "skill.installed",
         ]
+        # The actor on a seeded install is the first owner as an attribution,
+        # not as a person who acted - the marker is what keeps the entry honest.
+        assert audit.await_args_list[-1].kwargs["details"]["seeded"] is True
 
     @pytest.mark.anyio
     async def test_installing_something_that_does_not_ship_is_refused(self):

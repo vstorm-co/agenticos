@@ -1,8 +1,8 @@
 """Install the bundled skills into an organization.
 
-The same copy the gallery's install button makes, from a terminal - for a fresh
-deployment that should come up with something in it, and for a scripted setup
-that has no browser to click in.
+The same copy organization creation and the skills listing's top-up make, from
+a terminal - for a fresh deployment that should come up with something in it,
+and for a scripted setup that has no browser to click in.
 
 Idempotent by name: a skill the organization already has is left exactly as it
 is, never overwritten. An organization edits its skills, and a seed command
@@ -14,6 +14,7 @@ import asyncio
 from uuid import UUID
 
 import click
+from sqlalchemy.exc import IntegrityError
 
 from app.commands import command, info, success, warning
 from app.core.exceptions import AlreadyExistsError
@@ -73,10 +74,15 @@ async def _run(org_id: str | None, dry_run: bool) -> None:
                 organization_id=organization.id,
                 role=OrgRoleName.OWNER,
             )
+            # Each install under its own savepoint, exactly as the listing's
+            # top-up does it: a listing committing the same skill mid-command
+            # surfaces as an IntegrityError at flush, and without the savepoint
+            # a caught one leaves the session dead for every skill after it.
             for skill in bundled:
                 try:
-                    installed = await service.install_from_library(ctx, skill.key)
-                except AlreadyExistsError:
+                    async with db.begin_nested():
+                        installed = await service.install_from_library(ctx, skill.key)
+                except (AlreadyExistsError, IntegrityError):
                     click.echo(f"    {skill.name} - already there, left alone")
                     continue
                 click.echo(f"    {installed.name} - installed with {len(skill.resources)} file(s)")
