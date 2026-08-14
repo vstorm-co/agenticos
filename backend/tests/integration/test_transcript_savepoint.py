@@ -12,6 +12,10 @@ run - its cost, its status, the fact that it happened.
 Only a real database exercises this: a mocked session cannot be put into an aborted
 transaction, so the unit tests in `tests/test_transcript.py` prove what gets written
 and this proves the session survives what does not.
+
+The files a turn arrived with are linked in the same write, and are here for the
+second half of the same reason: the unit tests prove the id reaching the
+repository, and only a database says the column actually holds it afterwards.
 """
 
 from __future__ import annotations
@@ -24,6 +28,8 @@ from sqlalchemy import select
 
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
+from app.db.models.chat_file import ChatFile
+from app.db.models.conversation import Conversation, Message
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.services.transcript import TranscriptService
@@ -31,7 +37,7 @@ from app.services.transcript import TranscriptService
 pytestmark = pytest.mark.anyio
 
 
-async def _org_and_agent(db) -> tuple[Organization, Agent, AgentVersion]:
+async def _owner(db) -> User:
     owner = User(
         id=uuid.uuid4(),
         email=f"{uuid.uuid4().hex}@example.com",
@@ -40,6 +46,11 @@ async def _org_and_agent(db) -> tuple[Organization, Agent, AgentVersion]:
     )
     db.add(owner)
     await db.flush()
+    return owner
+
+
+async def _org_and_agent(db) -> tuple[Organization, Agent, AgentVersion]:
+    owner = await _owner(db)
     org = Organization(
         id=uuid.uuid4(),
         name="Acme",
@@ -118,3 +129,104 @@ async def test_a_failed_transcript_write_leaves_the_run_committable(db) -> None:
         await db.execute(select(AgentRun).where(AgentRun.id == uuid.UUID(str(detached_run.id))))
     ).scalar_one_or_none()
     assert orphan is None
+
+
+async def test_a_channel_turns_file_is_left_carrying_the_message_it_arrived_with(db) -> None:
+    """The row a channel turn stored ends up pointing at the question.
+
+    Asserted by reading the column back rather than at the repository boundary,
+    because the boundary is what was never wrong: `link_to_message` worked, and
+    every surface except web chat simply never called it, so a file dropped on a
+    bot kept `message_id` NULL for ever (#690). `chat_files` carries no
+    organization, which is what makes an unlinked row worth chasing - it is
+    scoped by `user_id` alone.
+    """
+    org, agent, version = await _org_and_agent(db)
+    sender = await _owner(db)
+    conversation = Conversation(
+        id=uuid.uuid4(), organization_id=org.id, user_id=sender.id, title="Slack Chat"
+    )
+    db.add(conversation)
+    await db.flush()
+    run = AgentRun(
+        id=uuid.uuid4(),
+        organization_id=org.id,
+        agent_id=agent.id,
+        agent_version_id=version.id,
+        conversation_id=conversation.id,
+        status=RunStatus.COMPLETED.value,
+        surface=RunSurface.SLACK.value,
+    )
+    db.add(run)
+    stored = ChatFile(
+        id=uuid.uuid4(),
+        user_id=sender.id,
+        filename="q3.csv",
+        mime_type="text/csv",
+        size=64,
+        storage_path=f"uploads/{uuid.uuid4().hex}.csv",
+        file_type="document",
+    )
+    db.add(stored)
+    await db.flush()
+    assert stored.message_id is None
+
+    await TranscriptService(db).record(
+        run, prompt="which row is the outlier?", answer="row 12", attachments=[stored]
+    )
+    await db.commit()
+
+    question = (
+        await db.execute(select(Message).where(Message.run_id == run.id, Message.role == "user"))
+    ).scalar_one()
+    linked = (await db.execute(select(ChatFile).where(ChatFile.id == stored.id))).scalar_one()
+    assert linked.message_id == question.id
+
+
+async def test_a_captionless_turn_leaves_a_named_user_message_its_file_hangs_off(db) -> None:
+    """A photo posted with no words still reads as a turn somebody took.
+
+    An attachment that produces no prompt text - a caption-less image on an
+    agent with no workspace - used to jump the conversation straight to the
+    answer, leaving the `ChatFile` with `message_id` NULL. The user message is
+    written with a body naming what arrived, because a blank one reads as
+    somebody sending nothing (#704).
+    """
+    org, agent, version = await _org_and_agent(db)
+    sender = await _owner(db)
+    conversation = Conversation(
+        id=uuid.uuid4(), organization_id=org.id, user_id=sender.id, title="Telegram Chat"
+    )
+    db.add(conversation)
+    await db.flush()
+    run = AgentRun(
+        id=uuid.uuid4(),
+        organization_id=org.id,
+        agent_id=agent.id,
+        agent_version_id=version.id,
+        conversation_id=conversation.id,
+        status=RunStatus.COMPLETED.value,
+        surface=RunSurface.TELEGRAM.value,
+    )
+    db.add(run)
+    stored = ChatFile(
+        id=uuid.uuid4(),
+        user_id=sender.id,
+        filename="photo.jpg",
+        mime_type="image/jpeg",
+        size=1024,
+        storage_path=f"uploads/{uuid.uuid4().hex}.jpg",
+        file_type="image",
+    )
+    db.add(stored)
+    await db.flush()
+
+    await TranscriptService(db).record(run, prompt="", answer="A dashboard.", attachments=[stored])
+    await db.commit()
+
+    question = (
+        await db.execute(select(Message).where(Message.run_id == run.id, Message.role == "user"))
+    ).scalar_one()
+    linked = (await db.execute(select(ChatFile).where(ChatFile.id == stored.id))).scalar_one()
+    assert question.content == "Attached image: photo.jpg"
+    assert linked.message_id == question.id

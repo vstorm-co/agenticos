@@ -1,8 +1,10 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
+
+import { sourceFiles } from "@/test-utils/source-files";
 
 import { LoadingState } from "./loading-state";
 
@@ -116,19 +118,10 @@ describe("LoadingState", () => {
  */
 describe("no page asks for a shapeless wait", () => {
   const SRC = join(__dirname, "..", "..");
-
-  function sourceFiles(dir: string): string[] {
-    return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-      const path = join(dir, entry.name);
-      if (entry.isDirectory()) return sourceFiles(path);
-      return /\.tsx?$/.test(entry.name) && !entry.name.includes(".test.") ? [path] : [];
-    });
-  }
+  const sources = sourceFiles(SRC, (name) => /\.tsx?$/.test(name) && !name.includes(".test."));
 
   it("mentions dot-pulse nowhere in src/", () => {
-    const offenders = sourceFiles(SRC).filter((file) =>
-      readFileSync(file, "utf8").includes("dot-pulse"),
-    );
+    const offenders = sources.filter((file) => readFileSync(file, "utf8").includes("dot-pulse"));
 
     expect(offenders).toEqual([]);
   });
@@ -138,7 +131,7 @@ describe("no page asks for a shapeless wait", () => {
     // one - the shape is the caller's decision, so it has to be made. Scoped to
     // files that import the shared component: `files/file-content.tsx` reaches for
     // `Skeleton` directly, sized to the body it is standing in for.
-    const offenders = sourceFiles(SRC).filter((file) => {
+    const offenders = sources.filter((file) => {
       const source = readFileSync(file, "utf8");
       const importsShared =
         /import\s*\{[^}]*\bLoadingState\b[^}]*\}\s*from\s*"@\/components\/states"/.test(source);

@@ -17,6 +17,7 @@ opposite case, and it is written: the calls are what happened.
 
 from __future__ import annotations
 
+import logging
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -43,12 +44,17 @@ from app.services.transcript import (
 pytestmark = pytest.mark.anyio
 
 
-def _run(*, in_a_conversation: bool = True) -> MagicMock:
+def _run(
+    *, in_a_conversation: bool = True, channel_identity_id: uuid.UUID | None = None
+) -> MagicMock:
+    # `channel_identity_id` is named rather than left to the mock: an attribute
+    # nobody set answers with a `MagicMock`, and this one is written to a column.
     return MagicMock(
         id=uuid.uuid4(),
         agent_id=uuid.uuid4(),
         agent_version_id=uuid.uuid4(),
         conversation_id=uuid.uuid4() if in_a_conversation else None,
+        channel_identity_id=channel_identity_id,
     )
 
 
@@ -102,25 +108,48 @@ class TestReadingToolCallsOffARun:
             )
         ]
 
-    def test_a_call_the_model_was_told_to_retry_records_the_refusal(self):
-        """It happened and it failed. Dropping it would leave an argument list
-        with no outcome, which reads as "still running" for ever."""
+    def test_a_call_the_model_was_told_to_retry_records_a_notice_not_its_text(self, caplog):
+        """It happened and it failed, so dropping it would read as "still
+        running" for ever - but the retry text is written by whatever raised,
+        and `web_search` builds one out of the vendor exception it caught, so
+        storing it put the failing endpoint and its query string in a row every
+        member who can read the run sees weeks later (#695). The row names the
+        tool and the retry; the vendor's text goes to the log beside the write.
+        """
+        vendor_text = "Tavily search failed: 401 for url 'https://api.tavily.com/search?k=sk-9f2c'"
+        with caplog.at_level(logging.WARNING, logger="app.services.transcript"):
+            calls = tool_calls_in(
+                [
+                    _called("web_search", "c1", query="refunds"),
+                    ModelRequest(
+                        parts=[
+                            RetryPromptPart(
+                                content=vendor_text,
+                                tool_name="web_search",
+                                tool_call_id="c1",
+                            )
+                        ]
+                    ),
+                ]
+            )
+
+        assert calls[0].result == (
+            "The web_search call failed and the model was asked to try again. "
+            "The server log has the full error."
+        )
+        assert vendor_text in caplog.text
+
+    def test_a_return_holding_a_url_is_stored_whole(self):
+        """The success case is the tool's own answer, not a vendor's exception -
+        trimming it too would eat the results a person opens the run to read."""
         calls = tool_calls_in(
             [
-                _called("send_email", "c1", to="not-an-address"),
-                ModelRequest(
-                    parts=[
-                        RetryPromptPart(
-                            content="to is not a valid address",
-                            tool_name="send_email",
-                            tool_call_id="c1",
-                        )
-                    ]
-                ),
+                _called("web_search", "c1", query="refunds"),
+                _returned("web_search", "c1", "3 hits, best: https://example.com/refunds"),
             ]
         )
 
-        assert calls[0].result == "to is not a valid address"
+        assert calls[0].result == "3 hits, best: https://example.com/refunds"
 
     def test_a_call_that_never_came_back_has_no_result(self):
         """The run parked on it, was stopped, or broke. `None` is not the empty
@@ -176,22 +205,51 @@ class TestReadingWhatAnInheritedCallReturned:
 
         assert settled == {}
 
-    def test_a_refusal_settles_the_call_too(self):
-        """A call the model was told to retry did happen and did fail. Leaving the
-        row open would read as "still running" for ever."""
-        settled = settled_calls_in(
-            [
-                ModelRequest(
-                    parts=[
-                        RetryPromptPart(
-                            content="no such file", tool_name="execute", tool_call_id="c1"
-                        )
-                    ]
-                )
-            ]
-        )
+    def test_a_refusal_settles_the_call_with_a_notice_not_its_text(self, caplog):
+        """A call the model was told to retry did happen and did fail, so it
+        settles the row rather than leaving it "still running" for ever - but
+        with the same sentence :func:`tool_calls_in` stores, because the resume
+        shape writes to the same column the streaming shape does (#695)."""
+        vendor_text = "Client error '401 Unauthorized' for url 'https://api.tavily.com/search'"
+        with caplog.at_level(logging.WARNING, logger="app.services.transcript"):
+            settled = settled_calls_in(
+                [
+                    ModelRequest(
+                        parts=[
+                            RetryPromptPart(
+                                content=vendor_text, tool_name="web_search", tool_call_id="c1"
+                            )
+                        ]
+                    )
+                ]
+            )
 
-        assert settled == {"c1": "no such file"}
+        assert settled == {
+            "c1": (
+                "The web_search call failed and the model was asked to try again. "
+                "The server log has the full error."
+            )
+        }
+        assert vendor_text in caplog.text
+
+    def test_a_settled_retry_is_logged_once_across_both_readers(self, caplog):
+        """`agent_runner` reads one run's messages through both functions, so a
+        retry that settles an inherited call used to reach the log twice - once
+        from `tool_calls_in` collecting a result it then dropped, once from
+        here. One failure, one WARNING."""
+        vendor_text = "Client error '401 Unauthorized' for url 'https://api.tavily.com/search'"
+        messages = [
+            ModelRequest(
+                parts=[
+                    RetryPromptPart(content=vendor_text, tool_name="web_search", tool_call_id="c1")
+                ]
+            )
+        ]
+        with caplog.at_level(logging.WARNING, logger="app.services.transcript"):
+            assert tool_calls_in(messages) == []
+            assert "c1" in settled_calls_in(messages)
+
+        assert sum(vendor_text in record.getMessage() for record in caplog.records) == 1
 
 
 class TestWritingTheTranscript:
@@ -203,6 +261,86 @@ class TestWritingTheTranscript:
             repo.create_tool_call = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
             repo.complete_tool_call = AsyncMock()
             yield repo
+
+    @pytest.fixture
+    def files(self):
+        """The other repository this writes through: what a turn arrived with."""
+        with patch("app.services.transcript.chat_file_repo") as repo:
+            repo.link_to_message = AsyncMock()
+            yield repo
+
+    async def test_a_file_that_arrived_with_a_turn_is_linked_to_it(self, conversations, files):
+        """The defect this closes: a file posted in a channel became nothing.
+
+        `AttachmentRouter` appends a briefing about each file to the prompt for the
+        *model*, and that briefing was the only trace of the file anywhere - so a
+        person reading the thread in `/chat` was shown `co tu widzisz` followed by
+        `--- Attached file: … (/uploads/…, 43 KB, image)`. The dashboard's own
+        uploads have been rows since they existed.
+        """
+        attachment = MagicMock(id=uuid.uuid4(), user_id=uuid.uuid4())
+
+        await TranscriptService(_session()).record(
+            _run(), prompt="co tu widzisz", answer="A dashboard.", attachments=[attachment]
+        )
+
+        linked = files.link_to_message.await_args.kwargs
+        asked = conversations.create_message.await_args_list[0].kwargs
+        assert linked["file_ids"] == [attachment.id]
+        # The repository moves a file only for its own uploader (#706), so the
+        # link is issued as the sender the row was stored for.
+        assert linked["user_id"] == attachment.user_id
+        assert (linked["message_id"], asked["role"]) == (
+            conversations.create_message.return_value.id,
+            "user",
+        ), "the file hangs off the turn that brought it, not off the answer"
+
+    async def test_a_file_with_no_caption_still_gets_a_turn_to_hang_off(self, conversations, files):
+        """Somebody drops an image and says nothing. That is a turn, and its body
+        names what arrived: a blank user message reads as somebody sending
+        nothing (#704)."""
+        attachment = MagicMock(id=uuid.uuid4(), file_type="image", filename="screenshot.png")
+
+        await TranscriptService(_session()).record(
+            _run(), prompt="", answer="A dashboard.", attachments=[attachment]
+        )
+
+        asked = conversations.create_message.await_args_list[0].kwargs
+        assert (asked["role"], asked["content"]) == ("user", "Attached image: screenshot.png")
+        assert files.link_to_message.await_args.kwargs["file_ids"] == [attachment.id]
+
+    async def test_a_captionless_turn_names_every_file_it_brought(self, conversations, files):
+        image = MagicMock(id=uuid.uuid4(), file_type="image", filename="photo.jpg")
+        sheet = MagicMock(id=uuid.uuid4(), file_type="spreadsheet", filename="q3.xlsx")
+
+        await TranscriptService(_session()).record(
+            _run(), prompt="", answer="Looked at both.", attachments=[image, sheet]
+        )
+
+        asked = conversations.create_message.await_args_list[0].kwargs
+        assert asked["content"] == "Attached image: photo.jpg\nAttached file: q3.xlsx"
+
+    async def test_a_caption_is_the_users_words_and_is_never_replaced(self, conversations, files):
+        """The naming is for a turn that said nothing; a caption stays verbatim."""
+        attachment = MagicMock(id=uuid.uuid4(), file_type="image", filename="photo.jpg")
+
+        await TranscriptService(_session()).record(
+            _run(), prompt="co tu widzisz", answer="A dashboard.", attachments=[attachment]
+        )
+
+        asked = conversations.create_message.await_args_list[0].kwargs
+        assert asked["content"] == "co tu widzisz"
+
+    async def test_a_turn_that_arrived_with_nothing_links_nothing(self, conversations, files):
+        """And does not open a savepoint to say so.
+
+        The link rides a SAVEPOINT of its own, which costs a round trip to open
+        and release. Almost every turn in a deployment carries no file, so the
+        empty list is answered before the savepoint rather than inside it.
+        """
+        await TranscriptService(_session()).record(_run(), prompt="hello", answer="hi")
+
+        files.link_to_message.assert_not_awaited()
 
     async def test_both_turns_are_written_against_the_run(self, conversations):
         run = _run()
@@ -219,6 +357,26 @@ class TestWritingTheTranscript:
         )
         assert (answer["role"], answer["content"], answer["run_id"]) == ("assistant", "two", run.id)
         assert answer["model_name"] == "gpt-4.1"
+
+    async def test_a_turn_from_a_channel_records_which_chat_account_wrote_it(self, conversations):
+        """A room is one thread with several people in it, so `role="user"` does
+        not say who spoke - and whose list the thread appears in is read off this.
+        """
+        identity_id = uuid.uuid4()
+        run = _run(channel_identity_id=identity_id)
+
+        await TranscriptService(_session()).record(run, prompt="hej", answer="czesc")
+
+        prompt, answer = (call.kwargs for call in conversations.create_message.await_args_list)
+        assert prompt["channel_identity_id"] == identity_id
+        assert "channel_identity_id" not in answer, "the agent has no chat account"
+
+    async def test_a_turn_typed_into_the_dashboard_records_none(self, conversations):
+        """Null is the honest value: there is no chat account behind it."""
+        await TranscriptService(_session()).record(_run(), prompt="hej", answer="czesc")
+
+        prompt = conversations.create_message.await_args_list[0].kwargs
+        assert prompt["channel_identity_id"] is None
 
     async def test_the_answer_is_attributed_to_the_version_that_ran(self, conversations):
         """An agent is rewritten between runs. Attributing last Tuesday's answer
@@ -269,6 +427,46 @@ class TestWritingTheTranscript:
 
         conversations.create_tool_call.assert_awaited_once()
         conversations.complete_tool_call.assert_not_awaited()
+
+    async def test_a_parked_call_is_written_awaiting_approval_not_running(self, conversations):
+        """The parked state lives on `agent_runs` and the `approvals` rows, so the
+        transcript row was the one place a reloaded conversation could not see it:
+        the one call somebody has to decide about read as a step that ran (#601)."""
+        await TranscriptService(_session()).record(
+            _run(),
+            prompt="email ada",
+            answer="",
+            tool_calls=[
+                RecordedToolCall(
+                    tool_call_id="c1", tool_name="search", args={"q": "ada"}, result="1 hit"
+                ),
+                RecordedToolCall(
+                    tool_call_id="c2", tool_name="send_email", args={"to": "ada@example.com"}
+                ),
+            ],
+            parked=frozenset({"c2"}),
+        )
+
+        statuses = {
+            call.kwargs["tool_call_id"]: call.kwargs["status"]
+            for call in conversations.create_tool_call.await_args_list
+        }
+        assert statuses == {"c1": "running", "c2": "awaiting_approval"}
+
+    async def test_a_call_that_merely_never_returned_is_not_marked_as_waiting(self, conversations):
+        """A run that broke or was stopped mid-call also leaves a call with no
+        result, and nobody can approve it into finishing - `awaiting_approval` is
+        only for the calls the run parked on."""
+        await TranscriptService(_session()).record(
+            _run(),
+            prompt="charge it",
+            answer="",
+            tool_calls=[
+                RecordedToolCall(tool_call_id="c1", tool_name="charge_card", args={"amount": 500})
+            ],
+        )
+
+        assert conversations.create_tool_call.await_args.kwargs["status"] == "running"
 
     async def test_a_resumed_run_writes_no_user_turn(self, conversations):
         """It picks up at the tool call it stopped on. There is no new question,
@@ -380,3 +578,24 @@ class TestWritingTheTranscript:
         assert "transcript_write_failed" in caplog.text
         assert "no connection" in caplog.text
         assert "RuntimeError" in caplog.text
+
+    async def test_a_files_link_that_fails_costs_the_files_and_not_the_turn(
+        self, conversations, caplog
+    ):
+        """The link is the one write here touching rows the conversation does not
+        own, so it gets a SAVEPOINT of its own. Sharing the transcript's would
+        mean a run that has already spent money losing its answer and its tool
+        calls because a file could not be attached to the question."""
+        with patch("app.services.transcript.chat_file_repo") as chat_files:
+            chat_files.link_to_message = AsyncMock(side_effect=RuntimeError("deadlock detected"))
+
+            await TranscriptService(_session()).record(
+                _run(),
+                prompt="which row is the outlier?",
+                answer="row 12",
+                attachments=[MagicMock(id=uuid.uuid4())],
+            )
+
+        assert "transcript_file_link_failed" in caplog.text
+        roles = [call.kwargs["role"] for call in conversations.create_message.await_args_list]
+        assert roles == ["user", "assistant"]

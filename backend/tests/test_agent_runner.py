@@ -7,6 +7,7 @@ it was parked on, with the spend it had already booked.
 """
 
 import asyncio
+import logging
 import uuid
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
@@ -15,6 +16,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic_ai.exceptions import ModelHTTPError
 from pydantic_ai.messages import ModelRequest, ModelResponse, ToolCallPart, ToolReturnPart
 from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.usage import RequestUsage
@@ -36,6 +38,7 @@ from app.services.agent_runner import (
     RecordedDelegation,
     RunSegment,
     month_start,
+    run_failure_summary,
 )
 from app.services.approvals import ApprovalService
 from app.services.transcript import RecordedToolCall
@@ -969,6 +972,92 @@ class TestRunAccounting:
 
         assert finish.call_args.kwargs["status"] == RunStatus.FAILED.value
 
+    @pytest.mark.anyio
+    async def test_a_failed_run_records_the_refusal_and_not_the_provider(self, caplog):
+        """The stored `error` is read in run history weeks later by anyone who
+        can see the run, and a model client puts the failing request in its
+        message - so a tenant's own endpoint, with the key still in its query
+        string, was being served to every member (#676). The text stays in the
+        log, where an operator already looks."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        vendor_text = "401 from https://llm.acme.internal/v1/chat?api_key=sk-live-9f2c"
+        prepared.built.agent.run = AsyncMock(side_effect=RuntimeError(vendor_text))
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()) as finish,
+            caplog.at_level(logging.ERROR, logger="app.services.agent_runner"),
+            pytest.raises(RuntimeError),
+        ):
+            await service.execute(_ctx(), uuid.uuid4(), "hello")
+
+        assert finish.call_args.kwargs["error"] == (
+            "The run did not finish (RuntimeError) - retry it, and check the agent's "
+            "model profile if it keeps failing. The server log has the full error."
+        )
+        assert vendor_text in caplog.text
+
+
+class TestWhatAFailedRunIsAllowedToSay:
+    """`run_failure_summary` - the one sentence `agent_runs.error` may hold.
+
+    A stored column with a longer life and a wider audience than an HTTP body:
+    the row is on `AgentRunRead` and rendered in run history to every member who
+    can read it. The rule is #423's, one surface over (#676).
+    """
+
+    def test_a_provider_client_reaches_the_row_as_its_class_and_nothing_else(self):
+        summary = run_failure_summary(
+            RuntimeError("connect to https://llm.acme.internal/v1?api_key=sk-live-9f2c failed")
+        )
+
+        assert summary == (
+            "The run did not finish (RuntimeError) - retry it, and check the agent's "
+            "model profile if it keeps failing. The server log has the full error."
+        )
+
+    def test_a_provider_status_survives_because_it_is_what_a_person_acts_on(self):
+        """404 is a model the profile names and the provider does not have, 401 a
+        credential, 429 a rate limit - all four are `ModelHTTPError`, so a bare
+        class name would take away every failure a person can fix themselves.
+        `ModelHTTPError.__str__` carries the response body; the status code is an
+        `int` and carries nothing."""
+        raised = ModelHTTPError(
+            status_code=404,
+            model_name="gpt-5-turbo",
+            body={"error": "https://llm.acme.internal/v1?api_key=sk-live-9f2c"},
+        )
+
+        summary = run_failure_summary(raised)
+
+        assert summary.startswith("The run did not finish (ModelHTTPError, HTTP 404) - ")
+        assert "sk-live-9f2c" not in summary
+
+    def test_a_task_group_is_unwrapped_to_the_failure_it_is_hiding(self):
+        """MCP toolsets and delegated runs sit on anyio task groups, so their
+        failures arrive as an `ExceptionGroup` - whose own name diagnoses
+        nothing, and which would spend the status code on exactly the failures
+        most likely to carry one."""
+        raised = ExceptionGroup(
+            "unhandled errors in a TaskGroup",
+            [ModelHTTPError(status_code=401, model_name="gpt-5", body="bad key")],
+        )
+
+        assert run_failure_summary(raised).startswith(
+            "The run did not finish (ModelHTTPError, HTTP 401) - "
+        )
+
+    def test_our_own_refusal_is_kept_whole_because_we_wrote_it(self):
+        """A message written in this repository, and the most useful thing an
+        operator can be shown - replacing "No model profile is configured for
+        this agent" with a class name answers the question the row is opened to
+        ask with a shrug."""
+        assert (
+            run_failure_summary(BadRequestError(message="No model profile is configured"))
+            == "No model profile is configured"
+        )
+
 
 class TestWhatANonStreamingRunRecords:
     """The transcript, written by the runner rather than by each surface.
@@ -1028,6 +1117,7 @@ class TestWhatANonStreamingRunRecords:
         assert [(call.tool_name, call.args, call.result) for call in written["tool_calls"]] == [
             ("send_email", {"to": "ada@example.com"}, "ok")
         ]
+        assert written["parked"] == frozenset()
 
     @pytest.mark.anyio
     async def test_a_run_that_broke_still_records_what_was_asked(self):
@@ -1299,6 +1389,29 @@ class TestParking:
             # here, one whose agent binds no delegation at all (agenticos#175).
             "dynamic_specialists": [],
         }
+
+    @pytest.mark.anyio
+    async def test_a_parked_runs_transcript_marks_the_call_that_is_waiting(self):
+        """The transcript rows are the only account of the turn a reload has, and
+        they used to say `running` for the very call somebody has to decide about -
+        so a reopened conversation showed the step as ran and said nothing about
+        waiting (#601)."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared(conversation_id=uuid.uuid4())
+        prepared.approvals.parked = {"approval-1": "call-1"}
+        result = MagicMock(output=DeferredToolRequests())
+        result.all_messages = MagicMock(return_value=[])
+        result.new_messages = MagicMock(return_value=[])
+        prepared.built.agent.run = AsyncMock(return_value=result)
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service.transcript, "record", new=AsyncMock()) as record,
+        ):
+            await service.execute(_ctx(), uuid.uuid4(), "email the customer")
+
+        assert record.await_args.kwargs["parked"] == frozenset({"call-1"})
 
     @pytest.mark.anyio
     async def test_the_delegation_tree_is_folded_in_without_the_surface_supplying_it(self):
@@ -2046,6 +2159,74 @@ class TestWhoTheRunSaysItIs:
             await service.prepare(AuthContext.anonymous(uuid.uuid4()), agent.id)
 
         assert create_run.call_args.kwargs["user_id"] is None
+
+    @pytest.mark.anyio
+    async def test_a_channel_run_records_the_chat_account_that_asked(self):
+        """Who asked and who it ran as are different questions in a room (#639).
+
+        The row carries both, so a turn from a chat account nobody has linked is
+        still attributable - and becomes attributable to a *person* the moment
+        that account is linked, without rewriting the run.
+        """
+        identity_id = uuid.uuid4()
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        ctx = AuthContext(
+            user_id=uuid.uuid4(),
+            organization_id=uuid.uuid4(),
+            role=OrgRoleName.VIEWER,
+            channel_identity_id=identity_id,
+        )
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(
+                    return_value=(agent, AgentSpec(name="Support"), agent.current_version_id)
+                ),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ) as create_run,
+            patch("app.services.agent_runner.build_agent"),
+        ):
+            await service.prepare(ctx, agent.id, surface=RunSurface.MATTERMOST)
+
+        assert create_run.call_args.kwargs["channel_identity_id"] == identity_id
+
+    @pytest.mark.anyio
+    async def test_a_run_from_anywhere_else_records_no_chat_account(self):
+        """The dashboard, the playground and the API are reached as a person."""
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(
+                    return_value=(agent, AgentSpec(name="Support"), agent.current_version_id)
+                ),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ) as create_run,
+            patch("app.services.agent_runner.build_agent"),
+        ):
+            await service.prepare(_ctx(), agent.id)
+
+        assert create_run.call_args.kwargs["channel_identity_id"] is None
 
 
 def _exposure(*, organization_id=None, environment_id=None, surface="web", prompt=None, tools=None):

@@ -1,17 +1,20 @@
 """Conversation repository."""
 
+from collections.abc import Collection
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, NamedTuple
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, distinct, func, select
+from sqlalchemy import ColumnElement, distinct, func, or_, select
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
+from app.db.models.channel_identity import ChannelIdentity
+from app.db.models.channel_session import ChannelSession
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.user import User
 from app.repositories._search import contains_ci
@@ -222,6 +225,103 @@ def _list_filters(
     return filters
 
 
+async def authors_of(db: AsyncSession, identity_ids: list[UUID]) -> dict[UUID, ChannelIdentity]:
+    """The chat accounts behind a page of messages, keyed by id.
+
+    One query for the whole transcript rather than one per turn, for the reason
+    :func:`agents_in_conversations` gives: a thread is a hundred messages and the
+    alternative is a hundred round trips to render a hundred names.
+
+    An empty list asks nothing - a dashboard thread has no chat accounts in it at
+    all, which is the common case.
+    """
+    if not identity_ids:
+        return {}
+    result = await db.execute(
+        select(ChannelIdentity).where(ChannelIdentity.id.in_(set(identity_ids)))
+    )
+    return {identity.id: identity for identity in result.scalars().all()}
+
+
+def _reachable_by(user_id: UUID, participant_ids: Collection[UUID]) -> ColumnElement[bool]:
+    """Whose conversation list a thread appears in.
+
+    Theirs if they own it, and theirs if they are a *confirmed* participant of
+    the room it came from. Participation used to be a correlated `EXISTS` over
+    `messages.channel_identity_id` - who spoke - and speaking once kept the
+    thread readable after the platform removed them from the channel (#641). So
+    the ids arrive vetted instead: the caller runs :func:`participation_claims`
+    through `app.services.channels.membership`, which asks the platform, and
+    hands over only the threads whose membership held up.
+
+    The default is therefore the narrow one. A caller that passes nothing gets
+    owner-only, which fails safe - forgetting the participation step hides a
+    thread rather than showing it to somebody who was removed.
+    """
+    if not participant_ids:
+        return Conversation.user_id == user_id
+    return or_(Conversation.user_id == user_id, Conversation.id.in_(participant_ids))
+
+
+class ParticipationClaim(NamedTuple):
+    """One "I spoke there" fact, addressed well enough to check it.
+
+    The conversation a chat account of the user's wrote in, and the bot and
+    platform chat the thread belongs to - which is what
+    `app.services.channels.membership` needs to ask the platform whether the
+    account is *still* in that channel. A claim is who spoke, never who may
+    read (#641); nothing may treat one as access without that check.
+    """
+
+    conversation_id: UUID
+    platform_user_id: str
+    bot_id: UUID
+    platform_chat_id: str
+
+
+async def participation_claims(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    organization_id: UUID | None = None,
+    conversation_id: UUID | None = None,
+) -> list[ParticipationClaim]:
+    """Every channel this user's chat accounts have spoken in, by conversation.
+
+    One query for the whole listing: messages joined to the identity that wrote
+    them, to the session that names the room, distinct over the four scalars -
+    scalars because `channel_bots` carries `json` columns, which have no
+    equality operator, so a `DISTINCT` over the row itself is a 500 on a real
+    database (see :func:`app.repositories.channel_session.bots_by_identity`).
+
+    The join to `channel_sessions` is inner on purpose. A thread the session no
+    longer points at - `/new` re-points `conversation_id` at a fresh row - has
+    no channel anybody can ask about, and a claim that cannot be checked is
+    refused rather than trusted (#641). The owner and an explicit share still
+    reach such a thread; participation alone does not.
+    """
+    query = (
+        select(
+            Message.conversation_id,
+            ChannelIdentity.platform_user_id,
+            ChannelSession.bot_id,
+            ChannelSession.platform_chat_id,
+        )
+        .join(ChannelIdentity, ChannelIdentity.id == Message.channel_identity_id)
+        .join(ChannelSession, ChannelSession.conversation_id == Message.conversation_id)
+        .where(ChannelIdentity.user_id == user_id)
+        .distinct()
+    )
+    if organization_id is not None:
+        query = query.join(Conversation, Conversation.id == Message.conversation_id).where(
+            Conversation.organization_id == organization_id
+        )
+    if conversation_id is not None:
+        query = query.where(Message.conversation_id == conversation_id)
+    result = await db.execute(query)
+    return [ParticipationClaim(*row) for row in result.all()]
+
+
 def _sort_columns() -> dict[str, Any]:
     """The columns a conversation listing can be ordered by, before the extras.
 
@@ -262,6 +362,7 @@ async def get_conversations_by_user(
     archived_only: bool = False,
     sort_by: str = "updated_at",
     sort_dir: str = "desc",
+    participant_conversation_ids: Collection[UUID] = frozenset(),
 ) -> list[Conversation]:
     """Get one organization's conversations, optionally narrowed to one user.
 
@@ -269,10 +370,14 @@ async def get_conversations_by_user(
     the tenant would return every tenant's rows, and that mistake must not look
     like an ordinary call. The narrowing arguments after it are shared with the
     admin listing - see :func:`_list_filters` for what each one means.
+
+    `participant_conversation_ids` widens a user's list to channel threads whose
+    membership the caller has already confirmed against the platform - see
+    :func:`_reachable_by` for why they arrive vetted rather than derived here.
     """
     query = select(Conversation).where(Conversation.organization_id == organization_id)
     if user_id:
-        query = query.where(Conversation.user_id == user_id)
+        query = query.where(_reachable_by(user_id, participant_conversation_ids))
     for condition in _list_filters(
         search=search,
         agent_id=agent_id,
@@ -350,18 +455,20 @@ async def count_conversations(
     agent_id: UUID | None = None,
     include_archived: bool = False,
     archived_only: bool = False,
+    participant_conversation_ids: Collection[UUID] = frozenset(),
 ) -> int:
     """Count one organization's conversations, optionally narrowed to one user.
 
     Takes the same narrowing as :func:`get_conversations_by_user` because it
     answers a question about that page: a total counted without the filters the
-    page was fetched with is a number that contradicts the rows under it.
+    page was fetched with is a number that contradicts the rows under it -
+    which includes the vetted participation set.
     """
     query = select(func.count(Conversation.id)).where(
         Conversation.organization_id == organization_id
     )
     if user_id:
-        query = query.where(Conversation.user_id == user_id)
+        query = query.where(_reachable_by(user_id, participant_conversation_ids))
     for condition in _list_filters(
         search=search,
         agent_id=agent_id,
@@ -445,12 +552,18 @@ async def get_messages_by_conversation(
     limit: int = 100,
     include_tool_calls: bool = False,
 ) -> list[Message]:
-    """Get messages for a conversation with pagination."""
+    """Get messages for a conversation, in the order they were written.
+
+    Ordered by `ordinal` rather than `created_at`: one turn writes the question
+    and the answer in a single transaction, and `func.now()` gives both the same
+    timestamp - so this used to return the answer above the question whenever the
+    planner felt like it. See `Message.ordinal`.
+    """
     query = select(Message).where(Message.conversation_id == conversation_id)
     if include_tool_calls:
         query = query.options(selectinload(Message.tool_calls))
     query = query.options(selectinload(Message.files))
-    query = query.order_by(Message.created_at.asc()).offset(skip).limit(limit)
+    query = query.order_by(Message.ordinal.asc()).offset(skip).limit(limit)
     result = await db.execute(query)
     return list(result.scalars().all())
 
@@ -481,7 +594,7 @@ async def get_messages_by_run(
     if include_tool_calls:
         query = query.options(selectinload(Message.tool_calls))
     query = query.options(selectinload(Message.files))
-    query = query.order_by(Message.created_at.asc()).offset(skip).limit(limit)
+    query = query.order_by(Message.ordinal.asc()).offset(skip).limit(limit)
     result = await db.execute(query)
     return list(result.scalars().all())
 
@@ -509,12 +622,14 @@ async def create_message(
     agent_id: UUID | None = None,
     agent_version_id: UUID | None = None,
     run_id: UUID | None = None,
+    channel_identity_id: UUID | None = None,
 ) -> Message:
     """Create a new message."""
     message = Message(
         conversation_id=conversation_id,
         role=role,
         content=content,
+        channel_identity_id=channel_identity_id,
         thinking=thinking,
         parts=parts,
         model_name=model_name,
@@ -611,15 +726,23 @@ async def create_tool_call(
     tool_name: str,
     args: dict[str, Any],
     started_at: datetime,
+    status: str = "running",
 ) -> ToolCall:
-    """Create a new tool call record."""
+    """Create a new tool call record.
+
+    `status` is `awaiting_approval` for a call the run parked on: the parked
+    state otherwise lives only on `agent_runs` and the `approvals` rows, so a
+    reloaded conversation read the one call somebody has to decide about as a
+    step that ran (#601). `complete_tool_call` closes the row whichever way the
+    call ends - a resume, a rejection replayed, or an expiry.
+    """
     tool_call = ToolCall(
         message_id=message_id,
         tool_call_id=tool_call_id,
         tool_name=tool_name,
         args=args,
         started_at=started_at,
-        status="running",
+        status=status,
     )
     db.add(tool_call)
     await db.flush()

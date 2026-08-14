@@ -317,6 +317,88 @@ class TestPersistUserTurnOrgScope:
             )
 
 
+class TestPersistUserTurnFileLinks:
+    """A turn's files are linked as the caller, and a refusal aborts the turn (#706)."""
+
+    def _conv_service(self):
+        service = create_autospec(ConversationService, instance=True)
+        service.create_conversation.return_value = MagicMock(id=uuid.uuid4())
+        service.add_message.return_value = MagicMock(id=uuid.uuid4())
+        return service
+
+    @pytest.mark.anyio
+    async def test_files_are_linked_as_the_caller(self):
+        """`user_id` is the only scope a `chat_files` row has, so the link has to
+        carry who is asking."""
+        user = _user()
+        service = self._conv_service()
+        file_id = str(uuid.uuid4())
+
+        with (
+            patch("app.services.agent.get_db_context", _fake_db_context),
+            patch("app.services.agent.get_conversation_service", return_value=service),
+        ):
+            prompt = await persist_user_turn(
+                user,
+                "look at this",
+                [file_id],
+                requested_conversation_id=None,
+                current_conversation_id=None,
+                organization_id=uuid.uuid4(),
+            )
+
+        linked = service.link_files_to_message.await_args
+        assert linked.args == (service.add_message.return_value.id, [file_id])
+        assert linked.kwargs == {"user_id": user.id}
+        assert prompt.message_id == service.add_message.return_value.id
+
+    @pytest.mark.anyio
+    async def test_a_refused_file_aborts_the_turn(self):
+        """The refusal used to be swallowed by the same net that catches a lost
+        connection, so a turn naming somebody else's file went ahead and answered
+        as though the attachment were fine (#706)."""
+        service = self._conv_service()
+        service.link_files_to_message.side_effect = NotFoundError(
+            message="File not found", details={"file_ids": []}
+        )
+
+        with (
+            patch("app.services.agent.get_db_context", _fake_db_context),
+            patch("app.services.agent.get_conversation_service", return_value=service),
+            pytest.raises(NotFoundError),
+        ):
+            await persist_user_turn(
+                _user(),
+                "look at this",
+                [str(uuid.uuid4())],
+                requested_conversation_id=None,
+                current_conversation_id=None,
+                organization_id=uuid.uuid4(),
+            )
+
+    @pytest.mark.anyio
+    async def test_a_transient_link_failure_still_answers_the_turn(self):
+        """The swallow the refusal now escapes is kept for what it was written
+        for: an infrastructure failure loses the link, never the answer."""
+        service = self._conv_service()
+        service.link_files_to_message.side_effect = RuntimeError("connection lost")
+
+        with (
+            patch("app.services.agent.get_db_context", _fake_db_context),
+            patch("app.services.agent.get_conversation_service", return_value=service),
+        ):
+            prompt = await persist_user_turn(
+                _user(),
+                "look at this",
+                [str(uuid.uuid4())],
+                requested_conversation_id=None,
+                current_conversation_id=None,
+                organization_id=uuid.uuid4(),
+            )
+
+        assert prompt.message_id == service.add_message.return_value.id
+
+
 class TestPersistAssistantTurnRecordsWhatItCost:
     """The cost of an answer is asked about afterwards.
 

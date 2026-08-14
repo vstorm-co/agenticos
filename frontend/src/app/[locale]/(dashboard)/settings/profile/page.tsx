@@ -5,20 +5,23 @@ import { useRef, useState } from "react";
 import { Camera } from "lucide-react";
 import { toast } from "sonner";
 
+import { ApiError, getErrorMessage, parseErrorMessage } from "@/lib/api-error";
 import { Button, FormField, Input } from "@/components/ui";
 import { ActiveSessions } from "@/components/dashboard/active-sessions";
 import { ChatAccounts } from "@/components/settings/chat-accounts";
 import { SectionCard } from "@/components/settings/settings-section";
 import { useAuth } from "@/hooks";
-import { apiClient, ApiError } from "@/lib/api-client";
-import { formatDate, getErrorMessage, isAppAdmin, MAX_AVATAR_SIZE_BYTES } from "@/lib/utils";
+import { apiClient } from "@/lib/api-client";
+import { formatDate, isAppAdmin, MAX_AVATAR_SIZE_BYTES } from "@/lib/utils";
 import { useAuthStore } from "@/stores";
 import type { User } from "@/types";
 import { useChanged } from "@/hooks/use-changed";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 export default function ProfileSettingsPage() {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("pages.settings");
+  const locale = useLocale();
   const { user } = useAuth();
   const { setUser, bumpAvatarVersion, avatarVersion } = useAuthStore();
 
@@ -51,7 +54,9 @@ export default function ProfileSettingsPage() {
       setUser(updated);
       toast.success(t("profileUpdated"));
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : t("failedUpdateProfile"));
+      toast.error(
+        err instanceof ApiError ? getErrorMessage(err, tErrors) : t("failedUpdateProfile"),
+      );
     } finally {
       setSaving(false);
     }
@@ -71,15 +76,15 @@ export default function ProfileSettingsPage() {
       formData.append("file", file);
       const res = await fetch("/api/users/me/avatar", { method: "POST", body: formData });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: t("uploadFailed3") }));
-        throw new Error(err.detail || t("uploadFailed4"));
+        const body: unknown = await res.json().catch(() => null);
+        throw new ApiError(res.status, parseErrorMessage(body, t("uploadFailed4")), body);
       }
       const updated = await res.json();
       setUser(updated);
       bumpAvatarVersion();
       toast.success(t("avatarUpdated"));
     } catch (err) {
-      toast.error(getErrorMessage(err, t("failedUploadAvatar2")));
+      toast.error(getErrorMessage(err, tErrors, t("failedUploadAvatar2")));
     } finally {
       setAvatarUploading(false);
     }
@@ -141,7 +146,7 @@ export default function ProfileSettingsPage() {
             </Button>
             <p className="text-muted-foreground mt-2 text-xs">
               {isAppAdmin(user) ? t("admin") : ""}
-              {t("memberSince", { date: formatDate(user.created_at) })}
+              {t("memberSince", { date: formatDate(user.created_at, locale) })}
             </p>
           </div>
         </div>

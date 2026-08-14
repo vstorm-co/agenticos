@@ -160,6 +160,29 @@ class ChannelAttachmentService:
 
         return stored, refusals
 
+    async def discard(self, files: list[ChatFile]) -> None:
+        """Delete what was stored for a turn that was refused before it ran.
+
+        A `ChatFile` is written before the agent is resolved, so a refusal - an
+        unlinked sender, no agent exposed on this bot - used to leave the row and
+        the bytes behind with no message that will ever link them and nothing that
+        collects them. `chat_files` carries no organization, so an unlinked row is
+        scoped by `user_id` alone (#661).
+
+        Never raises. The sender is owed the refusal, and a file that could not be
+        deleted is worth a log line rather than a second failure on top of the
+        first.
+        """
+        for stored in files:
+            try:
+                await self.uploads.discard(stored)
+            except Exception:
+                logger.warning(
+                    "channel_attachment_discard_failed",
+                    extra={"chat_file_id": str(stored.id)},
+                    exc_info=True,
+                )
+
 
 def _why(attachment: IncomingAttachment, error: str | None) -> str:
     """Why a file was turned away, in terms of what somebody actually sent.

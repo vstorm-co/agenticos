@@ -41,11 +41,11 @@
  * * tests, which assert the copy and must name it;
  * * `src/app/[locale]/(dashboard)/dev/**`, a playground for looking at components
  *   that is not part of the product;
- * * anything a person never reads - `className`, `href`, `data-*`, `id`, `type`;
- * * `src/app/api/**` for the offence sweep alone - a route handler sits outside the
- *   `[locale]` segment, so what it writes is a wire payload and there is no translator
- *   in scope to write it any other way (#603). The catalog rules still read those files,
- *   which is how a `detail` duplicating a message is found.
+ * * anything a person never reads - `className`, `href`, `data-*`, `id`, `type`.
+ *
+ * The BFF route handlers under `src/app/api/**` used to be a fourth exclusion, and are
+ * not one any more: a handler has no locale in scope, so a refusal it mints is a
+ * `BFF_ERROR_KEYS` code the client translates, never a sentence (#603).
  *
  * A `.ts` file is read like a `.tsx` one, by the same rules: there is no bracket to
  * anchor on, so nothing needs gating on the suffix, and a file with no JSX in it simply
@@ -202,9 +202,22 @@ const MACHINE_WORD = /^[A-Z0-9_]+$/;
 /**
  * What `NOT_A_SENTENCE` keeps out of the string-literal rule: a label built from title
  * case around a separator, a short acronym label, a CSS measurement.
+ *
+ * The separator joins *two capitalised tokens* - `Model / Provider`, `Agent - Settings`
+ * - and the `[A-Z]` after it is the whole of #656. Without it a hyphen inside the first
+ * word was the separator, so `Sign-in failed` read as a label and every sentence whose
+ * first word is hyphenated left the sweep silently: two of them survived #603 in the BFF
+ * handlers and were found by review rather than by this (#654). Prose after a hyphen
+ * carries on in lower case, which is the one thing a two-token label never does.
+ *
+ * The acronym alternative is anchored for the same reason (#678). `[A-Z]{2,}\s` exempted
+ * the sentence its acronym opened, so `API keys are stored in the vault` left the sweep
+ * while `Provider keys are stored in the vault` did not. Ending it on a single lower-case
+ * word keeps the label it was written for - `MCP server`, `AI agents` - and lets the prose
+ * through.
  */
 const NOT_A_SENTENCE =
-  /^(?:[A-Z][a-z]+(?:\s[A-Z][a-z]+)*\s?[-/]\s?|[A-Z]{2,}\s+[a-z][A-Za-z-]*$|.*\b(?:px|rem|vh|vw|deg)\b)/;
+  /^(?:[A-Z][a-z]+(?:\s[A-Z][a-z]+)*\s?[-/]\s?[A-Z]|[A-Z]{2,}\s+[a-z][A-Za-z-]*$|.*\b(?:px|rem|vh|vw|deg)\b)/;
 
 export interface Offence {
   line: number;
@@ -1014,23 +1027,6 @@ function holds(catalog: unknown, dotted: string): boolean {
   return typeof node === "string";
 }
 
-/**
- * Whether the offence sweep reads a file, given its path relative to `src`.
- *
- * The BFF route handlers are the only thing it skips beyond the playground, and the skip
- * belongs here rather than inside a rule: `{ detail: "Not authenticated" }` is a string a
- * rule can read perfectly well, and what excuses it is where it lives. A handler sits
- * outside the `[locale]` segment, so there is no translator in scope and what it writes
- * is a wire payload (#603). The catalog rules still read them, which is how a `detail`
- * duplicating a message is caught.
- *
- * Matched below `src` and not on an absolute path, so `components/app/api/thing.ts` is
- * not covered by it.
- */
-export function isSwept(fromSrc: string): boolean {
-  return !fromSrc.startsWith("app/api/");
-}
-
 function sourceFiles(directory: string): string[] {
   const found: string[] = [];
   for (const entry of readdirSync(directory).sort()) {
@@ -1065,25 +1061,22 @@ function main(argv: string[]): number {
   const all = argv.includes("--all");
   const catalog: unknown = JSON.parse(readFileSync(CATALOG, "utf8"));
 
-  // Three file sets, and the difference between them is what each rule can honestly
+  // Two file sets, and the difference between them is what each rule can honestly
   // say. `sources` is everything: both halves read a `.ts` file because a hook's toast
   // is copy, and the `dev/` playground because a key it reads is not dead. `product`
-  // drops the playground, whose copy is nobody's to translate. `sweep` drops the BFF
-  // route handlers on top of that - not because they hold no copy, but because nothing
-  // there can translate one: a handler sits outside the `[locale]` segment, so what it
-  // writes is a wire payload (#603). The catalog rules keep reading them, which is how
-  // a `detail` duplicating a message is still found. Tests are out of all three: a test
-  // names its copy.
+  // drops the playground, whose copy is nobody's to translate. The BFF route handlers
+  // are read like anything else: a handler has no locale in scope, so a refusal it
+  // mints is a `BFF_ERROR_KEYS` code the client translates, never a sentence (#603).
+  // Tests are out of both: a test names its copy.
   const sources: Source[] = sourceFiles(SRC).map((path) => ({
     path,
     text: readFileSync(path, "utf8"),
   }));
   const product = sources.filter(({ path }) => !SKIPPED_DIRS.some((dir) => path.includes(dir)));
-  const sweep = product.filter(({ path }) => isSwept(relative(SRC, path)));
 
   const failures: string[] = [];
   const absent: string[] = [];
-  for (const { path, text } of sweep) {
+  for (const { path, text } of product) {
     const shown = relative(ROOT, path);
     for (const { line, what } of offences(path, text)) failures.push(`${shown}:${line}: ${what}`);
     for (const { line, what } of missingKeys(path, text, catalog)) {

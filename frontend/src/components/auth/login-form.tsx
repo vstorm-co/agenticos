@@ -10,11 +10,13 @@ import { OAuthBlock } from "@/components/auth/oauth-buttons";
 import { Button, Input, Label } from "@/components/ui";
 import { useAuth } from "@/hooks";
 import { ApiError } from "@/lib/api-client";
+import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { EMAIL_RE } from "@/lib/utils";
 
 export function LoginForm() {
   const t = useTranslations("auth");
+  const tErrors = useTranslations("errors");
   const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -36,7 +38,8 @@ export function LoginForm() {
       await login({ email, password }, returnTo);
       toast.success(t("loginSuccess"));
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : t("loginFailedPleaseTry");
+      const message =
+        err instanceof ApiError ? getErrorMessage(err, tErrors) : t("loginFailedPleaseTry");
       setError(message);
       toast.error(message);
       setIsLoading(false);

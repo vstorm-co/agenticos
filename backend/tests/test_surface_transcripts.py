@@ -24,6 +24,13 @@ their own machinery is: `tests/test_agent_session.py` keeps a failed web-chat
 turn's partial answer, and `tests/test_agent_runner.py` with
 `tests/test_transcript.py` cover a run resumed after an approval, whose
 continuation records over HTTP rather than the socket a conversation streams.
+
+The same harness answers the other half of #39, and it is here rather than in a
+file of its own because the surface's real entry point has to be driven either
+way: **a run that failed is still in history, with what it spent.** Audit
+finding 3 was that only web chat committed, so a failed run on any other surface
+flushed its cost and rolled it back - no row, no budget impact, and an
+organization billed by a provider for a request nothing recorded.
 """
 
 from __future__ import annotations
@@ -31,13 +38,17 @@ from __future__ import annotations
 import uuid
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager, contextmanager
+from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic_ai.messages import ModelRequest, ModelResponse, ToolCallPart, ToolReturnPart
+from pydantic_ai.usage import RequestUsage
 
-from app.agents.capabilities.budget import SpendLedger
+from app.agents.capabilities.budget import SpendLedger, record_ambient_usage
+from app.core.permissions import AuthContext, OrgRoleName
+from app.db.models.agent_run import RunStatus, RunSurface
 from app.services.agent_runner import AgentRunnerService, PreparedRun
 from app.services.channels.mentions import ChannelAgentRouter
 from app.services.embed_session import EmbedSession
@@ -85,6 +96,37 @@ def _searched_then_answered(output: str) -> MagicMock:
     return MagicMock(output=output, new_messages=MagicMock(return_value=messages))
 
 
+class _Iteration:
+    """A run to iterate, standing in for the library's own.
+
+    It yields no nodes. Which frames a surface sends is pinned in
+    `tests/test_agent_session.py` and `tests/test_embed_frames.py`; what these
+    tests are about is the rows a turn leaves behind. The outcome is awaited on
+    the first step so that a model which raises does so where the real one would -
+    inside the loop, with the settle path around it.
+    """
+
+    def __init__(self, outcome: AsyncMock) -> None:
+        self._outcome = outcome
+        self._started = False
+        self.result: Any = None
+
+    def __aiter__(self) -> _Iteration:
+        return self
+
+    async def __anext__(self) -> Any:
+        if self._started:
+            raise StopAsyncIteration
+        self._started = True
+        self.result = await self._outcome()
+        raise StopAsyncIteration
+
+
+@asynccontextmanager
+async def _iterating(outcome: AsyncMock) -> AsyncIterator[_Iteration]:
+    yield _Iteration(outcome)
+
+
 @contextmanager
 def _run_yielding(agent_run: AsyncMock) -> Iterator[tuple[dict[str, PreparedRun], MagicMock]]:
     """Stub the build, the terminal write and the transcript's repository.
@@ -107,6 +149,9 @@ def _run_yielding(agent_run: AsyncMock) -> Iterator[tuple[dict[str, PreparedRun]
         built.ledger = SpendLedger()
         built.model_label = "gpt-4.1"
         built.agent.run = agent_run
+        # The streaming half, for a surface that shows an answer arriving. The
+        # widget is one since #634, so its turns reach `iterate` rather than `run`.
+        built.agent.iter = MagicMock(side_effect=lambda *_a, **_k: _iterating(agent_run))
         prepared = PreparedRun(
             run=MagicMock(
                 id=uuid.uuid4(),
@@ -158,14 +203,57 @@ def _assert_full_turn(
     assert conversations.complete_tool_call.await_args.kwargs["result"] == "30 days"
 
 
-def _embed() -> MagicMock:
+def _widget_session(db: MagicMock, *, embed: MagicMock | None = None) -> EmbedSession:
+    """A widget session whose turn opens `db`.
+
+    The factory rather than the session itself: `EmbedSession` opens one per turn
+    so an idle socket holds no pooled connection (#39).
+    """
+
+    @asynccontextmanager
+    async def sessions() -> AsyncIterator[MagicMock]:
+        yield db
+
+    return EmbedSession(
+        sessions=sessions,
+        embed=embed if embed is not None else _embed(),
+        visitor=None,
+        websocket=MagicMock(),
+    )
+
+
+@contextmanager
+def _the_widgets_rows() -> Iterator[None]:
+    """The conversation the turn opens, its history, and the owner's membership."""
+    with (
+        patch(
+            "app.services.embed_session.conversation_repo.create_conversation",
+            new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+        ),
+        patch(
+            "app.services.embed_session.conversation_repo.count_messages",
+            new=AsyncMock(return_value=0),
+        ),
+        patch(
+            "app.services.embed_session.conversation_repo.get_messages_by_conversation",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
+            "app.services.access.member_repo.get_active",
+            new=AsyncMock(return_value=MagicMock(role="builder")),
+        ),
+    ):
+        yield
+
+
+def _embed(*, context: str | None = None) -> MagicMock:
     return MagicMock(
         id=uuid.uuid4(),
         organization_id=uuid.uuid4(),
         agent_id=uuid.uuid4(),
         owner_user_id=uuid.uuid4(),
         name="Support",
-        context=None,
+        context=context,
     )
 
 
@@ -175,21 +263,14 @@ class TestAWidgetRunRecordsItsTranscript:
     with a cost and no transcript is a bill nobody can reconstruct."""
 
     async def test_a_widget_run_records_the_question_the_answer_and_the_tool_call(self) -> None:
-        session = EmbedSession(db=_db(), embed=_embed(), visitor=None, websocket=MagicMock())
+        session = _widget_session(_db())
         run = AsyncMock(return_value=_searched_then_answered("The refund window is 30 days."))
 
         with (
             _run_yielding(run) as (captured, conversations),
-            patch(
-                "app.services.embed_session.conversation_repo.create_conversation",
-                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
-            ),
-            patch(
-                "app.services.embed_session.member_repo.get",
-                new=AsyncMock(return_value=MagicMock(role="builder")),
-            ),
+            _the_widgets_rows(),
         ):
-            answer = await session._answer("What's your refund window?")
+            answer, _run = await session._answer("What's your refund window?")
 
         assert answer == "The refund window is 30 days."
         _assert_full_turn(
@@ -203,19 +284,12 @@ class TestAWidgetRunRecordsItsTranscript:
         """The run that failed is the one somebody opens. Without the question
         there is a charge on the organization's month and nothing that says what
         it paid for."""
-        session = EmbedSession(db=_db(), embed=_embed(), visitor=None, websocket=MagicMock())
+        session = _widget_session(_db())
         run = AsyncMock(side_effect=RuntimeError("provider down"))
 
         with (
             _run_yielding(run) as (captured, conversations),
-            patch(
-                "app.services.embed_session.conversation_repo.create_conversation",
-                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
-            ),
-            patch(
-                "app.services.embed_session.member_repo.get",
-                new=AsyncMock(return_value=MagicMock(role="builder")),
-            ),
+            _the_widgets_rows(),
             pytest.raises(RuntimeError),
         ):
             await session._answer("What's your refund window?")
@@ -223,6 +297,100 @@ class TestAWidgetRunRecordsItsTranscript:
         recorded = conversations.create_message.await_args_list
         assert [call.kwargs["role"] for call in recorded] == ["user"]
         assert recorded[0].kwargs["content"] == "What's your refund window?"
+
+    async def test_the_transcript_holds_the_visitors_words_not_the_prompt_around_them(self) -> None:
+        """The operator's placement note is addressed to the model, not to a reader.
+
+        The widget prepends it to the first message, so recording what was *sent*
+        made the opening turn of every conversation read as the visitor reciting a
+        briefing about the page they were on.
+        """
+        session = _widget_session(_db(), embed=_embed(context="the pricing page"))
+        run = AsyncMock(return_value=_searched_then_answered("Thirty days."))
+
+        with _run_yielding(run) as (_captured, conversations), _the_widgets_rows():
+            await session._answer("What's your refund window?")
+
+        asked = conversations.create_message.await_args_list[0].kwargs
+        assert asked["content"] == "What's your refund window?"
+
+
+class TestAFailedRunIsStillInHistoryWithItsCost:
+    """The other half of #39, per surface, because the fix is central.
+
+    Audit finding 3: only web chat committed, so a failed run on any other
+    surface flushed its cost and rolled it back. No row, no budget impact, and an
+    organization billed by a provider for a request nothing recorded. The fix is
+    one `commit` inside `AgentRunnerService._run` - which is exactly the kind of
+    fix that regresses quietly, because it is one line and no test named a
+    surface.
+
+    Each case is the real failure rather than an immediate one: the model is
+    called, tokens are spent, and *then* something breaks. Recording the spend
+    through `record_ambient_usage` means these also prove the metering wrapper is
+    live on the surface - the ambient call finds an active ledger or it finds
+    nothing, which is agenticos#16 from the other direction.
+    """
+
+    @staticmethod
+    def _spent_then_broke() -> AsyncMock:
+        """A turn that embeds something, and then the provider goes away."""
+
+        async def run(*_args: Any, **_kwargs: Any) -> None:
+            record_ambient_usage(
+                "text-embedding-3-small", RequestUsage(input_tokens=1000), "openai"
+            )
+            raise RuntimeError("the provider went away")
+
+        return AsyncMock(side_effect=run)
+
+    async def test_a_broken_widget_run_keeps_its_row_its_status_and_its_cost(self) -> None:
+        db = _db()
+        session = _widget_session(db)
+
+        with (
+            _run_yielding(self._spent_then_broke()),
+            _the_widgets_rows(),
+            patch(
+                "app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()
+            ) as finish_run,
+            pytest.raises(RuntimeError),
+        ):
+            await session._answer("What's your refund window?")
+
+        recorded = finish_run.await_args.kwargs
+        assert recorded["status"] == RunStatus.FAILED.value
+        assert recorded["cost_usd"] == Decimal("0.00002")
+        # The commit is what makes the row outlive the turn: the session context
+        # rolls back on the exception this test is asserting through.
+        db.commit.assert_awaited()
+
+    async def test_a_broken_api_run_keeps_its_row_its_status_and_its_cost(self) -> None:
+        """Through `execute`, which is what the route calls and all the route
+        does - the HTTP layer adds a response model and nothing else."""
+        db = _db()
+        context = AuthContext(
+            user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.BUILDER.value
+        )
+
+        with (
+            _run_yielding(self._spent_then_broke()),
+            patch(
+                "app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()
+            ) as finish_run,
+            pytest.raises(RuntimeError),
+        ):
+            await AgentRunnerService(db).execute(
+                context,
+                uuid.uuid4(),
+                "What's your refund window?",
+                surface=RunSurface.API,
+            )
+
+        recorded = finish_run.await_args.kwargs
+        assert recorded["status"] == RunStatus.FAILED.value
+        assert recorded["cost_usd"] == Decimal("0.00002")
+        db.commit.assert_awaited()
 
 
 class TestAMentionRecordsItsTranscript:
@@ -318,3 +486,106 @@ class TestTheDefaultAgentRecordsItsTranscript:
             question="what is the refund window",
             answer="The refund window is 30 days.",
         )
+
+    async def test_a_channel_turn_links_the_file_it_ran_on_to_the_user_message(self) -> None:
+        """A file dropped on a bot is stored, read by the agent, and then belongs
+        to the turn it was asked about. It used to keep `message_id` NULL for
+        ever, because only web chat linked one - and `chat_files` carries no
+        organization, so an unlinked row is scoped by `user_id` alone and the
+        conversation holding the question does not know the file exists (#690).
+        """
+        exposure, agent = MagicMock(is_active=True), MagicMock(id=uuid.uuid4(), slug="support")
+        run = AsyncMock(return_value=_searched_then_answered("Row 12 is the outlier."))
+        attachment = MagicMock(id=uuid.uuid4(), filename="q3.csv", parsed_content="a,b\n1,2")
+        user_message, assistant_message = MagicMock(id=uuid.uuid4()), MagicMock(id=uuid.uuid4())
+
+        with (
+            _run_yielding(run) as (_captured, conversations),
+            patch("app.services.transcript.chat_file_repo") as chat_files,
+            patch(
+                "app.services.channels.mentions.agent_exposure_repo.list_active_for_bot",
+                new=AsyncMock(return_value=[(exposure, agent)]),
+            ),
+            patch(
+                "app.services.channels.mentions.member_repo.get",
+                new=AsyncMock(return_value=MagicMock(role="builder")),
+            ),
+            patch.object(
+                ChannelAgentRouter,
+                "_with_usage",
+                new=AsyncMock(side_effect=lambda _ctx, answer, _run, **_kw: answer),
+            ),
+        ):
+            conversations.create_message = AsyncMock(side_effect=[user_message, assistant_message])
+            chat_files.link_to_message = AsyncMock()
+            await ChannelAgentRouter(_db()).answer_default(
+                "which row is the outlier",
+                platform="slack",
+                organization_id=uuid.uuid4(),
+                bot_id=uuid.uuid4(),
+                user_id=uuid.uuid4(),
+                conversation_id=uuid.uuid4(),
+                platform_chat_id="C123",
+                attachments=[attachment],
+            )
+
+        linked = chat_files.link_to_message.await_args.kwargs
+        assert linked["file_ids"] == [attachment.id]
+        assert linked["message_id"] == user_message.id
+
+    async def test_a_captionless_image_on_a_workspaceless_agent_leaves_a_named_user_turn(
+        self,
+    ) -> None:
+        """A photo with no words under it, on an agent with no workspace, yields
+        no prompt text at all: the image reaches the model as bytes beside an
+        empty string. The turn still happened and was billed, so the transcript
+        holds a user message naming what arrived - not a blank one - and the
+        file hangs off it (#704).
+        """
+        exposure, agent = MagicMock(is_active=True), MagicMock(id=uuid.uuid4(), slug="support")
+        run = AsyncMock(return_value=_searched_then_answered("A dashboard."))
+        attachment = MagicMock(
+            id=uuid.uuid4(),
+            filename="photo.jpg",
+            file_type="image",
+            size=1024,
+            mime_type="image/jpeg",
+            storage_path=f"uploads/{uuid.uuid4().hex}.jpg",
+        )
+        user_message, assistant_message = MagicMock(id=uuid.uuid4()), MagicMock(id=uuid.uuid4())
+
+        with (
+            _run_yielding(run) as (_captured, conversations),
+            patch("app.services.transcript.chat_file_repo") as chat_files,
+            patch("app.services.attachments.get_file_storage") as storage,
+            patch(
+                "app.services.channels.mentions.agent_exposure_repo.list_active_for_bot",
+                new=AsyncMock(return_value=[(exposure, agent)]),
+            ),
+            patch(
+                "app.services.channels.mentions.member_repo.get",
+                new=AsyncMock(return_value=MagicMock(role="builder")),
+            ),
+            patch.object(
+                ChannelAgentRouter,
+                "_with_usage",
+                new=AsyncMock(side_effect=lambda _ctx, answer, _run, **_kw: answer),
+            ),
+        ):
+            storage.return_value.load = AsyncMock(return_value=b"\x89PNG")
+            conversations.create_message = AsyncMock(side_effect=[user_message, assistant_message])
+            chat_files.link_to_message = AsyncMock()
+            await ChannelAgentRouter(_db()).answer_default(
+                "",
+                platform="telegram",
+                organization_id=uuid.uuid4(),
+                bot_id=uuid.uuid4(),
+                user_id=uuid.uuid4(),
+                conversation_id=uuid.uuid4(),
+                platform_chat_id="123",
+                attachments=[attachment],
+            )
+
+        asked = conversations.create_message.await_args_list[0].kwargs
+        assert (asked["role"], asked["content"]) == ("user", "Attached image: photo.jpg")
+        assert chat_files.link_to_message.await_args.kwargs["message_id"] == user_message.id

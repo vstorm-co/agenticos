@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { backendFetch, BackendApiError } from "@/lib/server-api";
+import { BackendApiError, backendFetch, bffRefusal } from "@/lib/server-api";
 import type { HealthResponse } from "@/types";
 
 export async function GET() {
@@ -8,8 +8,8 @@ export async function GET() {
     return NextResponse.json(data);
   } catch (error) {
     if (error instanceof BackendApiError) {
-      return NextResponse.json({ detail: "Backend service unavailable" }, { status: error.status });
+      return bffRefusal("BACKEND_UNAVAILABLE", error.status);
     }
-    return NextResponse.json({ detail: "Internal server error" }, { status: 500 });
+    return bffRefusal("INTERNAL_SERVER_ERROR", 500);
   }
 }

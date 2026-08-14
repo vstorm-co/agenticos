@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { backendFetch, BackendApiError } from "@/lib/server-api";
+import { BackendApiError, backendFetch, bffRefusal } from "@/lib/server-api";
 import { requireAdmin } from "@/lib/admin-auth";
 
 interface RouteParams {
@@ -19,11 +19,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json(data);
   } catch (error) {
     if (error instanceof BackendApiError) {
-      return NextResponse.json(
-        { detail: error.message || "Failed to fetch conversation" },
-        { status: error.status },
-      );
+      return NextResponse.json({ detail: error.message }, { status: error.status });
     }
-    return NextResponse.json({ detail: "Internal server error" }, { status: 500 });
+    return bffRefusal("INTERNAL_SERVER_ERROR", 500);
   }
 }

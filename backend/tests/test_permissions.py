@@ -21,6 +21,7 @@ from app.core.permissions import (
     OrgRoleName,
     Perm,
     Scope,
+    assignable_roles,
 )
 
 
@@ -141,6 +142,63 @@ class TestAuthContext:
     def test_app_admin_holds_everything_regardless_of_role(self):
         ctx = _ctx(OrgRoleName.VIEWER, is_app_admin=True)
         assert all(ctx.has(perm) for perm in Perm)
+
+
+class TestAssignableRoles:
+    """Which roles a role may hand out, derived from the catalog (#672).
+
+    The rule is "strictly weaker than mine", so the interesting cases are the
+    two it refuses: a role cannot clone itself, and no role at all can assign
+    `owner` - ownership moves through transfer-ownership, which demotes the
+    outgoing owner in the same breath.
+    """
+
+    def test_no_role_can_assign_owner(self):
+        assert not any(
+            OrgRoleName.OWNER.value in assignable_roles(role.value) for role in OrgRoleName
+        )
+
+    @pytest.mark.parametrize("role", list(OrgRoleName))
+    def test_no_role_can_assign_its_own(self, role: OrgRoleName):
+        assert role.value not in assignable_roles(role.value)
+
+    def test_an_owner_may_assign_every_role_below_them(self):
+        assert assignable_roles(OrgRoleName.OWNER.value) == {
+            OrgRoleName.ADMIN.value,
+            OrgRoleName.BUILDER.value,
+            OrgRoleName.OPERATOR.value,
+            OrgRoleName.MEMBER.value,
+            OrgRoleName.VIEWER.value,
+        }
+
+    def test_an_admin_may_not_assign_admin(self):
+        assert assignable_roles(OrgRoleName.ADMIN.value) == {
+            OrgRoleName.BUILDER.value,
+            OrgRoleName.OPERATOR.value,
+            OrgRoleName.MEMBER.value,
+            OrgRoleName.VIEWER.value,
+        }
+
+    def test_a_role_cannot_hand_out_a_permission_it_lacks(self):
+        """An operator holds `approvals:decide` at ALL; a builder does not."""
+        assert OrgRoleName.OPERATOR.value not in assignable_roles(OrgRoleName.BUILDER.value)
+
+    def test_a_wider_scope_is_not_assignable_from_a_narrower_one(self):
+        """A member edits their own agents; a builder edits every shared one."""
+        assert OrgRoleName.BUILDER.value not in assignable_roles(OrgRoleName.MEMBER.value)
+
+    def test_a_custom_role_is_bounded_by_what_it_actually_holds(self, monkeypatch):
+        """The reason this is not keyed on a role name.
+
+        A custom role (Phase 2) holding `roles:manage` is exactly what a check
+        written against the literal `admin` cannot see, and it is the path by
+        which `owner` would have been mintable.
+        """
+        monkeypatch.setitem(ROLE_PERMS, "test:role-admin", {Perm.ROLES_MANAGE: Scope.ALL})
+        assert assignable_roles("test:role-admin") == frozenset()
+
+    def test_an_unknown_role_may_assign_nothing(self):
+        assert assignable_roles("nonexistent") == frozenset()
 
 
 class TestRequireDependency:

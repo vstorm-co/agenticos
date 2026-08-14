@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { getErrorMessage } from "@/lib/api-error";
 import { useChanged } from "@/hooks/use-changed";
 import { ArrowUpRight, Copy, KeyRound, Mail, Shield, ShieldOff, Trash2, UserX } from "lucide-react";
 import { toast } from "sonner";
@@ -26,9 +27,9 @@ import {
 import type { AdminUser } from "@/types";
 import { apiClient } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
-import { formatDateTime, getErrorMessage } from "@/lib/utils";
+import { formatDateTime } from "@/lib/utils";
 import { qk } from "@/lib/query-keys";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 interface UserDetailDrawerProps {
   user: AdminUser | null;
@@ -54,7 +55,9 @@ export function UserDetailDrawer({
   onDelete,
   onImpersonate,
 }: UserDetailDrawerProps) {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("admin");
+  const locale = useLocale();
   // Server data through the query layer, which is where `.claude/rules/frontend.md`
   // says it lives. It was three pieces of state and an effect: a list, a loading
   // flag, and a reset when the drawer closed - all of which `useQuery` already
@@ -153,7 +156,7 @@ export function UserDetailDrawer({
             <KV label={t("userId")} value={subject.id} mono onCopy={handleCopyId} />
             <KV label={t("email")} value={subject.email} mono />
             {subject.full_name && <KV label={t("displayName")} value={subject.full_name} />}
-            <KV label={t("joined")} value={formatDateTime(subject.created_at)} />
+            <KV label={t("joined")} value={formatDateTime(subject.created_at, locale)} />
           </dl>
 
           <section className="mt-7">
@@ -167,7 +170,7 @@ export function UserDetailDrawer({
               // opened a chat are the same sentence, and an admin acting on the
               // second when it was the first is acting on nothing.
               <p className="text-destructive text-xs">
-                {getErrorMessage(convsError, t("couldnTLoadConversations"))}
+                {getErrorMessage(convsError, tErrors, t("couldnTLoadConversations"))}
               </p>
             ) : !conversations || conversations.length === 0 ? (
               <p className="text-foreground/55 text-xs">{t("noConversationsFound")}</p>
@@ -183,7 +186,7 @@ export function UserDetailDrawer({
                         {c.title || t("untitled")}
                       </p>
                       <p className="text-foreground/45 truncate font-mono text-[10px] tracking-wider uppercase">
-                        {formatDateTime(c.created_at)}
+                        {formatDateTime(c.created_at, locale)}
                         {typeof c.message_count === "number" &&
                           ` · ${t("messageCountShort", { count: c.message_count })}`}
                       </p>

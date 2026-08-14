@@ -14,6 +14,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from aiogram.exceptions import TelegramBadRequest
 from pydantic_ai.models.test import TestModel
 
 from app.agents.capabilities import build as build_capabilities
@@ -561,3 +562,200 @@ class TestWhatAnAdapterActuallyBuilds:
             "Customer questions",
             "On call: Ada",
         )
+
+
+class TestIsChannelMember:
+    """The per-account membership question the participant model asks (#641).
+
+    Deliberately not a fifth registered tool: an agent has `list_channel_members`
+    for the room it stands in, while this is `channels.membership` asking whether
+    a `/chat` reader is *still* in the channel their thread came from. The list
+    cannot answer that - Telegram's holds only administrators and the other two
+    stop at `limit` - so each platform is asked about one account.
+    """
+
+    @staticmethod
+    def _telegram_bot(result: Any) -> MagicMock:
+        bot = MagicMock()
+        if isinstance(result, BaseException):
+            bot.get_chat_member = AsyncMock(side_effect=result)
+        else:
+            bot.get_chat_member = AsyncMock(return_value=MagicMock(status=result))
+        bot.session.close = AsyncMock()
+        return bot
+
+    @pytest.mark.parametrize("status", ["member", "administrator", "restricted", "creator"])
+    async def test_telegram_counts_everybody_still_in_the_room(self, status: str):
+        """`restricted` is a member who may not speak - reading their own room's
+        thread is exactly what they may still do."""
+        bot = self._telegram_bot(status)
+
+        with patch("app.services.channels.telegram.Bot", return_value=bot):
+            found = await TelegramAdapter().is_channel_member(
+                "tok", "-100200300", "42", api_base_url=None
+            )
+
+        assert found is True
+        bot.get_chat_member.assert_awaited_once_with(chat_id="-100200300", user_id=42)
+
+    @pytest.mark.parametrize("status", ["left", "kicked"])
+    async def test_telegram_reads_left_and_kicked_as_gone(self, status: str):
+        bot = self._telegram_bot(status)
+
+        with patch("app.services.channels.telegram.Bot", return_value=bot):
+            assert (
+                await TelegramAdapter().is_channel_member(
+                    "tok", "-100200300", "42", api_base_url=None
+                )
+                is False
+            )
+
+    async def test_telegram_treats_an_unplaceable_account_as_not_a_member(self):
+        """`getChatMember` raises where the chat never held the account; for the
+        question being asked that is the same answer as `left`."""
+        refusal = TelegramBadRequest(method=None, message="Bad Request: user not found")  # type: ignore[arg-type]
+        bot = self._telegram_bot(refusal)
+
+        with patch("app.services.channels.telegram.Bot", return_value=bot):
+            assert (
+                await TelegramAdapter().is_channel_member(
+                    "tok", "-100200300", "42", api_base_url=None
+                )
+                is False
+            )
+        bot.session.close.assert_awaited_once()
+
+    async def test_telegram_refuses_an_account_id_it_cannot_even_ask_about(self):
+        """Telegram user ids are numeric; a foreign-looking id is refused without
+        a network call rather than sent to the API to fail there."""
+        with patch("app.services.channels.telegram.Bot") as bot_cls:
+            assert (
+                await TelegramAdapter().is_channel_member(
+                    "tok", "-100200300", "U123ABC", api_base_url=None
+                )
+                is False
+            )
+        bot_cls.assert_not_called()
+
+    async def test_slack_finds_the_account_on_a_later_page(self):
+        """Membership must survive pagination: the account on page two is as much
+        a member as one on page one."""
+        client = MagicMock()
+        client.conversations_members = AsyncMock(
+            side_effect=[
+                {"members": ["U1", "U2"], "response_metadata": {"next_cursor": "c2"}},
+                {"members": ["U3"], "response_metadata": {"next_cursor": ""}},
+            ]
+        )
+
+        with patch("slack_sdk.web.async_client.AsyncWebClient", return_value=client, create=True):
+            assert (
+                await SlackAdapter().is_channel_member("tok", "C1", "U3", api_base_url=None) is True
+            )
+
+        assert client.conversations_members.await_count == 2
+
+    async def test_slack_answers_no_when_the_list_ends_without_the_account(self):
+        client = MagicMock()
+        client.conversations_members = AsyncMock(
+            side_effect=[{"members": ["U1"], "response_metadata": {"next_cursor": ""}}]
+        )
+
+        with patch("slack_sdk.web.async_client.AsyncWebClient", return_value=client, create=True):
+            assert (
+                await SlackAdapter().is_channel_member("tok", "C1", "U9", api_base_url=None)
+                is False
+            )
+
+    async def test_slack_stops_walking_at_the_page_cap_and_refuses(self):
+        """A runaway cursor must not loop forever, and a walk that gave up says
+        "not a member" - the participant model's safe default - rather than a
+        claim about a room it never finished reading."""
+        client = MagicMock()
+        client.conversations_members = AsyncMock(
+            return_value={"members": ["U1"], "response_metadata": {"next_cursor": "again"}}
+        )
+
+        with (
+            patch("slack_sdk.web.async_client.AsyncWebClient", return_value=client, create=True),
+            patch("app.services.channels.slack._MEMBERSHIP_PAGES", 3),
+        ):
+            assert (
+                await SlackAdapter().is_channel_member("tok", "C1", "U9", api_base_url=None)
+                is False
+            )
+
+        assert client.conversations_members.await_count == 3
+
+    @staticmethod
+    def _mattermost_client(answer: MagicMock) -> MagicMock:
+        client = MagicMock()
+        client.get = AsyncMock(return_value=answer)
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        return client
+
+    async def test_mattermost_reads_the_platforms_yes(self):
+        client = self._mattermost_client(MagicMock(status_code=200))
+
+        with patch("app.services.channels.mattermost.httpx.AsyncClient", return_value=client):
+            found = await MattermostAdapter().is_channel_member(
+                "tok", "c1", "u1", api_base_url="https://mattermost.acme.com"
+            )
+
+        assert found is True
+        asked = client.get.await_args.args[0]
+        assert asked == "https://mattermost.acme.com/api/v4/channels/c1/members/u1"
+
+    async def test_mattermost_reads_a_404_as_not_a_member(self):
+        """404 is Mattermost's answer, not a failure - it must not raise and must
+        not be mistaken for an unreachable server."""
+        answer = MagicMock(status_code=404)
+        client = self._mattermost_client(answer)
+
+        with patch("app.services.channels.mattermost.httpx.AsyncClient", return_value=client):
+            assert (
+                await MattermostAdapter().is_channel_member(
+                    "tok", "c1", "u1", api_base_url="https://mattermost.acme.com"
+                )
+                is False
+            )
+        answer.raise_for_status.assert_not_called()
+
+    async def test_mattermost_raises_on_anything_that_is_not_an_answer(self):
+        """A 403 - the bot itself removed - is a question that could not be
+        asked, and the caller's fail-closed handling owns it, not this method."""
+        answer = MagicMock(status_code=403)
+        answer.raise_for_status = MagicMock(side_effect=RuntimeError("403 Forbidden"))
+        client = self._mattermost_client(answer)
+
+        with (
+            patch("app.services.channels.mattermost.httpx.AsyncClient", return_value=client),
+            pytest.raises(RuntimeError, match="403"),
+        ):
+            await MattermostAdapter().is_channel_member(
+                "tok", "c1", "u1", api_base_url="https://mattermost.acme.com"
+            )
+
+    async def test_mattermost_without_a_server_url_says_so(self):
+        with pytest.raises(ChannelDirectoryUnsupported, match="server URL"):
+            await MattermostAdapter().is_channel_member("tok", "c1", "u1", api_base_url=None)
+
+    async def test_a_platform_without_an_implementation_refuses_by_default(self):
+        class Bare(ChannelAdapter):
+            platform = "carrier-pigeon"
+
+            async def send_message(self, bot_token: str, msg: Any) -> None: ...
+            async def start_polling(self, bot_id: str, bot_token: str) -> None: ...
+            async def stop_polling(self, bot_id: str) -> None: ...
+            async def register_webhook(
+                self, bot_token: str, url: str, secret: str | None
+            ) -> bool: ...
+            async def delete_webhook(self, bot_token: str) -> bool: ...
+            def verify_webhook_signature(
+                self, headers: dict[str, str], secret: str, body: str | None = None
+            ) -> bool: ...
+            def parse_incoming(self, raw_payload: dict[str, Any], bot_id: str) -> None: ...
+
+        with pytest.raises(ChannelDirectoryUnsupported, match="carrier-pigeon"):
+            await Bare().is_channel_member("tok", "c1", "u1", api_base_url=None)

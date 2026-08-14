@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { backendFetch, BackendApiError } from "@/lib/server-api";
+import { BackendApiError, backendFetch, bffRefusal } from "@/lib/server-api";
 import type { RefreshTokenResponse } from "@/types";
 
 export async function POST(request: NextRequest) {
@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
     const refreshToken = request.cookies.get("refresh_token")?.value;
 
     if (!refreshToken) {
-      return NextResponse.json({ detail: "No refresh token" }, { status: 401 });
+      return bffRefusal("NO_REFRESH_TOKEN", 401);
     }
 
     const data = await backendFetch<RefreshTokenResponse>("/api/v1/auth/refresh", {
@@ -17,7 +17,6 @@ export async function POST(request: NextRequest) {
 
     const response = NextResponse.json({
       access_token: data.access_token,
-      message: "Token refreshed",
     });
 
     response.cookies.set("access_token", data.access_token, {
@@ -42,7 +41,7 @@ export async function POST(request: NextRequest) {
     return response;
   } catch (error) {
     if (error instanceof BackendApiError) {
-      const response = NextResponse.json({ detail: "Session expired" }, { status: 401 });
+      const response = bffRefusal("SESSION_EXPIRED", 401);
 
       response.cookies.set("access_token", "", {
         httpOnly: true,
@@ -61,6 +60,6 @@ export async function POST(request: NextRequest) {
 
       return response;
     }
-    return NextResponse.json({ detail: "Internal server error" }, { status: 500 });
+    return bffRefusal("INTERNAL_SERVER_ERROR", 500);
   }
 }

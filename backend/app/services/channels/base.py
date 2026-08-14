@@ -10,6 +10,15 @@ from app.agents.capabilities.channel_tools import (
     ChannelSummary,
 )
 
+# Handles every chat platform reserves for addressing the room, rather than one
+# member of it. They match the shape of an agent slug, so `@channel deploying at
+# five` parsed as a mention of an agent called `channel` - and because a
+# channel-wide mention puts every member including the bot in the platform's own
+# mention list, the bot read itself as named and answered "no agent here answers
+# to @channel" under every announcement. Here rather than in `mentions`, because
+# `agent_registry.slugify` reads the same set and cannot import that module.
+ROOM_HANDLES = frozenset({"channel", "all", "here", "everyone"})
+
 # Surface a conversation is happening on. "web" is the chat UI / API; the
 # others are messaging platforms. Extend this when adding new channels.
 ChannelType = Literal["web", "slack", "telegram", "mattermost"]
@@ -47,6 +56,24 @@ DEFAULT_ACCESS_POLICY_JSON: str = (
     '"require_link":false,"rate_limit_rpm":10,'
     '"denied_message":"You are not authorised to use this bot."}'
 )
+
+
+def channel_key(platform_chat_id: str) -> str:
+    """The chat a message arrived in, with any thread stripped.
+
+    Slack folds `thread_ts` into `platform_chat_id` as `channel:thread_ts` and
+    Mattermost folds `root_id` in the same way, so the raw id identifies a
+    *thread*. Anything scoped to the channel - a workspace shared across its
+    threads, an API call about the channel itself - has to key on what is stable
+    across them, which is the part before the colon. Every other platform's id
+    is already the chat.
+
+    Here rather than in `mentions`, where it started: `channels.membership`
+    asks the platform about the channel too and must not drag the agent runtime
+    in with the import - and two implementations of "which channel is this" is
+    how one of them ends up asking Mattermost about a thread id.
+    """
+    return platform_chat_id.partition(":")[0]
 
 
 @dataclass(frozen=True)
@@ -98,6 +125,20 @@ class IncomingMessage:
     platform_username: str | None = None
     platform_display_name: str | None = None
     message_id: str | None = None
+    addressed: bool | None = None
+    """Whether this message named the bot, where the platform says.
+
+    `None` means it did not say, and the two are not the same answer: a platform
+    that reports mentions lets a bot sit in a busy channel and only speak when
+    somebody asks it, while `None` leaves the behaviour a bot had before - answer
+    whatever arrives, because what arrives is what that platform chose to deliver.
+
+    Only Mattermost sets it today, and it is the surface the difference was
+    reported on: its socket delivers *every* post in every channel the bot is in,
+    so a default agent answering all of them is a bot that talks over a team
+    (agenticos#634). Slack and Telegram deliver on their own subscription rules.
+    """
+
     attachments: list[IncomingAttachment] = field(default_factory=list)
     """Files sent with this message, unfetched.
 
@@ -232,6 +273,25 @@ class ChannelAdapter(ABC):
             ChannelDirectoryUnsupported: If this platform does not tell a bot.
         """
         raise ChannelDirectoryUnsupported(f"{self.platform} cannot list a channel's members.")
+
+    async def is_channel_member(
+        self, bot_token: str, channel_id: str, platform_user_id: str, *, api_base_url: str | None
+    ) -> bool:
+        """Whether one platform account is currently in one channel.
+
+        Asked per account rather than read off :meth:`channel_members`, because
+        that list cannot carry the answer: on Telegram it is only the
+        administrators, and on the other two it stops at `limit` - so an
+        ordinary member of a large room would read as absent. This is the
+        question `/chat`'s participant model puts to the platform before a
+        thread is shown (#641).
+
+        Raises:
+            ChannelDirectoryUnsupported: If this platform does not tell a bot.
+        """
+        raise ChannelDirectoryUnsupported(
+            f"{self.platform} cannot say whether an account is in a channel."
+        )
 
     async def search_channels(
         self, bot_token: str, channel_id: str, *, api_base_url: str | None, query: str, limit: int

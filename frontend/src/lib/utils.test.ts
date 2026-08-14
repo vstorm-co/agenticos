@@ -7,11 +7,9 @@ import {
   cn,
   EMAIL_RE,
   formatBytes,
-  formatCurrency,
   formatDate,
   formatDateTime,
   formatRunDuration,
-  getErrorMessage,
   getPasswordStrength,
   isAppAdmin,
   setUrlParam,
@@ -88,20 +86,6 @@ describe("isAppAdmin", () => {
   });
 });
 
-describe("getErrorMessage", () => {
-  it("uses the error's own sentence, which is the server's refusal", () => {
-    expect(getErrorMessage(new Error("Missing required permission"))).toBe(
-      "Missing required permission",
-    );
-  });
-
-  it("falls back for something thrown that is not an error", () => {
-    // A rejected fetch can throw a string or an event; neither is worth showing.
-    expect(getErrorMessage("boom")).toBe("An unexpected error occurred");
-    expect(getErrorMessage(undefined, "Could not save")).toBe("Could not save");
-  });
-});
-
 describe("EMAIL_RE", () => {
   it("accepts an address the backend would", () => {
     expect(EMAIL_RE.test("kacper@example.com")).toBe(true);
@@ -163,9 +147,9 @@ describe("timeAgo", () => {
   // The real messages, so a broken ICU plural fails here rather than on screen.
   const t = createTranslator({ locale: "en", messages: en, namespace: "time" }) as Translate;
 
-  function at(iso: string): string {
+  function at(iso: string, locale = "en"): string {
     vi.useFakeTimers({ now: NOW });
-    return timeAgo(iso, t);
+    return timeAgo(iso, t, locale);
   }
 
   it("reads the last minute as just now", () => {
@@ -183,6 +167,12 @@ describe("timeAgo", () => {
     expect(at("2026-07-01T12:00:00Z")).toBe("Jul 1");
   });
 
+  it("formats the fallback date in the active locale, not en-US", () => {
+    // Month name and day-month order come from the runtime, so the locale has
+    // to reach the formatter - under `pl` this read "Jul 1" before #621.
+    expect(at("2026-07-01T12:00:00Z", "pl")).toBe("1 lip");
+  });
+
   it("says nothing for a date it cannot read or one in the future", () => {
     // A clock skew between browser and server produces the second one, and
     // "-3m ago" reads as a bug.
@@ -191,40 +181,35 @@ describe("timeAgo", () => {
   });
 });
 
-describe("formatCurrency", () => {
-  it("reads cents as the currency amount they are", () => {
-    expect(formatCurrency(1999)).toBe("$19.99");
-    expect(formatCurrency(2000)).toBe("$20");
-  });
-
-  it("keeps the cents on a round amount when asked", () => {
-    expect(formatCurrency(2000, "USD", 2)).toBe("$20.00");
-  });
-
-  it("takes a currency in either case", () => {
-    expect(formatCurrency(1000, "eur", 2)).toBe("€10.00");
-  });
-});
-
 describe("formatDate", () => {
   it("reads a date, from a string or a Date", () => {
-    expect(formatDate("2026-07-31T12:00:00Z")).toBe("Jul 31, 2026");
-    expect(formatDate(new Date("2026-07-31T12:00:00Z"))).toBe("Jul 31, 2026");
+    expect(formatDate("2026-07-31T12:00:00Z", "en")).toBe("Jul 31, 2026");
+    expect(formatDate(new Date("2026-07-31T12:00:00Z"), "en")).toBe("Jul 31, 2026");
+  });
+
+  it("formats in the active locale, not en-US", () => {
+    // Month name and day-month order come from the runtime, so the locale has
+    // to reach the formatter - under `pl` this read "Jul 31, 2026" before #649.
+    expect(formatDate("2026-07-31T12:00:00Z", "pl")).toBe("31 lip 2026");
   });
 
   it("says nothing rather than 'Invalid Date' for what it cannot read", () => {
     // Which is what a listing shows for a row whose timestamp the API omitted.
-    expect(formatDate(null)).toBe("-");
-    expect(formatDate(undefined)).toBe("-");
-    expect(formatDate("")).toBe("-");
-    expect(formatDate("not a date")).toBe("-");
+    expect(formatDate(null, "en")).toBe("-");
+    expect(formatDate(undefined, "en")).toBe("-");
+    expect(formatDate("", "en")).toBe("-");
+    expect(formatDate("not a date", "en")).toBe("-");
   });
 });
 
 describe("formatDateTime", () => {
   it("reads a timestamp down to the minute", () => {
-    expect(formatDateTime("2026-07-31T12:34:00Z")).toMatch(/Jul 31, 2026/);
-    expect(formatDateTime(new Date("2026-07-31T12:34:00Z"))).toMatch(/Jul 31, 2026/);
+    expect(formatDateTime("2026-07-31T12:34:00Z", "en")).toMatch(/Jul 31, 2026/);
+    expect(formatDateTime(new Date("2026-07-31T12:34:00Z"), "en")).toMatch(/Jul 31, 2026/);
+  });
+
+  it("formats in the active locale, not en-US", () => {
+    expect(formatDateTime("2026-07-31T12:34:00Z", "pl")).toMatch(/31 lip 2026/);
   });
 });
 

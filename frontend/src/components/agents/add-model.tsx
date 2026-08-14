@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Check, KeyRound, Plus } from "lucide-react";
 
+import { getErrorMessage } from "@/lib/api-error";
 import { ModelCombobox } from "@/components/agents/model-combobox";
 import { InlineSecret } from "@/components/vault/inline-secret";
 import { ProviderRow } from "@/components/vault/provider-row";
@@ -23,7 +24,6 @@ import {
   useSecretPurposes,
   useSecrets,
 } from "@/hooks";
-import { getErrorMessage } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 import type { ModelProfile } from "@/types/providers";
 import { useTranslations } from "next-intl";
@@ -31,6 +31,20 @@ import { useTranslations } from "next-intl";
 interface AddModelProps {
   /** Called with the new model once it exists, so the picker can select it. */
   onCreated: (profile: ModelProfile) => void;
+  /**
+   * The model the agent runs on today, which this form *starts on*.
+   *
+   * So the two selects say what is in use rather than "Choose a provider" above a
+   * separate line repeating it. There used to be such a line, and with the labels
+   * derived the way they are it read the model twice - but the deeper problem was
+   * that the panel showed the answer in one place and asked the question in
+   * another, when they are the same two fields.
+   *
+   * Its own state either way: this is still the form that *changes* the model, so
+   * editing it must not write anything until somebody submits. The caller remounts
+   * on a change of selection - see the `key` in `ModelProfilePicker`.
+   */
+  selected?: ModelProfile;
   /**
    * The way out, where there is one.
    *
@@ -112,7 +126,8 @@ export function modelIdIsWellFormed(providerId: string, model: string): boolean 
   return providerId !== "openrouter" || model.includes("/");
 }
 
-export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
+export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelProps) {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
   // Root, for the absolute keys `modelPlaceholder` answers with - see the note on
   // `placeholderWords`. The chat's picker resolves the same keys from its own
@@ -129,11 +144,11 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
   // control.
   const canStoreKey = can(Perm.secretsEdit);
 
-  const [providerId, setProviderId] = useState("");
-  const [model, setModel] = useState("");
+  const [providerId, setProviderId] = useState(selected?.provider ?? "");
+  const [model, setModel] = useState(selected?.model ?? "");
   const [label, setLabel] = useState("");
-  const [secretId, setSecretId] = useState("");
-  const [baseUrl, setBaseUrl] = useState("");
+  const [secretId, setSecretId] = useState(selected?.secret_id ?? "");
+  const [baseUrl, setBaseUrl] = useState(selected?.base_url ?? "");
   const [failure, setFailure] = useState<string | null>(null);
   const [naming, setNaming] = useState(false);
 
@@ -162,16 +177,45 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
   const derivedLabel =
     provider && model.trim() ? `${provider.label} · ${model.trim()}` : t("howAgentsReferModel");
 
+  // Whether the form is still showing the model it *started* on, untouched.
+  //
+  // What makes pre-filling safe: pressing the button without changing anything
+  // selects that model again rather than minting a second row saying the same
+  // thing. Narrowed to `selected` rather than "any profile with this pair", which
+  // was the first attempt and was wrong twice over. It renamed the button whenever
+  // the organization happened to already have the pair - so a flow that deliberately
+  // re-adds one found no "Add model" to press - and worse, it would then have
+  // *selected the old profile* while ignoring the endpoint, the key and the name
+  // somebody had just typed. A form with any of those filled in is creating
+  // something, whatever its first two fields say.
+  const unchanged =
+    selected !== undefined &&
+    provider?.id === selected.provider &&
+    model.trim() === selected.model &&
+    label.trim() === "" &&
+    baseUrl.trim() === (selected.base_url ?? "") &&
+    // The key is part of "changed" too: an organization with two keys for one
+    // provider can re-point a model at the other, and a submit that ignored this
+    // would select the old profile and silently drop the key just picked.
+    (secretId === "" || secretId === (selected.secret_id ?? ""));
+  const already = unchanged ? selected : undefined;
+
   const canSubmit =
     provider !== undefined &&
     model.trim() !== "" &&
-    (chosenKey !== "" || keyOptional) &&
+    // A model the organization already has needs no key decision: it has whatever
+    // it was created with, and this submit only selects it.
+    (already !== undefined || chosenKey !== "" || keyOptional) &&
     modelIdIsWellFormed(provider.id, model.trim());
 
   const submit = async () => {
     /* v8 ignore next -- the id comes from the list this select was built from */
     if (provider === undefined) return;
     setFailure(null);
+    if (already !== undefined) {
+      onCreated(already);
+      return;
+    }
     try {
       const profile = await createProfile.mutateAsync({
         label: label.trim() || `${provider.label} · ${model.trim()}`,
@@ -191,7 +235,7 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
       // refusal this endpoint gives is about the model id - a bare id where the
       // provider namespaces them, an endpoint that is not a URL - so it belongs
       // under the field, where it can be fixed.
-      setFailure(getErrorMessage(error));
+      setFailure(getErrorMessage(error, tErrors));
     }
   };
 
@@ -394,8 +438,8 @@ export function AddModel({ onCreated, onCancel, disabled }: AddModelProps) {
           disabled={disabled || !canSubmit || createProfile.isPending}
           onClick={submit}
         >
-          <Plus className="h-4 w-4" />
-          {t("addModel")}
+          {already === undefined && <Plus className="h-4 w-4" />}
+          {already === undefined ? t("addModel") : t("useThisModel")}
         </Button>
         {onCancel && (
           <Button type="button" size="sm" variant="ghost" onClick={onCancel}>

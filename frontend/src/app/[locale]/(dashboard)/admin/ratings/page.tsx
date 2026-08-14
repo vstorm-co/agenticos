@@ -19,6 +19,7 @@ const RatingsChart = dynamic(() => import("./ratings-chart").then((m) => m.Ratin
   loading: () => <div className="bg-foreground/5 h-full w-full animate-pulse rounded-md" />,
 });
 
+import { getErrorMessage } from "@/lib/api-error";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -32,18 +33,19 @@ import {
 } from "@/components/ui/select";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
-import { getErrorMessage } from "@/lib/utils";
 import { ErrorState } from "@/components/states";
 import { ROUTES } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
 import type { MessageRatingListResponse, MessageRatingWithDetails, RatingSummary } from "@/types";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 const PAGE_SIZE = 50;
 type RatingFilter = "all" | "positive" | "negative";
 
 export default function AdminRatingsPage() {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("pages.admin");
+  const locale = useLocale();
   const [filter, setFilter] = useState<RatingFilter>("all");
   const [commentsOnly, setCommentsOnly] = useState(false);
   const [page, setPage] = useState(0);
@@ -105,7 +107,7 @@ export default function AdminRatingsPage() {
       className: "whitespace-nowrap",
       cell: (r) => (
         <span className="text-muted-foreground font-mono text-xs tabular-nums">
-          {formatDate(r.created_at)}
+          {formatDate(r.created_at, locale)}
         </span>
       ),
     },
@@ -197,7 +199,7 @@ export default function AdminRatingsPage() {
       {summaryError ? (
         <ErrorState
           title={t("couldnTLoadSummary")}
-          description={getErrorMessage(summaryError, t("ratingsSummaryRequestFailed"))}
+          description={getErrorMessage(summaryError, tErrors, t("ratingsSummaryRequestFailed"))}
           cta={{ label: t("tryAgain"), onClick: () => void refetchSummary() }}
         />
       ) : (
@@ -302,7 +304,7 @@ export default function AdminRatingsPage() {
           ratingsError ? (
             <ErrorState
               title={t("couldnTLoadRatings")}
-              description={getErrorMessage(ratingsError, t("ratingsRequestFailed"))}
+              description={getErrorMessage(ratingsError, tErrors, t("ratingsRequestFailed"))}
               cta={{ label: t("tryAgain2"), onClick: () => void refetchRatings() }}
             />
           ) : null

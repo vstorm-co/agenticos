@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import {
   READABLE_ATTRS,
   duplicatedInSource,
-  isSwept,
   isTemplateCopy,
   missingKeys,
   offences,
@@ -389,6 +388,22 @@ describe("a string literal", () => {
     expect(said(source)).toEqual(["string 'Escape a \\\\ and a \\' in one sentence'"]);
   });
 
+  it("refuses prose whose first word is hyphenated (#656)", () => {
+    // The hyphen inside `Sign-in` read as the separator in `Foo / Bar`, so the whole
+    // sentence was a label and left the sweep silently. `Sign-in failed` and `Sign-in
+    // successful` survived #603's sweep of the BFF handlers that way, and it was review
+    // that found them (#654), not the guard.
+    expect(saidTs('const x = "Sign-in failed";\n')).toEqual(["string 'Sign-in failed'"]);
+    expect(saidTs('const x = "Auto-refresh is on";\n')).toEqual(["string 'Auto-refresh is on'"]);
+  });
+
+  it("passes a label built from title case around a separator", () => {
+    // What that exemption is for, and the bound on the tightening above: the separator
+    // joins two capitalised tokens, which is the one thing prose does not do.
+    expect(saidTs('const x = "Model / Provider";\n')).toEqual([]);
+    expect(saidTs('const x = "Agent - Settings";\n')).toEqual([]);
+  });
+
   it("passes a two-token label, an icon name and an import", () => {
     expect(said('import { Button } from "@/components/ui/button";\n')).toEqual([]);
     expect(said('const icon = "chevron-right";\n')).toEqual([]);
@@ -491,7 +506,9 @@ describe("a .ts file", () => {
   });
 
   it("keeps a short acronym label out of the report (#678)", () => {
-    expect(saidTs('const labels = ["API", "MCP server"];\n')).toEqual([]);
+    expect(saidTs('const labels = ["API", "MCP server", "AI agents"];\n')).toEqual([]);
+    // One lower-case word, not a phrase: the `$` is the whole of the narrowing.
+    expect(saidTs('const label = "MCP server URL";\n')).toEqual(["string 'MCP server URL'"]);
   });
 
   it("refuses a label on an export const, which the keyword skip used to hide", () => {
@@ -521,19 +538,14 @@ describe("a .ts file", () => {
     expect(saidTs("  const over = used > limit && remaining;\n")).toEqual([]);
   });
 
-  it("skips the BFF route handlers, and only for the offence sweep (#603)", () => {
-    // Not exempt in itself - a route payload is a string a rule reads perfectly well, and
-    // what excuses it is where it lives. Pinned both ways so a rule change that stopped
-    // reading this shape cannot make the skip look unnecessary.
+  it("reads a BFF route payload like any other string (#603)", () => {
+    // The handlers used to be skipped for want of a translator; a refusal is now a
+    // `BFF_ERROR_KEYS` code the client resolves, so English prose in one is an
+    // offence like anywhere else - and a code, having no whitespace, is not.
     const payload = 'return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });\n';
 
     expect(saidTs(payload)).toEqual(["string 'Not authenticated'"]);
-    expect(isSwept("app/api/orgs/[id]/route.ts")).toBe(false);
-    expect(isSwept("hooks/use-members.ts")).toBe(true);
-  });
-
-  it("matches that skip below src, so a deeper app/api is not covered by it", () => {
-    expect(isSwept("components/app/api/thing.ts")).toBe(true);
+    expect(saidTs('return bffRefusal("NOT_AUTHENTICATED", 401);\n')).toEqual([]);
   });
 
   it("lets a .ts file claim an exemption, and still asks it for a reason", () => {

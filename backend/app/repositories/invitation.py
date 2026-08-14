@@ -100,6 +100,13 @@ async def revoke(db: AsyncSession, invite: Invitation) -> Invitation:
     return invite
 
 
+async def expire(db: AsyncSession, invite: Invitation) -> Invitation:
+    invite.status = InvitationStatus.EXPIRED.value
+    await db.flush()
+    await db.refresh(invite)
+    return invite
+
+
 async def expire_stale(db: AsyncSession) -> int:
     """Mark all PENDING invitations past their expiry as EXPIRED. Returns count updated."""
     result = await db.execute(
