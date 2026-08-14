@@ -945,16 +945,38 @@
      inset highlight is the pane's top edge catching light; without it the
      blur reads as fog rather than glass. */
   .glass {
-    border: 1px solid color-mix(in oklab, var(--color-foreground) 14%, transparent);
-    background: color-mix(in oklab, var(--color-card) 62%, transparent);
-    -webkit-backdrop-filter: blur(18px) saturate(1.5);
-    backdrop-filter: blur(18px) saturate(1.5);
+    border: 1px solid color-mix(in oklab, var(--color-foreground) 16%, transparent);
+    background: color-mix(in oklab, var(--color-card) 55%, transparent);
+    -webkit-backdrop-filter: blur(24px) saturate(1.8);
+    backdrop-filter: blur(24px) saturate(1.8);
+    /* Three shadows are the materiality: the top-edge highlight that says
+       "pane, not fog", a soft lift off the page, and a wide ambient drop -
+       over a light page the see-through part is nearly invisible, so the
+       separation has to come from the edges. */
     box-shadow:
-      inset 0 1px 0 0 color-mix(in oklab, white 14%, transparent),
-      0 8px 32px -12px rgb(0 0 0 / 0.35);
+      inset 0 1px 0 0 color-mix(in oklab, white 20%, transparent),
+      0 1px 2px 0 rgb(0 0 0 / 0.08),
+      0 12px 40px -12px rgb(0 0 0 / 0.3);
+  }
+  /* The same pane, nearly opaque - for dialogs and drawers, which sit over a
+     dimmed overlay. At 55% the black scrim behind them wins: a light-mode
+     panel turns murky grey under its own dark text. 85% keeps the panel's
+     luminance while the blurred page still ghosts through the edges - the
+     macOS proportion too: menus are the translucent ones, window sheets
+     barely. */
+  .glass-strong {
+    border: 1px solid color-mix(in oklab, var(--color-foreground) 16%, transparent);
+    background: color-mix(in oklab, var(--color-card) 85%, transparent);
+    -webkit-backdrop-filter: blur(24px) saturate(1.8);
+    backdrop-filter: blur(24px) saturate(1.8);
+    box-shadow:
+      inset 0 1px 0 0 color-mix(in oklab, white 20%, transparent),
+      0 1px 2px 0 rgb(0 0 0 / 0.08),
+      0 12px 40px -12px rgb(0 0 0 / 0.3);
   }
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    .glass {
+    .glass,
+    .glass-strong {
       background: var(--color-card);
     }
   }

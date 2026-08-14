@@ -52,7 +52,7 @@ export function SheetContent({ children, className, side = "left" }: SheetConten
       role="dialog"
       aria-modal="true"
       className={cn(
-        "bg-background fixed inset-y-0 z-50 flex w-72 flex-col shadow-lg",
+        "glass-strong fixed inset-y-0 z-50 flex w-72 flex-col",
         "animate-in duration-300",
         side === "left" ? "slide-in-from-left left-0" : "slide-in-from-right right-0",
         className,

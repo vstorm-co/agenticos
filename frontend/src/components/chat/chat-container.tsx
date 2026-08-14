@@ -381,7 +381,9 @@ function ChatUI({
             transparent gutters beside the column do not swallow clicks and the
             scrollbar's bottom stays draggable; each child takes its own
             pointer-events back. */}
-        <div ref={dockRef} className="pointer-events-none absolute inset-x-0 bottom-0">
+        {/* z-20: a message avatar carries z-10 of its own, and without a higher
+            index here it rides over the glass instead of blurring under it. */}
+        <div ref={dockRef} className="pointer-events-none absolute inset-x-0 bottom-0 z-20">
           {pendingApproval && onResumeDecisions && (
             <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
               <ToolApprovalDialog

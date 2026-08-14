@@ -146,7 +146,7 @@ export function CommandPalette() {
       label={t("commandPalette")}
       shouldFilter
       overlayClassName="bg-background/50 fixed inset-0 z-[60] backdrop-blur-sm"
-      contentClassName="border-foreground/15 bg-card text-foreground fixed left-1/2 top-[12vh] z-[61] w-[min(92vw,640px)] -translate-x-1/2 overflow-hidden rounded-2xl border shadow-2xl"
+      contentClassName="glass text-foreground fixed left-1/2 top-[12vh] z-[61] w-[min(92vw,640px)] -translate-x-1/2 overflow-hidden rounded-2xl"
     >
       <div className="border-foreground/10 flex items-center gap-3 border-b px-4 py-3">
         <Search className="text-foreground/45 h-4 w-4" />
