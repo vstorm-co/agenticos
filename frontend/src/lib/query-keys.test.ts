@@ -97,6 +97,11 @@ describe("the query key factory", () => {
       true,
       "no-min",
       "any-rating",
+      "any-status",
+      "any-surface",
+      "anyone",
+      "any-version",
+      0,
     ]);
     expect(qk.runs.list({ agentId: "a1" })).toEqual([
       "runs",
@@ -108,6 +113,11 @@ describe("the query key factory", () => {
       true,
       "no-min",
       "any-rating",
+      "any-status",
+      "any-surface",
+      "anyone",
+      "any-version",
+      0,
     ]);
   });
 
@@ -135,6 +145,11 @@ describe("the query key factory", () => {
       true,
       30_000,
       "any-rating",
+      "any-status",
+      "any-surface",
+      "anyone",
+      "any-version",
+      0,
     ]);
   });
 
@@ -151,6 +166,11 @@ describe("the query key factory", () => {
       true,
       "no-min",
       "down",
+      "any-status",
+      "any-surface",
+      "anyone",
+      "any-version",
+      0,
     ]);
     expect(qk.runs.list({ rated: "down" })).not.toEqual(qk.runs.list());
   });

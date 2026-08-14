@@ -131,6 +131,21 @@ describe("useRuns", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(apiClient.get).toHaveBeenCalledWith("/runs", { params: { rated: "down" } });
   });
+
+  it("narrows by person and version, and pages by rows to skip", async () => {
+    // The filter bar's two identity narrowings and the pager's offset, in the
+    // route's own names - each computed in SQL over the whole history.
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    const { result } = renderHook(
+      () => useRuns(undefined, { userId: "user-7", agentVersionId: "ver-2", skip: 50 }),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith("/runs", {
+      params: { user_id: "user-7", agent_version_id: "ver-2", skip: "50" },
+    });
+  });
 });
 
 describe("useRunTranscript", () => {
