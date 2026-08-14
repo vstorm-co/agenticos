@@ -5,7 +5,7 @@ what happened (runs), what needs a person (approvals), and what it cost (spend).
 """
 
 from datetime import UTC, datetime, timedelta
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
@@ -225,8 +225,21 @@ async def get_run_transcript(
     ctx: Auth,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
+    scope: Literal["run", "conversation"] = Query(
+        "run",
+        description=(
+            "`run` answers the run's own turns; `conversation` answers the whole "
+            "thread it sits in, each turn carrying its `run_id` so a client can "
+            "still tell which ones are this run's"
+        ),
+    ),
 ) -> Any:
     """The turns one run produced, for a run detail view to render as steps.
+
+    `scope=conversation` is the detail view showing the run in context: the whole
+    thread, scrolled to the run. It widens nothing - every turn a run writes
+    carries its `run_id`, so the thread was already assemblable by iterating its
+    runs' transcripts under the same `runs:view`.
 
     No `require(...)` gate, on purpose: reading a run is authorized rather than
     owned, so the decision belongs to the service, which resolves the run against
@@ -239,7 +252,9 @@ async def get_run_transcript(
     the response says "there is no transcript" rather than answering an empty list
     that reads as "the run did nothing".
     """
-    run, messages, total = await service.get_run_transcript(ctx, run_id, skip=skip, limit=limit)
+    run, messages, total = await service.get_run_transcript(
+        ctx, run_id, skip=skip, limit=limit, whole_conversation=scope == "conversation"
+    )
     ratings = await service.transcript_ratings(ctx, [m.id for m in messages])
     return RunTranscript(
         run_id=run.id,

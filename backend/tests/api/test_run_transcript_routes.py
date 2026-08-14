@@ -92,6 +92,31 @@ async def test_the_transcript_is_served_with_its_run_and_turns() -> None:
     ]
     # The caller and the id reached the service; the route decides nothing itself.
     assert service.get_run_transcript.await_args.args[1] == run.id
+    # The default scope is the run's own turns, not the thread.
+    assert service.get_run_transcript.await_args.kwargs["whole_conversation"] is False
+
+
+async def test_the_conversation_scope_reaches_the_service_as_the_whole_thread() -> None:
+    """`?scope=conversation` is the detail view showing the run in context; the
+    route's whole job is to translate the word into the service's flag."""
+    run = MagicMock(id=uuid4(), conversation_id=uuid4())
+    service = MagicMock(
+        get_run_transcript=AsyncMock(return_value=(run, [], 0)),
+        transcript_ratings=AsyncMock(return_value={}),
+    )
+
+    async with _client(service) as client:
+        response = await client.get(f"/api/v1/runs/{run.id}/transcript?scope=conversation")
+
+    assert response.status_code == 200, response.text
+    assert service.get_run_transcript.await_args.kwargs["whole_conversation"] is True
+
+
+async def test_a_scope_outside_the_vocabulary_is_refused() -> None:
+    async with _client(MagicMock()) as client:
+        response = await client.get(f"/api/v1/runs/{uuid4()}/transcript?scope=everything")
+
+    assert response.status_code == 422
 
 
 async def test_a_down_rated_turn_carries_its_verdict_and_the_words_left_with_it() -> None:

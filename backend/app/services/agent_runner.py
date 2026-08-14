@@ -3362,9 +3362,22 @@ class AgentRunnerService:
         return await agent_run_repo.neighbor_run_ids(self.db, run)
 
     async def get_run_transcript(
-        self, ctx: AuthContext, run_id: UUID, *, skip: int = 0, limit: int = 100
+        self,
+        ctx: AuthContext,
+        run_id: UUID,
+        *,
+        skip: int = 0,
+        limit: int = 100,
+        whole_conversation: bool = False,
     ) -> tuple[AgentRun, list[Message], int]:
         """One run, and the turns it produced - authorized, not owned.
+
+        `whole_conversation` widens the read to every turn of the thread the run
+        sits in, for a detail view that shows the run *in context* and scrolls to
+        it. It is a convenience, not a reach: every turn a run writes carries its
+        `run_id` - the user's question included - so a caller holding `runs:view`
+        can already assemble the thread by iterating its runs' transcripts, and
+        this answers the same rows in one read, ordered as they were written.
 
         Reading a run is the organization's right rather than its starter's: a
         colleague holding `runs:view` reads a run somebody else began, which is
@@ -3408,10 +3421,16 @@ class AgentRunnerService:
             )
         if run.conversation_id is None:
             return run, [], 0
-        messages = await conversation_repo.get_messages_by_run(
-            self.db, run.id, skip=skip, limit=limit, include_tool_calls=True
-        )
-        total = await conversation_repo.count_messages_by_run(self.db, run.id)
+        if whole_conversation:
+            messages = await conversation_repo.get_messages_by_conversation(
+                self.db, run.conversation_id, skip=skip, limit=limit, include_tool_calls=True
+            )
+            total = await conversation_repo.count_messages(self.db, run.conversation_id)
+        else:
+            messages = await conversation_repo.get_messages_by_run(
+                self.db, run.id, skip=skip, limit=limit, include_tool_calls=True
+            )
+            total = await conversation_repo.count_messages_by_run(self.db, run.id)
         return run, messages, total
 
     async def transcript_ratings(
