@@ -59,6 +59,15 @@ class AgentRunRead(BaseSchema):
         ),
     )
     error: str | None = None
+    conversation_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The thread the run ran inside, or null when nothing conversational "
+            "started it - an API call, a resumed run. What the run table's "
+            "open-chat link names; without it on the wire the frontend once "
+            "built /chat?id=undefined from the absence"
+        ),
+    )
     down_rated: bool = Field(
         default=False,
         description=(

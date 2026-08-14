@@ -32,6 +32,7 @@ from app.main import app
 pytestmark = pytest.mark.anyio
 
 _ORGANIZATION_ID = uuid4()
+_CONVERSATION_ID = uuid4()
 
 
 @asynccontextmanager
@@ -221,6 +222,7 @@ class TestTheDownRatedMarkerReachesTheRow:
             cost_usd=Decimal("0.01"),
             cost_is_partial=False,
             provider="openrouter",
+            conversation_id=_CONVERSATION_ID,
         )
 
     async def test_a_run_rated_down_is_marked_and_an_unrated_one_is_not(self):
@@ -237,8 +239,13 @@ class TestTheDownRatedMarkerReachesTheRow:
         assert by_id[str(disliked.id)] is True
         assert by_id[str(clean.id)] is False
         assert service.down_rated_run_ids.await_args.args[1] == [disliked.id, clean.id]
-        # The vendor rides the row too - what the table keys a brand mark on.
+        # The vendor and the thread ride the row too: the brand mark keys on
+        # one, the open-chat link names the other - absent from the wire, the
+        # frontend once built /chat?id=undefined out of the gap.
         assert {item["provider"] for item in response.json()["items"]} == {"openrouter"}
+        assert {item["conversation_id"] for item in response.json()["items"]} == {
+            str(_CONVERSATION_ID)
+        }
 
     async def test_an_empty_page_asks_for_no_marker_at_all(self):
         """Nothing to mark, so the marker query is skipped rather than asked with
