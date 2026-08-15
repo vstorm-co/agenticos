@@ -90,7 +90,14 @@ export function Figure({
         </p>
       ) : null}
       {spark && spark.length >= 2 ? (
-        <div className="mt-3 h-9 w-full">
+        // Grows into whatever the tile has left, which does two jobs. In a row
+        // of tiles only some carry a caption, so a sparkline that simply
+        // followed the text started a line lower on those and the four series
+        // read against four different baselines - the thing a row of
+        // sparklines exists to let you compare. And in a card taller than its
+        // numbers the series becomes a chart rather than a 36px line floating
+        // above an inch of nothing.
+        <div className="min-h-9 w-full flex-1 pt-3">
           <FigureSpark spark={spark} />
         </div>
       ) : null}

@@ -71,7 +71,7 @@ export function SpendWidget({ title, hint, period, seeAll }: DashboardWidgetProp
                 }))}
               />
               {spend ? (
-                <p className="text-muted-foreground border-border border-t border-dashed pt-2 text-xs">
+                <p className="text-muted-foreground border-foreground/8 border-t pt-3 text-xs">
                   {t("monthToDate", { amount: formatUsd(spend.month_to_date_usd) })}
                 </p>
               ) : null}

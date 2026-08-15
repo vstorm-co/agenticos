@@ -7,13 +7,6 @@ export interface DonutSegment {
   value: number;
   /** The ring's fill. A CSS colour, usually a `var(--color-*)` token. */
   color: string;
-  /**
-   * The legend dot, when the segment's fill is too washed to carry identity at
-   * 8px. A large block takes a tint and a small mark takes the tone, so the
-   * one segment that fills most of the ring paints itself differently in the
-   * two places. Defaults to `color`, which is right for every sliver.
-   */
-  tone?: string;
 }
 
 /**
@@ -42,14 +35,19 @@ export function DonutChartImpl({
             fontSize: "12px",
           }}
         />
+        {/* The gap between arcs is the card showing through, not a paddingAngle:
+            a rotational gap grows with the arc it precedes, so a 1% sliver
+            ended up mostly gap. A 2px stroke in the surface colour separates
+            every pair by the same amount however small either is. */}
         <Pie
           data={segments}
           dataKey="value"
           nameKey="name"
-          innerRadius="68%"
-          outerRadius="92%"
-          paddingAngle={2}
-          strokeWidth={0}
+          innerRadius="70%"
+          outerRadius="94%"
+          cornerRadius={3}
+          stroke="var(--color-card)"
+          strokeWidth={2}
           isAnimationActive={false}
         >
           {segments.map((segment) => (

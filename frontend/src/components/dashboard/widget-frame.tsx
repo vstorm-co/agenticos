@@ -6,6 +6,7 @@ import { Info } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Card, Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui";
+import { CARD_SURFACE } from "@/lib/dashboard/system";
 import { cn } from "@/lib/utils";
 
 interface WidgetFrameProps {
@@ -37,12 +38,26 @@ interface WidgetFrameProps {
  *
  * `h-full` so a card stretched by a taller row sibling fills its cell instead
  * of leaving slack under the border.
+ *
+ * `overflow-hidden` is load-bearing, not tidiness: a body that cannot shrink to
+ * the height its cell was given - the heatmap's twenty-four aspect-square
+ * columns were the case - otherwise paints *over* this header rather than
+ * being clipped by the card that holds it.
  */
 export function WidgetFrame({ title, hint, seeAll, className, children }: WidgetFrameProps) {
   const t = useTranslations("dashboard");
   return (
-    <Card className={cn("flex h-full min-w-0 flex-col", className)}>
-      <div className="border-border flex items-center justify-between gap-2 border-b px-5 py-3">
+    <Card
+      className={cn(
+        CARD_SURFACE,
+        "flex h-full min-w-0 flex-col overflow-hidden shadow-none",
+        className,
+      )}
+    >
+      {/* The rule under the heading is the card's own edge tone, not the page's
+          border: on a translucent surface `border-border` is a hard grey line
+          drawn across frosted glass. */}
+      <div className="border-foreground/8 flex items-center justify-between gap-2 border-b px-5 py-3.5">
         <div className="flex min-w-0 items-center gap-1.5">
           <h3 className="text-foreground truncate text-sm font-semibold tracking-tight">{title}</h3>
           {hint ? <WidgetHint title={title} text={hint} /> : null}
@@ -56,7 +71,10 @@ export function WidgetFrame({ title, hint, seeAll, className, children }: Widget
           </Link>
         ) : null}
       </div>
-      <div className="flex min-h-0 flex-1 flex-col p-5">{children}</div>
+      {/* Scrolls, because the card clips. A list longer than the height its
+          owner gave the card - eight service probes in a two-row cell - would
+          otherwise be silently cut off at the border with nothing to say so. */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-5">{children}</div>
     </Card>
   );
 }

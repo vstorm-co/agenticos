@@ -55,6 +55,28 @@
   --brand-800: oklch(40% calc(var(--brand-c) * 0.82) var(--brand-h));
   --brand-900: oklch(31% calc(var(--brand-c) * 0.62) var(--brand-h));
   --brand-950: oklch(23% calc(var(--brand-c) * 0.42) var(--brand-h));
+
+  /* The categorical ramp: five washed hues for a chart whose segments are
+     *parts of one whole* - a donut, a stacked meter. Nominal lists (bars,
+     rows) still take one hue; this is for the one shape where identity is the
+     only channel there is.
+
+     Plain properties rather than `@theme` for the reason the brand ramp is:
+     recharts renders raw SVG, so these are read as `var(--series-n)` from TS
+     and no Tailwind utility ever names them - an `@theme` colour nothing
+     references is tree-shaken out of the build.
+
+     Hue AND lightness are both spread, which is what makes five pastels
+     survivable: at equal lightness five washed tones measure ΔE 0.8 under
+     deuteranopia (one colour to about one man in twelve). This set measures
+     8.3 light and 17.5 dark on the worst pair under deuteranopia and
+     protanopia, and 19.7 / 24.4 in normal vision. Every chart drawn in it
+     still prints its numbers, because separation is not legibility. */
+  --series-1: oklch(74% 0.085 262);
+  --series-2: oklch(82% 0.085 178);
+  --series-3: oklch(88% 0.085 82);
+  --series-4: oklch(72% 0.1 22);
+  --series-5: oklch(66% 0.09 312);
 }
 
 @theme {
@@ -85,26 +107,29 @@
   --color-brand-line: var(--brand-300);
   /* Chart strokes/fills, and the track a fill runs along.
 
-     One step, both themes: `brand-500` measures 3.74:1 on the white card and
-     5.07:1 on the dark one, so it clears the 3:1 floor a data mark owes its
-     surface without the shout `brand-600` had in light (4.99:1). A mark is
-     small and repeated - a bar list is six of them - and the loudest legal
-     value is not the right one.
+     Off the brand ramp on purpose, where they used to be `brand-500/400/100`.
+     The ramp's job is the accent - a button, a link, a focus ring - and it is
+     saturated for it; a page of eleven cards drawn in the same steps reads as a
+     poster rather than as data. Data ink is that hue at about a third of its
+     chroma.
 
-     The track is the same ramp, several steps away from the fill (`dataviz`'s
-     meter rule: the unfilled part of a bar is a step of the fill's own hue,
-     never a neutral alpha) - lighter in light, darker in dark, because what a
-     track has to be is *quieter than its surface's opposite*, not lighter in
-     the abstract. It measures 1.19:1 light and 1.11:1 dark, deliberately below
-     any contrast floor: a track carries no value. It shows a bar's extent, and
-     every list that draws one prints the number as text beside it.
+     Measured, not judged. The **stroke** is the only mark whose colour is its
+     whole channel - a hairline under a spike - so it keeps a real floor: 3.39:1
+     on the light card, 8.21:1 on the dark one, both clear of the 3:1 a mark owes
+     its surface. The **fill** covers area, and area takes a tint: 1.63:1 light
+     and 3.43:1 dark, deliberately under that floor, which is only allowed
+     because every list drawn in it prints its number as text beside the bar.
 
-     `brand-900` was tried in dark and is why the pair is measured rather than
-     picked: at 1.41:1 it reads as a filled bar, so a provider that spent
-     nothing showed a full-width mark against $0.00. */
-  --color-chart: var(--brand-500);
-  --color-chart-fill: var(--brand-400);
-  --color-track: var(--brand-100);
+     The **track** is the fill's own hue several steps away (`dataviz`'s meter
+     rule: the unfilled part of a bar is a step of the fill's hue, never a
+     neutral alpha) - lighter in light, darker in dark, because what a track has
+     to be is *quieter than its surface's opposite*, not lighter in the abstract.
+     It carries no value at all: 1.16:1 light, 1.22:1 dark. `brand-900` was tried
+     in dark and is why this one is measured - at 1.41:1 it read as a filled bar,
+     so a provider that spent nothing showed a full-width mark against $0.00. */
+  --color-chart: oklch(64% 0.13 259);
+  --color-chart-fill: oklch(84% 0.07 259);
+  --color-track: oklch(95% 0.012 259);
 
   /* Light theme - cool near-white, Logfire-family neutrals. White cards and a
      white sidebar sit on a faintly cooler page so the layers read without a
@@ -131,20 +156,23 @@
   --color-muted-foreground: oklch(45% 0 0);
   --color-accent: oklch(94% 0.004 250);
   --color-accent-foreground: oklch(20% 0 0);
-  --color-destructive: oklch(57.7% 0.245 27.325);
+  /* Washed from `oklch(57.7% 0.245 27.325)`, which was the loudest thing on
+     any page it appeared on. At this chroma the fill still carries white text
+     at 4.85:1 - above the 4.5 a label owes its button - and reads as a refusal
+     rather than an alarm. */
+  --color-destructive: oklch(56% 0.17 25);
   --color-destructive-foreground: oklch(98.5% 0 0);
   /* Status tones. Off the accent hue on purpose - an accent that also means
-     "warning" means neither. Single values rather than per-theme ones because
-     both are only ever icons or low-alpha fills, never body text, and each
-     clears 3:1 against all four surfaces (light bg/card, dark bg/card). */
-  --color-warning: oklch(62% 0.136 68);
-  --color-success: oklch(60% 0.15 150);
-  /* The fill counterpart of `success`, and the only status tone that needs
-     one: `completed` is the segment that fills most of the outcomes ring, and
-     a large block takes a tint where a label takes the tone. Themed, unlike
-     the tones above, because a wash that reads calm on white reads as a glare
-     on near-black - the dark blocks below repoint it. */
-  --color-success-fill: oklch(82% 0.08 150);
+     "warning" means neither.
+
+     Themed, unlike the single values these replace: a dot and a pill are read
+     as text here, and one tone cannot be 4:1 on white and 8:1 on graphite.
+     Light measures success 4.08:1 and warning 3.42:1 on the card; dark 8.61:1
+     and 9.38:1. Both are a third off their old chroma, which is the whole
+     point - a healthy row is the commonest row on the page and should not be
+     the loudest. */
+  --color-warning: oklch(64% 0.1 72);
+  --color-success: oklch(58% 0.1 155);
   --color-border: oklch(89% 0.004 250);
   --color-input: oklch(89% 0.004 250);
   --color-ring: var(--color-brand);
@@ -208,10 +236,16 @@
     --color-accent-foreground: oklch(95% 0 0);
     --color-border: oklch(28% 0.008 250);
     --color-input: oklch(27% 0.008 250);
-    --color-chart: var(--brand-500);
-    --color-chart-fill: var(--brand-600);
-    --color-success-fill: oklch(52% 0.09 150);
-    --color-track: var(--brand-950);
+    --color-chart: oklch(74% 0.1 259);
+    --color-chart-fill: oklch(52% 0.085 259);
+    --color-track: oklch(26% 0.022 259);
+    --color-success: oklch(74% 0.11 155);
+    --color-warning: oklch(78% 0.1 78);
+    --series-1: oklch(60% 0.105 262);
+    --series-2: oklch(58% 0.08 178);
+    --series-3: oklch(66% 0.1 82);
+    --series-4: oklch(48% 0.105 22);
+    --series-5: oklch(44% 0.105 312);
   }
 }
 
@@ -243,10 +277,16 @@
   --color-accent-foreground: oklch(95% 0 0);
   --color-border: oklch(28% 0.008 250);
   --color-input: oklch(27% 0.008 250);
-  --color-chart: var(--brand-500);
-  --color-chart-fill: var(--brand-600);
-  --color-success-fill: oklch(52% 0.09 150);
-  --color-track: var(--brand-950);
+  --color-chart: oklch(74% 0.1 259);
+  --color-chart-fill: oklch(52% 0.085 259);
+  --color-track: oklch(26% 0.022 259);
+  --color-success: oklch(74% 0.11 155);
+  --color-warning: oklch(78% 0.1 78);
+  --series-1: oklch(60% 0.105 262);
+  --series-2: oklch(58% 0.08 178);
+  --series-3: oklch(66% 0.1 82);
+  --series-4: oklch(48% 0.105 22);
+  --series-5: oklch(44% 0.105 312);
 }
 
 /* =========================================================================
@@ -275,10 +315,16 @@
   --color-brand-subtle: var(--brand-50);
   --color-brand-subtle-hover: var(--brand-100);
   --color-brand-line: var(--brand-300);
-  --color-chart: var(--brand-500);
-  --color-chart-fill: var(--brand-400);
-  --color-success-fill: oklch(82% 0.08 150);
-  --color-track: var(--brand-100);
+  --color-chart: oklch(64% 0.13 259);
+  --color-chart-fill: oklch(84% 0.07 259);
+  --color-track: oklch(95% 0.012 259);
+  --color-success: oklch(58% 0.1 155);
+  --color-warning: oklch(64% 0.1 72);
+  --series-1: oklch(74% 0.085 262);
+  --series-2: oklch(82% 0.085 178);
+  --series-3: oklch(88% 0.085 82);
+  --series-4: oklch(72% 0.1 22);
+  --series-5: oklch(66% 0.09 312);
 }
 
 .theme-dark {
@@ -300,10 +346,16 @@
   --color-brand-subtle: var(--brand-950);
   --color-brand-subtle-hover: var(--brand-900);
   --color-brand-line: var(--brand-800);
-  --color-chart: var(--brand-500);
-  --color-chart-fill: var(--brand-600);
-  --color-success-fill: oklch(52% 0.09 150);
-  --color-track: var(--brand-950);
+  --color-chart: oklch(74% 0.1 259);
+  --color-chart-fill: oklch(52% 0.085 259);
+  --color-track: oklch(26% 0.022 259);
+  --color-success: oklch(74% 0.11 155);
+  --color-warning: oklch(78% 0.1 78);
+  --series-1: oklch(60% 0.105 262);
+  --series-2: oklch(58% 0.08 178);
+  --series-3: oklch(66% 0.1 82);
+  --series-4: oklch(48% 0.105 22);
+  --series-5: oklch(44% 0.105 312);
 }
 
 @layer base {
@@ -1096,9 +1148,28 @@
       0 1px 2px 0 rgb(0 0 0 / 0.08),
       0 12px 40px -12px rgb(0 0 0 / 0.3);
   }
+  /* The resting version of the same material, for a card that sits *in* the
+     page rather than floating over it - the dashboard's widgets, and anything
+     else that wants the chat composer's surface without its elevation.
+     Three differences from `.glass`, all of them because it is at rest:
+     less blur (there is no scrolling transcript under it, only the ambient
+     wash), a quieter edge, and a shadow that lifts rather than throws. At 78%
+     the card keeps its own luminance - text on it is text on a card - while
+     the wash behind still tints the corners of a page of eleven of them. */
+  .glass-card {
+    border: 1px solid color-mix(in oklab, var(--color-foreground) 9%, transparent);
+    background: color-mix(in oklab, var(--color-card) 78%, transparent);
+    -webkit-backdrop-filter: blur(16px) saturate(1.4);
+    backdrop-filter: blur(16px) saturate(1.4);
+    box-shadow:
+      inset 0 1px 0 0 color-mix(in oklab, white 28%, transparent),
+      0 1px 2px 0 rgb(0 0 0 / 0.04),
+      0 8px 24px -16px rgb(0 0 0 / 0.25);
+  }
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     .glass,
-    .glass-strong {
+    .glass-strong,
+    .glass-card {
       background: var(--color-card);
     }
   }
@@ -1118,7 +1189,12 @@
     background:
       radial-gradient(720px circle at 8% 12%, var(--ambient-a), transparent 65%),
       radial-gradient(860px circle at 92% 6%, var(--ambient-b), transparent 60%),
-      radial-gradient(1000px circle at 80% 98%, var(--ambient-c), transparent 65%);
+      radial-gradient(1000px circle at 80% 98%, var(--ambient-c), transparent 65%),
+      /* A fourth, low and left. The backdrop is `fixed` and the dashboard
+         scrolls its own <main>, so a card crosses this wash as the page
+         moves - three blobs left the middle of a tall page flat, and a
+         translucent card over a flat field is a tinted card. */
+        radial-gradient(900px circle at 18% 78%, var(--ambient-b), transparent 62%);
   }
 }
 
@@ -1130,9 +1206,9 @@
    stays the page's own colour. Same two-selector shape as the theme blocks
    above. */
 :root {
-  --ambient-a: color-mix(in oklab, var(--color-foreground) 5%, transparent);
-  --ambient-b: color-mix(in oklab, var(--color-foreground) 3%, transparent);
-  --ambient-c: color-mix(in oklab, var(--color-foreground) 4%, transparent);
+  --ambient-a: color-mix(in oklab, var(--color-foreground) 7%, transparent);
+  --ambient-b: color-mix(in oklab, var(--color-foreground) 5%, transparent);
+  --ambient-c: color-mix(in oklab, var(--color-foreground) 6%, transparent);
 }
 @media (prefers-color-scheme: dark) {
   :root:not(.light) {

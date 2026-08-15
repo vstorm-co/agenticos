@@ -627,7 +627,8 @@
           "description": "Opóźnienie wymaga co najmniej jednego zakończonego uruchomienia."
         },
         "viewSlowest": "Otwórz te runy, od najwolniejszego",
-        "description": "Ile trwają uruchomienia — mediana i ogon rozkładu."
+        "description": "Ile trwają uruchomienia — mediana i ogon rozkładu.",
+        "tail": "Najwolniejsze 5% trwa {ratio}× dłużej niż mediana"
       },
       "active-users": {
         "title": "Aktywne osoby",
@@ -637,7 +638,9 @@
           "description": "Adopcja zaczyna się od pierwszego uruchomienia pierwszej osoby."
         },
         "description": "Ilu członków zespołu uruchomiło agenta w tym okresie.",
-        "ofMembers": "{total, plural, =1 {z 1 osoby} few {z # osób} many {z # osób} other {z # osób}}"
+        "ofMembers": "{total, plural, =1 {z 1 osoby} few {z # osób} many {z # osób} other {z # osób}}",
+        "ran": "Uruchomili agenta",
+        "didNot": "Nie uruchomili"
       },
       "top-people": {
         "title": "Kto z tego korzysta",
@@ -764,7 +767,8 @@
           "title": "Tylko Ty",
           "description": "Zaproś kogoś - adopcja potrzebuje ludzi."
         },
-        "description": "Kto jest w organizacji, według roli."
+        "description": "Kto jest w organizacji, według roli.",
+        "unit": "{count, plural, one {członek} few {członkowie} many {członków} other {członków}}"
       },
       "org-ratings": {
         "title": "Jakość odpowiedzi",

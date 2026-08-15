@@ -45,7 +45,12 @@ export function SummaryWidget({ title, hint, period, seeAll }: DashboardWidgetPr
           // without counting somebody twice, so it stays a number.
           const days = usage.by_day ?? [];
           return (
-            <div className="grid flex-1 grid-cols-2 content-center gap-5 lg:grid-cols-4">
+            // Stretching, not centred: three of the four figures carry a daily
+            // series, and a series that fills the card is the shape this strip
+            // is for. Centred, the numbers sat in the middle of the card with
+            // their sparklines pinned under them and the height its owner gave
+            // the card spent on nothing.
+            <div className="grid flex-1 grid-cols-2 gap-5 lg:grid-cols-4">
               <Figure
                 label={t("runs")}
                 value={runs.toLocaleString()}

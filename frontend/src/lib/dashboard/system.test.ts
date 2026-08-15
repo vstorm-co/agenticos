@@ -9,6 +9,8 @@ import {
   LINE_WIDTH,
   MARK_CLASS,
   QUIET_SURFACE,
+  SERIES_TOKENS,
+  seriesColor,
   TRACK_CLASS,
 } from "./system";
 
@@ -58,5 +60,28 @@ describe("the dashboard's data ink", () => {
     // times it.
     expect(AREA_FILL_OPACITY).toBeLessThanOrEqual(0.12);
     expect(LINE_WIDTH).toBe(2);
+  });
+});
+
+describe("the categorical ramp", () => {
+  it("holds five distinct colours, and no sixth", () => {
+    // Five is the count a reader can hold against a key; past it the chart is
+    // matched swatch by swatch. A sixth category is "other", not a sixth hue.
+    expect(SERIES_TOKENS).toHaveLength(5);
+    expect(new Set(SERIES_TOKENS).size).toBe(5);
+  });
+
+  it("names a variable for every colour, never a literal", () => {
+    // The ramp is themed - each step is a different value in light and dark -
+    // so a hex here would ship one theme's palette to both.
+    for (const token of SERIES_TOKENS) {
+      expect(token).toMatch(/^var\(--series-\d\)$/);
+    }
+  });
+
+  it("wraps rather than running out, so a sixth segment still gets ink", () => {
+    expect(seriesColor(0)).toBe(SERIES_TOKENS[0]);
+    expect(seriesColor(SERIES_TOKENS.length)).toBe(SERIES_TOKENS[0]);
+    expect(seriesColor(SERIES_TOKENS.length + 2)).toBe(SERIES_TOKENS[2]);
   });
 });

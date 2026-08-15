@@ -37,7 +37,7 @@ export function AgentsAdoptionWidget({ title, hint, period, seeAll }: DashboardW
                   {idle.map((name) => (
                     <span
                       key={name}
-                      className="text-warning border-warning/30 mr-1 inline-block rounded-full border px-2 py-0.5 whitespace-nowrap"
+                      className="bg-warning/12 text-warning mr-1 inline-block rounded-full px-2 py-0.5 whitespace-nowrap"
                     >
                       {name}
                     </span>

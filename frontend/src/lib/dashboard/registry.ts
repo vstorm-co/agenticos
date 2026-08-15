@@ -196,11 +196,13 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     category: "usage",
     seeAll: ROUTES.RUNS,
   },
+  // Four counters and no series behind any of them, so two rows is the height:
+  // a third was a hand's width of nothing under the numbers.
   platform: {
     id: "platform",
     gate: adminOnly,
     defaultSpan: "s8",
-    defaultRows: "r3",
+    defaultRows: "r2",
     category: "platform",
     seeAll: ROUTES.ADMIN,
   },
@@ -226,7 +228,7 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     id: "platform-ratings",
     gate: adminOnly,
     defaultSpan: "s5",
-    defaultRows: "r3",
+    defaultRows: "r2",
     category: "platform",
   },
   runs: {
@@ -267,11 +269,14 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultRows: "r2",
     category: "usage",
   },
+  // One figure and the roster it is a share of - a narrow card, not a
+  // two-thirds one, which is the width it was and the reason it sat beside
+  // latency with an empty half.
   "active-users": {
     id: "active-users",
     gate: holds(Perm.runsView),
-    defaultSpan: "s8",
-    defaultRows: "r3",
+    defaultSpan: "s4",
+    defaultRows: "r2",
     category: "usage",
   },
   // The only card that answers with names. Same gate as the count it sits
@@ -281,7 +286,7 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     id: "top-people",
     gate: holds(Perm.runsView),
     defaultSpan: "s12",
-    defaultRows: "r4",
+    defaultRows: "r3",
     category: "usage",
   },
   spend: {

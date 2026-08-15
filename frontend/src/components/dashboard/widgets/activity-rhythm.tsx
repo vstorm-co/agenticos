@@ -42,38 +42,60 @@ export function ActivityRhythmWidget({ title, hint, period, seeAll }: DashboardW
       ) : byHour.length === 0 ? (
         <WidgetEmptyBody title={t("empty.title")} description={t("empty.description")} />
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col justify-center gap-2">
-          <div className="flex gap-2">
-            {/* The day names, on the rows they label. `weekday` is Postgres'
-                `dow`, so index 0 is Sunday and the catalog is keyed the same
-                way - the mapping stays in one place rather than being undone
-                here and redone in a translation. */}
-            <div className="text-muted-foreground grid shrink-0 gap-0.5 text-[10px]">
-              {Array.from({ length: 7 }, (_, day) => (
-                <span key={day} className="flex aspect-square items-center">
-                  {t(`weekdays.${day}`)}
-                </span>
-              ))}
-            </div>
-            <Heatmap
-              className="min-w-0 flex-1"
-              rows={7}
-              columns={24}
-              cells={byHour.map((cell) => ({
-                row: cell.weekday,
-                column: cell.hour,
-                value: cell.runs,
-                caption: t("cell", {
-                  day: t(`weekdays.${cell.weekday}`),
-                  hour: cell.hour,
-                  count: cell.runs,
-                }),
-              }))}
-            />
+        // One grid holds the labels, the cells and the axis, so a day name sits
+        // on the row it names and an hour tick under the column it names -
+        // rather than three boxes lined up by a `pl-8` that was right at one
+        // card width. `min-h-40` is the floor a week of rectangles needs to
+        // still be readable; above it the cells take whatever the card has.
+        <div
+          className="grid min-h-40 flex-1 gap-x-2.5 gap-y-1.5"
+          style={{
+            // i18n-exempt: CSS grid templates, not words on screen
+            gridTemplateColumns: "auto minmax(0, 1fr)",
+            gridTemplateRows: "minmax(0, 1fr) auto",
+          }}
+        >
+          {/* The day names. `weekday` is Postgres' `dow`, so index 0 is Sunday
+              and the catalog is keyed the same way - the mapping stays in one
+              place rather than being undone here and redone in a translation. */}
+          <div
+            className="text-muted-foreground grid text-[10px] leading-none"
+            // i18n-exempt: a CSS grid template, not words on screen
+            style={{ gridTemplateRows: "repeat(7, minmax(0, 1fr))" }}
+          >
+            {Array.from({ length: 7 }, (_, day) => (
+              <span key={day} className="flex items-center">
+                {t(`weekdays.${day}`)}
+              </span>
+            ))}
           </div>
-          <div className="text-muted-foreground flex justify-between pl-8 text-[10px] tabular-nums">
+          <Heatmap
+            rows={7}
+            columns={24}
+            cells={byHour.map((cell) => ({
+              row: cell.weekday,
+              column: cell.hour,
+              value: cell.runs,
+              caption: t("cell", {
+                day: t(`weekdays.${cell.weekday}`),
+                hour: cell.hour,
+                count: cell.runs,
+              }),
+            }))}
+          />
+          <div aria-hidden />
+          <div
+            className="text-muted-foreground grid text-[10px] leading-none tabular-nums"
+            // i18n-exempt: a CSS grid template, not words on screen
+            style={{ gridTemplateColumns: "repeat(24, minmax(0, 1fr))" }}
+          >
             {HOUR_TICKS.map((hour) => (
-              <span key={hour}>{t("hourTick", { hour })}</span>
+              // Each label starts on the column its hour is, spanning to the
+              // next tick - so "12" sits over midday rather than at whatever
+              // fraction of the width `justify-between` left it.
+              <span key={hour} style={{ gridColumn: `${hour + 1} / span 3` }}>
+                {t("hourTick", { hour })}
+              </span>
             ))}
           </div>
         </div>

@@ -48,6 +48,10 @@
  * rule, not an omission: colouring each bar differently spends the identity
  * channel re-encoding what bar length already says.
  *
+ * The exception, and the only one: a chart whose segments are *parts of one
+ * whole* - a ring, a stacked meter - where a segment's position says nothing
+ * and colour is the only channel it has. Those take {@link seriesColor}.
+ *
  * ## Figures
  *
  * A large standalone number is sans, semibold, with the font's own figures.
@@ -84,6 +88,42 @@ export const STROKE_TOKEN = "var(--color-chart)";
 /** The unfilled part of a bar drawn in {@link MARK_CLASS}. */
 export const TRACK_CLASS = "bg-track";
 
+/** {@link TRACK_CLASS} as a colour, for the SVG and inline-style callers. */
+export const TRACK_TOKEN = "var(--color-track)";
+
+/**
+ * The surface a widget is drawn on: the app's frosted pane, at rest.
+ *
+ * The chat composer, every menu and every drawer are glass; the dashboard was
+ * the one full page of flat white cards, which read as a different product on
+ * the one screen that shows the most of them at once. `.glass-card` in
+ * `globals.css` is the resting weight of the same material - the card keeps its
+ * own luminance, the ambient wash tints its corners as the page scrolls under
+ * it.
+ */
+export const CARD_SURFACE = "glass-card";
+
+/**
+ * The categorical ramp, as CSS colours rather than classes - recharts renders
+ * raw SVG and a Tailwind class cannot reach a `<Cell>`.
+ *
+ * Five, because past five a reader is matching swatches to a key rather than
+ * reading a chart; a sixth category is "other". Defined in `globals.css`, where
+ * the separation between them is measured.
+ */
+export const SERIES_TOKENS = [
+  "var(--series-1)",
+  "var(--series-2)",
+  "var(--series-3)",
+  "var(--series-4)",
+  "var(--series-5)",
+] as const;
+
+/** The ramp's `index`th colour, wrapping - segment order decides the colour. */
+export function seriesColor(index: number): string {
+  return SERIES_TOKENS[index % SERIES_TOKENS.length] as string;
+}
+
 /**
  * The one quiet surface: a skeleton, an inset panel, a neutral meter track.
  *
@@ -104,7 +144,12 @@ export const LINE_WIDTH = 2;
  * A chart has an aspect ratio whether or not anybody chose one. `min-h-28`
  * (112px) inside a full-width card gave the runs series a plot thirteen times
  * wider than tall, in which a real spike reads as a rounding error and a flat
- * fortnight reads as a rule. 192px is the floor now, and a card with room
- * gives more.
+ * fortnight reads as a rule.
+ *
+ * 128px, down from 192: a floor is only a floor if the card can hold it. An
+ * arranged card's height is its owner's choice, and three grid rows leave 207px
+ * for a body carrying a figure as well - so 192 overflowed, and what overflowed
+ * was the x-axis, clipped at the card's edge. The chart is `flex-1` at every
+ * call site, so a card with room still gives it everything above this.
  */
-export const CHART_MIN_HEIGHT = "min-h-48";
+export const CHART_MIN_HEIGHT = "min-h-32";

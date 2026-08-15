@@ -32,7 +32,11 @@ export interface BarListItem {
 export function BarList({ items, className }: { items: BarListItem[]; className?: string }) {
   const max = Math.max(...items.map((item) => item.value), 1);
   return (
-    <div className={cn("space-y-1", className)}>
+    // Centred in whatever height the card has. A card's height is its owner's
+    // choice and a list of three surfaces does not grow to meet it, so the
+    // alternative is three rows at the top and a hand's height of nothing
+    // under them - which is what most of the dashboard looked like.
+    <div className={cn("flex min-h-0 flex-1 flex-col justify-center gap-0.5", className)}>
       {items.map((item) => (
         <Tooltip key={item.label}>
           <TooltipTrigger asChild>

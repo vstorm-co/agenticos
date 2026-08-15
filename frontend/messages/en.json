@@ -1157,7 +1157,9 @@
         "subline": "ran an agent in this period",
         "title": "Active people",
         "description": "How many of the team ran an agent this period.",
-        "ofMembers": "{total, plural, =1 {of 1 member} other {of # members}}"
+        "ofMembers": "{total, plural, =1 {of 1 member} other {of # members}}",
+        "ran": "Ran an agent",
+        "didNot": "Did not"
       },
       "agents": {
         "empty": {
@@ -1234,7 +1236,8 @@
         "p95": "Slowest 5% (p95)",
         "title": "Latency",
         "viewSlowest": "Open these runs, slowest first",
-        "description": "How long runs take, at the median and the tail."
+        "description": "How long runs take, at the median and the tail.",
+        "tail": "The slowest 5% take {ratio}× the median"
       },
       "mcp-health": {
         "checked": "checked {ago}",
@@ -1262,7 +1265,8 @@
           "viewer": "Viewer"
         },
         "title": "Members",
-        "description": "Who is in the organization, by role."
+        "description": "Who is in the organization, by role.",
+        "unit": "{count, plural, =1 {member} other {members}}"
       },
       "model-mix": {
         "empty": {

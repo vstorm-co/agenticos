@@ -26,18 +26,25 @@ export interface TrendPoint {
 export function TrendChartImpl({ data }: { data: TrendPoint[] }) {
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <AreaChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+      {/* The right margin is the last tick's other half. Recharts anchors an
+          edge tick on the point, so with no margin `08-15` was drawn half
+          outside the plot and clipped by the card - which is what "the chart
+          has ugly margins" was. The left is zero because the y-axis reserves
+          its own width. */}
+      <AreaChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
         {/* Solid, and one step off the surface. A dashed grid adds ink that is
             not data and reads as "projection" or "threshold" when it is only a
             grid. */}
-        <CartesianGrid stroke="oklch(from var(--color-foreground) l c h / 0.07)" vertical={false} />
+        <CartesianGrid stroke="oklch(from var(--color-foreground) l c h / 0.06)" vertical={false} />
         <XAxis
           dataKey="label"
           stroke="oklch(from var(--color-foreground) l c h / 0.3)"
           fontSize={11}
           tickLine={false}
           axisLine={false}
-          minTickGap={24}
+          minTickGap={28}
+          tickMargin={8}
+          interval="preserveStartEnd"
           tick={{
             fontFamily: "var(--font-mono)",
             fill: "oklch(from var(--color-foreground) l c h / 0.45)",
@@ -48,7 +55,8 @@ export function TrendChartImpl({ data }: { data: TrendPoint[] }) {
           fontSize={11}
           tickLine={false}
           axisLine={false}
-          width={28}
+          width={32}
+          tickCount={4}
           allowDecimals={false}
           tick={{
             fontFamily: "var(--font-mono)",
@@ -76,6 +84,15 @@ export function TrendChartImpl({ data }: { data: TrendPoint[] }) {
           fill="var(--color-chart)"
           fillOpacity={AREA_FILL_OPACITY}
           dot={false}
+          // The hovered point, drawn in the surface with the line's own colour
+          // around it - the cursor line alone says which column, never which
+          // series when a card grows a second one.
+          activeDot={{
+            r: 3.5,
+            fill: "var(--color-card)",
+            stroke: "var(--color-chart)",
+            strokeWidth: LINE_WIDTH,
+          }}
         />
       </AreaChart>
     </ResponsiveContainer>
