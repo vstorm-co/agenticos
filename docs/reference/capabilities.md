@@ -24,6 +24,7 @@ tools listed.
 |---|---|---|---|---|---|
 | `knowledge` | Knowledge search | knowledge | `search_documents` | `knowledge:read` | — |
 | `skills` | Skills | knowledge | `list_skills`, `load_skill`, `read_skill_resource` | `knowledge:read` | — |
+| `context` | Context | knowledge | `list_context`, `read_context` | — | — |
 | `web_research` | Web search | research | `web_search` | `web:read` | for paid services |
 | `code_execution` | Run Python | analysis | `run_python` | `code:execute` | — |
 | `sandbox` | Files & shell | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona |
@@ -81,6 +82,29 @@ These three tools come from `pydantic-ai-skills`, so their names and wording are
 somebody else's to change. A drift test compares what the registry declares
 against the tools the model is actually offered, which is what reports the day
 that happens.
+
+## Context
+
+`list_context`, `read_context`
+
+An organization's standing context put into the run instead of made to be asked
+for — a glossary, a brand voice, an escalation matrix. Each bound file carries a
+`mode`: an `inject` file is spliced into the instructions verbatim, so the model
+simply knows it; a `link` file is left out of the prompt and reached through
+`read_context`, so a large or rarely-needed file costs nothing until the model
+decides it is relevant. `list_context` reports what is available without the
+bodies. The two tools appear only when a `link`-mode file is bound; an
+agent whose files are all `inject` contributes instructions and no tools.
+
+Injected content is framed as reference material — delimited and prefaced with a
+line telling the model to treat it as information, not as instructions — because
+a file's body is written by a person and reaches the model verbatim. Content is
+text: a document to be searched belongs in a knowledge collection, not here.
+
+Bound with nothing usable — no files, or only `link` files with the read tool
+turned off — this capability contributes **nothing** and is not attached, the
+same way `knowledge` bound to no collections is not. Files are managed under
+`/api/v1/context` and bound to an agent by id (`AgentSpec.context_ids`).
 
 ## Web search
 
