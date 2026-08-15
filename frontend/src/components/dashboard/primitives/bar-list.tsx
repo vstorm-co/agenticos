@@ -20,7 +20,11 @@ export function BarList({ items, className }: { items: BarListItem[]; className?
     <div className={cn("space-y-2", className)}>
       {items.map((item) => (
         <div key={item.label} className="flex items-center gap-2 text-xs">
-          <span className="text-muted-foreground w-28 shrink-0 truncate" title={item.label}>
+          {/* Wide enough for the labels these lists actually carry - a model
+              id and a provider-prefixed name both run past 112px, so every
+              row in the two busiest cards ended in an ellipsis while the
+              track beside it had room to spare. */}
+          <span className="text-muted-foreground w-36 shrink-0 truncate" title={item.label}>
             {item.label}
           </span>
           <span className="bg-foreground/5 h-2 flex-1 overflow-hidden rounded-full">
