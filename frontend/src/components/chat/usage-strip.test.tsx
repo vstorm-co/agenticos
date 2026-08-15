@@ -44,15 +44,18 @@ function total(overrides: Partial<ConversationCost> = {}): ConversationCost {
 }
 
 describe("UsageStrip", () => {
-  it("draws what the whole thread has cost, and only that", () => {
-    // What one *answer* cost is drawn under that answer, where it can be compared
-    // with the answer beside it. Repeating it here put the same figure on screen
-    // twice with nothing saying which was which - and on a one-turn conversation
-    // the two are identical, which is exactly where somebody first meets this.
+  it("draws money, and leaves the tokens to the tooltip", () => {
+    // Two counts of tokens on one line can never agree: the input is re-sent and
+    // re-paid for every turn, so a conversation whose context peaked at 3,868 has
+    // been billed 7,747. Side by side, one of them looks broken - so the strip
+    // carries one figure per unit and nothing invites the comparison.
     render(<UsageStrip usage={usage()} total={total()} />);
 
-    expect(screen.getByText(/42,000 tokens · \$0\.9100/)).toBeInTheDocument();
-    expect(screen.queryByText(/1,500 tokens/)).toBeNull();
+    expect(screen.getByText("$0.9100")).toBeInTheDocument();
+    expect(screen.queryByText(/42,000 tokens/)).toBeNull();
+    expect(
+      screen.getByTitle(/40,000 in · 2,000 out billed across this conversation/),
+    ).toBeVisible();
   });
 
   it("marks a thread total that is only a floor", () => {
@@ -60,7 +63,7 @@ describe("UsageStrip", () => {
     // part of the bill without saying so is worse than one that admits it.
     render(<UsageStrip usage={usage()} total={total({ cost_is_partial: true })} />);
 
-    expect(screen.getByText(/42,000 tokens · ≥ \$0\.9100/)).toBeInTheDocument();
+    expect(screen.getByText("≥ $0.9100")).toBeInTheDocument();
   });
 
   it("draws how full the context window is", () => {
@@ -166,7 +169,7 @@ describe("UsageStrip", () => {
     // than the columns, or one whose every turn failed before a cost was read.
     render(<UsageStrip usage={usage()} total={null} />);
 
-    expect(screen.queryByText(/tokens/)).toBeNull();
+    expect(screen.queryByText(/\$/)).toBeNull();
   });
 
   it("names the agent's own share, because that is the cap an author can raise", () => {
@@ -204,7 +207,7 @@ describe("UsageStrip", () => {
     // is exactly what somebody opening it wants.
     render(<UsageStrip usage={null} total={total()} />);
 
-    expect(screen.getByText(/42,000 tokens/)).toBeVisible();
+    expect(screen.getByText("$0.9100")).toBeVisible();
   });
 
   it("splits input from output where somebody can look for it", () => {
@@ -214,7 +217,7 @@ describe("UsageStrip", () => {
       <UsageStrip usage={usage()} total={total({ input_tokens: 1200, output_tokens: 300 })} />,
     );
 
-    expect(screen.getByTitle(/1,200 in · 300 out across this conversation/)).toBeVisible();
+    expect(screen.getByTitle(/1,200 in · 300 out billed across this conversation/)).toBeVisible();
   });
 
   it("draws a bar as well as the number, because 84% and 8% read alike in grey", () => {

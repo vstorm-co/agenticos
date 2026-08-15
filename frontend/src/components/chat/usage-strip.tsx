@@ -136,6 +136,14 @@ function ContextSegment({
 /**
  * What the conversation has cost, and how much of a monthly cap that leaves.
  *
+ * **Money only — the token count lives in the tooltip.** It used to be on the
+ * line, beside the context reading, and the two are both counts of tokens that
+ * can never agree: a conversation whose context peaked at 3,868 had been billed
+ * 7,747, because the input is re-sent and re-paid for on every turn. Read side by
+ * side, one of them looks broken. So the strip now carries one figure per unit —
+ * a percentage of a window, an amount of money, a percentage of a disk — and
+ * nothing invites the comparison.
+ *
  * Prefixed `≥` when any turn in it reached a model with no price entry: one
  * unpriced request makes the whole total a floor, and a figure that quietly omits
  * part of the bill is worse than one that admits to it.
@@ -155,10 +163,7 @@ function SpendSegment({
   const t = useTranslations("chat.usage");
   if (total === null) return null;
   const partial = total.cost_is_partial === true;
-  const values = {
-    count: total.input_tokens + total.output_tokens,
-    cost: Number(total.cost_usd).toFixed(4),
-  };
+  const values = { cost: Number(total.cost_usd).toFixed(4) };
   const detail = { input: total.input_tokens, output: total.output_tokens };
 
   return (
