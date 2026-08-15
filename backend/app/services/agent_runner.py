@@ -60,7 +60,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -90,6 +90,12 @@ from app.agents.capabilities.channel_tools import (
     CHANNEL_DIRECTORY_RESOURCE,
     CHANNEL_TOOLS_CAPABILITY_ID,
     ChannelDirectory,
+)
+from app.agents.capabilities.planning import (
+    PLANNING_STORE_RESOURCE,
+    dump_plan,
+    new_plan_store,
+    open_plan_store,
 )
 from app.agents.capabilities.sandbox import WORKSPACE_BACKEND_RESOURCE, WorkspaceIdentity
 from app.agents.capabilities.sandbox._identity import SessionScope
@@ -178,6 +184,9 @@ from app.services.transcript import (
     settled_calls_in,
     tool_calls_in,
 )
+
+if TYPE_CHECKING:
+    from pydantic_ai_harness.planning import PlanStore
 
 logger = logging.getLogger(__name__)
 
@@ -469,6 +478,15 @@ class PausedRunState(BaseModel):
             "The specialists the run's own agent kept with `create_agent`, so a "
             "park does not lose them. Empty for a run that kept none, and for one "
             "parked before this existed"
+        ),
+    )
+    plan: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description=(
+            "The planning capability's checklist as of the park, each entry a JSON "
+            "`PlanItem`. Re-seeded into a fresh store on resume so a run that parked "
+            "mid-plan does not resume with an empty checklist. Empty for a run "
+            "without the capability, and for one parked before this existed"
         ),
     )
 
@@ -915,6 +933,17 @@ class PreparedRun:
     proposal does: it is stored against an organization and read by a reviewer
     there. Carried rather than re-derived, because `finish` is called from a
     `finally` where the request may already be gone.
+    """
+
+    plan_store: PlanStore = field(default_factory=new_plan_store)
+    """The planning capability's store for this run, read by `finish` to snapshot
+    the checklist into the parked state.
+
+    Carried here for the same reason the delegation stash is: `finish` has to fold
+    it into `PausedRunState`, and a surface that had to remember it would resume the
+    next turn with a plan nobody continued. Defaulted to an empty store so a
+    `PreparedRun` built outside the runner (a test) still answers an empty plan
+    rather than `None`; `_assemble` replaces it with the run's seeded one.
     """
 
     @property
@@ -1520,6 +1549,7 @@ class AgentRunnerService:
         model_profile_id: UUID | None = None,
         version_id: UUID | None = None,
         environment_id: UUID | None = None,
+        plan_items: list[dict[str, Any]] | None = None,
     ) -> PreparedRun:
         """Build the agent for a run, opening its row unless one is being resumed.
 
@@ -1574,6 +1604,13 @@ class AgentRunnerService:
             "kb_collection_names": await self._collection_names(spec, ctx),
             "skills": await self.skills.resolve_for_agent(ctx, spec.skill_ids),
         }
+        # Always present, like the two above and unlike the conditional resources
+        # below: the planning capability reads it only when bound, but the runner
+        # owns the store either way so `finish` can snapshot the checklist into the
+        # parked state. Seeded from `PausedRunState.plan` on a resume and empty on a
+        # fresh run - which is what carries a plan across an approval park.
+        plan_store = await open_plan_store(plan_items)
+        resources[PLANNING_STORE_RESOURCE] = plan_store
         # Only on a channel run, and bound to the channel the message arrived in
         # before it got here. Absent everywhere else, and `channel_tools` then
         # builds nothing at all - an agent in the dashboard has no channel to
@@ -1745,6 +1782,7 @@ class AgentRunnerService:
             delegations=delegations,
             stash=stash,
             ctx=ctx,
+            plan_store=plan_store,
         )
 
     async def _delegation_runtime(
@@ -2587,7 +2625,11 @@ class AgentRunnerService:
         # so the rows the `paused_state` names exist by the time it is stored.
         await self._write_approvals(prepared)
 
-        parked = None if paused_state is None else self._parked_tree(prepared, paused_state)
+        parked = (
+            None
+            if paused_state is None
+            else self._parked_tree(prepared, paused_state, await dump_plan(prepared.plan_store))
+        )
         ledger = prepared.built.ledger
         finished = await agent_run_repo.finish_run(
             self.db,
@@ -2624,7 +2666,9 @@ class AgentRunnerService:
         return finished
 
     @staticmethod
-    def _parked_tree(prepared: PreparedRun, paused_state: PausedRunState) -> PausedRunState:
+    def _parked_tree(
+        prepared: PreparedRun, paused_state: PausedRunState, plan: list[dict[str, Any]]
+    ) -> PausedRunState:
         """The parked state a surface reported, plus the delegations underneath it.
 
         A surface knows its own agent's position and nothing about the tree below
@@ -2644,6 +2688,10 @@ class AgentRunnerService:
         level was delegated from. The run's own agent's (`None`) go flat on
         `dynamic_specialists`; a nested delegate's ride on its own `DelegationFrame`,
         which is what carries them across a park too (agenticos#254, agenticos#175).
+
+        `plan` is the planning checklist read from the run's store just before this,
+        so a run that parked mid-plan resumes with the steps it had rather than an
+        empty list. Empty for a run without the capability.
         """
         return paused_state.model_copy(
             update={
@@ -2662,6 +2710,7 @@ class AgentRunnerService:
                     )
                     for specialist in prepared.stash.registered.get(None, [])
                 ],
+                "plan": plan,
             }
         )
 
@@ -2953,6 +3002,11 @@ class AgentRunnerService:
                 ],
                 **plan.specialists,
             },
+            # The planning checklist the run parked with, re-seeded into a fresh
+            # store so the resumed turn sees the steps it left rather than starting
+            # the plan over. `plan` here is the delegation resume plan; this is the
+            # planning capability's, off `PausedRunState.plan`.
+            plan_items=state.plan,
         )
         prepared.built.ledger.book(_spend_already_booked(run))
 

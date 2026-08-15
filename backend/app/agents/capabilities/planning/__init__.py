@@ -28,9 +28,20 @@ from app.agents.capabilities.planning._capability import (
     PLANNING_STORE_RESOURCE,
     PLANNING_TOOLS,
     build_planning,
+    dump_plan,
+    new_plan_store,
+    open_plan_store,
 )
 
-__all__ = ["PLANNING_STORE_RESOURCE", "PLANNING_TOOLS", "PlanningConfig", "build_planning"]
+__all__ = [
+    "PLANNING_STORE_RESOURCE",
+    "PLANNING_TOOLS",
+    "PlanningConfig",
+    "build_planning",
+    "dump_plan",
+    "new_plan_store",
+    "open_plan_store",
+]
 
 
 class PlanningConfig(BaseModel):

@@ -33,9 +33,9 @@ does them; a second copy here would be one more thing to keep in step.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
-from pydantic_ai_harness.planning import Planning
+from pydantic_ai_harness.planning import InMemoryPlanStore, PlanItem, Planning
 
 from app.agents.capabilities._registry import CapabilityToolInfo
 
@@ -155,3 +155,38 @@ def build_planning(
             name: _DESCRIPTIONS[name] for name in _offered_names(subtasks=enable_subtasks)
         },
     )
+
+
+def new_plan_store() -> InMemoryPlanStore:
+    """A fresh, empty in-memory store.
+
+    The default a run holds before anything is planned, and the one a `PreparedRun`
+    carries when it is built outside the runner. In-memory rather than persistent
+    because a plan's lifetime here is one run - which may park and resume - not a
+    record kept across conversations.
+    """
+    return InMemoryPlanStore()
+
+
+async def open_plan_store(items: list[dict[str, Any]] | None) -> InMemoryPlanStore:
+    """A store seeded with a resume's stored plan, or empty on a fresh run.
+
+    `items` is `PausedRunState.plan` - the steps a run held when it parked, each a
+    JSON dump of a `PlanItem`. `None` and `[]` both mean a run that had no plan (a
+    fresh start, or a park before this capability existed), and both open an empty
+    store. Seeding here, behind the resource the builder reads, is what carries the
+    checklist across an approval park - the same shape as re-seeding a delegation's
+    registry from its frames.
+    """
+    store = InMemoryPlanStore()
+    await store.set_items([PlanItem.model_validate(item) for item in items or []])
+    return store
+
+
+async def dump_plan(store: PlanStore) -> list[dict[str, Any]]:
+    """The store's steps as JSON, for `PausedRunState.plan`.
+
+    A plain list of `PlanItem` dumps rather than the store itself: what a parked run
+    needs to resume is the checklist, and the store's identity is this run's alone.
+    """
+    return [item.model_dump(mode="json") for item in await store.get_items()]

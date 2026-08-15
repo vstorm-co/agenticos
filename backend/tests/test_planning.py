@@ -12,12 +12,21 @@ from __future__ import annotations
 
 import pytest
 from pydantic import ValidationError
-from pydantic_ai_harness.planning import InMemoryPlanStore, Planning
+from pydantic_ai_harness.planning import InMemoryPlanStore, PlanItem, Planning, TaskStatus
 
 from app.agents.capabilities import CapabilityBinding, build
 from app.agents.capabilities._registry import CapabilityBuildContext, get
-from app.agents.capabilities.planning import PlanningConfig, _build, build_planning
+from app.agents.capabilities.planning import (
+    PlanningConfig,
+    _build,
+    build_planning,
+    dump_plan,
+    new_plan_store,
+    open_plan_store,
+)
 from app.agents.capabilities.planning._capability import _DESCRIPTIONS, PLANNING_TOOLS
+
+pytestmark = pytest.mark.anyio
 
 CORE_TOOLS = frozenset(
     {
@@ -156,3 +165,43 @@ class TestContributesNothing:
 
     def test_a_disabled_binding_is_not_built(self):
         assert build([CapabilityBinding(capability_id="planning", enabled=False)]) == []
+
+
+class TestParkSurvival:
+    """The store the runner seeds on resume and reads on a park.
+
+    The plan is state, and a run that parks on an approval mid-plan resumes as a
+    fresh run - so the runner carries the checklist through `PausedRunState`. These
+    cover the store helpers that snapshot and re-seed it.
+    """
+
+    async def test_a_fresh_run_opens_an_empty_store(self):
+        store = await open_plan_store(None)
+
+        assert await store.get_items() == []
+
+    async def test_a_resume_re_seeds_the_stored_plan(self):
+        items = [PlanItem(content="Write the migration").model_dump(mode="json")]
+
+        store = await open_plan_store(items)
+        seeded = await store.get_items()
+
+        assert [item.content for item in seeded] == ["Write the migration"]
+
+    async def test_the_snapshot_round_trips_through_a_park(self):
+        """What `finish` dumps is what `resume` can re-seed, byte for byte."""
+        original = InMemoryPlanStore()
+        await original.set_items(
+            [
+                PlanItem(content="Read the code", status=TaskStatus.completed),
+                PlanItem(content="Write the fix", status=TaskStatus.in_progress),
+            ]
+        )
+
+        snapshot = await dump_plan(original)
+        reopened = await open_plan_store(snapshot)
+
+        assert await dump_plan(reopened) == snapshot
+
+    def test_a_default_store_is_empty_and_in_memory(self):
+        assert isinstance(new_plan_store(), InMemoryPlanStore)
