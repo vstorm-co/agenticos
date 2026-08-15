@@ -55,6 +55,28 @@
   --brand-800: oklch(40% calc(var(--brand-c) * 0.82) var(--brand-h));
   --brand-900: oklch(31% calc(var(--brand-c) * 0.62) var(--brand-h));
   --brand-950: oklch(23% calc(var(--brand-c) * 0.42) var(--brand-h));
+
+  /* The categorical ramp: five washed hues for a chart whose segments are
+     *parts of one whole* - a donut, a stacked meter. Nominal lists (bars,
+     rows) still take one hue; this is for the one shape where identity is the
+     only channel there is.
+
+     Plain properties rather than `@theme` for the reason the brand ramp is:
+     recharts renders raw SVG, so these are read as `var(--series-n)` from TS
+     and no Tailwind utility ever names them - an `@theme` colour nothing
+     references is tree-shaken out of the build.
+
+     Hue AND lightness are both spread, which is what makes five pastels
+     survivable: at equal lightness five washed tones measure ΔE 0.8 under
+     deuteranopia (one colour to about one man in twelve). This set measures
+     8.3 light and 17.5 dark on the worst pair under deuteranopia and
+     protanopia, and 19.7 / 24.4 in normal vision. Every chart drawn in it
+     still prints its numbers, because separation is not legibility. */
+  --series-1: oklch(74% 0.085 262);
+  --series-2: oklch(82% 0.085 178);
+  --series-3: oklch(88% 0.085 82);
+  --series-4: oklch(72% 0.1 22);
+  --series-5: oklch(66% 0.09 312);
 }
 
 @theme {
@@ -71,6 +93,8 @@
                              never the sole indicator of a control)
      ring                    the focus ring on every interactive element
      chart                   data strokes and fills
+     track                   the unfilled part of a bar or meter drawn in
+                             `chart` - the same hue, several steps lighter
 
      Secondary, outline and ghost actions, and every page surface, stay
      NEUTRAL on purpose. An accent on everything means nothing. */
@@ -81,9 +105,31 @@
   --color-brand-subtle: var(--brand-50);
   --color-brand-subtle-hover: var(--brand-100);
   --color-brand-line: var(--brand-300);
-  /* Chart strokes/fills - one step deeper than the accent so data reads on a
-     white card without becoming navy. Dark themes repoint it upward. */
-  --color-chart: var(--brand-600);
+  /* Chart strokes/fills, and the track a fill runs along.
+
+     Off the brand ramp on purpose, where they used to be `brand-500/400/100`.
+     The ramp's job is the accent - a button, a link, a focus ring - and it is
+     saturated for it; a page of eleven cards drawn in the same steps reads as a
+     poster rather than as data. Data ink is that hue at about a third of its
+     chroma.
+
+     Measured, not judged. The **stroke** is the only mark whose colour is its
+     whole channel - a hairline under a spike - so it keeps a real floor: 3.39:1
+     on the light card, 8.21:1 on the dark one, both clear of the 3:1 a mark owes
+     its surface. The **fill** covers area, and area takes a tint: 1.63:1 light
+     and 3.43:1 dark, deliberately under that floor, which is only allowed
+     because every list drawn in it prints its number as text beside the bar.
+
+     The **track** is the fill's own hue several steps away (`dataviz`'s meter
+     rule: the unfilled part of a bar is a step of the fill's hue, never a
+     neutral alpha) - lighter in light, darker in dark, because what a track has
+     to be is *quieter than its surface's opposite*, not lighter in the abstract.
+     It carries no value at all: 1.16:1 light, 1.22:1 dark. `brand-900` was tried
+     in dark and is why this one is measured - at 1.41:1 it read as a filled bar,
+     so a provider that spent nothing showed a full-width mark against $0.00. */
+  --color-chart: oklch(64% 0.13 259);
+  --color-chart-fill: oklch(84% 0.07 259);
+  --color-track: oklch(95% 0.012 259);
 
   /* Light theme - cool near-white, Logfire-family neutrals. White cards and a
      white sidebar sit on a faintly cooler page so the layers read without a
@@ -110,14 +156,23 @@
   --color-muted-foreground: oklch(45% 0 0);
   --color-accent: oklch(94% 0.004 250);
   --color-accent-foreground: oklch(20% 0 0);
-  --color-destructive: oklch(57.7% 0.245 27.325);
+  /* Washed from `oklch(57.7% 0.245 27.325)`, which was the loudest thing on
+     any page it appeared on. At this chroma the fill still carries white text
+     at 4.85:1 - above the 4.5 a label owes its button - and reads as a refusal
+     rather than an alarm. */
+  --color-destructive: oklch(56% 0.17 25);
   --color-destructive-foreground: oklch(98.5% 0 0);
   /* Status tones. Off the accent hue on purpose - an accent that also means
-     "warning" means neither. Single values rather than per-theme ones because
-     both are only ever icons or low-alpha fills, never body text, and each
-     clears 3:1 against all four surfaces (light bg/card, dark bg/card). */
-  --color-warning: oklch(62% 0.136 68);
-  --color-success: oklch(60% 0.15 150);
+     "warning" means neither.
+
+     Themed, unlike the single values these replace: a dot and a pill are read
+     as text here, and one tone cannot be 4:1 on white and 8:1 on graphite.
+     Light measures success 4.08:1 and warning 3.42:1 on the card; dark 8.61:1
+     and 9.38:1. Both are a third off their old chroma, which is the whole
+     point - a healthy row is the commonest row on the page and should not be
+     the loudest. */
+  --color-warning: oklch(64% 0.1 72);
+  --color-success: oklch(58% 0.1 155);
   --color-border: oklch(89% 0.004 250);
   --color-input: oklch(89% 0.004 250);
   --color-ring: var(--color-brand);
@@ -181,7 +236,16 @@
     --color-accent-foreground: oklch(95% 0 0);
     --color-border: oklch(28% 0.008 250);
     --color-input: oklch(27% 0.008 250);
-    --color-chart: var(--color-brand);
+    --color-chart: oklch(74% 0.1 259);
+    --color-chart-fill: oklch(52% 0.085 259);
+    --color-track: oklch(26% 0.022 259);
+    --color-success: oklch(74% 0.11 155);
+    --color-warning: oklch(78% 0.1 78);
+    --series-1: oklch(60% 0.105 262);
+    --series-2: oklch(58% 0.08 178);
+    --series-3: oklch(66% 0.1 82);
+    --series-4: oklch(48% 0.105 22);
+    --series-5: oklch(44% 0.105 312);
   }
 }
 
@@ -213,7 +277,16 @@
   --color-accent-foreground: oklch(95% 0 0);
   --color-border: oklch(28% 0.008 250);
   --color-input: oklch(27% 0.008 250);
-  --color-chart: var(--color-brand);
+  --color-chart: oklch(74% 0.1 259);
+  --color-chart-fill: oklch(52% 0.085 259);
+  --color-track: oklch(26% 0.022 259);
+  --color-success: oklch(74% 0.11 155);
+  --color-warning: oklch(78% 0.1 78);
+  --series-1: oklch(60% 0.105 262);
+  --series-2: oklch(58% 0.08 178);
+  --series-3: oklch(66% 0.1 82);
+  --series-4: oklch(48% 0.105 22);
+  --series-5: oklch(44% 0.105 312);
 }
 
 /* =========================================================================
@@ -242,7 +315,16 @@
   --color-brand-subtle: var(--brand-50);
   --color-brand-subtle-hover: var(--brand-100);
   --color-brand-line: var(--brand-300);
-  --color-chart: var(--brand-600);
+  --color-chart: oklch(64% 0.13 259);
+  --color-chart-fill: oklch(84% 0.07 259);
+  --color-track: oklch(95% 0.012 259);
+  --color-success: oklch(58% 0.1 155);
+  --color-warning: oklch(64% 0.1 72);
+  --series-1: oklch(74% 0.085 262);
+  --series-2: oklch(82% 0.085 178);
+  --series-3: oklch(88% 0.085 82);
+  --series-4: oklch(72% 0.1 22);
+  --series-5: oklch(66% 0.09 312);
 }
 
 .theme-dark {
@@ -264,7 +346,16 @@
   --color-brand-subtle: var(--brand-950);
   --color-brand-subtle-hover: var(--brand-900);
   --color-brand-line: var(--brand-800);
-  --color-chart: var(--color-brand);
+  --color-chart: oklch(74% 0.1 259);
+  --color-chart-fill: oklch(52% 0.085 259);
+  --color-track: oklch(26% 0.022 259);
+  --color-success: oklch(74% 0.11 155);
+  --color-warning: oklch(78% 0.1 78);
+  --series-1: oklch(60% 0.105 262);
+  --series-2: oklch(58% 0.08 178);
+  --series-3: oklch(66% 0.1 82);
+  --series-4: oklch(48% 0.105 22);
+  --series-5: oklch(44% 0.105 312);
 }
 
 @layer base {
@@ -532,6 +623,89 @@
     background-size: 24px 24px;
     mask-image: radial-gradient(ellipse 75% 65% at 50% 50%, black 30%, transparent 100%);
     -webkit-mask-image: radial-gradient(ellipse 75% 65% at 50% 50%, black 30%, transparent 100%);
+  }
+
+  /* Dashboard editor: a card in edit mode highlights and lifts slightly when
+     hovered, so the whole grid reads as editable and grabbable. This replaces an
+     earlier constant wobble, which made a card genuinely hard to catch and drag.
+     The highlight (a brand-tinted ring plus a soft shadow) shows on any device
+     with a real pointer; the small scale-up is motion, so it is gated behind
+     prefers-reduced-motion and drops out with it. */
+  @media (hover: hover) {
+    .dash-editable:hover {
+      box-shadow:
+        0 0 0 2px var(--color-brand-line),
+        0 14px 34px -18px oklch(0% 0 0 / 0.28);
+    }
+  }
+  @media (hover: hover) and (prefers-reduced-motion: no-preference) {
+    .dash-editable:hover {
+      transform: scale(1.012);
+    }
+  }
+  /* The card being dragged: dimmed and held in place while the drop target is
+     ringed, so nothing shuffles under the cursor. The reorder is applied on
+     drop, where FLIP glides every moved card to its new place at once. */
+  .dash-dragging {
+    opacity: 0.4;
+    cursor: grabbing;
+  }
+  /* A card the moment it is added: it pops in at the bottom of the layout so the
+     eye catches where it landed before the person drags it into place. Motion,
+     so it drops out under prefers-reduced-motion. */
+  @media (prefers-reduced-motion: no-preference) {
+    @keyframes dash-pop {
+      from {
+        opacity: 0;
+        transform: scale(0.94);
+      }
+      to {
+        opacity: 1;
+        transform: none;
+      }
+    }
+    .dash-pop {
+      animation: dash-pop 280ms cubic-bezier(0.2, 0, 0, 1);
+    }
+  }
+
+  /* Section accents: a divider's colour, carried on one custom property and
+     read by every accented surface below. A named preset sets `--dash-solid`
+     here; a custom colour sets it inline on the element. The tint and line are
+     mixed from it with `color-mix`, so one value drives all three and a custom
+     hex needs no extra variables. Alpha-based on purpose, so one definition
+     reads on both the light and the dark card without a per-theme override. */
+  .dash-accent-violet {
+    --dash-solid: oklch(0.62 0.19 300);
+  }
+  .dash-accent-blue {
+    --dash-solid: oklch(0.62 0.16 250);
+  }
+  .dash-accent-green {
+    --dash-solid: oklch(0.66 0.16 150);
+  }
+  .dash-accent-amber {
+    --dash-solid: oklch(0.76 0.15 78);
+  }
+  .dash-accent-rose {
+    --dash-solid: oklch(0.63 0.2 18);
+  }
+  /* A solid swatch of the accent — the picker dot and the heading marker. */
+  .dash-swatch {
+    background: var(--dash-solid);
+  }
+  /* The section band: a faint tint and a coloured rail down its leading edge. */
+  .dash-section-accent {
+    background: color-mix(in oklab, var(--dash-solid) 7%, transparent);
+    border-inline-start: 3px solid var(--dash-solid);
+    border-radius: 0.5rem;
+  }
+  /* Each card in an accented section wears a thin ring in the accent colour,
+     drawn outside the card (in the grid gap) so an opaque widget cannot hide it. */
+  .dash-tile-accent {
+    outline: 1.5px solid color-mix(in oklab, var(--dash-solid) 50%, transparent);
+    outline-offset: 2px;
+    border-radius: 0.75rem;
   }
 
   /* Hover lift card */
@@ -909,4 +1083,142 @@
     color: #ffdcd7;
     background-color: #67060c;
   }
+}
+
+/* The theme switch as a sweep: the new theme's snapshot grows as a circle
+   anchored at the bottom-left corner, reaching the top-right last. Driven by
+   `document.startViewTransition` in theme-provider.tsx, which already skips
+   browsers without the API and readers who asked for reduced motion - so this
+   only ever styles a transition that was deliberately started. The default
+   cross-fade is turned off on both snapshots: blended with the clip-path it
+   reads as a flash, not a sweep. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-new(root) {
+  animation: theme-sweep 0.5s ease-in-out both;
+}
+@keyframes theme-sweep {
+  from {
+    /* Radius percentages resolve against the normalized diagonal, so 142%
+       (~sqrt(2) of it) is the first radius that covers the far corner. */
+    clip-path: circle(0% at 0% 100%);
+  }
+  to {
+    clip-path: circle(142% at 0% 100%);
+  }
+}
+
+@layer utilities {
+  /* macOS-style frosted glass: a translucent card that blurs and saturates
+     whatever scrolls beneath it. It needs content behind it to read as glass -
+     over a flat background it is just a tinted card - which is why the chat
+     composer floats over the transcript rather than sitting below it. The
+     inset highlight is the pane's top edge catching light; without it the
+     blur reads as fog rather than glass. */
+  .glass {
+    border: 1px solid color-mix(in oklab, var(--color-foreground) 16%, transparent);
+    background: color-mix(in oklab, var(--color-card) 55%, transparent);
+    -webkit-backdrop-filter: blur(24px) saturate(1.8);
+    backdrop-filter: blur(24px) saturate(1.8);
+    /* Three shadows are the materiality: the top-edge highlight that says
+       "pane, not fog", a soft lift off the page, and a wide ambient drop -
+       over a light page the see-through part is nearly invisible, so the
+       separation has to come from the edges. */
+    box-shadow:
+      inset 0 1px 0 0 color-mix(in oklab, white 20%, transparent),
+      0 1px 2px 0 rgb(0 0 0 / 0.08),
+      0 12px 40px -12px rgb(0 0 0 / 0.3);
+  }
+  /* The same pane, nearly opaque - for dialogs and drawers, which sit over a
+     dimmed overlay. At 55% the black scrim behind them wins: a light-mode
+     panel turns murky grey under its own dark text. 85% keeps the panel's
+     luminance while the blurred page still ghosts through the edges - the
+     macOS proportion too: menus are the translucent ones, window sheets
+     barely. */
+  .glass-strong {
+    border: 1px solid color-mix(in oklab, var(--color-foreground) 16%, transparent);
+    background: color-mix(in oklab, var(--color-card) 85%, transparent);
+    -webkit-backdrop-filter: blur(24px) saturate(1.8);
+    backdrop-filter: blur(24px) saturate(1.8);
+    box-shadow:
+      inset 0 1px 0 0 color-mix(in oklab, white 20%, transparent),
+      0 1px 2px 0 rgb(0 0 0 / 0.08),
+      0 12px 40px -12px rgb(0 0 0 / 0.3);
+  }
+  /* The resting version of the same material, for a card that sits *in* the
+     page rather than floating over it - the dashboard's widgets, and anything
+     else that wants the chat composer's surface without its elevation.
+     Three differences from `.glass`, all of them because it is at rest:
+     less blur (there is no scrolling transcript under it, only the ambient
+     wash), a quieter edge, and a shadow that lifts rather than throws. At 78%
+     the card keeps its own luminance - text on it is text on a card - while
+     the wash behind still tints the corners of a page of eleven of them. */
+  .glass-card {
+    border: 1px solid color-mix(in oklab, var(--color-foreground) 9%, transparent);
+    background: color-mix(in oklab, var(--color-card) 78%, transparent);
+    -webkit-backdrop-filter: blur(16px) saturate(1.4);
+    backdrop-filter: blur(16px) saturate(1.4);
+    box-shadow:
+      inset 0 1px 0 0 color-mix(in oklab, white 28%, transparent),
+      0 1px 2px 0 rgb(0 0 0 / 0.04),
+      0 8px 24px -16px rgb(0 0 0 / 0.25);
+  }
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass,
+    .glass-strong,
+    .glass-card {
+      background: var(--color-card);
+    }
+  }
+
+  /* The wallpaper the glass frosts. A sidebar sits beside the content, so it
+     has nothing to blur - what macOS blurs behind its sidebars is the desktop.
+     This is that desktop: three soft washes of the one accent hue, fixed
+     behind everything (negative z, painted above the canvas background and
+     below all flow content), so a translucent column has colour to pull
+     through in both themes. Brand hue only - the surfaces stay neutral and
+     the accent stays the accent. */
+  .ambient-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: -10;
+    pointer-events: none;
+    background:
+      radial-gradient(720px circle at 8% 12%, var(--ambient-a), transparent 65%),
+      radial-gradient(860px circle at 92% 6%, var(--ambient-b), transparent 60%),
+      radial-gradient(1000px circle at 80% 98%, var(--ambient-c), transparent 65%),
+      /* A fourth, low and left. The backdrop is `fixed` and the dashboard
+         scrolls its own <main>, so a card crosses this wash as the page
+         moves - three blobs left the middle of a tall page flat, and a
+         translucent card over a flat field is a tinted card. */
+        radial-gradient(900px circle at 18% 78%, var(--ambient-b), transparent 62%);
+  }
+}
+
+/* The wash per theme - luminance only, no hue. Colour was tried twice here
+   (mid-ramp blue: dirty grey on white, murky navy on black; pale pastels:
+   still read as "why is my app blue") and the clean answer is light, not
+   paint: soft neutral shading on a light page, soft neutral blooms on a dark
+   one. The frosted sidebars still have something to pull through; the page
+   stays the page's own colour. Same two-selector shape as the theme blocks
+   above. */
+:root {
+  --ambient-a: color-mix(in oklab, var(--color-foreground) 7%, transparent);
+  --ambient-b: color-mix(in oklab, var(--color-foreground) 5%, transparent);
+  --ambient-c: color-mix(in oklab, var(--color-foreground) 6%, transparent);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --ambient-a: color-mix(in oklab, white 7%, transparent);
+    --ambient-b: color-mix(in oklab, white 5%, transparent);
+    --ambient-c: color-mix(in oklab, white 6%, transparent);
+  }
+}
+:root.dark {
+  --ambient-a: color-mix(in oklab, white 7%, transparent);
+  --ambient-b: color-mix(in oklab, white 5%, transparent);
+  --ambient-c: color-mix(in oklab, white 6%, transparent);
 }

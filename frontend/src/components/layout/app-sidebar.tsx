@@ -254,10 +254,11 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
 
 export function AppSidebar() {
   return (
-    // `bg-card`, not `bg-background`: the column reads as its own light panel
-    // (white in light theme, one step above the page in dark) the way
-    // Logfire's does, instead of dissolving into the content behind it.
-    <aside className="bg-card hidden w-[240px] shrink-0 border-r md:flex md:flex-col">
+    // Translucent over the ambient backdrop, the way a macOS sidebar frosts
+    // the desktop: the accent wash pulls through the blur, so the column still
+    // reads as its own panel without going flat white. The card tint keeps it
+    // a step above the page in dark mode too.
+    <aside className="bg-card/55 hidden w-[240px] shrink-0 border-r backdrop-blur-2xl md:flex md:flex-col">
       {/* The brand heads the column because there is no top bar above `md` for
           it to head instead. */}
       <div className="flex h-14 shrink-0 items-center border-b px-3">

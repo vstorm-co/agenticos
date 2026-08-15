@@ -19,6 +19,7 @@ export function useAdminUsers() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [impersonating, setImpersonating] = useState<string | null>(null);
 
   const fetchUsers = useCallback(
@@ -44,8 +45,11 @@ export function useAdminUsers() {
         const data = await apiClient.get<AdminUserListResponse>(`/admin/users?${params}`);
         setUsers(data.items);
         setTotal(data.total);
+        setError(null);
       } catch {
-        toast.error(t("failedLoadUsers"));
+        // Inline rather than a toast: a toast expires, and an empty table under
+        // it then reads as a deployment with no users (#32's shape).
+        setError(t("failedLoadUsers"));
       } finally {
         setIsLoading(false);
       }
@@ -102,6 +106,7 @@ export function useAdminUsers() {
     users,
     total,
     isLoading,
+    error,
     impersonating,
     fetchUsers,
     updateUser,

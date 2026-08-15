@@ -27,18 +27,27 @@ async def usage_stats(
     from_: date | None = Query(None, alias="from", description="First day, inclusive (UTC)"),
     to: date | None = Query(None, description="Last day, inclusive (UTC)"),
     scope: Literal["org", "own"] = Query("org"),
-    group_by: Literal["version", "user"] | None = Query(
+    group_by: Literal["version", "user", "hour"] | None = Query(
         None,
         description=(
             "An on-demand dimension instead of the composed response. The"
             " vocabulary is fixed as day | surface | agent | version | user |"
-            " status | model | exposure | environment; this release implements"
-            " version and user - the composed response already answers day,"
-            " surface, agent, status and model, and exposure and environment"
-            " land with the Activity page."
+            " status | model | hour | exposure | environment; this release"
+            " implements version, user and hour - the composed response already"
+            " answers day, surface, agent, status and model, and exposure and"
+            " environment land with the Activity page."
         ),
     ),
-    agent_id: UUID | None = Query(None, description="Required when group_by=version"),
+    agent_id: UUID | None = Query(
+        None,
+        description=(
+            "Narrow every block to one agent. Required when group_by=version,"
+            " where it is the subject rather than a filter."
+        ),
+    ),
+    user_id: UUID | None = Query(
+        None, description="Narrow every block to one person. Refused with scope=own."
+    ),
     limit: int = Query(10, ge=1, le=100, description="Rows to return when group_by=user"),
 ) -> Any:
     """Runs in a window, sliced every way the dashboard asks at once.
@@ -49,7 +58,14 @@ async def usage_stats(
     A `group_by` request answers only its own dimension - version-to-version
     comparison is per agent, so it demands an `agent_id`; the per-person
     dimension is org-wide and takes a `limit` instead, because a card cannot
-    render five hundred names and an unbounded one would try.
+    render five hundred names and an unbounded one would try. `hour` needs
+    neither: it is a fixed grid of weekday and hour, sparse where nothing ran.
+
+    `agent_id` and `user_id` narrow the window rather than slicing it, which is
+    what lets one dashboard card ask about one agent while the page's own
+    filter stays where it is. Narrowing to a colleague reads their rows, so it
+    is `scope=org` and behind `runs:view` already; passing one with `scope=own`
+    is refused rather than reinterpreted.
     """
     if group_by == "version":
         if agent_id is None:
@@ -62,9 +78,15 @@ async def usage_stats(
         )
     if group_by == "user":
         return await service.usage_by_user(
-            ctx, scope=scope, from_date=from_, to_date=to, limit=limit
+            ctx, scope=scope, from_date=from_, to_date=to, agent_id=agent_id, limit=limit
         )
-    return await service.usage(ctx, scope=scope, from_date=from_, to_date=to)
+    if group_by == "hour":
+        return await service.usage_by_hour(
+            ctx, scope=scope, from_date=from_, to_date=to, agent_id=agent_id, user_id=user_id
+        )
+    return await service.usage(
+        ctx, scope=scope, from_date=from_, to_date=to, agent_id=agent_id, user_id=user_id
+    )
 
 
 @router.get("/ratings/summary", response_model=ScopedRatingSummary)

@@ -4,8 +4,14 @@ import { useMemo, useState } from "react";
 import { Download, Eye, FileText, Loader2, Trash2, Upload } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { Button, DataTable, type Column } from "@/components/ui";
-import { EmptyState } from "@/components/states";
+import {
+  Button,
+  DataTable,
+  ListCard,
+  ListCardEmpty,
+  ListCardFootRow,
+  type Column,
+} from "@/components/ui";
 import { DocumentProvenance } from "@/components/rag/document-cells";
 import { RagStatusBadge } from "@/components/rag/rag-status-badge";
 import { kbDocumentAccess } from "@/lib/rag-api";
@@ -68,6 +74,7 @@ export function DocumentsTable({
     () => [
       {
         key: "filename",
+        className: "pl-5",
         header: t("name"),
         cell: (doc) => (
           <div className="flex min-w-0 items-center gap-3">
@@ -110,7 +117,7 @@ export function DocumentsTable({
         key: "actions",
         header: "",
         align: "right",
-        className: "w-0",
+        className: "w-0 pr-5",
         cell: (doc) => {
           const dlBusy = downloadingId === doc.id;
           return (
@@ -165,44 +172,46 @@ export function DocumentsTable({
   );
 
   return (
-    <section className="mb-8">
-      <h2 className="text-foreground mb-3 text-sm font-semibold">{t("documents")}</h2>
+    <ListCard
+      title={t("documents")}
+      counted={
+        isLoading && documents.length === 0
+          ? null
+          : t("showingOfTotal", { loaded: documents.length, total: documentsTotal })
+      }
+      contentClassName="mb-8 p-0"
+    >
       <DataTable<KBDocument>
         columns={columns}
         rows={documents}
         getRowKey={(doc) => doc.id}
         loading={isLoading && documents.length === 0}
         empty={
-          <EmptyState
+          <ListCardEmpty
             icon={Upload}
             title={t("noDocumentsYet")}
             description={mayEdit ? t("dragFilesAnywherePage") : t("nothingHasBeenUploaded")}
             cta={mayEdit ? { label: t("chooseFiles"), onClick: onChooseFiles } : undefined}
           />
         }
+        className="rounded-none border-0 bg-transparent"
       />
-      {documents.length > 0 && (
-        <div className="mt-3 flex flex-col items-center gap-2">
+      {documents.length > 0 && (hasMoreDocuments || mayEdit) && (
+        <ListCardFootRow className="flex flex-col items-center gap-2">
           {hasMoreDocuments && (
             <Button variant="outline" size="sm" onClick={onLoadMore} disabled={isLoadingMoreDocs}>
               {isLoadingMoreDocs && <Loader2 className="h-4 w-4 animate-spin" />}
               {isLoadingMoreDocs ? t("loading") : t("loadMore")}
             </Button>
           )}
-          {/* The count is for everybody; the hint beside it is an instruction
-              to do something a Viewer cannot, so it is gated like every other
-              write affordance on this page rather than rendered and refused. */}
-          <p className="text-muted-foreground text-center text-xs">
-            {t("showingOfTotal", { loaded: documents.length, total: documentsTotal })}
-            {mayEdit && (
-              <>
-                {" · "}
-                {t("dragFilesToAdd")}
-              </>
-            )}
-          </p>
-        </div>
+          {/* An instruction to do something a Viewer cannot, so it is gated
+              like every other write affordance on this page rather than
+              rendered and refused. The count itself moved to the card's line. */}
+          {mayEdit && (
+            <p className="text-muted-foreground text-center text-xs">{t("dragFilesToAdd")}</p>
+          )}
+        </ListCardFootRow>
       )}
-    </section>
+    </ListCard>
   );
 }

@@ -13,7 +13,9 @@ const TabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      "bg-muted text-muted-foreground inline-flex h-9 items-center justify-center rounded-full p-1",
+      // The underline strip is the console's one tab dialect - the rag page's
+      // look, promoted to the primitive so every tab strip reads the same.
+      "border-border text-muted-foreground flex gap-6 border-b bg-transparent",
       className,
     )}
     {...props}
@@ -28,9 +30,10 @@ const TabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      // The raised white pill is the whole selection signal - dark label, no
-      // accent tint, the way a console tab strip reads.
-      "ring-offset-background focus-visible:ring-ring data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-card inline-flex items-center justify-center rounded-full px-3.5 py-1 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50",
+      // The active tab is the one carrying the ink: a bottom border in the
+      // foreground colour, the label darkening with it - no pill, no fill.
+      "focus-visible:ring-ring -mb-px inline-flex items-center gap-2 border-b-2 border-transparent px-1 pb-3 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50",
+      "hover:text-foreground data-[state=active]:border-foreground data-[state=active]:text-foreground",
       className,
     )}
     {...props}

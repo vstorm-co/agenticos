@@ -8,17 +8,11 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { ProposedChanges } from "@/components/skills/proposed-changes";
 import { CreateSkillDialog } from "@/components/skills/create-skill-dialog";
 import { SkillCard } from "@/components/skills/skill-card";
-import { SkillLibraryGallery } from "@/components/skills/skill-library-gallery";
 import { SkillWorkbench } from "@/components/skills/skill-workbench";
 import { categoryLabel, categorySuggestions } from "@/components/skills/category-input";
-import { EmptyState, LoadingState } from "@/components/states";
+import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import {
   Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   ConfirmDialog,
   Dialog,
   DialogContent,
@@ -31,14 +25,16 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  ListCard,
+  ListCardEmpty,
   PAGE_SIZE,
   Pager,
   SearchInput,
-  Skeleton,
   useDebounced,
 } from "@/components/ui";
 import { usePermissions, useSkill, useSkills } from "@/hooks";
 import type { SkillEdit, SkillSort } from "@/hooks/use-skills";
+import { getErrorMessage } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 import type { SkillSummary } from "@/types/providers";
@@ -79,43 +75,10 @@ function Chip({
   );
 }
 
-/**
- * The list's frame, drawn whether or not there is anything in it - the same
- * always-visible container the vault uses. Same header, same border, in every
- * state: what changes is what is inside it.
- */
-function SkillsCard({
-  count,
-  controls,
-  children,
-}: {
-  /** `null` while the request is in flight - the header then shows a skeleton. */
-  count: number | null;
-  controls?: ReactNode;
-  children: ReactNode;
-}) {
-  const t = useTranslations("pages.skills");
-  return (
-    <Card>
-      <CardHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-4">
-        <div className="space-y-1">
-          <CardTitle className="text-sm">{t("skills")}</CardTitle>
-          <CardDescription className="text-xs">
-            {/* Rendering "0 skills" before the request answers would state
-                something about the organization nothing has said yet. */}
-            {count === null ? <Skeleton className="h-3 w-24" /> : t("skillCount", { count })}
-          </CardDescription>
-        </div>
-        {controls}
-      </CardHeader>
-      <CardContent className="p-5">{children}</CardContent>
-    </Card>
-  );
-}
-
 export default function SkillsPage() {
   const t = useTranslations("pages.skills");
   const tc = useTranslations("common");
+  const tErrors = useTranslations("errors");
   const [query, setQuery] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [sort, setSort] = useState<SkillSort>("name");
@@ -123,13 +86,14 @@ export default function SkillsPage() {
   // Debounced because the search is a request, not a filter: an organization's
   // skills are paged by the database, so the client never holds them all.
   const search = useDebounced(query);
-  const { skills, total, categories, suggestedCategories, isLoading, remove } = useSkills({
-    search,
-    categories: selectedCategories,
-    sort,
-    skip: page * PAGE_SIZE,
-    limit: PAGE_SIZE,
-  });
+  const { skills, total, categories, suggestedCategories, isLoading, error, refetch, remove } =
+    useSkills({
+      search,
+      categories: selectedCategories,
+      sort,
+      skip: page * PAGE_SIZE,
+      limit: PAGE_SIZE,
+    });
   const { can, isLoading: isLoadingPermissions } = usePermissions();
 
   const [selected, setSelected] = useState<SkillSummary | null>(null);
@@ -194,9 +158,9 @@ export default function SkillsPage() {
     return (
       <div className="space-y-6">
         {header}
-        <SkillsCard count={null}>
+        <ListCard title={t("skills")} counted={null}>
           <LoadingState variant="skeleton-cards" rows={3} />
-        </SkillsCard>
+        </ListCard>
       </div>
     );
   }
@@ -224,7 +188,13 @@ export default function SkillsPage() {
           list is a thing to browse. Absent entirely when nothing is waiting. */}
       <ProposedChanges canEdit={canEdit} />
 
-      <SkillsCard count={total} controls={controls}>
+      <ListCard
+        title={t("skills")}
+        // The count is a claim about the organization, and a failed request has
+        // made none - so an error draws the skeleton, not "0 skills".
+        counted={error ? null : t("skillCount", { count: total })}
+        controls={controls}
+      >
         <div className="space-y-4">
           {(categories.length > 0 || isFiltering || total > 0) && (
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -301,36 +271,38 @@ export default function SkillsPage() {
             </div>
           )}
 
-          {skills.length === 0 ? (
-            // Inline rather than an `EmptyState`: that component draws its own
-            // bordered box, and inside a card it would make two frames around
-            // one message.
-            <div className="px-6 py-16 text-center">
-              <div className="bg-muted text-muted-foreground mx-auto flex h-11 w-11 items-center justify-center rounded-xl">
-                <BookOpen className="h-5 w-5" />
-              </div>
-              <p className="text-foreground mt-4 text-sm font-medium">
-                {isFiltering ? t("noSkillMatches") : t("noSkillsYet")}
-              </p>
-              <p className="text-muted-foreground mx-auto mt-1 max-w-sm text-sm">
-                {isFiltering
+          {error ? (
+            // Not the empty state: "no skills yet" and "the request failed" are
+            // different facts, and only one of them offers a create button.
+            <ErrorState
+              description={getErrorMessage(error, tErrors)}
+              cta={{ label: tc("retry"), onClick: () => void refetch() }}
+            />
+          ) : skills.length === 0 ? (
+            <ListCardEmpty
+              icon={BookOpen}
+              title={isFiltering ? t("noSkillMatches") : t("noSkillsYet")}
+              description={
+                isFiltering
                   ? t("namesDescriptionsPickedCategories")
                   : canEdit
                     ? t("writeDownSomethingYour")
-                    : t("nobodyHasWrittenSkill")}
-              </p>
-              {canEdit && !isFiltering && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-5"
-                  onClick={() => setCreateOpen(true)}
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  {t("newSkill2")}
-                </Button>
-              )}
-            </div>
+                    : t("nobodyHasWrittenSkill")
+              }
+              cta={
+                canEdit && !isFiltering
+                  ? {
+                      label: (
+                        <>
+                          <Plus className="h-3.5 w-3.5" />
+                          {t("newSkill2")}
+                        </>
+                      ),
+                      onClick: () => setCreateOpen(true),
+                    }
+                  : undefined
+              }
+            />
           ) : (
             <>
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -355,11 +327,7 @@ export default function SkillsPage() {
             </>
           )}
         </div>
-      </SkillsCard>
-
-      {/* Below the organization's own, not above: what somebody already wrote
-          is what they came here for. */}
-      <SkillLibraryGallery canInstall={canEdit} />
+      </ListCard>
 
       <Dialog
         open={selected !== null}

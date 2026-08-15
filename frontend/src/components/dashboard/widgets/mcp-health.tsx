@@ -14,14 +14,14 @@ import type { DashboardWidgetProps } from "./types";
  * answering quietly takes its tools from every agent using it - which is why
  * this sits under "needs attention" rather than on a settings page alone.
  */
-export function McpHealthWidget({ title, seeAll }: DashboardWidgetProps) {
+export function McpHealthWidget({ title, hint, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.mcp-health");
   const tTime = useTranslations("time");
   const locale = useLocale();
   const { connections, isLoading, error, refresh } = useOrgMcpConnections();
 
   return (
-    <WidgetFrame title={title} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {isLoading ? (
         <WidgetSkeleton />
       ) : error ? (
@@ -29,32 +29,27 @@ export function McpHealthWidget({ title, seeAll }: DashboardWidgetProps) {
       ) : connections.length === 0 ? (
         <WidgetEmptyBody title={t("empty.title")} description={t("empty.description")} />
       ) : (
-        <div className="flex h-full flex-col justify-between gap-2">
-          <StatusList
-            rows={connections.map((connection) => ({
-              label: connection.name,
-              sub:
-                connection.last_status === "error"
-                  ? (connection.last_error ?? undefined)
-                  : undefined,
-              pill:
-                connection.last_status === "error"
-                  ? connection.last_checked_at
-                    ? t("downSince", { ago: timeAgo(connection.last_checked_at, tTime, locale) })
-                    : t("down")
-                  : connection.last_checked_at
-                    ? t("checked", { ago: timeAgo(connection.last_checked_at, tTime, locale) })
-                    : t("unchecked"),
-              tone:
-                connection.last_status === "error"
-                  ? "err"
-                  : connection.last_status === "ok"
-                    ? "ok"
-                    : "neutral",
-            }))}
-          />
-          <p className="text-muted-foreground text-xs">{t("subline")}</p>
-        </div>
+        <StatusList
+          rows={connections.map((connection) => ({
+            label: connection.name,
+            sub:
+              connection.last_status === "error" ? (connection.last_error ?? undefined) : undefined,
+            pill:
+              connection.last_status === "error"
+                ? connection.last_checked_at
+                  ? t("downSince", { ago: timeAgo(connection.last_checked_at, tTime, locale) })
+                  : t("down")
+                : connection.last_checked_at
+                  ? t("checked", { ago: timeAgo(connection.last_checked_at, tTime, locale) })
+                  : t("unchecked"),
+            tone:
+              connection.last_status === "error"
+                ? "err"
+                : connection.last_status === "ok"
+                  ? "ok"
+                  : "neutral",
+          }))}
+        />
       )}
     </WidgetFrame>
   );

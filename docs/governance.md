@@ -190,6 +190,21 @@ what a per-agent usage report or a budget alert on that agent fires on. The
 organization's monthly number also carries ingestion spend, which the per-agent
 number does not: indexing a shared knowledge base is nobody's agent's spend.
 
+**The dashboard's windowed figure carries it too.** `GET /stats/usage` answers a
+`cost` block for whatever period the filter chose, and that block is runs *plus*
+ingestion — the same arithmetic the monthly cap is measured with — with
+`model_usd` and `ingestion_usd` beside it so a reader can see where the money
+went without subtracting. It reported the model half alone until 0.0.152, which
+put two different definitions of cost on one card: the headline moved with the
+period filter and counted runs, while the month-to-date line under it counted
+the whole bill, and nothing said they were answering different questions. On a
+deployment that indexes documents they simply disagreed.
+
+At `scope=own` the ingestion half is zero rather than a share: a document is
+indexed by a worker and `ingestion_spend` records no user, so charging one
+person's window for a collection somebody else synced would be inventing their
+spend.
+
 **Every query has to say which of the two it is answering**, and the first column
 is the default. The month-to-date figure and the per-agent breakdown behind it
 exclude child rows, so they add up to the total printed above them — and the
@@ -391,13 +406,14 @@ being deleted and a widget's visitor is anonymous to begin with.
 | `status` | Repeats. `?status=failed&status=budget_exceeded` is the show-me-the-problems query, and the two are separate statuses precisely so that asking for one is not asking for the other |
 | `surface` | Where the run came from |
 | `user_id` | Who the run ran **as**, which is not always who asked — a widget's runs carry the widget owner's identity, because the visitor is anonymous |
+| `model_label` | The model **as the run recorded it**, matched exactly. Not resolved through the model catalog: the column is what answered, and a profile it came from may since have been renamed or deleted. The dashboard's model card counts these same strings, so "the runs behind this bar" is one set on both screens |
 | `started_from`, `started_to` | Inclusive both ends, because a range picker hands over whole days |
 | `environment_id` | Runs on the version that environment pins. **Never a delegated run:** a delegate's version comes from a pin, so the column is deliberately never written on one, and narrowing to `production` drops every delegation. A surface that includes delegations has to say so |
 | `exposure_id` | Runs admitted through one binding. Null for the dashboard and the API |
 | `agent_version_id` | Runs that executed one frozen spec — the version strip's "show me the rows behind this number" |
 | `took_over_ms` | Only runs slower than this. A run that has not finished has no duration and is excluded, not counted as zero |
 | `rated` | `down` or `up` — runs where somebody rated a message the run produced |
-| `order_by`, `descending` | `started_at` (the default, newest first) or `duration` |
+| `order_by`, `descending` | `started_at` (the default, newest first), `duration`, `cost` or `tokens` |
 
 **Every filter narrows the count as well as the page**, so `total` always
 describes the rows under it. The list and the count are two queries, and a filter
@@ -412,17 +428,27 @@ on one screen share one window, or they say which window each is.
 A value outside its type is refused with a 422 rather than matched against
 nothing: `status` and `surface` are string columns, so `?status=complete` would
 otherwise answer with an empty page — and an empty page reads as *nothing went
-wrong this week*. `order_by` takes one of two orders rather than a column name,
+wrong this week*. `order_by` takes one of four orders rather than a column name,
 for the same reason plus one more: an `ORDER BY` assembled from a query string is
 an injection surface.
+
+**Every one of these travels in the URL**, which is what makes a dashboard card
+able to hand over to its own rows: `/runs?surface=mattermost&period=30d` opens
+Activity with the facet already set and the count matching the card that linked
+it. They were local state until #768, so the p95 figure was the only number on
+the dashboard that could reach the runs behind it and three cards carried no link
+at all — there was nothing honest to point them at.
 
 **Duration is computed in SQL, over the whole narrowed set.** That is what gets
 from *"p95 is 14.8s"* on the dashboard to **those runs** — sorting one page of
 twenty-five sorts the wrong set, because the slowest run of a month is not in
-whichever rows a newest-first page happened to return. A run with no `ended_at`
-sorts **last in both directions**: it has no duration, and it is not the fastest
-run either. How long a *still-running* run has been going is a different question
-and this column deliberately does not answer it.
+whichever rows a newest-first page happened to return. `cost` and `tokens` are
+the same arrangement for money and context weight. A run with no `ended_at`
+sorts **last in both directions under all three**: it has no duration, it is not
+the fastest run either, and its cost and token figures are written only when it
+finishes — sorted as stored, a run still going would read as the cheapest and
+lightest in the organization. How long a *still-running* run has been going is a
+different question and none of these orders answers it.
 
 Activity surfaces that duration three ways, and all three lead to the same query.
 The **Took** column header is a sort control — like the Started header beside it,

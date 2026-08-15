@@ -172,3 +172,63 @@ class TestRagSourceSyncWaitsForItsWork:
             "the command returned while its sync was still running, and "
             "`asyncio.run` cancelled it on the way out (#439)"
         )
+
+
+class TestSeedSkillsSurvivesARacingListing:
+    """A listing top-up can commit the same skill between the command's name
+    check and its flush. That surfaces as `IntegrityError`, not
+    `AlreadyExistsError`, and it must cost that one skill rather than the run -
+    which takes both the catch and the savepoint, because a caught
+    `IntegrityError` without a rollback leaves the session dead for every
+    skill after it.
+    """
+
+    def test_an_integrity_error_skips_that_skill_and_the_rest_still_install(
+        self, monkeypatch
+    ) -> None:
+        from unittest.mock import AsyncMock, MagicMock
+
+        from sqlalchemy.exc import IntegrityError
+
+        from app.commands import seed_skills as seed_command
+
+        db = MagicMock()
+        bundled = [
+            SimpleNamespace(key="code-review", name="code-review", resources=()),
+            SimpleNamespace(key="incident-report", name="incident-report", resources=()),
+        ]
+        install = AsyncMock(
+            side_effect=[
+                IntegrityError("INSERT", {}, Exception("duplicate key")),
+                SimpleNamespace(name="incident-report", resources=()),
+            ]
+        )
+
+        @asynccontextmanager
+        async def session() -> AsyncGenerator[object, None]:
+            yield db
+
+        monkeypatch.setattr(seed_command, "get_db_context", session)
+        monkeypatch.setattr(
+            seed_command,
+            "SkillService",
+            lambda _db: SimpleNamespace(install_from_library=install),
+        )
+        monkeypatch.setattr(seed_command.skill_library, "library", lambda: bundled)
+        monkeypatch.setattr(
+            seed_command.organization_repo,
+            "list_all",
+            AsyncMock(return_value=[SimpleNamespace(id=uuid4(), name="Acme")]),
+        )
+        monkeypatch.setattr(
+            seed_command.member_repo, "first_owner_id", AsyncMock(return_value=uuid4())
+        )
+
+        result = CliRunner().invoke(seed_command.seed_skills, [])
+
+        assert result.exit_code == 0, result.output
+        assert "code-review - already there, left alone" in result.output
+        assert "incident-report - installed" in result.output
+        # One savepoint per install, so the rollback of the loser's is what the
+        # winner's flush runs after.
+        assert db.begin_nested.call_count == 2

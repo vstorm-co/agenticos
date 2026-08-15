@@ -47,10 +47,14 @@ def repos(monkeypatch: pytest.MonkeyPatch) -> dict[str, AsyncMock]:
         ("count_pending_approval_runs", 0),
         ("usage_by_version", []),
         ("usage_by_user", []),
+        ("runs_by_hour", []),
     ):
         mock = AsyncMock(return_value=value)
         monkeypatch.setattr(f"app.services.stats.agent_run_repo.{name}", mock)
         mocks[name] = mock
+    ingestion = AsyncMock(return_value=Decimal(0))
+    monkeypatch.setattr("app.services.stats.ingestion_spend_repo.sum_cost_window", ingestion)
+    mocks["ingestion_sum_cost_window"] = ingestion
     member_count = AsyncMock(return_value=0)
     monkeypatch.setattr("app.services.stats.member_repo.count_for_org", member_count)
     mocks["count_for_org"] = member_count
@@ -136,7 +140,7 @@ class TestTheScopeDecision:
         assert result.scope == "own"
         for name in ("count_runs", "runs_by_day", "runs_by_dimension", "runs_by_agent"):
             for call in repos[name].call_args_list:
-                assert call.kwargs["user_id"] == ctx.user_id
+                assert call.kwargs["where"].user_id == ctx.user_id
 
     async def test_a_context_with_no_subject_cannot_ask_for_its_own_rows(self, repos) -> None:
         ctx = AuthContext.anonymous(uuid4())
@@ -148,12 +152,12 @@ class TestTheScopeDecision:
         await StatsService(MagicMock()).usage(_ctx(), scope="org")
 
         for call in repos["count_runs"].call_args_list:
-            assert call.kwargs["user_id"] is None
+            assert call.kwargs["where"].user_id is None
 
 
 class TestTheComposedAnswer:
     async def test_days_with_no_runs_are_present_with_zero(self, repos) -> None:
-        repos["runs_by_day"].return_value = [(date(2026, 7, 2), 5)]
+        repos["runs_by_day"].return_value = [(date(2026, 7, 2), 5, 4, Decimal("1.25"))]
 
         result = await StatsService(MagicMock()).usage(
             _ctx(), from_date=date(2026, 7, 1), to_date=date(2026, 7, 3)
@@ -165,6 +169,50 @@ class TestTheComposedAnswer:
             (date(2026, 7, 2), 5),
             (date(2026, 7, 3), 0),
         ]
+
+    async def test_a_day_carries_what_completed_and_what_it_cost(self, repos) -> None:
+        # Three measures from one scan, so a figure's sparkline is free rather
+        # than three more round trips.
+        repos["runs_by_day"].return_value = [(date(2026, 7, 2), 5, 4, Decimal("1.25"))]
+
+        result = await StatsService(MagicMock()).usage(
+            _ctx(), from_date=date(2026, 7, 1), to_date=date(2026, 7, 2)
+        )
+
+        assert result.by_day is not None
+        empty, busy = result.by_day
+        assert (empty.runs, empty.completed, empty.cost_usd) == (0, 0, Decimal(0))
+        assert (busy.runs, busy.completed, busy.cost_usd) == (5, 4, Decimal("1.25"))
+
+    async def test_the_window_costs_models_plus_ingestion(self, repos) -> None:
+        # The defect this fixes: the headline was models alone while the
+        # month-to-date line beside it was the whole bill, and nothing on the
+        # card said they were different questions.
+        repos["sum_cost_window"].side_effect = [Decimal("2.00"), Decimal("1.00")]
+        repos["ingestion_sum_cost_window"].side_effect = [Decimal("0.50"), Decimal("0.25")]
+
+        result = await StatsService(MagicMock()).usage(_ctx())
+
+        assert result.cost is not None
+        assert result.cost.model_usd == Decimal("2.00")
+        assert result.cost.ingestion_usd == Decimal("0.50")
+        assert result.cost.period_usd == Decimal("2.50")
+        # The previous window is the whole bill too, or the change compares a
+        # bill against half of one.
+        assert result.cost.previous_period_usd == Decimal("1.25")
+
+    async def test_own_scope_is_not_billed_for_the_organizations_indexing(self, repos) -> None:
+        # `ingestion_spend` records no user - a document is indexed by a worker -
+        # so charging a member's own window for a collection somebody else
+        # synced would be inventing their spend.
+        repos["sum_cost_window"].return_value = Decimal("2.00")
+
+        result = await StatsService(MagicMock()).usage(_ctx(), scope="own")
+
+        assert result.cost is not None
+        assert result.cost.ingestion_usd == Decimal(0)
+        assert result.cost.period_usd == Decimal("2.00")
+        repos["ingestion_sum_cost_window"].assert_not_called()
 
     async def test_the_previous_total_is_asked_of_the_previous_window(self, repos) -> None:
         repos["count_runs"].side_effect = [40, 31]
@@ -298,13 +346,46 @@ class TestVersionGrouping:
 
         await StatsService(MagicMock()).usage_by_version(ctx, agent_id=uuid4(), scope="own")
 
-        assert repos["usage_by_version"].call_args.kwargs["user_id"] == ctx.user_id
+        assert repos["usage_by_version"].call_args.kwargs["where"].user_id == ctx.user_id
 
     async def test_org_scope_still_demands_runs_view(self, repos) -> None:
         with pytest.raises(AuthorizationError):
             await StatsService(MagicMock()).usage_by_version(
                 _ctx(role=OrgRoleName.MEMBER.value), agent_id=uuid4(), scope="org"
             )
+
+
+class TestHourGrouping:
+    async def test_cells_carry_the_weekday_and_hour_the_database_answered(self, repos) -> None:
+        repos["runs_by_hour"].return_value = [(0, 9, 4), (3, 14, 11)]
+
+        result = await StatsService(MagicMock()).usage_by_hour(_ctx())
+
+        assert result.by_hour is not None
+        assert [(cell.weekday, cell.hour, cell.runs) for cell in result.by_hour] == [
+            (0, 9, 4),
+            (3, 14, 11),
+        ]
+
+    async def test_the_envelope_skips_the_composed_blocks(self, repos) -> None:
+        # A different question about the same window: computing eight answers
+        # nobody asked for would be waste dressed as consistency.
+        result = await StatsService(MagicMock()).usage_by_hour(_ctx())
+
+        assert result.total_runs is None
+        assert result.by_day is None
+        assert result.cost is None
+
+    async def test_own_scope_narrows_the_cells_to_the_caller(self, repos) -> None:
+        ctx = _ctx(role=OrgRoleName.MEMBER.value)
+
+        await StatsService(MagicMock()).usage_by_hour(ctx, scope="own")
+
+        assert repos["runs_by_hour"].await_args.kwargs["where"].user_id == ctx.user_id
+
+    async def test_org_scope_still_demands_runs_view(self, repos) -> None:
+        with pytest.raises(AuthorizationError):
+            await StatsService(MagicMock()).usage_by_hour(_ctx(role=OrgRoleName.MEMBER.value))
 
 
 class TestPersonGrouping:
@@ -343,7 +424,7 @@ class TestPersonGrouping:
 
         await StatsService(MagicMock()).usage_by_user(ctx, scope="own", limit=10)
 
-        assert repos["usage_by_user"].call_args.kwargs["user_id"] == ctx.user_id
+        assert repos["usage_by_user"].call_args.kwargs["where"].user_id == ctx.user_id
 
     async def test_naming_the_organizations_people_demands_runs_view(self, repos) -> None:
         """The card names people, so the refusal matters more here than anywhere."""
@@ -390,3 +471,80 @@ class TestRatingsSummary:
             await StatsService(MagicMock()).ratings_summary(
                 _ctx(role=OrgRoleName.VIEWER.value), scope="org"
             )
+
+
+class TestNarrowingOneCard:
+    """A dashboard card may ask about one agent, or one colleague, or both.
+
+    The page carries one window and one organization; these are what let a card
+    beside it ask a narrower question, so what matters is that the narrowing
+    reaches *every* aggregate rather than the two the first card happened to
+    read - and that a filtered window stops claiming costs it cannot attribute.
+    """
+
+    async def test_an_agent_filter_reaches_every_aggregate(self, repos) -> None:
+        agent_id = uuid4()
+
+        await StatsService(MagicMock()).usage(_ctx(), agent_id=agent_id)
+
+        for name in (
+            "count_runs",
+            "runs_by_day",
+            "runs_by_dimension",
+            "runs_by_agent",
+            "latency_percentiles_ms",
+            "sum_cost_window",
+            "cost_by_provider_window",
+            "count_distinct_users",
+        ):
+            assert repos[name].call_args_list, name
+            for call in repos[name].call_args_list:
+                assert call.kwargs["where"].agent_id == agent_id, name
+
+    async def test_a_person_filter_narrows_org_scope_to_that_person(self, repos) -> None:
+        someone = uuid4()
+
+        await StatsService(MagicMock()).usage(_ctx(), user_id=someone)
+
+        for call in repos["count_runs"].call_args_list:
+            assert call.kwargs["where"].user_id == someone
+
+    async def test_a_narrowed_window_reports_no_ingestion(self, repos) -> None:
+        # Indexing is the organization's bill: `ingestion_spend` records neither
+        # an agent nor a person, so a narrowed card that added it would present
+        # somebody else's collection sync as this agent's cost.
+        repos["ingestion_sum_cost_window"].return_value = Decimal("4.00")
+
+        result = await StatsService(MagicMock()).usage(_ctx(), agent_id=uuid4())
+
+        assert result.cost is not None
+        assert result.cost.ingestion_usd == Decimal(0)
+        repos["ingestion_sum_cost_window"].assert_not_awaited()
+
+    async def test_the_whole_window_still_reports_ingestion(self, repos) -> None:
+        repos["ingestion_sum_cost_window"].return_value = Decimal("4.00")
+
+        result = await StatsService(MagicMock()).usage(_ctx())
+
+        assert result.cost is not None
+        assert result.cost.ingestion_usd == Decimal("4.00")
+
+    async def test_own_scope_refuses_a_user_id_rather_than_reinterpreting_it(self, repos) -> None:
+        # It could only ever be the caller's own, so a request naming somebody
+        # is a mistake - answered, not silently rewritten into "yourself".
+        with pytest.raises(ValidationError):
+            await StatsService(MagicMock()).usage(_ctx(), scope="own", user_id=uuid4())
+
+    async def test_an_agent_filter_reaches_the_hourly_grid(self, repos) -> None:
+        agent_id = uuid4()
+
+        await StatsService(MagicMock()).usage_by_hour(_ctx(), agent_id=agent_id)
+
+        assert repos["runs_by_hour"].await_args.kwargs["where"].agent_id == agent_id
+
+    async def test_an_agent_filter_reaches_the_per_person_table(self, repos) -> None:
+        agent_id = uuid4()
+
+        await StatsService(MagicMock()).usage_by_user(_ctx(), limit=5, agent_id=agent_id)
+
+        assert repos["usage_by_user"].call_args.kwargs["where"].agent_id == agent_id

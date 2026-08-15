@@ -1,8 +1,8 @@
 """Install the bundled skills into an organization.
 
-The same copy the gallery's install button makes, from a terminal - for a fresh
-deployment that should come up with something in it, and for a scripted setup
-that has no browser to click in.
+The same copy organization creation and the skills listing's top-up make, from
+a terminal - for a fresh deployment that should come up with something in it,
+and for a scripted setup that has no browser to click in.
 
 Idempotent by name: a skill the organization already has is left exactly as it
 is, never overwritten. An organization edits its skills, and a seed command
@@ -14,12 +14,11 @@ import asyncio
 from uuid import UUID
 
 import click
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
 
 from app.commands import command, info, success, warning
 from app.core.exceptions import AlreadyExistsError
 from app.core.permissions import AuthContext, OrgRoleName
-from app.db.models.resource_grant import Visibility
 from app.db.session import get_db_context
 from app.repositories import member_repo, organization_repo
 from app.services import skill_library
@@ -32,15 +31,6 @@ from app.services.skills import SkillService
 def seed_skills(org_id: str | None, dry_run: bool) -> None:
     """Copy every skill in `app/core/catalog/skills` into an organization."""
     asyncio.run(_run(org_id, dry_run))
-
-
-async def _owner_of(db: AsyncSession, organization_id: UUID) -> UUID | None:
-    """The first owner of an organization, or None if it somehow has none."""
-    members = await member_repo.list_for_org(db, organization_id)
-    return next(
-        (member.user_id for member, *_ in members if member.role == OrgRoleName.OWNER),
-        None,
-    )
 
 
 async def _run(org_id: str | None, dry_run: bool) -> None:
@@ -73,7 +63,7 @@ async def _run(org_id: str | None, dry_run: bool) -> None:
             # a skill records who owns it, that column is a foreign key to a
             # real person, and an owner is the one member guaranteed to exist
             # and to be allowed to edit what lands here.
-            owner = await _owner_of(db, organization.id)
+            owner = await member_repo.first_owner_id(db, organization_id=organization.id)
             if owner is None:
                 warning("    no owner - skipped")
                 continue
@@ -84,17 +74,15 @@ async def _run(org_id: str | None, dry_run: bool) -> None:
                 organization_id=organization.id,
                 role=OrgRoleName.OWNER,
             )
+            # Each install under its own savepoint, exactly as the listing's
+            # top-up does it: a listing committing the same skill mid-command
+            # surfaces as an IntegrityError at flush, and without the savepoint
+            # a caught one leaves the session dead for every skill after it.
             for skill in bundled:
                 try:
-                    # Visible to the organization rather than to the person the
-                    # seed ran as, set at install rather than by a follow-up edit:
-                    # a bundled skill is for everybody, where private is the right
-                    # default for something somebody wrote and the wrong one for
-                    # something the platform shipped.
-                    installed = await service.install_from_library(
-                        ctx, skill.key, visibility=Visibility.ORG
-                    )
-                except AlreadyExistsError:
+                    async with db.begin_nested():
+                        installed = await service.install_from_library(ctx, skill.key)
+                except (AlreadyExistsError, IntegrityError):
                     click.echo(f"    {skill.name} - already there, left alone")
                     continue
                 click.echo(f"    {installed.name} - installed with {len(skill.resources)} file(s)")

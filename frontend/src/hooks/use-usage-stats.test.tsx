@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   usePeopleUsage,
   useRatingsSummary,
+  useUsageByHour,
   useUsageStats,
   useVersionUsage,
 } from "./use-usage-stats";
@@ -43,6 +44,47 @@ describe("useUsageStats", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(apiClient.get).toHaveBeenCalledWith("/stats/usage", {
       params: { from: PERIOD.from, to: PERIOD.to, scope: "own" },
+    });
+  });
+
+  it("carries a card's own narrowing, and keys the answer on it", async () => {
+    // A card pinned to one agent and a card asking about everybody are two
+    // questions. Sent as parameters, and part of the query key - shared, each
+    // would show the other's answer.
+    vi.mocked(apiClient.get).mockResolvedValue({ total_runs: 2 });
+    const { result } = renderHook(
+      () => useUsageStats(PERIOD, { filter: { agentId: "agent-1", userId: "user-1" } }),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith("/stats/usage", {
+      params: {
+        from: PERIOD.from,
+        to: PERIOD.to,
+        scope: "org",
+        agent_id: "agent-1",
+        user_id: "user-1",
+      },
+    });
+  });
+
+  it("asks the hourly grid for one agent when a card is pinned to it", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ by_hour: [] });
+    const { result } = renderHook(
+      () => useUsageByHour(PERIOD, { filter: { agentId: "agent-1" } }),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith("/stats/usage", {
+      params: {
+        from: PERIOD.from,
+        to: PERIOD.to,
+        scope: "org",
+        group_by: "hour",
+        agent_id: "agent-1",
+      },
     });
   });
 
@@ -138,6 +180,47 @@ describe("usePeopleUsage", () => {
     const { result } = renderHook(() => usePeopleUsage(PERIOD), { wrapper });
 
     expect(result.current.byUser).toEqual([]);
+  });
+
+  it("carries a card's own narrowing, and keys the answer on it", async () => {
+    // A card pinned to one agent and a card asking about everybody are two
+    // questions. Sent as parameters, and part of the query key - shared, each
+    // would show the other's answer.
+    vi.mocked(apiClient.get).mockResolvedValue({ total_runs: 2 });
+    const { result } = renderHook(
+      () => useUsageStats(PERIOD, { filter: { agentId: "agent-1", userId: "user-1" } }),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith("/stats/usage", {
+      params: {
+        from: PERIOD.from,
+        to: PERIOD.to,
+        scope: "org",
+        agent_id: "agent-1",
+        user_id: "user-1",
+      },
+    });
+  });
+
+  it("asks the hourly grid for one agent when a card is pinned to it", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ by_hour: [] });
+    const { result } = renderHook(
+      () => useUsageByHour(PERIOD, { filter: { agentId: "agent-1" } }),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith("/stats/usage", {
+      params: {
+        from: PERIOD.from,
+        to: PERIOD.to,
+        scope: "org",
+        group_by: "hour",
+        agent_id: "agent-1",
+      },
+    });
   });
 
   it("fetches nothing when the widget's gate said no", () => {

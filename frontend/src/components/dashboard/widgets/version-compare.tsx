@@ -17,7 +17,13 @@ import type { DashboardWidgetProps } from "./types";
  * one with two versions would turn one card into a listing's worth of
  * queries - if the busiest agent has only one version, the card says so.
  */
-export function VersionCompareWidget({ title, period, seeAll }: DashboardWidgetProps) {
+export function VersionCompareWidget({
+  title,
+  hint,
+  period,
+  seeAll,
+  options,
+}: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.version-compare");
   const window = { from: period.from, to: period.to };
   const composed = useUsageStats(window);
@@ -28,7 +34,7 @@ export function VersionCompareWidget({ title, period, seeAll }: DashboardWidgetP
   const [previous, current] = numbered.slice(-2);
 
   return (
-    <WidgetFrame title={title} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {composed.isLoading || (topAgent !== null && versions.isLoading) ? (
         <WidgetSkeleton />
       ) : composed.error ? (

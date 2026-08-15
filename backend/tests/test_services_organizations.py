@@ -81,6 +81,7 @@ class TestOrganizationService:
                 "app.services.organization.member_repo.create",
                 new=AsyncMock(return_value=mock_member),
             ),
+            patch("app.services.organization.skill_library.library", return_value=()),
         ):
             result = await service.create(
                 OrganizationCreate(name="My Org"),
@@ -124,10 +125,105 @@ class TestOrganizationService:
                 new=AsyncMock(return_value=mock_org),
             ),
             patch("app.services.organization.member_repo.create", new=AsyncMock()),
+            patch("app.services.organization.skill_library.library", return_value=()),
         ):
             result = await service.create_personal_org(uuid.uuid4(), "alice@example.com")
 
         assert result == mock_org
+
+    @pytest.mark.anyio
+    async def test_a_new_organization_starts_with_the_bundled_skills(self, service, mock_db):
+        """Seeded at creation, not installed by hand (#281).
+
+        A spec binds a skill by row id, so a bundled skill has to be a row
+        before the Builder can offer it - and the row is written as the owner,
+        with organization visibility, exactly as `seed-skills` writes it.
+        """
+        mock_org = MagicMock()
+        mock_org.id = uuid.uuid4()
+        owner_id = uuid.uuid4()
+        bundled = MagicMock()
+        bundled.key = "code-review"
+
+        with (
+            patch(
+                "app.services.organization.organization_repo.generate_unique_slug",
+                new=AsyncMock(return_value="my-org"),
+            ),
+            patch(
+                "app.services.organization.organization_repo.create",
+                new=AsyncMock(return_value=mock_org),
+            ),
+            patch("app.services.organization.member_repo.create", new=AsyncMock()),
+            patch("app.services.organization.skill_library.library", return_value=(bundled,)),
+            patch("app.services.organization.SkillService") as skill_service,
+        ):
+            install = skill_service.return_value.install_from_library = AsyncMock()
+            await service.create(OrganizationCreate(name="My Org"), owner_id=owner_id)
+
+        install.assert_awaited_once()
+        ctx, key = install.await_args.args
+        assert key == "code-review"
+        assert ctx.organization_id == mock_org.id
+        assert ctx.user_id == owner_id
+
+    @pytest.mark.anyio
+    async def test_a_bundled_name_collision_skips_the_twin_rather_than_refusing_the_org(
+        self, service, mock_db
+    ):
+        """Nothing validates the shipped library's own name uniqueness, and a
+        packaging mistake there must not refuse every registration."""
+        mock_org = MagicMock()
+        mock_org.id = uuid.uuid4()
+        first, twin = MagicMock(), MagicMock()
+        first.key, twin.key = "refund-policy", "refund-policy-copy"
+
+        with (
+            patch(
+                "app.services.organization.organization_repo.generate_unique_slug",
+                new=AsyncMock(return_value="my-org"),
+            ),
+            patch(
+                "app.services.organization.organization_repo.create",
+                new=AsyncMock(return_value=mock_org),
+            ),
+            patch("app.services.organization.member_repo.create", new=AsyncMock()),
+            patch("app.services.organization.skill_library.library", return_value=(first, twin)),
+            patch("app.services.organization.SkillService") as skill_service,
+        ):
+            install = skill_service.return_value.install_from_library = AsyncMock(
+                side_effect=[MagicMock(), AlreadyExistsError(message="taken")]
+            )
+            result = await service.create(OrganizationCreate(name="My Org"), owner_id=uuid.uuid4())
+
+        assert result == mock_org
+        assert install.await_count == 2
+
+    @pytest.mark.anyio
+    async def test_a_personal_organization_is_seeded_the_same_way(self, service, mock_db):
+        mock_org = MagicMock()
+        mock_org.id = uuid.uuid4()
+        bundled = MagicMock()
+        bundled.key = "refund-policy"
+
+        with (
+            patch(
+                "app.services.organization.organization_repo.generate_unique_slug",
+                new=AsyncMock(return_value="alice"),
+            ),
+            patch(
+                "app.services.organization.organization_repo.create",
+                new=AsyncMock(return_value=mock_org),
+            ),
+            patch("app.services.organization.member_repo.create", new=AsyncMock()),
+            patch("app.services.organization.skill_library.library", return_value=(bundled,)),
+            patch("app.services.organization.SkillService") as skill_service,
+        ):
+            install = skill_service.return_value.install_from_library = AsyncMock()
+            await service.create_personal_org(uuid.uuid4(), "alice@example.com")
+
+        install.assert_awaited_once()
+        assert install.await_args.args[1] == "refund-policy"
 
     @pytest.mark.anyio
     async def test_delete_blocks_personal_org(self, service, mock_db):

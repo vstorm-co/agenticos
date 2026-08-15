@@ -256,8 +256,6 @@ CALLS: tuple[Call, ...] = (
         query="?from=2020-01-01T00:00:00&to=2020-01-02T00:00:00",
     ),
     Call("GET", "/skills", Perm.SKILLS_VIEW),
-    Call("GET", "/skills/library", Perm.SKILLS_VIEW),
-    Call("POST", "/skills/library/{key}/install", Perm.SKILLS_EDIT),
     Call(
         "POST",
         "/skills",
@@ -1080,6 +1078,13 @@ class TestStatsScopeIsDecidedInTheService:
             )
         monkeypatch.setattr(
             "app.services.stats.member_repo.count_for_org", AsyncMock(return_value=0)
+        )
+        # The window's cost is runs plus ingestion, so the second ledger is
+        # stubbed alongside the first - otherwise a 500 from an unmocked query
+        # would read as the gate refusing.
+        monkeypatch.setattr(
+            "app.services.stats.ingestion_spend_repo.sum_cost_window",
+            AsyncMock(return_value=Decimal(0)),
         )
         monkeypatch.setattr(
             "app.services.stats.message_rating_repo.get_rating_summary_scoped",

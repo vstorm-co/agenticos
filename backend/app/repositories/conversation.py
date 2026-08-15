@@ -98,24 +98,35 @@ async def agents_in_conversations(
     }
 
 
+class ConversationHead(NamedTuple):
+    """What a listing needs of a conversation it references: its name, and whose it is."""
+
+    title: str
+    user_id: UUID | None
+
+
 async def titles_for(
     db: AsyncSession, conversation_ids: list[UUID], *, organization_id: UUID
-) -> dict[UUID, str]:
-    """The title of each of these conversations, inside one organization.
+) -> dict[UUID, ConversationHead]:
+    """The title and owner of each of these conversations, inside one organization.
 
     One query for a whole page, and scoped: an id from somewhere else answers
     with nothing rather than with a title, which is what stops a listing from
     confirming that a conversation exists in an organization the caller is not in.
+
+    The owner travels with the title because the chat page lists its owner's
+    threads: a link offered to anybody else lands on an empty sidebar dressed
+    as the conversation, so a listing has to know whose thread it is naming.
     """
     if not conversation_ids:
         return {}
     result = await db.execute(
-        select(Conversation.id, Conversation.title).where(
+        select(Conversation.id, Conversation.title, Conversation.user_id).where(
             Conversation.id.in_(conversation_ids),
             Conversation.organization_id == organization_id,
         )
     )
-    return {row.id: row.title for row in result.all()}
+    return {row.id: ConversationHead(row.title, row.user_id) for row in result.all()}
 
 
 async def count_by_agent(

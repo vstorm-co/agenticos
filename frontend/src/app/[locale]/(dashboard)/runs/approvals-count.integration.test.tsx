@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import userEvent from "@testing-library/user-event";
 import { render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -70,7 +71,11 @@ function wrapper({ children }: { children: ReactNode }) {
 
 /** One page of `shown` rows out of `total` waiting. */
 function serve(shown: number, total: number) {
-  vi.mocked(apiClient.get).mockImplementation((path: string) => {
+  vi.mocked(apiClient.get).mockImplementation((path: string, options?: unknown) => {
+    // The decided record asks /approvals with params; the queue asks bare.
+    if (path === "/approvals" && (options as { params?: unknown } | undefined)?.params) {
+      return Promise.resolve({ items: [], total: 0 });
+    }
     if (path === "/spend") return Promise.resolve(EMPTY_SPEND);
     if (path === "/approvals")
       return Promise.resolve({
@@ -94,6 +99,11 @@ function serve(shown: number, total: number) {
 beforeEach(() => {
   vi.mocked(apiClient.get).mockReset();
 });
+
+/** The page opens on Runs now; the queue is one tab over. */
+async function openApprovals() {
+  await userEvent.click(await screen.findByRole("tab", { name: /^Approvals/ }));
+}
 
 describe("the count of calls waiting on a person", () => {
   it("is the server's total, not the number of rows on one page", async () => {
@@ -127,6 +137,7 @@ describe("the count of calls waiting on a person", () => {
     serve(2, 120);
 
     render(<RunsPage />, { wrapper });
+    await openApprovals();
 
     expect(await screen.findByText(/Showing the oldest 2 of 120 waiting/)).toBeVisible();
   });

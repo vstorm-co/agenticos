@@ -27,10 +27,17 @@ from app.schemas.message_rating import RatingSummary
 
 
 class DayCount(BaseSchema):
-    """Runs started on one UTC day. Days with no runs are present with zero."""
+    """One UTC day's runs, how many completed, and what they cost.
+
+    Days with no runs are present with zeroes, so a series is dense and a
+    sparkline has one point per day rather than one point per day that
+    happened to be busy.
+    """
 
     date: date
     runs: int
+    completed: int
+    cost_usd: Decimal
 
 
 class SurfaceCount(BaseSchema):
@@ -102,15 +109,29 @@ class ProviderCost(BaseSchema):
 
 
 class CostBlock(BaseSchema):
-    """Model spend inside the window - the period half of the spend card.
+    """The window's whole bill, and the two halves it is made of.
 
-    The calendar month-to-date figure deliberately lives on `GET /spend`
-    instead: it reconciles against an invoice and must not move with a
-    dashboard's period filter.
+    `period_usd` is models **plus ingestion**, which is the same arithmetic
+    `spend.organization_spend_since` measures a monthly cap on. It used to be
+    models alone, so the dashboard's headline and the month-to-date line under
+    it were two different definitions of cost sitting on one card with nothing
+    saying so - on a deployment that indexes documents they simply disagreed.
+
+    `model_usd` and `ingestion_usd` sum to it. They are separate fields rather
+    than a computed split because the two are answered by different tables and
+    a reader deciding where the money went should not have to subtract.
+
+    `previous_period_usd` is the whole bill too, so the change against the last
+    window compares like with like.
+
+    The calendar month-to-date figure still lives on `GET /spend`: it
+    reconciles against an invoice and must not move with a period filter.
     """
 
     period_usd: Decimal
     previous_period_usd: Decimal
+    model_usd: Decimal
+    ingestion_usd: Decimal
     by_provider: list[ProviderCost]
 
 
@@ -174,6 +195,24 @@ class PersonUsageRow(BaseSchema):
     last_run_at: datetime
 
 
+class HourCount(BaseSchema):
+    """Runs started in one weekday-and-hour slot - the rhythm card's cell.
+
+    `weekday` is Postgres' `dow`, so **0 is Sunday**; the client maps it onto
+    whatever its locale calls the first day. Sparse: a slot nobody ever ran in
+    is absent rather than present with a zero, because 168 rows of mostly
+    nothing is a lot of envelope for an empty deployment.
+
+    UTC, like every other bucket here. An organization spread across timezones
+    reads its own rhythm shifted, which is the honest answer until a run
+    records the zone it arrived from.
+    """
+
+    weekday: int
+    hour: int
+    runs: int
+
+
 class UsageStats(BaseSchema):
     """The answer of `GET /stats/usage` - one envelope, sections per question.
 
@@ -204,3 +243,4 @@ class UsageStats(BaseSchema):
     agent_id: UUID | None = None
     by_version: list[VersionUsageRow] | None = None
     by_user: list[PersonUsageRow] | None = None
+    by_hour: list[HourCount] | None = None
