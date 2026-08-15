@@ -5,6 +5,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -265,6 +266,19 @@ export function DashboardEditor({
     setAddTarget(null);
     setPoppedUid(card.uid);
   };
+
+  // What the catalog marks as already on the page. Counted rather than
+  // collected: the same card may be placed more than once, and "on the page
+  // twice" is the answer a person adding a third copy needs.
+  const placed = useMemo(() => {
+    const counts = new Map<WidgetId, number>();
+    for (const section of sections) {
+      for (const widget of section.widgets) {
+        counts.set(widget.widget, (counts.get(widget.widget) ?? 0) + 1);
+      }
+    }
+    return counts;
+  }, [sections]);
 
   // FLIP re-runs whenever the rendered order, any card's size, or a section's
   // collapse changes — the things that move or hide cards. A divider's label or
@@ -571,6 +585,7 @@ export function DashboardEditor({
       <AddWidgetDialog
         catalog={catalog}
         period={period}
+        placed={placed}
         open={dialogOpen}
         onOpenChange={(open) => {
           setDialogOpen(open);

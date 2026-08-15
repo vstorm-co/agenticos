@@ -1651,7 +1651,8 @@
       "tempSaveTitle": "Keep this layout for good?",
       "tempSaveDescription": "Saving sets this as your active dashboard, but it is not a saved template. Reset to default or applying another layout will replace it, and this arrangement will be lost. Save it as a permanent template to keep it and switch back any time.",
       "tempSaveAsTemplate": "Save as template",
-      "tempSaveKeep": "Just apply for now"
+      "tempSaveKeep": "Just apply for now",
+      "alreadyPlaced": "{count, plural, =1 {On the page} other {On the page ×#}}"
     },
     "presets": {
       "menu": "Layouts",

@@ -1040,7 +1040,8 @@
       "tempSaveTitle": "Zachować ten układ na stałe?",
       "tempSaveDescription": "Zapis ustawia ten układ jako Twój aktywny dashboard, ale to nie jest zapisany szablon. Przywrócenie domyślnego lub zastosowanie innego układu go zastąpi i ten układ przepadnie. Zapisz go jako stały szablon, aby go zachować i wracać do niego w dowolnej chwili.",
       "tempSaveAsTemplate": "Zapisz jako szablon",
-      "tempSaveKeep": "Zastosuj tylko na teraz"
+      "tempSaveKeep": "Zastosuj tylko na teraz",
+      "alreadyPlaced": "{count, plural, =1 {Na stronie} other {Na stronie ×#}}"
     },
     "presets": {
       "menu": "Układy",

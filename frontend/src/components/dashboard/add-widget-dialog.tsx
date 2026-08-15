@@ -22,6 +22,13 @@ interface AddWidgetDialogProps {
   catalog: WidgetDef[];
   /** The period filter, so the preview shows the same data the card will. */
   period: Period;
+  /**
+   * How many times each widget is already on the arrangement being edited.
+   * A row says so rather than disappearing or going dead: placing the same
+   * card twice is allowed, and the catalog is browsed as often to check what
+   * is already there as to add something new.
+   */
+  placed: Map<WidgetDef["id"], number>;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAdd: (widget: WidgetDef["id"]) => void;
@@ -47,6 +54,7 @@ interface Group {
 export function AddWidgetDialog({
   catalog,
   period,
+  placed,
   open,
   onOpenChange,
   onAdd,
@@ -92,36 +100,59 @@ export function AddWidgetDialog({
     })).filter((group) => group.defs.length > 0);
   }, [catalog, query, t]);
 
-  const renderRow = (def: WidgetDef) => (
-    <li key={def.id}>
-      <button
-        type="button"
-        onMouseEnter={() => setActive(def.id)}
-        onFocus={() => setActive(def.id)}
-        onClick={() => pick(def.id)}
-        className={cn(
-          "border-border hover:border-brand-line hover:bg-brand-subtle/40 flex w-full items-start justify-between gap-3 rounded-lg border p-3 text-left transition-colors",
-          active === def.id && "border-brand-line bg-brand-subtle/40",
-        )}
-      >
-        <span className="min-w-0">
-          <span className="text-foreground block text-sm font-medium">
-            {t(`widgets.${def.id}.title`)}
+  const renderRow = (def: WidgetDef) => {
+    const count = placed.get(def.id) ?? 0;
+    return (
+      <li key={def.id}>
+        <button
+          type="button"
+          onMouseEnter={() => setActive(def.id)}
+          onFocus={() => setActive(def.id)}
+          onClick={() => pick(def.id)}
+          className={cn(
+            "border-border hover:border-brand-line hover:bg-brand-subtle/40 flex w-full items-start justify-between gap-3 rounded-lg border p-3 text-left transition-colors",
+            // A card already on the page reads a step darker than the rest,
+            // NEUTRAL rather than accent: the accent tint means "you are
+            // pointing at this one" here, and a row that wore both meanings
+            // at once said neither.
+            count > 0 && "bg-muted/70 border-foreground/10",
+            active === def.id && "border-brand-line bg-brand-subtle/40",
+          )}
+        >
+          <span className="min-w-0">
+            <span className="text-foreground flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium">
+              {t(`widgets.${def.id}.title`)}
+              {/* Words, not only a shade: the same fact has to survive a
+                  greyscale screen and a reader who cannot separate the two
+                  surfaces. The count is part of it because the answer to "is
+                  this already there" is sometimes "twice". */}
+              {count > 0 ? (
+                <span className="bg-foreground/8 text-muted-foreground rounded-full px-2 py-0.5 text-[11px] font-normal">
+                  {t("edit.alreadyPlaced", { count })}
+                </span>
+              ) : null}
+            </span>
+            <span className="text-muted-foreground mt-0.5 block text-xs">
+              {t(`widgets.${def.id}.description`)}
+            </span>
           </span>
-          <span className="text-muted-foreground block text-xs">
-            {t(`widgets.${def.id}.description`)}
+          <span className="text-muted-foreground shrink-0" aria-hidden>
+            <Plus className="size-4" />
           </span>
-        </span>
-        <span className="text-muted-foreground shrink-0" aria-hidden>
-          <Plus className="size-4" />
-        </span>
-      </button>
-    </li>
-  );
+        </button>
+      </li>
+    );
+  };
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-hidden sm:max-w-3xl">
+      {/* A column rather than the dialog's default grid, so the catalog and the
+          preview share every pixel the viewport has left instead of each
+          carrying its own `vh` cap. Wider and taller than the rest of the
+          product's dialogs on purpose: this one is a browsable catalogue of
+          thirty cards beside a live rendering of one, and at `3xl` the preview
+          pane was too narrow to show a card at anything like its real width. */}
+      <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden sm:max-w-5xl">
         <DialogHeader>
           <DialogTitle>{t("edit.addTitle")}</DialogTitle>
           <DialogDescription>{t("edit.addDescription")}</DialogDescription>
@@ -140,11 +171,11 @@ export function AddWidgetDialog({
             className="pl-9"
           />
         </div>
-        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+        <div className="grid min-h-0 flex-1 gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
           <div
             role="group"
             aria-label={t("edit.addTitle")}
-            className="max-h-[60vh] space-y-4 overflow-y-auto pr-1"
+            className="min-h-0 space-y-4 overflow-y-auto pr-1"
           >
             {groups.length === 0 ? (
               <p className="text-muted-foreground py-8 text-center text-sm">
@@ -161,12 +192,14 @@ export function AddWidgetDialog({
               ))
             )}
           </div>
-          <div className="border-border bg-muted hidden flex-col rounded-lg border p-3 md:flex">
+          <div className="border-border bg-muted hidden min-h-0 flex-col rounded-lg border p-3 md:flex">
             <p className="text-muted-foreground mb-2 text-xs font-medium">{t("edit.preview")}</p>
             {PreviewWidget && active ? (
-              // A fixed frame so every widget previews at the same size — a short
-              // card no longer looks lost and a tall one no longer overflows the pane.
-              <div className="h-80 overflow-hidden rounded-lg">
+              // One frame, filling the pane, so every widget previews at the same
+              // size - a short card no longer looks lost and a tall one no longer
+              // overflows. `min-h-80` keeps it worth looking at when the viewport
+              // is short enough that `flex-1` would leave a letterbox.
+              <div className="min-h-80 flex-1 overflow-hidden rounded-lg">
                 <div className="pointer-events-none h-full select-none">
                   <PreviewWidget
                     title={t(`widgets.${active}.title`)}
@@ -176,7 +209,7 @@ export function AddWidgetDialog({
                 </div>
               </div>
             ) : (
-              <p className="text-muted-foreground flex h-80 items-center justify-center text-center text-xs">
+              <p className="text-muted-foreground flex min-h-80 flex-1 items-center justify-center text-center text-xs">
                 {t("edit.previewHint")}
               </p>
             )}
