@@ -610,3 +610,36 @@ worth a second opinion before or during stage 2:
   one, every render. The registry parity test asserts the backend's
   `WIDGET_IDS`, `SPANS` and `ROWS` mirrors match the frontend registry in both
   directions.
+
+## What stage 2 changed about the visual language
+
+Three calls in this note were superseded by what the product had become by the
+time the arrangeable dashboard shipped. Recorded here rather than edited in
+above, because each was right when it was written.
+
+- **A card is `Card`, at 16px, with a divider under its heading.** This note
+  mirrors `--radius-card` (8px) because that is what the token said; the
+  product's `Card` primitive is `rounded-2xl` with `shadow-card`, and by
+  0.0.151 every list page and the Activity figures were built on it. A
+  dashboard widget drawn at 8px with no elevation was the only surface in the
+  product that looked like a different product — on the one page that shows
+  all of them at once. `WidgetFrame` is built on `Card` now.
+- **A figure is mono numerals under a small upper-case label.** Activity
+  settled that shape for its three figures; thirteen widgets had each printed
+  their headline as `text-2xl font-semibold`, so the same number changed
+  typeface between the dashboard and the page its "see all" points at.
+  `Metric` and `DeltaChip` are the one way both are drawn.
+- **The quick actions left the filter row.** This note put "period and visible
+  sections on the left, quick actions on the right". Four buttons of near-equal
+  weight is four decisions asked at once, and they wrapped a button at a time
+  below about 1400px. The page's one primary action ("New chat") now sits in
+  the header, where every other page in the product puts its primary; the three
+  shortcuts stay on the strip as ghost buttons, and the strip wraps as two
+  groups rather than one control at a time.
+
+And one thing this note did not anticipate: **a healthy organization opened on
+five empty states.** "Needs attention" led the steward layout, and every card
+in it is an empty state when nothing is wrong. The `summary` widget — runs,
+completed share, spend, active people, all slices of the composed
+`/stats/usage` response already in hand — leads the steward, operator and
+builder layouts instead, which is also how Activity opens.
