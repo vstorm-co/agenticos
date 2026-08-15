@@ -106,9 +106,27 @@ What it cannot do is *stop* the spend. `BudgetGuard` refuses in
 `wrap_model_request`, which runs after this hook, so a compaction that crosses a
 cap is recorded here and refused on the request after it.
 
+## The gauge
+
+`build_gauge` is the other half of this package, and it is deliberately *not* a
+config field. It wraps the harness's `ReportContextUsage`, which reuses the same
+estimator and the same resolved window and only observes — it never edits
+history — and it fills a `ContextGauge` the factory hands to every agent, whether
+or not the spec binds compaction at all.
+
+Every agent, because the warning matters most to the one that will not compact:
+that is the agent that reaches the ceiling and gets refused by the provider. It
+is ordered *behind* the spec's own capabilities, so the reading is of the history
+as it will be sent rather than of what triggered a compaction — otherwise the
+gauge would never be seen to fall.
+
+The reading carries `resolved`, which is false when the window is the assumed
+default rather than the model's own. A surface drawing a percentage against a
+number nobody could resolve has to be able to say it is a guess.
+
 ## What this deliberately does not do
 
-Compact across turns, or expose a context gauge. The first needs a history that
-survives a turn, which is a change to how conversations are replayed rather than
-a capability setting. The second is `ReportContextUsage` and belongs next to the
-cost line in the chat, not in a spec.
+Compact across turns. That needs a history that survives a turn boundary as
+`ModelMessage`s rather than as text, which is a change to how conversations are
+replayed rather than a capability setting — see
+`app.services.agent.build_message_history`.

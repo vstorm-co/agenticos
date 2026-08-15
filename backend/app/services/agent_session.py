@@ -507,6 +507,13 @@ class AgentSession:
         Read on its own session, like `_attached_files`: the turn's session is
         opened later and held for the run, and this is a lookup rather than part
         of that unit of work.
+
+        The repository call carries no tenant predicate, which is safe here for
+        one reason only: `current_conversation_id` is what `persist_user_turn`
+        resolved a moment ago, and that refuses a conversation belonging to
+        another organization before anything is written. The id never arrives
+        here as the client sent it. The channel router and the embed session read
+        their history unscoped on the same grounds.
         """
         if self.current_conversation_id is None:
             return []

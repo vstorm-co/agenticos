@@ -580,6 +580,12 @@ across the hook and books the difference against the run's ledger. It is recorde
 rather than prevented: the guard refuses on the *next* request, so a compaction
 that crosses a cap stops the run after it, not during it.
 
+**The gauge beside it is not part of this binding.** How full the window was is
+reported by every agent, whether or not it compacts — see
+[how full the context window is](../governance.md#how-full-the-context-window-is).
+The warning matters most to the agent that will *not* compact, which is the one
+that reaches the ceiling and gets refused.
+
 ## Chat channel lookup
 
 `get_channel_info` — *Describe the channel this conversation is happening in.*
