@@ -670,12 +670,11 @@
       "model-mix": {
         "title": "Modele za uruchomieniami",
         "notRecorded": "nie zarejestrowano",
-        "subline": "Tak, jak zapisano na każdym uruchomieniu (model_label).",
         "empty": {
           "title": "Brak uruchomień w tym okresie",
           "description": "Podział modeli pojawi się z pierwszym uruchomieniem."
         },
-        "description": "Które modele stoją za uruchomieniami."
+        "description": "Które modele stoją za runami - tak, jak zapisał to każdy run."
       },
       "version-compare": {
         "title": "Wersja do wersji",

@@ -1270,9 +1270,8 @@
           "title": "No runs in this period"
         },
         "notRecorded": "not recorded",
-        "subline": "As recorded on each run (model_label).",
         "title": "Models behind the runs",
-        "description": "Which models are behind the runs."
+        "description": "Which models are behind the runs, as each run recorded its own."
       },
       "my-activity": {
         "empty": {

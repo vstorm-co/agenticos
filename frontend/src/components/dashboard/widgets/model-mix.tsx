@@ -15,15 +15,12 @@ export function ModelMixWidget({ title, hint, period, seeAll }: DashboardWidgetP
     <WidgetFrame title={title} hint={hint} seeAll={seeAll}>
       <UsageBody period={period} emptyKey="model-mix">
         {(usage) => (
-          <div className="flex h-full flex-col justify-between gap-2">
-            <BarList
-              items={(usage.by_model ?? []).map((row) => ({
-                label: row.model_label ?? t("notRecorded"),
-                value: row.runs,
-              }))}
-            />
-            <p className="text-muted-foreground text-xs">{t("subline")}</p>
-          </div>
+          <BarList
+            items={(usage.by_model ?? []).map((row) => ({
+              label: row.model_label ?? t("notRecorded"),
+              value: row.runs,
+            }))}
+          />
         )}
       </UsageBody>
     </WidgetFrame>
