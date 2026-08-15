@@ -60,7 +60,9 @@ There is no `(marketing)` route group.
   opens on `MCP`, `API`, `RAG`, `KB` and `JWT`. Both alternatives are anchored now - the
   `[A-Z]` after the separator, the `$` after a single lower-case word - so each exempts a
   complete two-token label and nothing longer. `MCP server` is still a label; `MCP server
-  URL` is copy and needs a key.
+  URL` is copy and needs a key. Either side of the separator may itself be an acronym
+  (`URL / Endpoint`), which the acronym alternative used to cover by accident and anchoring
+  it took away.
 - **It reads a `.ts` file as well as a `.tsx` one, and by the same rules.** A parser
   reads one by construction: there is no bracket to anchor on and so nothing to gate on
   the suffix, and a file with no JSX in it simply yields no phrases. That matters because

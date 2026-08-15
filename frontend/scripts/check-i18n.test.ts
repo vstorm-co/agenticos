@@ -511,6 +511,19 @@ describe("a .ts file", () => {
     expect(saidTs('const label = "MCP server URL";\n')).toEqual(["string 'MCP server URL'"]);
   });
 
+  it("keeps a separator label whose first token is an acronym (#678)", () => {
+    expect(
+      saidTs('const labels = ["Model / Provider", "URL / Endpoint", "API - Settings"];\n'),
+    ).toEqual([]);
+  });
+
+  it("still reports prose the two anchors were added for (#656, #678)", () => {
+    expect(saidTs('const copy = "Sign-in failed";\n')).toEqual(["string 'Sign-in failed'"]);
+    expect(saidTs('const copy = "API-key rotation failed";\n')).toEqual([
+      "string 'API-key rotation failed'",
+    ]);
+  });
+
   it("refuses a label on an export const, which the keyword skip used to hide", () => {
     expect(saidTs('export const LABEL = "Provider default";\n')).toEqual([
       "string 'Provider default'",
