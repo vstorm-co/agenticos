@@ -204,8 +204,9 @@ class TestSpecsPublishedBeforeThisExisted:
     def test_the_version_records_that_the_shape_changed(self):
         """A literal on purpose: this is the tripwire for a shape change nobody
         bumped, so it has to fail when the constant moves rather than follow it.
-        8 added `observability.organization` and `observability.project` (#206)."""
-        assert AgentSpec(name="x").spec_version == SPEC_VERSION == 8
+        8 added `observability.organization` and `observability.project` (#206);
+        9 added `context_ids` (#48)."""
+        assert AgentSpec(name="x").spec_version == SPEC_VERSION == 9
 
     def test_a_spec_that_is_not_a_mapping_is_left_to_pydantic(self):
         """The migration must not swallow a malformed document."""
