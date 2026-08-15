@@ -41,6 +41,7 @@ import {
   type StoredEntry,
 } from "@/lib/dashboard/preference";
 import { formatPeriodParam, parsePeriodParam, type Period } from "@/lib/dashboard/period";
+import { BAND_GAP, CARD_GAP, HEADING_GAP } from "@/lib/dashboard/system";
 import {
   applySectionsFilter,
   formatSectionsParam,
@@ -253,7 +254,7 @@ export default function DashboardPage() {
   const firstOrgSectionId = sections.find((section) => section.id !== "deployment")?.id;
 
   return (
-    <div className="space-y-6 pb-8">
+    <div className="pb-12">
       <PageHeader
         title={t("title")}
         description={t(`subtitles.${audience}`)}
@@ -266,102 +267,106 @@ export default function DashboardPage() {
         selectedSections={selectedSections}
         onSectionsChange={changeSections}
       />
-      {sections.map((section) => {
-        // A custom divider carries the person's own caption (`title`) and an
-        // accent; the curated defaults carry a translated `titleKey` and no
-        // colour. Neutral is the absence of an accent — rendered plain, like a
-        // default section — so only a real colour (a preset or a custom hex)
-        // tints the band, carried on `--dash-solid` by the decoration.
-        const heading = sectionLabel(section, t) || null;
-        const coloured = isAccentColour(section.accent);
-        const decoration = coloured ? accentDecoration(section.accent as string) : null;
-        const collapsed =
-          section.id in collapseOverrides ? collapseOverrides[section.id] : !!section.collapsed;
-        const toggleCollapsed = () =>
-          setCollapseOverrides((current) => ({ ...current, [section.id]: !collapsed }));
-        return (
-          <Fragment key={section.id}>
-            {!isCustom && audience === "app_admin" && section.id === firstOrgSectionId ? (
-              <OrgDivider name={activeOrgName} />
-            ) : null}
-            <section
-              className={cn(
-                "space-y-3",
-                coloured && "dash-section-accent p-4",
-                decoration?.className,
-              )}
-              style={decoration?.style as CSSProperties | undefined}
-            >
-              {/* A band label, not a title. A section heading set at the same
+      {/* The bands own a rhythm of their own, four times the gap between two
+          cards, which is what makes a band read as a band. The header and the
+          control strip above keep the 24px every other page uses. */}
+      <div className={cn(BAND_GAP, "mt-6")}>
+        {sections.map((section) => {
+          // A custom divider carries the person's own caption (`title`) and an
+          // accent; the curated defaults carry a translated `titleKey` and no
+          // colour. Neutral is the absence of an accent — rendered plain, like a
+          // default section — so only a real colour (a preset or a custom hex)
+          // tints the band, carried on `--dash-solid` by the decoration.
+          const heading = sectionLabel(section, t) || null;
+          const coloured = isAccentColour(section.accent);
+          const decoration = coloured ? accentDecoration(section.accent as string) : null;
+          const collapsed =
+            section.id in collapseOverrides ? collapseOverrides[section.id] : !!section.collapsed;
+          const toggleCollapsed = () =>
+            setCollapseOverrides((current) => ({ ...current, [section.id]: !collapsed }));
+          return (
+            <Fragment key={section.id}>
+              {!isCustom && audience === "app_admin" && section.id === firstOrgSectionId ? (
+                <OrgDivider name={activeOrgName} />
+              ) : null}
+              <section
+                className={cn(coloured && "dash-section-accent p-4", decoration?.className)}
+                style={decoration?.style as CSSProperties | undefined}
+              >
+                {/* A band label, not a title. A section heading set at the same
                   size and weight as the card titles under it gave the page two
                   levels where it has three, so nothing marked where one band
                   ended and the next began - the mono kicker `OrgDivider`
                   already used is the level between. */}
-              {heading ? (
-                <h2 className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={toggleCollapsed}
-                    aria-expanded={!collapsed}
-                    aria-label={
-                      collapsed
-                        ? t("edit.expand", { title: heading })
-                        : t("edit.collapse", { title: heading })
-                    }
-                    className="text-muted-foreground/70 hover:text-foreground -ml-1 flex size-5 shrink-0 items-center justify-center"
-                  >
-                    {collapsed ? (
-                      <ChevronRight className="size-4" aria-hidden />
-                    ) : (
-                      <ChevronDown className="size-4" aria-hidden />
+                {heading ? (
+                  <h2 className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={toggleCollapsed}
+                      aria-expanded={!collapsed}
+                      aria-label={
+                        collapsed
+                          ? t("edit.expand", { title: heading })
+                          : t("edit.collapse", { title: heading })
+                      }
+                      className="text-muted-foreground/70 hover:text-foreground -ml-1 flex size-5 shrink-0 items-center justify-center"
+                    >
+                      {collapsed ? (
+                        <ChevronRight className="size-4" aria-hidden />
+                      ) : (
+                        <ChevronDown className="size-4" aria-hidden />
+                      )}
+                    </button>
+                    {coloured ? (
+                      <span className="dash-swatch size-2.5 shrink-0 rounded-full" aria-hidden />
+                    ) : null}
+                    <span className="text-muted-foreground truncate font-mono text-[11px] font-medium tracking-[0.1em] uppercase">
+                      {heading}
+                    </span>
+                    <span className="bg-border h-px min-w-6 flex-1" aria-hidden />
+                  </h2>
+                ) : null}
+                {collapsed ? null : (
+                  <div
+                    className={cn(
+                      isCustom
+                        ? ARRANGED_GRID_CLASS
+                        : `grid grid-cols-1 ${CARD_GAP} lg:grid-cols-12`,
+                      heading && HEADING_GAP,
                     )}
-                  </button>
-                  {coloured ? (
-                    <span className="dash-swatch size-2.5 shrink-0 rounded-full" aria-hidden />
-                  ) : null}
-                  <span className="text-muted-foreground truncate font-mono text-[11px] font-medium tracking-[0.1em] uppercase">
-                    {heading}
-                  </span>
-                  <span className="bg-border h-px min-w-6 flex-1" aria-hidden />
-                </h2>
-              ) : null}
-              {collapsed ? null : (
-                <div
-                  className={
-                    isCustom ? ARRANGED_GRID_CLASS : "grid grid-cols-1 gap-4 lg:grid-cols-12"
-                  }
-                >
-                  {section.entries.map((entry, index) => {
-                    const Widget = WIDGET_COMPONENTS[entry.widget];
-                    // A saved arrangement carries an explicit height; the audience
-                    // defaults auto-size, so a row is as tall as its tallest card
-                    // rather than as tall as a fixed unit multiplied out. Pinning
-                    // them to `defaultRows` was tried and is worse: the heights are
-                    // tuned for a grid a person resizes by hand, and applied to a
-                    // curated row they add slack rather than remove it.
-                    const cell = entry.rows
-                      ? `${SPAN_CLASS[entry.span]} ${ROW_CLASS[entry.rows]}`
-                      : SPAN_CLASS[entry.span];
-                    return (
-                      <div
-                        key={`${entry.widget}-${index}`}
-                        className={cn(cell, coloured && "dash-tile-accent")}
-                      >
-                        <Widget
-                          title={t(entry.titleKey ?? `widgets.${entry.widget}.title`)}
-                          hint={t(`widgets.${entry.widget}.description`)}
-                          period={period}
-                          seeAll={WIDGETS[entry.widget].seeAll}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
-          </Fragment>
-        );
-      })}
+                  >
+                    {section.entries.map((entry, index) => {
+                      const Widget = WIDGET_COMPONENTS[entry.widget];
+                      // A saved arrangement carries an explicit height; the audience
+                      // defaults auto-size, so a row is as tall as its tallest card
+                      // rather than as tall as a fixed unit multiplied out. Pinning
+                      // them to `defaultRows` was tried and is worse: the heights are
+                      // tuned for a grid a person resizes by hand, and applied to a
+                      // curated row they add slack rather than remove it.
+                      const cell = entry.rows
+                        ? `${SPAN_CLASS[entry.span]} ${ROW_CLASS[entry.rows]}`
+                        : SPAN_CLASS[entry.span];
+                      return (
+                        <div
+                          key={`${entry.widget}-${index}`}
+                          className={cn(cell, coloured && "dash-tile-accent")}
+                        >
+                          <Widget
+                            title={t(entry.titleKey ?? `widgets.${entry.widget}.title`)}
+                            hint={t(`widgets.${entry.widget}.description`)}
+                            period={period}
+                            seeAll={WIDGETS[entry.widget].seeAll}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+            </Fragment>
+          );
+        })}
+      </div>
     </div>
   );
 }

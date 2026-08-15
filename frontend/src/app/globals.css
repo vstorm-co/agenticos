@@ -71,6 +71,8 @@
                              never the sole indicator of a control)
      ring                    the focus ring on every interactive element
      chart                   data strokes and fills
+     track                   the unfilled part of a bar or meter drawn in
+                             `chart` - the same hue, several steps lighter
 
      Secondary, outline and ghost actions, and every page surface, stay
      NEUTRAL on purpose. An accent on everything means nothing. */
@@ -81,9 +83,22 @@
   --color-brand-subtle: var(--brand-50);
   --color-brand-subtle-hover: var(--brand-100);
   --color-brand-line: var(--brand-300);
-  /* Chart strokes/fills - one step deeper than the accent so data reads on a
-     white card without becoming navy. Dark themes repoint it upward. */
-  --color-chart: var(--brand-600);
+  /* Chart strokes/fills, and the track a fill runs along.
+
+     One step, both themes: `brand-500` measures 3.74:1 on the white card and
+     5.07:1 on the dark one, so it clears the 3:1 floor a data mark owes its
+     surface without the shout `brand-600` had in light (4.99:1). A mark is
+     small and repeated - a bar list is six of them - and the loudest legal
+     value is not the right one.
+
+     The track is the same ramp, several steps lighter (`dataviz`'s meter rule:
+     the unfilled part of a bar is a lighter step of the fill's own hue, never
+     a neutral alpha). It measures 1.19:1 light and 1.41:1 dark, which is
+     deliberately below any contrast floor: a track carries no value. It shows
+     a bar's extent, and every list that draws one also prints the number as
+     text beside it. */
+  --color-chart: var(--brand-500);
+  --color-track: var(--brand-100);
 
   /* Light theme - cool near-white, Logfire-family neutrals. White cards and a
      white sidebar sit on a faintly cooler page so the layers read without a
@@ -181,7 +196,8 @@
     --color-accent-foreground: oklch(95% 0 0);
     --color-border: oklch(28% 0.008 250);
     --color-input: oklch(27% 0.008 250);
-    --color-chart: var(--color-brand);
+    --color-chart: var(--brand-500);
+    --color-track: var(--brand-900);
   }
 }
 
@@ -213,7 +229,8 @@
   --color-accent-foreground: oklch(95% 0 0);
   --color-border: oklch(28% 0.008 250);
   --color-input: oklch(27% 0.008 250);
-  --color-chart: var(--color-brand);
+  --color-chart: var(--brand-500);
+  --color-track: var(--brand-900);
 }
 
 /* =========================================================================
@@ -242,7 +259,8 @@
   --color-brand-subtle: var(--brand-50);
   --color-brand-subtle-hover: var(--brand-100);
   --color-brand-line: var(--brand-300);
-  --color-chart: var(--brand-600);
+  --color-chart: var(--brand-500);
+  --color-track: var(--brand-100);
 }
 
 .theme-dark {
@@ -264,7 +282,8 @@
   --color-brand-subtle: var(--brand-950);
   --color-brand-subtle-hover: var(--brand-900);
   --color-brand-line: var(--brand-800);
-  --color-chart: var(--color-brand);
+  --color-chart: var(--brand-500);
+  --color-track: var(--brand-900);
 }
 
 @layer base {
