@@ -12,7 +12,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 from pydantic_ai._run_context import RunContext
-from pydantic_ai.capabilities import AbstractCapability
+from pydantic_ai.capabilities import AbstractCapability, CombinedCapability
 from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
@@ -37,7 +37,9 @@ from app.agents.capabilities.budget import SpendLedger, metered_by
 from app.agents.capabilities.compaction import (
     MODEL_CONTEXT_WINDOW_RESOURCE,
     CompactionConfig,
+    ContextGauge,
     MeteredCompaction,
+    build_gauge,
     build_strategy,
 )
 
@@ -324,6 +326,72 @@ class TestMetering:
         )
 
         assert len(request_context.messages) < len(messages)
+
+
+class TestTheGauge:
+    """What the context gauge reports, and when.
+
+    Attached to every agent rather than to one that compacts, because the warning
+    matters most to the agent that will *not*: that is the one that reaches the
+    ceiling and is refused by the provider (#774).
+    """
+
+    async def test_it_reads_the_history_as_it_will_be_sent(self):
+        """Ordered behind compaction, which is the whole of its usefulness.
+
+        Read *ahead* of it, the gauge would report what triggered the compaction
+        rather than what the compaction left - so it would never be seen to fall,
+        and a person watching it would conclude compaction was not working.
+
+        Neither capability declares an ordering, so Pydantic AI runs them in list
+        order and the factory puts the gauge last. This is the test that fails if
+        either half of that changes.
+        """
+        gauge = ContextGauge()
+        config = _triggers_immediately("sliding_window", keep_messages=2)
+        combined = CombinedCapability(
+            capabilities=[
+                MeteredCompaction(wrapped=build_strategy(config)),
+                build_gauge(gauge, recorded_window=1_000),
+            ]
+        )
+        messages = [_user(f"turn {index}: " + "words " * 20) for index in range(20)]
+
+        compacted = await combined.before_model_request(
+            _run_context(), _request_context(list(messages))
+        )
+
+        assert len(compacted.messages) < len(messages)
+        assert gauge.latest is not None
+        # Measured against the window the profile recorded, on the messages that
+        # survived - not on the twenty that went in.
+        assert gauge.latest.window_tokens == 1_000
+        assert gauge.latest.used_tokens < 1_000
+
+    async def test_the_recorded_window_is_what_the_share_is_measured_against(self):
+        """`resolved` is how a surface knows whether the denominator is real."""
+        gauge = ContextGauge()
+        capability = build_gauge(gauge, recorded_window=128_000)
+
+        await capability.before_model_request(_run_context(), _request_context([_user("hello")]))
+
+        assert gauge.latest is not None
+        assert (gauge.latest.window_tokens, gauge.latest.resolved) == (128_000, True)
+
+    async def test_a_window_nobody_could_resolve_is_reported_as_a_guess(self):
+        """`TestModel` is not in the pricing registry, so nothing resolves it. The
+        share is then taken of an assumed default, and saying so is the point."""
+        gauge = ContextGauge()
+        capability = build_gauge(gauge)
+
+        await capability.before_model_request(_run_context(), _request_context([_user("hello")]))
+
+        assert gauge.latest is not None
+        assert gauge.latest.resolved is False
+
+    def test_a_run_that_made_no_request_leaves_it_empty(self):
+        """Refused before it started, or stopped by a budget on the first check."""
+        assert ContextGauge().latest is None
 
 
 class TestToolPairingSurvives:
