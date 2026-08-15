@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 
+import { Figure } from "@/components/ui";
+
 import { ROUTES } from "@/lib/constants";
 import { formatPeriodParam, type Period } from "@/lib/dashboard/period";
 import { formatMs } from "../format";
-import { Metric } from "../metric";
 import { WidgetFrame } from "../widget-frame";
 import type { DashboardWidgetProps } from "./types";
 import { UsageBody } from "./usage-body";
@@ -36,12 +37,12 @@ export function LatencyWidget({ title, hint, period, seeAll }: DashboardWidgetPr
           const p95 = usage.latency_ms?.p95 ?? null;
           return (
             <div className="grid flex-1 grid-cols-2 content-center gap-4">
-              <Metric label={t("p50")} value={formatMs(usage.latency_ms?.p50 ?? null)} />
+              <Figure label={t("p50")} value={formatMs(usage.latency_ms?.p50 ?? null)} />
               {/* The number *and its evidence*: p95 links to the runs behind it,
                   sorted by duration over the same window. A null p95 is "nothing
                   finished", so there is nothing to reach - it stays a plain
                   figure rather than a link to an empty list. */}
-              <Metric
+              <Figure
                 label={t("p95")}
                 value={
                   p95 === null ? (

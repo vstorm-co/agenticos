@@ -112,7 +112,9 @@ describe("the Runs figure and the Spend figure", () => {
     // It used to read a page of fifty and call it the organization's history.
     renderPage();
 
-    await waitFor(() => expect(screen.getByText("8412")).toBeInTheDocument());
+    // Grouped, like every other figure in the product - four digits of runs
+    // read as a quantity rather than as an identifier.
+    await waitFor(() => expect(screen.getByText("8,412")).toBeInTheDocument());
   });
 
   it("opens on the window the URL names, and writes a new pick back to it", async () => {

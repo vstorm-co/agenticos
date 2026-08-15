@@ -2,9 +2,10 @@
 
 import { useTranslations } from "next-intl";
 
+import { DeltaChip, Figure } from "@/components/ui";
+
 import { completedShare, formatCompletedShare, statusTally } from "@/lib/run-outcomes";
 import { deltaPercent, formatUsd } from "../format";
-import { DeltaChip, Metric } from "../metric";
 import { WidgetFrame } from "../widget-frame";
 import type { DashboardWidgetProps } from "./types";
 import { UsageBody } from "./usage-body";
@@ -40,7 +41,7 @@ export function SummaryWidget({ title, hint, period, seeAll }: DashboardWidgetPr
           const active = usage.active_users?.active ?? 0;
           return (
             <div className="grid flex-1 grid-cols-2 content-center gap-5 lg:grid-cols-4">
-              <Metric
+              <Figure
                 label={t("runs")}
                 value={runs.toLocaleString()}
                 delta={
@@ -49,12 +50,12 @@ export function SummaryWidget({ title, hint, period, seeAll }: DashboardWidgetPr
                   ) : undefined
                 }
               />
-              <Metric
+              <Figure
                 label={t("completed")}
                 value={formatCompletedShare(completedShare(statusTally(usage.by_status ?? [])))}
                 caption={t("completedOf", { total: runs })}
               />
-              <Metric
+              <Figure
                 label={t("spend")}
                 value={formatUsd(usage.cost?.period_usd)}
                 delta={
@@ -63,7 +64,7 @@ export function SummaryWidget({ title, hint, period, seeAll }: DashboardWidgetPr
                   ) : undefined
                 }
               />
-              <Metric
+              <Figure
                 label={t("people")}
                 value={active.toLocaleString()}
                 caption={t("ofMembers", { total: usage.active_users?.total_members ?? 0 })}

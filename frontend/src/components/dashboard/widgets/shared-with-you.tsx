@@ -2,8 +2,9 @@
 
 import { useTranslations } from "next-intl";
 
+import { Figure } from "@/components/ui";
+
 import { useSharedWithMeCounts } from "@/hooks";
-import { Metric } from "../metric";
 import { WidgetFrame } from "../widget-frame";
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
@@ -35,7 +36,7 @@ export function SharedWithYouWidget({ title, hint, seeAll }: DashboardWidgetProp
               ["skills", counts.skills],
             ] as const
           ).map(([key, value]) => (
-            <Metric key={key} label={t(key)} value={value.toLocaleString()} />
+            <Figure key={key} label={t(key)} value={value.toLocaleString()} />
           ))}
         </div>
       )}

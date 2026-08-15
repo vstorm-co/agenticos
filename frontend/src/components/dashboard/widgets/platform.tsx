@@ -2,8 +2,9 @@
 
 import { useTranslations } from "next-intl";
 
+import { Figure } from "@/components/ui";
+
 import { useAdminStats } from "@/hooks";
-import { Metric } from "../metric";
 import { WidgetFrame } from "../widget-frame";
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
@@ -31,7 +32,7 @@ export function PlatformWidget({ title, hint, seeAll }: DashboardWidgetProps) {
               ["conversations", stats.total_conversations, null],
             ] as const
           ).map(([key, value, sub]) => (
-            <Metric
+            <Figure
               key={key}
               label={t(key)}
               value={(value ?? 0).toLocaleString()}

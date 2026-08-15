@@ -2,8 +2,9 @@
 
 import { useTranslations } from "next-intl";
 
+import { DeltaChip, Figure } from "@/components/ui";
+
 import { deltaPercent } from "../format";
-import { DeltaChip, Metric } from "../metric";
 import { TrendChart } from "../primitives/trend-chart";
 import { WidgetFrame } from "../widget-frame";
 import type { DashboardWidgetProps } from "./types";
@@ -21,7 +22,7 @@ export function RunsWidget({ title, hint, period, seeAll }: DashboardWidgetProps
           const delta = deltaPercent(total, usage.previous_total_runs ?? 0);
           return (
             <div className="flex h-full flex-col gap-3">
-              <Metric
+              <Figure
                 value={total.toLocaleString()}
                 unit={t("unit")}
                 delta={delta !== null ? <DeltaChip delta={delta} label={t("delta")} /> : undefined}

@@ -2,12 +2,13 @@
 
 import { useTranslations } from "next-intl";
 
+import { Figure } from "@/components/ui";
+
 import { useAgents, useOrganizationList, useSpend } from "@/hooks";
 import { useOrgStore } from "@/stores";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { formatUsd } from "../format";
-import { Metric } from "../metric";
 import { WidgetFrame } from "../widget-frame";
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
@@ -60,7 +61,7 @@ export function BudgetHeadroomWidget({ title, hint }: DashboardWidgetProps) {
       ) : (
         <div className="flex h-full flex-col justify-between gap-3">
           <div>
-            <Metric
+            <Figure
               value={`${Math.round((used / cap) * 100)}%`}
               caption={t("headline", {
                 cap: formatUsd(cap),

@@ -3,8 +3,9 @@
 import { Clock } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { Figure } from "@/components/ui";
+
 import { useUsageStats } from "@/hooks";
-import { Metric } from "../metric";
 import { TrendChart } from "../primitives/trend-chart";
 import { WidgetFrame } from "../widget-frame";
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
@@ -32,7 +33,7 @@ export function MyActivityWidget({ title, hint, period, seeAll }: DashboardWidge
         <WidgetEmptyBody title={t("empty.title")} description={t("empty.description")} />
       ) : (
         <div className="flex h-full flex-col gap-3">
-          <Metric
+          <Figure
             value={usage.total_runs.toLocaleString()}
             unit={t("unit")}
             delta={
