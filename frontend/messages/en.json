@@ -1213,7 +1213,13 @@
           "unhealthy": "down"
         },
         "title": "Service health",
-        "description": "Whether the database, queue and vector store are answering."
+        "description": "Whether the database, queue and vector store are answering.",
+        "services": {
+          "database": "Database",
+          "redis": "Redis",
+          "vector_store": "Vector store",
+          "model_access": "Model access"
+        }
       },
       "knowledge-freshness": {
         "empty": {

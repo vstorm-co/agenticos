@@ -542,7 +542,13 @@
           "title": "Brak raportu usług",
           "description": "Sonda zdrowia jeszcze nie odpowiedziała."
         },
-        "description": "Czy baza danych, kolejka i magazyn wektorów odpowiadają."
+        "description": "Czy baza danych, kolejka i magazyn wektorów odpowiadają.",
+        "services": {
+          "database": "Baza danych",
+          "redis": "Redis",
+          "vector_store": "Vector store",
+          "model_access": "Dostęp do modeli"
+        }
       },
       "top-orgs": {
         "title": "Największe organizacje",
