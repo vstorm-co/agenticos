@@ -101,6 +101,42 @@ describe("UsageStrip", () => {
     expect(screen.getByTitle(/could not be resolved/)).toBeInTheDocument();
   });
 
+  it("says a barely-touched window is under a percent, not zero", () => {
+    // "0% full" reads as "nothing is there", and the distinction between an
+    // exact and an assumed window stops mattering at that scale - both mean the
+    // same thing. The tooltip still carries which it is.
+    render(
+      <UsageStrip
+        usage={usage({
+          context: { used_tokens: 800, window_tokens: 200_000, percent: 0, resolved: false },
+        })}
+      />,
+    );
+
+    expect(screen.getByText("context under 1% full")).toBeInTheDocument();
+    expect(screen.getByTitle(/could not be resolved/)).toBeInTheDocument();
+  });
+
+  it("names the turn, so it is not read as the thread beside it", () => {
+    // The two are the same figure on a one-turn conversation, and an unlabelled
+    // number next to a labelled one reads as a duplicate rather than as the
+    // other half of a comparison.
+    render(
+      <UsageStrip
+        usage={usage()}
+        total={{
+          input_tokens: 40_000,
+          output_tokens: 2_000,
+          cost_usd: "0.9100",
+          cost_is_partial: false,
+        }}
+      />,
+    );
+
+    expect(screen.getByText(/turn 1,500 tokens/)).toBeInTheDocument();
+    expect(screen.getByText(/thread 42,000 tokens/)).toBeInTheDocument();
+  });
+
   it("draws nothing about the context when no model request was made", () => {
     render(<UsageStrip usage={usage()} />);
 

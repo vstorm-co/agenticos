@@ -102,7 +102,14 @@ function ContextFill({
           percent >= 75 && percent < 90 && "text-amber-600",
         )}
       >
-        {resolved ? t("contextFull", { percent }) : t("contextFullEstimated", { percent })}
+        {percent < 1
+          ? // Under a percent, "0% full" reads as "nothing is there" and the
+            // estimated/exact distinction stops mattering - both mean the window
+            // is barely touched. The tooltip still carries which it is.
+            t("contextNearlyEmpty")
+          : resolved
+            ? t("contextFull", { percent })
+            : t("contextFullEstimated", { percent })}
       </span>
     </span>
   );
@@ -205,8 +212,8 @@ function Measured({
       >
         <Coins className="h-3 w-3" aria-hidden />
         {usage.cost_is_partial
-          ? t("tokensAndCostPartial", { count: tokens, cost: usage.cost_usd.toFixed(4) })
-          : t("tokensAndCost", { count: tokens, cost: usage.cost_usd.toFixed(4) })}
+          ? t("turnTokensAndCostPartial", { count: tokens, cost: usage.cost_usd.toFixed(4) })
+          : t("turnTokensAndCost", { count: tokens, cost: usage.cost_usd.toFixed(4) })}
         {/* The agent's own cap first: it is the one whoever is looking at this
             agent can raise. The organization's stops every agent at once and is
             somebody else's to change, so it is only worth the space once it is
