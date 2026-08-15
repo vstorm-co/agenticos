@@ -50,10 +50,17 @@ There is no `(marketing)` route group.
   lines is one node, a type argument list is not JsxText at all, and a comment is
   invisible rather than blanked. The four shapes patched into the old regexes - #199,
   #246, #249, #314 - each keep a spec, and so does #141's plain multi-line node. What a
-  *string literal* holds is the one rule still deciding by pattern, and #656 is what that
-  costs: a hyphen inside the first word read as the separator in `Foo / Bar`, so
-  `Sign-in failed` was a label and no sentence opening on a hyphenated word was ever
-  reported.
+  *string literal* holds is the one rule still deciding by pattern, and #656 and #678 are
+  what that costs - the same mistake twice, in the same regex: an alternative written to
+  exempt a *token* that exempted the whole string it opened. A hyphen inside the first word
+  read as the separator in `Foo / Bar`, so `Sign-in failed` was a label and no sentence
+  opening on a hyphenated word was ever reported; and a leading acronym exempted everything
+  after it, so `API keys are stored in the vault` left the sweep while `Provider keys are
+  stored in the vault` did not - a hole the width of a vocabulary, in a product whose copy
+  opens on `MCP`, `API`, `RAG`, `KB` and `JWT`. Both alternatives are anchored now - the
+  `[A-Z]` after the separator, the `$` after a single lower-case word - so each exempts a
+  complete two-token label and nothing longer. `MCP server` is still a label; `MCP server
+  URL` is copy and needs a key.
 - **It reads a `.ts` file as well as a `.tsx` one, and by the same rules.** A parser
   reads one by construction: there is no bracket to anchor on and so nothing to gate on
   the suffix, and a file with no JSX in it simply yields no phrases. That matters because
