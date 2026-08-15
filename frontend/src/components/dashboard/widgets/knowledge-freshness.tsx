@@ -10,14 +10,14 @@ import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-stat
 import type { DashboardWidgetProps } from "./types";
 
 /** Sync sources and how fresh their collections are. */
-export function KnowledgeFreshnessWidget({ title, seeAll }: DashboardWidgetProps) {
+export function KnowledgeFreshnessWidget({ title, hint, seeAll }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.knowledge-freshness");
   const tTime = useTranslations("time");
   const locale = useLocale();
   const { sources, isLoading, error, refetch } = useSyncSources();
 
   return (
-    <WidgetFrame title={title} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll}>
       {isLoading ? (
         <WidgetSkeleton />
       ) : error ? (

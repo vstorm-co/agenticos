@@ -9,7 +9,7 @@ import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-stat
 import type { DashboardWidgetProps } from "./types";
 
 /** The only card on the page that answers "is any of it good" for the org. */
-export function OrgRatingsWidget({ title, period, seeAll }: DashboardWidgetProps) {
+export function OrgRatingsWidget({ title, hint, period, seeAll }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.org-ratings");
   const { ratings, isLoading, error, refetch } = useRatingsSummary({
     from: period.from,
@@ -17,7 +17,7 @@ export function OrgRatingsWidget({ title, period, seeAll }: DashboardWidgetProps
   });
 
   return (
-    <WidgetFrame title={title} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll}>
       {isLoading ? (
         <WidgetSkeleton />
       ) : error ? (

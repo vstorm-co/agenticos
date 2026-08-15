@@ -95,7 +95,7 @@ describe("the version strip and the Outcomes donut, rendered from the same rows"
   it("print the same completed share, with cancelled in both denominators", () => {
     render(
       <>
-        <OutcomesWidget title="Outcomes" period={PERIOD} />
+        <OutcomesWidget title="Outcomes" hint="" period={PERIOD} />
         <VersionStrip agentId="a1" period={PERIOD} />
       </>,
     );

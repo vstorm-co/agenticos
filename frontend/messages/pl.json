@@ -448,6 +448,7 @@
   },
   "dashboard": {
     "title": "Panel",
+    "whatThisShows": "Co pokazuje ta karta",
     "seeAll": "Zobacz wszystko",
     "subtitles": {
       "app_admin": "Najpierw cała instalacja, potem Twoja organizacja - ta sama strona, więcej odpowiedzi.",
@@ -606,7 +607,6 @@
         "title": "Opóźnienie",
         "p50": "Mediana (p50)",
         "p95": "Najwolniejsze 5% (p95)",
-        "subline": "Od startu do końca, dla każdego uruchomienia w okresie.",
         "empty": {
           "title": "Brak ukończonych uruchomień",
           "description": "Opóźnienie wymaga co najmniej jednego zakończonego uruchomienia."
@@ -616,13 +616,13 @@
       },
       "active-users": {
         "title": "Aktywne osoby",
-        "headline": "{active} z {total} członków",
-        "subline": "uruchomiło agenta w tym okresie - to nagłówek; nazwiska są w tabeli poniżej",
+        "subline": "uruchomiło agenta w tym okresie",
         "empty": {
           "title": "Nikt nic nie uruchomił",
           "description": "Adopcja zaczyna się od pierwszego uruchomienia pierwszej osoby."
         },
-        "description": "Ilu członków zespołu uruchomiło agenta w tym okresie."
+        "description": "Ilu członków zespołu uruchomiło agenta w tym okresie.",
+        "ofMembers": "{total, plural, =1 {z 1 osoby} few {z # osób} many {z # osób} other {z # osób}}"
       },
       "top-people": {
         "title": "Kto z tego korzysta",
@@ -739,7 +739,6 @@
       },
       "members": {
         "title": "Członkowie",
-        "view": "Zobacz członków",
         "roles": {
           "owner": "Właściciel",
           "admin": "Administrator",
@@ -819,7 +818,6 @@
         "agents": "Agenci",
         "collections": "Kolekcje",
         "skills": "Skille",
-        "subline": "Wszystko, co ktoś Ci udostępnił - przeglądaj z paska bocznego.",
         "empty": {
           "title": "Jeszcze nic nie udostępniono",
           "description": "Gdy ktoś udostępni agenta, kolekcję albo skilla, policzy się tutaj."

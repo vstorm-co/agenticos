@@ -1,11 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useTranslations } from "next-intl";
 
 import { useMembers } from "@/hooks";
 import { useOrgStore } from "@/stores";
 import { ROUTES } from "@/lib/constants";
+import { Metric } from "../metric";
 import { BarList } from "../primitives/bar-list";
 import { WidgetFrame } from "../widget-frame";
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
@@ -18,7 +18,7 @@ const ROLE_ORDER = ["owner", "admin", "builder", "operator", "member", "viewer"]
  * a boundary - the members endpoint itself is open to any member, and the
  * card is here because the person who manages the roster acts on it.
  */
-export function MembersWidget({ title }: DashboardWidgetProps) {
+export function MembersWidget({ title, hint }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.members");
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const { members, total, isLoading, error, refetch } = useMembers(activeOrgId ?? "");
@@ -29,7 +29,11 @@ export function MembersWidget({ title }: DashboardWidgetProps) {
   }
 
   return (
-    <WidgetFrame title={title} seeAll={activeOrgId ? ROUTES.ORG_MEMBERS(activeOrgId) : undefined}>
+    <WidgetFrame
+      title={title}
+      hint={hint}
+      seeAll={activeOrgId ? ROUTES.ORG_MEMBERS(activeOrgId) : undefined}
+    >
       {isLoading ? (
         <WidgetSkeleton />
       ) : error ? (
@@ -38,21 +42,13 @@ export function MembersWidget({ title }: DashboardWidgetProps) {
         <WidgetEmptyBody title={t("empty.title")} description={t("empty.description")} />
       ) : (
         <div className="flex h-full flex-col justify-between gap-3">
-          <p className="text-foreground text-2xl font-semibold tabular-nums">{total}</p>
+          <Metric value={total.toLocaleString()} />
           <BarList
             items={ROLE_ORDER.filter((role) => split.has(role)).map((role) => ({
               label: t(`roles.${role}`),
               value: split.get(role) ?? 0,
             }))}
           />
-          {activeOrgId ? (
-            <Link
-              href={ROUTES.ORG_MEMBERS(activeOrgId)}
-              className="text-muted-foreground hover:text-foreground text-xs"
-            >
-              {t("view")}
-            </Link>
-          ) : null}
         </div>
       )}
     </WidgetFrame>

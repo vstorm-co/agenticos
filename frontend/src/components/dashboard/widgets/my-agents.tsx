@@ -19,7 +19,7 @@ import type { DashboardWidgetProps } from "./types";
  * (and only then is the usage query even issued), and the chat link only
  * under agents:run - a control the caller may not use is not rendered.
  */
-export function MyAgentsWidget({ title, period, seeAll }: DashboardWidgetProps) {
+export function MyAgentsWidget({ title, hint, period, seeAll }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.my-agents");
   const { can } = usePermissions();
   const userId = useAuthStore((state) => state.user?.id ?? null);
@@ -34,7 +34,7 @@ export function MyAgentsWidget({ title, period, seeAll }: DashboardWidgetProps) 
   const rows = filterAgentRows(agents, policy, userId).slice(0, 6);
 
   return (
-    <WidgetFrame title={title} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll}>
       {isLoading ? (
         <WidgetSkeleton />
       ) : error ? (

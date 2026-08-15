@@ -168,7 +168,11 @@ export function AddWidgetDialog({
               // card no longer looks lost and a tall one no longer overflows the pane.
               <div className="h-80 overflow-hidden rounded-lg">
                 <div className="pointer-events-none h-full select-none">
-                  <PreviewWidget title={t(`widgets.${active}.title`)} period={period} />
+                  <PreviewWidget
+                    title={t(`widgets.${active}.title`)}
+                    hint={t(`widgets.${active}.description`)}
+                    period={period}
+                  />
                 </div>
               </div>
             ) : (

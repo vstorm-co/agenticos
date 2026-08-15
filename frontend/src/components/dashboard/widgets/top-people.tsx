@@ -22,7 +22,7 @@ const ROWS = 6;
  * Ordered by runs. Sorted by cost the same rows would read as a league table,
  * and the question is adoption.
  */
-export function TopPeopleWidget({ title, period, seeAll }: DashboardWidgetProps) {
+export function TopPeopleWidget({ title, hint, period, seeAll }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.top-people");
   const tTime = useTranslations("time");
   const locale = useLocale();
@@ -37,7 +37,7 @@ export function TopPeopleWidget({ title, period, seeAll }: DashboardWidgetProps)
   const others = Math.max((usage?.active_users?.active ?? 0) - byUser.length, 0);
 
   return (
-    <WidgetFrame title={title} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll}>
       {isLoading ? (
         <WidgetSkeleton />
       ) : error ? (

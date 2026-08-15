@@ -9,12 +9,12 @@ import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-stat
 import type { DashboardWidgetProps } from "./types";
 
 /** Answer quality across every organization, over the page's period. */
-export function PlatformRatingsWidget({ title, period, seeAll }: DashboardWidgetProps) {
+export function PlatformRatingsWidget({ title, hint, period, seeAll }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.platform-ratings");
   const { summary, isLoading, error, refetch } = useAdminRatingsSummary(period);
 
   return (
-    <WidgetFrame title={title} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll}>
       {isLoading ? (
         <WidgetSkeleton />
       ) : error ? (

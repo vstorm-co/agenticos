@@ -8,12 +8,12 @@ import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-stat
 import type { DashboardWidgetProps } from "./types";
 
 /** The largest organizations, by people and agents. */
-export function TopOrgsWidget({ title, seeAll }: DashboardWidgetProps) {
+export function TopOrgsWidget({ title, hint, seeAll }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.top-orgs");
   const { organizations, isLoading, error, refetch } = useAdminOrganizations(5);
 
   return (
-    <WidgetFrame title={title} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll}>
       {isLoading ? (
         <WidgetSkeleton />
       ) : error ? (

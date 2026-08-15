@@ -23,11 +23,11 @@ const KNOWN_SURFACES = new Set([
  * runs into `web` and early Mattermost runs into `api` - the recording
  * widened without a backfill, and the chart shows what was recorded.
  */
-export function SurfacesWidget({ title, period, seeAll }: DashboardWidgetProps) {
+export function SurfacesWidget({ title, hint, period, seeAll }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.surfaces");
 
   return (
-    <WidgetFrame title={title} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll}>
       <UsageBody period={period} emptyKey="surfaces">
         {(usage) => (
           <BarList

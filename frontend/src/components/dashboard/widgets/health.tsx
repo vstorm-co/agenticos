@@ -17,12 +17,12 @@ const TONE: Record<CheckStatus, StatusTone> = {
 };
 
 /** The deployment's service probes, as the admin system page reports them. */
-export function HealthWidget({ title, seeAll }: DashboardWidgetProps) {
+export function HealthWidget({ title, hint, seeAll }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.health");
   const { health, isLoading, error, refetch } = useSystemHealth();
 
   return (
-    <WidgetFrame title={title} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll}>
       {isLoading ? (
         <WidgetSkeleton />
       ) : error ? (

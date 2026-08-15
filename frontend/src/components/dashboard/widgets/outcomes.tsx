@@ -15,11 +15,11 @@ import { UsageBody } from "./usage-body";
  * the same number the approvals card lists - the two can never disagree,
  * because both read the same rows.
  */
-export function OutcomesWidget({ title, period, seeAll }: DashboardWidgetProps) {
+export function OutcomesWidget({ title, hint, period, seeAll }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.outcomes");
 
   return (
-    <WidgetFrame title={title} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll}>
       <UsageBody period={period} emptyKey="outcomes">
         {(usage) => {
           const byStatus = usage.by_status ?? [];

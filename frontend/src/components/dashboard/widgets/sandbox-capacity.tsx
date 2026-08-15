@@ -25,13 +25,13 @@ import type { DashboardWidgetProps } from "./types";
  *
  * Ignores the period filter: every figure here is true only of this moment.
  */
-export function SandboxCapacityWidget({ title, seeAll }: DashboardWidgetProps) {
+export function SandboxCapacityWidget({ title, hint, seeAll }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.sandbox-capacity");
   const { connections, isLoading, error, refresh } = useSandboxConnections();
   const hosts = watchableConnections(connections);
 
   return (
-    <WidgetFrame title={title} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll}>
       {isLoading ? (
         <WidgetSkeleton />
       ) : error !== null ? (

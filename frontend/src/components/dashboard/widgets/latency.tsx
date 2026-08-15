@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { ROUTES } from "@/lib/constants";
 import { formatPeriodParam, type Period } from "@/lib/dashboard/period";
 import { formatMs } from "../format";
+import { Metric } from "../metric";
 import { WidgetFrame } from "../widget-frame";
 import type { DashboardWidgetProps } from "./types";
 import { UsageBody } from "./usage-body";
@@ -25,45 +26,37 @@ function slowestRunsHref(period: Period): string {
 }
 
 /** Started-to-finished percentiles. Null latency means nothing finished yet. */
-export function LatencyWidget({ title, period, seeAll }: DashboardWidgetProps) {
+export function LatencyWidget({ title, hint, period, seeAll }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.latency");
 
   return (
-    <WidgetFrame title={title} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll}>
       <UsageBody period={period} emptyKey="latency">
         {(usage) => {
           const p95 = usage.latency_ms?.p95 ?? null;
           return (
-            <div className="flex h-full flex-col justify-between gap-2">
-              <div className="grid flex-1 grid-cols-2 content-center gap-4">
-                <div>
-                  <p className="text-muted-foreground text-xs">{t("p50")}</p>
-                  <p className="text-foreground text-2xl font-semibold tabular-nums">
-                    {formatMs(usage.latency_ms?.p50 ?? null)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground text-xs">{t("p95")}</p>
-                  {/* The number *and its evidence*: p95 links to the runs behind
-                      it, sorted by duration over the same window. A null p95 is
-                      "nothing finished", so there is nothing to reach - it stays
-                      a plain figure rather than a link to an empty list. */}
-                  {p95 === null ? (
-                    <p className="text-foreground text-2xl font-semibold tabular-nums">
-                      {formatMs(null)}
-                    </p>
+            <div className="grid flex-1 grid-cols-2 content-center gap-4">
+              <Metric label={t("p50")} value={formatMs(usage.latency_ms?.p50 ?? null)} />
+              {/* The number *and its evidence*: p95 links to the runs behind it,
+                  sorted by duration over the same window. A null p95 is "nothing
+                  finished", so there is nothing to reach - it stays a plain
+                  figure rather than a link to an empty list. */}
+              <Metric
+                label={t("p95")}
+                value={
+                  p95 === null ? (
+                    formatMs(null)
                   ) : (
                     <Link
                       href={slowestRunsHref(period)}
                       aria-label={t("viewSlowest")}
-                      className="text-foreground hover:text-primary text-2xl font-semibold tabular-nums underline-offset-4 hover:underline"
+                      className="hover:text-primary underline-offset-4 hover:underline"
                     >
                       {formatMs(p95)}
                     </Link>
-                  )}
-                </div>
-              </div>
-              <p className="text-muted-foreground text-xs">{t("subline")}</p>
+                  )
+                }
+              />
             </div>
           );
         }}

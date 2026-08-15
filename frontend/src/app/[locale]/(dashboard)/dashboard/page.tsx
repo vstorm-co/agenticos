@@ -320,8 +320,11 @@ export default function DashboardPage() {
                   {section.entries.map((entry, index) => {
                     const Widget = WIDGET_COMPONENTS[entry.widget];
                     // A saved arrangement carries an explicit height; the audience
-                    // defaults auto-size and leave `rows` unset, keeping the curated
-                    // pages pixel-identical to before personalization existed.
+                    // defaults auto-size, so a row is as tall as its tallest card
+                    // rather than as tall as a fixed unit multiplied out. Pinning
+                    // them to `defaultRows` was tried and is worse: the heights are
+                    // tuned for a grid a person resizes by hand, and applied to a
+                    // curated row they add slack rather than remove it.
                     const cell = entry.rows
                       ? `${SPAN_CLASS[entry.span]} ${ROW_CLASS[entry.rows]}`
                       : SPAN_CLASS[entry.span];
@@ -332,6 +335,7 @@ export default function DashboardPage() {
                       >
                         <Widget
                           title={t(entry.titleKey ?? `widgets.${entry.widget}.title`)}
+                          hint={t(`widgets.${entry.widget}.description`)}
                           period={period}
                           seeAll={WIDGETS[entry.widget].seeAll}
                         />

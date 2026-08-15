@@ -207,7 +207,7 @@ export function WidgetEditCard({
     >
       {/* The live widget, inert while arranging. */}
       <div className="pointer-events-none h-full select-none">
-        <Widget title={title} period={period} />
+        <Widget title={title} hint={t(`widgets.${entry.widget}.description`)} period={period} />
       </div>
 
       {/* Edit controls, above the widget and revealed on hover. */}

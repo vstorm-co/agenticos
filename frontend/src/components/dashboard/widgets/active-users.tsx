@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 
+import { Metric } from "../metric";
 import { WidgetFrame } from "../widget-frame";
 import type { DashboardWidgetProps } from "./types";
 import { UsageBody } from "./usage-body";
@@ -12,21 +13,19 @@ import { UsageBody } from "./usage-body";
  * surveillance table. Anonymous widget visitors carry no user and are not
  * counted as people.
  */
-export function ActiveUsersWidget({ title, period, seeAll }: DashboardWidgetProps) {
+export function ActiveUsersWidget({ title, hint, period, seeAll }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.active-users");
 
   return (
-    <WidgetFrame title={title} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll}>
       <UsageBody period={period} emptyKey="active-users">
         {(usage) => (
-          <div className="flex h-full flex-col justify-center gap-1">
-            <p className="text-foreground text-2xl font-semibold tabular-nums">
-              {t("headline", {
-                active: usage.active_users?.active ?? 0,
-                total: usage.active_users?.total_members ?? 0,
-              })}
-            </p>
-            <p className="text-muted-foreground text-xs">{t("subline")}</p>
+          <div className="flex h-full flex-col justify-center">
+            <Metric
+              value={(usage.active_users?.active ?? 0).toLocaleString()}
+              unit={t("ofMembers", { total: usage.active_users?.total_members ?? 0 })}
+              caption={t("subline")}
+            />
           </div>
         )}
       </UsageBody>

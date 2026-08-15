@@ -13,12 +13,12 @@ import { UsageBody } from "./usage-body";
  * The idle list is the half that prompts action: an adopted agent needs
  * nothing, a forgotten one needs either users or archiving.
  */
-export function AgentsAdoptionWidget({ title, period, seeAll }: DashboardWidgetProps) {
+export function AgentsAdoptionWidget({ title, hint, period, seeAll }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.agents");
   const { agents } = useAgents();
 
   return (
-    <WidgetFrame title={title} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll}>
       <UsageBody period={period} emptyKey="agents">
         {(usage) => {
           const byAgent = usage.by_agent ?? [];

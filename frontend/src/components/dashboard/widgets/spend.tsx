@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 
 import { useSpend } from "@/hooks";
 import { deltaPercent, formatUsd } from "../format";
+import { DeltaChip, Metric } from "../metric";
 import { BarList } from "../primitives/bar-list";
 import { WidgetFrame } from "../widget-frame";
 import type { DashboardWidgetProps } from "./types";
@@ -16,12 +17,12 @@ import { UsageBody } from "./usage-body";
  * reconciles against an invoice and must not move with a dashboard filter.
  * The delta's tone is inverted: rising spend is the red direction.
  */
-export function SpendWidget({ title, period, seeAll }: DashboardWidgetProps) {
+export function SpendWidget({ title, hint, period, seeAll }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.spend");
   const { spend } = useSpend();
 
   return (
-    <WidgetFrame title={title} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll}>
       <UsageBody period={period} emptyKey="spend">
         {(usage) => {
           const cost = usage.cost;
@@ -30,19 +31,15 @@ export function SpendWidget({ title, period, seeAll }: DashboardWidgetProps) {
           const delta = deltaPercent(current, previous);
           return (
             <div className="flex h-full flex-col justify-between gap-3">
-              <div className="flex items-baseline gap-2">
-                <span className="text-foreground text-2xl font-semibold tabular-nums">
-                  {formatUsd(cost?.period_usd)}
-                </span>
-                <span className="text-muted-foreground text-xs">{t("unit")}</span>
-                {delta !== null ? (
-                  <span
-                    className={`text-xs font-medium ${delta > 0 ? "text-destructive" : "text-success"}`}
-                  >
-                    {delta > 0 ? "▲" : "▼"} {Math.abs(delta)}% {t("delta")}
-                  </span>
-                ) : null}
-              </div>
+              <Metric
+                value={formatUsd(cost?.period_usd)}
+                unit={t("unit")}
+                delta={
+                  delta !== null ? (
+                    <DeltaChip delta={delta} label={t("delta")} rising="bad" />
+                  ) : undefined
+                }
+              />
               <BarList
                 items={(cost?.by_provider ?? []).map((row) => ({
                   label: row.provider ?? t("notRecorded"),

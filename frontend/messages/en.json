@@ -1131,6 +1131,7 @@
       "viewer": "What has been shared with you."
     },
     "title": "Dashboard",
+    "whatThisShows": "What this shows",
     "unknownDevice": "Unknown device",
     "widgets": {
       "active-users": {
@@ -1138,10 +1139,10 @@
           "description": "Adoption starts with the first person's first run.",
           "title": "Nobody has run anything"
         },
-        "headline": "{active} of {total} members",
-        "subline": "ran an agent in this period - the headline; the names are in the table below",
+        "subline": "ran an agent in this period",
         "title": "Active people",
-        "description": "How many of the team ran an agent this period."
+        "description": "How many of the team ran an agent this period.",
+        "ofMembers": "{total, plural, =1 {of 1 member} other {of # members}}"
       },
       "agents": {
         "empty": {
@@ -1217,7 +1218,6 @@
         },
         "p50": "Median (p50)",
         "p95": "Slowest 5% (p95)",
-        "subline": "Started to finished, over every run in the period.",
         "title": "Latency",
         "viewSlowest": "Open these runs, slowest first",
         "description": "How long runs take, at the median and the tail."
@@ -1249,7 +1249,6 @@
           "viewer": "Viewer"
         },
         "title": "Members",
-        "view": "View members",
         "description": "Who is in the organization, by role."
       },
       "model-mix": {
@@ -1451,7 +1450,6 @@
           "title": "Nothing shared yet"
         },
         "skills": "Skills",
-        "subline": "Everything somebody shared with you - browse it from the sidebar.",
         "title": "Shared with you",
         "description": "Agents, knowledge and skills shared with you."
       },

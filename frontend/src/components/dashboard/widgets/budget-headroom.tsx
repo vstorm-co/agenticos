@@ -7,6 +7,7 @@ import { useOrgStore } from "@/stores";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { formatUsd } from "../format";
+import { Metric } from "../metric";
 import { WidgetFrame } from "../widget-frame";
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
@@ -22,7 +23,7 @@ import type { DashboardWidgetProps } from "./types";
  * carries the organization's id. Raising the cap is still somewhere else -
  * this is navigation, not a budget-request flow.
  */
-export function BudgetHeadroomWidget({ title }: DashboardWidgetProps) {
+export function BudgetHeadroomWidget({ title, hint }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.budget-headroom");
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const organizations = useOrganizationList();
@@ -47,6 +48,7 @@ export function BudgetHeadroomWidget({ title }: DashboardWidgetProps) {
   return (
     <WidgetFrame
       title={title}
+      hint={hint}
       seeAll={organization ? ROUTES.ORG_SETTINGS(organization.id) : undefined}
     >
       {isLoading || organizations.isLoading ? (
@@ -58,13 +60,14 @@ export function BudgetHeadroomWidget({ title }: DashboardWidgetProps) {
       ) : (
         <div className="flex h-full flex-col justify-between gap-3">
           <div>
-            <p className="text-foreground text-2xl font-semibold tabular-nums">
-              {Math.round((used / cap) * 100)}%
-            </p>
-            <p className="text-muted-foreground text-xs">
-              {t("headline", { cap: formatUsd(cap), left: formatUsd(Math.max(cap - used, 0)) })}
-            </p>
-            <HeadroomBar used={used} cap={cap} className="mt-2" />
+            <Metric
+              value={`${Math.round((used / cap) * 100)}%`}
+              caption={t("headline", {
+                cap: formatUsd(cap),
+                left: formatUsd(Math.max(cap - used, 0)),
+              })}
+            />
+            <HeadroomBar used={used} cap={cap} className="mt-3" />
           </div>
           {capped.length > 0 ? (
             <div className="space-y-2">

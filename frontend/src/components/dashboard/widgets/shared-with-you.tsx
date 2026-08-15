@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 
 import { useSharedWithMeCounts } from "@/hooks";
+import { Metric } from "../metric";
 import { WidgetFrame } from "../widget-frame";
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
@@ -12,13 +13,13 @@ import type { DashboardWidgetProps } from "./types";
  * under the shared_with_me filter - never their own rows, never a page
  * counted client-side.
  */
-export function SharedWithYouWidget({ title, seeAll }: DashboardWidgetProps) {
+export function SharedWithYouWidget({ title, hint, seeAll }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.shared-with-you");
   const { counts, isLoading, error, refetch } = useSharedWithMeCounts();
   const empty = counts !== null && counts.agents + counts.collections + counts.skills === 0;
 
   return (
-    <WidgetFrame title={title} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll}>
       {isLoading ? (
         <WidgetSkeleton />
       ) : error ? (
@@ -26,22 +27,16 @@ export function SharedWithYouWidget({ title, seeAll }: DashboardWidgetProps) {
       ) : counts === null || empty ? (
         <WidgetEmptyBody title={t("empty.title")} description={t("empty.description")} />
       ) : (
-        <div className="flex h-full flex-col justify-between gap-2">
-          <div className="grid flex-1 grid-cols-3 content-center gap-2 text-center">
-            {(
-              [
-                ["agents", counts.agents],
-                ["collections", counts.collections],
-                ["skills", counts.skills],
-              ] as const
-            ).map(([key, value]) => (
-              <div key={key}>
-                <p className="text-foreground text-2xl font-semibold tabular-nums">{value}</p>
-                <p className="text-muted-foreground text-xs">{t(key)}</p>
-              </div>
-            ))}
-          </div>
-          <p className="text-muted-foreground text-xs">{t("subline")}</p>
+        <div className="grid flex-1 grid-cols-3 content-center gap-4">
+          {(
+            [
+              ["agents", counts.agents],
+              ["collections", counts.collections],
+              ["skills", counts.skills],
+            ] as const
+          ).map(([key, value]) => (
+            <Metric key={key} label={t(key)} value={value.toLocaleString()} />
+          ))}
         </div>
       )}
     </WidgetFrame>

@@ -8,11 +8,11 @@ import type { DashboardWidgetProps } from "./types";
 import { UsageBody } from "./usage-body";
 
 /** Which models did the work, as recorded on each run (`model_label`). */
-export function ModelMixWidget({ title, period, seeAll }: DashboardWidgetProps) {
+export function ModelMixWidget({ title, hint, period, seeAll }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.model-mix");
 
   return (
-    <WidgetFrame title={title} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll}>
       <UsageBody period={period} emptyKey="model-mix">
         {(usage) => (
           <div className="flex h-full flex-col justify-between gap-2">
