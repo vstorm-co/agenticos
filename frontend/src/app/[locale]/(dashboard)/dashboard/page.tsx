@@ -2,7 +2,8 @@
 
 import { type CSSProperties, Fragment, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ChevronDown, ChevronRight, LayoutGrid } from "lucide-react";
+import Link from "next/link";
+import { ChevronDown, ChevronRight, LayoutGrid, MessageSquarePlus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -46,7 +47,9 @@ import {
   parseSectionsParam,
 } from "@/lib/dashboard/sections";
 import { accentDecoration, isAccentColour, WIDGETS } from "@/lib/dashboard/registry";
+import { ROUTES } from "@/lib/constants";
 import { cn, setUrlParam } from "@/lib/utils";
+import { Perm } from "@/types/permissions";
 
 /**
  * The role-aware dashboard, now arrangeable. Three layers decide what renders,
@@ -204,7 +207,10 @@ export default function DashboardPage() {
     );
   }
 
-  const customizeAction = (
+  // The arrange controls, then the page's one primary action - the position
+  // every other page in the product puts its primary in (`New agent` on
+  // Agents, `New collection` on Knowledge bases).
+  const headerActions = (
     <div className="flex items-center gap-2">
       <DashboardPresetMenu
         presets={presets}
@@ -218,6 +224,14 @@ export default function DashboardPage() {
         <LayoutGrid className="size-3.5" aria-hidden />
         {t("edit.customize")}
       </Button>
+      {can(Perm.agentsRun) ? (
+        <Button asChild size="sm" className="gap-1.5">
+          <Link href={ROUTES.CHAT}>
+            <MessageSquarePlus className="size-3.5" aria-hidden />
+            {t("actions.newChat")}
+          </Link>
+        </Button>
+      ) : null}
     </div>
   );
 
@@ -247,7 +261,7 @@ export default function DashboardPage() {
       <PageHeader
         title={t("title")}
         description={t(`subtitles.${audience}`)}
-        actions={customizeAction}
+        actions={headerActions}
       />
       <FilterRow
         period={period}
@@ -286,8 +300,13 @@ export default function DashboardPage() {
               )}
               style={decoration?.style as CSSProperties | undefined}
             >
+              {/* A band label, not a title. A section heading set at the same
+                  size and weight as the card titles under it gave the page two
+                  levels where it has three, so nothing marked where one band
+                  ended and the next began - the mono kicker `OrgDivider`
+                  already used is the level between. */}
               {heading ? (
-                <h2 className="text-foreground flex items-center gap-2 text-sm font-semibold tracking-tight">
+                <h2 className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={toggleCollapsed}
@@ -297,7 +316,7 @@ export default function DashboardPage() {
                         ? t("edit.expand", { title: heading })
                         : t("edit.collapse", { title: heading })
                     }
-                    className="text-muted-foreground hover:text-foreground -ml-1 flex size-5 items-center justify-center"
+                    className="text-muted-foreground/70 hover:text-foreground -ml-1 flex size-5 shrink-0 items-center justify-center"
                   >
                     {collapsed ? (
                       <ChevronRight className="size-4" aria-hidden />
@@ -306,9 +325,12 @@ export default function DashboardPage() {
                     )}
                   </button>
                   {coloured ? (
-                    <span className="dash-swatch size-2.5 rounded-full" aria-hidden />
+                    <span className="dash-swatch size-2.5 shrink-0 rounded-full" aria-hidden />
                   ) : null}
-                  {heading}
+                  <span className="text-muted-foreground truncate font-mono text-[11px] font-medium tracking-[0.1em] uppercase">
+                    {heading}
+                  </span>
+                  <span className="bg-border h-px min-w-6 flex-1" aria-hidden />
                 </h2>
               ) : null}
               {collapsed ? null : (

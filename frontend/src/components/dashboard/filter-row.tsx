@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ListFilter } from "lucide-react";
+import { Bot, ListFilter, ShieldCheck, UserPlus } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -90,21 +90,26 @@ export function FilterRow({
         </DropdownMenu>
       ) : null}
 
-      <div className="ml-auto flex flex-wrap items-center gap-2">
-        {can(Perm.agentsRun) ? (
-          <Button asChild size="sm">
-            <Link href={ROUTES.CHAT}>{t("actions.newChat")}</Link>
-          </Button>
-        ) : null}
+      {/* Shortcuts, drawn as shortcuts. Four buttons of near-equal weight is
+          four decisions asked at once, so the page's one primary action - go
+          and talk to an agent - sits in the header where every other page in
+          the product puts its primary, and what is left here is quiet. */}
+      <div className="ml-auto flex flex-wrap items-center gap-1">
         {can(Perm.agentsEdit) ? (
-          <Button asChild variant="outline" size="sm">
-            <Link href={ROUTES.AGENTS}>{t("actions.createAgent")}</Link>
+          <Button asChild variant="ghost" size="sm" className="gap-1.5">
+            <Link href={ROUTES.AGENTS}>
+              <Bot className="size-3.5" aria-hidden />
+              {t("actions.createAgent")}
+            </Link>
           </Button>
         ) : null}
         {can(Perm.approvalsDecide) ? <ReviewApprovalsAction /> : null}
         {can(Perm.membersManage) && activeOrgId ? (
-          <Button asChild variant="outline" size="sm">
-            <Link href={ROUTES.ORG_MEMBERS(activeOrgId)}>{t("actions.invite")}</Link>
+          <Button asChild variant="ghost" size="sm" className="gap-1.5">
+            <Link href={ROUTES.ORG_MEMBERS(activeOrgId)}>
+              <UserPlus className="size-3.5" aria-hidden />
+              {t("actions.invite")}
+            </Link>
           </Button>
         ) : null}
       </div>
@@ -121,11 +126,12 @@ function ReviewApprovalsAction() {
   const { total } = useApprovals();
 
   return (
-    <Button asChild variant="outline" size="sm">
+    <Button asChild variant="ghost" size="sm" className="gap-1.5">
       <Link href={ROUTES.RUNS}>
+        <ShieldCheck className="size-3.5" aria-hidden />
         {t("actions.reviewApprovals")}
         {total > 0 ? (
-          <span className="bg-warning/15 text-warning ml-1.5 rounded-full px-1.5 text-[10px] font-semibold tabular-nums">
+          <span className="bg-warning/15 text-warning ml-0.5 rounded-full px-1.5 text-[10px] font-semibold tabular-nums">
             {total}
           </span>
         ) : null}
