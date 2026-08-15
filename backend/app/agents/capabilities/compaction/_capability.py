@@ -239,5 +239,10 @@ def _model_name(request_context: ModelRequestContext) -> str:
     booked unpriced and the run is marked `cost_is_partial`, which is the honest
     outcome rather than a number attributed to whichever entry happened to be
     first.
+
+    `model_name` is abstract on `AbstractModel`, so it is always there - but at
+    least one implementation answers `''` for a response that never carried one,
+    and an empty string prices against nothing while reading in a log as though
+    the field were missing rather than blank.
     """
-    return getattr(request_context.model, "model_name", None) or "unknown"
+    return request_context.model.model_name or "unknown"

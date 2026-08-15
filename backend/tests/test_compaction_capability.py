@@ -234,6 +234,22 @@ class TestMetering:
         assert ledger.has_unpriced_models
         assert ledger.input_tokens == 100
 
+    async def test_a_model_that_names_itself_with_nothing_is_booked_as_unknown(self):
+        """A blank name prices against nothing and reads in a log as an absent field.
+
+        `model_name` is abstract, so it is always there - but at least one core
+        implementation answers `''` for a response that carried none.
+        """
+        ledger = SpendLedger()
+        capability = MeteredCompaction(wrapped=_Spender(input_tokens=100))
+
+        with metered_by(ledger):
+            await capability.before_model_request(
+                _run_context(), _request_context([], model=_NamelessModel())
+            )
+
+        assert [entry.model_name for entry in ledger.entries] == ["unknown"]
+
     async def test_the_wrapped_strategy_still_edits_the_request(self):
         """Metering is a wrapper, not a replacement - the compaction has to happen."""
         capability = MeteredCompaction(
@@ -331,3 +347,11 @@ class _UnpricedModel(TestModel):
     @property
     def model_name(self) -> str:
         return "fallback:test:one,test:two"
+
+
+class _NamelessModel(TestModel):
+    """A model that answers `''`, which core's own response wrapper can do."""
+
+    @property
+    def model_name(self) -> str:
+        return ""
