@@ -78,7 +78,7 @@ describe("flattenDefaultToItems", () => {
     // band, and an untitled section deliberately contributes no divider.
     const titled = LAYOUTS.steward.filter((section) => section.titleKey !== null);
     expect(dividers).toHaveLength(titled.length);
-    expect(items[0]).toEqual({ widget: "summary", span: "s12", rows: "r2" });
+    expect(items[0]).toEqual({ widget: "summary", span: "s12", rows: "r3" });
     expect(items[1]).toEqual({ kind: "section", label: "attention", accent: "neutral" });
     const widgets = items.filter((item) => item.kind !== "section");
     expect(widgets.every((item) => "rows" in item && item.rows !== undefined)).toBe(true);
