@@ -75,6 +75,7 @@ export default defineConfig({
         "src/components/chat/workspace-files.tsx",
         "src/components/sharing/**/*.tsx",
         "src/components/skills/**/*.tsx",
+        "src/components/context/**/*.tsx",
       ],
       exclude: [
         "node_modules",

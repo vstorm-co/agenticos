@@ -11,6 +11,7 @@ import * as approvals from "./approvals/[[...path]]/route";
 import * as audit from "./audit/[[...path]]/route";
 import * as catalog from "./catalog/[[...path]]/route";
 import * as channels from "./channels/[[...path]]/route";
+import * as context from "./context/[[...path]]/route";
 import * as conversations from "./conversations/[[...path]]/route";
 import * as kb from "./kb/[[...path]]/route";
 import * as mcpConnections from "./mcp-connections/[[...path]]/route";
@@ -49,6 +50,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["audit", audit],
   ["catalog", catalog],
   ["channels", channels],
+  ["context", context],
   ["conversations", conversations],
   ["kb", kb],
   ["mcp-connections", mcpConnections],
