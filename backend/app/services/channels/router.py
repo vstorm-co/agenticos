@@ -965,24 +965,14 @@ class ChannelMessageRouter:
     async def _load_history(db: Any, conversation_id: Any) -> list[dict[str, str]]:
         """The most recent turns of the channel thread, oldest first.
 
-        **The most recent, which took a `count` to get right.** The repository orders
-        oldest-first, so `limit` with no offset is the *first* `HISTORY_MESSAGES`
-        turns - and a support channel passes that in days, because
+        **The most recent, which took a `count` to get right** - and the count
+        lives in `conversation_repo.get_recent_messages` now, with the two bugs
+        that paid for it. A support channel passes 200 turns in days, because
         `channel_sessions` keys the conversation to the chat and the thread never
-        rolls over. Past it the model was reminded of how the conversation opened
-        and told nothing said since, including the question before the one it was
-        answering. Nothing errored: the bot answered plausibly, from a version of
-        the conversation that had stopped hundreds of turns ago (#638).
-
-        One `COUNT(*)` per turn on an indexed column is the price, and it is the
-        price the widget has paid since #39 fixed the same window from the other
-        direction - see `embed_session.HISTORY_MESSAGES`.
+        rolls over; past that the bot answered plausibly from a version of the
+        conversation that had stopped hundreds of turns ago (#638).
         """
-        total = await conversation_repo.count_messages(db, conversation_id)
-        messages = await conversation_repo.get_messages_by_conversation(
-            db,
-            conversation_id=conversation_id,
-            skip=max(0, total - HISTORY_MESSAGES),
-            limit=HISTORY_MESSAGES,
+        messages = await conversation_repo.get_recent_messages(
+            db, conversation_id, limit=HISTORY_MESSAGES
         )
         return [{"role": m.role, "content": m.content} for m in messages]

@@ -15,6 +15,7 @@ from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.db.session import get_db_context
+from app.repositories import conversation as conversation_repo
 from app.schemas.conversation import MessagePart
 from app.services.agent import (
     build_message_history,
@@ -40,6 +41,19 @@ logger = logging.getLogger(__name__)
 # the general assistant the template shipped is gone, and guessing an agent on
 # the user's behalf would mean something they never picked answering them.
 _PICK_AN_AGENT = "Pick an agent to chat with. If none is listed, publish one in the Builder first."
+
+HISTORY_MESSAGES = 200
+"""How many of a thread's turns the model is reminded of.
+
+The channel router's number, not the widget's 40: both surfaces are signed-in
+members working in a thread that never rolls over, where the widget's is a
+public visitor whose session is a page view. See `channels.router.HISTORY_MESSAGES`
+and `embed_session.HISTORY_MESSAGES`.
+
+This is a count of messages, not of tokens, and nothing here compacts it: the
+`compaction` capability rewrites the messages of one *run*, and a conversation
+is replayed as text.
+"""
 
 
 def _turn_failed(exc: Exception) -> str:
@@ -77,7 +91,6 @@ class AgentSession:
         self.websocket = websocket
         self.user = user
         self.organization_id = organization.id
-        self.conversation_history: list[dict[str, str]] = []
         self.current_conversation_id: str | None = None
         self._turn_task: asyncio.Task[None] | None = None
         self._ask_user_future: asyncio.Future[list[dict[str, Any]]] | None = None
@@ -229,7 +242,7 @@ class AgentSession:
         # failure inside it - the history, the attachment lookup - must not turn
         # a lost answer into a `NameError`.
         try:
-            model_history = build_message_history(self.conversation_history)
+            model_history = build_message_history(await self._history(prompt.message_id))
             # The files, not a prompt built from them. Where an attachment goes
             # depends on whether the agent has a workspace, and only `prepare`
             # knows that - so the routing happens one layer down.
@@ -273,16 +286,6 @@ class AgentSession:
             model_label = turn.model_label
             agent_version_id = turn.agent_version_id
 
-            self.conversation_history.append({"role": "user", "content": user_message})
-            # Only when there was something to say - tidiness, not a broken
-            # request being fixed. Skipping the assistant entry can leave two
-            # `user` entries in a row (park with no text, decide, type again),
-            # and `_agent_graph._clean_message_history` merges those into one
-            # `ModelRequest` before every model call; the empty `TextPart` this
-            # avoids was harmless too, dropped by the Anthropic adapter and sent
-            # as `content: ""` by the OpenAI one.
-            if output:
-                self.conversation_history.append({"role": "assistant", "content": output})
             assistant_msg_id: str | None = None
             if self.current_conversation_id:
                 assistant_msg_id = await persist_assistant_turn(
@@ -483,6 +486,39 @@ class AgentSession:
         if cost is not None:
             frame["cost_usd"] = float(cost)
         await send_event(self.websocket, event.kind, frame)
+
+    async def _history(self, prompt_message_id: UUID | None) -> list[dict[str, str]]:
+        """What has already been said in this thread, without the turn being run.
+
+        **Read from the database, not from this session.** It used to be a list on
+        the socket, appended to as turns went by and loaded from nowhere - so a
+        conversation the socket did not itself produce had no history at all. A
+        page reload, a second tab, or a dropped connection was enough: the person
+        was looking at the whole thread on screen while the model was handed an
+        empty one, and the agent answered the follow-up as though the
+        conversation had started with it. Nothing errored, and the symptom reads
+        as the agent forgetting rather than as the platform not telling it (#771).
+
+        The prompt is excluded by id because it is already a row by the time this
+        runs - `persist_user_turn` writes it before the run so a message nothing
+        answers is still in the transcript. Handing it back as history *and* as
+        the prompt would ask the model the same question twice.
+
+        Read on its own session, like `_attached_files`: the turn's session is
+        opened later and held for the run, and this is a lookup rather than part
+        of that unit of work.
+        """
+        if self.current_conversation_id is None:
+            return []
+        async with get_db_context() as db:
+            messages = await conversation_repo.get_recent_messages(
+                db, UUID(self.current_conversation_id), limit=HISTORY_MESSAGES
+            )
+        return [
+            {"role": message.role, "content": message.content}
+            for message in messages
+            if message.id != prompt_message_id
+        ]
 
     async def _attached_files(self, file_ids: list[Any]) -> list[ChatFile]:
         """The rows for the files this frame attached.

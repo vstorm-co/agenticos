@@ -751,6 +751,11 @@ it is about to wait.
     answered plausibly, from a version of the thread that had stopped hundreds of
     turns ago. Nothing errored, which is why it needed a test rather than a fix.
 
+    The offset is `conversation_repo.get_recent_messages` now, and every surface
+    reads the window through it — the widget, the channels and web chat. Three
+    copies of one `COUNT` and one offset is how it came to be wrong twice, from
+    opposite ends.
+
 - **One bot answers as one agent.** A bot user is a single identity in the chat:
   the same avatar, the same name, whichever agent produced the reply. So a bot
   serves exactly one agent, and binding a second is refused — in the Builder's

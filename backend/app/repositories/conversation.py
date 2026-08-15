@@ -586,6 +586,27 @@ async def count_messages(db: AsyncSession, conversation_id: UUID) -> int:
     return result.scalar() or 0
 
 
+async def get_recent_messages(
+    db: AsyncSession, conversation_id: UUID, *, limit: int
+) -> list[Message]:
+    """The last `limit` messages of a conversation, still oldest first.
+
+    The window every surface reminds a model of, in one place because the offset
+    has been got wrong from both ends already. `get_messages_by_conversation`
+    orders oldest-first, so a bare `limit` returns a thread's *opening*
+    exchanges and drops what was just said: that is how the widget forgot the
+    question before the one it was answering (#39), and how a channel bot past
+    200 messages came to answer plausibly from a conversation that had stopped
+    hundreds of turns ago (#638). Neither errored.
+
+    One `COUNT(*)` on an indexed column is what the right offset costs.
+    """
+    total = await count_messages(db, conversation_id)
+    return await get_messages_by_conversation(
+        db, conversation_id, skip=max(0, total - limit), limit=limit
+    )
+
+
 async def get_messages_by_run(
     db: AsyncSession,
     run_id: UUID,

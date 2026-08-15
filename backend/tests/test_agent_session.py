@@ -95,6 +95,7 @@ from app.agents.subagent_runtime import (
 )
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.db.models.agent_run import RunStatus
+from app.repositories import conversation as conversation_repo
 from app.services.agent import PersistedPrompt
 from app.services.agent_chat import ChatTurn, OpenedRun
 from app.services.agent_runner import ParkedApproval, PreparedRun
@@ -185,6 +186,7 @@ def _chat(
     newly_created: bool = False,
     message_id: str | None = "saved-1",
     prompt_message_id: UUID | None = None,
+    stored: list[Any] | None = None,
 ) -> Iterator[SimpleNamespace]:
     """The session's collaborators, stubbed at the seam this module owns.
 
@@ -193,6 +195,10 @@ def _chat(
     the *frames* this session puts on the wire for a turn that ended a particular
     way, so the runner is where the stub goes and `run` is how a test says how the
     turn ended.
+
+    `stored` is the thread as the database holds it, which is where the history
+    handed to the model comes from since #771. Empty by default, which is what a
+    first turn reads.
 
     Yields the two persistence stubs, for the tests that read what this module
     hands them rather than what it puts on the wire.
@@ -205,16 +211,25 @@ def _chat(
         )
     )
     answer = AsyncMock(return_value=message_id)
+    history = AsyncMock(return_value=stored or [])
     with (
         patch("app.services.agent_session.persist_user_turn", new=prompt),
         patch("app.services.agent_session.persist_assistant_turn", new=answer),
         patch("app.services.agent_session.get_db_context") as db_context,
         patch("app.services.agent_session.ChatAgentRunner") as runner_cls,
+        patch.object(conversation_repo, "get_recent_messages", new=history),
     ):
         db_context.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
         db_context.return_value.__aexit__ = AsyncMock(return_value=False)
         runner_cls.return_value.run = run
-        yield SimpleNamespace(prompt=prompt, answer=answer, runner=runner_cls.return_value)
+        yield SimpleNamespace(
+            prompt=prompt, answer=answer, runner=runner_cls.return_value, history=history
+        )
+
+
+def _stored(role: str, content: str, *, message_id: UUID | None = None) -> SimpleNamespace:
+    """One row as `get_recent_messages` returns it."""
+    return SimpleNamespace(id=message_id or uuid4(), role=role, content=content)
 
 
 def _next_frame(session: AgentSession) -> asyncio.Event:
@@ -491,18 +506,57 @@ class TestATurnThatFinished:
 
         assert _frame_types(session) == ["user_prompt", "complete"]
 
-    async def test_the_turn_is_remembered_for_the_next_one(self):
-        """In-memory history is what the next turn's `message_history` is built
-        from, and it is appended only after a complete run."""
+    async def test_the_thread_the_database_holds_is_what_the_model_is_told(self):
+        """The history comes from the transcript, not from this socket (#771).
+
+        It used to be a list on the session, appended to as turns went by and
+        loaded from nowhere - so a conversation this socket did not itself
+        produce had no history at all, and a reopened thread was answered as
+        though it had started with the follow-up.
+        """
         session = _session()
+        run = AsyncMock(return_value=_finished_turn())
+        stored = [_stored("user", "how many are open?"), _stored("assistant", "Two are open.")]
 
-        with _chat(AsyncMock(return_value=_finished_turn(output="Two are open."))):
-            await session.process_message(_message("how many are open?"))
+        with _chat(run, stored=stored):
+            await session.process_message(_message("and how many of those are mine?"))
 
-        assert session.conversation_history == [
-            {"role": "user", "content": "how many are open?"},
-            {"role": "assistant", "content": "Two are open."},
+        history = run.await_args.kwargs["message_history"]
+        assert [part.content for message in history for part in message.parts] == [
+            "how many are open?",
+            "Two are open.",
         ]
+
+    async def test_the_turn_being_answered_is_not_also_handed_back_as_history(self):
+        """`persist_user_turn` writes the prompt before the run, so it is a row by
+        the time the history is read. Left in, the model is asked the same
+        question twice - once as the prompt and once as the turn before it."""
+        session = _session()
+        run = AsyncMock(return_value=_finished_turn())
+        prompt_id = uuid4()
+        stored = [
+            _stored("user", "how many are open?"),
+            _stored("user", "and how many are mine?", message_id=prompt_id),
+        ]
+
+        with _chat(run, stored=stored, prompt_message_id=prompt_id):
+            await session.process_message(_message("and how many are mine?"))
+
+        history = run.await_args.kwargs["message_history"]
+        assert [part.content for message in history for part in message.parts] == [
+            "how many are open?"
+        ]
+
+    async def test_a_conversation_that_does_not_exist_yet_reads_nothing(self):
+        """A first turn has no thread to read, and must not go looking for one."""
+        session = _session()
+        run = AsyncMock(return_value=_finished_turn())
+
+        with _chat(run, conversation=None) as chat:
+            await session.process_message(_message())
+
+        assert run.await_args.kwargs["message_history"] == []
+        chat.history.assert_not_awaited()
 
     async def test_a_parked_call_is_put_in_front_of_whoever_is_looking(self):
         """The approvals queue and the email carry the same rows; this frame is the
@@ -599,13 +653,20 @@ class TestATurnThatFinished:
     async def test_a_turn_that_answered_nothing_leaves_no_empty_reply_in_the_history(self):
         """The history is replayed as `ModelResponse` parts on the next request,
         and an assistant turn with no content is a `TextPart` carrying nothing. A
-        parked turn is the ordinary way to reach this."""
+        parked turn is the ordinary way to reach one: it is stored so a reloaded
+        page still shows the step waiting, and dropped again on the way back
+        out."""
         session = _session()
+        run = AsyncMock(return_value=_finished_turn())
+        stored = [_stored("user", "how many are open?"), _stored("assistant", "")]
 
-        with _chat(AsyncMock(return_value=_finished_turn(output="", parked=_parked_call()))):
-            await session.process_message(_message("how many are open?"))
+        with _chat(run, stored=stored):
+            await session.process_message(_message("well?"))
 
-        assert session.conversation_history == [{"role": "user", "content": "how many are open?"}]
+        history = run.await_args.kwargs["message_history"]
+        assert [part.content for message in history for part in message.parts] == [
+            "how many are open?"
+        ]
 
 
 class TestATurnThatDidNotFinish:
@@ -646,7 +707,6 @@ class TestATurnThatDidNotFinish:
 
         assert _frame_types(session) == ["user_prompt", "error"]
         assert _sent_events(session)[-1] == ("error", {"message": "That agent is not published"})
-        assert session.conversation_history == []
 
     async def test_a_budget_stop_says_why_the_answer_stopped(self):
         """A run cut off by a cap looks identical to a broken agent unless
@@ -1755,6 +1815,10 @@ class _Turn:
             patch("app.services.agent_session.get_db_context") as db_context,
             patch("app.services.agent_chat.member_repo") as members,
             patch("app.services.agent_chat.AgentRunnerService") as runner_cls,
+            # The thread this turn continues, which since #771 is read from the
+            # transcript rather than from the socket. Empty here: what this class
+            # drives is a delegation's teardown, not what the model was told.
+            patch.object(conversation_repo, "get_recent_messages", new=AsyncMock(return_value=[])),
         ):
             persist.return_value = PersistedPrompt(
                 conversation_id=_CONVERSATION, newly_created=False

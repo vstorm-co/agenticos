@@ -82,8 +82,7 @@ def _a_turn(runner: MagicMock) -> Any:
         patch("app.services.embed_session.conversation_repo") as conversations,
         patch("app.services.access.member_repo") as members,
     ):
-        conversations.count_messages = AsyncMock(return_value=0)
-        conversations.get_messages_by_conversation = AsyncMock(return_value=[])
+        conversations.get_recent_messages = AsyncMock(return_value=[])
         yield members
 
 
