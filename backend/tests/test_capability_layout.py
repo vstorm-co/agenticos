@@ -52,6 +52,10 @@ EXTERNAL_TOOLSET = {
     # satisfied without a module that would only re-export somebody else's
     # functions.
     "sandbox",
+    # `pydantic_ai_harness.planning.PlanningToolset`. Same bargain as `sandbox`:
+    # the nine tool descriptions are declared in `_capability.py` and handed to the
+    # library through `descriptions=`, so the text a reader edits still lives here.
+    "planning",
 }
 
 

@@ -225,6 +225,11 @@ class TestToolDeclarations:
         # subagents resource above is at its widest - an undeclared tool can only
         # appear where the most tools do.
         "channel_tools": {"tools": sorted(get("channel_tools").tool_ids)},
+        # Its three subtask tools are offered only when this is set, so the widest
+        # configuration is the one that switches them on. The default (a flat
+        # checklist) offers the six core tools and would hide the other three from
+        # the comparison rather than check them.
+        "planning": {"enable_subtasks": True},
     }
     """Configurations a capability needs before it offers anything.
 

@@ -597,6 +597,7 @@ def load_builtins() -> None:
         clock,
         code_execution,
         knowledge,
+        planning,
         sandbox,
         skills,
         subagents,
