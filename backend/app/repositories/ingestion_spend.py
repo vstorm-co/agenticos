@@ -45,3 +45,24 @@ async def sum_cost_since(db: AsyncSession, *, organization_id: UUID, since: date
         )
     )
     return Decimal(result or 0)
+
+
+async def sum_cost_window(
+    db: AsyncSession, *, organization_id: UUID, start: datetime, end: datetime
+) -> Decimal:
+    """Ingestion spend inside a closed window - the dashboard's half of the bill.
+
+    Distinct from :func:`sum_cost_since`, which is open-ended and feeds budget
+    enforcement: a cap is measured against the calendar month, a dashboard
+    period against whatever window its filter chose. Half-open at the end, the
+    same way `agent_run_repo.sum_cost_window` is, so a document indexed at
+    23:59:59 on the last day counts once and only once.
+    """
+    result = await db.scalar(
+        select(func.coalesce(func.sum(IngestionSpend.cost_usd), 0)).where(
+            IngestionSpend.organization_id == organization_id,
+            IngestionSpend.created_at >= start,
+            IngestionSpend.created_at < end,
+        )
+    )
+    return Decimal(result or 0)

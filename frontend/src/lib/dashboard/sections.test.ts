@@ -5,7 +5,9 @@ import {
   applySectionsFilter,
   filterableSectionIds,
   formatSectionsParam,
+  isFilterable,
   parseSectionsParam,
+  sectionLabel,
 } from "./sections";
 
 const SECTIONS: SectionDef[] = [
@@ -14,9 +16,40 @@ const SECTIONS: SectionDef[] = [
   { id: "workspace", titleKey: null, entries: [] },
 ];
 
+/** What a saved arrangement looks like: bands named by the person, not by a key. */
+const OWN_SECTIONS: SectionDef[] = [
+  { id: "custom-0", titleKey: null, entries: [] },
+  { id: "custom-1", titleKey: null, title: "Money", entries: [] },
+  { id: "custom-2", titleKey: null, title: "  ", entries: [] },
+];
+
 describe("filterableSectionIds", () => {
   it("offers only titled sections - hiding the untitled one would empty the page", () => {
     expect(filterableSectionIds(SECTIONS)).toEqual(["attention", "usage"]);
+  });
+
+  it("offers a band a person named themselves, which is a name like any other", () => {
+    // Reading `titleKey` alone took the whole control away the moment somebody
+    // saved an arrangement, even one that kept every heading it started with.
+    expect(filterableSectionIds(OWN_SECTIONS)).toEqual(["custom-1"]);
+  });
+
+  it("a divider with a blank caption is a rule, not a name", () => {
+    expect(isFilterable({ id: "x", titleKey: null, title: "   ", entries: [] })).toBe(false);
+  });
+});
+
+describe("sectionLabel", () => {
+  const t = (key: string) => `translated:${key}`;
+
+  it("prefers the caption a person typed over the curated key", () => {
+    expect(sectionLabel({ id: "a", titleKey: "usage", title: "Money", entries: [] }, t)).toBe(
+      "Money",
+    );
+    expect(sectionLabel({ id: "b", titleKey: "usage", entries: [] }, t)).toBe(
+      "translated:sections.usage",
+    );
+    expect(sectionLabel({ id: "c", titleKey: null, entries: [] }, t)).toBe("");
   });
 });
 
@@ -55,6 +88,12 @@ describe("applySectionsFilter", () => {
 
   it("null passes everything through", () => {
     expect(applySectionsFilter(SECTIONS, null)).toBe(SECTIONS);
+  });
+
+  it("hides an unselected band a person named, and keeps their unnamed one", () => {
+    const filtered = applySectionsFilter(OWN_SECTIONS, ["custom-0"]);
+
+    expect(filtered.map((section) => section.id)).toEqual(["custom-0", "custom-2"]);
   });
 });
 

@@ -14,6 +14,8 @@ export { useUrlState } from "./use-url-state";
 export { useInvitations } from "./use-invitations";
 export { useKnowledgeBases, useKBDetail } from "./use-knowledge-bases";
 export { useSlashCommands, isBuiltinEnabled, BUILTIN_COMMAND_LIST } from "./use-slash-commands";
+export { useDashboardLayout } from "./use-dashboard-layout";
+export { useDashboardPresets } from "./use-dashboard-presets";
 export { useReusableIntegrations } from "./use-reusable-integrations";
 export { useMcpConnections } from "./use-mcp-connections";
 export { useOrgMcpConnections } from "./use-org-mcp-connections";
@@ -51,6 +53,7 @@ export {
 export {
   usePeopleUsage,
   useRatingsSummary,
+  useUsageByHour,
   useUsageStats,
   useVersionUsage,
   type UsagePeriod,

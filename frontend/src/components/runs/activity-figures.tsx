@@ -1,11 +1,10 @@
 "use client";
 
-import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { Activity } from "lucide-react";
 
 import { EmptyState, LoadingState } from "@/components/states";
-import { Card, CardContent } from "@/components/ui";
+import { FigureCard } from "@/components/ui";
 import { useApprovals, useRuns, useSpend } from "@/hooks";
 import { periodEnd, periodStart, type Period } from "@/lib/dashboard/period";
 
@@ -94,68 +93,40 @@ export function ActivityFigures({
     );
   }
 
+  // A figure has no honest zero to fall back to: "$0.00" and "0 runs" are what a
+  // working, empty deployment looks like, so a request that never answered
+  // prints a dash and says so, rather than a number about somebody's money.
+  const failed = (error: unknown) =>
+    error
+      ? { value: "\u2014", caption: t("figureCouldNotLoad"), captionTone: "destructive" as const }
+      : null;
+
   return (
     <div className={canDecide ? "grid gap-3 sm:grid-cols-3" : "grid gap-3 sm:grid-cols-2"}>
-      <Figure label={t("spendWindow")} caption={t("overTheWindowAbove")} failed={!!spendError}>
-        ${(spend?.by_agent ?? []).reduce((sum, row) => sum + Number(row.cost_usd), 0).toFixed(2)}
-      </Figure>
+      <FigureCard
+        label={t("spendWindow")}
+        caption={t("overTheWindowAbove")}
+        value={`$${(spend?.by_agent ?? []).reduce((sum, row) => sum + Number(row.cost_usd), 0).toFixed(2)}`}
+        {...(failed(spendError) ?? {})}
+      />
       {/* The count the server reports, not the length of one page of fifty -
           top-level runs only, and over the same window, which together are what
           make it agree with the figure beside it. A fan-out turn is one run
           here and one run in that total; it used to be four and one, over all
           time against one month. */}
-      <Figure label={t("runs")} caption={t("delegationsCountedInTheir")} failed={!!runsError}>
-        {organizationRuns}
-      </Figure>
+      <FigureCard
+        label={t("runs")}
+        caption={t("delegationsCountedInTheir")}
+        value={organizationRuns.toLocaleString()}
+        {...(failed(runsError) ?? {})}
+      />
       {canDecide && (
-        <Figure label={t("waitingPerson")} failed={!!approvalsError}>
-          {waiting}
-        </Figure>
+        <FigureCard
+          label={t("waitingPerson")}
+          value={waiting.toLocaleString()}
+          {...(failed(approvalsError) ?? {})}
+        />
       )}
     </div>
-  );
-}
-
-/**
- * One stat card - or, when its own query failed, the fact that it did.
- *
- * `failed` renders "—" and a "couldn't load" caption in place of the number,
- * because a figure has no honest zero to fall back to: "$0.00" and "0 runs" are
- * what a working, empty deployment looks like, and drawing that for a request
- * that never answered tells the reader something false about their money and
- * their agents. The three figures fetch separately, so one failing must not
- * blank the other two.
- */
-function Figure({
-  label,
-  caption,
-  failed,
-  children,
-}: {
-  label: string;
-  caption?: string;
-  failed: boolean;
-  children: ReactNode;
-}) {
-  const t = useTranslations("pages.runs");
-  return (
-    <Card>
-      <CardContent className="space-y-1 p-5">
-        <p className="text-muted-foreground text-xs tracking-wide uppercase">{label}</p>
-        {failed ? (
-          <>
-            <p className="text-muted-foreground font-mono text-2xl" role="alert">
-              —
-            </p>
-            <p className="text-destructive text-xs">{t("figureCouldNotLoad")}</p>
-          </>
-        ) : (
-          <>
-            <p className="font-mono text-2xl">{children}</p>
-            {caption && <p className="text-muted-foreground text-xs">{caption}</p>}
-          </>
-        )}
-      </CardContent>
-    </Card>
   );
 }

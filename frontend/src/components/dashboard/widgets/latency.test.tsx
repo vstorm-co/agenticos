@@ -32,7 +32,7 @@ function withLatency(latency_ms: { p50: number; p95: number } | null) {
 function renderWidget() {
   return render(
     <NextIntlClientProvider locale="en" messages={messages}>
-      <LatencyWidget title="Latency" period={PERIOD} />
+      <LatencyWidget title="Latency" hint="" period={PERIOD} />
     </NextIntlClientProvider>,
   );
 }
@@ -62,6 +62,7 @@ describe("the latency widget's p95 figure", () => {
       <NextIntlClientProvider locale="en" messages={messages}>
         <LatencyWidget
           title="Latency"
+          hint=""
           period={{ preset: "custom", from: "2026-07-07", to: "2026-08-05" }}
         />
       </NextIntlClientProvider>,

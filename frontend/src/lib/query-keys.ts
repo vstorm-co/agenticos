@@ -89,6 +89,7 @@ export const qk = {
         rated?: string;
         statuses?: string[];
         surface?: string;
+        modelLabel?: string;
         userId?: string;
         agentVersionId?: string;
         skip?: number;
@@ -106,6 +107,7 @@ export const qk = {
         opts.rated ?? "any-rating",
         opts.statuses?.join(",") ?? "any-status",
         opts.surface ?? "any-surface",
+        opts.modelLabel ?? "any-model",
         opts.userId ?? "anyone",
         opts.agentVersionId ?? "any-version",
         opts.skip ?? 0,
@@ -138,12 +140,18 @@ export const qk = {
     all: () => ["stats"] as const,
     // The window is part of the key: several widgets asking the same window
     // dedupe into one request, which is the composed response's whole point.
-    usage: (scope: string, from: string, to: string) =>
-      ["stats", "usage", scope, from, to] as const,
+    // `filter` is a card's own narrowing (one agent, one person). It is part of
+    // the key because it is part of the question: without it, a card pinned to
+    // an agent and a card asking about everybody would share one cached answer
+    // and each would show the other's.
+    usage: (scope: string, from: string, to: string, filter?: unknown) =>
+      ["stats", "usage", scope, from, to, filter ?? null] as const,
     usageByVersion: (agentId: string, from: string, to: string) =>
       ["stats", "usage", "version", agentId, from, to] as const,
-    usageByUser: (scope: string, from: string, to: string, limit: number) =>
-      ["stats", "usage", "user", scope, from, to, limit] as const,
+    usageByUser: (scope: string, from: string, to: string, limit: number, filter?: unknown) =>
+      ["stats", "usage", "user", scope, from, to, limit, filter ?? null] as const,
+    usageByHour: (scope: string, from: string, to: string, filter?: unknown) =>
+      ["stats", "usage", "hour", scope, from, to, filter ?? null] as const,
   },
   ratings: {
     summary: (scope: string, from: string, to: string) =>
@@ -152,6 +160,14 @@ export const qk = {
   dashboard: {
     /** One card, one query: the three shared_with_me counts travel together. */
     sharedWithMe: () => ["dashboard", "shared-with-me"] as const,
+    /**
+     * The caller's saved arrangement, keyed on the organization: the layout is
+     * per user *and* per org, so switching org must refetch rather than paint
+     * one org's arrangement onto another's dashboard.
+     */
+    layout: (orgId: string) => ["dashboard", "layout", orgId] as const,
+    /** The caller's named presets, keyed on the organization for the same reason. */
+    presets: (orgId: string) => ["dashboard", "presets", orgId] as const,
   },
   sharing: {
     all: () => ["sharing"] as const,

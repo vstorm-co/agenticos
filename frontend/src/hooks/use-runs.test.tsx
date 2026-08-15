@@ -88,7 +88,9 @@ describe("useRuns", () => {
     });
   });
 
-  it("narrows by status set, surface and cost order on the wire", async () => {
+  it("narrows by status set, surface, model and cost order on the wire", async () => {
+    // The model is matched as the run recorded it - the label the dashboard's
+    // card counts, which is what makes the hand-off from that bar one set.
     vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
     const { result } = renderHook(
       () =>
@@ -96,6 +98,7 @@ describe("useRuns", () => {
           orderBy: "cost",
           statuses: ["failed", "budget_exceeded"],
           surface: "slack",
+          modelLabel: "gpt-4o-mini",
         }),
       { wrapper },
     );
@@ -105,6 +108,7 @@ describe("useRuns", () => {
         order_by: "cost",
         status: "failed,budget_exceeded",
         surface: "slack",
+        model_label: "gpt-4o-mini",
       },
     });
   });

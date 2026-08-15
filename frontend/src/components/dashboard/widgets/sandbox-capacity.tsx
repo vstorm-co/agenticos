@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useSandboxConnections, useSandboxSessions } from "@/hooks";
 import { holdsSessions, tenantShare, watchableConnections } from "@/lib/dashboard/sandbox";
 import type { SandboxConnectionRecord } from "@/lib/sandbox-connections-api";
+import { MARK_CLASS, QUIET_SURFACE } from "@/lib/dashboard/system";
 import { cn } from "@/lib/utils";
 import { WidgetFrame } from "../widget-frame";
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
@@ -25,13 +26,13 @@ import type { DashboardWidgetProps } from "./types";
  *
  * Ignores the period filter: every figure here is true only of this moment.
  */
-export function SandboxCapacityWidget({ title, seeAll }: DashboardWidgetProps) {
+export function SandboxCapacityWidget({ title, hint, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.sandbox-capacity");
   const { connections, isLoading, error, refresh } = useSandboxConnections();
   const hosts = watchableConnections(connections);
 
   return (
-    <WidgetFrame title={title} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {isLoading ? (
         <WidgetSkeleton />
       ) : error !== null ? (
@@ -45,17 +46,12 @@ export function SandboxCapacityWidget({ title, seeAll }: DashboardWidgetProps) {
               <HostCapacity key={host.id} connection={host} />
             ))}
           </ul>
-          <div className="space-y-1">
-            <p className="text-muted-foreground text-xs">{t("subline")}</p>
-            {/* On screen, not only in a docstring. A reader who is refused a
-                sandbox while this card shows room to spare would otherwise have
-                no way to learn that the missing figure is missing rather than
-                zero - which is the same failure as an unreachable host reading
-                as idle, one level up. */}
-            <p className="text-muted-foreground/80 text-[11px] leading-snug">
-              {t("hostUncounted")}
-            </p>
-          </div>
+          {/* On screen, not behind the header's info icon like the rest of a
+              card's explanation. A reader who is refused a sandbox while this
+              card shows room to spare would otherwise have no way to learn that
+              the missing figure is missing rather than zero - which is the same
+              failure as an unreachable host reading as idle, one level up. */}
+          <p className="text-muted-foreground text-xs leading-snug">{t("hostUncounted")}</p>
         </div>
       )}
     </WidgetFrame>
@@ -106,11 +102,11 @@ function HostCapacity({ connection }: { connection: SandboxConnectionRecord }) {
  */
 function CapacityTrack({ percent }: { percent: number }) {
   return (
-    <div className="bg-foreground/5 h-1.5 overflow-hidden rounded-full">
+    <div className={cn("h-1.5 overflow-hidden rounded-r-sm", QUIET_SURFACE)}>
       <div
         className={cn(
-          "h-full rounded-full",
-          percent >= 90 ? "bg-destructive" : percent >= 70 ? "bg-warning" : "bg-chart",
+          "h-full rounded-r-sm",
+          percent >= 90 ? "bg-destructive" : percent >= 70 ? "bg-warning" : MARK_CLASS,
         )}
         style={{ width: `${percent}%` }}
       />

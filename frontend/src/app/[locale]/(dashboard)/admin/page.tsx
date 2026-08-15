@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import { StatCard } from "@/components/dashboard/stat-card";
+import { FigureCard } from "@/components/ui";
 import { LoadingState } from "@/components/states";
 import { apiClient } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
@@ -56,32 +56,32 @@ export default function AdminOverviewPage() {
         <LoadingState variant="stats" rows={6} />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <StatCard
+          <FigureCard
             label={t("totalUsers")}
             value={(stats?.total_users ?? 0).toLocaleString()}
             icon={Users}
           />
-          <StatCard
+          <FigureCard
             label={t("active24h")}
             value={(stats?.active_users_24h ?? 0).toLocaleString()}
             icon={Activity}
           />
-          <StatCard
+          <FigureCard
             label={t("organizations")}
             value={(stats?.total_organizations ?? 0).toLocaleString()}
             icon={Building2}
           />
-          <StatCard
+          <FigureCard
             label={t("agents")}
             value={(stats?.total_agents ?? 0).toLocaleString()}
             icon={Bot}
           />
-          <StatCard
+          <FigureCard
             label={t("conversations")}
             value={(stats?.total_conversations ?? 0).toLocaleString()}
             icon={MessageSquare}
           />
-          <StatCard
+          <FigureCard
             label={t("messages")}
             value={(stats?.total_messages ?? 0).toLocaleString()}
             icon={MessagesSquare}
