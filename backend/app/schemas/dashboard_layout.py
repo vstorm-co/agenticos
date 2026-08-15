@@ -60,6 +60,27 @@ SPANS: frozenset[str] = frozenset(get_args(DashboardWidgetSpan))
 DashboardWidgetRows = Literal["r2", "r3", "r4", "r5", "r6"]
 ROWS: frozenset[str] = frozenset(get_args(DashboardWidgetRows))
 
+# The window presets a card may pin itself to, mirroring `PeriodPreset` in
+# `frontend/src/lib/dashboard/period.ts`. A card with none follows the page's
+# own filter, which is what nearly every card does.
+DashboardWidgetPeriod = Literal["1d", "7d", "30d", "90d", "tm", "lm"]
+PERIODS: frozenset[str] = frozenset(get_args(DashboardWidgetPeriod))
+
+# Every presentation any widget can draw in, unioned. Which widget offers which
+# is the frontend registry's table (`WIDGETS[id].options.styles`); this is only
+# the boundary check that a stored style is a word this build knows at all.
+WIDGET_STYLES: frozenset[str] = frozenset(
+    {
+        "area",
+        "bars",
+        "donut",
+        "list",
+        "meter",
+        "table",
+        "tiles",
+    }
+)
+
 # A section divider's accent. "neutral" is the absence of a colour — a plain
 # heading — so it is the default. The named presets mirror `ACCENT_PRESETS` in
 # the frontend registry; beyond them a person may pick any colour, stored as a
@@ -128,18 +149,52 @@ MAX_ENTRIES = 60
 MAX_PRESETS = 20
 
 
+class WidgetOptions(BaseSchema):
+    """A card's own settings, overriding what the page decides for every card.
+
+    The page carries one time filter; a card carrying its own is how "runs over
+    the last 90 days" sits beside "runs this month" on one dashboard. The two
+    narrowing ids do the same for *which rows*: one agent, or one colleague.
+    They reach `GET /stats/usage` as its `agent_id` / `user_id` filters and are
+    refused there if the caller may not read what they ask for - a stored option
+    is a request, never an authorisation.
+
+    `style` is which presentation the widget draws in - a donut instead of bars.
+    Validated against the union of every style any widget declares rather than
+    against this widget's own list: the per-widget matrix is the frontend
+    registry's, and mirroring it here would be two copies of a table that
+    changes whenever a card grows a variant. A style this build does not know
+    is refused; a style the wrong widget was given falls back to that widget's
+    default at render time, the same forgiveness a retired widget id gets.
+    """
+
+    period: DashboardWidgetPeriod | None = None
+    style: str | None = Field(default=None, max_length=32)
+    agent_id: UUID | None = None
+    user_id: UUID | None = None
+
+    @field_validator("style")
+    @classmethod
+    def _known_style(cls, value: str | None) -> str | None:
+        if value is not None and value not in WIDGET_STYLES:
+            raise ValueError(f"unknown dashboard widget style: {value!r}")
+        return value
+
+
 class WidgetPlacement(BaseSchema):
     """One placed widget, as accepted on write — validated against the registry.
 
     `span` and `rows` are the card's width and height, both from the closed grid
     sets; `rows` is optional so an arrangement saved before heights existed keeps
-    rendering at the widget's default height.
+    rendering at the widget's default height. `options` is the card's own
+    settings, absent on a card that simply follows the page.
     """
 
     kind: Literal["widget"] = "widget"
     widget: str = Field(..., max_length=64)
     span: DashboardWidgetSpan
     rows: DashboardWidgetRows | None = None
+    options: WidgetOptions | None = None
 
     @field_validator("widget")
     @classmethod
@@ -206,6 +261,11 @@ class StoredWidgetPlacement(BaseSchema):
     label: str | None = None
     accent: str | None = None
     collapsed: bool = False
+    # Handed back as it was stored, for the same reason `widget` is: a card
+    # pinned to an agent that has since been deleted, or to a style a later
+    # release renamed, must not take the whole arrangement down with it. The
+    # frontend drops what it cannot honour.
+    options: dict[str, Any] | None = None
 
 
 class DashboardLayoutUpdate(BaseSchema):

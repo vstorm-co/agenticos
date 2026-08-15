@@ -26,15 +26,21 @@ const HOUR_TICKS = [0, 3, 6, 9, 12, 15, 18, 21];
  * the honest answer until a run records the zone it arrived from - the card's
  * axis says UTC rather than leaving a reader to assume it is theirs.
  */
-export function ActivityRhythmWidget({ title, hint, period, seeAll }: DashboardWidgetProps) {
+export function ActivityRhythmWidget({
+  title,
+  hint,
+  period,
+  seeAll,
+  options,
+}: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.activity-rhythm");
-  const { byHour, isLoading, error, refetch } = useUsageByHour({
-    from: period.from,
-    to: period.to,
-  });
+  const { byHour, isLoading, error, refetch } = useUsageByHour(
+    { from: period.from, to: period.to },
+    { filter: { agentId: options?.agentId, userId: options?.userId } },
+  );
 
   return (
-    <WidgetFrame title={title} hint={hint} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {isLoading ? (
         <WidgetSkeleton />
       ) : error ? (

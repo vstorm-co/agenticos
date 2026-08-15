@@ -9,7 +9,7 @@ import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-stat
 import type { DashboardWidgetProps } from "./types";
 
 /** Thumbs the caller gave in their own conversations - their trend, only theirs. */
-export function MyQualityWidget({ title, hint, period, seeAll }: DashboardWidgetProps) {
+export function MyQualityWidget({ title, hint, period, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.my-quality");
   const { ratings, isLoading, error, refetch } = useRatingsSummary(
     { from: period.from, to: period.to },
@@ -17,7 +17,7 @@ export function MyQualityWidget({ title, hint, period, seeAll }: DashboardWidget
   );
 
   return (
-    <WidgetFrame title={title} hint={hint} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {isLoading ? (
         <WidgetSkeleton />
       ) : error ? (

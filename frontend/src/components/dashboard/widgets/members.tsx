@@ -7,7 +7,9 @@ import { Figure } from "@/components/ui";
 import { useMembers } from "@/hooks";
 import { useOrgStore } from "@/stores";
 import { ROUTES } from "@/lib/constants";
+import { resolveStyle } from "@/lib/dashboard/registry";
 import { seriesColor } from "@/lib/dashboard/system";
+import { BarList } from "../primitives/bar-list";
 import { StackedMeter } from "../primitives/stacked-meter";
 import { WidgetFrame } from "../widget-frame";
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
@@ -30,10 +32,11 @@ const ROLE_ORDER = ["owner", "admin", "builder", "operator", "member", "viewer"]
  * a taller neighbour had stretched, six bars pinned to the bottom, and a hand's
  * height of nothing between them.
  */
-export function MembersWidget({ title, hint }: DashboardWidgetProps) {
+export function MembersWidget({ title, hint, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.members");
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const { members, total, isLoading, error, refetch } = useMembers(activeOrgId ?? "");
+  const style = resolveStyle("members", options?.style);
 
   const split = new Map<string, number>();
   for (const member of members) {
@@ -55,13 +58,22 @@ export function MembersWidget({ title, hint }: DashboardWidgetProps) {
       ) : (
         <div className="flex h-full flex-col gap-4">
           <Figure value={total.toLocaleString()} unit={t("unit", { count: total })} />
-          <StackedMeter
-            segments={ROLE_ORDER.filter((role) => split.has(role)).map((role, index) => ({
-              label: t(`roles.${role}`),
-              value: split.get(role) ?? 0,
-              color: seriesColor(index),
-            }))}
-          />
+          {style === "bars" ? (
+            <BarList
+              items={ROLE_ORDER.filter((role) => split.has(role)).map((role) => ({
+                label: t(`roles.${role}`),
+                value: split.get(role) ?? 0,
+              }))}
+            />
+          ) : (
+            <StackedMeter
+              segments={ROLE_ORDER.filter((role) => split.has(role)).map((role, index) => ({
+                label: t(`roles.${role}`),
+                value: split.get(role) ?? 0,
+                color: seriesColor(index),
+              }))}
+            />
+          )}
         </div>
       )}
     </WidgetFrame>

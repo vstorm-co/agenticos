@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 
 import { useChannelBots } from "@/hooks";
+import { SurfaceIcon } from "@/components/runs/surface-icon";
 import { StatusList } from "../primitives/status-list";
 import { WidgetFrame } from "../widget-frame";
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
@@ -21,20 +22,20 @@ import type { DashboardWidgetProps } from "./types";
  * hook is told so rather than firing a predictable 403 and drawing it as a
  * failure.
  */
-export function ChannelsWidget({ title, hint, seeAll }: DashboardWidgetProps) {
+export function ChannelsWidget({ title, hint, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.channels");
   const { bots, isLoading, error, refetch } = useChannelBots(true);
 
   if (isLoading) {
     return (
-      <WidgetFrame title={title} hint={hint} seeAll={seeAll}>
+      <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
         <WidgetSkeleton />
       </WidgetFrame>
     );
   }
 
   return (
-    <WidgetFrame title={title} hint={hint} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {error ? (
         <WidgetErrorBody onRetry={() => refetch()} />
       ) : bots.length === 0 ? (
@@ -44,6 +45,10 @@ export function ChannelsWidget({ title, hint, seeAll }: DashboardWidgetProps) {
           rows={bots.map((bot) => ({
             label: bot.name,
             sub: t(`platforms.${bot.platform}`),
+            // The platform's own brand mark, from the module the run table and
+            // the surface filter draw from - a channel wears one face across
+            // the product or the reader learns two (#144's rule).
+            icon: <SurfaceIcon surface={bot.platform} className="size-4" />,
             // A webhook bot answers when the platform calls it; a polling bot
             // has to be running. Which mode it is in is the difference between
             // "silent because nobody asked" and "silent because nothing is

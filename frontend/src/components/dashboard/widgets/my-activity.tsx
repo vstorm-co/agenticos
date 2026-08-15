@@ -18,7 +18,7 @@ import type { DashboardWidgetProps } from "./types";
  * answers "why is my agent stuck" for someone who cannot see the approval
  * queue; deciding stays behind approvals:decide, so there is no button here.
  */
-export function MyActivityWidget({ title, hint, period, seeAll }: DashboardWidgetProps) {
+export function MyActivityWidget({ title, hint, period, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.my-activity");
   const { usage, isLoading, error, refetch } = useUsageStats(
     { from: period.from, to: period.to },
@@ -26,7 +26,7 @@ export function MyActivityWidget({ title, hint, period, seeAll }: DashboardWidge
   );
 
   return (
-    <WidgetFrame title={title} hint={hint} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {isLoading ? (
         <WidgetSkeleton />
       ) : error ? (

@@ -5,35 +5,20 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { Figure } from "@/components/ui";
 
-import { ROUTES } from "@/lib/constants";
-import { formatPeriodParam, type Period } from "@/lib/dashboard/period";
+import { runsHref } from "@/lib/runs/filter-params";
 import { formatMs } from "../format";
 import { WidgetFrame } from "../widget-frame";
 import type { DashboardWidgetProps } from "./types";
 import { UsageBody } from "./usage-body";
 
-/**
- * Run history sorted by duration over this widget's window - where the p95
- * figure points. The window travels as `?period=`, the same form the Activity
- * page round-trips its own control through, so the link lands with the picker
- * already set to the window the figure was computed over.
- */
-function slowestRunsHref(period: Period): string {
-  const params = new URLSearchParams({
-    sort: "duration",
-    period: formatPeriodParam(period),
-  });
-  return `${ROUTES.RUNS}?${params.toString()}`;
-}
-
 /** Started-to-finished percentiles. Null latency means nothing finished yet. */
-export function LatencyWidget({ title, hint, period, seeAll }: DashboardWidgetProps) {
+export function LatencyWidget({ title, hint, period, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.latency");
   const locale = useLocale();
 
   return (
-    <WidgetFrame title={title} hint={hint} seeAll={seeAll}>
-      <UsageBody period={period} emptyKey="latency">
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
+      <UsageBody period={period} emptyKey="latency" options={options}>
         {(usage) => {
           const p50 = usage.latency_ms?.p50 ?? null;
           const p95 = usage.latency_ms?.p95 ?? null;
@@ -52,7 +37,7 @@ export function LatencyWidget({ title, hint, period, seeAll }: DashboardWidgetPr
                       formatMs(null)
                     ) : (
                       <Link
-                        href={slowestRunsHref(period)}
+                        href={runsHref({ period, sort: "duration" })}
                         aria-label={t("viewSlowest")}
                         className="hover:text-primary underline-offset-4 hover:underline"
                       >

@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 
 import { useUsageStats } from "@/hooks";
+import type { WidgetOptions } from "@/lib/dashboard/layouts";
 import type { Period } from "@/lib/dashboard/period";
 import type { UsageStats } from "@/types/stats";
 import { cn } from "@/lib/utils";
@@ -19,17 +20,20 @@ import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-stat
 export function UsageBody({
   period,
   emptyKey,
+  options,
   children,
 }: {
   period: Period;
   emptyKey: string;
+  /** The card's own narrowing, if it declared any. Rides the query key too. */
+  options?: WidgetOptions;
   children: (usage: UsageStats) => ReactNode;
 }) {
   const t = useTranslations("dashboard.widgets");
-  const { usage, isLoading, isStale, error, refetch } = useUsageStats({
-    from: period.from,
-    to: period.to,
-  });
+  const { usage, isLoading, isStale, error, refetch } = useUsageStats(
+    { from: period.from, to: period.to },
+    { filter: { agentId: options?.agentId, userId: options?.userId } },
+  );
 
   if (isLoading) return <WidgetSkeleton />;
   if (error) return <WidgetErrorBody onRetry={() => refetch()} />;

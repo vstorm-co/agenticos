@@ -17,7 +17,7 @@
  */
 
 import { groupItems, ungroupItems, type ItemSection } from "@/lib/dashboard/preference";
-import type { DividerEntry, LayoutEntry, LayoutItem } from "@/lib/dashboard/layouts";
+import type { DividerEntry, LayoutEntry, LayoutItem, WidgetOptions } from "@/lib/dashboard/layouts";
 import type { Rows, Span } from "@/lib/dashboard/registry";
 
 export type EditorWidget = LayoutEntry & { uid: string };
@@ -201,6 +201,26 @@ export function resizeWidget(
     widgets: section.widgets.map((widget) =>
       widget.uid === widgetUid ? { ...widget, span, rows } : widget,
     ),
+  }));
+}
+
+/**
+ * Set (or clear) one card's own settings - its window, its style, its
+ * narrowing. `undefined` removes the key entirely rather than storing an empty
+ * object, so "follows the page" is the absence of settings and not a shape.
+ */
+export function optionWidget(
+  sections: EditorSection[],
+  widgetUid: string,
+  options: WidgetOptions | undefined,
+): EditorSection[] {
+  return sections.map((section) => ({
+    ...section,
+    widgets: section.widgets.map((widget) => {
+      if (widget.uid !== widgetUid) return widget;
+      const { options: _dropped, ...rest } = widget;
+      return options ? { ...rest, options } : rest;
+    }),
   }));
 }
 

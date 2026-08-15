@@ -22,13 +22,13 @@ import type { DashboardWidgetProps } from "./types";
  * is the number worth a reader's attention, so it is the one drawn in the
  * warning tone rather than left for them to subtract.
  */
-export function KnowledgeWidget({ title, hint, seeAll }: DashboardWidgetProps) {
+export function KnowledgeWidget({ title, hint, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.knowledge");
   const { kbs, isLoading, listError, fetchKBs } = useKnowledgeBases();
 
   if (isLoading) {
     return (
-      <WidgetFrame title={title} hint={hint} seeAll={seeAll}>
+      <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
         <WidgetSkeleton />
       </WidgetFrame>
     );
@@ -40,7 +40,7 @@ export function KnowledgeWidget({ title, hint, seeAll }: DashboardWidgetProps) {
   const unindexed = documents - indexed;
 
   return (
-    <WidgetFrame title={title} hint={hint} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {listError ? (
         <WidgetErrorBody onRetry={fetchKBs} />
       ) : kbs.length === 0 ? (

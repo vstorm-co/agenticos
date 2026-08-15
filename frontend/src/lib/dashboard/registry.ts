@@ -142,6 +142,38 @@ export function accentDecoration(accent: string): AccentDecoration {
  */
 export type Rows = "r2" | "r3" | "r4" | "r5" | "r6";
 
+/**
+ * Every presentation any widget can draw in.
+ *
+ * One union rather than a per-widget one, because it is also the backend's
+ * boundary check (`WIDGET_STYLES` in `app/schemas/dashboard_layout.py`, kept
+ * equal by `tests/test_dashboard_registry.py`). Which of these a given widget
+ * actually offers is {@link WidgetOptionSpec.styles} below - the first entry
+ * there is that widget's default, and a stored style it does not offer falls
+ * back to it rather than rendering nothing.
+ */
+export type WidgetStyle = "area" | "bars" | "donut" | "list" | "meter" | "table" | "tiles";
+
+/**
+ * What a person may change about one card, declared by the widget itself.
+ *
+ * The page carries one time filter and one organization; a card carrying its
+ * own window - or its own agent - is how "the last 90 days for jarvis" sits
+ * beside "this month, everything" on one dashboard. A widget that declares
+ * nothing here offers no knobs, which is the honest answer for a card whose
+ * data has no window and no subject (the health probes, the sandbox host).
+ */
+export interface WidgetOptionSpec {
+  /** The card may pin its own window instead of following the page filter. */
+  period?: boolean;
+  /** Presentations this widget can draw in. The first is its default. */
+  styles?: readonly WidgetStyle[];
+  /** The card may be narrowed to one agent. */
+  agent?: boolean;
+  /** The card may be narrowed to one person. */
+  person?: boolean;
+}
+
 /** Whether this caller may see a widget. Injected, never read off globals. */
 export type Gate = (can: (permission: Permission) => boolean, isAppAdmin: boolean) => boolean;
 
@@ -155,6 +187,26 @@ export interface WidgetDef {
   category: WidgetCategory;
   /** Where "see all" points - a page that already exists. Absent = no link. */
   seeAll?: string;
+  /** What a person may change about this card. Absent = nothing. */
+  options?: WidgetOptionSpec;
+}
+
+/** The knobs a widget offers, or an empty spec for one that offers none. */
+export function optionSpec(id: WidgetId): WidgetOptionSpec {
+  return WIDGETS[id].options ?? {};
+}
+
+/**
+ * The style to draw `id` in, given what a placement asked for.
+ *
+ * A style the widget does not offer answers with its default: a stored option
+ * outlives the release that wrote it, and a card that renders the wrong chart
+ * is better than a card that renders nothing.
+ */
+export function resolveStyle(id: WidgetId, asked: string | undefined): WidgetStyle | null {
+  const styles = optionSpec(id).styles;
+  if (!styles || styles.length === 0) return null;
+  return styles.includes(asked as WidgetStyle) ? (asked as WidgetStyle) : (styles[0] ?? null);
 }
 
 const adminOnly: Gate = (_can, isAppAdmin) => isAppAdmin;
@@ -170,6 +222,7 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultSpan: "s12",
     defaultRows: "r4",
     category: "usage",
+    options: { period: true, agent: true, person: true },
     seeAll: ROUTES.RUNS,
   },
   channels: {
@@ -194,6 +247,7 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultSpan: "s12",
     defaultRows: "r3",
     category: "usage",
+    options: { period: true, agent: true, person: true },
     seeAll: ROUTES.RUNS,
   },
   // Four counters and no series behind any of them, so two rows is the height:
@@ -212,6 +266,7 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultSpan: "s4",
     defaultRows: "r3",
     category: "platform",
+    options: { styles: ["tiles", "list"] },
     seeAll: ROUTES.ADMIN_SYSTEM,
   },
   "top-orgs": {
@@ -230,6 +285,7 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultSpan: "s5",
     defaultRows: "r2",
     category: "platform",
+    options: { period: true },
   },
   runs: {
     id: "runs",
@@ -237,6 +293,7 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultSpan: "s8",
     defaultRows: "r3",
     category: "usage",
+    options: { period: true, agent: true, person: true, styles: ["area", "bars"] },
     seeAll: ROUTES.RUNS,
   },
   outcomes: {
@@ -245,6 +302,7 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultSpan: "s4",
     defaultRows: "r3",
     category: "usage",
+    options: { period: true, agent: true, person: true, styles: ["donut", "bars"] },
     seeAll: ROUTES.RUNS,
   },
   surfaces: {
@@ -253,6 +311,8 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultSpan: "s6",
     defaultRows: "r3",
     category: "usage",
+    options: { period: true, agent: true, person: true, styles: ["bars", "donut"] },
+    seeAll: ROUTES.RUNS,
   },
   agents: {
     id: "agents",
@@ -260,6 +320,7 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultSpan: "s6",
     defaultRows: "r3",
     category: "usage",
+    options: { period: true, person: true },
     seeAll: ROUTES.AGENTS,
   },
   latency: {
@@ -268,6 +329,7 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultSpan: "s4",
     defaultRows: "r2",
     category: "usage",
+    options: { period: true, agent: true, person: true },
   },
   // One figure and the roster it is a share of - a narrow card, not a
   // two-thirds one, which is the width it was and the reason it sat beside
@@ -278,6 +340,8 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultSpan: "s4",
     defaultRows: "r2",
     category: "usage",
+    options: { period: true, agent: true },
+    seeAll: ROUTES.RUNS,
   },
   // The only card that answers with names. Same gate as the count it sits
   // under, which means builder and operator see it too - the card says so
@@ -288,6 +352,8 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultSpan: "s12",
     defaultRows: "r3",
     category: "usage",
+    options: { period: true, agent: true },
+    seeAll: ROUTES.RUNS,
   },
   spend: {
     id: "spend",
@@ -295,6 +361,7 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultSpan: "s6",
     defaultRows: "r3",
     category: "usage",
+    options: { period: true, agent: true, person: true },
     seeAll: ROUTES.RUNS,
   },
   "model-mix": {
@@ -303,6 +370,8 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultSpan: "s6",
     defaultRows: "r3",
     category: "usage",
+    options: { period: true, agent: true, person: true, styles: ["bars", "donut"] },
+    seeAll: ROUTES.RUNS,
   },
   "version-compare": {
     id: "version-compare",
@@ -310,6 +379,7 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultSpan: "s6",
     defaultRows: "r3",
     category: "usage",
+    options: { period: true },
     seeAll: ROUTES.AGENTS,
   },
   approvals: {
@@ -360,6 +430,7 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultSpan: "s6",
     defaultRows: "r3",
     category: "people",
+    options: { styles: ["meter", "bars"] },
     seeAll: ROUTES.ORGS,
   },
   "org-ratings": {
@@ -368,6 +439,7 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultSpan: "s6",
     defaultRows: "r3",
     category: "usage",
+    options: { period: true },
   },
   "my-agents": {
     id: "my-agents",
@@ -375,6 +447,7 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultSpan: "s6",
     defaultRows: "r3",
     category: "workspace",
+    options: { period: true },
     seeAll: ROUTES.AGENTS,
   },
   conversations: {
@@ -391,6 +464,7 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultSpan: "s12",
     defaultRows: "r4",
     category: "workspace",
+    options: { period: true },
   },
   "my-top-agents": {
     id: "my-top-agents",
@@ -398,6 +472,7 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultSpan: "s6",
     defaultRows: "r3",
     category: "workspace",
+    options: { period: true },
   },
   "my-quality": {
     id: "my-quality",
@@ -405,6 +480,7 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultSpan: "s6",
     defaultRows: "r3",
     category: "workspace",
+    options: { period: true },
   },
   "shared-with-you": {
     id: "shared-with-you",

@@ -1,5 +1,8 @@
 "use client";
 
+import { forwardRef, type ReactNode } from "react";
+import Link from "next/link";
+
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui";
 import { MARK_CLASS, TRACK_CLASS } from "@/lib/dashboard/system";
 import { cn } from "@/lib/utils";
@@ -9,6 +12,20 @@ export interface BarListItem {
   value: number;
   /** What to print beside the track; defaults to the value itself. */
   display?: string;
+  /**
+   * The row's own mark - an agent's avatar, a surface's brand glyph. Decorative:
+   * the label beside it carries the name, so a mark is never the only thing
+   * saying which row this is. The same faces the run table draws, from the same
+   * modules, so one agent does not wear two.
+   */
+  icon?: ReactNode;
+  /**
+   * Where this row's own rows live - Activity, narrowed to what the row names.
+   * A card that says "Mattermost 31" and cannot offer those 31 is a dead end,
+   * which is what every slice on this page was until #768 put the run history's
+   * filters in the URL. Absent on a row with nothing to point at.
+   */
+  href?: string;
 }
 
 /**
@@ -42,13 +59,21 @@ export function BarList({ items, className }: { items: BarListItem[]; className?
           <TooltipTrigger asChild>
             {/* The row is the hit target, not the 8px bar inside it: with
                 `py-1.5` it clears the 24px a pointer can actually land on.
-                Deliberately not focusable - the row does nothing when
-                activated, and a tab stop that only reveals a tooltip is a
-                promise of interactivity the row cannot keep. Nothing is gated
-                behind the hover: the truncation is CSS, so the full label is in
-                the DOM and a screen reader reads it whole. */}
-            <div className="flex cursor-default items-center gap-2 rounded-md py-1.5 text-xs">
-              <span className="text-muted-foreground w-36 shrink-0 truncate">{item.label}</span>
+                A row with somewhere to go is a link - focusable, because it now
+                does something when activated; one without stays a plain div, so
+                a tab stop is never a promise of interactivity a row cannot
+                keep. Nothing is gated behind the hover: the truncation is CSS,
+                so the full label is in the DOM and a screen reader reads it
+                whole. */}
+            <Row href={item.href} label={item.label}>
+              <span className="text-muted-foreground flex w-36 shrink-0 items-center gap-1.5">
+                {item.icon ? (
+                  <span className="flex size-4 shrink-0 items-center justify-center" aria-hidden>
+                    {item.icon}
+                  </span>
+                ) : null}
+                <span className="min-w-0 truncate">{item.label}</span>
+              </span>
               <span className={cn("h-2 flex-1 overflow-hidden rounded-r-sm", TRACK_CLASS)}>
                 <span
                   className={cn("block h-full rounded-r-sm", MARK_CLASS)}
@@ -58,7 +83,7 @@ export function BarList({ items, className }: { items: BarListItem[]; className?
               <span className="text-foreground w-14 shrink-0 text-right font-medium tabular-nums">
                 {item.display ?? item.value.toLocaleString()}
               </span>
-            </div>
+            </Row>
           </TooltipTrigger>
           <TooltipContent side="top" className="flex items-center gap-2">
             <span>{item.label}</span>
@@ -69,3 +94,37 @@ export function BarList({ items, className }: { items: BarListItem[]; className?
     </div>
   );
 }
+
+/**
+ * The row itself: a link when it has somewhere to go, a plain box otherwise.
+ *
+ * `forwardRef` because Radix's `asChild` hands the tooltip trigger's ref to
+ * whatever this returns, and a function component that swallows it leaves the
+ * tooltip anchored to nothing.
+ */
+const Row = forwardRef<HTMLElement, { href?: string; label: string; children: ReactNode }>(
+  function Row({ href, label, children }, ref) {
+    const className =
+      "flex items-center gap-2 rounded-md py-1.5 text-xs transition-colors" +
+      (href
+        ? " hover:bg-muted/60 focus-visible:ring-ring focus-visible:ring-2 outline-none"
+        : " cursor-default");
+    if (!href) {
+      return (
+        <div ref={ref as React.Ref<HTMLDivElement>} className={className}>
+          {children}
+        </div>
+      );
+    }
+    return (
+      <Link
+        ref={ref as React.Ref<HTMLAnchorElement>}
+        href={href}
+        aria-label={label}
+        className={className}
+      >
+        {children}
+      </Link>
+    );
+  },
+);

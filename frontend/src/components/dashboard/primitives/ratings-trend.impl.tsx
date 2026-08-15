@@ -52,18 +52,13 @@ export function RatingsTrendImpl({ data }: { data: RatingsPoint[] }) {
             fontSize: "12px",
           }}
         />
-        <Bar
-          dataKey="likes"
-          fill="oklch(from var(--color-foreground) l c h / 0.75)"
-          radius={[4, 4, 0, 0]}
-          maxBarSize={24}
-        />
-        <Bar
-          dataKey="dislikes"
-          fill="oklch(from var(--color-foreground) l c h / 0.3)"
-          radius={[4, 4, 0, 0]}
-          maxBarSize={24}
-        />
+        {/* Two categories, so two colours - and the same two the outcomes ring
+            spends on "it worked" and "it did not", because a reader who has
+            learned that pairing on one card should not have to learn it again
+            on this one. They were `foreground` at 75% and 30%: two greys, which
+            is a stacked bar chart with the key thrown away. */}
+        <Bar dataKey="likes" fill="var(--series-2)" radius={[4, 4, 0, 0]} maxBarSize={24} />
+        <Bar dataKey="dislikes" fill="var(--series-4)" radius={[4, 4, 0, 0]} maxBarSize={24} />
       </BarChart>
     </ResponsiveContainer>
   );

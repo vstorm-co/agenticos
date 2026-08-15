@@ -68,7 +68,13 @@ describe("the summary strip", () => {
     expect(screen.getByText("of 23 members")).toBeVisible();
     // One query, the same one every other composed-response card reads.
     expect(useUsageStatsMock).toHaveBeenCalledTimes(1);
-    expect(useUsageStatsMock).toHaveBeenCalledWith({ from: PERIOD.from, to: PERIOD.to });
+    // The window, plus this card's own narrowing - `undefined` on a card that
+    // narrows nothing, which is what keeps every card asking the page's
+    // question on one cached answer.
+    expect(useUsageStatsMock).toHaveBeenCalledWith(
+      { from: PERIOD.from, to: PERIOD.to },
+      { filter: { agentId: undefined, userId: undefined } },
+    );
   });
 
   it("says rising spend is the bad direction and rising runs the good one", () => {

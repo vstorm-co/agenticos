@@ -7,7 +7,9 @@ import { useTranslations } from "next-intl";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui";
 import { useSystemHealth } from "@/hooks";
 import type { CheckStatus, SystemCheck } from "@/types/admin";
+import { resolveStyle } from "@/lib/dashboard/registry";
 import { cn } from "@/lib/utils";
+import { StatusList, type StatusTone } from "../primitives/status-list";
 import { WidgetFrame } from "../widget-frame";
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
@@ -35,6 +37,14 @@ const TILE: Record<CheckStatus, string> = {
   not_checked: "bg-muted text-muted-foreground",
 };
 
+/** The list style's dot, for the four statuses this endpoint answers with. */
+const TONE: Record<CheckStatus, StatusTone> = {
+  healthy: "ok",
+  unhealthy: "err",
+  unconfigured: "neutral",
+  not_checked: "neutral",
+};
+
 const WORD: Record<CheckStatus, string> = {
   healthy: "text-success",
   unhealthy: "text-destructive",
@@ -52,18 +62,31 @@ const WORD: Record<CheckStatus, string> = {
  * prints its status under the icon, and a probe that is failing keeps its detail
  * on the hover, which is where the list used to print it.
  */
-export function HealthWidget({ title, hint, seeAll }: DashboardWidgetProps) {
+export function HealthWidget({ title, hint, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.health");
   const { health, isLoading, error, refetch } = useSystemHealth();
+  const style = resolveStyle("health", options?.style);
 
   return (
-    <WidgetFrame title={title} hint={hint} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {isLoading ? (
         <WidgetSkeleton />
       ) : error ? (
         <WidgetErrorBody onRetry={() => refetch()} />
       ) : !health || health.checks.length === 0 ? (
         <WidgetEmptyBody title={t("empty.title")} description={t("empty.description")} />
+      ) : style === "list" ? (
+        // The rows this card used to be, kept as a choice rather than deleted:
+        // a deployment that grows a dozen probes wants names down a column, and
+        // a failing probe's detail reads better on its own line than on a hover.
+        <StatusList
+          rows={health.checks.map((check) => ({
+            label: NAMED.has(check.key) ? t(`services.${check.key}`) : check.key.replace(/_/g, " "),
+            sub: check.status === "healthy" ? undefined : check.detail,
+            pill: t(`status.${check.status}`),
+            tone: TONE[check.status],
+          }))}
+        />
       ) : (
         <ul className="grid flex-1 auto-rows-min grid-cols-4 content-center gap-x-2 gap-y-4">
           {health.checks.map((check) => (

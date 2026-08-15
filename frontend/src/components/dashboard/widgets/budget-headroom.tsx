@@ -25,7 +25,7 @@ import type { DashboardWidgetProps } from "./types";
  * carries the organization's id. Raising the cap is still somewhere else -
  * this is navigation, not a budget-request flow.
  */
-export function BudgetHeadroomWidget({ title, hint }: DashboardWidgetProps) {
+export function BudgetHeadroomWidget({ title, hint, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.budget-headroom");
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const organizations = useOrganizationList();
@@ -52,6 +52,7 @@ export function BudgetHeadroomWidget({ title, hint }: DashboardWidgetProps) {
       title={title}
       hint={hint}
       seeAll={organization ? ROUTES.ORG_SETTINGS(organization.id) : undefined}
+      options={options}
     >
       {isLoading || organizations.isLoading ? (
         <WidgetSkeleton />

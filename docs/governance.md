@@ -406,6 +406,7 @@ being deleted and a widget's visitor is anonymous to begin with.
 | `status` | Repeats. `?status=failed&status=budget_exceeded` is the show-me-the-problems query, and the two are separate statuses precisely so that asking for one is not asking for the other |
 | `surface` | Where the run came from |
 | `user_id` | Who the run ran **as**, which is not always who asked — a widget's runs carry the widget owner's identity, because the visitor is anonymous |
+| `model_label` | The model **as the run recorded it**, matched exactly. Not resolved through the model catalog: the column is what answered, and a profile it came from may since have been renamed or deleted. The dashboard's model card counts these same strings, so "the runs behind this bar" is one set on both screens |
 | `started_from`, `started_to` | Inclusive both ends, because a range picker hands over whole days |
 | `environment_id` | Runs on the version that environment pins. **Never a delegated run:** a delegate's version comes from a pin, so the column is deliberately never written on one, and narrowing to `production` drops every delegation. A surface that includes delegations has to say so |
 | `exposure_id` | Runs admitted through one binding. Null for the dashboard and the API |
@@ -430,6 +431,13 @@ otherwise answer with an empty page — and an empty page reads as *nothing went
 wrong this week*. `order_by` takes one of four orders rather than a column name,
 for the same reason plus one more: an `ORDER BY` assembled from a query string is
 an injection surface.
+
+**Every one of these travels in the URL**, which is what makes a dashboard card
+able to hand over to its own rows: `/runs?surface=mattermost&period=30d` opens
+Activity with the facet already set and the count matching the card that linked
+it. They were local state until #768, so the p95 figure was the only number on
+the dashboard that could reach the runs behind it and three cards carried no link
+at all — there was nothing honest to point them at.
 
 **Duration is computed in SQL, over the whole narrowed set.** That is what gets
 from *"p95 is 14.8s"* on the dashboard to **those runs** — sorting one page of

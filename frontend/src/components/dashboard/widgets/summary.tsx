@@ -27,12 +27,12 @@ import { UsageBody } from "./usage-body";
  * Outcomes donut two rows down can never print different percentages of the
  * same window.
  */
-export function SummaryWidget({ title, hint, period, seeAll }: DashboardWidgetProps) {
+export function SummaryWidget({ title, hint, period, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.summary");
 
   return (
-    <WidgetFrame title={title} hint={hint} seeAll={seeAll}>
-      <UsageBody period={period} emptyKey="summary">
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
+      <UsageBody period={period} emptyKey="summary" options={options}>
         {(usage) => {
           const runs = usage.total_runs ?? 0;
           const runsDelta = deltaPercent(runs, usage.previous_total_runs ?? 0);

@@ -25,6 +25,7 @@ import {
   ROW_CLASS,
   SPAN_CLASS,
   type LayoutItem,
+  type WidgetOptions,
 } from "@/lib/dashboard/layouts";
 import { Period } from "@/lib/dashboard/period";
 import { newDivider, newPlacement, toStored, type StoredEntry } from "@/lib/dashboard/preference";
@@ -47,6 +48,7 @@ import {
   moveSectionBy,
   moveWidget,
   moveWidgetBy,
+  optionWidget,
   patchDivider,
   removeSection,
   removeWidget,
@@ -222,6 +224,8 @@ export function DashboardEditor({
 
   const resize = (uid: string, span: Span, rows: Rows) =>
     setSections((current) => resizeWidget(current, uid, span, rows));
+  const setOptions = (uid: string, options: WidgetOptions | undefined) =>
+    setSections((current) => optionWidget(current, uid, options));
   const setLabel = (uid: string, label: string) =>
     setSections((current) => patchDivider(current, uid, { label }));
   const setAccent = (uid: string, accent: SectionAccent) =>
@@ -566,6 +570,7 @@ export function DashboardEditor({
                           onRemove={() =>
                             setSections((current) => removeWidget(current, widget.uid))
                           }
+                          onOptions={(options) => setOptions(widget.uid, options)}
                         />
                       </div>
                     ))}

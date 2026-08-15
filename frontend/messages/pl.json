@@ -478,9 +478,6 @@
       "usage": "Użycie i koszty",
       "people": "Ludzie i jakość",
       "workspace": "Twoja przestrzeń",
-      "build": "Twoi agenci",
-      "adoption": "Jak zachowują się Twoje wdrożenia",
-      "health": "Zdrowie",
       "sandboxes": "Gdzie agenci uruchamiają kod"
     },
     "actions": {
@@ -559,7 +556,9 @@
           "title": "Brak organizacji",
           "description": "Istnieje tylko organizacja startowa."
         },
-        "description": "Najbardziej zajęte organizacje w tej instalacji."
+        "description": "Najbardziej zajęte organizacje w tej instalacji.",
+        "owner": "Właściciel",
+        "noOwner": "Brak właściciela"
       },
       "platform-ratings": {
         "title": "Jakość odpowiedzi w całej instalacji",
@@ -613,7 +612,8 @@
           "title": "Brak uruchomień w tym okresie",
           "description": "Playground, czat web, API, Slack, Telegram, Mattermost i widget lądują tutaj."
         },
-        "description": "Skąd pochodzą uruchomienia — czat web, API, kanały."
+        "description": "Skąd pochodzą uruchomienia — czat web, API, kanały.",
+        "unit": "uruchomień"
       },
       "agents": {
         "title": "Agenci: używani i zapomniani",
@@ -684,7 +684,8 @@
           "title": "Brak uruchomień w tym okresie",
           "description": "Podział modeli pojawi się z pierwszym uruchomieniem."
         },
-        "description": "Które modele stoją za runami - tak, jak zapisał to każdy run."
+        "description": "Które modele stoją za runami - tak, jak zapisał to każdy run.",
+        "unit": "uruchomień"
       },
       "version-compare": {
         "title": "Wersja do wersji",
@@ -1047,7 +1048,8 @@
       "tempSaveDescription": "Zapis ustawia ten układ jako Twój aktywny dashboard, ale to nie jest zapisany szablon. Przywrócenie domyślnego lub zastosowanie innego układu go zastąpi i ten układ przepadnie. Zapisz go jako stały szablon, aby go zachować i wracać do niego w dowolnej chwili.",
       "tempSaveAsTemplate": "Zapisz jako szablon",
       "tempSaveKeep": "Zastosuj tylko na teraz",
-      "alreadyPlaced": "{count, plural, =1 {Na stronie} other {Na stronie ×#}}"
+      "alreadyPlaced": "{count, plural, =1 {Na stronie} other {Na stronie ×#}}",
+      "optionsFor": "Ustawienia karty {title}"
     },
     "presets": {
       "menu": "Układy",
@@ -1065,6 +1067,31 @@
       "delete": "Usuń {name}",
       "deleted": "Usunięto „{name}”.",
       "deleteFailed": "Nie udało się usunąć tego dashboardu. Spróbuj ponownie."
+    },
+    "ratings": {
+      "likes": "Pomocne",
+      "dislikes": "Niepomocne"
+    },
+    "styles": {
+      "area": "Obszar",
+      "bars": "Słupki",
+      "donut": "Pierścień",
+      "list": "Lista",
+      "meter": "Pasek",
+      "table": "Tabela",
+      "tiles": "Kafelki"
+    },
+    "options": {
+      "window": "Okno",
+      "style": "Styl",
+      "agent": "Agent",
+      "person": "Osoba",
+      "followPage": "Filtr strony",
+      "allAgents": "Wszystkie agenty",
+      "everyone": "Wszyscy",
+      "oneAgent": "Jeden agent",
+      "onePerson": "Jedna osoba",
+      "reset": "Wróć do filtra strony"
     }
   },
   "ui": {

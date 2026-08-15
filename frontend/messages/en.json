@@ -1103,11 +1103,8 @@
     "revokeSession": "Revoke session",
     "revokeSession2": "Revoke session",
     "sections": {
-      "adoption": "How your builds behave",
       "attention": "Needs attention",
-      "build": "Your agents",
       "deployment": "Deployment",
-      "health": "Health",
       "people": "People & quality",
       "sandboxes": "Where agents run code",
       "usage": "Usage & cost",
@@ -1281,7 +1278,8 @@
         },
         "notRecorded": "not recorded",
         "title": "Models behind the runs",
-        "description": "Which models are behind the runs, as each run recorded its own."
+        "description": "Which models are behind the runs, as each run recorded its own.",
+        "unit": "runs"
       },
       "my-activity": {
         "empty": {
@@ -1502,7 +1500,8 @@
           "web": "Web chat"
         },
         "title": "Where runs come from",
-        "description": "Where runs come from — web chat, API, channels."
+        "description": "Where runs come from — web chat, API, channels.",
+        "unit": "runs"
       },
       "top-orgs": {
         "agents": "Agents",
@@ -1513,7 +1512,9 @@
         "members": "Members",
         "organization": "Organization",
         "title": "Top organizations",
-        "description": "The busiest organizations on this deployment."
+        "description": "The busiest organizations on this deployment.",
+        "owner": "Owner",
+        "noOwner": "No owner"
       },
       "top-people": {
         "columns": {
@@ -1658,7 +1659,8 @@
       "tempSaveDescription": "Saving sets this as your active dashboard, but it is not a saved template. Reset to default or applying another layout will replace it, and this arrangement will be lost. Save it as a permanent template to keep it and switch back any time.",
       "tempSaveAsTemplate": "Save as template",
       "tempSaveKeep": "Just apply for now",
-      "alreadyPlaced": "{count, plural, =1 {On the page} other {On the page ×#}}"
+      "alreadyPlaced": "{count, plural, =1 {On the page} other {On the page ×#}}",
+      "optionsFor": "Settings for {title}"
     },
     "presets": {
       "menu": "Layouts",
@@ -1676,6 +1678,31 @@
       "delete": "Delete {name}",
       "deleted": "Deleted “{name}”.",
       "deleteFailed": "Could not delete that dashboard. Try again."
+    },
+    "ratings": {
+      "likes": "Helpful",
+      "dislikes": "Not helpful"
+    },
+    "styles": {
+      "area": "Area",
+      "bars": "Bars",
+      "donut": "Donut",
+      "list": "List",
+      "meter": "Meter",
+      "table": "Table",
+      "tiles": "Tiles"
+    },
+    "options": {
+      "window": "Window",
+      "style": "Style",
+      "agent": "Agent",
+      "person": "Person",
+      "followPage": "Page filter",
+      "allAgents": "All agents",
+      "everyone": "Everyone",
+      "oneAgent": "One agent",
+      "onePerson": "One person",
+      "reset": "Follow the page again"
     }
   },
   "errors": {
@@ -3067,7 +3094,9 @@
       "surfaceTelegram": "Telegram",
       "surfaceMattermost": "Mattermost",
       "runResumed": "Run resumed - the agent picked up where it parked.",
-      "resumeFailed": "The run could not be resumed."
+      "resumeFailed": "The run could not be resumed.",
+      "modelFilter": "Filter by model",
+      "anyModel": "Any model"
     },
     "sandboxes": {
       "addConnection": "Add connection",

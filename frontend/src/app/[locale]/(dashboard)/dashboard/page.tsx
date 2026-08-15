@@ -40,8 +40,13 @@ import {
   widgetCatalog,
   type StoredEntry,
 } from "@/lib/dashboard/preference";
-import { formatPeriodParam, parsePeriodParam, type Period } from "@/lib/dashboard/period";
-import { BAND_GAP, CARD_GAP, HEADING_GAP } from "@/lib/dashboard/system";
+import {
+  formatPeriodParam,
+  parsePeriodParam,
+  resolvePreset,
+  type Period,
+} from "@/lib/dashboard/period";
+import { BAND_GAP, HEADING_GAP } from "@/lib/dashboard/system";
 import {
   applySectionsFilter,
   formatSectionsParam,
@@ -327,25 +332,15 @@ export default function DashboardPage() {
                   </h2>
                 ) : null}
                 {collapsed ? null : (
-                  <div
-                    className={cn(
-                      isCustom
-                        ? ARRANGED_GRID_CLASS
-                        : `grid grid-cols-1 ${CARD_GAP} lg:grid-cols-12`,
-                      heading && HEADING_GAP,
-                    )}
-                  >
+                  <div className={cn(ARRANGED_GRID_CLASS, heading && HEADING_GAP)}>
                     {section.entries.map((entry, index) => {
                       const Widget = WIDGET_COMPONENTS[entry.widget];
-                      // A saved arrangement carries an explicit height; the audience
-                      // defaults auto-size, so a row is as tall as its tallest card
-                      // rather than as tall as a fixed unit multiplied out. Pinning
-                      // them to `defaultRows` was tried and is worse: the heights are
-                      // tuned for a grid a person resizes by hand, and applied to a
-                      // curated row they add slack rather than remove it.
-                      const cell = entry.rows
-                        ? `${SPAN_CLASS[entry.span]} ${ROW_CLASS[entry.rows]}`
-                        : SPAN_CLASS[entry.span];
+                      // Width and height, both from the placement. The shipped
+                      // default carries a height on every card now - it is a page
+                      // somebody arranged - so this is the same grid an arranged
+                      // layout renders in and the editor previews. A placement
+                      // predating heights falls back to the widget's own.
+                      const cell = `${SPAN_CLASS[entry.span]} ${ROW_CLASS[entry.rows ?? WIDGETS[entry.widget].defaultRows]}`;
                       return (
                         <div
                           key={`${entry.widget}-${index}`}
@@ -354,8 +349,16 @@ export default function DashboardPage() {
                           <Widget
                             title={t(entry.titleKey ?? `widgets.${entry.widget}.title`)}
                             hint={t(`widgets.${entry.widget}.description`)}
-                            period={period}
+                            // A card pinning its own window gets that one; every
+                            // other card follows the page's filter. Resolved here
+                            // rather than inside the widget, so a widget never has
+                            // to know which of the two it was handed - and so the
+                            // preset is resolved once against one "today".
+                            period={
+                              entry.options?.period ? resolvePreset(entry.options.period) : period
+                            }
                             seeAll={WIDGETS[entry.widget].seeAll}
+                            options={entry.options}
                           />
                         </div>
                       );

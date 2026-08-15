@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useLocale } from "next-intl";
 
 import type { DonutSegment } from "./donut-chart.impl";
@@ -19,6 +20,8 @@ export interface DonutLegendRow {
   color: string;
   /** This row's fraction of the whole, printed beside the count. */
   share?: number;
+  /** Where this row's own rows live - the same hand-off a bar row carries. */
+  href?: string;
 }
 
 /**
@@ -67,7 +70,19 @@ export function DonutChart({
               style={{ background: row.color }}
               aria-hidden
             />
-            <span className="text-muted-foreground min-w-0 flex-1 truncate">{row.name}</span>
+            {/* A row with runs behind it is a link to them; one with none is
+                text, because a link to an empty list is a dead end dressed as
+                an answer. */}
+            {row.href && row.value > 0 ? (
+              <Link
+                href={row.href}
+                className="text-muted-foreground hover:text-foreground min-w-0 flex-1 truncate underline-offset-4 hover:underline"
+              >
+                {row.name}
+              </Link>
+            ) : (
+              <span className="text-muted-foreground min-w-0 flex-1 truncate">{row.name}</span>
+            )}
             {row.share !== undefined ? (
               <span className="text-muted-foreground/70 shrink-0 tabular-nums">
                 {formatShare(row.share, locale)}

@@ -16,12 +16,12 @@ import { UsageBody } from "./usage-body";
  * surveillance table. Anonymous widget visitors carry no user and are not
  * counted as people.
  */
-export function ActiveUsersWidget({ title, hint, period, seeAll }: DashboardWidgetProps) {
+export function ActiveUsersWidget({ title, hint, period, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.active-users");
 
   return (
-    <WidgetFrame title={title} hint={hint} seeAll={seeAll}>
-      <UsageBody period={period} emptyKey="active-users">
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
+      <UsageBody period={period} emptyKey="active-users" options={options}>
         {(usage) => {
           const active = usage.active_users?.active ?? 0;
           const members = usage.active_users?.total_members ?? 0;

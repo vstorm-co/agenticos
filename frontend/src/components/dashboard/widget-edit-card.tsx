@@ -21,10 +21,12 @@ import {
   stepRows,
   stepSpan,
   type LayoutEntry,
+  type WidgetOptions,
 } from "@/lib/dashboard/layouts";
-import type { Period } from "@/lib/dashboard/period";
+import { resolvePreset, type Period } from "@/lib/dashboard/period";
 import type { Rows, Span } from "@/lib/dashboard/registry";
 import { cn } from "@/lib/utils";
+import { hasOptions, WidgetOptionsMenu } from "./widget-options-menu";
 import { WIDGET_COMPONENTS } from "./widgets";
 
 interface WidgetEditCardProps {
@@ -39,6 +41,8 @@ interface WidgetEditCardProps {
   /** Step the card one slot earlier (`-1`) or later (`+1`) — the keyboard reorder. */
   onMove: (direction: -1 | 1) => void;
   onRemove: () => void;
+  /** Replace this card's own settings, or clear them with `undefined`. */
+  onOptions: (options: WidgetOptions | undefined) => void;
 }
 
 /**
@@ -133,6 +137,7 @@ export function WidgetEditCard({
   onResize,
   onMove,
   onRemove,
+  onOptions,
 }: WidgetEditCardProps) {
   const t = useTranslations("dashboard");
   const rows = entry.rows ?? "r3";
@@ -205,9 +210,16 @@ export function WidgetEditCard({
         dropTarget && "ring-brand ring-2 ring-offset-2",
       )}
     >
-      {/* The live widget, inert while arranging. */}
+      {/* The live widget, inert while arranging - and drawn with this card's own
+          settings, so changing a window or a style shows the answer it will
+          give rather than a preview of a different card. */}
       <div className="pointer-events-none h-full select-none">
-        <Widget title={title} hint={t(`widgets.${entry.widget}.description`)} period={period} />
+        <Widget
+          title={title}
+          hint={t(`widgets.${entry.widget}.description`)}
+          period={entry.options?.period ? resolvePreset(entry.options.period) : period}
+          options={entry.options}
+        />
       </div>
 
       {/* Edit controls, above the widget and revealed on hover. */}
@@ -236,6 +248,17 @@ export function WidgetEditCard({
           >
             <ArrowDown className="size-3.5" aria-hidden />
           </Button>
+          {hasOptions(entry.widget) ? (
+            <>
+              <span className="bg-border mx-0.5 h-4 w-px" aria-hidden />
+              <WidgetOptionsMenu
+                widget={entry.widget}
+                title={title}
+                options={entry.options}
+                onChange={onOptions}
+              />
+            </>
+          ) : null}
           <span className="bg-border mx-0.5 h-4 w-px" aria-hidden />
           <Button
             variant="ghost"

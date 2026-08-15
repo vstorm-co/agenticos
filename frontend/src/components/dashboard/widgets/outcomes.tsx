@@ -4,6 +4,10 @@ import { useTranslations } from "next-intl";
 
 import { completedShare, formatCompletedShare, statusTally } from "@/lib/run-outcomes";
 import { seriesColor } from "@/lib/dashboard/system";
+import { resolveStyle } from "@/lib/dashboard/registry";
+import { runsHref } from "@/lib/runs/filter-params";
+import type { RunStatus } from "@/types/runs";
+import { BarList } from "../primitives/bar-list";
 import { DonutChart } from "../primitives/donut-chart";
 import { WidgetFrame } from "../widget-frame";
 import type { DashboardWidgetProps } from "./types";
@@ -28,12 +32,13 @@ import { UsageBody } from "./usage-body";
  * The awaiting count is still the same number the approvals card lists: both
  * read the same rows.
  */
-export function OutcomesWidget({ title, hint, period, seeAll }: DashboardWidgetProps) {
+export function OutcomesWidget({ title, hint, period, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.outcomes");
+  const style = resolveStyle("outcomes", options?.style);
 
   return (
-    <WidgetFrame title={title} hint={hint} seeAll={seeAll}>
-      <UsageBody period={period} emptyKey="outcomes">
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
+      <UsageBody period={period} emptyKey="outcomes" options={options}>
         {(usage) => {
           const byStatus = usage.by_status ?? [];
           const counts = new Map(byStatus.map((row) => [row.status, row.runs]));
@@ -52,11 +57,35 @@ export function OutcomesWidget({ title, hint, period, seeAll }: DashboardWidgetP
           // which statuses this window happens to hold: "failed" is the same
           // colour on a card where nothing failed and on one where everything
           // did, so two periods can be compared without re-reading the key.
+          // The last row is two statuses at once, and the filter takes one, so
+          // it keeps its count and offers no link rather than pointing at half
+          // of what it counted.
+          const drill = (status: RunStatus) => runsHref({ period, filters: { status } });
           const rows = [
-            { name: t("status.completed"), value: tally.completed, color: seriesColor(1) },
-            { name: t("status.failed"), value: failed, color: seriesColor(3) },
-            { name: t("status.awaiting_approval"), value: awaiting, color: seriesColor(2) },
-            { name: t("status.budget_exceeded"), value: budget, color: seriesColor(4) },
+            {
+              name: t("status.completed"),
+              value: tally.completed,
+              color: seriesColor(1),
+              href: drill("completed"),
+            },
+            {
+              name: t("status.failed"),
+              value: failed,
+              color: seriesColor(3),
+              href: drill("failed"),
+            },
+            {
+              name: t("status.awaiting_approval"),
+              value: awaiting,
+              color: seriesColor(2),
+              href: drill("awaiting_approval"),
+            },
+            {
+              name: t("status.budget_exceeded"),
+              value: budget,
+              color: seriesColor(4),
+              href: drill("budget_exceeded"),
+            },
             { name: t("status.other"), value: other, color: seriesColor(0) },
           ];
           const legend = rows.map((row) => ({
@@ -65,12 +94,26 @@ export function OutcomesWidget({ title, hint, period, seeAll }: DashboardWidgetP
           }));
           return (
             <div className="flex h-full flex-col justify-between gap-3">
-              <DonutChart
-                segments={rows.filter((row) => row.value > 0)}
-                legend={legend}
-                centerLabel={formatCompletedShare(completedShare(tally))}
-                centerSub={t("completed")}
-              />
+              {/* Bars for a reader who wants the counts ranked rather than the
+                  window's shape - the same five rows, and the completed share
+                  moves into the ring's place as the figure it always was. */}
+              {style === "bars" ? (
+                <BarList
+                  items={legend.map((row) => ({
+                    label: row.name,
+                    value: row.value,
+                    href: row.value > 0 ? row.href : undefined,
+                  }))}
+                  className="flex-1"
+                />
+              ) : (
+                <DonutChart
+                  segments={rows.filter((row) => row.value > 0)}
+                  legend={legend}
+                  centerLabel={formatCompletedShare(completedShare(tally))}
+                  centerSub={t("completed")}
+                />
+              )}
               {attention > 0 ? (
                 <p className="text-muted-foreground border-foreground/8 border-t pt-3 text-center text-xs">
                   {t("attention", { n: Math.max(1, Math.round(total / attention)) })}

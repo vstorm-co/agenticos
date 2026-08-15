@@ -16,7 +16,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { useAgents, useAgentVersions, useMembers, usePermissions } from "@/hooks";
+import { useAgents, useAgentVersions, useMembers, usePermissions, useUsageStats } from "@/hooks";
+import type { Period } from "@/lib/dashboard/period";
+import { DEFAULT_RUN_FILTERS, type RunFilters } from "@/lib/runs/filter-params";
 import { useOrgStore } from "@/stores";
 import { Perm } from "@/types/permissions";
 import type { RunStatus } from "@/types/runs";
@@ -27,22 +29,11 @@ const STATUSES = Object.keys(RUN_LABEL) as RunStatus[];
 /** `RunSurface` on the backend - every value something assigns, none invented. */
 export const SURFACES = ["web", "embed", "api", "slack", "telegram", "mattermost"] as const;
 
-/** Every narrowing the bar owns. "all" is the unfiltered value throughout. */
-export interface RunFilters {
-  status: RunStatus | "all" | "problems";
-  surface: string;
-  rated: "all" | "up" | "down";
-  userId: string;
-  versionId: string;
-}
-
-export const DEFAULT_RUN_FILTERS: RunFilters = {
-  status: "all",
-  surface: "all",
-  rated: "all",
-  userId: "all",
-  versionId: "all",
-};
+// The shape and its defaults live in `lib/runs/filter-params.ts`, with the two
+// directions of the URL round-trip - a narrowing that travels in a link cannot
+// have its vocabulary defined inside the component that happens to draw it.
+// Re-exported so the bar is still the one import a caller needs.
+export { DEFAULT_RUN_FILTERS, type RunFilters };
 
 /**
  * The run history's filter row - every narrowing the backend answers, as one
@@ -61,11 +52,14 @@ export const DEFAULT_RUN_FILTERS: RunFilters = {
  */
 export function RunFilterBar({
   filters,
+  period,
   onChange,
   agentId,
   onAgentChange,
 }: {
   filters: RunFilters;
+  /** The window - the model facet offers the labels it actually holds. */
+  period: Period;
   onChange: (filters: RunFilters) => void;
   agentId: string | null;
   onAgentChange: (agentId: string | null) => void;
@@ -127,6 +121,11 @@ export function RunFilterBar({
           <SelectItem value="down">{t("ratedDown")}</SelectItem>
         </SelectContent>
       </Select>
+      <ModelSelect
+        period={period}
+        model={filters.model}
+        onModelChange={(model) => set({ model })}
+      />
       {can(Perm.agentsView) && <AgentSelect agentId={agentId} onAgentChange={onAgentChange} />}
       {activeOrgId !== null && (
         <PersonSelect
@@ -143,6 +142,51 @@ export function RunFilterBar({
         />
       )}
     </>
+  );
+}
+
+/**
+ * Which model answered, offered as the labels this window actually recorded.
+ *
+ * Not the model catalog: a run stores the label it ran with, and a profile that
+ * has since been renamed or deleted still has runs behind it. The vocabulary
+ * therefore comes from the same `by_model` block the dashboard's card counts,
+ * which is what makes "the runs behind this bar" the same set on both screens.
+ * A window with one model needs no select at all.
+ */
+function ModelSelect({
+  period,
+  model,
+  onModelChange,
+}: {
+  period: Period;
+  model: string;
+  onModelChange: (model: string) => void;
+}) {
+  const t = useTranslations("pages.runs");
+  const { usage } = useUsageStats({ from: period.from, to: period.to });
+  const labels = (usage?.by_model ?? [])
+    .map((row) => row.model_label)
+    .filter((label): label is string => label !== null);
+  // Whatever a link narrowed to, even if the window holds no runs of it - the
+  // control has to be able to say what it is showing, and to clear it.
+  const options = labels.includes(model) || model === "all" ? labels : [...labels, model];
+  if (options.length < 2 && model === "all") return null;
+
+  return (
+    <Select value={model} onValueChange={onModelChange}>
+      <SelectTrigger className="h-8 w-[190px]" aria-label={t("modelFilter")}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">{t("anyModel")}</SelectItem>
+        {options.map((label) => (
+          <SelectItem key={label} value={label}>
+            {label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 

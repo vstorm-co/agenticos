@@ -56,36 +56,51 @@ describe("the layouts", () => {
     }
   });
 
-  it("the app admin's layout is the deployment strip over the steward's", () => {
-    const [deployment, ...rest] = LAYOUTS.app_admin;
-
-    expect(deployment?.id).toBe("deployment");
-    expect(rest).toEqual(LAYOUTS.steward);
-  });
-
-  it("the viewer's my-agents carries its own title", () => {
-    const entry = LAYOUTS.viewer[0]?.entries.find((candidate) => candidate.widget === "my-agents");
-
-    expect(entry?.titleKey).toBe("widgets.my-agents.sharedTitle");
-  });
-
-  it("member and viewer pages are untitled - no section chrome for one section", () => {
-    for (const audience of ["member", "viewer"] as const) {
-      expect(LAYOUTS[audience]).toHaveLength(1);
-      expect(LAYOUTS[audience][0]?.titleKey).toBeNull();
+  it("gives every audience the same arrangement, because the gate is what differs", () => {
+    // Six hand-written variants said what a permission already says, and drifted
+    // from each other every time a widget was added to one of them. The page a
+    // member lands on is this list with everything they may not see removed.
+    for (const audience of AUDIENCES) {
+      expect(LAYOUTS[audience].map((section) => section.id)).toEqual(
+        LAYOUTS.app_admin.map((section) => section.id),
+      );
     }
   });
 
-  it("offers the sandbox section only where a gate could pass it", () => {
-    // The cards gate on `connections:view`, held by owner, admin, builder and
-    // operator (`ROLE_PERMS`) - so all four carry the section and member and
-    // viewer, who hold neither connections permission, do not. Listing it on a
-    // layout whose gate can never pass would be an entry no caller can see.
-    const carrying = AUDIENCES.filter((audience) =>
-      LAYOUTS[audience].some((section) => section.id === "sandboxes"),
-    );
+  it("carries a height on every card, not only a width", () => {
+    // The default is a page somebody arranged on a real screen, and it renders
+    // in the same fixed-row grid an arranged layout does - a height nobody can
+    // see is not a default anybody chose.
+    for (const section of LAYOUTS.app_admin) {
+      for (const entry of section.entries) {
+        expect(entry.rows, `${section.id}/${entry.widget}`).toBeTruthy();
+      }
+    }
+  });
 
-    expect(carrying).toEqual(["app_admin", "steward", "operator", "builder"]);
+  it("renames the agents card for a viewer, the one thing a shared list must not claim", () => {
+    // A viewer's `my-agents` lists what was shared with them, so "your agents"
+    // is the single place the shared list would say something untrue.
+    const viewerEntry = LAYOUTS.viewer
+      .flatMap((section) => section.entries)
+      .find((entry) => entry.widget === "my-agents");
+    const stewardEntry = LAYOUTS.steward
+      .flatMap((section) => section.entries)
+      .find((entry) => entry.widget === "my-agents");
+
+    expect(viewerEntry?.titleKey).toBe("widgets.my-agents.sharedTitle");
+    expect(stewardEntry?.titleKey).toBeUndefined();
+  });
+
+  it("places no card twice", () => {
+    // The arrangement this was taken from held `my-agents` twice, by accident.
+    // A default that ships a duplicate is one every new person inherits.
+    for (const audience of AUDIENCES) {
+      const placed = LAYOUTS[audience].flatMap((section) =>
+        section.entries.map((entry) => entry.widget),
+      );
+      expect(new Set(placed).size, audience).toBe(placed.length);
+    }
   });
 });
 
@@ -112,7 +127,10 @@ describe("visibleSections", () => {
       "knowledge-freshness",
       "knowledge",
     ]);
-    expect(sections[1]?.entries.map((entry) => entry.widget)).toEqual(["my-agents"]);
+    expect(sections[1]?.entries.map((entry) => entry.widget)).toEqual([
+      "my-agents",
+      "shared-with-you",
+    ]);
   });
 
   it("a caller with nothing sees nothing - and no empty headings either", () => {
@@ -129,9 +147,14 @@ describe("visibleSections", () => {
   });
 
   it("an org admin never sees the deployment strip", () => {
+    // Everybody is offered the same arrangement, so what withholds the band is
+    // the gate on its four cards - all four are app-admin-only, so the heading
+    // goes with them. The summary is deliberately not among them: it is the
+    // organization's own, and a band titled "Deployment" is not where it reads.
     const sections = visibleSections(LAYOUTS.steward, () => true, false);
 
     expect(sections.map((section) => section.id)).not.toContain("deployment");
+    expect(sections[0]?.entries.map((entry) => entry.widget)).toEqual(["summary"]);
   });
 
   it("withholds the sandbox section, heading included, without connections:view", () => {

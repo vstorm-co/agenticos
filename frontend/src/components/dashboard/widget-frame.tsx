@@ -6,11 +6,20 @@ import { Info } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Card, Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui";
+import type { WidgetOptions } from "@/lib/dashboard/layouts";
 import { CARD_SURFACE } from "@/lib/dashboard/system";
 import { cn } from "@/lib/utils";
+import { WidgetOptionChips } from "./widget-option-chips";
 
 interface WidgetFrameProps {
   title: string;
+  /**
+   * What this card overrides about itself. Drawn in the header as chips, and
+   * that is not decoration: a card answering about ninety days while the page
+   * filter says thirty, or about one agent while everything beside it counts
+   * all of them, is lying unless it says so where the number is read.
+   */
+  options?: WidgetOptions;
   /**
    * The paragraph that used to sit in the body in muted grey. It is the answer
    * to "what am I actually looking at" - true, worth having, and read by
@@ -44,7 +53,14 @@ interface WidgetFrameProps {
  * columns were the case - otherwise paints *over* this header rather than
  * being clipped by the card that holds it.
  */
-export function WidgetFrame({ title, hint, seeAll, className, children }: WidgetFrameProps) {
+export function WidgetFrame({
+  title,
+  hint,
+  seeAll,
+  options,
+  className,
+  children,
+}: WidgetFrameProps) {
   const t = useTranslations("dashboard");
   return (
     <Card
@@ -61,6 +77,7 @@ export function WidgetFrame({ title, hint, seeAll, className, children }: Widget
         <div className="flex min-w-0 items-center gap-1.5">
           <h3 className="text-foreground truncate text-sm font-semibold tracking-tight">{title}</h3>
           {hint ? <WidgetHint title={title} text={hint} /> : null}
+          <WidgetOptionChips options={options} />
         </div>
         {seeAll ? (
           <Link

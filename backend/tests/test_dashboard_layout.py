@@ -120,8 +120,8 @@ async def test_save_stores_the_entries_as_plain_dicts(monkeypatch) -> None:
     await service.save(user_id=uuid4(), organization_id=uuid4(), data=data)
 
     assert upsert.call_args.kwargs["entries"] == [
-        {"kind": "widget", "widget": "runs", "span": "s8", "rows": None},
-        {"kind": "widget", "widget": "spend", "span": "s6", "rows": None},
+        {"kind": "widget", "widget": "runs", "span": "s8", "rows": None, "options": None},
+        {"kind": "widget", "widget": "spend", "span": "s6", "rows": None, "options": None},
     ]
 
 

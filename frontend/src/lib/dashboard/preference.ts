@@ -36,7 +36,9 @@ import {
   type LayoutEntry,
   type LayoutItem,
   type SectionDef,
+  type WidgetOptions,
 } from "./layouts";
+import { PERIOD_PRESETS, type PeriodPreset } from "./period";
 import {
   normaliseAccent,
   WIDGETS,
@@ -47,6 +49,17 @@ import {
   type WidgetId,
 } from "./registry";
 import type { Permission } from "@/types/permissions";
+
+/**
+ * A card's own settings on the wire, snake_cased like the rest of the API.
+ * Every field optional and unvalidated: this is what a previous release wrote.
+ */
+export interface StoredOptions {
+  period?: string | null;
+  style?: string | null;
+  agent_id?: string | null;
+  user_id?: string | null;
+}
 
 /** A placement as it comes back from the API - permissive, possibly stale. */
 export interface StoredEntry {
@@ -62,6 +75,8 @@ export interface StoredEntry {
   accent?: string;
   /** Whether a divider's section is folded to its heading. */
   collapsed?: boolean;
+  /** A card's own window, style and narrowing. */
+  options?: StoredOptions | null;
 }
 
 /** The id of the leading (pre-first-divider) section a saved arrangement renders as. */
@@ -69,6 +84,7 @@ export const CUSTOM_SECTION_ID = "custom";
 
 const VALID_SPANS = new Set<string>(Object.keys(SPAN_CLASS));
 const VALID_ROWS = new Set<string>(Object.keys(ROW_CLASS));
+const VALID_PERIODS = new Set<string>(PERIOD_PRESETS);
 
 /**
  * Turn stored entries into layout items the editor and page can use, dropping
@@ -101,9 +117,40 @@ export function sanitizeEntries(stored: StoredEntry[]): LayoutItem[] {
     if (!def) continue;
     const span = (entry.span && VALID_SPANS.has(entry.span) ? entry.span : def.defaultSpan) as Span;
     const rows = (entry.rows && VALID_ROWS.has(entry.rows) ? entry.rows : def.defaultRows) as Rows;
-    items.push({ widget: def.id, span, rows });
+    const options = sanitizeOptions(def, entry.options);
+    items.push(options ? { widget: def.id, span, rows, options } : { widget: def.id, span, rows });
   }
   return items;
+}
+
+/**
+ * A stored card's own settings, keeping only what the widget still offers.
+ *
+ * Read the way every stored field is read here - forgivingly, and against
+ * today's registry rather than the one that wrote the row. A window preset this
+ * build no longer has, or an agent filter on a widget that has since stopped
+ * offering one, is dropped: an option nothing can honour would otherwise be
+ * sent back to the API on the next save and narrow a request nobody asked to
+ * narrow. An empty result is `undefined`, so a card with nothing to override
+ * carries no `options` key at all.
+ */
+export function sanitizeOptions(
+  def: WidgetDef,
+  stored: StoredOptions | null | undefined,
+): WidgetOptions | undefined {
+  if (!stored) return undefined;
+  const spec = def.options ?? {};
+  const options: WidgetOptions = {};
+  if (spec.period && stored.period && VALID_PERIODS.has(stored.period)) {
+    options.period = stored.period as PeriodPreset;
+  }
+  // The style is kept as stored and resolved at render (`resolveStyle`), which
+  // is where a widget's own list lives; a style it does not offer draws as its
+  // default rather than disappearing from a card that has to render something.
+  if (spec.styles && stored.style) options.style = stored.style;
+  if (spec.agent && stored.agent_id) options.agentId = stored.agent_id;
+  if (spec.person && stored.user_id) options.userId = stored.user_id;
+  return Object.keys(options).length > 0 ? options : undefined;
 }
 
 /**
@@ -286,10 +333,21 @@ export function toStored(entries: LayoutItem[]): StoredEntry[] {
       if (entry.collapsed) stored.collapsed = true;
       return stored;
     }
-    return {
+    const stored: StoredEntry = {
       widget: entry.widget,
       span: entry.span,
       rows: entry.rows ?? WIDGETS[entry.widget].defaultRows,
     };
+    // Snake_cased on the way out, and omitted entirely when the card overrides
+    // nothing - `{}` would be a row claiming to have settings.
+    if (entry.options) {
+      stored.options = {
+        period: entry.options.period,
+        style: entry.options.style,
+        agent_id: entry.options.agentId,
+        user_id: entry.options.userId,
+      };
+    }
+    return stored;
   });
 }

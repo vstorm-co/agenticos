@@ -14,13 +14,13 @@ import type { DashboardWidgetProps } from "./types";
  * under the shared_with_me filter - never their own rows, never a page
  * counted client-side.
  */
-export function SharedWithYouWidget({ title, hint, seeAll }: DashboardWidgetProps) {
+export function SharedWithYouWidget({ title, hint, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.shared-with-you");
   const { counts, isLoading, error, refetch } = useSharedWithMeCounts();
   const empty = counts !== null && counts.agents + counts.collections + counts.skills === 0;
 
   return (
-    <WidgetFrame title={title} hint={hint} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {isLoading ? (
         <WidgetSkeleton />
       ) : error ? (

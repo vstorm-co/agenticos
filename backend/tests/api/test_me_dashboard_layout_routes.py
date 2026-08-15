@@ -103,9 +103,10 @@ async def test_a_saved_layout_is_returned() -> None:
     async with _client(service) as client:
         resp = await client.get("/api/v1/me/dashboard-layout")
     assert resp.status_code == 200
-    # An entry saved before heights or dividers existed reads back with `rows`,
-    # `label` and `accent` null and `collapsed` false, not a rejection - the read
-    # shape is permissive on purpose, and fills the fields it predates.
+    # An entry saved before heights, dividers or per-card settings existed reads
+    # back with `rows`, `label`, `accent` and `options` null and `collapsed`
+    # false, not a rejection - the read shape is permissive on purpose, and fills
+    # the fields it predates.
     assert resp.json()["entries"] == [
         {
             "kind": "widget",
@@ -115,6 +116,7 @@ async def test_a_saved_layout_is_returned() -> None:
             "label": None,
             "accent": None,
             "collapsed": False,
+            "options": None,
         }
     ]
 
@@ -198,6 +200,7 @@ async def test_a_placement_height_travels_through_a_save() -> None:
             "label": None,
             "accent": None,
             "collapsed": False,
+            "options": None,
         }
     ]
 
@@ -285,3 +288,54 @@ async def test_deleting_a_preset_outside_the_callers_scope_is_a_404() -> None:
     async with _client(_service(), presets) as client:
         resp = await client.delete(f"/api/v1/me/dashboard-layout/presets/{uuid4()}")
     assert resp.status_code == 404
+
+
+async def test_a_cards_own_settings_travel_through_a_save() -> None:
+    """A card's window, style and narrowing round-trip as one object.
+
+    They are what makes one dashboard hold "the last 90 days for this agent"
+    beside "this month, everything" - useless if the save drops them.
+    """
+    agent_id = str(uuid4())
+    options = {"period": "90d", "style": "bars", "agent_id": agent_id, "user_id": None}
+    service = _service()
+    service.save = AsyncMock(
+        return_value=_layout([{"widget": "runs", "span": "s8", "rows": "r4", "options": options}])
+    )
+    async with _client(service) as client:
+        resp = await client.put(
+            "/api/v1/me/dashboard-layout",
+            json={"entries": [{"widget": "runs", "span": "s8", "rows": "r4", "options": options}]},
+        )
+
+    assert resp.status_code == 200
+    assert resp.json()["entries"][0]["options"] == options
+    saved = service.save.call_args.kwargs["data"].entries[0]
+    assert saved.options is not None
+    assert str(saved.options.agent_id) == agent_id
+
+
+async def test_a_style_this_build_does_not_know_is_refused_at_the_boundary() -> None:
+    # Same rule as an unknown widget id: a typo is a 422 where it is written,
+    # not a card that silently draws the wrong chart forever.
+    service = _service()
+    async with _client(service) as client:
+        resp = await client.put(
+            "/api/v1/me/dashboard-layout",
+            json={"entries": [{"widget": "runs", "span": "s8", "options": {"style": "sankey"}}]},
+        )
+
+    assert resp.status_code == 422
+    service.save.assert_not_called()
+
+
+async def test_a_window_outside_the_preset_set_is_refused() -> None:
+    service = _service()
+    async with _client(service) as client:
+        resp = await client.put(
+            "/api/v1/me/dashboard-layout",
+            json={"entries": [{"widget": "runs", "span": "s8", "options": {"period": "5y"}}]},
+        )
+
+    assert resp.status_code == 422
+    service.save.assert_not_called()

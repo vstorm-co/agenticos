@@ -10,12 +10,12 @@ import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-stat
 import type { DashboardWidgetProps } from "./types";
 
 /** Deployment-wide counts. The one strip an org admin never sees. */
-export function PlatformWidget({ title, hint, seeAll }: DashboardWidgetProps) {
+export function PlatformWidget({ title, hint, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.platform");
   const { stats, isLoading, error, refetch } = useAdminStats();
 
   return (
-    <WidgetFrame title={title} hint={hint} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {isLoading ? (
         <WidgetSkeleton />
       ) : error ? (

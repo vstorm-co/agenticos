@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import messages from "../../../messages/en.json";
+import { DEFAULT_RUN_FILTERS } from "@/lib/runs/filter-params";
 import { RunHistoryTab } from "./run-history-tab";
 import type { Period } from "@/lib/dashboard/period";
 import type { AgentRun } from "@/types/runs";
@@ -26,6 +28,19 @@ const holdsEverything = vi.hoisted(() => ({ value: true }));
 vi.mock("@/hooks", () => ({
   useRuns: (agentId?: string, options?: unknown) => useRunsMock(agentId, options),
   usePermissions: () => ({ can: () => holdsEverything.value }),
+  // The model facet reads the window's own labels, so a spec about the other
+  // filters supplies a window with two of them and no more.
+  useUsageStats: () => ({
+    usage: {
+      by_model: [
+        { model_label: "gpt-4o-mini", runs: 3 },
+        { model_label: "claude-sonnet-5", runs: 1 },
+      ],
+    },
+    isLoading: false,
+    isStale: false,
+    error: null,
+  }),
   // What the filter bar's selects offer. One agent and two versions are enough
   // to prove the narrowing each control asks for.
   useAgents: () => ({ agents: [{ id: "agent-1", name: "Support agent" }], isLoading: false }),
@@ -79,16 +94,30 @@ function aRun(): AgentRun {
 
 const PERIOD: Period = { preset: "30d", from: "2026-07-16", to: "2026-08-14" };
 
+/**
+ * The tab is controlled: its filters are the page's, because they are the URL's
+ * (#768). So the harness holds them the way the page does - handed a `vi.fn()`
+ * instead, every select in these specs would announce a change nobody applied.
+ */
+function ControlledTab(props: Partial<Parameters<typeof RunHistoryTab>[0]>) {
+  const [filters, setFilters] = useState(DEFAULT_RUN_FILTERS);
+  return (
+    <RunHistoryTab
+      agentId={null}
+      period={PERIOD}
+      filters={filters}
+      onFiltersChange={setFilters}
+      onAgentChange={vi.fn()}
+      onFocusRun={vi.fn()}
+      {...props}
+    />
+  );
+}
+
 function renderTab(props: Partial<Parameters<typeof RunHistoryTab>[0]> = {}) {
   return render(
     <NextIntlClientProvider locale="en" messages={messages}>
-      <RunHistoryTab
-        agentId={null}
-        period={PERIOD}
-        onAgentChange={vi.fn()}
-        onFocusRun={vi.fn()}
-        {...props}
-      />
+      <ControlledTab {...props} />
     </NextIntlClientProvider>,
   );
 }
@@ -382,14 +411,11 @@ describe("run history controls", () => {
     await userEvent.click(screen.getByRole("option", { name: "v2" }));
     expect(lastOptions()).toMatchObject({ agentVersionId: "ver-2" });
 
+    // The harness keeps the filters the way the page does, so the tab's own
+    // reset - announced through `onFiltersChange` - is applied and observable.
     view.rerender(
       <NextIntlClientProvider locale="en" messages={messages}>
-        <RunHistoryTab
-          agentId="agent-2"
-          period={PERIOD}
-          onAgentChange={vi.fn()}
-          onFocusRun={vi.fn()}
-        />
+        <ControlledTab agentId="agent-2" />
       </NextIntlClientProvider>,
     );
 
@@ -416,5 +442,20 @@ describe("run history controls", () => {
     expect(screen.getByText("No access to run activity")).toBeInTheDocument();
     expect(screen.queryByText("No runs in this window")).toBeNull();
     expect(screen.queryByRole("button", { name: "Export CSV" })).toBeNull();
+  });
+});
+
+describe("the model narrowing", () => {
+  it("asks the server for one model's runs, and exports the same set", async () => {
+    // The dashboard's model card links here with `?model=`; the tab has to ask
+    // for that set rather than for the window's whole history, and the export
+    // beside it has to be the file of what is on screen (#763's rule, #768's
+    // hand-off).
+    renderTab();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Filter by model" }));
+    await userEvent.click(await screen.findByRole("option", { name: "gpt-4o-mini" }));
+
+    expect(lastOptions()).toMatchObject({ modelLabel: "gpt-4o-mini" });
   });
 });

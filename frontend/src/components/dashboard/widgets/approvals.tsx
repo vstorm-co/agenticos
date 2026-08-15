@@ -17,14 +17,14 @@ import type { DashboardWidgetProps } from "./types";
  * runs page shows and a dashboard row cannot. This card earns its place by
  * being empty.
  */
-export function ApprovalsWidget({ title, hint, seeAll }: DashboardWidgetProps) {
+export function ApprovalsWidget({ title, hint, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.approvals");
   const tTime = useTranslations("time");
   const locale = useLocale();
   const { approvals, total, isLoading, error, refetch } = useApprovals();
 
   return (
-    <WidgetFrame title={title} hint={hint} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {isLoading ? (
         <WidgetSkeleton />
       ) : error ? (

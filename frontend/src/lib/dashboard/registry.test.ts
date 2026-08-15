@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import { ROW_CLASS, SPAN_CLASS } from "./layouts";
 import {
+  WIDGETS,
+  WIDGET_IDS,
   accentDecoration,
   isAccentColour,
   isPresetAccent,
   normaliseAccent,
-  WIDGET_IDS,
-  WIDGETS,
+  optionSpec,
+  resolveStyle,
   type WidgetId,
 } from "./registry";
 import { ROUTES } from "@/lib/constants";
@@ -141,5 +143,35 @@ describe("section accents", () => {
       style: { "--dash-solid": "#aabbcc" },
     });
     expect(accentDecoration("neutral")).toEqual({ className: "" });
+  });
+});
+
+describe("what a card lets a person change", () => {
+  it("offers nothing for a widget that declared nothing", () => {
+    // The honest answer for a card whose data has no window and no subject -
+    // the health probes, the sandbox host. The editor draws no button at all.
+    expect(optionSpec("mcp-health")).toEqual({});
+  });
+
+  it("draws a widget in the style it was asked for, when it offers it", () => {
+    expect(resolveStyle("runs", "bars")).toBe("bars");
+  });
+
+  it("falls back to the widget's own default rather than rendering nothing", () => {
+    // A stored option outlives the release that wrote it: a style this widget
+    // never offered, or one a later build renamed, still has to draw a card.
+    expect(resolveStyle("runs", "donut")).toBe("area");
+    expect(resolveStyle("runs", undefined)).toBe("area");
+  });
+
+  it("answers null for a widget with one presentation, so nothing branches on it", () => {
+    expect(resolveStyle("mcp-health", "bars")).toBeNull();
+  });
+
+  it("only offers a narrowing the endpoint behind the card can honour", () => {
+    // `/stats/usage` takes an agent and a person; the ratings summary takes
+    // neither, so the quality cards offer a window and nothing else.
+    expect(optionSpec("org-ratings")).toEqual({ period: true });
+    expect(optionSpec("runs").agent).toBe(true);
   });
 });

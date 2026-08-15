@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { LAYOUTS, type LayoutItem } from "./layouts";
+import { isWidget, LAYOUTS, type LayoutItem } from "./layouts";
 import { WIDGETS } from "./registry";
 import {
   CUSTOM_SECTION_ID,
@@ -12,10 +12,10 @@ import {
   sanitizeEntries,
   sectionsFromItems,
   toStored,
+  type StoredEntry,
   ungroupItems,
   visibleItems,
   widgetCatalog,
-  type StoredEntry,
 } from "./preference";
 import { Perm, type Permission } from "@/types/permissions";
 
@@ -74,12 +74,17 @@ describe("flattenDefaultToItems", () => {
   it("turns each titled section into a divider then its cards, every card sized", () => {
     const items = flattenDefaultToItems(LAYOUTS.steward, (section) => section.titleKey ?? "");
     const dividers = items.filter((item) => item.kind === "section");
-    // Titled sections only: the steward layout opens on an untitled summary
-    // band, and an untitled section deliberately contributes no divider.
+    // Titled sections only: the summary band carries no heading, and an
+    // untitled section deliberately contributes no divider.
     const titled = LAYOUTS.steward.filter((section) => section.titleKey !== null);
     expect(dividers).toHaveLength(titled.length);
-    expect(items[0]).toEqual({ widget: "summary", span: "s12", rows: "r3" });
-    expect(items[1]).toEqual({ kind: "section", label: "attention", accent: "neutral" });
+    expect(items[0]).toEqual({ kind: "section", label: "deployment", accent: "neutral" });
+    // The summary follows the deployment band's cards, headingless.
+    expect(items.find((item) => "widget" in item && item.widget === "summary")).toEqual({
+      widget: "summary",
+      span: "s12",
+      rows: "r3",
+    });
     const widgets = items.filter((item) => item.kind !== "section");
     expect(widgets.every((item) => "rows" in item && item.rows !== undefined)).toBe(true);
   });
@@ -221,5 +226,65 @@ describe("toStored", () => {
     expect(
       toStored([{ kind: "section", label: "Mine", accent: "violet", collapsed: true }]),
     ).toEqual([{ kind: "section", label: "Mine", accent: "violet", collapsed: true }]);
+  });
+});
+
+describe("a card's own settings, read back", () => {
+  it("keeps a window, a style and a narrowing the widget still offers", () => {
+    const [entry] = sanitizeEntries([
+      {
+        widget: "runs",
+        span: "s8",
+        rows: "r3",
+        options: { period: "90d", style: "bars", agent_id: "agent-1", user_id: "user-1" },
+      },
+    ]);
+
+    expect(isWidget(entry!) && entry.options).toEqual({
+      period: "90d",
+      style: "bars",
+      agentId: "agent-1",
+      userId: "user-1",
+    });
+  });
+
+  it("drops a knob the widget does not offer, rather than sending it back", () => {
+    // The members card has no window and no subject. A stored agent filter on
+    // it would otherwise be written back on the next save and narrow a request
+    // nobody asked to narrow.
+    const [entry] = sanitizeEntries([
+      { widget: "members", span: "s6", options: { period: "90d", agent_id: "agent-1" } },
+    ]);
+
+    expect(isWidget(entry!) && entry.options).toBeUndefined();
+  });
+
+  it("drops a window this build no longer has", () => {
+    const [entry] = sanitizeEntries([
+      { widget: "runs", span: "s8", options: { period: "5y", style: "bars" } },
+    ]);
+
+    expect(isWidget(entry!) && entry.options).toEqual({ style: "bars" });
+  });
+
+  it("carries no options key at all for a card that follows the page", () => {
+    // "Follows the page" is the absence of settings, not an empty object - the
+    // difference between tracking the filter and happening to agree with it.
+    const [entry] = sanitizeEntries([{ widget: "runs", span: "s8", options: {} }]);
+
+    expect(isWidget(entry!) && "options" in entry).toBe(false);
+  });
+
+  it("writes them back snake_cased, the way the API takes them", () => {
+    const stored = toStored([
+      { widget: "runs", span: "s8", rows: "r3", options: { period: "90d", agentId: "agent-1" } },
+    ]);
+
+    expect(stored[0]?.options).toEqual({
+      period: "90d",
+      style: undefined,
+      agent_id: "agent-1",
+      user_id: undefined,
+    });
   });
 });

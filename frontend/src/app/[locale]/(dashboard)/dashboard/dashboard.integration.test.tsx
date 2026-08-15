@@ -347,8 +347,12 @@ describe("the steward's dashboard", () => {
     render(<DashboardPage />, { wrapper });
 
     expect(await screen.findByText("Katarzyna Nowak")).toBeInTheDocument();
-    // No display name stored - the email identifies the person instead.
-    expect(screen.getByText("j.wisniewski@example.com")).toBeInTheDocument();
+    // No display name stored, so the row is the address - drawn by the shared
+    // `MemberIdentity`, which is why it reads as the local part with the face
+    // beside it rather than as a bare mailbox. The whole product identifies a
+    // person that way; this card used to print a name and nothing else, which
+    // cannot tell two colleagues called Bob apart.
+    expect(screen.getByText("j.wisniewski")).toBeInTheDocument();
     // The one card that answers with names carries its own audience note.
     expect(screen.getByText("dashboard.widgets.top-people.disclosure")).toBeInTheDocument();
 

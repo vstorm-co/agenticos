@@ -14,14 +14,14 @@ import type { DashboardWidgetProps } from "./types";
  * answering quietly takes its tools from every agent using it - which is why
  * this sits under "needs attention" rather than on a settings page alone.
  */
-export function McpHealthWidget({ title, hint, seeAll }: DashboardWidgetProps) {
+export function McpHealthWidget({ title, hint, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.mcp-health");
   const tTime = useTranslations("time");
   const locale = useLocale();
   const { connections, isLoading, error, refresh } = useOrgMcpConnections();
 
   return (
-    <WidgetFrame title={title} hint={hint} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {isLoading ? (
         <WidgetSkeleton />
       ) : error ? (

@@ -26,13 +26,13 @@ import { UsageBody } from "./usage-body";
  * money went is already looking at this one; two money cards is one answer in
  * two places.
  */
-export function SpendWidget({ title, hint, period, seeAll }: DashboardWidgetProps) {
+export function SpendWidget({ title, hint, period, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.spend");
   const { spend } = useSpend();
 
   return (
-    <WidgetFrame title={title} hint={hint} seeAll={seeAll}>
-      <UsageBody period={period} emptyKey="spend">
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
+      <UsageBody period={period} emptyKey="spend" options={options}>
         {(usage) => {
           const cost = usage.cost;
           const current = Number(cost?.period_usd ?? 0);

@@ -55,6 +55,11 @@ async def list_runs(
     ),
     surface: RunSurface | None = Query(None, description="Where the run came from"),
     user_id: UUID | None = Query(None, description="Who the run ran as"),
+    model_label: str | None = Query(
+        None,
+        max_length=255,
+        description="The model as the run recorded it, matched exactly",
+    ),
     started_from: datetime | None = Query(
         None, description="Runs started at or after this instant"
     ),
@@ -117,6 +122,7 @@ async def list_runs(
             statuses=RunStatus.parse_csv(status),
             surface=None if surface is None else surface.value,
             user_id=user_id,
+            model_label=model_label,
             started_from=started_from,
             started_to=started_to,
             environment_id=environment_id,
@@ -158,6 +164,7 @@ async def export_runs(
     include_delegations: bool = Query(False),
     surface: RunSurface | None = Query(None),
     user_id: UUID | None = Query(None),
+    model_label: str | None = Query(None, max_length=255),
     environment_id: UUID | None = Query(None),
     exposure_id: UUID | None = Query(None),
     agent_version_id: UUID | None = Query(None),
@@ -182,6 +189,7 @@ async def export_runs(
             statuses=RunStatus.parse_csv(status),
             surface=None if surface is None else surface.value,
             user_id=user_id,
+            model_label=model_label,
             started_from=started_from,
             started_to=started_to,
             environment_id=environment_id,

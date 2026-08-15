@@ -201,8 +201,8 @@ async def test_creating_stores_the_placements_as_plain_dicts(monkeypatch) -> Non
     await service.create(user_id=uuid4(), organization_id=uuid4(), data=data)
 
     assert create.call_args.kwargs["entries"] == [
-        {"kind": "widget", "widget": "runs", "span": "s8", "rows": "r4"},
-        {"kind": "widget", "widget": "spend", "span": "s6", "rows": None},
+        {"kind": "widget", "widget": "runs", "span": "s8", "rows": "r4", "options": None},
+        {"kind": "widget", "widget": "spend", "span": "s6", "rows": None, "options": None},
     ]
 
 
