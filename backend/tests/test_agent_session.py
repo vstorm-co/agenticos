@@ -80,6 +80,7 @@ from subagents_pydantic_ai import TaskStatus
 from app.agents.capabilities import CapabilityBinding, build
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, SpendEntry, SpendLedger
 from app.agents.capabilities.subagents import Delegation
+from app.agents.compaction_events import CompactionEvent
 from app.agents.deps import AgentDeps
 from app.agents.subagent_events import (
     SubagentFinished,
@@ -1518,6 +1519,46 @@ class TestForwardingToolEvents:
 
         assert _sent_events(session) == []
         assert collected == []
+
+
+class TestForwardingCompactionFrames:
+    """What the client hears while the agent summarises its own history.
+
+    Compaction happens between two of a turn's model requests, where nothing else
+    streams. A summary is a whole request over a history that is by definition
+    long, so the chat stopped dead for the length of it - which reads as a broken
+    screen, gets the page reloaded, and cancels the very turn somebody was
+    waiting on.
+    """
+
+    async def test_a_frame_is_sent_under_the_name_the_union_gave_it(self):
+        """The wire `type` is the frame's own `kind`, for the reason the delegation
+        frames give: two spellings of one frame is a drift nothing catches."""
+        session = _session()
+
+        await session._compaction_event(
+            CompactionEvent(kind="compaction_started", messages_before=62)
+        )
+
+        assert _sent_events(session) == [
+            (
+                "compaction_started",
+                {"kind": "compaction_started", "messages_before": 62, "messages_after": None},
+            )
+        ]
+
+    async def test_the_finishing_frame_says_what_it_came_to(self):
+        """ "62 messages into 9" is the one sentence that explains both the pause
+        and why the next answer knows less than the last one did."""
+        session = _session()
+
+        await session._compaction_event(
+            CompactionEvent(kind="compaction_finished", messages_before=62, messages_after=9)
+        )
+
+        kind, frame = _sent_events(session)[0]
+        assert kind == "compaction_finished"
+        assert (frame["messages_before"], frame["messages_after"]) == (62, 9)
 
 
 class TestForwardingDelegationFrames:

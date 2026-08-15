@@ -15,6 +15,7 @@ import type {
   AskUserAnswer,
   AskUserQuestion,
   ChatMessageFile,
+  Compaction,
   ConversationCost,
   Decision,
   Delegation,
@@ -142,6 +143,10 @@ export function useChat(options: UseChatOptions = {}) {
   // started to handle. Here the panels simply outlive `complete`, and each closes
   // on its own `subagent_complete`.
   const [delegations, setDelegations] = useState<Delegation[]>([]);
+  // The summary in flight, or `null`. Cleared by the finishing frame and by the
+  // end of the turn: a `complete` that arrived without one - a run that failed
+  // between the two - would otherwise leave the notice up until the next message.
+  const [compacting, setCompacting] = useState<Compaction | null>(null);
 
   /**
    * Re-read what the whole thread has cost, after a turn has added to it.
@@ -366,6 +371,19 @@ export function useChat(options: UseChatOptions = {}) {
           break;
         }
 
+        case "compaction_started":
+        case "compaction_finished": {
+          // Between two of the turn's own model requests, where nothing else
+          // streams: summarising a long history is a whole request of its own, and
+          // without this the chat stops dead for the length of it. Only the
+          // summarising strategy sends these - the ones that edit a list and
+          // return would be a spinner that appeared and vanished within a frame.
+          setCompacting(
+            wsEvent.type === "compaction_started" ? (wsEvent.data as Compaction) : null,
+          );
+          break;
+        }
+
         case "error": {
           if (currentMessageIdRef.current) {
             const id = currentMessageIdRef.current;
@@ -457,6 +475,8 @@ export function useChat(options: UseChatOptions = {}) {
             // a run that was cancelled, so whatever was open is closed here. Until
             // now the frontend never read this field at all.
             if (stopped) setDelegations(closeOpenDelegations);
+            // Whatever else this turn did, it is not summarising any more.
+            setCompacting(null);
             if (usage) {
               setLiveUsage({
                 // From the store rather than the render closure: a turn that created
@@ -1053,6 +1073,7 @@ export function useChat(options: UseChatOptions = {}) {
     messages,
     isConnected,
     isProcessing,
+    compacting,
     lastUsage: onThisConversation ? liveUsage.usage : null,
     /** The turn's delegations, in the order they started. See `DelegationPanels`. */
     delegations,

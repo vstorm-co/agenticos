@@ -165,6 +165,8 @@ export type WSEventType =
   | "error"
   | "tool_approval_required"
   | "ask_user"
+  | "compaction_started"
+  | "compaction_finished"
   // Sent on every turn and deliberately unread, because each only announces a step
   // the frame after it already carries: `model_request_start` opens the assistant
   // message, so `user_prompt`, `user_prompt_processed` and `part_start` have nothing
@@ -450,6 +452,25 @@ export interface SubagentCompleteFrame extends SubagentFrameBase {
   input_tokens: number | null;
   output_tokens: number | null;
   error: string | null;
+}
+
+/**
+ * A summary of the run's own history, while it is being written.
+ *
+ * Compaction happens between two of a turn's model requests, where nothing else
+ * streams — and summarising is a whole request over a history that is by
+ * definition long. Without a frame for it the chat simply stops for the length of
+ * it, which is what makes somebody reload the page and lose the turn.
+ *
+ * Only the summarising strategy sends these. The ones that edit a list and return
+ * would be a spinner that appeared and vanished within a frame.
+ */
+export interface Compaction {
+  kind: "compaction_started" | "compaction_finished";
+  /** How many messages the history held when it started. */
+  messages_before: number | null;
+  /** How many it holds now. Null while it is running, and null if it failed. */
+  messages_after: number | null;
 }
 
 /** What a whole conversation has cost, as `GET /conversations/{id}/messages` totals it. */

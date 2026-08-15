@@ -705,6 +705,8 @@
       "summarizeDescription": "Ask the agent to summarize the conversation so far.",
       "summarizePrompt": "Please give me a concise summary of our conversation so far - key topics, decisions, and any open questions."
     },
+    "compacting": "Summarising the conversation so far, to keep it inside the model's limit…",
+    "compactingCount": "{count, plural, =1 {Summarising 1 earlier message} other {Summarising # earlier messages}} to keep the conversation inside the model's limit…",
     "controls": {
       "backAgentAposS": "Back to the agent's own model",
       "controls": "Controls",

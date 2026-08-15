@@ -583,6 +583,12 @@ on a large MCP surface, and late in the direction that reaches the ceiling.
 chat's gauge reads out on the first turn of an empty conversation. It is also what
 the gauge divides by, so a trigger and a reading never describe two ceilings.
 
+**A summary says it is happening.** It is a whole model request between two of the
+turn's own, where nothing else streams — the chat used to stop dead for the length
+of it, which reads as a broken screen and gets the page reloaded, cancelling the
+turn. The chat now shows what is being summarised while it happens. Only the
+summarising strategy: the others edit a list and return.
+
 **A summary is metered.** The strategy writes it through an agent it builds
 itself, which no budget guard wraps, so the capability measures the run's usage
 across the hook and books the difference against the run's ledger. It is recorded

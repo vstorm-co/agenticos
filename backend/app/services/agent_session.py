@@ -9,6 +9,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 
 from app.agents.ask_user import QuestionItem, render_answer
 from app.agents.capabilities.budget import BudgetExceeded
+from app.agents.compaction_events import CompactionEvent
 from app.agents.subagent_events import SubagentEvent
 from app.core.exceptions import AppException
 from app.db.models.chat_file import ChatFile
@@ -274,6 +275,7 @@ class AgentSession:
                     stream=frames.drive,
                     on_run_open=opened.append,
                     subagent_events=self._subagent_event,
+                    on_compaction=self._compaction_event,
                     # The chat may run a published agent on another of the
                     # organization's models. Only the model changes; the run
                     # records which one, and the budget is the agent's.
@@ -485,6 +487,21 @@ class AgentSession:
         cost = frame.get("cost_usd")
         if cost is not None:
             frame["cost_usd"] = float(cost)
+        await send_event(self.websocket, event.kind, frame)
+
+    async def _compaction_event(self, event: CompactionEvent) -> None:
+        """Forward one frame from a summary in progress, under the frame's own name.
+
+        The wire `type` *is* the frame's `kind`, for the reason
+        :meth:`_subagent_event` gives: two spellings of one frame is a drift
+        nothing catches, and the client would keep waiting on a case the server
+        had stopped sending.
+
+        Nothing is awaited on the client's behalf - `send_event` answers `False`
+        on a closed socket rather than raising, so a tab that went away mid-summary
+        does not take the run down with it.
+        """
+        frame = event.model_dump(mode="json")
         await send_event(self.websocket, event.kind, frame)
 
     async def _history(self, prompt_message_id: UUID | None) -> list[dict[str, str]]:

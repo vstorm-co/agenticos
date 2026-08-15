@@ -894,6 +894,55 @@ describe("useChat - the conversation a turn belongs to", () => {
   });
 });
 
+describe("useChat - the summary of its own history", () => {
+  it("reports a summary while it is being written", () => {
+    // Compaction runs between two of the turn's model requests, where nothing
+    // else streams: no token, no tool step. Without this frame the screen is
+    // indistinguishable from a broken one, and reloading it cancels the turn.
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    receive("compaction_started", {
+      kind: "compaction_started",
+      messages_before: 62,
+      messages_after: null,
+    });
+
+    expect(result.current.compacting).toMatchObject({ messages_before: 62 });
+  });
+
+  it("clears it when the summary finishes", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("compaction_started", {
+      kind: "compaction_started",
+      messages_before: 62,
+      messages_after: null,
+    });
+
+    receive("compaction_finished", {
+      kind: "compaction_finished",
+      messages_before: 62,
+      messages_after: 9,
+    });
+
+    expect(result.current.compacting).toBeNull();
+  });
+
+  it("clears it when the turn ends without one", () => {
+    // A run that failed between the two frames would otherwise leave the notice
+    // up until the next message, over a composer somebody is typing into.
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("compaction_started", {
+      kind: "compaction_started",
+      messages_before: 62,
+      messages_after: null,
+    });
+
+    receive("complete", {});
+
+    expect(result.current.compacting).toBeNull();
+  });
+});
+
 describe("useChat - approvals and questions", () => {
   it("surfaces the tools waiting on a person, and resolves their cards", async () => {
     // The card used to spin forever: a parked call produces no `tool_result`

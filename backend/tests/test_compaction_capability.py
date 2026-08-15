@@ -7,7 +7,9 @@ approval replays through.
 """
 
 from dataclasses import dataclass
+from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from pydantic import ValidationError
@@ -39,9 +41,11 @@ from app.agents.capabilities.compaction import (
     CompactionConfig,
     ContextGauge,
     MeteredCompaction,
+    NotifyingSummarizingCompaction,
     build_gauge,
     build_strategy,
 )
+from app.agents.compaction_events import CompactionEvent
 
 pytestmark = pytest.mark.anyio
 
@@ -125,7 +129,10 @@ class TestConfiguration:
         """Order is the whole point of tiering: the cheap tier has to run first."""
         tiered = build_strategy(CompactionConfig(strategy="tiered"))
         assert isinstance(tiered, TieredCompaction)
-        assert [type(tier) for tier in tiered.tiers] == [ClearToolResults, SummarizingCompaction]
+        assert [type(tier) for tier in tiered.tiers] == [
+            ClearToolResults,
+            NotifyingSummarizingCompaction,
+        ]
 
     def test_the_window_override_reaches_every_tier(self):
         """A tier left on the registry's number is a tier with a different trigger."""
@@ -379,6 +386,87 @@ class TestSwitchingToASmallerModel:
         )
 
         assert gauge.latest == 250_000
+
+
+class TestSayingItIsWorking:
+    """The frames a summary emits, and the two it deliberately does not.
+
+    Compaction happens between a turn's model requests, where nothing streams. A
+    summary is a whole request over a history that is by definition long, so the
+    chat stopped dead for the length of it with nothing said - and waiting with no
+    idea whether anything is happening is what makes somebody reload and lose the
+    turn.
+    """
+
+    @staticmethod
+    def _ctx(sink: object) -> RunContext[Any]:
+        return RunContext(
+            deps=SimpleNamespace(on_compaction=sink), model=TestModel(), usage=RunUsage()
+        )
+
+    async def test_it_says_it_started_and_what_it_came_to(self):
+        seen: list[CompactionEvent] = []
+
+        async def sink(event: CompactionEvent) -> None:
+            seen.append(event)
+
+        strategy = build_strategy(_triggers_immediately("summarize", keep_messages=2))
+        history = [_user(f"turn {index}: " + "words " * 20) for index in range(20)]
+
+        with patch.object(SummarizingCompaction, "compact", AsyncMock(return_value=history[:3])):
+            await strategy.compact(history, self._ctx(sink))
+
+        assert [event.kind for event in seen] == ["compaction_started", "compaction_finished"]
+        assert seen[0].messages_before == 20
+        assert (seen[1].messages_before, seen[1].messages_after) == (20, 3)
+
+    async def test_a_summary_that_raised_still_closes_the_frame(self):
+        """Otherwise a surface spins for ever, and the run carries on either way."""
+        seen: list[CompactionEvent] = []
+
+        async def sink(event: CompactionEvent) -> None:
+            seen.append(event)
+
+        strategy = build_strategy(_triggers_immediately("summarize"))
+
+        with (
+            patch.object(SummarizingCompaction, "compact", AsyncMock(side_effect=RuntimeError)),
+            pytest.raises(RuntimeError),
+        ):
+            await strategy.compact([_user("x")], self._ctx(sink))
+
+        assert [event.kind for event in seen] == ["compaction_started", "compaction_finished"]
+        # Not a number: the history is whatever it was, and one here would report
+        # a compaction that did not happen.
+        assert seen[1].messages_after is None
+
+    async def test_a_surface_that_cannot_narrate_gets_a_silent_summary(self):
+        """A progress report, not a permission: the summary still happens."""
+        strategy = build_strategy(_triggers_immediately("summarize", keep_messages=2))
+        history = [_user("x") for _ in range(5)]
+
+        with patch.object(
+            SummarizingCompaction, "compact", AsyncMock(return_value=history[:2])
+        ) as summarised:
+            compacted = await strategy.compact(history, self._ctx(None))
+
+        assert summarised.await_count == 1
+        assert len(compacted) == 2
+
+    def test_the_strategies_that_return_at_once_say_nothing(self):
+        """A frame for them would be a spinner that appears and vanishes within a
+        frame. Only the one that makes a model request is narrated."""
+        for name in ("clear_tool_results", "sliding_window"):
+            built = build_strategy(CompactionConfig(strategy=name))
+            assert not isinstance(built, NotifyingSummarizingCompaction)
+
+    def test_the_summarising_tier_of_tiered_is_narrated_too(self):
+        """`TieredCompaction` drives its tiers through the same `compact`, so the
+        hook covers the escalating strategy without a second implementation."""
+        tiered = build_strategy(CompactionConfig(strategy="tiered"))
+
+        assert isinstance(tiered, TieredCompaction)
+        assert isinstance(tiered.tiers[-1], NotifyingSummarizingCompaction)
 
 
 class TestTheGauge:

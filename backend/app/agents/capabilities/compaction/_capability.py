@@ -30,7 +30,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 from pydantic_ai.capabilities import AbstractCapability, WrapperCapability
-from pydantic_ai.messages import ModelResponse
+from pydantic_ai.messages import ModelMessage, ModelResponse
 from pydantic_ai.models import ModelRequestContext
 from pydantic_ai.tools import AgentDepsT, RunContext
 from pydantic_ai.usage import RequestUsage, RunUsage
@@ -43,6 +43,7 @@ from pydantic_ai_harness.compaction import (
 )
 
 from app.agents.capabilities.budget import record_ambient_usage
+from app.agents.compaction_events import CompactionEvent
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +132,53 @@ class CompactionConfig(BaseModel):
     )
 
 
+@dataclass
+class NotifyingSummarizingCompaction(SummarizingCompaction[AgentDepsT]):
+    """`SummarizingCompaction` that says it is working, because it takes a while.
+
+    The one strategy worth narrating. The zero-LLM ones edit a list and return, so
+    a frame for them would be a spinner that appears and vanishes within a frame;
+    this makes a whole model request over a history that is by definition long,
+    between two of the turn's own requests, where nothing else streams. The chat
+    stopped dead for the length of it with nothing said.
+
+    Hooked on `compact` rather than on `before_model_request`, which is the
+    difference between "it is happening" and "it happened": the base class calls
+    `compact` only once its trigger has fired, so a frame from here is never a
+    false alarm on a request that compacted nothing. It also covers the
+    summarising *tier* of `tiered` for free, because `TieredCompaction` drives its
+    tiers through the same method.
+
+    The finish frame is sent in a `finally`. A summary that raised would otherwise
+    leave a surface spinning for ever, and the run carries on either way.
+    """
+
+    async def compact(
+        self, messages: list[ModelMessage], ctx: RunContext[AgentDepsT]
+    ) -> list[ModelMessage]:
+        sink = getattr(ctx.deps, "on_compaction", None)
+        if sink is None:
+            return await super().compact(messages, ctx)
+
+        before = len(messages)
+        compacted: list[ModelMessage] | None = None
+        await sink(CompactionEvent(kind="compaction_started", messages_before=before))
+        try:
+            compacted = await super().compact(messages, ctx)
+            return compacted
+        finally:
+            await sink(
+                CompactionEvent(
+                    kind="compaction_finished",
+                    messages_before=before,
+                    # `None` where the summary raised: the history is whatever it
+                    # was, and a number here would report a compaction that did
+                    # not happen.
+                    messages_after=None if compacted is None else len(compacted),
+                )
+            )
+
+
 def build_strategy(
     config: CompactionConfig, *, recorded_window: int | None = None
 ) -> AbstractCapability[Any]:
@@ -183,8 +231,8 @@ def build_strategy(
             fallback_context_window=fallback,
         )
 
-    def summarizing() -> SummarizingCompaction[Any]:
-        return SummarizingCompaction(
+    def summarizing() -> NotifyingSummarizingCompaction[Any]:
+        return NotifyingSummarizingCompaction(
             max_fraction=config.max_fraction,
             keep_messages=config.keep_messages,
             context_window=window,

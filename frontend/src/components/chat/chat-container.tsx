@@ -14,6 +14,7 @@ import { FilePreviewPanel } from "./file-preview-panel";
 import { SourcesPanel } from "./sources-panel";
 import { MessageList } from "./message-list";
 import { DelegationPanels } from "./delegation-panel";
+import { CompactionNotice } from "./compaction-notice";
 import { PendingMessages } from "./pending-messages";
 import { ToolApprovalDialog } from "./tool-approval-dialog";
 import { QuestionPrompt } from "@/components/ui";
@@ -21,6 +22,7 @@ import type {
   PendingApproval,
   AskUserQuestion,
   AskUserAnswer,
+  Compaction,
   ConversationCost,
   Decision,
   Delegation,
@@ -101,6 +103,7 @@ export function ChatContainer() {
     messages,
     isConnected,
     isProcessing,
+    compacting,
     lastUsage,
     delegations,
     sendMessage,
@@ -249,6 +252,7 @@ export function ChatContainer() {
       messages={messages}
       isConnected={isConnected}
       isProcessing={isProcessing}
+      compacting={compacting}
       // The live turn's cost while there is one, and the newest measured answer in
       // the transcript otherwise - which is what makes the strip appear on a
       // conversation somebody has just reopened instead of after their next message.
@@ -298,6 +302,8 @@ interface ChatUIProps {
   messages: import("@/types").ChatMessage[];
   isConnected: boolean;
   isProcessing: boolean;
+  /** The summary in flight, drawn above the composer. Null when none is. */
+  compacting: Compaction | null;
   /** What the last turn cost, drawn under the input. Null until one has run. */
   lastUsage: TurnUsage | null;
   /** What the whole thread has cost, from the server. Null until a transcript loads. */
@@ -351,6 +357,7 @@ function ChatUI({
   messages,
   isConnected,
   isProcessing,
+  compacting,
   lastUsage,
   conversationCost,
   contextWindow,
@@ -455,6 +462,7 @@ function ChatUI({
             </div>
           )}
           <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-4">
+            <CompactionNotice compacting={compacting} />
             {queuedMessages && queuedMessages.length > 0 && onCancelQueued && (
               <PendingMessages messages={queuedMessages} onCancel={onCancelQueued} />
             )}

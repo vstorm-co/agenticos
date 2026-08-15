@@ -103,6 +103,31 @@ strategy resolves the window itself and the two cases above apply.
 than the provider: what a listing publishes is the maximum a model *can* be made
 to accept, and a beta- or tier-gated one gets less.
 
+## Saying it is working
+
+A summary is a whole model request over a history that is by definition long,
+made *between* two of the turn's own requests — where nothing else streams. The
+chat stopped dead for the length of it: no token, no tool step, nothing to
+distinguish it from a broken screen. Which is what makes somebody reload the
+page, cancelling the turn and losing the summary they were waiting for.
+
+`NotifyingSummarizingCompaction` emits `compaction_started` and
+`compaction_finished` through `AgentDeps.on_compaction`, the same shape as
+`subagent_events`: set by a surface that can show a run in progress, `None`
+everywhere else, and the summary is then silent rather than refused.
+
+Hooked on `compact` rather than on `before_model_request`, which is the difference
+between "it is happening" and "it happened" — the base class calls `compact` only
+once its trigger has fired, so a frame is never a false alarm on a request that
+compacted nothing. It covers the summarising *tier* of `tiered` for free, because
+`TieredCompaction` drives its tiers through the same method.
+
+Only this strategy is narrated. The zero-LLM ones edit a list and return, so a
+frame for them would be a notice that appeared and vanished within a frame.
+
+The finish frame is sent in a `finally`: a summary that raised would otherwise
+leave a surface spinning for ever, and the run carries on either way.
+
 ## Metering
 
 `SummarizingCompaction` writes its summary through an `Agent` it constructs

@@ -36,7 +36,7 @@ from pydantic_ai.tools import DeferredToolRequests
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
-from app.agents.deps import AgentDeps, AskUserCallback
+from app.agents.deps import AgentDeps, AskUserCallback, CompactionSink
 from app.agents.subagent_events import SubagentEventSink
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import AuthContext
@@ -253,6 +253,7 @@ class ChatAgentRunner:
         stream: ChatStream,
         on_run_open: Callable[[OpenedRun], None] | None = None,
         subagent_events: SubagentEventSink | None = None,
+        on_compaction: CompactionSink | None = None,
         model_profile_id: UUID | None = None,
         environment_id: UUID | None = None,
     ) -> ChatTurn:
@@ -324,6 +325,10 @@ class ChatAgentRunner:
         # delegation is a tool call named `task` that goes quiet for thirty seconds.
         prepared.deps.ask_user = ask_user
         prepared.deps.subagent_events = subagent_events
+        # And the third: summarising a long history is a whole model request
+        # between two of this turn's own, where nothing streams. Without this the
+        # chat stops dead for the length of it with nothing said.
+        prepared.deps.on_compaction = on_compaction
 
         # Before the run, not after: this run may fail, park or be cancelled, and
         # a transcript that holds the answer but not the question is the one shape
