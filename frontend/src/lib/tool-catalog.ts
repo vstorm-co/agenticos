@@ -187,6 +187,21 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     opensWhenDone: true,
   },
 
+  // context - the link-mode half of the context capability; injected files never
+  // reach the model as a tool call, so there is nothing to render for them here.
+  list_context: {
+    kind: "list",
+    render: "none",
+    captionKey: "lookingThroughContext",
+    displayNameKey: "availableContext",
+  },
+  read_context: {
+    kind: "read",
+    render: "generic",
+    captionKey: "readingContext",
+    displayNameKey: "contextFile",
+  },
+
   // knowledge
   search_documents: {
     kind: "knowledge",

@@ -154,6 +154,17 @@ class TestToolDeclarations:
                 resources=[],
             )
         ],
+        # A linked file, so `context` offers both its tools - the widest shape,
+        # for the same reason the delegate below is at its widest.
+        "context_files": [
+            SimpleNamespace(
+                name="glossary",
+                description="What the words mean.",
+                content="SLA: service level agreement.",
+                mode="link",
+                format="md",
+            )
+        ],
         # A delegating agent at its widest: one resolved delegate *and* permission
         # to invent specialists, because `subagents` is the one capability whose
         # tool list is not fixed - `create_agent` and `delegate` are offered only
