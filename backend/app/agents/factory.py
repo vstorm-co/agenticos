@@ -37,6 +37,7 @@ from app.agents.capabilities.budget import (
     SpendLimit,
 )
 from app.agents.capabilities.compaction import (
+    CONTEXT_GAUGE_RESOURCE,
     MODEL_CONTEXT_WINDOW_RESOURCE,
     ContextGauge,
     build_gauge,
@@ -166,6 +167,10 @@ def build_agent(
             the organization no longer has.
     """
     bindings = spec.bindings()
+    # Built before the capabilities, not after: compaction reads it to allow for
+    # what every request carries before a single message, and the reading is
+    # filled by the capability appended at the end of the list below.
+    gauge = ContextGauge()
     configured = build_capabilities(
         bindings,
         granted_scopes=granted_scopes,
@@ -176,6 +181,7 @@ def build_agent(
         resources={
             **(resources or {}),
             MODEL_CONTEXT_WINDOW_RESOURCE: model_spec.context_length,
+            CONTEXT_GAUGE_RESOURCE: gauge,
         },
         secrets=secrets,
     )
@@ -223,12 +229,6 @@ def build_agent(
     # accident. The gate is attached even when nothing is gated, so that adding
     # a side-effecting capability to a spec is the only thing that has to be
     # right for approval to apply.
-    # Filled before every model request, read once the run is over. Behind the
-    # spec's own capabilities in the list, so the reading is of the history as it
-    # will be *sent* - a compaction ordered ahead of this one has already run,
-    # and reporting what triggered it instead would show a gauge that never falls.
-    gauge = ContextGauge()
-
     capabilities: list[Any] = [
         # Long conversations drift away from their instructions; re-stating the
         # system prompt is cheap insurance for an agent whose behaviour *is* its

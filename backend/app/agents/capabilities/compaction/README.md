@@ -48,6 +48,7 @@ only when clearing was not enough.
 | `max_fraction` | `0.9` | Fraction of the window at which compaction starts |
 | `keep_messages` | `20` | Recent messages that survive a summary or a window |
 | `keep_tool_pairs` | `3` | Recent tool calls that keep their results |
+| `summary_prompt` | the library's own | What the summarising model is told; must contain `{messages}` |
 | `context_window` | *(unset)* | Override the window in tokens |
 | `fallback_context_window` | `200000` | Window to assume when the model's cannot be resolved |
 
@@ -56,28 +57,46 @@ Flat scalars and one enum, deliberately: the Builder generates this form from
 nested list of tiers would arrive as a text box, so the tiers are chosen by
 `strategy` rather than composed by the author.
 
+`summary_prompt` is the default the library ships, read off it rather than copied
+so the two cannot drift — a copy would go on being offered to authors long after
+the upstream one changed. It must contain `{messages}`, which is where the
+conversation being replaced is inserted; publish refuses one without it, because
+the alternative is a turn that quietly summarises an empty conversation and throws
+the real one away, on exactly the long turns that compact.
+
 There is no field naming a cheaper model to summarise with. The summary inherits
 the run's model because that is the one whose credential was resolved from the
 vault; a model named here as a string would be looked up against process
 environment variables, which on this platform is either nothing or somebody
 else's key.
 
-### The trigger does not count everything the provider bills
+### The trigger allows for what every request carries
 
 It measures the **message parts**, and a request also carries the instructions
-and every tool schema. On a real agent here the estimator saw 16 tokens where the
-provider charged for 3,898 — the difference being one agent's instructions and
-seven capabilities' worth of schema.
+and every tool schema. On a real agent here the estimator saw 60 tokens where the
+provider charged for 3,865 — the difference being one agent's instructions and
+seven capabilities' worth of schema. Left alone, the gauge read 77% of a window
+beside a trigger that had noticed nothing: one ceiling described two ways.
 
-So the trigger fires **late** by the size of that overhead. On a small agent that
-is noise; on a large MCP surface it is tens of thousands of tokens, and it is late
-in the direction that reaches the ceiling. The harness documents the gap ("tool
-schemas are outside that count"), and `context_window` is the lever: set it to the
-real window minus the overhead, which the chat's gauge reads out for you on the
-first turn of an empty conversation.
+So the overhead is measured — the provider's count for a request, less what the
+estimator makes of the same messages — and the trigger's window is moved down by
+it. Exactly, not approximately: the trigger fires on `estimate > f × W'`, what is
+wanted is `estimate + overhead > f × W`, and `W' = W − overhead / f` is the
+substitution that makes those the same statement.
 
-The same field is what the gauge divides by, so a trigger and a reading never
-describe two different ceilings.
+Two things this deliberately does not do:
+
+- **It waits for a response.** The overhead cannot be measured before one exists,
+  so the first request of a run triggers on the messages alone. One request of
+  under-firing, against a number invented for the sake of having one.
+- **It gives up when there is no room.** If the overhead alone is past the
+  trigger, no summary can get under it — the schemas are not in the history — and
+  a corrected window would ask for one on every request, for ever, paying each
+  time. The window is then left as configured, which under-fires the way it did
+  before, because under-firing is recoverable and an unbounded paid loop is not.
+  A `context_window` smaller than the agent's own overhead is that case, and the
+  gauge is what shows you the overhead: it is what the first turn of an empty
+  conversation reads.
 
 ### Why a fraction, and when the fraction is wrong
 

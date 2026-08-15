@@ -28,7 +28,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from pydantic_ai.capabilities import AbstractCapability, WrapperCapability
 from pydantic_ai.messages import ModelMessage, ModelResponse
 from pydantic_ai.models import ModelRequestContext
@@ -40,12 +40,22 @@ from pydantic_ai_harness.compaction import (
     SlidingWindowCompaction,
     SummarizingCompaction,
     TieredCompaction,
+    estimate_token_count,
 )
 
 from app.agents.capabilities.budget import record_ambient_usage
 from app.agents.compaction_events import CompactionEvent
 
 logger = logging.getLogger(__name__)
+
+CONTEXT_GAUGE_RESOURCE = "context_gauge"
+"""Where the factory puts the run's own gauge, for the trigger to read.
+
+A resource rather than a config field, for the reason the window is one: it is
+not a decision an author makes. The gauge measures what every request carries
+before a single message, and the trigger has to allow for it - see
+:func:`_allow_for_overhead`.
+"""
 
 MODEL_CONTEXT_WINDOW_RESOURCE = "model_context_window"
 """Where the factory puts the window the run's model profile recorded.
@@ -54,6 +64,22 @@ A resource rather than a config field, because it is not a decision an author
 makes - it is what the provider's own listing said when somebody added the
 model. `CompactionConfig.context_window` still beats it, for the deployment that
 knows better than both the provider and us.
+"""
+
+DEFAULT_SUMMARY_PROMPT: str = SummarizingCompaction(max_messages=1).summary_prompt
+"""The prompt the summary is written with, unless a binding replaces it.
+
+Read off an instance rather than out of the dataclass's field metadata, which
+answers `Any | _MISSING_TYPE` and would need a cast to become a string again. The
+throwaway `max_messages=1` is only there because the class refuses to exist
+without a trigger; nothing runs it.
+
+Read off the library rather than copied, so the two cannot drift: a copy here
+would go on being offered to authors long after the upstream one had changed, and
+the difference between the prompt they edit and the prompt that runs is invisible.
+
+It is a *default* rather than a stored value, so a spec that never touched it
+keeps tracking the library and only an edit freezes anything.
 """
 
 StrategyName = Literal["summarize", "tiered", "clear_tool_results", "sliding_window"]
@@ -114,6 +140,19 @@ class CompactionConfig(BaseModel):
         le=50,
         description="How many recent tool calls keep their results when results are cleared",
     )
+    summary_prompt: str = Field(
+        default=DEFAULT_SUMMARY_PROMPT,
+        min_length=1,
+        max_length=8_000,
+        description=(
+            "What the summarising model is told. `{messages}` is where the conversation "
+            "being replaced is inserted, and it is required - a prompt without it "
+            "summarises nothing. Edit it to keep what your agent's work depends on: the "
+            "default keeps intent, decisions and open threads, which is not the same as "
+            "what a support transcript or a code review needs"
+        ),
+        json_schema_extra={"x-multiline": True},
+    )
     context_window: int | None = Field(
         default=None,
         ge=1_000,
@@ -130,6 +169,23 @@ class CompactionConfig(BaseModel):
         ge=1_000,
         description="Window to assume when the model's own cannot be resolved",
     )
+
+    @field_validator("summary_prompt")
+    @classmethod
+    def _must_place_the_conversation(cls, prompt: str) -> str:
+        """A prompt with no `{messages}` summarises nothing.
+
+        Refused here rather than at run time, which is where it would otherwise
+        surface: the strategy formats this string mid-turn, so the mistake would
+        be a turn that quietly summarised an empty conversation and threw the real
+        one away - and it would be the *long* turns, on the agents that compact.
+        """
+        if "{messages}" not in prompt:
+            raise ValueError(
+                "The summary prompt must contain {messages}, which is where the "
+                "conversation being summarised is inserted"
+            )
+        return prompt
 
 
 @dataclass
@@ -235,26 +291,31 @@ def build_strategy(
         return NotifyingSummarizingCompaction(
             max_fraction=config.max_fraction,
             keep_messages=config.keep_messages,
+            summary_prompt=config.summary_prompt,
             context_window=window,
             fallback_context_window=fallback,
         )
 
     if config.strategy == "clear_tool_results":
-        return clearing()
+        return _remembering(clearing())
     if config.strategy == "sliding_window":
-        return SlidingWindowCompaction(
-            max_fraction=config.max_fraction,
-            keep_messages=config.keep_messages,
+        return _remembering(
+            SlidingWindowCompaction(
+                max_fraction=config.max_fraction,
+                keep_messages=config.keep_messages,
+                context_window=window,
+                fallback_context_window=fallback,
+            )
+        )
+    if config.strategy == "summarize":
+        return _remembering(summarizing())
+    return _remembering(
+        TieredCompaction(
+            tiers=[clearing(), summarizing()],
+            target_fraction=config.max_fraction,
             context_window=window,
             fallback_context_window=fallback,
         )
-    if config.strategy == "summarize":
-        return summarizing()
-    return TieredCompaction(
-        tiers=[clearing(), summarizing()],
-        target_fraction=config.max_fraction,
-        context_window=window,
-        fallback_context_window=fallback,
     )
 
 
@@ -281,6 +342,19 @@ class ContextGauge:
 
     latest: int | None = None
 
+    overhead: int | None = None
+    """What every request carries before a single message: instructions and tool
+    schemas.
+
+    The difference between what the provider charged for a request and what the
+    compaction estimator counts in the same messages - a real agent here: 3,865
+    against 60. It is fixed for the run, it is billed every time, and no strategy
+    can compact it away, which is exactly why the trigger has to allow for it
+    rather than pretend the messages are the whole request.
+
+    `None` until a response has been seen, because it cannot be measured before
+    one."""
+
 
 @dataclass
 class ReportContextSize(AbstractCapability[AgentDepsT]):
@@ -306,6 +380,13 @@ class ReportContextSize(AbstractCapability[AgentDepsT]):
     ) -> ModelResponse:
         if response.usage.input_tokens:
             self.gauge.latest = response.usage.input_tokens
+            # And what of it was there before any message: the same request, as
+            # the compaction estimator counts it, subtracted from what the
+            # provider charged. Instructions and tool schemas, which no strategy
+            # can compact and which the trigger must therefore allow for.
+            self.gauge.overhead = max(
+                0, response.usage.input_tokens - estimate_token_count(request_context.messages)
+            )
         return response
 
 
@@ -340,11 +421,16 @@ class MeteredCompaction(WrapperCapability[AgentDepsT]):
     crosses a cap is recorded here and refused on the request after it.
     """
 
+    gauge: ContextGauge | None = None
+    """The run's reading, for the trigger correction below. `None` in a test that
+    only cares about the metering, and the correction is then not applied."""
+
     async def before_model_request(
         self,
         ctx: RunContext[AgentDepsT],
         request_context: ModelRequestContext,
     ) -> ModelRequestContext:
+        _allow_for_overhead(self.wrapped, self.gauge)
         before = _counts(ctx.usage)
         try:
             return await self.wrapped.before_model_request(ctx, request_context)
@@ -352,6 +438,71 @@ class MeteredCompaction(WrapperCapability[AgentDepsT]):
             spent = _spent(before, ctx.usage)
             if spent is not None:
                 record_ambient_usage(_model_name(request_context), spent)
+
+
+def _allow_for_overhead(strategy: AbstractCapability[Any], gauge: ContextGauge | None) -> None:
+    """Move the trigger down by what the request carries before any message.
+
+    The trigger measures the message parts; a request also carries the
+    instructions and every tool schema, which the provider bills and no strategy
+    can compact. On a real agent here that was 3,865 tokens against the 60 the
+    estimator saw - so a gauge reading 77% of a window sat beside a trigger that
+    had not noticed anything, which is the same ceiling described two ways.
+
+    The correction is exact rather than approximate. The trigger fires on
+    `estimate > f x W'`; what is wanted is `estimate + overhead > f x W`, and
+    `W' = W - overhead / f` is the substitution that makes those the same
+    statement.
+
+    **Applied only while there is room left.** When the overhead alone exceeds the
+    trigger, no summary can get under it - the schemas are not in the history -
+    and a corrected window would ask for one on every request, for ever, paying
+    each time. The window is then left as configured, which under-fires the way it
+    did before, because under-firing is recoverable and an unbounded paid loop is
+    not.
+
+    Written onto the strategy rather than passed, because `context_window` is a
+    field decided at construction and the overhead cannot be measured until a
+    response exists. Each run builds its own strategy, so nothing is shared.
+    """
+    overhead = None if gauge is None else gauge.overhead
+    if not overhead:
+        return
+    for target in _corrigible(strategy):
+        # `max_fraction` on a strategy, `target_fraction` on the orchestrator -
+        # `build_strategy` sets one or the other on everything it returns, so an
+        # object here without either is one nothing built and is worth the
+        # `AttributeError` rather than a silent no-op.
+        fraction = getattr(target, "max_fraction", None) or target.target_fraction
+        corrected = getattr(target, _CONFIGURED_WINDOW) - overhead / fraction
+        if corrected > 0:
+            target.context_window = int(corrected)
+
+
+_CONFIGURED_WINDOW = "_agenticos_configured_window"
+"""Where the author's own `context_window` is kept, so the correction is applied to
+it rather than to its own previous answer.
+
+Reading `context_window` back each request would subtract the overhead again from
+an already-corrected number, walking the trigger down to nothing over a long tool
+loop."""
+
+
+def _corrigible(strategy: AbstractCapability[Any]) -> tuple[Any, ...]:
+    """The strategy, and each tier when it escalates through others.
+
+    A tier left on the uncorrected window measures a different ceiling than the
+    orchestrator driving it, and the orchestrator's own target is what decides
+    when to stop escalating - so both are moved or neither is.
+    """
+    return (*getattr(strategy, "tiers", ()), strategy)
+
+
+def _remembering[S: AbstractCapability[Any]](strategy: S) -> S:
+    """Stash the window the author configured, before anything corrects it."""
+    for target in _corrigible(strategy):
+        setattr(target, _CONFIGURED_WINDOW, target.context_window)
+    return strategy
 
 
 def _counts(usage: RunUsage) -> tuple[int, int, int, int]:

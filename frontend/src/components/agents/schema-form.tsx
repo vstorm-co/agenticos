@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
   Switch,
+  Textarea,
 } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import type { JsonSchema, JsonSchemaProperty } from "@/types/agents";
@@ -134,6 +135,7 @@ function SchemaField({
   // to its default mean the same thing to the server, and writing the default
   // in would freeze it against a later change in code.
   const fallback = defaultOf(property);
+  const multiline = property["x-multiline"] === true;
   // Off on every mount, including a re-open of the same dialog: revealing is a
   // decision about the room you are in, and the room changes.
   const [revealed, setRevealed] = useState(false);
@@ -208,7 +210,24 @@ function SchemaField({
         </Select>
       )}
 
-      {kind === "string" && (
+      {kind === "string" && multiline && (
+        /* A prompt is paragraphs, and a one-line box for one is a field nobody
+           can read what they are editing in. The schema says which: Pydantic has
+           no notion of multiline, so a capability marks it the way it marks enum
+           labels. */
+        <Textarea
+          id={id}
+          rows={8}
+          maxLength={property.maxLength}
+          value={typeof value === "string" ? value : typeof fallback === "string" ? fallback : ""}
+          disabled={disabled}
+          onChange={(event) => onChange(event.target.value === "" ? undefined : event.target.value)}
+          className="font-mono text-xs"
+          {...invalid}
+        />
+      )}
+
+      {kind === "string" && !multiline && (
         <div className="relative">
           <Input
             id={id}

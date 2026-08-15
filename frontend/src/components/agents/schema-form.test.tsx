@@ -187,6 +187,92 @@ describe("SchemaForm", () => {
     expect(screen.getByRole("switch", { name: /Verbose/ })).not.toBeChecked();
   });
 
+  it("gives a prompt a box it can be read in", () => {
+    // A prompt is paragraphs, and a one-line input for one is a field nobody can
+    // see what they are editing in. The schema says which, because Pydantic has
+    // no notion of multiline.
+    render(
+      <SchemaForm
+        schema={{
+          type: "object",
+          properties: {
+            summary_prompt: {
+              type: "string",
+              default: "Summarise:\n{messages}",
+              "x-multiline": true,
+            },
+            tool_name: { type: "string" },
+          },
+        }}
+        value={{}}
+        onChange={vi.fn()}
+        idPrefix="x"
+      />,
+    );
+
+    expect(screen.getByLabelText(/Summary prompt/).tagName).toBe("TEXTAREA");
+    expect(screen.getByLabelText(/Tool name/).tagName).toBe("INPUT");
+  });
+
+  it("leaves a multiline field with no default empty", () => {
+    // Same rule as every other field: a shown value is the schema's default, and
+    // inventing one for a field that has none reads as text the capability would
+    // use.
+    render(
+      <SchemaForm
+        schema={{
+          type: "object",
+          properties: { summary_prompt: { type: "string", "x-multiline": true } },
+        }}
+        value={{}}
+        onChange={vi.fn()}
+        idPrefix="x"
+      />,
+    );
+
+    expect(screen.getByLabelText(/Summary prompt/)).toHaveValue("");
+  });
+
+  it("clears a multiline field back to unset rather than to an empty string", async () => {
+    // Empty means "use the capability's own", which for a prompt is the library's
+    // - storing "" would publish an agent that summarises with nothing.
+    const onChange = vi.fn();
+    render(
+      <SchemaForm
+        schema={{
+          type: "object",
+          properties: { summary_prompt: { type: "string", "x-multiline": true } },
+        }}
+        value={{ summary_prompt: "x" }}
+        onChange={onChange}
+        idPrefix="x"
+      />,
+    );
+
+    await userEvent.clear(screen.getByLabelText(/Summary prompt/));
+
+    expect(onChange).toHaveBeenLastCalledWith({ summary_prompt: undefined });
+  });
+
+  it("edits a multiline field the way it edits any other", async () => {
+    const onChange = vi.fn();
+    render(
+      <SchemaForm
+        schema={{
+          type: "object",
+          properties: { summary_prompt: { type: "string", "x-multiline": true } },
+        }}
+        value={{ summary_prompt: "Summarise" }}
+        onChange={onChange}
+        idPrefix="x"
+      />,
+    );
+
+    await userEvent.type(screen.getByLabelText(/Summary prompt/), "!");
+
+    expect(onChange).toHaveBeenLastCalledWith({ summary_prompt: "Summarise!" });
+  });
+
   it("keeps the other fields when one changes", async () => {
     const onChange = vi.fn();
     render(

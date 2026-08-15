@@ -2,6 +2,8 @@
 
 from app.agents.capabilities._registry import CapabilityBuildContext, register
 from app.agents.capabilities.compaction._capability import (
+    CONTEXT_GAUGE_RESOURCE,
+    DEFAULT_SUMMARY_PROMPT,
     MODEL_CONTEXT_WINDOW_RESOURCE,
     CompactionConfig,
     ContextGauge,
@@ -14,6 +16,8 @@ from app.agents.capabilities.compaction._capability import (
 )
 
 __all__ = [
+    "CONTEXT_GAUGE_RESOURCE",
+    "DEFAULT_SUMMARY_PROMPT",
     "MODEL_CONTEXT_WINDOW_RESOURCE",
     "CompactionConfig",
     "ContextGauge",
@@ -49,8 +53,14 @@ def _build(ctx: CapabilityBuildContext) -> MeteredCompaction[object]:
     """
     config = ctx.config if isinstance(ctx.config, CompactionConfig) else CompactionConfig()
     recorded = ctx.resources.get(MODEL_CONTEXT_WINDOW_RESOURCE)
+    gauge = ctx.resources.get(CONTEXT_GAUGE_RESOURCE)
     return MeteredCompaction(
         wrapped=build_strategy(
             config, recorded_window=recorded if isinstance(recorded, int) else None
-        )
+        ),
+        # The run's own reading, so the trigger can allow for what every request
+        # carries before a single message. Absent in a preview or a test that
+        # builds capabilities without a run; the trigger then measures the
+        # messages alone, which is what it did before.
+        gauge=gauge if isinstance(gauge, ContextGauge) else None,
     )

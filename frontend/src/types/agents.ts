@@ -484,6 +484,14 @@ export interface JsonSchemaProperty {
    * side outlives the value it was written for without anyone noticing.
    */
   "x-enum-labels"?: Record<string, string>;
+  /**
+   * Whether this string is paragraphs rather than a value.
+   *
+   * An extension keyword, like `x-enum-labels`: Pydantic has no notion of
+   * multiline, and a one-line box for a prompt is a field nobody can read what
+   * they are editing in.
+   */
+  "x-multiline"?: boolean;
   /** A `Literal | None` arrives as branches, one carrying the values. */
   anyOf?: {
     type?: string;

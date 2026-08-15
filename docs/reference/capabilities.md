@@ -535,6 +535,7 @@ would have hit the model's limit keeps working instead. The strategies come from
 | `max_fraction` | `0.9` | 0.05–0.95 of the window, at which compaction starts |
 | `keep_messages` | 20 | recent messages that survive a summary or a window |
 | `keep_tool_pairs` | 3 | recent tool calls that keep their results |
+| `summary_prompt` | the library's own | what the summarising model is told; must contain `{messages}` |
 | `context_window` | unset | override the window — what this triggers against *and* what the chat's gauge divides by |
 | `fallback_context_window` | 200000 | window to assume when the model's cannot be resolved |
 
@@ -574,14 +575,19 @@ fires. `context_window` overrides everything and is the answer to both — a
 provider publishes the maximum a model *can* be made to accept, and a beta- or
 tier-gated deployment gets less.
 
-**The trigger does not count everything the provider bills.** It measures the
-message parts; a request also carries the instructions and every tool schema. On a
-real agent the estimator saw 16 tokens where the provider charged for 3,898. So it
-fires late by that overhead — noise on a small agent, tens of thousands of tokens
-on a large MCP surface, and late in the direction that reaches the ceiling.
-`context_window` is the lever: the real window minus the overhead, which the
-chat's gauge reads out on the first turn of an empty conversation. It is also what
-the gauge divides by, so a trigger and a reading never describe two ceilings.
+**The trigger allows for what every request carries.** It measures the message
+parts; a request also carries the instructions and every tool schema. On a real
+agent the estimator saw 60 tokens where the provider charged for 3,865 — so the
+overhead is measured against each response and the trigger's window is moved down
+by it, which is what keeps the gauge and the trigger describing one ceiling rather
+than two.
+
+It waits for a response to measure from, so the first request of a run triggers on
+the messages alone. And it gives up when the overhead alone is past the trigger:
+no summary can get under it, the schemas are not in the history, and a corrected
+window would buy a summary on every request for ever. A `context_window` smaller
+than the agent's own overhead is that case, and the chat's gauge is what shows you
+the overhead — it is what the first turn of an empty conversation reads.
 
 **A summary says it is happening.** It is a whole model request between two of the
 turn's own, where nothing else streams — the chat used to stop dead for the length

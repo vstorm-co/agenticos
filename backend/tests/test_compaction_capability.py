@@ -37,6 +37,7 @@ from pydantic_ai_harness.compaction import (
 from app.agents.capabilities import CapabilityBinding, build, get
 from app.agents.capabilities.budget import SpendLedger, metered_by
 from app.agents.capabilities.compaction import (
+    DEFAULT_SUMMARY_PROMPT,
     MODEL_CONTEXT_WINDOW_RESOURCE,
     CompactionConfig,
     ContextGauge,
@@ -386,6 +387,127 @@ class TestSwitchingToASmallerModel:
         )
 
         assert gauge.latest == 250_000
+
+
+class TestAllowingForWhatEveryRequestCarries:
+    """The trigger counts message parts; a request also carries the instructions
+    and every tool schema, which the provider bills and no strategy can compact.
+
+    Measured on a real agent here: 3,865 tokens charged against 60 the estimator
+    saw. Left uncorrected, a gauge reading 77% of a window sat beside a trigger
+    that had noticed nothing - the same ceiling described two ways, which is the
+    defect this whole area kept producing.
+    """
+
+    @staticmethod
+    def _fire(window: int, overhead: int | None, *, messages: int = 12) -> tuple[int, int]:
+        """Run one request through the wrapper; answer (window used, messages kept)."""
+        history = [_user("x" * 400) for _ in range(messages)]
+        wrapped = build_strategy(
+            CompactionConfig(
+                strategy="sliding_window",
+                max_fraction=0.5,
+                keep_messages=2,
+                context_window=window,
+            )
+        )
+        capability = MeteredCompaction(wrapped=wrapped, gauge=ContextGauge(overhead=overhead))
+        return capability, history
+
+    async def test_a_measured_overhead_moves_the_trigger_down(self):
+        capability, history = self._fire(10_000, 3_865)
+
+        compacted = await capability.before_model_request(
+            _run_context(), _request_context(list(history))
+        )
+
+        # 10,000 - 3,865/0.5 = 2,270: a trigger of 1,135 against ~1,200 of text.
+        assert capability.wrapped.context_window == 2_270
+        assert len(compacted.messages) < len(history)
+
+    async def test_without_a_reading_the_trigger_is_left_alone(self):
+        """Nothing is measured until a response has been seen, and guessing at the
+        overhead would move the trigger by an invented number."""
+        capability, history = self._fire(10_000, None)
+
+        compacted = await capability.before_model_request(
+            _run_context(), _request_context(list(history))
+        )
+
+        assert capability.wrapped.context_window == 10_000
+        assert len(compacted.messages) == len(history)
+
+    async def test_a_window_with_no_room_left_is_not_corrected(self):
+        """When the overhead alone is past the trigger, no summary can get under
+        it - the schemas are not in the history. A corrected window would ask for
+        one on every request, for ever, paying each time."""
+        capability, history = self._fire(5_000, 3_865)
+
+        compacted = await capability.before_model_request(
+            _run_context(), _request_context(list(history))
+        )
+
+        assert capability.wrapped.context_window == 5_000
+        assert len(compacted.messages) == len(history)
+
+    async def test_the_correction_does_not_compound_over_a_tool_loop(self):
+        """Applied to what the author configured, not to its own last answer -
+        which would walk the trigger down to nothing over a long run."""
+        capability, _history = self._fire(10_000, 1_000)
+
+        for _ in range(3):
+            await capability.before_model_request(_run_context(), _request_context([]))
+
+        assert capability.wrapped.context_window == 8_000
+
+    async def test_every_tier_of_a_tiered_strategy_is_corrected(self):
+        """The orchestrator stops on its own target and each tier has its own; a
+        tier left on the uncorrected number measures a different ceiling."""
+        wrapped = build_strategy(
+            CompactionConfig(strategy="tiered", max_fraction=0.5, context_window=10_000)
+        )
+        capability = MeteredCompaction(wrapped=wrapped, gauge=ContextGauge(overhead=1_000))
+
+        await capability.before_model_request(_run_context(), _request_context([]))
+
+        assert capability.wrapped.context_window == 8_000
+        assert [tier.context_window for tier in capability.wrapped.tiers] == [8_000, 8_000]
+
+    async def test_the_overhead_is_what_the_provider_charged_less_what_was_counted(self):
+        gauge = ContextGauge()
+
+        await build_gauge(gauge).after_model_request(
+            _run_context(),
+            request_context=_request_context([_user("x" * 400)]),
+            response=_response(input_tokens=4_000),
+        )
+
+        # ~100 estimated tokens of message against 4,000 charged.
+        assert gauge.overhead is not None
+        assert 3_800 < gauge.overhead < 4_000
+
+
+class TestTheSummaryPrompt:
+    """What the summarising model is told, and why a binding may replace it."""
+
+    def test_the_default_is_the_librarys_own_rather_than_a_copy(self):
+        """A copy would go on being offered to authors long after the upstream one
+        changed, and the difference between the prompt they edit and the prompt
+        that runs would be invisible."""
+        assert CompactionConfig().summary_prompt == DEFAULT_SUMMARY_PROMPT
+
+    def test_an_edited_prompt_reaches_the_strategy(self):
+        built = build_strategy(CompactionConfig(summary_prompt="Keep the numbers: {messages}"))
+
+        assert isinstance(built, SummarizingCompaction)
+        assert built.summary_prompt == "Keep the numbers: {messages}"
+
+    def test_a_prompt_that_places_no_conversation_is_refused_at_publish(self):
+        """The strategy formats this mid-turn, so the mistake would otherwise be a
+        turn that summarised an empty conversation and threw the real one away -
+        on exactly the long turns that compact."""
+        with pytest.raises(ValidationError):
+            CompactionConfig(summary_prompt="Summarise everything above.")
 
 
 class TestSayingItIsWorking:
