@@ -6,13 +6,13 @@ import { Eye, EyeOff } from "lucide-react";
 import {
   Input,
   Label,
+  MarkdownEditor,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
   Switch,
-  Textarea,
 } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import type { JsonSchema, JsonSchemaProperty } from "@/types/agents";
@@ -211,19 +211,20 @@ function SchemaField({
       )}
 
       {kind === "string" && multiline && (
-        /* A prompt is paragraphs, and a one-line box for one is a field nobody
-           can read what they are editing in. The schema says which: Pydantic has
-           no notion of multiline, so a capability marks it the way it marks enum
-           labels. */
-        <Textarea
+        /* The same control the agent's own instructions get. A prompt is
+           paragraphs - a one-line box for one is a field nobody can read what
+           they are editing in, and a plain textarea shows Markdown as asterisks.
+           The schema says which fields are prose: Pydantic has no notion of
+           multiline, so a capability marks it the way it marks enum labels. */
+        <MarkdownEditor
           id={id}
-          rows={8}
-          maxLength={property.maxLength}
+          label={label}
+          rows={10}
           value={typeof value === "string" ? value : typeof fallback === "string" ? fallback : ""}
           disabled={disabled}
-          onChange={(event) => onChange(event.target.value === "" ? undefined : event.target.value)}
-          className="font-mono text-xs"
-          {...invalid}
+          onChange={(next) => onChange(next === "" ? undefined : next)}
+          invalid={error !== undefined}
+          describedBy={error === undefined ? undefined : errorId}
         />
       )}
 

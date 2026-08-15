@@ -151,6 +151,9 @@ class CompactionConfig(BaseModel):
             "default keeps intent, decisions and open threads, which is not the same as "
             "what a support transcript or a code review needs"
         ),
+        # Rendered as the Markdown editor the agent's own instructions get, not
+        # as a one-line box: this is paragraphs, and it is read as much as it is
+        # written.
         json_schema_extra={"x-multiline": True},
     )
     context_window: int | None = Field(

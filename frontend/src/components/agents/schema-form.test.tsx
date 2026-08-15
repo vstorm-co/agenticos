@@ -187,10 +187,11 @@ describe("SchemaForm", () => {
     expect(screen.getByRole("switch", { name: /Verbose/ })).not.toBeChecked();
   });
 
-  it("gives a prompt a box it can be read in", () => {
+  it("gives a prompt the editor the agent's own instructions get", () => {
     // A prompt is paragraphs, and a one-line input for one is a field nobody can
-    // see what they are editing in. The schema says which, because Pydantic has
-    // no notion of multiline.
+    // see what they are editing in - and a plain textarea shows Markdown as
+    // asterisks. The schema says which fields are prose, because Pydantic has no
+    // notion of multiline.
     render(
       <SchemaForm
         schema={{
@@ -212,6 +213,29 @@ describe("SchemaForm", () => {
 
     expect(screen.getByLabelText(/Summary prompt/).tagName).toBe("TEXTAREA");
     expect(screen.getByLabelText(/Tool name/).tagName).toBe("INPUT");
+    // The editor's own toggle, which is what distinguishes it from a textarea.
+    expect(screen.getByRole("button", { name: /Preview/i })).toBeVisible();
+  });
+
+  it("points a refused prompt at the sentence explaining it", () => {
+    // A generated form has to show a generated refusal, and a screen reader
+    // reaches the paragraph under the field only if the control names it.
+    render(
+      <SchemaForm
+        schema={{
+          type: "object",
+          properties: { summary_prompt: { type: "string", "x-multiline": true } },
+        }}
+        value={{}}
+        onChange={vi.fn()}
+        idPrefix="x"
+        errors={{ summary_prompt: "The summary prompt must contain {messages}" }}
+      />,
+    );
+
+    const field = screen.getByLabelText(/Summary prompt/);
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(field).toHaveAccessibleDescription(/must contain/);
   });
 
   it("leaves a multiline field with no default empty", () => {

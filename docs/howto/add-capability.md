@@ -219,6 +219,11 @@ schema:
   `json_schema_extra={"x-enum-labels": {value: "what it does"}}` on the field —
   an extension keyword, because JSON Schema has none, kept beside the definition
   for the same reason `description` is.
+- **A string is a one-line box** unless the schema says otherwise, and a prompt in
+  one is a field nobody can read what they are editing in.
+  `json_schema_extra={"x-multiline": True}` gets it the Markdown editor the
+  agent's own instructions get — source or preview, and a refusal wired to the
+  field. Same extension shape, same reason.
 
 ## Adding a tool to an existing capability
 
