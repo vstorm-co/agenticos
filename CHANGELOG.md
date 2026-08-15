@@ -17,6 +17,104 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.152] - 2026-08-15
+
+The dashboard is arrangeable, and it finally has a visual system to be
+arranged into.
+
+### Added
+
+- **A person arranges their own dashboard.** Cards reorder, resize, hide,
+  take a colour and group under named section dividers; more come from a
+  gated catalog; the result persists per user per organization, either as a
+  single active arrangement or as any number of named presets to switch
+  between. The arrangement is a third layer over the two the page already
+  had (`effective = preference ?? audience default`) and the permission gate
+  still runs **last**, so a preference can reorder or hide a widget but never
+  reveal one the caller may not see. Two tables with their repositories —
+  `dashboard_layouts` and `dashboard_presets`, placements as JSONB — and
+  `/api/v1/me/dashboard-layout` with a `/presets` shelf beneath it; applying
+  a preset is a `PUT` of its entries, so there is one write path. (#213)
+- **The write contract is deliberately asymmetric.** A write validates every
+  placement against the widget registry and the closed span/row sets, so a
+  typo is a 422 at the boundary; a read hands back what was stored, so a
+  retired widget id drops at render time rather than 500ing the page.
+- **A spacing system, in `lib/dashboard/system.ts`.** Band-to-band was 24px
+  against card-to-card's 16px — three levels of structure inside eight
+  pixels of each other, which is why five bands read as one mass. Bands sit
+  at 40px, four times the card gap. Its test asserts the *relationships*,
+  since a constant equal to its own literal tests nothing.
+- **Four cards the page could not answer before.** Channels — what is
+  registered and whether each bot webhooks or polls, which is the difference
+  between "silent because nobody asked" and "silent because nothing is
+  listening". Knowledge — whether documents that arrived ever finished
+  indexing, since a collection can be perfectly fresh and hold two hundred
+  documents nothing can retrieve. A week by the hour on a new
+  `group_by=hour`. And sparklines on three KPI tiles, free from `runs_by_day`
+  answering runs, completed and cost from the one scan it already made.
+- **The page opens on numbers.** A steward's dashboard led with "Needs
+  attention" — five "nothing here" boxes before the first figure in an
+  organization where nothing is wrong. A full-width `summary` strip leads the
+  steward, operator and builder layouts and costs no request: every figure
+  slices the composed `/stats/usage` response the cards below already share,
+  and the completed share reads `run-outcomes`, so it and the Outcomes donut
+  cannot disagree.
+
+### Changed
+
+- **One figure component.** There were three — `StatCard` on Admin, `Metric`
+  on the dashboard, a private `Figure` inside `ActivityFigures` — so the same
+  number changed typeface between a card and the page its "see all" points
+  at. `components/ui/figure.tsx` is the one, and the value is sans, semibold,
+  with the font's own figures: `tabular-nums` and a mono face on a large
+  standalone number are both named anti-patterns, so equal-width digits stay
+  in table rows and axis ticks where columns align.
+- **Chart ink measured, not argued.** `--color-chart` is `brand-500` in both
+  themes at 3.74:1 light and 5.07:1 dark, clear of the 3:1 floor a mark owes
+  its surface; a new `--color-track` draws a bar's unfilled part in the
+  fill's own hue. `brand-900` was tried in dark and is why the pair is
+  measured rather than picked: at 1.41:1 it read as a filled bar, so a
+  provider that spent nothing showed a full-width mark beside $0.00. Dashed
+  gridlines are gone, the area wash is flat at 10% instead of a gradient
+  inventing a second encoding down the y-axis, and a truncated model id has a
+  real hover instead of a native `title`.
+- **A widget is the object every other page draws.** `WidgetFrame` is built
+  on `Card` — same corner, same elevation, the divider under the heading that
+  `ListCard` carries — and each card explains itself once, through an info
+  icon holding the same sentence the add-widget catalog lists it under.
+  Thirteen widgets had rolled their own figure; five carried their
+  explanation as grey prose under the data.
+- **A row holds cards of comparable natural height.** That rule is what the
+  layouts are rebuilt on, and what had left a four-line list beside a chart
+  two-thirds empty. The heatmap takes a row to itself: anything beside
+  seven-by-twenty-four is either dwarfed or stretched.
+- **A period change dims rather than blanks.** It was a new query key, so ten
+  cards dropped to skeletons at once and the page emptied and reflowed.
+  `keepPreviousData` holds the last answer while `UsageBody` dims it and sets
+  `aria-busy`.
+
+### Fixed
+
+- **The Spend card put two definitions of cost side by side.** The headline
+  read `cost.period_usd` — model spend alone — while the line under it read
+  `/spend → month_to_date_usd`, runs *plus* ingestion, which is the
+  arithmetic a monthly cap is measured with. Nothing said they were different
+  questions, and on any deployment that indexes documents they disagreed,
+  with `ingestion_spend` real money against the cap and nowhere on the page.
+  `CostBlock.period_usd` is the whole bill now, with `model_usd` and
+  `ingestion_usd` beside it and `previous_period_usd` following so the change
+  compares like with like. At `scope=own` the ingestion half is zero rather
+  than a share — a worker indexes a document and the ledger records no user.
+- **The sections filter vanished the moment somebody saved an arrangement**,
+  including one that kept every heading it started with: the filter offered a
+  section only if it carried a `titleKey`, and flattening the default turns
+  each heading into a divider named by `title`. `isFilterable` reads either
+  name, and `sectionLabel` is the single copy of "the caption a person typed,
+  else the curated key".
+- **Bar-list labels no longer end in an ellipsis** — every row in two cards
+  did — and each info icon is named for its card rather than being one of
+  twenty-seven identical stops.
+
 ## [0.0.151] - 2026-08-15
 
 Every list in the product is now one table and one card, and Activity is a
