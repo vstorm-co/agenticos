@@ -285,6 +285,20 @@ export interface Agent {
    * the draft's promise. Null for drafts and uncapped agents. Listing only.
    */
   budget_monthly_usd?: number | null;
+  /**
+   * How many tokens the model this agent publishes on accepts.
+   *
+   * What a chat draws its context gauge against. The *share* is resolved where
+   * the model is known rather than stored with the reading, because the window
+   * belongs to whichever model answers next and the chat lets somebody switch
+   * that between turns - a share carried over from a 1M-context model reads
+   * "50%" for a history that is really at 390% of a 128K one.
+   *
+   * Null when neither the profile nor the pricing registry could say, and a
+   * surface then draws no share at all rather than one against a guess. Listing
+   * only.
+   */
+  context_window_tokens?: number | null;
   created_at?: string;
   /**
    * `null` until the row is first updated - `TimestampSchema.updated_at` is

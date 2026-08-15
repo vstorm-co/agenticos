@@ -109,20 +109,28 @@ cap is recorded here and refused on the request after it.
 ## The gauge
 
 `build_gauge` is the other half of this package, and it is deliberately *not* a
-config field. It wraps the harness's `ReportContextUsage`, which reuses the same
-estimator and the same resolved window and only observes — it never edits
-history — and it fills a `ContextGauge` the factory hands to every agent, whether
-or not the spec binds compaction at all.
+config field. It fills a `ContextGauge` the factory hands to every agent, whether
+or not the spec binds compaction at all — because the warning matters most to the
+one that will not compact: that is the agent that reaches the ceiling and is
+refused by the provider mid-answer.
 
-Every agent, because the warning matters most to the one that will not compact:
-that is the agent that reaches the ceiling and gets refused by the provider. It
-is ordered *behind* the spec's own capabilities, so the reading is of the history
-as it will be sent rather than of what triggered a compaction — otherwise the
-gauge would never be seen to fall.
+**It reads the provider's own number.** The harness ships `ReportContextUsage`,
+which estimates the size of the history about to be sent, and a character
+heuristic cannot see the tool definitions — which are billed on every request. On
+an agent with knowledge, a sandbox and delegation that is thousands of tokens of
+schema: a real conversation measured 1,688 tokens by the estimate against 5,007
+the provider charged for, on every turn. Three times short is not a rounding
+error at 90% of a window.
 
-The reading carries `resolved`, which is false when the window is the assumed
-default rather than the model's own. A surface drawing a percentage against a
-number nobody could resolve has to be able to say it is a guess.
+So the reading is `input_tokens` off each response: exactly what the request
+occupied, instructions and tool schemas included, as the provider counted it. The
+newest wins, which for a tool loop is the last and largest.
+
+**The count only — the window is not stored with it.** How much history there is
+survives a model change; what share of a window that is does not, and the chat
+lets somebody switch model between turns. A 500,000-token history is half of a
+1M-context model and 390% of a 128K one, and the second is a request the provider
+refuses outright. So the share is resolved where the selection is known.
 
 ## What this deliberately does not do
 

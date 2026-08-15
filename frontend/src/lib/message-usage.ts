@@ -6,6 +6,7 @@ interface Measured {
   output_tokens?: number | null;
   cost_usd?: string | null;
   cost_is_partial?: boolean | null;
+  context_used_tokens?: number | null;
 }
 
 /**
@@ -37,11 +38,12 @@ export function storedUsage(message: Measured): TurnUsage | null {
     budget_percent: null,
     agent_budget_percent: null,
     sandbox: null,
-    // Not a property of the answer: how full the window was is a fact about the
-    // run that produced it, and a run's context is gone by the time anybody
-    // reopens the thread. Drawing last month's fill under an old message would
-    // be a number that was never true afterwards.
-    context: null,
+    // The token count survives a reload; the window it is a share of does not
+    // belong to the answer at all - it belongs to whichever model runs next, and
+    // that can be switched between turns. So the count is read back and the
+    // denominator is resolved where the selection is known.
+    context:
+      message.context_used_tokens == null ? null : { used_tokens: message.context_used_tokens },
   };
 }
 

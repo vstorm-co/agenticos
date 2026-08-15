@@ -613,6 +613,7 @@ class ConversationService:
             output_tokens=data.output_tokens,
             cost_usd=data.cost_usd,
             cost_is_partial=data.cost_is_partial,
+            context_used_tokens=data.context_used_tokens,
             agent_id=data.agent_id,
             agent_version_id=data.agent_version_id,
             run_id=run_id,

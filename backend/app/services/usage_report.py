@@ -82,30 +82,28 @@ class SandboxUsage:
 
 @dataclass(frozen=True)
 class ContextFill:
-    """How full the model's context window was on the last request of a turn.
+    """How many tokens the history sent with a turn occupied.
 
-    The ceiling nobody sees coming. A budget refuses with a message and a
-    workspace refuses a write; a context window is refused by the *provider*,
-    mid-answer, with a message about tokens. Watching it approach is the
-    difference, and the number is free - the compaction capability's estimator
-    has already computed it for its own trigger.
+    The ceiling nobody sees coming. A budget refuses with a message somebody can
+    act on and a workspace refuses a write; a context window is refused by the
+    *provider*, mid-answer, and the run simply fails.
+
+    **Measured by the provider, not estimated.** It is the `input_tokens` of the
+    request, which counts the instructions and the tool schemas a character
+    heuristic cannot see - thousands of tokens on an agent with knowledge, a
+    sandbox and delegation, and a third of the real figure missing without them.
+
+    **The count only, not a share of anything.** How much history there is is a
+    fact about the conversation; the window it would be a share of belongs to the
+    model answering *next*, and the chat lets somebody switch that between turns.
+    A share computed here and carried forward would go on reading "50%" for a
+    500,000-token history after a switch from a 1M-context model to a 128K one,
+    where it is really 390% and the next request is refused outright - wrong in
+    the one direction that costs a run. So the denominator is resolved where the
+    model is known, which is the surface that knows which one is selected.
     """
 
     used_tokens: int
-    window_tokens: int
-    resolved: bool
-    """Whether `window_tokens` is the model's real window or an assumed one.
-
-    False when neither the model profile nor the pricing registry could say, and
-    a conservative default stood in. A percentage against a window nobody knows
-    is a guess, and a surface drawing it has to be able to say so."""
-
-    @property
-    def percent(self) -> int | None:
-        """How full, or `None` where there is no window to be a fraction of."""
-        if self.window_tokens <= 0:
-            return None
-        return round(self.used_tokens * 100 / self.window_tokens)
 
 
 @dataclass(frozen=True)
@@ -313,22 +311,17 @@ class UsageReportService:
 def context_fill(gauge: ContextGauge) -> ContextFill | None:
     """The run's newest context reading, in the shape a report carries.
 
-    Translated here rather than reported by the gauge directly, so the harness's
-    type does not leak into every surface that draws a usage line - the same
-    reason `SandboxUsage` is not whatever the sandbox service answered with.
+    A shape of its own rather than a bare int, so a surface reads
+    `report.context.used_tokens` beside `report.sandbox.percent` instead of
+    switching on which fields happen to be scalars.
 
     `None` when the run made no model request: refused before it started, or
     stopped by a budget on the first check. A gauge with nothing in it is not a
     context that was empty.
     """
-    reading = gauge.latest
-    if reading is None:
+    if gauge.latest is None:
         return None
-    return ContextFill(
-        used_tokens=reading.used_tokens,
-        window_tokens=reading.window_tokens,
-        resolved=reading.resolved,
-    )
+    return ContextFill(used_tokens=gauge.latest)
 
 
 def usage_frame(report: UsageReport | None) -> dict[str, Any] | None:
@@ -352,12 +345,7 @@ def usage_frame(report: UsageReport | None) -> dict[str, Any] | None:
         "context": None,
     }
     if report.context is not None:
-        frame["context"] = {
-            "used_tokens": report.context.used_tokens,
-            "window_tokens": report.context.window_tokens,
-            "percent": report.context.percent,
-            "resolved": report.context.resolved,
-        }
+        frame["context"] = {"used_tokens": report.context.used_tokens}
     if report.sandbox is not None:
         frame["sandbox"] = {
             "kind": report.sandbox.kind,

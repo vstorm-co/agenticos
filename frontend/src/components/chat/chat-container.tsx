@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { ChatMessageFile } from "@/types";
-import { useChat, useConversationWorkspace } from "@/hooks";
+import { useAgents, useChat, useConversationWorkspace, useModelProviders } from "@/hooks";
 import { AgentPicker } from "./agent-picker";
 import { ChatControls } from "./chat-controls";
 import { ChatEmptyState } from "./chat-empty-state";
@@ -28,11 +28,37 @@ import type {
 } from "@/types";
 import { conversationMessageToChatMessage } from "@/lib/conversation-to-chat";
 import { latestUsage } from "@/lib/message-usage";
-import { useConversationStore, useChatStore } from "@/stores";
+import { useAgentSelectionStore, useConversationStore, useChatStore } from "@/stores";
 import { useConversations } from "@/hooks";
 import { useSlashCommands } from "@/hooks";
 
 const SCROLL_NEAR_BOTTOM_THRESHOLD_PX = 150;
+
+/**
+ * How many tokens the model that will answer next accepts, or `null`.
+ *
+ * The denominator of the context gauge, and deliberately not stored with the
+ * reading it divides: how much history there is survives a model change, what
+ * share of a window that is does not. A history of 500,000 tokens is half of a
+ * 1M-context model and 390% of a 128K one, and the second is a request the
+ * provider refuses outright — so the figure has to move the moment somebody
+ * switches, which it does because this is read from the current selection.
+ *
+ * The override the picker holds first, then the agent's own published model.
+ * `null` where neither can say, and the gauge is then not drawn at all: a share
+ * against an assumed window is a guess presented as a measurement, and the guess
+ * errs in the direction that lets a run reach the ceiling.
+ */
+function useContextWindow(modelProfileId: string | null): number | null {
+  const { profiles } = useModelProviders();
+  const { agents } = useAgents({ includeArchived: true });
+  const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
+
+  if (modelProfileId !== null) {
+    return profiles.find((profile) => profile.id === modelProfileId)?.context_length ?? null;
+  }
+  return agents.find((agent) => agent.id === selectedAgentId)?.context_window_tokens ?? null;
+}
 
 export function ChatContainer() {
   const {
@@ -42,6 +68,10 @@ export function ChatContainer() {
     isLoading: isConversationLoading,
   } = useConversationStore();
   const { addMessage: addChatMessage } = useChatStore();
+  // The model override the picker holds, mirrored here because the context gauge
+  // is a share of *its* window rather than of the agent's default.
+  const [modelProfileId, setModelProfileId] = useState<string | null>(null);
+  const contextWindow = useContextWindow(modelProfileId);
   // Deliberately unfiltered, which is what calling this with no arguments
   // means. The sidebar's copy of this list is narrowed by whatever is in its
   // search box, and reading the two facts below off *that* would flip the
@@ -223,6 +253,7 @@ export function ChatContainer() {
       // the transcript otherwise - which is what makes the strip appear on a
       // conversation somebody has just reopened instead of after their next message.
       lastUsage={lastUsage ?? latestUsage(currentMessages, currentConversationId)}
+      contextWindow={contextWindow}
       // Only for the thread that is actually open. The store keeps the transcript
       // it last loaded, so between clicking another conversation and its messages
       // arriving this figure belongs to the one just left - the same reason
@@ -237,7 +268,14 @@ export function ChatContainer() {
       }
       isArchived={isArchived}
       sendMessage={sendMessage}
-      onModelProfileChange={setModelProfile}
+      // Kept here as well as pushed into the hook, because the context gauge is a
+      // share of *this* model's window: a switch has to move the figure at once,
+      // and one carried over from a 1M-context model reads "50%" for a history
+      // that is really at 390% of a 128K one.
+      onModelProfileChange={(profileId) => {
+        setModelProfile(profileId);
+        setModelProfileId(profileId);
+      }}
       onTemperatureChange={setTemperature}
       onThinkingEffortChange={setThinkingEffort}
       onRegenerate={handleRegenerate}
@@ -264,6 +302,8 @@ interface ChatUIProps {
   lastUsage: TurnUsage | null;
   /** What the whole thread has cost, from the server. Null until a transcript loads. */
   conversationCost: ConversationCost | null;
+  /** The window the context gauge is a share of, or null when nobody knows it. */
+  contextWindow: number | null;
   /**
    * The turn's delegations, drawn under the transcript.
    *
@@ -313,6 +353,7 @@ function ChatUI({
   isProcessing,
   lastUsage,
   conversationCost,
+  contextWindow,
   delegations,
   conversationId,
   turns,
@@ -427,7 +468,12 @@ function ChatUI({
                 {/* Under the input rather than over the transcript: it is about
                   the turn that just finished, and a strip above the messages
                   would move the conversation every time a number changed. */}
-                <UsageStrip usage={lastUsage} workspace={workspace} total={conversationCost} />
+                <UsageStrip
+                  usage={lastUsage}
+                  workspace={workspace}
+                  total={conversationCost}
+                  contextWindow={contextWindow}
+                />
                 <ChatInput
                   onSend={sendMessage}
                   disabled={

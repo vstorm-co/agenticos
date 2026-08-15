@@ -56,6 +56,13 @@ export interface ConversationMessage {
    * "exact" - a client draws the caveat on `true` alone.
    */
   cost_is_partial?: boolean | null;
+  /**
+   * Tokens the history sent with this turn occupied, after any compaction.
+   *
+   * The count only: the window it is a share of belongs to the model answering
+   * next, which the chat lets somebody switch between turns.
+   */
+  context_used_tokens?: number | null;
   /** Which configured agent answered. Null for the general assistant. */
   agent_id?: string | null;
   tool_calls?: ConversationToolCall[];

@@ -94,11 +94,31 @@ refused by the provider, mid-answer, and the run simply fails.
 Every agent therefore carries a gauge — not only one with
 [context management](reference/capabilities.md#context-management) bound, because
 the warning matters most to the agent that will *not* compact. It reports how
-full the window was before the last request of a turn, measured against the
-window the model profile recorded, and says whether that window was the model's
-real one. Where it was not, the share is drawn as an estimate: a confident
-percentage against a number nobody could resolve is worse than an uncertain one,
-because it gets acted on.
+many tokens the last request of a turn carried, *after* any compaction: the
+reading falls when compaction works, because it measures what went out rather
+than what the conversation holds.
+
+The number is the provider's own `input_tokens`, not an estimate of the history.
+A character count cannot see the tool definitions, and those are billed on every
+request — thousands of tokens on an agent with knowledge, a sandbox and
+delegation, which is a third of the real figure missing at exactly the moment the
+figure matters.
+
+**The count is stored on the turn; the share is not.** How much history there is
+survives a model change; what fraction of a window that is does not, and the chat
+lets somebody switch model between turns. A 500,000-token history is half of a
+1M-context model and 390% of a 128K one — and the second is a request the
+provider refuses outright. A share frozen with the reading would still read
+"50%". So the denominator is resolved where the selection is known, from the
+model profile's own recorded window and the pricing registry behind it; where
+neither can say, no share is drawn at all, because a percentage against an
+assumed window is a guess presented as a measurement.
+
+That switch is also what compaction is for. Its trigger is a **fraction resolved
+per request** against the model the request is going to, so a history that sat
+comfortably in the old window is compacted on the very next turn under the new
+one — before the request leaves, not after the provider has refused it. An agent
+with no compaction bound has the gauge instead, and nothing else.
 
 ### Delegation spends the parent's budget
 

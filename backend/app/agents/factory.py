@@ -240,7 +240,7 @@ def build_agent(
         # Every agent, not only one that compacts. The warning is most useful to
         # exactly the agent that will not: it is the one that reaches the ceiling
         # and gets refused by the provider.
-        build_gauge(gauge, recorded_window=model_spec.context_length),
+        build_gauge(gauge),
     ]
 
     # Profile settings first, agent overrides second - the agent is the more

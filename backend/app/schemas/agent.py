@@ -57,6 +57,18 @@ class AgentRead(BaseSchema):
             "listing, same bargain as shared_user_count."
         ),
     )
+    context_window_tokens: int | None = Field(
+        default=None,
+        description=(
+            "How many tokens the model this agent publishes on accepts. What a chat "
+            "draws its context gauge against - the share is resolved where the model is "
+            "known, because the window belongs to the model answering next and that can "
+            "be switched between turns. Read off the profile the frozen spec names, "
+            "falling back to the pricing registry; null when neither can say, and a "
+            "surface then draws no share rather than one against a guess. Filled by the "
+            "listing, same bargain as shared_user_count."
+        ),
+    )
     created_at: datetime | None = None
     updated_at: datetime | None = None
 

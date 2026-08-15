@@ -384,6 +384,16 @@ async def persist_assistant_turn(
                     # request, and rendered identically to one measured exactly
                     # (#772).
                     cost_is_partial=None if usage is None else usage.cost_is_partial,
+                    # Only the token count. The window it is a share of belongs to
+                    # whichever model answers next, and the chat lets somebody
+                    # switch that between turns - a share stored against a model
+                    # they have since left is wrong in the one direction that
+                    # costs a run (#774).
+                    context_used_tokens=(
+                        None
+                        if usage is None or usage.context is None
+                        else usage.context.used_tokens
+                    ),
                 ),
             )
             for tc in collected_tool_calls:

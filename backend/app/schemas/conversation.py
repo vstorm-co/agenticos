@@ -136,6 +136,15 @@ class MessageCreate(MessageBase):
             "recorded, not exact."
         ),
     )
+    context_used_tokens: int | None = Field(
+        default=None,
+        ge=0,
+        description=(
+            "Tokens the history sent with this turn occupied. Only the count: the window "
+            "it is a share of belongs to whichever model answers next, and that can be "
+            "switched between turns."
+        ),
+    )
     agent_id: UUID | None = Field(
         default=None, description="The configured agent that answered, when one did"
     )
@@ -214,6 +223,15 @@ class MessageRead(MessageBase, TimestampSchema):
             "turn reached a model with no price entry. Null means not recorded, which is "
             "what every message written before this was carried says, and is not the "
             "same claim as `false`."
+        ),
+    )
+    context_used_tokens: int | None = Field(
+        default=None,
+        description=(
+            "Tokens the history sent with this turn occupied, after any compaction. The "
+            "share of a context window is not stored with it: the window belongs to the "
+            "model answering next, and a share measured against a model somebody has "
+            "since switched away from is wrong in the direction that costs a run."
         ),
     )
     agent_id: UUID | None = None

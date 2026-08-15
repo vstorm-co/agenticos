@@ -25,7 +25,6 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from pydantic_ai_harness.compaction import ContextUsage
 
 from app.agents.capabilities.compaction import ContextGauge
 from app.core.permissions import AuthContext, OrgRoleName
@@ -403,16 +402,17 @@ class TestHowFullTheContextWas:
     its own trigger - so the only work is carrying it honestly.
     """
 
-    def test_a_reading_becomes_a_share_of_the_window(self):
-        fill = ContextFill(used_tokens=150_000, window_tokens=200_000, resolved=True)
+    def test_it_carries_the_count_and_no_share_of_anything(self):
+        """The window is not a fact about the turn.
 
-        assert fill.percent == 75
-
-    def test_a_window_of_nothing_has_no_share_to_report(self):
-        """`None` rather than a division by zero or a confident 0%."""
-        fill = ContextFill(used_tokens=10, window_tokens=0, resolved=False)
-
-        assert fill.percent is None
+        How much history there is survives a model change; what share of a window
+        that is does not, and the chat lets somebody switch model between turns. A
+        share computed here and carried forward would read "50%" for a
+        500,000-token history after a switch from a 1M-context model to a 128K
+        one, where it is really 390% and the next request is refused outright.
+        """
+        assert ContextFill(used_tokens=150_000).used_tokens == 150_000
+        assert not hasattr(ContextFill(used_tokens=1), "window_tokens")
 
     def test_a_run_that_made_no_request_reports_no_reading(self):
         """Refused before it started, or stopped by a budget on the first check.
@@ -420,29 +420,18 @@ class TestHowFullTheContextWas:
         assert context_fill(ContextGauge()) is None
 
     def test_the_gauges_newest_reading_is_the_one_reported(self):
-        gauge = ContextGauge()
-        gauge.record(ContextUsage(used_tokens=10, window_tokens=100, resolved=True))
-        gauge.record(ContextUsage(used_tokens=40, window_tokens=100, resolved=True))
-
-        fill = context_fill(gauge)
+        fill = context_fill(ContextGauge(latest=40))
 
         assert fill is not None
-        assert (fill.used_tokens, fill.window_tokens, fill.resolved) == (40, 100, True)
+        assert fill.used_tokens == 40
 
-    def test_the_frame_carries_the_share_and_whether_it_is_a_guess(self):
-        """`resolved` is what lets a surface say the percentage is an estimate,
-        rather than draw a confident figure against a window nobody knows."""
-        frame = usage_frame(
-            _report(context=ContextFill(used_tokens=90, window_tokens=200, resolved=False))
-        )
+    def test_the_frame_carries_the_count_a_surface_divides(self):
+        """The denominator is resolved on the surface, from the model selected
+        there - so what crosses the wire is the numerator and nothing else."""
+        frame = usage_frame(_report(context=ContextFill(used_tokens=90)))
 
         assert frame is not None
-        assert frame["context"] == {
-            "used_tokens": 90,
-            "window_tokens": 200,
-            "percent": 45,
-            "resolved": False,
-        }
+        assert frame["context"] == {"used_tokens": 90}
 
     def test_a_frame_with_no_reading_says_so_rather_than_omitting_the_key(self):
         """A client switching on the key must not have to tell absent from null."""

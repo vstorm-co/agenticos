@@ -229,11 +229,14 @@ export interface TurnUsage {
    * mid-answer. `null` when no model request was made.
    */
   context: {
+    /**
+     * Tokens the history sent with this turn occupied, after any compaction.
+     *
+     * The count only. What share of a window that is depends on the model
+     * answering *next*, which the chat lets somebody switch between turns, so
+     * the denominator is resolved where the selection is known.
+     */
     used_tokens: number;
-    window_tokens: number;
-    percent: number | null;
-    /** False when the window is an assumed default - the percentage is a guess. */
-    resolved: boolean;
   } | null;
 }
 

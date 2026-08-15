@@ -209,6 +209,20 @@ class Message(Base, TimestampMixin):
     written before this existed has no answer, and `false` would claim a precision
     nobody measured. A client draws the caveat on `true` alone."""
 
+    context_used_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    """How many tokens the history sent with this turn occupied.
+
+    Only the tokens. How much history there is is a fact about the conversation
+    and survives a model change; the *window* it is a share of belongs to the
+    model answering next, and the chat lets somebody switch that between turns.
+    Stored together, a 500,000-token history measured on a 1M model would go on
+    reading "50%" after a switch to a 128K one, where it is really 390% and the
+    next request is refused - a number that lies in the one direction that costs
+    a run (#774).
+
+    Null is not recorded: a message older than the column, and any turn that
+    never reached a model."""
+
     conversation: Mapped["Conversation"] = relationship("Conversation", back_populates="messages")
     tool_calls: Mapped[list["ToolCall"]] = relationship(
         "ToolCall",

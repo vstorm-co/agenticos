@@ -385,12 +385,196 @@ class TestList:
                 f"{REGISTRY_PATH}.agent_repo.published_budget_caps",
                 new=AsyncMock(return_value={version_id: 60.0}),
             ) as caps,
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_model_profiles",
+                new=AsyncMock(return_value={}),
+            ),
         ):
             rows, _total = await AgentRegistryService(_db()).list_agents(ctx)
 
         assert caps.call_args.kwargs["version_ids"] == [version_id]
         assert rows[0].budget_monthly_usd == 60.0
         assert rows[1].budget_monthly_usd is None
+
+    @pytest.mark.anyio
+    async def test_the_window_a_listed_agents_model_accepts_rides_along(self):
+        """What a chat divides its context gauge by.
+
+        The share is resolved on the surface rather than stored with the reading,
+        because the window belongs to the model answering *next* - and the chat
+        lets somebody switch that between turns.
+        """
+        ctx = _ctx(OrgRoleName.OWNER)
+        version_id = uuid.uuid4()
+        profile_id = uuid.uuid4()
+        published = _agent(ctx, current_version_id=version_id)
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_visible",
+                new=AsyncMock(return_value=([published], 1)),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.resource_grant_repo.count_for_resources",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_exposure_repo.active_surfaces_for_agents",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_budget_caps",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_model_profiles",
+                new=AsyncMock(return_value={version_id: profile_id}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profiles_by_ids",
+                new=AsyncMock(
+                    return_value={
+                        profile_id: MagicMock(
+                            context_length=128_000, provider="openai", model="gpt-4o"
+                        )
+                    }
+                ),
+            ),
+        ):
+            rows, _total = await AgentRegistryService(_db()).list_agents(ctx)
+
+        assert rows[0].context_window_tokens == 128_000
+
+    @pytest.mark.anyio
+    async def test_a_profile_with_no_recorded_window_falls_back_to_the_registry(self):
+        """The pricing snapshot is the fallback for a profile older than the
+        column, and it is right more often than not - a self-hosted endpoint is
+        where it is not."""
+        ctx = _ctx(OrgRoleName.OWNER)
+        version_id = uuid.uuid4()
+        profile_id = uuid.uuid4()
+        published = _agent(ctx, current_version_id=version_id)
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_visible",
+                new=AsyncMock(return_value=([published], 1)),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.resource_grant_repo.count_for_resources",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_exposure_repo.active_surfaces_for_agents",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_budget_caps",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_model_profiles",
+                new=AsyncMock(return_value={version_id: profile_id}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profiles_by_ids",
+                new=AsyncMock(
+                    return_value={
+                        profile_id: MagicMock(
+                            context_length=None, provider="openai", model="gpt-4o"
+                        )
+                    }
+                ),
+            ),
+        ):
+            rows, _total = await AgentRegistryService(_db()).list_agents(ctx)
+
+        assert rows[0].context_window_tokens == 128_000
+
+    @pytest.mark.anyio
+    async def test_a_model_nothing_can_size_reports_no_window_rather_than_a_guess(self):
+        """A share against an assumed window is a guess presented as a
+        measurement, and it errs in the direction that lets a run reach the
+        ceiling. The surface draws nothing instead."""
+        ctx = _ctx(OrgRoleName.OWNER)
+        version_id = uuid.uuid4()
+        profile_id = uuid.uuid4()
+        published = _agent(ctx, current_version_id=version_id)
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_visible",
+                new=AsyncMock(return_value=([published], 1)),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.resource_grant_repo.count_for_resources",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_exposure_repo.active_surfaces_for_agents",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_budget_caps",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_model_profiles",
+                new=AsyncMock(return_value={version_id: profile_id}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profiles_by_ids",
+                new=AsyncMock(
+                    return_value={
+                        profile_id: MagicMock(
+                            context_length=None, provider="ollama", model="llama3.3"
+                        )
+                    }
+                ),
+            ),
+        ):
+            rows, _total = await AgentRegistryService(_db()).list_agents(ctx)
+
+        assert rows[0].context_window_tokens is None
+
+    @pytest.mark.anyio
+    async def test_a_deleted_profile_leaves_the_window_unknown(self):
+        """A published spec names a profile by id, and the row can be removed
+        afterwards. The listing is about names and avatars; it says nothing about
+        the window rather than failing over one."""
+        ctx = _ctx(OrgRoleName.OWNER)
+        version_id = uuid.uuid4()
+        published = _agent(ctx, current_version_id=version_id)
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_visible",
+                new=AsyncMock(return_value=([published], 1)),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.resource_grant_repo.count_for_resources",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_exposure_repo.active_surfaces_for_agents",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_budget_caps",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_model_profiles",
+                new=AsyncMock(return_value={version_id: uuid.uuid4()}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profiles_by_ids",
+                new=AsyncMock(return_value={}),
+            ),
+        ):
+            rows, _total = await AgentRegistryService(_db()).list_agents(ctx)
+
+        assert rows[0].context_window_tokens is None
 
     @pytest.mark.anyio
     async def test_the_listing_returns_the_page_and_the_total(self):

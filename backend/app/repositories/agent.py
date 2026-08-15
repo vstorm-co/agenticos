@@ -148,6 +148,31 @@ async def published_budget_caps(
     return {row[0]: row[1] for row in result.all()}
 
 
+async def published_model_profiles(
+    db: AsyncSession, *, version_ids: Sequence[UUID]
+) -> dict[UUID, UUID]:
+    """Which model profile each version's frozen spec names, keyed by version id.
+
+    The same one-path-per-row extraction `published_budget_caps` does, and for the
+    same reason: the listing wants one id out of documents that can carry
+    kilobytes of instructions.
+
+    A version whose spec names no profile is absent rather than null - publish
+    validation refuses a spec without one, so it can only be a spec that predates
+    the rule, and there is nothing to resolve for it either way.
+    """
+    if not version_ids:
+        return {}
+    profile = AgentVersion.spec["model_profile_id"].astext
+    result = await db.execute(
+        select(AgentVersion.id, profile).where(AgentVersion.id.in_(list(version_ids)))
+    )
+    # `UUID(raw)` without a guard: `AgentSpec.model_profile_id` is typed, so what
+    # is frozen into the JSONB has already been through Pydantic. A malformed id
+    # cannot be published, and a branch for one would be a branch nothing reaches.
+    return {version_id: UUID(raw) for version_id, raw in result.all() if raw is not None}
+
+
 async def list_all_published(db: AsyncSession) -> list[Agent]:
     """Every published agent on the deployment, whoever owns it.
 

@@ -12,7 +12,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 from pydantic_ai._run_context import RunContext
-from pydantic_ai.capabilities import AbstractCapability, CombinedCapability
+from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
@@ -24,7 +24,7 @@ from pydantic_ai.messages import (
 )
 from pydantic_ai.models import ModelRequestContext, ModelRequestParameters
 from pydantic_ai.models.test import TestModel
-from pydantic_ai.usage import RunUsage
+from pydantic_ai.usage import RequestUsage, RunUsage
 from pydantic_ai_harness.compaction import (
     ClearToolResults,
     SlidingWindowCompaction,
@@ -52,6 +52,13 @@ def _request_context(messages: list[ModelMessage], *, model: Any = None) -> Mode
         messages=messages,
         model_settings=None,
         model_request_parameters=ModelRequestParameters(),
+    )
+
+
+def _response(*, input_tokens: int) -> ModelResponse:
+    """A model response carrying what the provider said the request occupied."""
+    return ModelResponse(
+        parts=[TextPart(content="ok")], usage=RequestUsage(input_tokens=input_tokens)
     )
 
 
@@ -328,66 +335,121 @@ class TestMetering:
         assert len(request_context.messages) < len(messages)
 
 
+class TestSwitchingToASmallerModel:
+    async def test_the_same_history_compacts_on_the_smaller_window(self):
+        """The reason the trigger is a fraction resolved per request.
+
+        The chat lets somebody switch model between turns, so a history that sat
+        comfortably in a 1M-context window can be over the ceiling of a 128K one
+        the moment they do - and the provider answers that by refusing the
+        request, not by warning. Resolved per request, the very next turn
+        compacts; fixed at build time, it would go on measuring against the model
+        the agent was assembled with.
+        """
+        history = [_user("w " * 2_000) for _ in range(250)]
+
+        def on(window: int) -> MeteredCompaction[None]:
+            return MeteredCompaction(
+                wrapped=build_strategy(
+                    CompactionConfig(strategy="sliding_window", keep_messages=10),
+                    recorded_window=window,
+                )
+            )
+
+        roomy = await on(1_000_000).before_model_request(
+            _run_context(), _request_context(list(history))
+        )
+        cramped = await on(128_000).before_model_request(
+            _run_context(), _request_context(list(history))
+        )
+
+        assert len(roomy.messages) == len(history)
+        assert len(cramped.messages) < len(history)
+
+    async def test_an_agent_that_binds_nothing_is_only_told_how_bad_it_is(self):
+        """The gauge reports; it never edits. An agent with no compaction bound
+        reaches the ceiling and is refused, which is exactly why the reading is
+        attached to every agent rather than only to the ones that compact."""
+        gauge = ContextGauge()
+
+        await build_gauge(gauge).after_model_request(
+            _run_context(),
+            request_context=_request_context([]),
+            response=_response(input_tokens=250_000),
+        )
+
+        assert gauge.latest == 250_000
+
+
 class TestTheGauge:
-    """What the context gauge reports, and when.
+    """What the context gauge reports, and where the number comes from.
 
     Attached to every agent rather than to one that compacts, because the warning
     matters most to the agent that will *not*: that is the one that reaches the
     ceiling and is refused by the provider (#774).
     """
 
-    async def test_it_reads_the_history_as_it_will_be_sent(self):
-        """Ordered behind compaction, which is the whole of its usefulness.
+    async def test_it_reports_what_the_provider_says_the_request_carried(self):
+        """Measured, not estimated.
 
-        Read *ahead* of it, the gauge would report what triggered the compaction
-        rather than what the compaction left - so it would never be seen to fall,
-        and a person watching it would conclude compaction was not working.
-
-        Neither capability declares an ordering, so Pydantic AI runs them in list
-        order and the factory puts the gauge last. This is the test that fails if
-        either half of that changes.
+        Counting the message parts is the obvious way and it is short by the tool
+        schemas, which are billed on every request: a real conversation here
+        measured 1,688 by the estimate against 5,007 the provider charged for.
+        Three times short is not a rounding error at 90% of a window.
         """
-        gauge = ContextGauge()
-        config = _triggers_immediately("sliding_window", keep_messages=2)
-        combined = CombinedCapability(
-            capabilities=[
-                MeteredCompaction(wrapped=build_strategy(config)),
-                build_gauge(gauge, recorded_window=1_000),
-            ]
-        )
-        messages = [_user(f"turn {index}: " + "words " * 20) for index in range(20)]
-
-        compacted = await combined.before_model_request(
-            _run_context(), _request_context(list(messages))
-        )
-
-        assert len(compacted.messages) < len(messages)
-        assert gauge.latest is not None
-        # Measured against the window the profile recorded, on the messages that
-        # survived - not on the twenty that went in.
-        assert gauge.latest.window_tokens == 1_000
-        assert gauge.latest.used_tokens < 1_000
-
-    async def test_the_recorded_window_is_what_the_share_is_measured_against(self):
-        """`resolved` is how a surface knows whether the denominator is real."""
-        gauge = ContextGauge()
-        capability = build_gauge(gauge, recorded_window=128_000)
-
-        await capability.before_model_request(_run_context(), _request_context([_user("hello")]))
-
-        assert gauge.latest is not None
-        assert (gauge.latest.window_tokens, gauge.latest.resolved) == (128_000, True)
-
-    async def test_a_window_nobody_could_resolve_is_reported_as_a_guess(self):
-        """`TestModel` is not in the pricing registry, so nothing resolves it. The
-        share is then taken of an assumed default, and saying so is the point."""
         gauge = ContextGauge()
         capability = build_gauge(gauge)
 
-        await capability.before_model_request(_run_context(), _request_context([_user("hello")]))
+        await capability.after_model_request(
+            _run_context(),
+            request_context=_request_context([]),
+            response=_response(input_tokens=5_007),
+        )
 
-        assert gauge.latest is not None
-        assert gauge.latest.resolved is False
+        assert gauge.latest == 5_007
+
+    async def test_the_newest_reading_wins_because_a_tool_loop_grows(self):
+        """Every step adds to the history, so the last request is the peak."""
+        gauge = ContextGauge()
+        capability = build_gauge(gauge)
+
+        for size in (900, 4_100, 12_600):
+            await capability.after_model_request(
+                _run_context(),
+                request_context=_request_context([]),
+                response=_response(input_tokens=size),
+            )
+
+        assert gauge.latest == 12_600
+
+    async def test_a_response_that_reported_nothing_leaves_the_last_reading_alone(self):
+        """Blanking it would report an empty context for a run that had one."""
+        gauge = ContextGauge()
+        capability = build_gauge(gauge)
+
+        await capability.after_model_request(
+            _run_context(),
+            request_context=_request_context([]),
+            response=_response(input_tokens=4_100),
+        )
+        await capability.after_model_request(
+            _run_context(),
+            request_context=_request_context([]),
+            response=_response(input_tokens=0),
+        )
+
+        assert gauge.latest == 4_100
+
+    async def test_it_observes_and_never_edits(self):
+        """A gauge that rewrote a response would be a compaction nobody asked for."""
+        gauge = ContextGauge()
+        answered = _response(input_tokens=10)
+
+        returned = await build_gauge(gauge).after_model_request(
+            _run_context(), request_context=_request_context([]), response=answered
+        )
+
+        assert returned is answered
 
     def test_a_run_that_made_no_request_leaves_it_empty(self):
         """Refused before it started, or stopped by a budget on the first check."""

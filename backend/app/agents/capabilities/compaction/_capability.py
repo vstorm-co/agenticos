@@ -30,14 +30,13 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 from pydantic_ai.capabilities import AbstractCapability, WrapperCapability
+from pydantic_ai.messages import ModelResponse
 from pydantic_ai.models import ModelRequestContext
 from pydantic_ai.tools import AgentDepsT, RunContext
 from pydantic_ai.usage import RequestUsage, RunUsage
 from pydantic_ai_harness.compaction import (
     DEFAULT_CONTEXT_WINDOW,
     ClearToolResults,
-    ContextUsage,
-    ReportContextUsage,
     SlidingWindowCompaction,
     SummarizingCompaction,
     TieredCompaction,
@@ -198,42 +197,58 @@ def build_strategy(
 
 @dataclass
 class ContextGauge:
-    """The newest reading of how full the run's context is.
+    """How many tokens the last request of a run actually carried.
 
-    A mutable holder rather than a callback into the runner, for the reason the
-    ledger is one: the capability is built while the agent is assembled and the
-    reading is wanted when the turn ends, which is two layers and one `finally`
-    apart. The caller reads `latest` after the run the way it reads the ledger's
-    total.
+    **Measured, not estimated.** The obvious way to answer this is to count the
+    message parts about to be sent, and the harness ships a capability that does
+    - but a character heuristic cannot see the tool definitions, and those are
+    billed on every request. On an agent with knowledge, a sandbox and delegation
+    that is thousands of tokens of schema: a real conversation here measured
+    1,688 by the estimate against 5,007 the provider charged for, on every turn.
+    Three times short is not a rounding error at 90% of a window.
 
-    `None` means no request was made - a run refused before it reached a model.
+    So the number comes off the response. `RequestUsage.input_tokens` is exactly
+    what the request occupied - instructions, tool schemas, every prior message,
+    cached or not - as the provider counted it, and it costs nothing to read.
+
+    The newest reading wins, which for a run is the last request it made: a tool
+    loop grows the context with every step, so the last one is the peak and the
+    one worth reporting. A `None` means the run reached no model at all.
     """
 
-    latest: ContextUsage | None = None
-
-    def record(self, usage: ContextUsage) -> None:
-        """Keep the newest reading, discarding the one before it.
-
-        The newest is the only one worth keeping: a gauge answers "how full is it
-        now", and a run's earlier readings are a history nobody draws. It is also
-        the reading taken *after* any compaction this cycle, because the gauge is
-        ordered behind the compaction capability.
-        """
-        self.latest = usage
+    latest: int | None = None
 
 
-def build_gauge(
-    gauge: ContextGauge, *, recorded_window: int | None = None
-) -> ReportContextUsage[Any]:
-    """The capability that fills `gauge`, reading the same window compaction does.
+@dataclass
+class ReportContextSize(AbstractCapability[AgentDepsT]):
+    """Fills a :class:`ContextGauge` from what each response says it was sent.
 
-    Attached to every agent, not only to one that compacts. The warning is most
-    useful to exactly the agent that will *not* compact - it is the one that
-    reaches the ceiling and gets refused - and the reading carries `resolved`, so
-    a surface can say when the denominator is a guess rather than draw a
-    confident percentage against a window nobody knows.
+    Attached to every agent, not only to one that compacts: the warning matters
+    most to the agent that will *not*, because that is the one that reaches the
+    ceiling and is refused by the provider mid-answer.
+
+    It only observes. Nothing here edits history, and a response with no usage on
+    it - a provider that reported none - leaves the previous reading standing
+    rather than blanking it.
     """
-    return ReportContextUsage(on_usage=gauge.record, context_window=recorded_window)
+
+    gauge: ContextGauge
+
+    async def after_model_request(
+        self,
+        ctx: RunContext[AgentDepsT],
+        *,
+        request_context: ModelRequestContext,
+        response: ModelResponse,
+    ) -> ModelResponse:
+        if response.usage.input_tokens:
+            self.gauge.latest = response.usage.input_tokens
+        return response
+
+
+def build_gauge(gauge: ContextGauge) -> ReportContextSize[Any]:
+    """The capability that fills `gauge`, for the factory to attach."""
+    return ReportContextSize(gauge=gauge)
 
 
 @dataclass
