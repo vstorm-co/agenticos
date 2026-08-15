@@ -45,6 +45,7 @@ import {
   applySectionsFilter,
   formatSectionsParam,
   parseSectionsParam,
+  sectionLabel,
 } from "@/lib/dashboard/sections";
 import { accentDecoration, isAccentColour, WIDGETS } from "@/lib/dashboard/registry";
 import { ROUTES } from "@/lib/constants";
@@ -171,12 +172,7 @@ export default function DashboardPage() {
     setEditing(true);
   };
 
-  const resolveSectionTitle = (section: SectionDef): string =>
-    section.title?.trim()
-      ? section.title
-      : section.titleKey
-        ? t(`sections.${section.titleKey}`)
-        : "";
+  const resolveSectionTitle = (section: SectionDef): string => sectionLabel(section, t);
 
   // The editor works on a flat item list. A custom arrangement carries its own
   // dividers, so it is fed the sanitized, gated items directly rather than the
@@ -276,11 +272,7 @@ export default function DashboardPage() {
         // colour. Neutral is the absence of an accent — rendered plain, like a
         // default section — so only a real colour (a preset or a custom hex)
         // tints the band, carried on `--dash-solid` by the decoration.
-        const heading = section.title?.trim()
-          ? section.title
-          : section.titleKey
-            ? t(`sections.${section.titleKey}`)
-            : null;
+        const heading = sectionLabel(section, t) || null;
         const coloured = isAccentColour(section.accent);
         const decoration = coloured ? accentDecoration(section.accent as string) : null;
         const collapsed =

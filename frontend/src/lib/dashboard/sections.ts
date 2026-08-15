@@ -11,12 +11,30 @@
 import type { SectionDef } from "./layouts";
 
 /**
- * Which section ids the filter may offer: only titled ones. An untitled
- * section is structural - the member's whole page is one - and offering to
- * hide it would offer an empty dashboard.
+ * Whether the filter may offer a section - it must have a name to offer.
+ *
+ * A curated section is named by a `titleKey`; a band a person made with their
+ * own divider is named by the `title` they typed. Both are names, and reading
+ * only the first meant the whole control disappeared the moment somebody saved
+ * an arrangement, even one that kept every heading it started with.
+ *
+ * An unnamed section is structural - the member's whole page is one, and so is
+ * the summary band above every other layout - and offering to hide it would
+ * offer an empty dashboard.
  */
+export function isFilterable(section: SectionDef): boolean {
+  return section.titleKey !== null || !!section.title?.trim();
+}
+
+/** The heading a section shows, from whichever of its two names it carries. */
+export function sectionLabel(section: SectionDef, t: (key: string) => string): string {
+  if (section.title?.trim()) return section.title;
+  return section.titleKey ? t(`sections.${section.titleKey}`) : "";
+}
+
+/** Which section ids the filter may offer. */
 export function filterableSectionIds(sections: SectionDef[]): string[] {
-  return sections.filter((section) => section.titleKey !== null).map((section) => section.id);
+  return sections.filter(isFilterable).map((section) => section.id);
 }
 
 /**
@@ -35,14 +53,14 @@ export function parseSectionsParam(value: string | null, sections: SectionDef[])
   return selected;
 }
 
-/** Apply the selection: untitled sections always stay. */
+/** Apply the selection: a section the filter never offered always stays. */
 export function applySectionsFilter(
   sections: SectionDef[],
   selected: string[] | null,
 ): SectionDef[] {
   if (selected === null) return sections;
   const keep = new Set(selected);
-  return sections.filter((section) => section.titleKey === null || keep.has(section.id));
+  return sections.filter((section) => !isFilterable(section) || keep.has(section.id));
 }
 
 /** The URL form; null clears the parameter. */

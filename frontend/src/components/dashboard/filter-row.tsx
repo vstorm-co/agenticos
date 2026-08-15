@@ -17,7 +17,7 @@ import { useOrgStore } from "@/stores";
 import { ROUTES } from "@/lib/constants";
 import type { SectionDef } from "@/lib/dashboard/layouts";
 import type { Period } from "@/lib/dashboard/period";
-import { filterableSectionIds } from "@/lib/dashboard/sections";
+import { filterableSectionIds, isFilterable, sectionLabel } from "@/lib/dashboard/sections";
 import { Perm } from "@/types/permissions";
 
 interface FilterRowProps {
@@ -63,34 +63,31 @@ export function FilterRow({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
-              {sections
-                .filter((section) => section.titleKey !== null)
-                .map((section) => {
-                  const checked =
-                    selectedSections === null || selectedSections.includes(section.id);
-                  return (
-                    <DropdownMenuCheckboxItem
-                      key={section.id}
-                      checked={checked}
-                      onCheckedChange={(next) => {
-                        const current =
-                          selectedSections === null ? [...filterable] : [...selectedSections];
-                        const updated = next
-                          ? [...current, section.id]
-                          : current.filter((id) => id !== section.id);
-                        // Deselecting everything means "no filter", never an
-                        // empty page - same rule the URL parser applies.
-                        onSectionsChange(
-                          updated.length === 0 || updated.length === filterable.length
-                            ? null
-                            : updated,
-                        );
-                      }}
-                    >
-                      {t(`sections.${section.titleKey}`)}
-                    </DropdownMenuCheckboxItem>
-                  );
-                })}
+              {sections.filter(isFilterable).map((section) => {
+                const checked = selectedSections === null || selectedSections.includes(section.id);
+                return (
+                  <DropdownMenuCheckboxItem
+                    key={section.id}
+                    checked={checked}
+                    onCheckedChange={(next) => {
+                      const current =
+                        selectedSections === null ? [...filterable] : [...selectedSections];
+                      const updated = next
+                        ? [...current, section.id]
+                        : current.filter((id) => id !== section.id);
+                      // Deselecting everything means "no filter", never an
+                      // empty page - same rule the URL parser applies.
+                      onSectionsChange(
+                        updated.length === 0 || updated.length === filterable.length
+                          ? null
+                          : updated,
+                      );
+                    }}
+                  >
+                    {sectionLabel(section, t)}
+                  </DropdownMenuCheckboxItem>
+                );
+              })}
             </DropdownMenuContent>
           </DropdownMenu>
         ) : null}
