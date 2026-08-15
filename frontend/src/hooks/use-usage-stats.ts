@@ -25,7 +25,7 @@ export function useUsageStats(
   options?: { scope?: UsageScope; enabled?: boolean },
 ) {
   const scope = options?.scope ?? "org";
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, isPlaceholderData, error, refetch } = useQuery({
     queryKey: qk.stats.usage(scope, period.from, period.to),
     queryFn: () =>
       apiClient.get<UsageStats>("/stats/usage", {
@@ -34,7 +34,11 @@ export function useUsageStats(
     enabled: options?.enabled ?? true,
     ...DASHBOARD_FRESHNESS,
   });
-  return { usage: data ?? null, isLoading, error, refetch };
+  // `isPlaceholderData` is "this is the previous window's answer, still on
+  // screen" - which the caller shows as stale rather than as loading. It is
+  // false on the first load, when there is nothing to hold and a skeleton is
+  // the honest state.
+  return { usage: data ?? null, isLoading, isStale: isPlaceholderData, error, refetch };
 }
 
 /** Per-version rows for one agent - the version-compare card's question. */

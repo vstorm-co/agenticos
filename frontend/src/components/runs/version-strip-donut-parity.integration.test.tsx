@@ -79,6 +79,7 @@ beforeEach(() => {
   vi.mocked(useUsageStats).mockReturnValue({
     usage: USAGE,
     isLoading: false,
+    isStale: false,
     error: null,
     refetch: vi.fn(),
   } as ReturnType<typeof useUsageStats>);
