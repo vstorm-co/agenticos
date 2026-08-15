@@ -20,16 +20,23 @@ from __future__ import annotations
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
+from decimal import Decimal
 from typing import TYPE_CHECKING, Literal
 
 from app.core.exceptions import AuthorizationError, ValidationError
 from app.core.permissions import Perm
-from app.repositories import agent_run_repo, member_repo, message_rating_repo
+from app.repositories import (
+    agent_run_repo,
+    ingestion_spend_repo,
+    member_repo,
+    message_rating_repo,
+)
 from app.schemas.stats import (
     ActiveUsers,
     AgentCount,
     CostBlock,
     DayCount,
+    HourCount,
     LatencyMs,
     ModelCount,
     PersonUsageRow,
@@ -152,13 +159,19 @@ class StatsService:
             self.db, organization_id=org, start=prev_start, end=prev_end, user_id=user_id
         )
 
-        day_counts = dict(
-            await agent_run_repo.runs_by_day(
+        day_rows = {
+            row[0]: row
+            for row in await agent_run_repo.runs_by_day(
                 self.db, organization_id=org, start=window.start, end=window.end, user_id=user_id
             )
-        )
+        }
         by_day = [
-            DayCount(date=day, runs=day_counts.get(day, 0))
+            DayCount(
+                date=day,
+                runs=day_rows[day][1] if day in day_rows else 0,
+                completed=day_rows[day][2] if day in day_rows else 0,
+                cost_usd=day_rows[day][3] if day in day_rows else Decimal(0),
+            )
             for day in _each_day(window.from_date, window.to_date)
         ]
 
@@ -210,13 +223,36 @@ class StatsService:
             p95=round(p95) if p95 is not None else None,
         )
 
+        # The whole bill, not the model half of it. `organization_spend_since`
+        # has always measured a monthly cap on runs *plus* ingestion, so a
+        # dashboard reporting runs alone put two definitions of cost on one
+        # card - the headline and the month-to-date line under it - with
+        # nothing saying which was which.
+        #
+        # Ingestion is the organization's, never one person's: a document is
+        # indexed by a worker, and `ingestion_spend` records no user. So a
+        # `scope=own` window reports the caller's model spend and no ingestion
+        # rather than billing them for a collection somebody else synced.
+        model_usd = await agent_run_repo.sum_cost_window(
+            self.db, organization_id=org, start=window.start, end=window.end, user_id=user_id
+        )
+        previous_model_usd = await agent_run_repo.sum_cost_window(
+            self.db, organization_id=org, start=prev_start, end=prev_end, user_id=user_id
+        )
+        ingestion_usd = Decimal(0)
+        previous_ingestion_usd = Decimal(0)
+        if user_id is None:
+            ingestion_usd = await ingestion_spend_repo.sum_cost_window(
+                self.db, organization_id=org, start=window.start, end=window.end
+            )
+            previous_ingestion_usd = await ingestion_spend_repo.sum_cost_window(
+                self.db, organization_id=org, start=prev_start, end=prev_end
+            )
         cost = CostBlock(
-            period_usd=await agent_run_repo.sum_cost_window(
-                self.db, organization_id=org, start=window.start, end=window.end, user_id=user_id
-            ),
-            previous_period_usd=await agent_run_repo.sum_cost_window(
-                self.db, organization_id=org, start=prev_start, end=prev_end, user_id=user_id
-            ),
+            period_usd=model_usd + ingestion_usd,
+            previous_period_usd=previous_model_usd + previous_ingestion_usd,
+            model_usd=model_usd,
+            ingestion_usd=ingestion_usd,
             by_provider=[
                 ProviderCost(provider=provider, cost_usd=cost_usd)
                 for provider, cost_usd in await agent_run_repo.cost_by_provider_window(
@@ -258,6 +294,43 @@ class StatsService:
             cost=cost,
             active_users=active_users,
             pending_approvals=pending_approvals,
+        )
+
+    async def usage_by_hour(
+        self,
+        ctx: AuthContext,
+        *,
+        scope: UsageScope = "org",
+        from_date: date | None = None,
+        to_date: date | None = None,
+    ) -> UsageStats:
+        """When the window's runs happened, by weekday and hour.
+
+        Fills only the envelope and `by_hour`, for the same reason
+        :meth:`usage_by_version` fills only its own block: it is a different
+        question about the same window, and a hundred and sixty-eight cells do
+        not belong in every dashboard load.
+
+        Sparse, and deliberately so - a slot nobody ever ran in is absent, and
+        the client draws an empty cell for it.
+        """
+        user_id = self._scope_filter(ctx, scope)
+        window = resolve_window(from_date, to_date)
+
+        rows = await agent_run_repo.runs_by_hour(
+            self.db,
+            organization_id=ctx.organization_id,
+            start=window.start,
+            end=window.end,
+            user_id=user_id,
+        )
+        return UsageStats(
+            from_date=window.from_date,
+            to_date=window.to_date,
+            scope=scope,
+            by_hour=[
+                HourCount(weekday=weekday, hour=hour, runs=runs) for weekday, hour, runs in rows
+            ],
         )
 
     async def usage_by_version(

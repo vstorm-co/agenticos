@@ -972,8 +972,13 @@ async def runs_by_day(
     start: datetime,
     end: datetime,
     user_id: UUID | None = None,
-) -> list[tuple[date, int]]:
-    """Sparse (day, count) buckets; the caller zero-fills the window.
+) -> list[tuple[date, int, int, Decimal]]:
+    """Sparse (day, runs, completed, cost) buckets; the caller zero-fills.
+
+    Three measures from the one scan rather than three scans: a day's runs, how
+    many of them completed, and what they cost. They are what the dashboard's
+    figures draw their sparklines from, and asking separately would be three
+    round trips for one set of rows.
 
     Bucketed in UTC explicitly rather than in the session's timezone, so the
     same row lands on the same day whatever the connection is configured to.
@@ -983,9 +988,50 @@ async def runs_by_day(
         organization_id=organization_id, start=start, end=end, user_id=user_id
     )
     result = await db.execute(
-        select(day, func.count(AgentRun.id)).where(*conditions).group_by(day).order_by(day)
+        select(
+            day,
+            func.count(AgentRun.id),
+            func.count(AgentRun.id).filter(AgentRun.status == RunStatus.COMPLETED.value),
+            func.coalesce(func.sum(AgentRun.cost_usd), 0),
+        )
+        .where(*conditions)
+        .group_by(day)
+        .order_by(day)
     )
-    return [(row[0], row[1]) for row in result.all()]
+    return [(row[0], row[1], row[2], row[3]) for row in result.all()]
+
+
+async def runs_by_hour(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    start: datetime,
+    end: datetime,
+    user_id: UUID | None = None,
+) -> list[tuple[int, int, int]]:
+    """Sparse (weekday, hour, runs) buckets - when the organization works.
+
+    Weekday is Postgres' `dow`: 0 is Sunday. The caller maps it to whatever its
+    locale calls the first day; storing the database's own answer keeps the
+    arithmetic in one place and out of the service.
+
+    In UTC for the same reason the daily buckets are, with the same
+    consequence: an organization spread across timezones reads its own rhythm
+    shifted, which is the honest answer until a run records where it came from.
+    """
+    stamp = func.timezone("UTC", AgentRun.started_at)
+    weekday = func.extract("dow", stamp)
+    hour = func.extract("hour", stamp)
+    conditions = _window_conditions(
+        organization_id=organization_id, start=start, end=end, user_id=user_id
+    )
+    result = await db.execute(
+        select(weekday, hour, func.count(AgentRun.id))
+        .where(*conditions)
+        .group_by(weekday, hour)
+        .order_by(weekday, hour)
+    )
+    return [(int(row[0]), int(row[1]), row[2]) for row in result.all()]
 
 
 async def runs_by_dimension(

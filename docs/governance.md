@@ -190,6 +190,21 @@ what a per-agent usage report or a budget alert on that agent fires on. The
 organization's monthly number also carries ingestion spend, which the per-agent
 number does not: indexing a shared knowledge base is nobody's agent's spend.
 
+**The dashboard's windowed figure carries it too.** `GET /stats/usage` answers a
+`cost` block for whatever period the filter chose, and that block is runs *plus*
+ingestion — the same arithmetic the monthly cap is measured with — with
+`model_usd` and `ingestion_usd` beside it so a reader can see where the money
+went without subtracting. It reported the model half alone until 0.0.152, which
+put two different definitions of cost on one card: the headline moved with the
+period filter and counted runs, while the month-to-date line under it counted
+the whole bill, and nothing said they were answering different questions. On a
+deployment that indexes documents they simply disagreed.
+
+At `scope=own` the ingestion half is zero rather than a share: a document is
+indexed by a worker and `ingestion_spend` records no user, so charging one
+person's window for a collection somebody else synced would be inventing their
+spend.
+
 **Every query has to say which of the two it is answering**, and the first column
 is the default. The month-to-date figure and the per-agent breakdown behind it
 exclude child rows, so they add up to the total printed above them — and the

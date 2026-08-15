@@ -47,10 +47,14 @@ def repos(monkeypatch: pytest.MonkeyPatch) -> dict[str, AsyncMock]:
         ("count_pending_approval_runs", 0),
         ("usage_by_version", []),
         ("usage_by_user", []),
+        ("runs_by_hour", []),
     ):
         mock = AsyncMock(return_value=value)
         monkeypatch.setattr(f"app.services.stats.agent_run_repo.{name}", mock)
         mocks[name] = mock
+    ingestion = AsyncMock(return_value=Decimal(0))
+    monkeypatch.setattr("app.services.stats.ingestion_spend_repo.sum_cost_window", ingestion)
+    mocks["ingestion_sum_cost_window"] = ingestion
     member_count = AsyncMock(return_value=0)
     monkeypatch.setattr("app.services.stats.member_repo.count_for_org", member_count)
     mocks["count_for_org"] = member_count
@@ -153,7 +157,7 @@ class TestTheScopeDecision:
 
 class TestTheComposedAnswer:
     async def test_days_with_no_runs_are_present_with_zero(self, repos) -> None:
-        repos["runs_by_day"].return_value = [(date(2026, 7, 2), 5)]
+        repos["runs_by_day"].return_value = [(date(2026, 7, 2), 5, 4, Decimal("1.25"))]
 
         result = await StatsService(MagicMock()).usage(
             _ctx(), from_date=date(2026, 7, 1), to_date=date(2026, 7, 3)
@@ -165,6 +169,50 @@ class TestTheComposedAnswer:
             (date(2026, 7, 2), 5),
             (date(2026, 7, 3), 0),
         ]
+
+    async def test_a_day_carries_what_completed_and_what_it_cost(self, repos) -> None:
+        # Three measures from one scan, so a figure's sparkline is free rather
+        # than three more round trips.
+        repos["runs_by_day"].return_value = [(date(2026, 7, 2), 5, 4, Decimal("1.25"))]
+
+        result = await StatsService(MagicMock()).usage(
+            _ctx(), from_date=date(2026, 7, 1), to_date=date(2026, 7, 2)
+        )
+
+        assert result.by_day is not None
+        empty, busy = result.by_day
+        assert (empty.runs, empty.completed, empty.cost_usd) == (0, 0, Decimal(0))
+        assert (busy.runs, busy.completed, busy.cost_usd) == (5, 4, Decimal("1.25"))
+
+    async def test_the_window_costs_models_plus_ingestion(self, repos) -> None:
+        # The defect this fixes: the headline was models alone while the
+        # month-to-date line beside it was the whole bill, and nothing on the
+        # card said they were different questions.
+        repos["sum_cost_window"].side_effect = [Decimal("2.00"), Decimal("1.00")]
+        repos["ingestion_sum_cost_window"].side_effect = [Decimal("0.50"), Decimal("0.25")]
+
+        result = await StatsService(MagicMock()).usage(_ctx())
+
+        assert result.cost is not None
+        assert result.cost.model_usd == Decimal("2.00")
+        assert result.cost.ingestion_usd == Decimal("0.50")
+        assert result.cost.period_usd == Decimal("2.50")
+        # The previous window is the whole bill too, or the change compares a
+        # bill against half of one.
+        assert result.cost.previous_period_usd == Decimal("1.25")
+
+    async def test_own_scope_is_not_billed_for_the_organizations_indexing(self, repos) -> None:
+        # `ingestion_spend` records no user - a document is indexed by a worker -
+        # so charging a member's own window for a collection somebody else
+        # synced would be inventing their spend.
+        repos["sum_cost_window"].return_value = Decimal("2.00")
+
+        result = await StatsService(MagicMock()).usage(_ctx(), scope="own")
+
+        assert result.cost is not None
+        assert result.cost.ingestion_usd == Decimal(0)
+        assert result.cost.period_usd == Decimal("2.00")
+        repos["ingestion_sum_cost_window"].assert_not_called()
 
     async def test_the_previous_total_is_asked_of_the_previous_window(self, repos) -> None:
         repos["count_runs"].side_effect = [40, 31]
@@ -305,6 +353,39 @@ class TestVersionGrouping:
             await StatsService(MagicMock()).usage_by_version(
                 _ctx(role=OrgRoleName.MEMBER.value), agent_id=uuid4(), scope="org"
             )
+
+
+class TestHourGrouping:
+    async def test_cells_carry_the_weekday_and_hour_the_database_answered(self, repos) -> None:
+        repos["runs_by_hour"].return_value = [(0, 9, 4), (3, 14, 11)]
+
+        result = await StatsService(MagicMock()).usage_by_hour(_ctx())
+
+        assert result.by_hour is not None
+        assert [(cell.weekday, cell.hour, cell.runs) for cell in result.by_hour] == [
+            (0, 9, 4),
+            (3, 14, 11),
+        ]
+
+    async def test_the_envelope_skips_the_composed_blocks(self, repos) -> None:
+        # A different question about the same window: computing eight answers
+        # nobody asked for would be waste dressed as consistency.
+        result = await StatsService(MagicMock()).usage_by_hour(_ctx())
+
+        assert result.total_runs is None
+        assert result.by_day is None
+        assert result.cost is None
+
+    async def test_own_scope_narrows_the_cells_to_the_caller(self, repos) -> None:
+        ctx = _ctx(role=OrgRoleName.MEMBER.value)
+
+        await StatsService(MagicMock()).usage_by_hour(ctx, scope="own")
+
+        assert repos["runs_by_hour"].await_args.kwargs["user_id"] == ctx.user_id
+
+    async def test_org_scope_still_demands_runs_view(self, repos) -> None:
+        with pytest.raises(AuthorizationError):
+            await StatsService(MagicMock()).usage_by_hour(_ctx(role=OrgRoleName.MEMBER.value))
 
 
 class TestPersonGrouping:

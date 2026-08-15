@@ -61,6 +61,7 @@ const USAGE = {
   agent_id: null,
   by_version: null,
   by_user: null,
+  by_hour: null,
 } satisfies UsageStats;
 
 const VERSION: VersionUsageRow = {
