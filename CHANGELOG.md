@@ -17,6 +17,32 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.153] - 2026-08-15
+
+The i18n guard stops reading a leading acronym as permission to skip the
+sentence behind it.
+
+### Fixed
+
+- **Prose whose first word is an acronym is reported again.**
+  `NOT_A_SENTENCE`'s second alternative was `[A-Z]{2,}\s` — written to exempt a
+  machine token, it exempted the whole string that token opened, so `API keys
+  are stored in the vault` left the sweep while `Provider keys are stored in
+  the vault` did not. A hole the width of a vocabulary, in a product whose copy
+  opens on `MCP`, `API`, `RAG`, `KB` and `JWT`. Anchoring the alternative on a
+  single lower-case word keeps the label it was written for — `MCP server`,
+  `AI agents` — and lets the prose through. This is the same mistake as #656,
+  one alternative to the left; both are anchored now, and `.claude/rules/frontend.md`
+  names both rather than only the first. (#678)
+- **A separator label may lead with an acronym.** Anchoring took away cover the
+  acronym branch had been giving by accident: the separator alternative accepts
+  only a title-case token on the left, so `URL / Endpoint` was exempt through
+  the acronym branch and would have started reporting as copy while
+  `Model / Provider` did not. Its left token now reads
+  `(?:[A-Z][a-z]+|[A-Z]{2,})`. Nothing in `src/` is written that way, so the
+  sweep was clean either way and this was found by review rather than by the
+  guard.
+
 ## [0.0.152] - 2026-08-15
 
 The dashboard is arrangeable, and it finally has a visual system to be
