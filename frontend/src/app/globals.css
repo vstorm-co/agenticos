@@ -91,12 +91,17 @@
      small and repeated - a bar list is six of them - and the loudest legal
      value is not the right one.
 
-     The track is the same ramp, several steps lighter (`dataviz`'s meter rule:
-     the unfilled part of a bar is a lighter step of the fill's own hue, never
-     a neutral alpha). It measures 1.19:1 light and 1.41:1 dark, which is
-     deliberately below any contrast floor: a track carries no value. It shows
-     a bar's extent, and every list that draws one also prints the number as
-     text beside it. */
+     The track is the same ramp, several steps away from the fill (`dataviz`'s
+     meter rule: the unfilled part of a bar is a step of the fill's own hue,
+     never a neutral alpha) - lighter in light, darker in dark, because what a
+     track has to be is *quieter than its surface's opposite*, not lighter in
+     the abstract. It measures 1.19:1 light and 1.11:1 dark, deliberately below
+     any contrast floor: a track carries no value. It shows a bar's extent, and
+     every list that draws one prints the number as text beside it.
+
+     `brand-900` was tried in dark and is why the pair is measured rather than
+     picked: at 1.41:1 it reads as a filled bar, so a provider that spent
+     nothing showed a full-width mark against $0.00. */
   --color-chart: var(--brand-500);
   --color-track: var(--brand-100);
 
@@ -197,7 +202,7 @@
     --color-border: oklch(28% 0.008 250);
     --color-input: oklch(27% 0.008 250);
     --color-chart: var(--brand-500);
-    --color-track: var(--brand-900);
+    --color-track: var(--brand-950);
   }
 }
 
@@ -230,7 +235,7 @@
   --color-border: oklch(28% 0.008 250);
   --color-input: oklch(27% 0.008 250);
   --color-chart: var(--brand-500);
-  --color-track: var(--brand-900);
+  --color-track: var(--brand-950);
 }
 
 /* =========================================================================
@@ -283,7 +288,7 @@
   --color-brand-subtle-hover: var(--brand-900);
   --color-brand-line: var(--brand-800);
   --color-chart: var(--brand-500);
-  --color-track: var(--brand-900);
+  --color-track: var(--brand-950);
 }
 
 @layer base {
