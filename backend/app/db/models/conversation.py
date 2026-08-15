@@ -196,6 +196,19 @@ class Message(Base, TimestampMixin):
     could not be read. Null means "not recorded" - a client draws nothing, because
     "$0.0000" under an answer that cost money is worse than saying nothing."""
 
+    cost_is_partial: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    """Whether `cost_usd` is a floor rather than the whole of it.
+
+    Set when the turn reached a model `genai-prices` has no entry for: the ledger
+    books that request with `cost_usd = 0` and `priced = False`, so the total is
+    short by however much it cost. `agent_runs` has recorded this since it existed;
+    a message did not, and an answer whose real cost is unknown rendered exactly
+    like one measured to the cent (#772).
+
+    Null is "not recorded", the same as the three columns above: every message
+    written before this existed has no answer, and `false` would claim a precision
+    nobody measured. A client draws the caveat on `true` alone."""
+
     conversation: Mapped["Conversation"] = relationship("Conversation", back_populates="messages")
     tool_calls: Mapped[list["ToolCall"]] = relationship(
         "ToolCall",

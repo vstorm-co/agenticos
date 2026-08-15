@@ -21,6 +21,7 @@ import type {
   PendingApproval,
   AskUserQuestion,
   AskUserAnswer,
+  ConversationCost,
   Decision,
   Delegation,
   TurnUsage,
@@ -37,6 +38,7 @@ export function ChatContainer() {
   const {
     currentConversationId,
     currentMessages,
+    currentCost,
     isLoading: isConversationLoading,
   } = useConversationStore();
   const { addMessage: addChatMessage } = useChatStore();
@@ -221,6 +223,11 @@ export function ChatContainer() {
       // the transcript otherwise - which is what makes the strip appear on a
       // conversation somebody has just reopened instead of after their next message.
       lastUsage={lastUsage ?? latestUsage(currentMessages, currentConversationId)}
+      // Only for the thread that is actually open. The store keeps the transcript
+      // it last loaded, so between clicking another conversation and its messages
+      // arriving this figure belongs to the one just left - the same reason
+      // `latestUsage` is given the id rather than trusting the list.
+      conversationCost={currentConversationId === null ? null : currentCost}
       delegations={delegations}
       conversationId={currentConversationId}
       turns={turns}
@@ -255,6 +262,8 @@ interface ChatUIProps {
   isProcessing: boolean;
   /** What the last turn cost, drawn under the input. Null until one has run. */
   lastUsage: TurnUsage | null;
+  /** What the whole thread has cost, from the server. Null until a transcript loads. */
+  conversationCost: ConversationCost | null;
   /**
    * The turn's delegations, drawn under the transcript.
    *
@@ -303,6 +312,7 @@ function ChatUI({
   isConnected,
   isProcessing,
   lastUsage,
+  conversationCost,
   delegations,
   conversationId,
   turns,
@@ -417,7 +427,7 @@ function ChatUI({
                 {/* Under the input rather than over the transcript: it is about
                   the turn that just finished, and a strip above the messages
                   would move the conversation every time a number changed. */}
-                <UsageStrip usage={lastUsage} workspace={workspace} />
+                <UsageStrip usage={lastUsage} workspace={workspace} total={conversationCost} />
                 <ChatInput
                   onSend={sendMessage}
                   disabled={

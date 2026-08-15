@@ -234,7 +234,12 @@ async def list_messages(
         organization_id=active_org.id,
         user_id=current_user.id,
     )
-    return MessageList(items=items, total=total)  # ty: ignore[invalid-argument-type]
+    cost = await conversation_service.conversation_cost(
+        conversation_id,
+        organization_id=active_org.id,
+        user_id=current_user.id,
+    )
+    return MessageList(items=items, total=total, cost=cost)  # ty: ignore[invalid-argument-type]
 
 
 @router.post(

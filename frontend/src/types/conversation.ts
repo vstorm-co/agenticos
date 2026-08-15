@@ -48,6 +48,14 @@ export interface ConversationMessage {
    *  as one so a sum of a thousand turns cannot drift from the budget it is compared
    *  against. */
   cost_usd?: string | null;
+  /**
+   * Whether `cost_usd` is a floor rather than the whole of it.
+   *
+   * True when the turn reached a model with no price entry. Null on every
+   * message written before it was recorded, which is "not recorded" rather than
+   * "exact" - a client draws the caveat on `true` alone.
+   */
+  cost_is_partial?: boolean | null;
   /** Which configured agent answered. Null for the general assistant. */
   agent_id?: string | null;
   tool_calls?: ConversationToolCall[];

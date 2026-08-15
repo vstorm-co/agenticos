@@ -1,6 +1,7 @@
 """Tests for ConversationService (PostgreSQL async variant)."""
 
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
@@ -1403,3 +1404,53 @@ class TestConversationServiceLinkFiles:
 
         assert refusal.value.details == {"file_ids": [spent]}
         repo.link_to_message.assert_not_awaited()
+
+
+class TestWhatTheThreadCost:
+    """`conversation_cost` - the total beside the page of messages.
+
+    Scoped exactly as `list_messages` is, and for the same reason: a total is
+    enough to tell how heavily somebody else's conversation was used.
+    """
+
+    @pytest.fixture
+    def service(self) -> ConversationService:
+        return ConversationService(AsyncMock())
+
+    @pytest.mark.anyio
+    async def test_another_tenants_thread_is_not_totalled(self, service: ConversationService):
+        with patch("app.services.conversation.conversation_repo") as mock_repo:
+            mock_repo.get_conversation_by_id = AsyncMock(return_value=None)
+
+            with pytest.raises(NotFoundError):
+                await service.conversation_cost(uuid4(), organization_id=TEST_ORG_ID)
+
+    @pytest.mark.anyio
+    async def test_a_thread_nobody_measured_answers_nothing(self, service: ConversationService):
+        """Zeroes would be a claim, and this has none to make."""
+        conv_id = uuid4()
+        with patch("app.services.conversation.conversation_repo") as mock_repo:
+            mock_repo.get_conversation_by_id = AsyncMock(
+                return_value=MockConversation(id=conv_id, organization_id=TEST_ORG_ID)
+            )
+            mock_repo.conversation_cost = AsyncMock(return_value=None)
+
+            assert await service.conversation_cost(conv_id, organization_id=TEST_ORG_ID) is None
+
+    @pytest.mark.anyio
+    async def test_the_totals_reach_the_schema_the_client_reads(self, service: ConversationService):
+        conv_id = uuid4()
+        with patch("app.services.conversation.conversation_repo") as mock_repo:
+            mock_repo.get_conversation_by_id = AsyncMock(
+                return_value=MockConversation(id=conv_id, organization_id=TEST_ORG_ID)
+            )
+            mock_repo.conversation_cost = AsyncMock(
+                return_value=(3_000, 300, Decimal("0.030000"), True)
+            )
+
+            cost = await service.conversation_cost(conv_id, organization_id=TEST_ORG_ID)
+
+        assert cost is not None
+        assert (cost.input_tokens, cost.output_tokens) == (3_000, 300)
+        assert cost.cost_usd == Decimal("0.030000")
+        assert cost.cost_is_partial is True

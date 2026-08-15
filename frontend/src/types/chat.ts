@@ -201,6 +201,15 @@ export interface TurnUsage {
   input_tokens: number;
   output_tokens: number;
   cost_usd: number;
+  /**
+   * Whether `cost_usd` is a floor rather than the whole of it.
+   *
+   * True when the turn reached a model with no price entry: the ledger books
+   * that request at zero, so the figure is short by however much it cost. Drawn
+   * as a caveat rather than dropped - a number nobody can act on is still worth
+   * more than nothing, provided it does not claim to be exact.
+   */
+  cost_is_partial: boolean;
   budget_percent: number | null;
   /** This agent's own monthly cap, which is the one an author can raise. */
   agent_budget_percent: number | null;
@@ -211,6 +220,20 @@ export interface TurnUsage {
     bytes_limit: number | null;
     memory_bytes: number | null;
     memory_limit_bytes: number | null;
+  } | null;
+  /**
+   * How full the model's context window was on this turn's last request.
+   *
+   * The ceiling nobody sees coming: a budget refuses with a message and a
+   * workspace refuses a write, but a context window is refused by the provider
+   * mid-answer. `null` when no model request was made.
+   */
+  context: {
+    used_tokens: number;
+    window_tokens: number;
+    percent: number | null;
+    /** False when the window is an assumed default - the percentage is a guess. */
+    resolved: boolean;
   } | null;
 }
 
@@ -424,6 +447,16 @@ export interface SubagentCompleteFrame extends SubagentFrameBase {
   input_tokens: number | null;
   output_tokens: number | null;
   error: string | null;
+}
+
+/** What a whole conversation has cost, as `GET /conversations/{id}/messages` totals it. */
+export interface ConversationCost {
+  input_tokens: number;
+  output_tokens: number;
+  /** A string on the wire, because money is `Numeric`. */
+  cost_usd: string | number;
+  /** Null where no turn recorded the flag - "nobody knows", not "exact". */
+  cost_is_partial: boolean | null;
 }
 
 export type SubagentFrame =

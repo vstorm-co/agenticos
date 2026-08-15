@@ -531,18 +531,26 @@ would have hit the model's limit keeps working instead. The strategies come from
 
 | Config | Default | |
 |---|---|---|
-| `strategy` | `tiered` | `tiered`, `clear_tool_results`, `sliding_window`, `summarize` |
-| `max_fraction` | `0.8` | 0.05–0.95 of the window, at which compaction starts |
+| `strategy` | `summarize` | `summarize`, `tiered`, `clear_tool_results`, `sliding_window` |
+| `max_fraction` | `0.9` | 0.05–0.95 of the window, at which compaction starts |
 | `keep_messages` | 20 | recent messages that survive a summary or a window |
 | `keep_tool_pairs` | 3 | recent tool calls that keep their results |
 | `context_window` | unset | override the window in tokens |
 | `fallback_context_window` | 200000 | window to assume when the model's cannot be resolved |
 
-`tiered` clears old tool results first and summarises only if that was not
-enough. It is the default because summarising turns input tokens into output
-tokens, which are billed at a premium and generated serially — while a tool result
-that has already been acted on is dead weight, and clearing it costs a cache
-write.
+`summarize` is the default because it is the only strategy that keeps what the
+older turns *said*. The zero-LLM ones are cheaper because they throw information
+away — a sliding window drops the oldest messages outright, clearing a tool result
+blanks an answer the agent may still need — and an agent that silently forgets
+what it was told mid-run is a worse failure than a summary nobody asked for. It
+fires at 0.9 of the window for the same reason: compaction is where a run starts
+losing detail, so it is deferred until the window is nearly full.
+
+`tiered` is the frugal choice and one binding away: it clears old tool results
+first and pays for a summary only if that was not enough. Summarising turns input
+tokens into output tokens, which are billed at a premium and generated serially,
+so an agent whose runs are dominated by large tool results is usually better on
+`tiered`.
 
 **It reaches one run, not one conversation.** Between turns the history is rebuilt
 from the transcript as user and assistant text, so tool calls and their results

@@ -457,9 +457,15 @@ class TestATurnThatFinished:
                     "input_tokens": 1200,
                     "output_tokens": 340,
                     "cost_usd": 0.0042,
+                    # Beside the figure, because without it the figure lies on a
+                    # run that reached an unpriced model (#772).
+                    "cost_is_partial": False,
                     "budget_percent": 25,
                     "agent_budget_percent": None,
                     "sandbox": None,
+                    # Null where no model request was made, which is what a
+                    # `UsageReport` built by hand carries (#774).
+                    "context": None,
                 },
             },
         )

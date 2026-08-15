@@ -1,15 +1,25 @@
 "use client";
 
-import { Coins, HardDrive } from "lucide-react";
+import { Coins, Gauge, HardDrive, Receipt } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { cn } from "@/lib/utils";
 import type { ConversationWorkspace } from "@/lib/conversation-workspace-api";
-import type { TurnUsage } from "@/types";
+import type { ConversationCost, TurnUsage } from "@/types";
 
 interface UsageStripProps {
   /** The last turn's usage, or `null` before one has been measured. */
   usage: TurnUsage | null;
+  /**
+   * What the whole thread has cost, from the server rather than from the page.
+   *
+   * The last turn answers "what did that answer cost"; this answers "what has
+   * this conversation cost me", which is the question somebody actually asks
+   * before they stop using it. Summed server-side because the transcript is
+   * paged: adding up what is on screen would answer "the first hundred turns"
+   * under a label that says otherwise.
+   */
+  total?: ConversationCost | null;
   /**
    * The workspace as it stands *now*, which is not what a turn cost.
    *
@@ -53,6 +63,51 @@ function fillOf(
   };
 }
 
+/**
+ * How full the model's context window is, drawn beside how full the disk is.
+ *
+ * The ceiling nobody sees coming. A budget refuses with a message somebody can
+ * act on and a workspace refuses a write; a context window is refused by the
+ * *provider*, mid-answer, and the run simply fails. Seeing it climb is the
+ * difference — and it is what an agent with no compaction bound has instead of a
+ * safety net.
+ *
+ * Marked as an estimate when the window is not the model's real one. A confident
+ * "73%" measured against a number nobody could resolve is worse than an
+ * uncertain one, because it is acted on.
+ */
+function ContextFill({
+  percent,
+  resolved,
+  used,
+  window,
+}: {
+  percent: number;
+  resolved: boolean;
+  used: number;
+  window: number;
+}) {
+  const t = useTranslations("chat.usage");
+  const detail = { used, window };
+
+  return (
+    <span
+      className="flex items-center gap-1.5"
+      title={resolved ? t("contextOf", detail) : t("contextOfEstimated", detail)}
+    >
+      <Gauge className="h-3 w-3" aria-hidden />
+      <span
+        className={cn(
+          percent >= 90 && "text-destructive",
+          percent >= 75 && percent < 90 && "text-amber-600",
+        )}
+      >
+        {resolved ? t("contextFull", { percent }) : t("contextFullEstimated", { percent })}
+      </span>
+    </span>
+  );
+}
+
 /** Bytes as a person reads them. */
 function size(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -91,11 +146,39 @@ function reportedDetail(sandbox: NonNullable<TurnUsage["sandbox"]>, t: Translate
  * is anything to put in it: one line of `text-xs` is 1rem, which is exactly what the
  * populated row measures, so the composer is the same height before and after.
  */
-export function UsageStrip({ usage, workspace = null }: UsageStripProps) {
+export function UsageStrip({ usage, workspace = null, total = null }: UsageStripProps) {
   return (
     <div className="text-muted-foreground flex min-h-4 flex-wrap items-center gap-x-4 gap-y-1 px-1 text-xs">
       {usage !== null && <Measured usage={usage} workspace={workspace} />}
+      {total !== null && <ThreadTotal total={total} />}
     </div>
+  );
+}
+
+/**
+ * What the conversation has cost so far, beside what the last turn cost.
+ *
+ * Prefixed `≥` when any turn in it reached a model with no price entry: one
+ * unpriced request makes the whole total a floor, and a figure that quietly
+ * omits part of the bill is worse than one that admits to it.
+ */
+function ThreadTotal({ total }: { total: ConversationCost }) {
+  const t = useTranslations("chat.usage");
+  const partial = total.cost_is_partial === true;
+  const values = {
+    count: total.input_tokens + total.output_tokens,
+    cost: Number(total.cost_usd).toFixed(4),
+  };
+  const detail = { input: total.input_tokens, output: total.output_tokens };
+
+  return (
+    <span
+      className="flex items-center gap-1.5"
+      title={partial ? t("threadTotalPartialDetail", detail) : t("threadTotalDetail", detail)}
+    >
+      <Receipt className="h-3 w-3" aria-hidden />
+      {partial ? t("threadTotalPartial", values) : t("threadTotal", values)}
+    </span>
   );
 }
 
@@ -121,7 +204,9 @@ function Measured({
         })}
       >
         <Coins className="h-3 w-3" aria-hidden />
-        {t("tokensAndCost", { count: tokens, cost: usage.cost_usd.toFixed(4) })}
+        {usage.cost_is_partial
+          ? t("tokensAndCostPartial", { count: tokens, cost: usage.cost_usd.toFixed(4) })
+          : t("tokensAndCost", { count: tokens, cost: usage.cost_usd.toFixed(4) })}
         {/* The agent's own cap first: it is the one whoever is looking at this
             agent can raise. The organization's stops every agent at once and is
             somebody else's to change, so it is only worth the space once it is
@@ -135,6 +220,15 @@ function Measured({
           <span className="text-amber-600">{t("orgShare", { percent: usage.budget_percent })}</span>
         )}
       </span>
+
+      {usage.context !== null && usage.context.percent !== null && (
+        <ContextFill
+          percent={usage.context.percent}
+          resolved={usage.context.resolved}
+          used={usage.context.used_tokens}
+          window={usage.context.window_tokens}
+        />
+      )}
 
       {fill !== null && (
         <span className="flex items-center gap-1.5" title={fill.detail}>

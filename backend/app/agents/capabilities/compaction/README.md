@@ -19,28 +19,33 @@ That is not the limitation it sounds like. The history worth compacting is the
 hundred-step tool loop `DEFAULT_MAX_STEPS` allows, where a single directory
 listing or knowledge search is tens of thousands of tokens; a conversation's
 turns are text and are small. It does mean a summary is paid for once per run
-rather than amortised across a thread, which is why the default strategy spends
-the cheap passes first.
+rather than amortised across a thread. It also fires late: at 0.9 of the window,
+because compaction is the point at which a run starts losing detail and that is
+worth deferring until the window is nearly full.
 
 ## The strategies
 
 | `strategy` | Cost | What it does |
 |---|---|---|
-| `tiered` *(default)* | escalates | Clears old tool results; summarises only if still over target |
+| `summarize` *(default)* | one model call | Summarises older messages, keeping the recent tail |
+| `tiered` | escalates | Clears old tool results; summarises only if still over target |
 | `clear_tool_results` | zero-LLM | Blanks the content of old tool results, keeping the last few pairs |
 | `sliding_window` | zero-LLM | Drops the oldest whole messages down to a tail |
-| `summarize` | one model call | Summarises older messages, keeping the recent tail |
 
-`tiered` is the default because summarising turns input tokens into output
-tokens, which are billed at a premium and generated serially. A tool result that
-has already been acted on is dead weight, and clearing it costs a cache write.
+`summarize` is the default because it is the only one that keeps what the older
+turns *said*. The zero-LLM strategies are cheaper because they throw information
+away — a sliding window drops the oldest messages outright, and clearing a tool
+result blanks an answer the agent may still need — and an agent that silently
+forgets what it was told mid-run is a worse failure than a summary nobody asked
+for. `tiered` is the frugal choice and one binding away; it costs the summary
+only when clearing was not enough.
 
 ## Configuration
 
 | Field | Default | What it is |
 |---|---|---|
-| `strategy` | `tiered` | Which of the four above |
-| `max_fraction` | `0.8` | Fraction of the window at which compaction starts |
+| `strategy` | `summarize` | Which of the four above |
+| `max_fraction` | `0.9` | Fraction of the window at which compaction starts |
 | `keep_messages` | `20` | Recent messages that survive a summary or a window |
 | `keep_tool_pairs` | `3` | Recent tool calls that keep their results |
 | `context_window` | *(unset)* | Override the window in tokens |

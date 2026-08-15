@@ -5,6 +5,7 @@ interface Measured {
   input_tokens?: number | null;
   output_tokens?: number | null;
   cost_usd?: string | null;
+  cost_is_partial?: boolean | null;
 }
 
 /**
@@ -28,9 +29,19 @@ export function storedUsage(message: Measured): TurnUsage | null {
     output_tokens: message.output_tokens,
     // A string from the API, because money is `Numeric` on the wire.
     cost_usd: message.cost_usd == null ? 0 : Number(message.cost_usd),
+    // Null is "not recorded", which is every message written before the column
+    // existed. Drawn like an exact figure, because that is what it was drawn as
+    // before and nobody can say otherwise about it now - the caveat is a claim
+    // too, and `true` is the only one this knows to be right.
+    cost_is_partial: message.cost_is_partial === true,
     budget_percent: null,
     agent_budget_percent: null,
     sandbox: null,
+    // Not a property of the answer: how full the window was is a fact about the
+    // run that produced it, and a run's context is gone by the time anybody
+    // reopens the thread. Drawing last month's fill under an old message would
+    // be a number that was never true afterwards.
+    context: null,
   };
 }
 

@@ -36,6 +36,8 @@ from pydantic_ai.usage import RequestUsage, RunUsage
 from pydantic_ai_harness.compaction import (
     DEFAULT_CONTEXT_WINDOW,
     ClearToolResults,
+    ContextUsage,
+    ReportContextUsage,
     SlidingWindowCompaction,
     SummarizingCompaction,
     TieredCompaction,
@@ -54,7 +56,7 @@ model. `CompactionConfig.context_window` still beats it, for the deployment that
 knows better than both the provider and us.
 """
 
-StrategyName = Literal["tiered", "clear_tool_results", "sliding_window", "summarize"]
+StrategyName = Literal["summarize", "tiered", "clear_tool_results", "sliding_window"]
 """Which strategy a binding picked.
 
 Stored in published specs and exported into a client's git repository, so these
@@ -79,7 +81,7 @@ class CompactionConfig(BaseModel):
     """
 
     strategy: StrategyName = Field(
-        default="tiered",
+        default="summarize",
         description="Which strategy to apply when the history approaches the window",
         # What the Builder puts in the picker. The values are spec format and
         # cannot say what they do; `clear_tool_results` in a dropdown is a
@@ -87,15 +89,15 @@ class CompactionConfig(BaseModel):
         # the one that picks `summarize`. See `x-enum-labels` in `schema-form`.
         json_schema_extra={
             "x-enum-labels": {
-                "tiered": "Tiered - clear tool results first, summarise only if needed",
+                "summarize": "Summarise older messages, keeping what they said",
+                "tiered": "Clear old tool results first, summarise only if that was not enough",
                 "clear_tool_results": "Clear old tool results - no model call",
                 "sliding_window": "Drop the oldest messages - no model call",
-                "summarize": "Summarise older messages - one model call per run",
             }
         },
     )
     max_fraction: float = Field(
-        default=0.8,
+        default=0.9,
         ge=0.05,
         le=0.95,
         description="Fraction of the model's context window at which compaction starts",
@@ -129,10 +131,17 @@ def build_strategy(
 ) -> AbstractCapability[Any]:
     """The harness strategy this configuration asks for.
 
-    `tiered` is the default because summarising is the expensive answer and the
-    cheap one usually suffices: a tool result that has already been acted on is
-    dead weight, and clearing it costs nothing but a cache write. The summary
-    tier is only reached when clearing did not get the history under the target.
+    `summarize` is the default because it is the only one that keeps what the
+    older turns *said*. The zero-LLM strategies are cheaper because they throw
+    information away - a sliding window drops the oldest messages outright, and
+    clearing a tool result blanks an answer the agent may still need - and an
+    agent that silently forgets what it was told mid-run is a worse failure than
+    a summary nobody asked for. `tiered` is the frugal choice, and one binding
+    away.
+
+    At 0.9 of the window rather than lower, for the same reason: compaction is
+    the point at which a run starts losing detail, so it is worth deferring
+    until the window is nearly full.
 
     Every strategy is handed `max_fraction` rather than an absolute token count,
     including the tiers inside `tiered` whose own triggers the orchestrator
@@ -185,6 +194,46 @@ def build_strategy(
         context_window=window,
         fallback_context_window=fallback,
     )
+
+
+@dataclass
+class ContextGauge:
+    """The newest reading of how full the run's context is.
+
+    A mutable holder rather than a callback into the runner, for the reason the
+    ledger is one: the capability is built while the agent is assembled and the
+    reading is wanted when the turn ends, which is two layers and one `finally`
+    apart. The caller reads `latest` after the run the way it reads the ledger's
+    total.
+
+    `None` means no request was made - a run refused before it reached a model.
+    """
+
+    latest: ContextUsage | None = None
+
+    def record(self, usage: ContextUsage) -> None:
+        """Keep the newest reading, discarding the one before it.
+
+        The newest is the only one worth keeping: a gauge answers "how full is it
+        now", and a run's earlier readings are a history nobody draws. It is also
+        the reading taken *after* any compaction this cycle, because the gauge is
+        ordered behind the compaction capability.
+        """
+        self.latest = usage
+
+
+def build_gauge(
+    gauge: ContextGauge, *, recorded_window: int | None = None
+) -> ReportContextUsage[Any]:
+    """The capability that fills `gauge`, reading the same window compaction does.
+
+    Attached to every agent, not only to one that compacts. The warning is most
+    useful to exactly the agent that will *not* compact - it is the one that
+    reaches the ceiling and gets refused - and the reading carries `resolved`, so
+    a surface can say when the denominator is a guess rather than draw a
+    confident percentage against a window nobody knows.
+    """
+    return ReportContextUsage(on_usage=gauge.record, context_window=recorded_window)
 
 
 @dataclass

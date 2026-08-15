@@ -603,9 +603,11 @@ describe("what a turn cost, under the turn", () => {
     input_tokens: 1200,
     output_tokens: 300,
     cost_usd: 0.0125,
+    cost_is_partial: false,
     budget_percent: null,
     agent_budget_percent: null,
     sandbox: null,
+    context: null,
   };
 
   it("prices an assistant answer where the answer is", () => {
@@ -755,9 +757,11 @@ describe("the footer of a turn drawn in several messages", () => {
     input_tokens: 6603,
     output_tokens: 189,
     cost_usd: 0.0133,
+    cost_is_partial: false,
     budget_percent: null,
     agent_budget_percent: null,
     sandbox: null,
+    context: null,
   };
 
   it("says nothing under a segment the turn continues past", () => {

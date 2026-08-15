@@ -4,16 +4,20 @@ from app.agents.capabilities._registry import CapabilityBuildContext, register
 from app.agents.capabilities.compaction._capability import (
     MODEL_CONTEXT_WINDOW_RESOURCE,
     CompactionConfig,
+    ContextGauge,
     MeteredCompaction,
     StrategyName,
+    build_gauge,
     build_strategy,
 )
 
 __all__ = [
     "MODEL_CONTEXT_WINDOW_RESOURCE",
     "CompactionConfig",
+    "ContextGauge",
     "MeteredCompaction",
     "StrategyName",
+    "build_gauge",
     "build_strategy",
 ]
 

@@ -128,6 +128,14 @@ class MessageCreate(MessageBase):
     cost_usd: Decimal | None = Field(
         default=None, ge=0, description="What this turn cost, at the same scale as a run's"
     )
+    cost_is_partial: bool | None = Field(
+        default=None,
+        description=(
+            "Whether `cost_usd` is a floor. True when the turn reached a model with no "
+            "price entry, whose request the ledger books at zero. Null means not "
+            "recorded, not exact."
+        ),
+    )
     agent_id: UUID | None = Field(
         default=None, description="The configured agent that answered, when one did"
     )
@@ -199,6 +207,15 @@ class MessageRead(MessageBase, TimestampSchema):
     )
     output_tokens: int | None = None
     cost_usd: Decimal | None = None
+    cost_is_partial: bool | None = Field(
+        default=None,
+        description=(
+            "Whether `cost_usd` is a floor rather than the whole of it - true when this "
+            "turn reached a model with no price entry. Null means not recorded, which is "
+            "what every message written before this was carried says, and is not the "
+            "same claim as `false`."
+        ),
+    )
     agent_id: UUID | None = None
     agent_version_id: UUID | None = None
     agent_version: int | None = Field(
@@ -287,8 +304,37 @@ class ConversationList(BaseSchema):
     total: int
 
 
+class ConversationCost(BaseSchema):
+    """What a whole thread has cost, added up across every turn in it.
+
+    Beside the page of messages rather than computed from it: the transcript is
+    paged, so a client adding up what it was handed answers "the first hundred
+    turns" under a label that says "this conversation".
+    """
+
+    input_tokens: int
+    output_tokens: int
+    cost_usd: Decimal
+    cost_is_partial: bool | None = Field(
+        default=None,
+        description=(
+            "Whether the total is a floor - true when any turn reached a model with no "
+            "price entry. Null where no turn recorded the flag at all, which is 'nobody "
+            "knows' rather than 'exact'."
+        ),
+    )
+
+
 class MessageList(BaseSchema):
     """Schema for listing messages."""
 
     items: list[MessageRead]
     total: int
+    cost: ConversationCost | None = Field(
+        default=None,
+        description=(
+            "What the whole conversation has cost. Null when nothing in it was ever "
+            "measured - a thread older than the columns, or one whose every turn failed "
+            "before a cost could be read. Zeroes would be a claim this has none to make."
+        ),
+    )

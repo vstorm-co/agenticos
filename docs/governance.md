@@ -72,6 +72,34 @@ against the same meter. Being *outside* the guard has one consequence worth
 knowing: the spend is recorded rather than refused, so a compaction that crosses a
 cap stops the run on the request after it.
 
+### A cost that could not be measured says so
+
+`genai-prices` does not know every model. When a run reaches one it has no entry
+for, that request is booked at zero and the run is marked `cost_is_partial` — the
+total is short by exactly what those requests cost, and the honest reading of it
+is a **floor**.
+
+That flag now travels the whole way down. It is on the run row, on the message
+row a turn writes, and on the total a conversation reports; every surface that
+draws money draws `≥` in front of it rather than a figure that reads as exact.
+Null on a message written before the column existed means *not recorded*, which
+is not the same claim as "exact" — a client marks only what it knows.
+
+### How full the context window is
+
+The third ceiling, and the one nobody sees coming. A budget refuses with a
+message somebody can act on. A workspace refuses a write. A **context window** is
+refused by the provider, mid-answer, and the run simply fails.
+
+Every agent therefore carries a gauge — not only one with
+[context management](reference/capabilities.md#context-management) bound, because
+the warning matters most to the agent that will *not* compact. It reports how
+full the window was before the last request of a turn, measured against the
+window the model profile recorded, and says whether that window was the model's
+real one. Where it was not, the share is drawn as an estimate: a confident
+percentage against a number nobody could resolve is worse than an uncertain one,
+because it gets acted on.
+
 ### Delegation spends the parent's budget
 
 A run can contain another agent's whole conversation - see

@@ -25,13 +25,17 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from pydantic_ai_harness.compaction import ContextUsage
 
+from app.agents.capabilities.compaction import ContextGauge
 from app.core.permissions import AuthContext, OrgRoleName
 from app.repositories import agent_workspace_repo
 from app.services.usage_report import (
+    ContextFill,
     SandboxUsage,
     UsageReport,
     UsageReportService,
+    context_fill,
     format_footer,
     needs_sandbox_sample,
     should_report,
@@ -388,3 +392,61 @@ class TestTheFrameAChatReads:
         assert frame is not None
         assert frame["sandbox"]["kind"] == "service"
         assert frame["sandbox"]["percent"] == 25
+
+
+class TestHowFullTheContextWas:
+    """The ceiling nobody sees coming.
+
+    A budget refuses with a message somebody can act on and a workspace refuses a
+    write; a context window is refused by the *provider*, mid-answer. The number
+    is free - the compaction capability's estimator has already computed it for
+    its own trigger - so the only work is carrying it honestly.
+    """
+
+    def test_a_reading_becomes_a_share_of_the_window(self):
+        fill = ContextFill(used_tokens=150_000, window_tokens=200_000, resolved=True)
+
+        assert fill.percent == 75
+
+    def test_a_window_of_nothing_has_no_share_to_report(self):
+        """`None` rather than a division by zero or a confident 0%."""
+        fill = ContextFill(used_tokens=10, window_tokens=0, resolved=False)
+
+        assert fill.percent is None
+
+    def test_a_run_that_made_no_request_reports_no_reading(self):
+        """Refused before it started, or stopped by a budget on the first check.
+        A gauge with nothing in it is not a context that was empty."""
+        assert context_fill(ContextGauge()) is None
+
+    def test_the_gauges_newest_reading_is_the_one_reported(self):
+        gauge = ContextGauge()
+        gauge.record(ContextUsage(used_tokens=10, window_tokens=100, resolved=True))
+        gauge.record(ContextUsage(used_tokens=40, window_tokens=100, resolved=True))
+
+        fill = context_fill(gauge)
+
+        assert fill is not None
+        assert (fill.used_tokens, fill.window_tokens, fill.resolved) == (40, 100, True)
+
+    def test_the_frame_carries_the_share_and_whether_it_is_a_guess(self):
+        """`resolved` is what lets a surface say the percentage is an estimate,
+        rather than draw a confident figure against a window nobody knows."""
+        frame = usage_frame(
+            _report(context=ContextFill(used_tokens=90, window_tokens=200, resolved=False))
+        )
+
+        assert frame is not None
+        assert frame["context"] == {
+            "used_tokens": 90,
+            "window_tokens": 200,
+            "percent": 45,
+            "resolved": False,
+        }
+
+    def test_a_frame_with_no_reading_says_so_rather_than_omitting_the_key(self):
+        """A client switching on the key must not have to tell absent from null."""
+        frame = usage_frame(_report())
+
+        assert frame is not None
+        assert frame["context"] is None

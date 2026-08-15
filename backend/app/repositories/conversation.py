@@ -586,6 +586,39 @@ async def count_messages(db: AsyncSession, conversation_id: UUID) -> int:
     return result.scalar() or 0
 
 
+async def conversation_cost(
+    db: AsyncSession, conversation_id: UUID
+) -> tuple[int, int, Decimal, bool | None] | None:
+    """Input tokens, output tokens, money and whether the money is a floor.
+
+    Aggregated here rather than summed by a client, because a client only holds
+    the page it asked for: the transcript endpoint pages at 100, so adding up
+    what is on screen answers "the first hundred turns" while reading as "this
+    conversation".
+
+    `None` when nothing in the thread was ever measured - a conversation older
+    than the columns, or one whose every turn failed before a cost was read.
+    Zeroes would be a claim, and this has none to make.
+
+    The partial flag is `bool_or`: one unpriced turn makes the whole total a
+    floor. It stays `None` where no turn recorded the flag at all, which is the
+    honest "nobody knows" rather than "exact".
+    """
+    result = await db.execute(
+        select(
+            func.coalesce(func.sum(Message.input_tokens), 0),
+            func.coalesce(func.sum(Message.output_tokens), 0),
+            func.coalesce(func.sum(Message.cost_usd), 0),
+            func.bool_or(Message.cost_is_partial),
+            func.count(Message.input_tokens),
+        ).where(Message.conversation_id == conversation_id)
+    )
+    input_tokens, output_tokens, cost_usd, partial, measured = result.one()
+    if not measured:
+        return None
+    return int(input_tokens), int(output_tokens), Decimal(cost_usd), partial
+
+
 async def get_recent_messages(
     db: AsyncSession, conversation_id: UUID, *, limit: int
 ) -> list[Message]:
@@ -651,6 +684,7 @@ async def create_message(
     input_tokens: int | None = None,
     output_tokens: int | None = None,
     cost_usd: Decimal | None = None,
+    cost_is_partial: bool | None = None,
     agent_id: UUID | None = None,
     agent_version_id: UUID | None = None,
     run_id: UUID | None = None,
@@ -669,6 +703,7 @@ async def create_message(
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         cost_usd=cost_usd,
+        cost_is_partial=cost_is_partial,
         agent_id=agent_id,
         agent_version_id=agent_version_id,
         run_id=run_id,

@@ -321,6 +321,7 @@ async def resume_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
         output=segment.output,
         status=run.status,
         cost_usd=run.cost_usd,
+        cost_is_partial=run.cost_is_partial,
         input_tokens=run.input_tokens,
         output_tokens=run.output_tokens,
         # What the continuation actually did. Nothing else carries it: the run

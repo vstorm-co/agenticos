@@ -36,7 +36,11 @@ from app.agents.capabilities.budget import (
     SpendLedger,
     SpendLimit,
 )
-from app.agents.capabilities.compaction import MODEL_CONTEXT_WINDOW_RESOURCE
+from app.agents.capabilities.compaction import (
+    MODEL_CONTEXT_WINDOW_RESOURCE,
+    ContextGauge,
+    build_gauge,
+)
 from app.agents.deps import AgentDeps, ApprovalCallback
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.observability import instrument_agent
@@ -72,6 +76,11 @@ class BuiltAgent:
     # needs the limits to explain a stopped run, and reaching into another
     # library's internals to find them would break on its next release.
     budget: BudgetGuard
+    # How full the context was before the last model request of this run. Read
+    # after the run, beside the ledger, and for the same reason: the surface that
+    # reports what a turn cost is the one that reports how close it came to the
+    # ceiling.
+    context: ContextGauge
     # The capabilities the spec asked for, without the two every agent gets.
     # Callers introspect what an agent can actually do without knowing which
     # entries the factory adds unconditionally.
@@ -214,6 +223,12 @@ def build_agent(
     # accident. The gate is attached even when nothing is gated, so that adding
     # a side-effecting capability to a spec is the only thing that has to be
     # right for approval to apply.
+    # Filled before every model request, read once the run is over. Behind the
+    # spec's own capabilities in the list, so the reading is of the history as it
+    # will be *sent* - a compaction ordered ahead of this one has already run,
+    # and reporting what triggered it instead would show a gauge that never falls.
+    gauge = ContextGauge()
+
     capabilities: list[Any] = [
         # Long conversations drift away from their instructions; re-stating the
         # system prompt is cheap insurance for an agent whose behaviour *is* its
@@ -222,6 +237,10 @@ def build_agent(
         budget,
         ApprovalGate(required_tool_names=approval_required),
         *configured,
+        # Every agent, not only one that compacts. The warning is most useful to
+        # exactly the agent that will not: it is the one that reaches the ceiling
+        # and gets refused by the provider.
+        build_gauge(gauge, recorded_window=model_spec.context_length),
     ]
 
     # Profile settings first, agent overrides second - the agent is the more
@@ -253,6 +272,7 @@ def build_agent(
         deps=deps,
         ledger=ledger,
         budget=budget,
+        context=gauge,
         capabilities=configured,
         model_label=model_spec.label,
         approval_required_tools=approval_required,

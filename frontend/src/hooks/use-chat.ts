@@ -891,11 +891,13 @@ export function useChat(options: UseChatOptions = {}) {
               input_tokens: resumed.input_tokens,
               output_tokens: resumed.output_tokens,
               cost_usd: Number(resumed.cost_usd),
+              cost_is_partial: resumed.cost_is_partial,
               // A resume is not told where the run stands against its budget, and
               // an invented percentage is worse than a bar that is not drawn.
               budget_percent: null,
               agent_budget_percent: null,
               sandbox: null,
+              context: null,
             },
             // The agent that was answering when the run parked. Without it the
             // continuation rendered under the generic robot with no name beside it,

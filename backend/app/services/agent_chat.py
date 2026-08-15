@@ -54,7 +54,7 @@ from app.services.agent_runner import (
     run_failure_summary,
 )
 from app.services.attachments import AttachmentRouter
-from app.services.usage_report import UsageReport, UsageReportService
+from app.services.usage_report import UsageReport, UsageReportService, context_fill
 
 logger = logging.getLogger(__name__)
 
@@ -445,6 +445,11 @@ class ChatAgentRunner:
                     else self._as_decimal(prepared.spec.budget.monthly_usd)
                 ),
                 include_sandbox=True,
+                # Read off the run's own gauge rather than recomputed: the
+                # compaction capability's estimator has already counted these
+                # tokens for its own trigger, against the window the profile
+                # recorded. A second count here would be a second answer.
+                context=context_fill(prepared.built.context),
             )
         except Exception:
             logger.warning("chat_usage_report_failed", extra={"run_id": str(prepared.run.id)})

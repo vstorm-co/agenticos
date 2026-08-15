@@ -85,9 +85,19 @@ class _Spender(AbstractCapability[Any]):
 
 
 class TestConfiguration:
-    def test_the_default_strategy_spends_the_cheap_passes_first(self):
-        """Summarising is the expensive answer, so it must not be the first one."""
-        assert isinstance(build_strategy(CompactionConfig()), TieredCompaction)
+    def test_the_default_strategy_keeps_what_the_old_turns_said(self):
+        """The cheap strategies are cheap because they throw information away.
+
+        A sliding window drops the oldest messages outright and clearing a tool
+        result blanks an answer the agent may still need; an agent that silently
+        forgets what it was told mid-run is a worse failure than a summary
+        nobody asked for.
+        """
+        assert isinstance(build_strategy(CompactionConfig()), SummarizingCompaction)
+
+    def test_compaction_is_deferred_until_the_window_is_nearly_full(self):
+        """It is the point at which a run starts losing detail, so it waits."""
+        assert CompactionConfig().max_fraction == 0.9
 
     @pytest.mark.parametrize(
         ("strategy", "expected"),

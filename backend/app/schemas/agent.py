@@ -323,6 +323,15 @@ class AgentRunResult(BaseSchema):
     output: str
     status: str
     cost_usd: Decimal
+    cost_is_partial: bool = Field(
+        default=False,
+        description=(
+            "Whether `cost_usd` is a floor - true when the run reached a model with no "
+            "price entry, whose request the ledger books at zero. The chat draws the "
+            "resumed turn's cost from here, so without it a continuation reports a "
+            "figure that lies where the parked half did not."
+        ),
+    )
     input_tokens: int
     output_tokens: int
     steps: list[RunStep] = Field(

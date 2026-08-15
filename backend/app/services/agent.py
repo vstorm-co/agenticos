@@ -379,6 +379,11 @@ async def persist_assistant_turn(
                     input_tokens=None if usage is None else usage.input_tokens,
                     output_tokens=None if usage is None else usage.output_tokens,
                     cost_usd=None if usage is None else usage.cost_usd,
+                    # Beside the total, because without it the total lies: a turn
+                    # that reached an unpriced model is booked at zero for that
+                    # request, and rendered identically to one measured exactly
+                    # (#772).
+                    cost_is_partial=None if usage is None else usage.cost_is_partial,
                 ),
             )
             for tc in collected_tool_calls:

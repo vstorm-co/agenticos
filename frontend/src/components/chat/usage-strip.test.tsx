@@ -10,9 +10,11 @@ function usage(overrides: Partial<TurnUsage> = {}): TurnUsage {
     input_tokens: 1200,
     output_tokens: 300,
     cost_usd: 0.0125,
+    cost_is_partial: false,
     budget_percent: null,
     agent_budget_percent: null,
     sandbox: null,
+    context: null,
     ...overrides,
   };
 }
@@ -32,6 +34,93 @@ function workspace(overrides: Partial<ConversationWorkspace> = {}): Conversation
 }
 
 describe("UsageStrip", () => {
+  it("draws what the whole thread has cost, beside what the last turn cost", () => {
+    // Two different questions. The turn answers "what did that answer cost"; the
+    // thread answers "what has this conversation cost me", which is the one
+    // somebody asks before they stop using it.
+    render(
+      <UsageStrip
+        usage={usage()}
+        total={{
+          input_tokens: 40_000,
+          output_tokens: 2_000,
+          cost_usd: "0.9100",
+          cost_is_partial: false,
+        }}
+      />,
+    );
+
+    expect(screen.getByText(/thread 42,000 tokens · \$0\.9100/)).toBeInTheDocument();
+  });
+
+  it("marks a thread total that is only a floor", () => {
+    // One unpriced request makes the whole total short, and a figure that omits
+    // part of the bill without saying so is worse than one that admits it.
+    render(
+      <UsageStrip
+        usage={usage()}
+        total={{
+          input_tokens: 40_000,
+          output_tokens: 2_000,
+          cost_usd: "0.9100",
+          cost_is_partial: true,
+        }}
+      />,
+    );
+
+    expect(screen.getByText(/thread 42,000 tokens · ≥ \$0\.9100/)).toBeInTheDocument();
+  });
+
+  it("draws how full the context window is", () => {
+    // The ceiling nobody sees coming: a budget refuses with a message, a
+    // workspace refuses a write, and a context window is refused by the provider
+    // mid-answer.
+    render(
+      <UsageStrip
+        usage={usage({
+          context: { used_tokens: 150_000, window_tokens: 200_000, percent: 75, resolved: true },
+        })}
+      />,
+    );
+
+    expect(screen.getByText("context 75% full")).toBeInTheDocument();
+  });
+
+  it("marks the share as a guess when the window is not the model's own", () => {
+    // A confident 73% against a number nobody could resolve is worse than an
+    // uncertain one, because it is acted on.
+    render(
+      <UsageStrip
+        usage={usage({
+          context: { used_tokens: 150_000, window_tokens: 200_000, percent: 75, resolved: false },
+        })}
+      />,
+    );
+
+    expect(screen.getByText("context about 75% full")).toBeInTheDocument();
+    expect(screen.getByTitle(/could not be resolved/)).toBeInTheDocument();
+  });
+
+  it("draws nothing about the context when no model request was made", () => {
+    render(<UsageStrip usage={usage()} />);
+
+    expect(screen.queryByText(/context/)).toBeNull();
+  });
+
+  it("draws no thread total for a conversation in which nothing was measured", () => {
+    // Zeroes would be a claim. Null is what the server answers for a thread older
+    // than the columns, or one whose every turn failed before a cost was read.
+    render(<UsageStrip usage={usage()} total={null} />);
+
+    expect(screen.queryByText(/thread/)).toBeNull();
+  });
+
+  it("marks the last turn's own cost when that is a floor too", () => {
+    render(<UsageStrip usage={usage({ cost_is_partial: true })} />);
+
+    expect(screen.getByText(/1,500 tokens · ≥ \$0\.0125/)).toBeInTheDocument();
+  });
+
   it("says nothing before a turn has been measured, and still holds its line", () => {
     // "0 tokens" under a conversation that has not run anything is a claim, and
     // this has none to make yet. The *row* is not optional though: the strip sits

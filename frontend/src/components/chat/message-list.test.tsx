@@ -360,9 +360,11 @@ describe("where a turn's time and cost belong", () => {
     input_tokens: 6603,
     output_tokens: 189,
     cost_usd: 0.0133,
+    cost_is_partial: false,
     budget_percent: null,
     agent_budget_percent: null,
     sandbox: null,
+    context: null,
   };
 
   it("ends the turn on its last segment, not on every one", () => {

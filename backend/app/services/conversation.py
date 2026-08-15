@@ -26,6 +26,7 @@ from app.repositories import (
 )
 from app.schemas.conversation import (
     ConversationAgent,
+    ConversationCost,
     ConversationCreate,
     ConversationUpdate,
     MessageCreate,
@@ -511,6 +512,35 @@ class ConversationService:
             return enriched, total
         return list(items), total
 
+    async def conversation_cost(
+        self,
+        conversation_id: UUID,
+        *,
+        organization_id: OrgScope,
+        user_id: UUID | None = None,
+    ) -> ConversationCost | None:
+        """What this whole thread has cost, or `None` where nothing was measured.
+
+        Scoped exactly as :meth:`list_messages` is, and for the same reason: it
+        is a fact about a transcript, and a total is enough to tell how heavily
+        somebody else's conversation was used.
+
+        The sum is over every turn, not over the page the caller asked for. A
+        client adding up what it was handed would answer "the first hundred
+        turns" while the label says "this conversation".
+        """
+        await self._resolve(conversation_id, organization_id=organization_id, user_id=user_id)
+        totals = await conversation_repo.conversation_cost(self.db, conversation_id)
+        if totals is None:
+            return None
+        input_tokens, output_tokens, cost_usd, cost_is_partial = totals
+        return ConversationCost(
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cost_usd=cost_usd,
+            cost_is_partial=cost_is_partial,
+        )
+
     async def add_message(
         self,
         conversation_id: UUID,
@@ -582,6 +612,7 @@ class ConversationService:
             input_tokens=data.input_tokens,
             output_tokens=data.output_tokens,
             cost_usd=data.cost_usd,
+            cost_is_partial=data.cost_is_partial,
             agent_id=data.agent_id,
             agent_version_id=data.agent_version_id,
             run_id=run_id,
