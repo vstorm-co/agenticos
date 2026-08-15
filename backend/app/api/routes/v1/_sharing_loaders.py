@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
 from app.db.models.agent import Agent
+from app.db.models.context import ContextFile
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.skill import Skill
@@ -37,6 +38,15 @@ async def load_skill(db: AsyncSession, skill_id: UUID, organization_id: UUID) ->
     if skill is None or skill.organization_id != organization_id:
         raise NotFoundError(message="Skill not found", details={"skill_id": str(skill_id)})
     return skill
+
+
+async def load_context(db: AsyncSession, context_id: UUID, organization_id: UUID) -> ContextFile:
+    file = await db.get(ContextFile, context_id)
+    if file is None or file.organization_id != organization_id:
+        raise NotFoundError(
+            message="Context file not found", details={"context_id": str(context_id)}
+        )
+    return file
 
 
 async def load_secret(

@@ -17,12 +17,14 @@ import pytest
 from app.api.routes.v1._sharing_loaders import (
     load_agent,
     load_collection,
+    load_context,
     load_secret,
     load_skill,
 )
 from app.api.routes.v1.sharing import (
     agent_sharing_router,
     collection_sharing_router,
+    context_sharing_router,
     secret_sharing_router,
     skill_sharing_router,
 )
@@ -33,6 +35,7 @@ ROUTERS = (
     ("agents", agent_sharing_router),
     ("collections", collection_sharing_router),
     ("skills", skill_sharing_router),
+    ("context", context_sharing_router),
     ("secrets", secret_sharing_router),
 )
 
@@ -40,6 +43,7 @@ LOADERS = (
     ("agent", load_agent, "Agent not found", "agent_id"),
     ("collection", load_collection, "Collection not found", "kb_id"),
     ("skill", load_skill, "Skill not found", "skill_id"),
+    ("context", load_context, "Context file not found", "context_id"),
     ("secret", load_secret, "Secret not found", "secret_id"),
 )
 

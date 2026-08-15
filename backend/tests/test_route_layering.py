@@ -32,6 +32,9 @@ ALLOWED = {
     # A `Literal` of the sort orders the skill list accepts. It lives beside the
     # query it parameterises and reaches the route as a type, not as a row.
     ("app/api/routes/v1/skills.py", "SkillSort"),
+    # The same, for the context-file list: a `Literal` of sort orders, beside the
+    # query it parameterises, reaching the route as a type rather than a row.
+    ("app/api/routes/v1/context.py", "ContextSort"),
     # Two frozen value objects holding what a caller asked to narrow by - nine
     # fields for run history, four for the approvals queue. They live beside the
     # queries they parameterise because each field becomes a `WHERE` clause, and
