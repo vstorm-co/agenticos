@@ -460,6 +460,21 @@ export interface JsonSchemaProperty {
    * masked while they are typed.
    */
   format?: string;
+  /**
+   * What each enum value is called in a picker, keyed by the value.
+   *
+   * An extension keyword, because JSON Schema has none for this. Emitted by a
+   * capability's `config_schema` through Pydantic's `json_schema_extra`, and
+   * there rather than in a table here for the same reason `description` is:
+   * `clear_tool_results` in a dropdown says nothing, and a label kept on this
+   * side outlives the value it was written for without anyone noticing.
+   */
+  "x-enum-labels"?: Record<string, string>;
   /** A `Literal | None` arrives as branches, one carrying the values. */
-  anyOf?: { type?: string; enum?: unknown[]; format?: string }[];
+  anyOf?: {
+    type?: string;
+    enum?: unknown[];
+    format?: string;
+    "x-enum-labels"?: Record<string, string>;
+  }[];
 }

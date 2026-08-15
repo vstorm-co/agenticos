@@ -126,6 +126,14 @@ function SchemaField({
   const choices = enumChoices(property);
   const kind = resolveKind(property);
   const masked = isSecret(property);
+  // What the field shows while nobody has touched it. Shown as the *value*
+  // rather than as placeholder grey: a field reading "Not set" over a
+  // capability that will happily run says nothing about what it will do, and
+  // three empty boxes under a strategy picker read as three decisions still to
+  // make. Nothing is stored until it is edited — an untouched field and one set
+  // to its default mean the same thing to the server, and writing the default
+  // in would freeze it against a later change in code.
+  const fallback = defaultOf(property);
   // Off on every mount, including a re-open of the same dialog: revealing is a
   // decision about the room you are in, and the room changes.
   const [revealed, setRevealed] = useState(false);
@@ -141,7 +149,12 @@ function SchemaField({
           {required && <span className="text-muted-foreground"> *</span>}
         </Label>
         {kind === "boolean" && (
-          <Switch id={id} checked={value === true} onCheckedChange={onChange} disabled={disabled} />
+          <Switch
+            id={id}
+            checked={value === undefined ? fallback === true : value === true}
+            onCheckedChange={onChange}
+            disabled={disabled}
+          />
         )}
       </div>
 
@@ -151,7 +164,7 @@ function SchemaField({
           type="number"
           min={property.minimum}
           max={property.maximum}
-          value={value === undefined || value === null ? "" : String(value)}
+          value={numberText(value, fallback)}
           disabled={disabled}
           // Empty means "unset", which is not the same as zero: an unset field
           // falls back to the capability's own default, and coercing it to 0
@@ -159,14 +172,15 @@ function SchemaField({
           onChange={(event) =>
             onChange(event.target.value === "" ? undefined : Number(event.target.value))
           }
-          placeholder={property.default === undefined ? "" : String(property.default)}
           {...invalid}
         />
       )}
 
       {kind === "enum" && choices !== null && (
         <Select
-          value={typeof value === "string" ? value : UNSET}
+          value={
+            typeof value === "string" ? value : typeof fallback === "string" ? fallback : UNSET
+          }
           disabled={disabled}
           onValueChange={(choice) => onChange(choice === UNSET ? undefined : choice)}
         >
@@ -179,13 +193,15 @@ function SchemaField({
               having picked one, and for an optional field that state is a real
               answer - it is what defers to whatever is configured further down.
               Offered only where the schema allows it: a required field has no
-              such state and offering it would produce a spec the backend
-              refuses.
+              such state, and neither has one with a default, where "not set"
+              and the default are the same behaviour under two names.
             */}
-            {!required && <SelectItem value={UNSET}>{t("notSet")}</SelectItem>}
+            {!required && fallback === undefined && (
+              <SelectItem value={UNSET}>{t("notSet")}</SelectItem>
+            )}
             {choices.map((choice) => (
               <SelectItem key={choice} value={choice}>
-                {choice}
+                {enumLabel(property, choice)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -202,12 +218,11 @@ function SchemaField({
             type={masked && !revealed ? "password" : undefined}
             autoComplete={masked ? "off" : undefined}
             maxLength={property.maxLength}
-            value={typeof value === "string" ? value : ""}
+            value={typeof value === "string" ? value : typeof fallback === "string" ? fallback : ""}
             disabled={disabled}
             onChange={(event) =>
               onChange(event.target.value === "" ? undefined : event.target.value)
             }
-            placeholder={property.default === undefined ? "" : String(property.default)}
             className={cn(masked && "pr-10 font-mono")}
             {...invalid}
           />
@@ -282,6 +297,47 @@ function enumChoices(property: JsonSchemaProperty): string[] | null {
   const values = property.enum ?? property.anyOf?.find((entry) => entry.enum)?.enum;
   if (values === undefined) return null;
   return values.filter((value): value is string => typeof value === "string");
+}
+
+/**
+ * What this field falls back to when nobody has set it, or `undefined`.
+ *
+ * Pydantic writes `"default": null` for every optional field, which is not a
+ * default at all - it is the absence of one, spelt in JSON. Rendering it would
+ * put the word `null` in a text box.
+ */
+function defaultOf(property: JsonSchemaProperty): unknown {
+  return property.default === null ? undefined : property.default;
+}
+
+/** A number input's text, showing the schema's default until somebody types. */
+function numberText(value: unknown, fallback: unknown): string {
+  const shown = value === undefined || value === null ? fallback : value;
+  return typeof shown === "number" || typeof shown === "string" ? String(shown) : "";
+}
+
+/**
+ * What one choice of an enum is called in the picker.
+ *
+ * The values are spec format - `clear_tool_results`, `sliding_window` - and a
+ * dropdown of them is a decision somebody makes by guessing. A schema may carry
+ * `x-enum-labels` to say what each one does.
+ *
+ * It is an extension keyword because JSON Schema has none for this, and it
+ * belongs in the schema for the same reason `description` does: the copy that
+ * explains a field lives beside its definition, not in a table here that a
+ * renamed value silently outlives.
+ *
+ * Without labels the value is shown verbatim rather than prettified. Some of
+ * these are identifiers a person recognises - a tool id, an effort level - and
+ * turning `get_channel_info` into `Get channel info` in a picker whose choice is
+ * stored as the former is a rename this form is not entitled to make.
+ */
+function enumLabel(property: JsonSchemaProperty, choice: string): string {
+  const labels =
+    property["x-enum-labels"] ??
+    property.anyOf?.find((entry) => entry["x-enum-labels"])?.["x-enum-labels"];
+  return labels?.[choice] ?? choice;
 }
 
 /**

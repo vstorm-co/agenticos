@@ -86,19 +86,24 @@ describe("SchemaForm", () => {
     expect(field).toHaveAttribute("max", "50");
   });
 
-  it("shows the default as a placeholder rather than pre-filling it", () => {
-    // Pre-filling would turn "unconfigured" into "explicitly set to the current
-    // default", which then stops tracking the default when it changes.
+  it("shows the default as the value, not as placeholder grey", () => {
+    // A row of empty boxes under a capability that will happily run reads as
+    // decisions still to make. Nothing is stored by showing it, so the field
+    // keeps tracking the default if it changes in code.
     renderForm();
-    expect(screen.getByLabelText(/Default top k/)).toHaveAttribute("placeholder", "5");
+    expect(screen.getByLabelText(/Default top k/)).toHaveValue(5);
   });
 
-  it("reports a number as a number, not a string", () => {
-    const onChange = renderForm();
-    const field = screen.getByLabelText(/Default top k/);
-    return userEvent.type(field, "8").then(() => {
-      expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ default_top_k: 8 }));
-    });
+  it("reports a number as a number, not a string", async () => {
+    // Typed onto a stored value rather than into an empty box: the form is
+    // controlled by its caller, which here is a spy rather than state, so the
+    // field keeps showing what it was rendered with - and a field with a default
+    // is never empty to begin with.
+    const onChange = renderForm({ default_top_k: 1 });
+
+    await userEvent.type(screen.getByLabelText(/Default top k/), "2");
+
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ default_top_k: 12 }));
   });
 
   it("clearing a field unsets it rather than sending zero", async () => {
@@ -153,6 +158,35 @@ describe("SchemaForm", () => {
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ verbose: true }));
   });
 
+  it("shows a switch whose default is on as on", () => {
+    // The same rule as every other field: what is drawn is what will happen if
+    // nobody touches it, and a switch drawn off over a capability that will run
+    // with it on is the one shape of this that misleads silently.
+    render(
+      <SchemaForm
+        schema={{ type: "object", properties: { verbose: { type: "boolean", default: true } } }}
+        value={{}}
+        onChange={vi.fn()}
+        idPrefix="x"
+      />,
+    );
+
+    expect(screen.getByRole("switch", { name: /Verbose/ })).toBeChecked();
+  });
+
+  it("shows a switch somebody turned off as off, over a default of on", () => {
+    render(
+      <SchemaForm
+        schema={{ type: "object", properties: { verbose: { type: "boolean", default: true } } }}
+        value={{ verbose: false }}
+        onChange={vi.fn()}
+        idPrefix="x"
+      />,
+    );
+
+    expect(screen.getByRole("switch", { name: /Verbose/ })).not.toBeChecked();
+  });
+
   it("keeps the other fields when one changes", async () => {
     const onChange = vi.fn();
     render(
@@ -177,6 +211,64 @@ describe("SchemaForm", () => {
   it("shows a stored choice", () => {
     renderForm({ effort: "high" });
     expect(screen.getByRole("combobox", { name: /Effort/ })).toHaveTextContent("high");
+  });
+
+  it("labels a choice with what it does, when the schema says", async () => {
+    // `clear_tool_results` in a dropdown is a decision somebody makes by
+    // guessing, and the guess that costs money is the one that picks the
+    // summarising strategy.
+    render(
+      <SchemaForm
+        schema={{
+          type: "object",
+          properties: {
+            strategy: {
+              type: "string",
+              default: "tiered",
+              enum: ["tiered", "summarize"],
+              "x-enum-labels": {
+                tiered: "Tiered - clear tool results first",
+                summarize: "Summarise older messages - one model call per run",
+              },
+            },
+          },
+        }}
+        value={{}}
+        onChange={vi.fn()}
+        idPrefix="compaction"
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("combobox", { name: /Strategy/ }));
+    expect(
+      screen.getByRole("option", { name: "Summarise older messages - one model call per run" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows an unlabelled choice verbatim rather than prettifying it", () => {
+    // Several of these are identifiers a person recognises - a tool id, an
+    // effort level - and a picker that renamed one would be storing something
+    // other than what it displayed.
+    renderForm({ effort: "medium" });
+    expect(screen.getByRole("combobox", { name: /Effort/ })).toHaveTextContent("medium");
+  });
+
+  it("preselects an enum's default rather than offering to leave it unset", () => {
+    // With a default, "Not set" and the default are the same behaviour under two
+    // names, and one of them tells the reader nothing about what will happen.
+    render(
+      <SchemaForm
+        schema={{
+          type: "object",
+          properties: { strategy: { type: "string", default: "tiered", enum: ["tiered", "off"] } },
+        }}
+        value={{}}
+        onChange={vi.fn()}
+        idPrefix="compaction"
+      />,
+    );
+
+    expect(screen.getByRole("combobox", { name: /Strategy/ })).toHaveTextContent("tiered");
   });
 
   it("shows an optional enum nobody has answered as unset", () => {
@@ -207,8 +299,8 @@ describe("SchemaForm", () => {
     expect(onChange).toHaveBeenLastCalledWith({});
   });
 
-  it("leaves a field with no default without a placeholder to misread", async () => {
-    // A placeholder is the schema's default. Inventing one for a field that has
+  it("leaves a field with no default empty rather than inventing one", async () => {
+    // A shown value is the schema's default. Inventing one for a field that has
     // none would read as a value the capability would use.
     render(
       <SchemaForm
@@ -217,6 +309,10 @@ describe("SchemaForm", () => {
           properties: {
             retries: { type: "integer" },
             base_url: { type: "string", default: "https://api.acme.com" },
+            // Pydantic writes this for every optional field, and it is the
+            // absence of a default rather than one - rendered, it would put the
+            // word `null` in the box.
+            proxy: { anyOf: [{ type: "string" }, { type: "null" }], default: null },
           },
         }}
         value={{}}
@@ -225,11 +321,9 @@ describe("SchemaForm", () => {
       />,
     );
 
-    expect(screen.getByLabelText(/Retries/)).toHaveAttribute("placeholder", "");
-    expect(screen.getByLabelText(/Base url/)).toHaveAttribute(
-      "placeholder",
-      "https://api.acme.com",
-    );
+    expect(screen.getByLabelText(/Retries/)).toHaveValue(null);
+    expect(screen.getByLabelText(/Base url/)).toHaveValue("https://api.acme.com");
+    expect(screen.getByLabelText(/Proxy/)).toHaveValue("");
   });
 
   it("does not accept edits when the viewer cannot edit", async () => {

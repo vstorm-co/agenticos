@@ -81,6 +81,18 @@ class CompactionConfig(BaseModel):
     strategy: StrategyName = Field(
         default="tiered",
         description="Which strategy to apply when the history approaches the window",
+        # What the Builder puts in the picker. The values are spec format and
+        # cannot say what they do; `clear_tool_results` in a dropdown is a
+        # choice somebody makes by guessing, and the guess that costs money is
+        # the one that picks `summarize`. See `x-enum-labels` in `schema-form`.
+        json_schema_extra={
+            "x-enum-labels": {
+                "tiered": "Tiered - clear tool results first, summarise only if needed",
+                "clear_tool_results": "Clear old tool results - no model call",
+                "sliding_window": "Drop the oldest messages - no model call",
+                "summarize": "Summarise older messages - one model call per run",
+            }
+        },
     )
     max_fraction: float = Field(
         default=0.8,
