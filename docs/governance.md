@@ -85,6 +85,20 @@ draws money draws `≥` in front of it rather than a figure that reads as exact.
 Null on a message written before the column existed means *not recorded*, which
 is not the same claim as "exact" — a client marks only what it knows.
 
+**Every surface records it now, and each turn records its own share.** A message
+written by a channel, the API or the widget carried no cost at all until
+recently, so a Slack thread could not be totalled. The number written is the
+*difference* from what that run's earlier turns already claim, not the run row's
+figure: a run row is cumulative, and a run that parked and was resumed writes two
+assistant turns — stamping both with the row would count the parked half twice.
+The messages of a run therefore sum to exactly what the run says it spent.
+
+**A turn the run was stopped part-way through says so.** A cancelled run leaves
+whatever the agent had written when the socket closed or `stop` was pressed, and
+that reads exactly like a finished answer — so a reader takes a truncated one as
+everything the agent had to say, and the money it spent looks like it bought that.
+The transcript carries the run's status per turn, and the chat marks it.
+
 ### How full the context window is
 
 The third ceiling, and the one nobody sees coming. A budget refuses with a

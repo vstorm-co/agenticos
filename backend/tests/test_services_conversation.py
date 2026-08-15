@@ -49,6 +49,7 @@ class MockMessage:
         content="Hello",
         model_name=None,
         tokens_used=None,
+        run_id=None,
     ):
         self.id = id or uuid4()
         self.conversation_id = conversation_id or uuid4()
@@ -56,6 +57,13 @@ class MockMessage:
         self.content = content
         self.model_name = model_name
         self.tokens_used = tokens_used
+        # Which run produced the turn, and therefore how it ended - a listing
+        # reads a status off it so a stopped turn can say it was stopped.
+        self.run_id = run_id
+        # Enough of a row for `MessageRead.model_validate`, which the listing runs
+        # when it has a reader to attach ratings for.
+        self.created_at = datetime(2026, 8, 16, tzinfo=UTC)
+        self.updated_at = None
 
 
 class MockToolCall:
@@ -920,7 +928,9 @@ class TestConversationServiceListMessages:
         with patch("app.services.conversation.conversation_repo") as mock_repo:
             mock_repo.get_conversation_by_id = AsyncMock(return_value=mock_conv)
             mock_repo.get_messages_by_conversation = AsyncMock(return_value=mock_messages)
+            mock_repo.run_statuses = AsyncMock(return_value={})
             mock_repo.count_messages = AsyncMock(return_value=2)
+            mock_repo.run_statuses = AsyncMock(return_value={})
 
             items, total = await service.list_messages(conv_id, organization_id=TEST_ORG_ID)
 
@@ -945,6 +955,7 @@ class TestConversationServiceListMessages:
         with patch("app.services.conversation.conversation_repo") as mock_repo:
             mock_repo.get_conversation_by_id = AsyncMock(return_value=mock_conv)
             mock_repo.get_messages_by_conversation = AsyncMock(return_value=[])
+            mock_repo.run_statuses = AsyncMock(return_value={})
             mock_repo.count_messages = AsyncMock(return_value=0)
 
             await service.list_messages(conv_id, skip=5, limit=10, organization_id=TEST_ORG_ID)
@@ -962,6 +973,7 @@ class TestConversationServiceListMessages:
         with patch("app.services.conversation.conversation_repo") as mock_repo:
             mock_repo.get_conversation_by_id = AsyncMock(return_value=mock_conv)
             mock_repo.get_messages_by_conversation = AsyncMock(return_value=[])
+            mock_repo.run_statuses = AsyncMock(return_value={})
             mock_repo.count_messages = AsyncMock(return_value=0)
 
             await service.list_messages(
@@ -1404,6 +1416,65 @@ class TestConversationServiceLinkFiles:
 
         assert refusal.value.details == {"file_ids": [spent]}
         repo.link_to_message.assert_not_awaited()
+
+
+class TestSayingATurnWasStopped:
+    """`run_status` on a listed message.
+
+    A cancelled run leaves a half-written answer that reads exactly like a
+    complete one, so the reader believes the agent said all it had to say. The
+    status is on the run and the message links to it; carrying it here is what
+    lets a transcript mark the turn without a second request per row.
+    """
+
+    @pytest.fixture
+    def service(self) -> ConversationService:
+        return ConversationService(AsyncMock())
+
+    @staticmethod
+    async def _listed(service: ConversationService, conv_id):
+        """Listed as the transcript route lists them - with a reader, so the
+        schema-enriching branch runs rather than the raw-row one."""
+        with patch("app.services.conversation.message_rating_repo") as ratings:
+            ratings.get_user_ratings_for_messages = AsyncMock(return_value={})
+            ratings.get_rating_counts_for_messages = AsyncMock(return_value={})
+            return await service.list_messages(
+                conv_id, organization_id=TEST_ORG_ID, user_id=uuid4()
+            )
+
+    @pytest.mark.anyio
+    async def test_a_turn_carries_how_its_run_ended(self, service: ConversationService):
+        conv_id = uuid4()
+        run_id = uuid4()
+        with patch("app.services.conversation.conversation_repo") as mock_repo:
+            mock_repo.get_conversation_by_id = AsyncMock(
+                return_value=MockConversation(id=conv_id, organization_id=TEST_ORG_ID)
+            )
+            mock_repo.get_messages_by_conversation = AsyncMock(
+                return_value=[MockMessage(run_id=run_id)]
+            )
+            mock_repo.count_messages = AsyncMock(return_value=1)
+            mock_repo.run_statuses = AsyncMock(return_value={run_id: "cancelled"})
+
+            items, _total = await self._listed(service, conv_id)
+
+        assert items[0].run_status == "cancelled"
+
+    @pytest.mark.anyio
+    async def test_a_turn_written_outside_a_run_says_nothing(self, service: ConversationService):
+        """A system message, or a prompt whose run row could not be opened."""
+        conv_id = uuid4()
+        with patch("app.services.conversation.conversation_repo") as mock_repo:
+            mock_repo.get_conversation_by_id = AsyncMock(
+                return_value=MockConversation(id=conv_id, organization_id=TEST_ORG_ID)
+            )
+            mock_repo.get_messages_by_conversation = AsyncMock(return_value=[MockMessage()])
+            mock_repo.count_messages = AsyncMock(return_value=1)
+            mock_repo.run_statuses = AsyncMock(return_value={})
+
+            items, _total = await self._listed(service, conv_id)
+
+        assert items[0].run_status is None
 
 
 class TestWhatTheThreadCost:

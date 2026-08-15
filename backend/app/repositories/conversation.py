@@ -619,6 +619,45 @@ async def conversation_cost(
     return int(input_tokens), int(output_tokens), Decimal(cost_usd), partial
 
 
+async def attributed_to_run(db: AsyncSession, run_id: UUID) -> tuple[int, int, Decimal]:
+    """What this run's messages already claim of what the run spent.
+
+    A run row carries *cumulative* totals, and one run can write more than one
+    assistant turn: a run that parks and is resumed writes the parked half and the
+    continuation, and the resume's row says what the whole run has cost by then.
+    Stamping each with the row's figure would count the parked half twice, so each
+    turn is written with the difference - and the messages of a run then sum to
+    exactly what the run says it spent.
+
+    Zero for a run that has written nothing yet, which is every ordinary turn.
+    """
+    result = await db.execute(
+        select(
+            func.coalesce(func.sum(Message.input_tokens), 0),
+            func.coalesce(func.sum(Message.output_tokens), 0),
+            func.coalesce(func.sum(Message.cost_usd), 0),
+        ).where(Message.run_id == run_id)
+    )
+    input_tokens, output_tokens, cost_usd = result.one()
+    return int(input_tokens), int(output_tokens), Decimal(cost_usd)
+
+
+async def run_statuses(db: AsyncSession, run_ids: Collection[UUID]) -> dict[UUID, str]:
+    """How each of these runs ended, for the turns they produced.
+
+    One query for a page of messages, the same bargain the rating counts make. A
+    transcript needs it to say that a turn was *stopped*: a cancelled run leaves a
+    half-written answer that reads exactly like a complete one, and the reader is
+    left believing the agent said all it had to say.
+    """
+    if not run_ids:
+        return {}
+    result = await db.execute(
+        select(AgentRun.id, AgentRun.status).where(AgentRun.id.in_(list(run_ids)))
+    )
+    return dict(result.all())
+
+
 async def get_recent_messages(
     db: AsyncSession, conversation_id: UUID, *, limit: int
 ) -> list[Message]:

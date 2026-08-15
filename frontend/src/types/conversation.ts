@@ -63,6 +63,14 @@ export interface ConversationMessage {
    * next, which the chat lets somebody switch between turns.
    */
   context_used_tokens?: number | null;
+  /**
+   * How the run that produced this turn ended.
+   *
+   * Null for a turn written outside a run. `cancelled` is the one worth drawing:
+   * a stopped run leaves a half-written answer that reads exactly like a complete
+   * one, so without this the reader believes the agent said all it had to say.
+   */
+  run_status?: string | null;
   /** Which configured agent answered. Null for the general assistant. */
   agent_id?: string | null;
   tool_calls?: ConversationToolCall[];

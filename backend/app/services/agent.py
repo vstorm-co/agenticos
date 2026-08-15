@@ -14,6 +14,7 @@ import logging
 from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -31,6 +32,7 @@ from app.api.deps import get_conversation_service
 from app.core.exceptions import AppException, AuthorizationError, BadRequestError, NotFoundError
 from app.db.models.conversation import Conversation
 from app.db.session import get_db_context
+from app.repositories import conversation as conversation_repo
 from app.schemas.conversation import (
     ConversationCreate,
     ConversationUpdate,
@@ -360,6 +362,11 @@ async def persist_assistant_turn(
     try:
         async with get_db_context() as db:
             conv_service = get_conversation_service(db)
+            spent_in, spent_out, spent_usd = (
+                (0, 0, Decimal(0))
+                if run_id is None
+                else await conversation_repo.attributed_to_run(db, run_id)
+            )
             assistant_msg = await conv_service.add_message(
                 UUID(conversation_id),
                 organization_id=organization_id,
@@ -376,9 +383,16 @@ async def persist_assistant_turn(
                     # frame alone, so it existed for as long as the tab did and a
                     # reopened conversation showed no cost anywhere - which is
                     # exactly when "what did that answer cost" gets asked.
-                    input_tokens=None if usage is None else usage.input_tokens,
-                    output_tokens=None if usage is None else usage.output_tokens,
-                    cost_usd=None if usage is None else usage.cost_usd,
+                    # The *difference* from what this run's earlier turns already
+                    # claim, not the run row's figure: a run that parked and was
+                    # resumed writes two assistant turns - this one and the
+                    # continuation the transcript service writes - and the row is
+                    # cumulative, so stamping both with it counts the parked half
+                    # twice. Nothing is attributed yet on an ordinary turn, where
+                    # the difference is the whole of it.
+                    input_tokens=None if usage is None else usage.input_tokens - spent_in,
+                    output_tokens=None if usage is None else usage.output_tokens - spent_out,
+                    cost_usd=None if usage is None else usage.cost_usd - spent_usd,
                     # Beside the total, because without it the total lies: a turn
                     # that reached an unpriced model is booked at zero for that
                     # request, and rendered identically to one measured exactly

@@ -51,6 +51,16 @@ export interface ChatMessage {
    *  run has none, and a live turn only learns its run id if something on the
    *  wire says so. Absent never groups. */
   runId?: string;
+  /**
+   * Whether the run that produced this turn was stopped part-way through.
+   *
+   * A cancelled run leaves whatever the agent had written when the socket closed
+   * or `stop` was pressed, and that reads exactly like a finished answer — so a
+   * reader takes a truncated one as everything the agent had to say. Only
+   * `cancelled` sets this: a completed run needs no marker, and a run still going
+   * has no answer on screen to mark.
+   */
+  wasStopped?: boolean;
   /** True if message ID is a temporary nanoid, not yet replaced by server ID */
   isTemporaryId?: boolean;
   /** Current user's rating */

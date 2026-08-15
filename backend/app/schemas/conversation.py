@@ -240,6 +240,15 @@ class MessageRead(MessageBase, TimestampSchema):
         default=None,
         description="The version number behind agent_version_id - a UUID names nothing to a reader",
     )
+    run_status: str | None = Field(
+        default=None,
+        description=(
+            "How the run that produced this turn ended. Null for a turn written "
+            "outside a run, and for a run that has not finished. It is here so a "
+            "transcript can say a turn was *stopped*: a cancelled run leaves a "
+            "half-written answer that reads exactly like a complete one."
+        ),
+    )
     tool_calls: list[ToolCallRead] = Field(default_factory=list)
     files: list[MessageFileRead] = Field(default_factory=list)
     user_rating: int | None = Field(

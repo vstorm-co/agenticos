@@ -13,7 +13,7 @@ import { RatingButtons } from "./rating-buttons";
 import { useChatStore, useFilePreviewStore } from "@/stores";
 import { useMcpToolServers } from "@/hooks";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
-import { Bot, FileText, Globe, Paperclip, RefreshCw, User } from "lucide-react";
+import { Bot, FileText, Globe, OctagonPause, Paperclip, RefreshCw, User } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Image from "next/image";
 import { useAuthStore } from "@/stores";
@@ -346,6 +346,17 @@ export function MessageItem({
                   hour: "2-digit",
                   minute: "2-digit",
                 })}
+              </span>
+            )}
+            {!isUser && message.wasStopped === true && (
+              /* A stopped run leaves whatever had been written when the socket
+                 closed, and that reads exactly like a finished answer - so a
+                 reader takes a truncated one as everything the agent had to say.
+                 Beside the cost, because the two together are the whole account
+                 of a turn that produced nothing usable and still spent money. */
+              <span className="text-muted-foreground flex items-center gap-1 text-[10px]">
+                <OctagonPause className="h-3 w-3" aria-hidden />
+                {t("turnWasStopped")}
               </span>
             )}
             {!isUser && footerUsage && <MessageCost usage={footerUsage} />}

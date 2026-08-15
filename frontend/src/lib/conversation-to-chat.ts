@@ -30,6 +30,7 @@ export interface RawMessage {
   agent_id?: string | null;
   /** The run that produced this turn. Null for a turn written outside one. */
   run_id?: string | null;
+  run_status?: string | null;
   /** The version number of the frozen spec that produced it. */
   agent_version?: number | null;
   tool_calls?: RawToolCall[] | null;
@@ -164,6 +165,9 @@ export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
     agentId: msg.agent_id ?? undefined,
     agentVersion: msg.agent_version ?? undefined,
     runId: msg.run_id ?? undefined,
+    // Only the one worth drawing. A completed run needs no marker, and a run
+    // still going has no answer on screen to mark.
+    wasStopped: msg.run_status === "cancelled",
     usage: storedUsage(msg) ?? undefined,
     toolCalls,
     parts,

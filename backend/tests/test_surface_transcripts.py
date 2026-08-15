@@ -173,6 +173,9 @@ def _run_yielding(agent_run: AsyncMock) -> Iterator[tuple[dict[str, PreparedRun]
         patch("app.services.transcript.conversation_repo") as conversations,
     ):
         conversations.create_message = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
+        # What this run's earlier turns already claim of its cost, subtracted so a
+        # resumed run does not count its parked half twice.
+        conversations.attributed_to_run = AsyncMock(return_value=(0, 0, Decimal(0)))
         conversations.create_tool_call = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
         conversations.complete_tool_call = AsyncMock()
         conversations.get_open_tool_call_in_run = AsyncMock(return_value=None)
@@ -517,6 +520,7 @@ class TestTheDefaultAgentRecordsItsTranscript:
             ),
         ):
             conversations.create_message = AsyncMock(side_effect=[user_message, assistant_message])
+            conversations.attributed_to_run = AsyncMock(return_value=(0, 0, Decimal(0)))
             chat_files.link_to_message = AsyncMock()
             await ChannelAgentRouter(_db()).answer_default(
                 "which row is the outlier",
@@ -574,6 +578,7 @@ class TestTheDefaultAgentRecordsItsTranscript:
         ):
             storage.return_value.load = AsyncMock(return_value=b"\x89PNG")
             conversations.create_message = AsyncMock(side_effect=[user_message, assistant_message])
+            conversations.attributed_to_run = AsyncMock(return_value=(0, 0, Decimal(0)))
             chat_files.link_to_message = AsyncMock()
             await ChannelAgentRouter(_db()).answer_default(
                 "",

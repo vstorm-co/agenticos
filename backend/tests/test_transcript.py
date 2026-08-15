@@ -21,6 +21,7 @@ import logging
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -260,6 +261,10 @@ class TestWritingTheTranscript:
             repo.create_message = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
             repo.create_tool_call = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
             repo.complete_tool_call = AsyncMock()
+            # What this run's earlier turns already claim of its cost. Zero on an
+            # ordinary turn; the subtraction is what stops a resumed run counting
+            # its parked half twice.
+            repo.attributed_to_run = AsyncMock(return_value=(0, 0, Decimal(0)))
             yield repo
 
     @pytest.fixture

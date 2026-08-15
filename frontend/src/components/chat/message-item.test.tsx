@@ -114,6 +114,29 @@ beforeEach(() => {
  * is a question about one frozen spec rather than about the agent as it is now.
  */
 describe("a turn in the transcript", () => {
+  it("marks an answer whose run was stopped part-way through", () => {
+    // A cancelled run leaves whatever had been written when the socket closed,
+    // and that reads exactly like a finished answer - so a reader takes a
+    // truncated one as everything the agent had to say.
+    item({ role: "assistant", content: "The refund window is", wasStopped: true });
+
+    expect(screen.getByText("stopped")).toBeVisible();
+  });
+
+  it("says nothing about a turn that finished", () => {
+    item({ role: "assistant", content: "Refunds run to thirty days." });
+
+    expect(screen.queryByText("stopped")).toBeNull();
+  });
+
+  it("never marks the question, only the answer", () => {
+    // A user's turn is not produced by a run; a marker there would attribute the
+    // agent's failure to what somebody typed.
+    item({ role: "user", content: "How long?", wasStopped: true });
+
+    expect(screen.queryByText("stopped")).toBeNull();
+  });
+
   it("renders an answer as Markdown and a question as plain text", () => {
     const { unmount } = item();
     expect(screen.getByTestId("markdown")).toHaveTextContent("Refunds run to thirty days.");

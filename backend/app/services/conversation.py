@@ -494,6 +494,9 @@ class ConversationService:
             include_tool_calls=include_tool_calls,
         )
         total = await conversation_repo.count_messages(self.db, conversation_id)
+        statuses = await conversation_repo.run_statuses(
+            self.db, {msg.run_id for msg in items if msg.run_id is not None}
+        )
         if user_id is not None and items:
             message_ids = [msg.id for msg in items]
             user_ratings = await message_rating_repo.get_user_ratings_for_messages(
@@ -508,6 +511,10 @@ class ConversationService:
                 msg_schema = MessageRead.model_validate(msg)
                 msg_schema.user_rating = user_ratings.get(msg.id)
                 msg_schema.rating_count = rating_counts.get(msg.id)
+                # So a turn a run was stopped mid-way through can say so. Without
+                # it a cancelled run's half-written answer reads exactly like a
+                # complete one, and the reader believes the agent finished.
+                msg_schema.run_status = statuses.get(msg.run_id) if msg.run_id else None
                 enriched.append(msg_schema)
             return enriched, total
         return list(items), total

@@ -1010,6 +1010,7 @@
       "writing": "{named, select, no {Writing…} other {Writing {subject}}}",
       "wrote": "{named, select, no {Wrote…} other {Wrote {subject}}}"
     },
+    "turnWasStopped": "stopped",
     "unknownError": "Unknown error",
     "usage": {
       "agentShare": "· {percent}% of this agent's month",
