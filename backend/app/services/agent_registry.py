@@ -530,24 +530,35 @@ class AgentRegistryService:
         model between turns, and a share carried forward from another model reads
         "50%" for a history that is really at 390% of the new one.
 
-        Two sources, in this order. The profile's own `context_length` is what its
-        provider published when it was added, and it is the better number - the
-        pricing registry records 1,000,000 for `anthropic:claude-sonnet-4-5`
-        against a real 200,000. The registry is the fallback for a profile older
-        than that column.
+        Three sources, in this order. The `compaction` binding's own
+        `context_window` first: an author sets it precisely because the resolved
+        number is wrong for them, and it is what the compaction *trigger* already
+        uses - a gauge dividing by something else would describe a different
+        ceiling than the one the agent acts on. Then the profile's
+        `context_length`, which is what its provider published when the model was
+        added, and which beats the pricing registry - that records 1,000,000 for
+        `anthropic:claude-sonnet-4-5` against a real 200,000. The registry is the
+        fallback for a profile older than that column.
 
         `None` where neither can say, and a surface then draws no share at all
         rather than one against a conservative guess.
         """
+        overrides = await agent_repo.published_compaction_windows(self.db, version_ids=version_ids)
         profile_ids = await agent_repo.published_model_profiles(self.db, version_ids=version_ids)
-        if not profile_ids:
-            return {}
-        profiles = await credential_repo.get_profiles_by_ids(
-            self.db, list(set(profile_ids.values())), organization_id=ctx.organization_id
+        profiles = (
+            await credential_repo.get_profiles_by_ids(
+                self.db, list(set(profile_ids.values())), organization_id=ctx.organization_id
+            )
+            if profile_ids
+            else {}
         )
         return {
-            version_id: _window_of(profiles.get(profile_id))
+            version_id: overrides.get(version_id) or _window_of(profiles.get(profile_id))
             for version_id, profile_id in profile_ids.items()
+        } | {
+            version_id: window
+            for version_id, window in overrides.items()
+            if version_id not in profile_ids
         }
 
     async def create(self, ctx: AuthContext, spec: AgentSpec) -> Agent:

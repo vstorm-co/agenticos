@@ -386,6 +386,10 @@ class TestList:
                 new=AsyncMock(return_value={version_id: 60.0}),
             ) as caps,
             patch(
+                f"{REGISTRY_PATH}.agent_repo.published_compaction_windows",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
                 f"{REGISTRY_PATH}.agent_repo.published_model_profiles",
                 new=AsyncMock(return_value={}),
             ),
@@ -424,6 +428,10 @@ class TestList:
             ),
             patch(
                 f"{REGISTRY_PATH}.agent_repo.published_budget_caps",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_compaction_windows",
                 new=AsyncMock(return_value={}),
             ),
             patch(
@@ -473,6 +481,10 @@ class TestList:
                 new=AsyncMock(return_value={}),
             ),
             patch(
+                f"{REGISTRY_PATH}.agent_repo.published_compaction_windows",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
                 f"{REGISTRY_PATH}.agent_repo.published_model_profiles",
                 new=AsyncMock(return_value={version_id: profile_id}),
             ),
@@ -519,6 +531,10 @@ class TestList:
                 new=AsyncMock(return_value={}),
             ),
             patch(
+                f"{REGISTRY_PATH}.agent_repo.published_compaction_windows",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
                 f"{REGISTRY_PATH}.agent_repo.published_model_profiles",
                 new=AsyncMock(return_value={version_id: profile_id}),
             ),
@@ -536,6 +552,62 @@ class TestList:
             rows, _total = await AgentRegistryService(_db()).list_agents(ctx)
 
         assert rows[0].context_window_tokens is None
+
+    @pytest.mark.anyio
+    async def test_an_author_who_overrode_the_window_is_the_one_the_gauge_believes(self):
+        """One ceiling, one number.
+
+        `compaction`'s `context_window` is what the *trigger* already measures
+        against - an author sets it because the resolved figure is wrong for them,
+        or to allow for the instructions and tool schemas the estimator does not
+        count. A gauge dividing by the profile's number instead would describe a
+        different ceiling than the one the agent acts on, which is how somebody
+        watches 0.4% while their history is being summarised.
+        """
+        ctx = _ctx(OrgRoleName.OWNER)
+        version_id = uuid.uuid4()
+        profile_id = uuid.uuid4()
+        published = _agent(ctx, current_version_id=version_id)
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_visible",
+                new=AsyncMock(return_value=([published], 1)),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.resource_grant_repo.count_for_resources",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_exposure_repo.active_surfaces_for_agents",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_budget_caps",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_compaction_windows",
+                new=AsyncMock(return_value={version_id: 5_000}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_model_profiles",
+                new=AsyncMock(return_value={version_id: profile_id}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profiles_by_ids",
+                new=AsyncMock(
+                    return_value={
+                        profile_id: MagicMock(
+                            context_length=1_050_000, provider="openrouter", model="openai/gpt-5.5"
+                        )
+                    }
+                ),
+            ),
+        ):
+            rows, _total = await AgentRegistryService(_db()).list_agents(ctx)
+
+        assert rows[0].context_window_tokens == 5_000
 
     @pytest.mark.anyio
     async def test_a_deleted_profile_leaves_the_window_unknown(self):
@@ -561,6 +633,10 @@ class TestList:
             ),
             patch(
                 f"{REGISTRY_PATH}.agent_repo.published_budget_caps",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_compaction_windows",
                 new=AsyncMock(return_value={}),
             ),
             patch(

@@ -62,6 +62,23 @@ vault; a model named here as a string would be looked up against process
 environment variables, which on this platform is either nothing or somebody
 else's key.
 
+### The trigger does not count everything the provider bills
+
+It measures the **message parts**, and a request also carries the instructions
+and every tool schema. On a real agent here the estimator saw 16 tokens where the
+provider charged for 3,898 — the difference being one agent's instructions and
+seven capabilities' worth of schema.
+
+So the trigger fires **late** by the size of that overhead. On a small agent that
+is noise; on a large MCP surface it is tens of thousands of tokens, and it is late
+in the direction that reaches the ceiling. The harness documents the gap ("tool
+schemas are outside that count"), and `context_window` is the lever: set it to the
+real window minus the overhead, which the chat's gauge reads out for you on the
+first turn of an empty conversation.
+
+The same field is what the gauge divides by, so a trigger and a reading never
+describe two different ceilings.
+
 ### Why a fraction, and when the fraction is wrong
 
 An absolute token trigger is only correct for the model it was measured against.

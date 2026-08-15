@@ -535,7 +535,7 @@ would have hit the model's limit keeps working instead. The strategies come from
 | `max_fraction` | `0.9` | 0.05–0.95 of the window, at which compaction starts |
 | `keep_messages` | 20 | recent messages that survive a summary or a window |
 | `keep_tool_pairs` | 3 | recent tool calls that keep their results |
-| `context_window` | unset | override the window in tokens |
+| `context_window` | unset | override the window — what this triggers against *and* what the chat's gauge divides by |
 | `fallback_context_window` | 200000 | window to assume when the model's cannot be resolved |
 
 `summarize` is the default because it is the only strategy that keeps what the
@@ -573,6 +573,15 @@ builds a `FallbackModel` whose composite id resolves to nothing, and
 fires. `context_window` overrides everything and is the answer to both — a
 provider publishes the maximum a model *can* be made to accept, and a beta- or
 tier-gated deployment gets less.
+
+**The trigger does not count everything the provider bills.** It measures the
+message parts; a request also carries the instructions and every tool schema. On a
+real agent the estimator saw 16 tokens where the provider charged for 3,898. So it
+fires late by that overhead — noise on a small agent, tens of thousands of tokens
+on a large MCP surface, and late in the direction that reaches the ceiling.
+`context_window` is the lever: the real window minus the overhead, which the
+chat's gauge reads out on the first turn of an empty conversation. It is also what
+the gauge divides by, so a trigger and a reading never describe two ceilings.
 
 **A summary is metered.** The strategy writes it through an agent it builds
 itself, which no budget guard wraps, so the capability measures the run's usage

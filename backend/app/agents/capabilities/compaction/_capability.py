@@ -116,7 +116,13 @@ class CompactionConfig(BaseModel):
     context_window: int | None = Field(
         default=None,
         ge=1_000,
-        description="Override the model's context window in tokens, when the registry is wrong",
+        description=(
+            "Override the window this triggers against. Also what the chat's context "
+            "gauge divides by, so the two describe one ceiling. Two reasons to set it: "
+            "the resolved number is wrong, or you are allowing for the instructions and "
+            "tool schemas the trigger does not count - subtract what the gauge reads on "
+            "the first turn of an empty conversation"
+        ),
     )
     fallback_context_window: int = Field(
         default=DEFAULT_CONTEXT_WINDOW,
@@ -146,6 +152,15 @@ def build_strategy(
     including the tiers inside `tiered` whose own triggers the orchestrator
     bypasses. An absolute number is correct only for the model it was measured
     against, and the same agent here runs on whatever profile its spec points at.
+
+    **The trigger does not count everything the provider bills.** It measures the
+    message parts, and a request also carries the instructions and every tool
+    schema - which on a real agent here was 3,882 tokens against 16 the estimator
+    saw. So it fires late by the size of that overhead, which on a large MCP
+    surface is tens of thousands of tokens and is late in the direction that
+    reaches the ceiling. The harness documents the gap ("tool schemas are outside
+    that count") and `context_window` is the lever: set it to the real window
+    minus what the gauge reads on the first turn of an empty conversation.
 
     `recorded_window` is what the model profile stored from its provider's own
     listing. It beats resolving the window from the pricing snapshot, which is
