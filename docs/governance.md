@@ -65,6 +65,13 @@ organization's month that never sees it. So the meter belongs to the prepared ru
 rather than to the surface. Opening one is not a step a new surface has to know
 about, because there is no way to execute a prepared agent without it.
 
+[Context management](reference/capabilities.md#context-management) is the other
+one. Its summarizing strategy writes the summary through an agent it builds
+itself, so that request passes no budget guard; the capability books what it cost
+against the same meter. Being *outside* the guard has one consequence worth
+knowing: the spend is recorded rather than refused, so a compaction that crosses a
+cap stops the run on the request after it.
+
 ### Delegation spends the parent's budget
 
 A run can contain another agent's whole conversation - see

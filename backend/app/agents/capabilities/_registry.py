@@ -596,6 +596,7 @@ def load_builtins() -> None:
         charts,
         clock,
         code_execution,
+        compaction,
         knowledge,
         sandbox,
         skills,

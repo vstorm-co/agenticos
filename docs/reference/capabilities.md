@@ -31,13 +31,15 @@ tools listed.
 | `subagents` | Delegation | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
 | `thinking` | Thinking | reasoning | none, by design | — | — |
 | `clock` | Date and time | utility | none, by design | — | — |
+| `compaction` | Context management | utility | none, by design | — | — |
 | `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 
-Two of those have no tools on purpose. `thinking` changes how the model runs
-rather than what it can reach, and `clock` puts the date in the instructions —
-neither leaves anything for a person to approve, so neither declares a tool. A
-capability with genuinely no tools says so with `tools=()` rather than omitting
-the argument; see [Add a capability](../howto/add-capability.md).
+Three of those have no tools on purpose. `thinking` changes how the model runs
+rather than what it can reach, `clock` puts the date in the instructions, and
+`compaction` rewrites the history a request carries — none of them leaves anything
+for a person to approve, so none declares a tool. A capability with genuinely no
+tools says so with `tools=()` rather than omitting the argument; see
+[Add a capability](../howto/add-capability.md).
 
 **This column is what a capability declares, which is not always what a model is
 offered.** Delegation is the one place the two differ: `create_agent` and `delegate`
@@ -520,6 +522,48 @@ about "this quarter" from its training cutoff.
 | Config | Default | |
 |---|---|---|
 | `timezone` | `UTC` | any IANA name, e.g. `Europe/Warsaw` |
+
+## Context management
+
+No tools. Trims a long run's message history before each request, so a run that
+would have hit the model's limit keeps working instead. The strategies come from
+[`pydantic-ai-harness`](https://github.com/pydantic/pydantic-ai-harness).
+
+| Config | Default | |
+|---|---|---|
+| `strategy` | `tiered` | `tiered`, `clear_tool_results`, `sliding_window`, `summarize` |
+| `max_fraction` | `0.8` | 0.05–0.95 of the window, at which compaction starts |
+| `keep_messages` | 20 | recent messages that survive a summary or a window |
+| `keep_tool_pairs` | 3 | recent tool calls that keep their results |
+| `context_window` | unset | override the window in tokens |
+| `fallback_context_window` | 200000 | window to assume when the model's cannot be resolved |
+
+`tiered` clears old tool results first and summarises only if that was not
+enough. It is the default because summarising turns input tokens into output
+tokens, which are billed at a premium and generated serially — while a tool result
+that has already been acted on is dead weight, and clearing it costs a cache
+write.
+
+**It reaches one run, not one conversation.** Between turns the history is rebuilt
+from the transcript as user and assistant text, so tool calls and their results
+are not there to compact and no edit made here survives a turn boundary. The
+history worth compacting is the long tool loop inside a single run, where one
+directory listing or knowledge search is tens of thousands of tokens.
+
+**The trigger is a fraction because an absolute number is only right for one
+model**, and the same agent runs on whatever profile its spec points at. Two cases
+resolve to the wrong number, both in the direction that breaks a run rather than
+the one that wastes a summary: a spec with fallbacks builds a `FallbackModel`
+whose composite id resolves to nothing, and `genai-prices` records 1,000,000 for
+`anthropic:claude-sonnet-4-5` against a real 200,000 — where `max_fraction=0.9`
+puts the trigger at 900,000 and compaction never fires. `context_window` overrides
+resolution outright and is the answer to both.
+
+**A summary is metered.** The strategy writes it through an agent it builds
+itself, which no budget guard wraps, so the capability measures the run's usage
+across the hook and books the difference against the run's ledger. It is recorded
+rather than prevented: the guard refuses on the *next* request, so a compaction
+that crosses a cap stops the run after it, not during it.
 
 ## Chat channel lookup
 
