@@ -1181,14 +1181,13 @@
         "description": "Runs paused on a tool call, waiting for a decision."
       },
       "budget-headroom": {
-        "cause": "Agents with their own caps - the donut's budget_exceeded is the symptom; this is the cause.",
         "empty": {
           "description": "Set one on the organization - headroom shows here before budget_exceeded does.",
           "title": "No monthly cap set"
         },
         "headline": "of the {cap} monthly cap - {left} left",
         "title": "Budget headroom",
-        "description": "How much of the monthly budget is left."
+        "description": "How much of the monthly budget is left, for the organization and for any agent carrying its own cap. The donut's budget_exceeded is the symptom; this is the cause."
       },
       "conversations": {
         "continue": "Continue",
@@ -1245,10 +1244,9 @@
           "description": "Connect one from the catalog - its health lands here.",
           "title": "No MCP servers connected"
         },
-        "subline": "A server that stops answering quietly takes its tools from every agent using it.",
         "title": "Integrations",
         "unchecked": "not probed yet",
-        "description": "Whether connected MCP servers are still answering."
+        "description": "Whether connected MCP servers are still answering. One that stops quietly takes its tools from every agent using it."
       },
       "members": {
         "empty": {
@@ -1393,12 +1391,11 @@
           "description": "Register one and the room left for agents to run code lands here.",
           "title": "No sandbox host registered"
         },
-        "hostUncounted": "How full a host itself is cannot be shown here. Its own two ceilings are shared with every organization on it and no count of them is published, so this is the only figure that divides. Being refused a sandbox while this one is short of its ceiling means somebody else filled the host.",
+        "hostUncounted": "How full a host itself is cannot be shown here - being refused while this card has room to spare means somebody else filled the host.",
         "openOfTenantLimit": "{used} of {limit}",
         "openUncapped": "{count, plural, =1 {1 open} other {# open}}",
-        "subline": "Open sandboxes against the ceiling that applies to this organization - the number a 429 comes from.",
         "title": "Sandbox capacity",
-        "description": "How much sandbox capacity is in use."
+        "description": "How much sandbox capacity is in use: open sandboxes against the ceiling that applies to this organization, which is the number a 429 comes from."
       },
       "sandbox-policy": {
         "ceilings": {
@@ -1417,9 +1414,8 @@
         },
         "noMemoryCeiling": "no ceiling",
         "noRuntime": "This service allows no runtime, so no agent can run code on it.",
-        "subline": "Ceilings, not counts. The host-wide two are shared with every organization on it and nothing publishes how many are in use, so only the per-organization figure can be drawn as a fraction. All of this is the service's own environment, set where it starts.",
         "title": "Sandbox runtimes",
-        "description": "What the sandbox host allows agents to run."
+        "description": "What the sandbox host allows agents to run. Ceilings the service sets where it starts, not counts in use - only the per-organization one can be drawn as a fraction."
       },
       "sandbox-sessions": {
         "activityOf": "Show what was done in sandbox {id}",
@@ -1474,11 +1470,11 @@
           "description": "Model cost lands here run by run.",
           "title": "Nothing spent yet"
         },
-        "monthToDate": "This month so far: {amount} - calendar month, reconciles with the invoice; deliberately not scoped by the period filter.",
+        "monthToDate": "This month so far: {amount}",
         "notRecorded": "not recorded",
         "title": "Spend",
         "unit": "in this period",
-        "description": "What the period cost, with this month to date."
+        "description": "What the period cost, and this calendar month to date. The month figure reconciles with the invoice, so it deliberately ignores the period filter."
       },
       "surfaces": {
         "empty": {
@@ -1516,14 +1512,14 @@
           "person": "Person",
           "runs": "Runs"
         },
-        "disclosure": "Everyone holding runs:view sees this - builders and operators as well as owners and admins.",
         "empty": {
           "description": "The first person's first run puts a name here.",
           "title": "Nobody has run anything"
         },
         "others": "{count, plural, =1 {1 more person ran at least one agent} other {# more people ran at least one agent}}",
         "title": "Who is using it",
-        "description": "The people using it most, by runs, with cost alongside."
+        "description": "The people using it most, by runs, with cost alongside.",
+        "disclosure": "Everyone holding runs:view sees this - builders and operators as well as owners and admins."
       },
       "version-compare": {
         "empty": {

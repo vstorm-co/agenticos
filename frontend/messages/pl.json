@@ -648,24 +648,24 @@
           "lastRun": "Ostatnie"
         },
         "others": "{count, plural, =1 {1 kolejna osoba uruchomiła co najmniej jednego agenta} few {# kolejne osoby uruchomiły co najmniej jednego agenta} many {# kolejnych osób uruchomiło co najmniej jednego agenta} other {# kolejnych osób uruchomiło co najmniej jednego agenta}}",
-        "disclosure": "Widzi to każdy z uprawnieniem runs:view - także budowniczowie i operatorzy, nie tylko właściciele i administratorzy.",
         "empty": {
           "title": "Nikt nic nie uruchomił",
           "description": "Pierwsze uruchomienie pierwszej osoby wpisze tu nazwisko."
         },
-        "description": "Kto korzysta najczęściej, według uruchomień, z kosztem obok."
+        "description": "Osoby korzystające najczęściej, według runów, z kosztem obok.",
+        "disclosure": "Widzi to każdy z runs:view - builderzy i operatorzy tak samo jak właściciele i admini."
       },
       "spend": {
         "title": "Wydatki",
         "unit": "w tym okresie",
         "delta": "vs poprzedni okres",
         "notRecorded": "nie zarejestrowano",
-        "monthToDate": "W tym miesiącu do dziś: {amount} - miesiąc kalendarzowy, zgadza się z fakturą; celowo poza filtrem okresu.",
+        "monthToDate": "W tym miesiącu do teraz: {amount}",
         "empty": {
           "title": "Jeszcze nic nie wydano",
           "description": "Koszt modeli ląduje tutaj uruchomienie po uruchomieniu."
         },
-        "description": "Ile kosztował okres, wraz z bieżącym miesiącem do teraz."
+        "description": "Ile kosztował okres i ile miesiąc kalendarzowy do dziś. Kwota miesięczna zgadza się z fakturą, więc celowo nie reaguje na filtr okresu."
       },
       "model-mix": {
         "title": "Modele za uruchomieniami",
@@ -720,12 +720,11 @@
       "budget-headroom": {
         "title": "Zapas budżetu",
         "headline": "miesięcznego limitu {cap} - zostało {left}",
-        "cause": "Agenci z własnymi limitami - budget_exceeded na wykresie to objaw; to jest przyczyna.",
         "empty": {
           "title": "Brak miesięcznego limitu",
           "description": "Ustaw limit organizacji - zapas pokaże się tu, zanim pojawi się budget_exceeded."
         },
-        "description": "Ile zostało z miesięcznego budżetu."
+        "description": "Ile zostało z miesięcznego budżetu - organizacji i każdego agenta z własnym limitem. budget_exceeded na pierścieniu to objaw; tutaj jest przyczyna."
       },
       "mcp-health": {
         "title": "Integracje",
@@ -733,12 +732,11 @@
         "down": "nie działa",
         "checked": "sprawdzono {ago}",
         "unchecked": "jeszcze nie sprawdzono",
-        "subline": "Serwer, który po cichu przestaje odpowiadać, zabiera narzędzia każdemu agentowi, który z niego korzysta.",
         "empty": {
           "title": "Brak podłączonych serwerów MCP",
           "description": "Podłącz serwer z katalogu - jego zdrowie wyląduje tutaj."
         },
-        "description": "Czy podłączone serwery MCP nadal odpowiadają."
+        "description": "Czy podłączone serwery MCP nadal odpowiadają. Taki, który przestanie, po cichu zabiera swoje narzędzia każdemu agentowi, który z niego korzysta."
       },
       "knowledge-freshness": {
         "title": "Synchronizacja wiedzy",
@@ -841,20 +839,18 @@
       },
       "sandbox-capacity": {
         "title": "Pojemność sandboxów",
-        "subline": "Otwarte sandboxy wobec limitu, który obowiązuje tę organizację — liczby, z której bierze się 429.",
         "openOfTenantLimit": "{used} z {limit}",
         "openUncapped": "{count, plural, one {1 otwarty} few {# otwarte} many {# otwartych} other {# otwartego}}",
-        "hostUncounted": "Tego, jak pełny jest sam host, nie da się tutaj pokazać. Jego własne dwa limity są dzielone z każdą organizacją na nim i nikt ich nie publikuje, więc to jedyna liczba, która się dzieli. Odmowa sandboxa, gdy ta organizacja jest poniżej swojego limitu, oznacza, że host zapełnił ktoś inny.",
+        "hostUncounted": "Nie da się tu pokazać, jak pełny jest sam host - odmowa przy karcie z zapasem oznacza, że host zapełnił ktoś inny.",
         "elsewhere": "Działa na Daytonie — tamte sandboxy liczą się na tamtym koncie, nie tutaj.",
         "empty": {
           "title": "Nie zarejestrowano hosta sandboxów",
           "description": "Zarejestruj hosta, a miejsce dla agentów na uruchamianie kodu wyląduje tutaj."
         },
-        "description": "Ile pojemności sandboxów jest w użyciu."
+        "description": "Ile pojemności sandbox jest zajęte: otwarte sandboxy wobec sufitu tej organizacji, czyli liczby, z której bierze się 429."
       },
       "sandbox-policy": {
         "title": "Runtime'y sandboxów",
-        "subline": "Limity, nie liczniki. Te dwa na całym hoście są dzielone z każdą organizacją na nim i nic nie publikuje, ile jest w użyciu, więc tylko liczbę dla organizacji da się narysować jako ułamek. Wszystko to jest własnym środowiskiem usługi, ustawianym tam, gdzie ona startuje.",
         "ceilings": {
           "hostOpen": "Otwarte, na całym hoście",
           "hostResident": "Rezydentne, na całym hoście",
@@ -871,7 +867,7 @@
           "title": "Nie zarejestrowano hosta sandboxów",
           "description": "Zarejestruj hosta, a runtime'y, na które pozwala, wylądują tutaj."
         },
-        "description": "Co host sandboxów pozwala uruchamiać agentom."
+        "description": "Co host sandbox pozwala uruchamiać agentom. To sufity ustawione przy starcie usługi, nie liczba w użyciu - tylko ten per organizacja da się pokazać jako ułamek."
       },
       "sandbox-sessions": {
         "title": "Otwarte sandboxy",

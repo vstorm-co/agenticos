@@ -106,7 +106,6 @@ function PolicyBody({ policy }: { policy: SandboxPolicy }) {
           ))}
         </ul>
       )}
-      <p className="text-muted-foreground text-xs">{t("subline")}</p>
     </div>
   );
 }

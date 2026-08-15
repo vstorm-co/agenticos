@@ -53,7 +53,6 @@ export function McpHealthWidget({ title, hint, seeAll }: DashboardWidgetProps) {
                     : "neutral",
             }))}
           />
-          <p className="text-muted-foreground text-xs">{t("subline")}</p>
         </div>
       )}
     </WidgetFrame>

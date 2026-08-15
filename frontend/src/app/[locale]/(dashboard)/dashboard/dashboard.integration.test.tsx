@@ -1,4 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+import { TooltipProvider } from "@/components/ui";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
@@ -52,7 +54,14 @@ function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  // The same two providers `app/providers.tsx` mounts around the real page.
+  // Every widget header carries a tooltip for its explanation, and Radix throws
+  // rather than degrading when one is rendered outside a provider.
+  return (
+    <QueryClientProvider client={client}>
+      <TooltipProvider>{children}</TooltipProvider>
+    </QueryClientProvider>
+  );
 }
 
 function holds(...held: Permission[]) {

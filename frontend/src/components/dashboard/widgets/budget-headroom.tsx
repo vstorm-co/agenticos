@@ -86,7 +86,6 @@ export function BudgetHeadroomWidget({ title, hint }: DashboardWidgetProps) {
                   </div>
                 );
               })}
-              <p className="text-muted-foreground text-xs">{t("cause")}</p>
             </div>
           ) : null}
         </div>

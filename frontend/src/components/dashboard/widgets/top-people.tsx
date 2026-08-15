@@ -78,6 +78,10 @@ export function TopPeopleWidget({ title, hint, period, seeAll }: DashboardWidget
           </div>
           <div className="text-muted-foreground space-y-1 text-xs">
             {others > 0 ? <p>{t("others", { count: others })}</p> : null}
+            {/* On screen rather than behind the header's info icon, like the
+                sandbox card's missing figure. This is the one card that answers
+                with colleagues' names, and who else can see it is not a detail
+                a reader should have to hover to find. */}
             <p>{t("disclosure")}</p>
           </div>
         </div>
