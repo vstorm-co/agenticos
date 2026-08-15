@@ -56,6 +56,8 @@ export function useRuns(
     /** Narrows to these statuses - `failed,budget_exceeded` is "the problems". */
     statuses?: RunStatus[];
     surface?: string;
+    /** The model as the run recorded it - the dashboard's bars count these. */
+    modelLabel?: string;
     /** Who the run ran as. */
     userId?: string;
     /** The frozen spec the run executed - "did v4 behave better than v3", as rows. */
@@ -73,6 +75,7 @@ export function useRuns(
     rated,
     statuses,
     surface,
+    modelLabel,
     userId,
     agentVersionId,
     skip,
@@ -88,6 +91,7 @@ export function useRuns(
       rated,
       statuses,
       surface,
+      modelLabel,
       userId,
       agentVersionId,
       skip,
@@ -108,6 +112,7 @@ export function useRuns(
       if (rated) params.rated = rated;
       if (statuses && statuses.length > 0) params.status = statuses.join(",");
       if (surface) params.surface = surface;
+      if (modelLabel) params.model_label = modelLabel;
       if (userId) params.user_id = userId;
       if (agentVersionId) params.agent_version_id = agentVersionId;
       if (skip) params.skip = String(skip);

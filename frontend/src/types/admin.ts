@@ -20,6 +20,14 @@ export interface AdminOrganization {
   is_personal: boolean;
   member_count: number;
   agent_count: number;
+  /**
+   * Its earliest owner - who to ask about this tenant. Every field is null
+   * together, for an organization whose last owner left, which is a state only
+   * the deployment admin can fix and therefore one they have to be shown.
+   */
+  owner_user_id: string | null;
+  owner_email: string | null;
+  owner_name: string | null;
   created_at: string;
 }
 

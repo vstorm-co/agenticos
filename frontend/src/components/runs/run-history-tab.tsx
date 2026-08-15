@@ -6,11 +6,7 @@ import { Activity, ThumbsDown } from "lucide-react";
 
 import { getErrorMessage } from "@/lib/api-error";
 import { ExportMenu } from "@/components/runs/export-menu";
-import {
-  DEFAULT_RUN_FILTERS,
-  RunFilterBar,
-  type RunFilters,
-} from "@/components/runs/run-filter-bar";
+import { RunFilterBar } from "@/components/runs/run-filter-bar";
 import { RunTable, type RunSort } from "@/components/runs/run-table";
 import { VersionStrip } from "@/components/runs/version-strip";
 import { ErrorState, LoadingState } from "@/components/states";
@@ -29,6 +25,7 @@ import {
 import { useAgents, useMembers, usePermissions, useRuns } from "@/hooks";
 import { useOrgStore } from "@/stores";
 import { formatPeriodParam, periodEnd, periodStart, type Period } from "@/lib/dashboard/period";
+import { isNarrowed, type RunFilters } from "@/lib/runs/filter-params";
 import { setUrlParam } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 import type { RunStatus } from "@/types/runs";
@@ -76,12 +73,17 @@ const PAGE_SIZE = 50;
 export function RunHistoryTab({
   agentId,
   period,
+  filters,
+  onFiltersChange,
   onAgentChange,
   onFocusRun,
   initialDurationSort = false,
 }: {
   agentId: string | null;
   period: Period;
+  /** Which narrowing is in force. The page's, because it is the URL's. */
+  filters: RunFilters;
+  onFiltersChange: (filters: RunFilters) => void;
   onAgentChange: (agentId: string | null) => void;
   onFocusRun: (runId: string | null) => void;
   initialDurationSort?: boolean;
@@ -105,7 +107,6 @@ export function RunHistoryTab({
     () => new Map(members.map((member) => [member.user_id, member])),
     [members],
   );
-  const [filters, setFilters] = useState<RunFilters>(DEFAULT_RUN_FILTERS);
   const [sort, setSort] = useState<RunSort>(
     initialDurationSort ? { by: "duration", dir: "desc" } : { by: "started_at", dir: "desc" },
   );
@@ -116,7 +117,7 @@ export function RunHistoryTab({
   // The version narrowing belongs to one agent's history: carried across a
   // change of agent it would silently empty the next agent's list.
   const changeAgent = (next: string | null) => {
-    setFilters((current) => ({ ...current, versionId: "all" }));
+    onFiltersChange({ ...filters, versionId: "all" });
     onAgentChange(next);
   };
   // The same reset for an `?agent=` that changes without `changeAgent` - a
@@ -125,7 +126,7 @@ export function RunHistoryTab({
   const [seenAgentId, setSeenAgentId] = useState(agentId);
   if (seenAgentId !== agentId) {
     setSeenAgentId(agentId);
-    setFilters((current) => ({ ...current, versionId: "all" }));
+    if (filters.versionId !== "all") onFiltersChange({ ...filters, versionId: "all" });
   }
 
   // The `?sort=` in the URL is the dashboard's hand-off, not state this tab
@@ -168,6 +169,7 @@ export function RunHistoryTab({
           ? PROBLEM_STATUSES
           : [filters.status],
     surface: filters.surface === "all" ? undefined : filters.surface,
+    modelLabel: filters.model === "all" ? undefined : filters.model,
     userId: filters.userId === "all" ? undefined : filters.userId,
     agentVersionId: filters.versionId === "all" ? undefined : filters.versionId,
     skip: page * PAGE_SIZE,
@@ -175,12 +177,7 @@ export function RunHistoryTab({
     // request would be a predictable 403 drawn as a failure card below.
     enabled: canView,
   });
-  const narrowed =
-    filters.rated !== "all" ||
-    filters.status !== "all" ||
-    filters.surface !== "all" ||
-    filters.userId !== "all" ||
-    filters.versionId !== "all";
+  const narrowed = isNarrowed(filters);
 
   const showSlow = () => {
     changeSort({ by: "duration", dir: "desc" });
@@ -205,6 +202,7 @@ export function RunHistoryTab({
       filters.status === "problems" ? PROBLEM_STATUSES.join(",") : filters.status;
   }
   if (filters.surface !== "all") exportParams.surface = filters.surface;
+  if (filters.model !== "all") exportParams.model_label = filters.model;
   if (filters.rated !== "all") exportParams.rated = filters.rated;
   if (filters.userId !== "all") exportParams.user_id = filters.userId;
   if (filters.versionId !== "all") exportParams.agent_version_id = filters.versionId;
@@ -284,7 +282,8 @@ export function RunHistoryTab({
                   </Button>
                   <RunFilterBar
                     filters={filters}
-                    onChange={setFilters}
+                    period={period}
+                    onChange={onFiltersChange}
                     agentId={agentId}
                     onAgentChange={changeAgent}
                   />

@@ -22,7 +22,7 @@ export function useChannelBots(enabled: boolean) {
   const t = useTranslations("pages.channels");
   const queryClient = useQueryClient();
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.channelBots.list(),
     queryFn: () => apiClient.get<ChannelBotList>("/channels/bots"),
     enabled,
@@ -74,5 +74,5 @@ export function useChannelBots(enabled: boolean) {
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
-  return { bots: data?.items ?? [], isLoading, error, create, setActive, remove };
+  return { bots: data?.items ?? [], isLoading, error, refetch, create, setActive, remove };
 }

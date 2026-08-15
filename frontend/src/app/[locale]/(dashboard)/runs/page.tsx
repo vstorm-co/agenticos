@@ -25,6 +25,7 @@ import {
 } from "@/components/ui";
 import { useApprovals, usePermissions, useUrlState } from "@/hooks";
 import { formatPeriodParam, parsePeriodParam, type Period } from "@/lib/dashboard/period";
+import { parseRunFilters, writeRunFilters, type RunFilters } from "@/lib/runs/filter-params";
 import { setUrlParam } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
@@ -66,6 +67,19 @@ export default function RunsPage() {
   const changePeriod = (next: Period) => {
     setPeriod(next);
     setUrlParam("period", formatPeriodParam(next));
+  };
+  // Every narrowing the run history offers, mirrored into the URL like the
+  // window above it. It is the page's rather than the tab's for the reason
+  // `agent` and `run` are: a component that reaches for the URL itself can only
+  // be used on the page whose URL it knows. And it is in the URL at all so that
+  // a card counting one slice can link to *those runs* - the dashboard says
+  // Mattermost 31 and used to be able to offer only all 58 (#768).
+  const [filters, setFilters] = useState<RunFilters>(() =>
+    parseRunFilters(new URLSearchParams(searchParams.toString())),
+  );
+  const changeFilters = (next: RunFilters) => {
+    setFilters(next);
+    writeRunFilters(next);
   };
   const { can, isLoading: permissionsLoading } = usePermissions();
   // Run history and spend take `runs:view` - `GET /runs` and `GET /spend` both
@@ -135,6 +149,8 @@ export default function RunsPage() {
               <RunHistoryTab
                 agentId={agentId}
                 period={period}
+                filters={filters}
+                onFiltersChange={changeFilters}
                 onAgentChange={changeAgent}
                 onFocusRun={focusRun}
                 initialDurationSort={sortParam === "duration"}

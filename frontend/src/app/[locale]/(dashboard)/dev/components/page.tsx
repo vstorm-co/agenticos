@@ -5,7 +5,6 @@ import { notFound } from "next/navigation";
 import { Sparkles, Trash2 } from "lucide-react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
-import { StatCard } from "@/components/dashboard/stat-card";
 import { EmptyState } from "@/components/states";
 import {
   Alert,
@@ -14,6 +13,8 @@ import {
   Badge,
   Button,
   ConfirmDialog,
+  DeltaChip,
+  FigureCard,
   FormField,
   IconButton,
   Input,
@@ -149,9 +150,14 @@ function Gallery() {
 
       <Section title="StatCard">
         <div className="grid w-full gap-3 sm:grid-cols-3">
-          <StatCard label="Credits" value="1,240" delta={12.5} deltaLabel="vs prior 7d" />
-          <StatCard label="Conversations" value="38" footer="across all chats" />
-          <StatCard label="Knowledge base" value="0" unit="vectors" />
+          <FigureCard
+            label="Credits"
+            value="1,240"
+            delta={<DeltaChip delta={13} label="vs prior 7d" />}
+            spark={[4, 6, 5, 9, 8, 12, 11, 14, 13, 17, 16, 19]}
+          />
+          <FigureCard label="Conversations" value="38" caption="across all chats" />
+          <FigureCard label="Knowledge base" value="0" unit="vectors" />
         </div>
       </Section>
 
