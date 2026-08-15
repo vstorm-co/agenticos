@@ -35,6 +35,7 @@ from pydantic_ai_harness.compaction import (
 from app.agents.capabilities import CapabilityBinding, build, get
 from app.agents.capabilities.budget import SpendLedger, metered_by
 from app.agents.capabilities.compaction import (
+    MODEL_CONTEXT_WINDOW_RESOURCE,
     CompactionConfig,
     MeteredCompaction,
     build_strategy,
@@ -119,6 +120,37 @@ class TestConfiguration:
         assert [tier.context_window for tier in tiered.tiers] == [32_000, 32_000]
         assert [tier.fallback_context_window for tier in tiered.tiers] == [8_000, 8_000]
 
+    def test_the_profiles_recorded_window_is_used_when_nobody_overrode_it(self):
+        """The provider's own number beats resolving one from the pricing snapshot.
+
+        The snapshot records 1,000,000 for `anthropic:claude-sonnet-4-5` against
+        a real 200,000, and answers nothing for the composite id a spec with
+        fallbacks builds (#773).
+        """
+        tiered = build_strategy(CompactionConfig(strategy="tiered"), recorded_window=128_000)
+
+        assert isinstance(tiered, TieredCompaction)
+        assert tiered.context_window == 128_000
+        assert [tier.context_window for tier in tiered.tiers] == [128_000, 128_000]
+
+    def test_an_author_who_names_a_window_beats_the_recorded_one(self):
+        """A provider publishes the maximum a model *can* be made to accept, and a
+        beta- or tier-gated deployment gets less."""
+        summary = build_strategy(
+            CompactionConfig(strategy="summarize", context_window=32_000), recorded_window=1_000_000
+        )
+
+        assert isinstance(summary, SummarizingCompaction)
+        assert summary.context_window == 32_000
+
+    def test_a_profile_with_no_recorded_window_leaves_resolution_alone(self):
+        """`None` has to reach the strategy as `None`, not as a number: that is
+        what puts it back on resolving the window itself."""
+        summary = build_strategy(CompactionConfig(strategy="summarize"), recorded_window=None)
+
+        assert isinstance(summary, SummarizingCompaction)
+        assert summary.context_window is None
+
     def test_the_knobs_reach_the_single_strategies(self):
         clearing = build_strategy(
             CompactionConfig(strategy="clear_tool_results", keep_tool_pairs=7, max_fraction=0.5)
@@ -176,6 +208,26 @@ class TestRegistration:
     def test_an_agent_that_does_not_bind_it_gets_nothing(self):
         """Binding is the decision to compact; there is no other way to switch it on."""
         assert build([]) == []
+
+    def test_the_run_hands_over_the_window_its_model_profile_recorded(self):
+        """A capability must never reach for the model itself, which is what
+        `resources` exists to prevent - so the factory puts the number there."""
+        built = build(
+            [CapabilityBinding(capability_id="compaction", config={"strategy": "summarize"})],
+            resources={MODEL_CONTEXT_WINDOW_RESOURCE: 128_000},
+        )
+
+        assert built[0].wrapped.context_window == 128_000
+
+    def test_a_resource_that_is_not_a_number_is_ignored_rather_than_passed_on(self):
+        """`resources` is an untyped bag several subsystems write into, and a
+        strategy handed a string for a token count fails inside a run."""
+        built = build(
+            [CapabilityBinding(capability_id="compaction")],
+            resources={MODEL_CONTEXT_WINDOW_RESOURCE: "128k"},
+        )
+
+        assert built[0].wrapped.context_window is None
 
 
 class TestMetering:

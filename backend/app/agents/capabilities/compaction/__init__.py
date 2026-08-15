@@ -2,13 +2,20 @@
 
 from app.agents.capabilities._registry import CapabilityBuildContext, register
 from app.agents.capabilities.compaction._capability import (
+    MODEL_CONTEXT_WINDOW_RESOURCE,
     CompactionConfig,
     MeteredCompaction,
     StrategyName,
     build_strategy,
 )
 
-__all__ = ["CompactionConfig", "MeteredCompaction", "StrategyName", "build_strategy"]
+__all__ = [
+    "MODEL_CONTEXT_WINDOW_RESOURCE",
+    "CompactionConfig",
+    "MeteredCompaction",
+    "StrategyName",
+    "build_strategy",
+]
 
 
 @register(
@@ -33,4 +40,9 @@ def _build(ctx: CapabilityBuildContext) -> MeteredCompaction[object]:
     `test_no_capability_escapes_the_drift_check` refuses.
     """
     config = ctx.config if isinstance(ctx.config, CompactionConfig) else CompactionConfig()
-    return MeteredCompaction(wrapped=build_strategy(config))
+    recorded = ctx.resources.get(MODEL_CONTEXT_WINDOW_RESOURCE)
+    return MeteredCompaction(
+        wrapped=build_strategy(
+            config, recorded_window=recorded if isinstance(recorded, int) else None
+        )
+    )

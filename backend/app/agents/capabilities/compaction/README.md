@@ -73,10 +73,13 @@ direction that breaks a run rather than the one that wastes a summary:
   real 200,000.** `max_fraction=0.9` there resolves to a 900,000-token trigger,
   compaction never fires, and the provider refuses the request instead.
 
-`context_window` overrides resolution outright and is the answer to both. Our own
-model profile does not store a context length in the database — it is served live
-to the picker and never persisted — so this is configuration rather than
-something the platform can fill in.
+The window is taken from the model profile, which recorded it from the provider's
+own listing when somebody added the model (#773). Where the profile recorded
+nothing — an older row, a curated list, a listing that could not be reached — the
+strategy resolves the window itself and the two cases above apply.
+`context_window` on the binding overrides both, for a deployment that knows better
+than the provider: what a listing publishes is the maximum a model *can* be made
+to accept, and a beta- or tier-gated one gets less.
 
 ## Metering
 

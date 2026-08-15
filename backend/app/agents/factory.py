@@ -36,6 +36,7 @@ from app.agents.capabilities.budget import (
     SpendLedger,
     SpendLimit,
 )
+from app.agents.capabilities.compaction import MODEL_CONTEXT_WINDOW_RESOURCE
 from app.agents.deps import AgentDeps, ApprovalCallback
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.observability import instrument_agent
@@ -159,7 +160,14 @@ def build_agent(
     configured = build_capabilities(
         bindings,
         granted_scopes=granted_scopes,
-        resources=resources or {},
+        # Added here rather than by every caller: the model is resolved before an
+        # agent is built and nowhere above this knows the window it accepts, so a
+        # capability needing it would otherwise have to reach for the model - which
+        # is exactly what `resources` exists to stop.
+        resources={
+            **(resources or {}),
+            MODEL_CONTEXT_WINDOW_RESOURCE: model_spec.context_length,
+        },
         secrets=secrets,
     )
 

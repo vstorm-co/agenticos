@@ -551,13 +551,20 @@ history worth compacting is the long tool loop inside a single run, where one
 directory listing or knowledge search is tens of thousands of tokens.
 
 **The trigger is a fraction because an absolute number is only right for one
-model**, and the same agent runs on whatever profile its spec points at. Two cases
-resolve to the wrong number, both in the direction that breaks a run rather than
-the one that wastes a summary: a spec with fallbacks builds a `FallbackModel`
-whose composite id resolves to nothing, and `genai-prices` records 1,000,000 for
-`anthropic:claude-sonnet-4-5` against a real 200,000 — where `max_fraction=0.9`
-puts the trigger at 900,000 and compaction never fires. `context_window` overrides
-resolution outright and is the answer to both.
+model**, and the same agent runs on whatever profile its spec points at. The
+window comes from the model profile, which recorded it from the provider's own
+listing when somebody added the model — see
+[Which models a provider offers](../models.md#the-window-a-model-accepts-is-read-once-and-kept).
+
+Where the profile recorded nothing, the window is resolved from the bundled price
+snapshot instead, and two cases resolve wrongly — both in the direction that
+breaks a run rather than the one that wastes a summary: a spec with fallbacks
+builds a `FallbackModel` whose composite id resolves to nothing, and
+`genai-prices` records 1,000,000 for `anthropic:claude-sonnet-4-5` against a real
+200,000, where `max_fraction=0.9` puts the trigger at 900,000 and compaction never
+fires. `context_window` overrides everything and is the answer to both — a
+provider publishes the maximum a model *can* be made to accept, and a beta- or
+tier-gated deployment gets less.
 
 **A summary is metered.** The strategy writes it through an agent it builds
 itself, which no budget guard wraps, so the capability measures the run's usage

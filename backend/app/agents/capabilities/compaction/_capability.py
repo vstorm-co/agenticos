@@ -45,6 +45,15 @@ from app.agents.capabilities.budget import record_ambient_usage
 
 logger = logging.getLogger(__name__)
 
+MODEL_CONTEXT_WINDOW_RESOURCE = "model_context_window"
+"""Where the factory puts the window the run's model profile recorded.
+
+A resource rather than a config field, because it is not a decision an author
+makes - it is what the provider's own listing said when somebody added the
+model. `CompactionConfig.context_window` still beats it, for the deployment that
+knows better than both the provider and us.
+"""
+
 StrategyName = Literal["tiered", "clear_tool_results", "sliding_window", "summarize"]
 """Which strategy a binding picked.
 
@@ -103,7 +112,9 @@ class CompactionConfig(BaseModel):
     )
 
 
-def build_strategy(config: CompactionConfig) -> AbstractCapability[Any]:
+def build_strategy(
+    config: CompactionConfig, *, recorded_window: int | None = None
+) -> AbstractCapability[Any]:
     """The harness strategy this configuration asks for.
 
     `tiered` is the default because summarising is the expensive answer and the
@@ -115,11 +126,18 @@ def build_strategy(config: CompactionConfig) -> AbstractCapability[Any]:
     including the tiers inside `tiered` whose own triggers the orchestrator
     bypasses. An absolute number is correct only for the model it was measured
     against, and the same agent here runs on whatever profile its spec points at.
+
+    `recorded_window` is what the model profile stored from its provider's own
+    listing. It beats resolving the window from the pricing snapshot, which is
+    wrong for Sonnet-class Anthropic models and answers nothing at all for a
+    profile with fallbacks (#773). The author's own `context_window` beats both:
+    the provider publishes the maximum a model *can* be made to accept, and a
+    beta- or tier-gated deployment gets less.
     """
     # Spelt out at every call rather than splatted from a dict of the two: a
     # `**kwargs` splat is opaque to the type checker, and these constructors take
     # a `tokenizer` and a `receipts` flag that a mistyped key would land on.
-    window = config.context_window
+    window = config.context_window or recorded_window
     fallback = config.fallback_context_window
 
     def clearing() -> ClearToolResults[Any]:
