@@ -17,11 +17,8 @@ export function RatingsTrendImpl({ data }: { data: RatingsPoint[] }) {
   return (
     <ResponsiveContainer width="100%" height="100%">
       <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }} barGap={2}>
-        <CartesianGrid
-          strokeDasharray="3 3"
-          stroke="oklch(from var(--color-foreground) l c h / 0.07)"
-          vertical={false}
-        />
+        {/* Solid hairline: a dashed grid is ink that is not data. */}
+        <CartesianGrid stroke="oklch(from var(--color-foreground) l c h / 0.07)" vertical={false} />
         <XAxis
           dataKey="date"
           stroke="oklch(from var(--color-foreground) l c h / 0.3)"
@@ -58,13 +55,13 @@ export function RatingsTrendImpl({ data }: { data: RatingsPoint[] }) {
         <Bar
           dataKey="likes"
           fill="oklch(from var(--color-foreground) l c h / 0.75)"
-          radius={[3, 3, 0, 0]}
+          radius={[4, 4, 0, 0]}
           maxBarSize={24}
         />
         <Bar
           dataKey="dislikes"
           fill="oklch(from var(--color-foreground) l c h / 0.3)"
-          radius={[3, 3, 0, 0]}
+          radius={[4, 4, 0, 0]}
           maxBarSize={24}
         />
       </BarChart>

@@ -1,6 +1,5 @@
 "use client";
 
-import { useId } from "react";
 import {
   Area,
   AreaChart,
@@ -10,6 +9,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+
+import { AREA_FILL_OPACITY, LINE_WIDTH } from "@/lib/dashboard/system";
 
 export interface TrendPoint {
   label: string;
@@ -23,21 +24,13 @@ export interface TrendPoint {
  * classes cannot reach.
  */
 export function TrendChartImpl({ data }: { data: TrendPoint[] }) {
-  const gradientId = useId();
   return (
     <ResponsiveContainer width="100%" height="100%">
       <AreaChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-        <defs>
-          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--color-chart)" stopOpacity={0.25} />
-            <stop offset="100%" stopColor="var(--color-chart)" stopOpacity={0} />
-          </linearGradient>
-        </defs>
-        <CartesianGrid
-          strokeDasharray="3 3"
-          stroke="oklch(from var(--color-foreground) l c h / 0.07)"
-          vertical={false}
-        />
+        {/* Solid, and one step off the surface. A dashed grid adds ink that is
+            not data and reads as "projection" or "threshold" when it is only a
+            grid. */}
+        <CartesianGrid stroke="oklch(from var(--color-foreground) l c h / 0.07)" vertical={false} />
         <XAxis
           dataKey="label"
           stroke="oklch(from var(--color-foreground) l c h / 0.3)"
@@ -72,12 +65,16 @@ export function TrendChartImpl({ data }: { data: TrendPoint[] }) {
           }}
           labelStyle={{ color: "var(--color-muted-foreground)" }}
         />
+        {/* A flat wash rather than a gradient: the fill says "under the line",
+            and a ramp invents a second encoding down the y-axis that no data
+            asked for. */}
         <Area
           type="monotone"
           dataKey="value"
           stroke="var(--color-chart)"
-          strokeWidth={1.5}
-          fill={`url(#${gradientId})`}
+          strokeWidth={LINE_WIDTH}
+          fill="var(--color-chart)"
+          fillOpacity={AREA_FILL_OPACITY}
           dot={false}
         />
       </AreaChart>

@@ -161,7 +161,7 @@ export function AddWidgetDialog({
               ))
             )}
           </div>
-          <div className="border-border bg-muted/20 hidden flex-col rounded-lg border p-3 md:flex">
+          <div className="border-border bg-muted hidden flex-col rounded-lg border p-3 md:flex">
             <p className="text-muted-foreground mb-2 text-xs font-medium">{t("edit.preview")}</p>
             {PreviewWidget && active ? (
               // A fixed frame so every widget previews at the same size — a short

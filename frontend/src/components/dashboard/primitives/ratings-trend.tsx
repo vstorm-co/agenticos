@@ -8,7 +8,7 @@ const RatingsTrendImpl = dynamic(
   () => import("./ratings-trend.impl").then((m) => m.RatingsTrendImpl),
   {
     ssr: false,
-    loading: () => <div className="bg-foreground/5 h-full w-full animate-pulse rounded-md" />,
+    loading: () => <div className="bg-muted h-full w-full animate-pulse rounded-md" />,
   },
 );
 

@@ -58,7 +58,7 @@ export function SectionDividerCard({
   return (
     <div
       className={cn(
-        "dash-editable border-border bg-muted/30 group flex h-full flex-wrap items-center gap-2 rounded-xl border border-dashed px-2 py-1.5 transition",
+        "dash-editable border-border bg-muted group flex h-full flex-wrap items-center gap-2 rounded-xl border border-dashed px-2 py-1.5 transition",
         dragging && "dash-dragging",
       )}
     >

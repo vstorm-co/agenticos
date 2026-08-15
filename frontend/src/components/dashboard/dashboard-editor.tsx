@@ -386,7 +386,7 @@ export function DashboardEditor({
 
   return (
     <div className="space-y-4">
-      <div className="border-border bg-muted/30 flex flex-wrap items-center gap-2 rounded-lg border p-3">
+      <div className="border-border bg-muted flex flex-wrap items-center gap-2 rounded-lg border p-3">
         <p className="text-muted-foreground text-sm">{t("edit.banner")}</p>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <div className="flex items-center">

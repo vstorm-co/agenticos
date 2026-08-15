@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 
 const DonutChartImpl = dynamic(() => import("./donut-chart.impl").then((m) => m.DonutChartImpl), {
   ssr: false,
-  loading: () => <div className="bg-foreground/5 h-full w-full animate-pulse rounded-full" />,
+  loading: () => <div className="bg-muted h-full w-full animate-pulse rounded-full" />,
 });
 
 /**

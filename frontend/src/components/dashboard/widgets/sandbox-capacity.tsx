@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useSandboxConnections, useSandboxSessions } from "@/hooks";
 import { holdsSessions, tenantShare, watchableConnections } from "@/lib/dashboard/sandbox";
 import type { SandboxConnectionRecord } from "@/lib/sandbox-connections-api";
+import { MARK_CLASS, QUIET_SURFACE } from "@/lib/dashboard/system";
 import { cn } from "@/lib/utils";
 import { WidgetFrame } from "../widget-frame";
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
@@ -101,11 +102,11 @@ function HostCapacity({ connection }: { connection: SandboxConnectionRecord }) {
  */
 function CapacityTrack({ percent }: { percent: number }) {
   return (
-    <div className="bg-foreground/5 h-1.5 overflow-hidden rounded-full">
+    <div className={cn("h-1.5 overflow-hidden rounded-r-sm", QUIET_SURFACE)}>
       <div
         className={cn(
-          "h-full rounded-full",
-          percent >= 90 ? "bg-destructive" : percent >= 70 ? "bg-warning" : "bg-chart",
+          "h-full rounded-r-sm",
+          percent >= 90 ? "bg-destructive" : percent >= 70 ? "bg-warning" : MARK_CLASS,
         )}
         style={{ width: `${percent}%` }}
       />
