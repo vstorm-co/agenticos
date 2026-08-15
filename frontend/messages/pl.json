@@ -502,6 +502,21 @@
       "retry": "Ponów"
     },
     "widgets": {
+      "summary": {
+        "title": "Ten okres w skrócie",
+        "description": "Runy, jak się zakończyły, ile kosztowały i ile osób z nich korzystało.",
+        "runs": "Runy",
+        "completed": "Ukończone",
+        "completedOf": "{total, plural, =1 {z 1 runu} few {z # runów} many {z # runów} other {z # runów}}",
+        "spend": "Koszt",
+        "people": "Aktywne osoby",
+        "ofMembers": "{total, plural, =1 {z 1 osoby} few {z # osób} many {z # osób} other {z # osób}}",
+        "delta": "wzgl. poprzedniego okresu",
+        "empty": {
+          "title": "Nic nie uruchomiono w tym okresie",
+          "description": "Wybierz szerszy zakres albo daj agentowi powierzchnię - liczby pojawią się tutaj."
+        }
+      },
       "platform": {
         "title": "Platforma w skrócie",
         "organizations": "Organizacje",

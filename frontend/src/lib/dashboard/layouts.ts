@@ -220,6 +220,16 @@ const SANDBOX_SECTION: SectionDef = {
 };
 
 const STEWARD_SECTIONS: SectionDef[] = [
+  // Untitled and first, because it is the answer the rest of the page is the
+  // detail of. "Needs attention" opened the page before it, and in an
+  // organization where nothing is wrong every card in that band is an empty
+  // state - so a healthy deployment's first answer was five "nothing here"
+  // boxes and its first number was below the fold.
+  {
+    id: "overview",
+    titleKey: null,
+    entries: [{ widget: "summary", span: "s12" }],
+  },
   {
     id: "attention",
     titleKey: "attention",
@@ -283,6 +293,11 @@ export const LAYOUTS: Record<AudienceId, SectionDef[]> = {
   steward: STEWARD_SECTIONS,
   operator: [
     {
+      id: "overview",
+      titleKey: null,
+      entries: [{ widget: "summary", span: "s12" }],
+    },
+    {
       id: "attention",
       titleKey: "attention",
       entries: [
@@ -326,6 +341,11 @@ export const LAYOUTS: Record<AudienceId, SectionDef[]> = {
     },
   ],
   builder: [
+    {
+      id: "overview",
+      titleKey: null,
+      entries: [{ widget: "summary", span: "s12" }],
+    },
     {
       id: "build",
       titleKey: "build",

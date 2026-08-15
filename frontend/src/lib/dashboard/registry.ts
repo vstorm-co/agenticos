@@ -20,6 +20,7 @@ import { ROUTES } from "@/lib/constants";
 import { Perm, type Permission } from "@/types/permissions";
 
 export type WidgetId =
+  | "summary"
   | "platform"
   | "health"
   | "top-orgs"
@@ -160,6 +161,14 @@ const holds =
     can(permission);
 
 export const WIDGETS: Record<WidgetId, WidgetDef> = {
+  summary: {
+    id: "summary",
+    gate: holds(Perm.runsView),
+    defaultSpan: "s12",
+    defaultRows: "r2",
+    category: "usage",
+    seeAll: ROUTES.RUNS,
+  },
   platform: {
     id: "platform",
     gate: adminOnly,

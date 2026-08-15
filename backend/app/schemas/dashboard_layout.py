@@ -81,6 +81,7 @@ def _normalise_accent(value: str) -> str:
 # the ids are a contract; kept equal to the frontend registry by a parity test.
 WIDGET_IDS: frozenset[str] = frozenset(
     {
+        "summary",
         "platform",
         "health",
         "top-orgs",

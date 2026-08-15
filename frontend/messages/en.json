@@ -1134,6 +1134,21 @@
     "whatThisShows": "What this shows",
     "unknownDevice": "Unknown device",
     "widgets": {
+      "summary": {
+        "title": "This period at a glance",
+        "description": "Runs, how they ended, what they cost, and how many people used it.",
+        "runs": "Runs",
+        "completed": "Completed",
+        "completedOf": "{total, plural, =1 {of 1 run} other {of # runs}}",
+        "spend": "Spend",
+        "people": "Active people",
+        "ofMembers": "{total, plural, =1 {of 1 member} other {of # members}}",
+        "delta": "vs the previous period",
+        "empty": {
+          "title": "Nothing ran in this period",
+          "description": "Pick a wider window, or give an agent a surface and the numbers start here."
+        }
+      },
       "active-users": {
         "empty": {
           "description": "Adoption starts with the first person's first run.",

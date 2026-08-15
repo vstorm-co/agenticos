@@ -22,6 +22,7 @@ const NOBODY = () => false;
 
 /** Which single permission opens each widget - the truth table of the page. */
 const GATE_TABLE: Record<WidgetId, Permission | "app_admin"> = {
+  summary: Perm.runsView,
   platform: "app_admin",
   health: "app_admin",
   "top-orgs": "app_admin",
@@ -55,8 +56,8 @@ const GATE_TABLE: Record<WidgetId, Permission | "app_admin"> = {
 };
 
 describe("the widget catalog", () => {
-  it("holds all thirty widgets", () => {
-    expect(WIDGET_IDS).toHaveLength(30);
+  it("holds all thirty-one widgets", () => {
+    expect(WIDGET_IDS).toHaveLength(31);
   });
 
   it.each(WIDGET_IDS)("%s opens on exactly its own permission", (id) => {
