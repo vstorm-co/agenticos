@@ -448,7 +448,7 @@
   },
   "dashboard": {
     "title": "Panel",
-    "whatThisShows": "Co pokazuje ta karta",
+    "whatThisShows": "Co pokazuje {title}",
     "seeAll": "Zobacz wszystko",
     "subtitles": {
       "app_admin": "Najpierw cała instalacja, potem Twoja organizacja - ta sama strona, więcej odpowiedzi.",

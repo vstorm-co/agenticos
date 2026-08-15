@@ -39,7 +39,7 @@ export function Metric({
   return (
     <div className={cn("min-w-0", className)}>
       {label ? (
-        <p className="text-muted-foreground text-[11px] tracking-wide uppercase">{label}</p>
+        <p className="text-muted-foreground text-xs tracking-wide uppercase">{label}</p>
       ) : null}
       <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
         <span className="text-foreground font-mono text-2xl tabular-nums">{value}</span>
@@ -70,12 +70,8 @@ export function DeltaChip({
   label: string;
   rising?: "good" | "bad";
 }) {
-  const tone =
-    delta === 0
-      ? "text-muted-foreground"
-      : delta > 0 === (rising === "good")
-        ? "text-success"
-        : "text-destructive";
+  const good = delta > 0 ? rising === "good" : rising === "bad";
+  const tone = delta === 0 ? "text-muted-foreground" : good ? "text-success" : "text-destructive";
   const Arrow = delta === 0 ? Minus : delta > 0 ? ArrowUpRight : ArrowDownRight;
   return (
     <span className="inline-flex items-baseline gap-1 text-xs">

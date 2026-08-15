@@ -1131,7 +1131,7 @@
       "viewer": "What has been shared with you."
     },
     "title": "Dashboard",
-    "whatThisShows": "What this shows",
+    "whatThisShows": "What {title} shows",
     "unknownDevice": "Unknown device",
     "widgets": {
       "summary": {

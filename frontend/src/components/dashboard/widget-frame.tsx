@@ -45,7 +45,7 @@ export function WidgetFrame({ title, hint, seeAll, className, children }: Widget
       <div className="border-border flex items-center justify-between gap-2 border-b px-5 py-3">
         <div className="flex min-w-0 items-center gap-1.5">
           <h3 className="text-foreground truncate text-sm font-semibold tracking-tight">{title}</h3>
-          {hint ? <WidgetHint text={hint} /> : null}
+          {hint ? <WidgetHint title={title} text={hint} /> : null}
         </div>
         {seeAll ? (
           <Link
@@ -61,14 +61,17 @@ export function WidgetFrame({ title, hint, seeAll, className, children }: Widget
   );
 }
 
-function WidgetHint({ text }: { text: string }) {
+function WidgetHint({ title, text }: { title: string; text: string }) {
   const t = useTranslations("dashboard");
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <button
           type="button"
-          aria-label={t("whatThisShows")}
+          // Named for its card. A page of eleven of these all labelled "What
+          // this shows" is eleven identical stops to a screen reader, with
+          // nothing saying which card each one belongs to.
+          aria-label={t("whatThisShows", { title })}
           className="text-muted-foreground/50 hover:text-foreground shrink-0 transition-colors"
         >
           <Info className="size-3.5" aria-hidden />
