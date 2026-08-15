@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -678,6 +678,76 @@ describe("useChat - the conversation a turn belongs to", () => {
     receive("message_saved", { message_id: "m-real" });
 
     expect(streaming()).toMatchObject({ id: "m-real", isTemporaryId: false });
+  });
+
+  it("re-reads what the thread has cost once a turn has added to it", async () => {
+    // The total is read when the transcript loads, so without this it is a
+    // conversation out of date by the second message. Re-read rather than added
+    // to: a run that parked reports its cost so far and the resume reports the
+    // run's total, so the obvious arithmetic counts the approved half twice.
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    get.mockResolvedValueOnce({
+      cost: { input_tokens: 40, output_tokens: 4, cost_usd: "0.9", cost_is_partial: false },
+    });
+    renderHook(() => useChat(), { wrapper });
+
+    receive("complete", {
+      usage: {
+        input_tokens: 1200,
+        output_tokens: 300,
+        cost_usd: 0.0125,
+        budget_percent: null,
+        sandbox: null,
+      },
+    });
+
+    await waitFor(() =>
+      expect(useConversationStore.getState().currentCost).toMatchObject({ input_tokens: 40 }),
+    );
+    expect(get).toHaveBeenCalledWith("/conversations/c-1/messages?skip=0&limit=1");
+  });
+
+  it("leaves the total alone when the re-read fails", async () => {
+    // Stale is not wrong, and losing an answer to a failed accounting read would
+    // be the worse trade.
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useConversationStore.getState().setCurrentMessages([], {
+      input_tokens: 7,
+      output_tokens: 1,
+      cost_usd: "0.1",
+      cost_is_partial: false,
+    });
+    get.mockRejectedValueOnce(new Error("gone"));
+    renderHook(() => useChat(), { wrapper });
+
+    receive("complete", {
+      usage: {
+        input_tokens: 1,
+        output_tokens: 1,
+        cost_usd: 0.01,
+        budget_percent: null,
+        sandbox: null,
+      },
+    });
+
+    await waitFor(() => expect(get).toHaveBeenCalled());
+    expect(useConversationStore.getState().currentCost).toMatchObject({ input_tokens: 7 });
+  });
+
+  it("asks for nothing when a turn finished outside any conversation", () => {
+    renderHook(() => useChat(), { wrapper });
+
+    receive("complete", {
+      usage: {
+        input_tokens: 1,
+        output_tokens: 1,
+        cost_usd: 0.01,
+        budget_percent: null,
+        sandbox: null,
+      },
+    });
+
+    expect(get).not.toHaveBeenCalled();
   });
 
   it("keeps what the last turn cost, and does not clear it when a turn reports none", () => {

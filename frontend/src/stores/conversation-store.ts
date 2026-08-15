@@ -23,6 +23,17 @@ interface ConversationState {
 
   setCurrentConversationId: (id: string | null) => void;
   setCurrentMessages: (messages: ConversationMessage[], cost?: ConversationCost | null) => void;
+  /**
+   * Replace the thread's total on its own, without touching the transcript.
+   *
+   * A turn adds to the bill, and the total was read when the transcript loaded -
+   * so without this the figure under the composer is a conversation ago by the
+   * second message. It is re-read from the server rather than added to here:
+   * money is the one number a client must not compute a second way, and a run
+   * that parked and resumed reports its cost cumulatively, so the obvious
+   * arithmetic double-counts exactly the turn somebody had to approve.
+   */
+  setCurrentCost: (cost: ConversationCost | null) => void;
   addMessage: (message: ConversationMessage) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
@@ -47,6 +58,8 @@ export const useConversationStore = create<ConversationState>((set) => ({
   // transcript for as long as the second fetch took.
   setCurrentMessages: (messages, cost = null) =>
     set({ currentMessages: messages, currentCost: cost }),
+
+  setCurrentCost: (cost) => set({ currentCost: cost }),
 
   addMessage: (message) =>
     set((state) => ({

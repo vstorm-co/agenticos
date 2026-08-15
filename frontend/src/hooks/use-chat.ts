@@ -15,6 +15,7 @@ import type {
   AskUserAnswer,
   AskUserQuestion,
   ChatMessageFile,
+  ConversationCost,
   Decision,
   Delegation,
   PendingApproval,
@@ -61,8 +62,11 @@ export function useChat(options: UseChatOptions = {}) {
   // no catalog message holds it, so it belongs to the copy the guard has never
   // looked at rather than to this defect.
   const t = useTranslations("chat");
-  const { setCurrentConversationId, currentConversationId: currentConversationIdFromStore } =
-    useConversationStore();
+  const {
+    setCurrentConversationId,
+    setCurrentCost,
+    currentConversationId: currentConversationIdFromStore,
+  } = useConversationStore();
   const {
     messages,
     addMessage,
@@ -138,6 +142,37 @@ export function useChat(options: UseChatOptions = {}) {
   // started to handle. Here the panels simply outlive `complete`, and each closes
   // on its own `subagent_complete`.
   const [delegations, setDelegations] = useState<Delegation[]>([]);
+
+  /**
+   * Re-read what the whole thread has cost, after a turn has added to it.
+   *
+   * Re-read rather than accumulated. Money is the one number a client must not
+   * compute a second way — and the obvious arithmetic is wrong here anyway: a run
+   * that parked reports its cost so far, and the resume reports the run's total,
+   * so adding both counts the approved half twice.
+   *
+   * `limit=1` because only `cost` is wanted; it is a sum over the whole
+   * conversation regardless of the page asked for. Never raises: a total that
+   * could not be refreshed goes on showing the one from the transcript load,
+   * which is stale rather than wrong, and losing an answer to a failed
+   * accounting read would be the worse trade.
+   */
+  const refreshConversationCost = useCallback(async () => {
+    // From the store rather than the render closure, for the same reason the
+    // usage above is: a turn that created the conversation learns its id in this
+    // same handler, and the closure still holds `null`.
+    const id = useConversationStore.getState().currentConversationId ?? activeConversationId;
+    if (id === null) return;
+    try {
+      const page = await apiClient.get<{ cost: ConversationCost | null }>(
+        `/conversations/${id}/messages?skip=0&limit=1`,
+      );
+      // Only if the reader is still looking at the thread it was asked about.
+      if (useConversationStore.getState().currentConversationId === id) setCurrentCost(page.cost);
+    } catch {
+      // Deliberately silent: see above.
+    }
+  }, [activeConversationId, setCurrentCost]);
 
   const handleWebSocketMessage = useCallback(
     (event: MessageEvent) => {
@@ -438,6 +473,10 @@ export function useChat(options: UseChatOptions = {}) {
               // watching a budget is asking.
               if (currentMessageIdRef.current)
                 updateMessage(currentMessageIdRef.current, (msg) => ({ ...msg, usage }));
+              // And the thread's running total, which was read when the
+              // transcript loaded and is a conversation out of date by the
+              // second message.
+              void refreshConversationCost();
             }
           }
           // Clear currentMessageId after complete (message_saved should have handled ID mapping)
@@ -464,6 +503,7 @@ export function useChat(options: UseChatOptions = {}) {
       setCurrentMessageId,
       onConversationCreated,
       activeConversationId,
+      refreshConversationCost,
       t,
     ],
   );
@@ -926,6 +966,10 @@ export function useChat(options: UseChatOptions = {}) {
             messageId: continuation,
           });
         }
+        // The continuation spent money too, and it reports the run's total rather
+        // than its own share - which is exactly why this re-reads the sum instead
+        // of adding to it. See `refreshConversationCost`.
+        void refreshConversationCost();
       } catch (error) {
         const terminalStatus = resumeFailureStatus(error);
         if (terminalStatus !== null) {
@@ -954,6 +998,7 @@ export function useChat(options: UseChatOptions = {}) {
       resumeRun,
       addMessage,
       conversationId,
+      refreshConversationCost,
       tErrors,
     ],
   );
