@@ -154,6 +154,45 @@ class TestFactory:
         assert built.capabilities == []
 
 
+class TestToolSearchDefersMcp:
+    """Binding `tool_search` is what hides the MCP toolsets behind discovery.
+
+    The capability and the deferral are two halves of one decision: `ToolSearch`
+    is inert with nothing deferred, and a deferred toolset with no `ToolSearch`
+    to find it is a set of tools the model can never call. So what is pinned here
+    is the pairing - the MCP toolsets are deferred exactly when the capability is
+    bound, and left alone when it is not.
+    """
+
+    @staticmethod
+    def _agent_with_mcp(*, tool_search: bool):
+        from pydantic_ai.toolsets import FunctionToolset
+
+        capabilities = [{"id": "tool_search"}] if tool_search else []
+        spec = AgentSpec(name="x", capabilities=capabilities)
+        return build_agent(
+            spec,
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+            extra_toolsets=[FunctionToolset()],
+        )
+
+    def test_the_mcp_toolsets_are_deferred_when_it_is_bound(self):
+        from pydantic_ai.toolsets.deferred_loading import DeferredLoadingToolset
+
+        built = self._agent_with_mcp(tool_search=True)
+
+        assert any(isinstance(ts, DeferredLoadingToolset) for ts in built.agent.toolsets)
+
+    def test_the_mcp_toolsets_are_untouched_when_it_is_not(self):
+        """An agent that does not enable it pays nothing: its tools stay visible."""
+        from pydantic_ai.toolsets.deferred_loading import DeferredLoadingToolset
+
+        built = self._agent_with_mcp(tool_search=False)
+
+        assert not any(isinstance(ts, DeferredLoadingToolset) for ts in built.agent.toolsets)
+
+
 class TestBudgetComposition:
     """Every ceiling a run is under, as its own entry with its own lookup.
 

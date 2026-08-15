@@ -30,14 +30,17 @@ tools listed.
 | `charts` | Charts | analysis | `create_chart` | — | — |
 | `subagents` | Delegation | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
 | `thinking` | Thinking | reasoning | none, by design | — | — |
+| `tool_search` | Tool search | utility | none, by design | — | — |
 | `clock` | Date and time | utility | none, by design | — | — |
 | `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 
-Two of those have no tools on purpose. `thinking` changes how the model runs
-rather than what it can reach, and `clock` puts the date in the instructions —
-neither leaves anything for a person to approve, so neither declares a tool. A
-capability with genuinely no tools says so with `tools=()` rather than omitting
-the argument; see [Add a capability](../howto/add-capability.md).
+Three of those have no tools on purpose. `thinking` changes how the model runs
+rather than what it can reach, `clock` puts the date in the instructions, and
+`tool_search` contributes its search function only once it wraps a toolset that
+has deferred tools — in isolation it declares nothing. None of the three leaves
+anything for a person to approve, so none declares a tool. A capability with
+genuinely no tools says so with `tools=()` rather than omitting the argument;
+see [Add a capability](../howto/add-capability.md).
 
 **This column is what a capability declares, which is not always what a model is
 offered.** Delegation is the one place the two differ: `create_agent` and `delegate`
@@ -520,6 +523,47 @@ about "this quarter" from its training cutoff.
 | Config | Default | |
 |---|---|---|
 | `timezone` | `UTC` | any IANA name, e.g. `Europe/Warsaw` |
+
+## Tool search
+
+No tools of its own. Lets the agent *find* a tool from a large set instead of
+carrying every tool's schema in its context on every request. This matters most
+for [MCP](../mcp.md): an agent may bind an arbitrary number of servers, and every
+tool a server exposes is a schema the model pays for on each turn whether or not
+it ever calls it.
+
+| Config | Default | Values |
+|---|---|---|
+| `strategy` | `auto` | `auto`, `keywords`, `bm25`, `regex` |
+| `max_results` | 10 | 1–50, ignored by native search |
+
+- **`auto`** — native tool search where the provider offers it (Anthropic BM25 or
+  regex, OpenAI server-side), the local keyword algorithm everywhere else.
+- **`keywords`** — always match locally, on any provider.
+- **`bm25` / `regex`** — force an Anthropic-native algorithm; a run on a provider
+  with no native tool search errors rather than silently substituting another. The
+  model is resolved separately from the spec, so this is a run-time cost the author
+  accepts by naming one — `auto` never fails this way.
+
+**Enabling it is what defers the MCP toolsets.** The capability and the deferral
+are two halves of one decision: the library's `ToolSearch` is inert with nothing
+deferred, and a deferred tool with no search to find it is a tool the model can
+never call. So binding `tool_search` is what marks the connected servers'
+toolsets for deferred loading — the registry's own tools stay visible, being few
+and chosen per agent. An agent that does not bind it pays nothing and sees every
+tool as before.
+
+**Deferral changes what the model sees, never a tool's identity.** A discovered
+MCP tool arrives under its real prefixed name, so the [approval gate](#what-a-binding-may-change)
+still pairs on it and a binding's rename still reaches it; `ToolSearch` sits
+outermost, reading the names a rename already applied.
+
+**It needs no metering.** The two local strategies run in Python and spend no
+tokens; native search runs inside the provider's own request, whose usage the
+[budget guard](../governance.md) already meters; and the discovery round-trips are
+ordinary model requests the same guard wraps. The one shape that would escape it —
+a custom search callable that itself calls a model or an embedding — is
+deliberately not exposed.
 
 ## Chat channel lookup
 

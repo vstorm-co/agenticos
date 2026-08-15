@@ -601,6 +601,7 @@ def load_builtins() -> None:
         skills,
         subagents,
         thinking,
+        tool_search,
         web_research,
     )
 

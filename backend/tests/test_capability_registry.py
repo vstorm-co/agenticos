@@ -401,6 +401,7 @@ class TestRegistration:
             "clock",
             "skills",
             "thinking",
+            "tool_search",
         } <= set(REGISTRY)
 
     def test_catalog_is_ordered_for_a_stable_picker(self):

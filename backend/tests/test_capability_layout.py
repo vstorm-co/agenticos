@@ -35,6 +35,10 @@ TOOLLESS = {
     "clock",
     # Changes how the model runs, not what it can do.
     "thinking",
+    # Its `search_tools` function comes from the library, and only once it wraps
+    # a toolset with deferred tools - which the factory arranges, not this
+    # package. In isolation it declares and offers nothing of its own.
+    "tool_search",
     # Enforcement wrapped around every model request; never a tool.
     "budget",
     # Gates other capabilities' tools. Owning one of its own would mean an
