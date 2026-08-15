@@ -389,6 +389,7 @@
     "runCancelled": "Cancelled",
     "runCompleted": "Completed",
     "runFailed": "Failed",
+    "runGuardrailBlocked": "Blocked by guardrail",
     "runRunning": "Running",
     "runningThemOneAt": "Running them one at a time makes a conversation easier to follow, and easier to approve.",
     "runs": "Runs",
