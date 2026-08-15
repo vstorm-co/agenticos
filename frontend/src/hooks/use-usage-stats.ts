@@ -98,6 +98,30 @@ export function usePeopleUsage(
   return { byUser: data?.by_user ?? [], isLoading, error, refetch };
 }
 
+/**
+ * When the window's runs happened, by weekday and hour.
+ *
+ * Its own request rather than a block of the composed response, for the same
+ * reason the version and person questions are: a hundred and sixty-eight cells
+ * do not belong in every dashboard load, and only one card asks.
+ */
+export function useUsageByHour(
+  period: UsagePeriod,
+  options?: { scope?: UsageScope; enabled?: boolean },
+) {
+  const scope = options?.scope ?? "org";
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: qk.stats.usageByHour(scope, period.from, period.to),
+    queryFn: () =>
+      apiClient.get<UsageStats>("/stats/usage", {
+        params: { from: period.from, to: period.to, scope, group_by: "hour" },
+      }),
+    enabled: options?.enabled ?? true,
+    ...DASHBOARD_FRESHNESS,
+  });
+  return { byHour: data?.by_hour ?? [], isLoading, error, refetch };
+}
+
 /** Answer quality for the window: the thumbs split and its per-day series. */
 export function useRatingsSummary(
   period: UsagePeriod,

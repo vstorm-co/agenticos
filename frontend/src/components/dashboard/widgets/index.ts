@@ -36,6 +36,9 @@ import { SandboxPolicyWidget } from "./sandbox-policy";
 import { SandboxSessionsWidget } from "./sandbox-sessions";
 import { SharedWithYouWidget } from "./shared-with-you";
 import { SpendWidget } from "./spend";
+import { ActivityRhythmWidget } from "./activity-rhythm";
+import { ChannelsWidget } from "./channels";
+import { KnowledgeWidget } from "./knowledge";
 import { SummaryWidget } from "./summary";
 import { SurfacesWidget } from "./surfaces";
 import { TopOrgsWidget } from "./top-orgs";
@@ -44,6 +47,9 @@ import type { DashboardWidgetProps } from "./types";
 
 export const WIDGET_COMPONENTS: Record<WidgetId, ComponentType<DashboardWidgetProps>> = {
   summary: SummaryWidget,
+  "activity-rhythm": ActivityRhythmWidget,
+  channels: ChannelsWidget,
+  knowledge: KnowledgeWidget,
   platform: PlatformWidget,
   health: HealthWidget,
   "top-orgs": TopOrgsWidget,

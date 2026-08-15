@@ -1473,7 +1473,8 @@
         "notRecorded": "not recorded",
         "title": "Spend",
         "unit": "in this period",
-        "description": "What the period cost, and this calendar month to date. The month figure reconciles with the invoice, so it deliberately ignores the period filter."
+        "description": "What the period cost, and this calendar month to date. The month figure reconciles with the invoice, so it deliberately ignores the period filter.",
+        "split": "{models} on models · {ingestion} on indexing"
       },
       "surfaces": {
         "empty": {
@@ -1535,6 +1536,53 @@
         "subline": "{agent} - {current} (current) vs {previous}, only runs that executed each version",
         "title": "Version to version",
         "description": "Whether a new agent version behaves better than the last."
+      },
+      "channels": {
+        "title": "Channels",
+        "description": "Which messaging channels the agents can be reached on, and whether each door is open.",
+        "platforms": {
+          "telegram": "Telegram",
+          "slack": "Slack",
+          "mattermost": "Mattermost"
+        },
+        "webhook": "listening",
+        "polling": "polling",
+        "switchedOff": "switched off",
+        "empty": {
+          "title": "No channels yet",
+          "description": "Register a bot and its agents become reachable from Slack, Telegram or Mattermost."
+        }
+      },
+      "knowledge": {
+        "title": "Knowledge",
+        "description": "How much of what was uploaded is actually indexed and retrievable.",
+        "collections": "Collections",
+        "documents": "Documents",
+        "chunks": "Chunks",
+        "notIndexed": "{count, plural, =1 {1 not indexed} other {# not indexed}}",
+        "empty": {
+          "title": "No collections yet",
+          "description": "Create one and upload a document - what an agent can read shows here."
+        }
+      },
+      "activity-rhythm": {
+        "title": "When the work happens",
+        "description": "Runs by weekday and hour, in UTC - where the quiet windows are.",
+        "weekdays": {
+          "0": "Sun",
+          "1": "Mon",
+          "2": "Tue",
+          "3": "Wed",
+          "4": "Thu",
+          "5": "Fri",
+          "6": "Sat"
+        },
+        "cell": "{day} {hour}:00 UTC · {count, plural, =1 {1 run} other {# runs}}",
+        "hourTick": "{hour}h",
+        "empty": {
+          "title": "Nothing ran in this period",
+          "description": "The rhythm appears once there are runs to place on it."
+        }
       }
     },
     "edit": {

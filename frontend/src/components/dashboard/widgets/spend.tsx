@@ -12,11 +12,19 @@ import type { DashboardWidgetProps } from "./types";
 import { UsageBody } from "./usage-body";
 
 /**
- * Two truths about money, deliberately both. The headline and providers are
- * the period's, from the composed stats response, and move with the filter.
- * The fine-print line is the calendar month-to-date from GET /spend - it
- * reconciles against an invoice and must not move with a dashboard filter.
- * The delta's tone is inverted: rising spend is the red direction.
+ * Two truths about money, deliberately both. The headline, the split and the
+ * providers are the period's, from the composed stats response, and move with
+ * the filter. The fine-print line is the calendar month-to-date from GET
+ * /spend - it reconciles against an invoice and must not move with a dashboard
+ * filter. The delta's tone is inverted: rising spend is the red direction.
+ *
+ * The headline is the **whole** bill: model requests plus what the worker spent
+ * indexing documents. It was model spend alone while the month-to-date line
+ * under it was both, so a deployment doing any ingestion had two different
+ * definitions of cost on one card and nothing saying which was which. The split
+ * is here rather than on a card of its own because a reader asking where the
+ * money went is already looking at this one; two money cards is one answer in
+ * two places.
  */
 export function SpendWidget({ title, hint, period, seeAll }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.spend");
@@ -39,6 +47,20 @@ export function SpendWidget({ title, hint, period, seeAll }: DashboardWidgetProp
                   delta !== null ? (
                     <DeltaChip delta={delta} label={t("delta")} rising="bad" />
                   ) : undefined
+                }
+                // The two halves of the bill, and only when indexing spent
+                // anything: a deployment with no knowledge base should not
+                // read a line about a subsystem it does not use. The bars
+                // below break down the model half, so the split rides the
+                // headline rather than joining them - two denominators in one
+                // list read as one.
+                caption={
+                  Number(cost?.ingestion_usd ?? 0) > 0
+                    ? t("split", {
+                        models: formatUsd(cost?.model_usd),
+                        ingestion: formatUsd(cost?.ingestion_usd),
+                      })
+                    : undefined
                 }
               />
               <BarList

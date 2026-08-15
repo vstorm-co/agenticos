@@ -112,6 +112,9 @@ WIDGET_IDS: frozenset[str] = frozenset(
         "sandbox-capacity",
         "sandbox-sessions",
         "sandbox-policy",
+        "channels",
+        "knowledge",
+        "activity-rhythm",
     }
 )
 

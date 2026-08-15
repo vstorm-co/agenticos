@@ -234,25 +234,38 @@ const STEWARD_SECTIONS: SectionDef[] = [
     id: "attention",
     titleKey: "attention",
     entries: [
+      // Two lists of things that went wrong, then three short status cards.
+      // The pairing rule: a row holds cards of comparable natural height, so
+      // the second row is three four-wide status cards rather than a status
+      // card beside a chart that dwarfs it.
       { widget: "approvals", span: "s7" },
       { widget: "recent-failures", span: "s5" },
-      { widget: "budget-headroom", span: "s4" },
       { widget: "mcp-health", span: "s4" },
       { widget: "knowledge-freshness", span: "s4" },
+      { widget: "channels", span: "s4" },
+      { widget: "budget-headroom", span: "s6" },
+      { widget: "knowledge", span: "s6" },
     ],
   },
   {
     id: "usage",
     titleKey: "usage",
     entries: [
+      // Charts with charts, lists with lists, figures with figures.
       { widget: "runs", span: "s8" },
       { widget: "outcomes", span: "s4" },
       { widget: "surfaces", span: "s6" },
       { widget: "agents", span: "s6" },
       { widget: "spend", span: "s6" },
       { widget: "model-mix", span: "s6" },
-      { widget: "latency", span: "s4" },
-      { widget: "active-users", span: "s8" },
+      // The heatmap takes a row to itself - it is seven rows by twenty-four,
+      // and anything beside it is either dwarfed or forced to match a height
+      // it has no content for. The two short figures then pair with each
+      // other, which is the whole rule: a row holds cards of comparable
+      // natural height.
+      { widget: "activity-rhythm", span: "s12" },
+      { widget: "latency", span: "s6" },
+      { widget: "active-users", span: "s6" },
       { widget: "top-people", span: "s12" },
     ],
   },
@@ -303,6 +316,7 @@ export const LAYOUTS: Record<AudienceId, SectionDef[]> = {
       entries: [
         { widget: "approvals", span: "s7" },
         { widget: "recent-failures", span: "s5" },
+        { widget: "channels", span: "s12" },
       ],
     },
     {
@@ -322,6 +336,7 @@ export const LAYOUTS: Record<AudienceId, SectionDef[]> = {
         { widget: "surfaces", span: "s4" },
         { widget: "agents", span: "s6" },
         { widget: "spend", span: "s6" },
+        { widget: "activity-rhythm", span: "s12" },
         { widget: "top-people", span: "s12" },
       ],
     },
@@ -374,8 +389,9 @@ export const LAYOUTS: Record<AudienceId, SectionDef[]> = {
         { widget: "outcomes", span: "s4" },
         { widget: "model-mix", span: "s6" },
         { widget: "surfaces", span: "s6" },
-        { widget: "latency", span: "s4" },
-        { widget: "active-users", span: "s8" },
+        { widget: "activity-rhythm", span: "s12" },
+        { widget: "latency", span: "s6" },
+        { widget: "active-users", span: "s6" },
         { widget: "top-people", span: "s12" },
       ],
     },

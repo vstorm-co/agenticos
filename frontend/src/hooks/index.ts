@@ -53,6 +53,7 @@ export {
 export {
   usePeopleUsage,
   useRatingsSummary,
+  useUsageByHour,
   useUsageStats,
   useVersionUsage,
   type UsagePeriod,

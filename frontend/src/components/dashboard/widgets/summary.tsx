@@ -39,6 +39,11 @@ export function SummaryWidget({ title, hint, period, seeAll }: DashboardWidgetPr
           const spend = Number(usage.cost?.period_usd ?? 0);
           const spendDelta = deltaPercent(spend, Number(usage.cost?.previous_period_usd ?? 0));
           const active = usage.active_users?.active ?? 0;
+          // Three of the four figures have a daily series behind them, from the
+          // same response - `by_day` carries runs, completed and cost per day.
+          // The fourth does not: distinct people cannot be summed across days
+          // without counting somebody twice, so it stays a number.
+          const days = usage.by_day ?? [];
           return (
             <div className="grid flex-1 grid-cols-2 content-center gap-5 lg:grid-cols-4">
               <Figure
@@ -49,11 +54,13 @@ export function SummaryWidget({ title, hint, period, seeAll }: DashboardWidgetPr
                     <DeltaChip delta={runsDelta} label={t("delta")} />
                   ) : undefined
                 }
+                spark={days.map((day) => day.runs)}
               />
               <Figure
                 label={t("completed")}
                 value={formatCompletedShare(completedShare(statusTally(usage.by_status ?? [])))}
                 caption={t("completedOf", { total: runs })}
+                spark={days.map((day) => day.completed)}
               />
               <Figure
                 label={t("spend")}
@@ -63,6 +70,7 @@ export function SummaryWidget({ title, hint, period, seeAll }: DashboardWidgetPr
                     <DeltaChip delta={spendDelta} label={t("delta")} rising="bad" />
                   ) : undefined
                 }
+                spark={days.map((day) => Number(day.cost_usd))}
               />
               <Figure
                 label={t("people")}

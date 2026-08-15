@@ -665,7 +665,8 @@
           "title": "Jeszcze nic nie wydano",
           "description": "Koszt modeli ląduje tutaj uruchomienie po uruchomieniu."
         },
-        "description": "Ile kosztował okres i ile miesiąc kalendarzowy do dziś. Kwota miesięczna zgadza się z fakturą, więc celowo nie reaguje na filtr okresu."
+        "description": "Ile kosztował okres i ile miesiąc kalendarzowy do dziś. Kwota miesięczna zgadza się z fakturą, więc celowo nie reaguje na filtr okresu.",
+        "split": "{models} na modele · {ingestion} na indeksowanie"
       },
       "model-mix": {
         "title": "Modele za uruchomieniami",
@@ -903,6 +904,53 @@
           "description": "Zarejestruj hosta, a sandboxy otwierane przez Twoich agentów wylądują tutaj."
         },
         "description": "Sesje sandboxów działające w tej chwili."
+      },
+      "channels": {
+        "title": "Kanały",
+        "description": "Na których kanałach można dosięgnąć agentów i czy drzwi są otwarte.",
+        "platforms": {
+          "telegram": "Telegram",
+          "slack": "Slack",
+          "mattermost": "Mattermost"
+        },
+        "webhook": "nasłuchuje",
+        "polling": "odpytuje",
+        "switchedOff": "wyłączony",
+        "empty": {
+          "title": "Brak kanałów",
+          "description": "Zarejestruj bota, a jego agenci staną się dostępni ze Slacka, Telegrama albo Mattermosta."
+        }
+      },
+      "knowledge": {
+        "title": "Wiedza",
+        "description": "Ile z tego, co wgrano, jest naprawdę zaindeksowane i możliwe do wyszukania.",
+        "collections": "Kolekcje",
+        "documents": "Dokumenty",
+        "chunks": "Fragmenty",
+        "notIndexed": "{count, plural, =1 {1 niezaindeksowany} few {# niezaindeksowane} many {# niezaindeksowanych} other {# niezaindeksowanych}}",
+        "empty": {
+          "title": "Brak kolekcji",
+          "description": "Załóż jedną i wgraj dokument - to, co agent może czytać, pojawi się tutaj."
+        }
+      },
+      "activity-rhythm": {
+        "title": "Kiedy dzieje się praca",
+        "description": "Runy według dnia tygodnia i godziny, w UTC - gdzie są ciche okna.",
+        "weekdays": {
+          "0": "Nd",
+          "1": "Pn",
+          "2": "Wt",
+          "3": "Śr",
+          "4": "Cz",
+          "5": "Pt",
+          "6": "So"
+        },
+        "cell": "{day} {hour}:00 UTC · {count, plural, =1 {1 run} few {# runy} many {# runów} other {# runów}}",
+        "hourTick": "{hour}h",
+        "empty": {
+          "title": "Nic nie uruchomiono w tym okresie",
+          "description": "Rytm pojawi się, gdy będą runy do rozłożenia."
+        }
       }
     },
     "activeSessions": "Aktywne sesje",

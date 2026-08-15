@@ -50,7 +50,10 @@ export type WidgetId =
   | "shared-with-you"
   | "sandbox-capacity"
   | "sandbox-sessions"
-  | "sandbox-policy";
+  | "sandbox-policy"
+  | "channels"
+  | "knowledge"
+  | "activity-rhythm";
 
 /** The closed set of card widths the grid supports (12 columns). */
 export type Span = "s3" | "s4" | "s5" | "s6" | "s7" | "s8" | "s12";
@@ -161,6 +164,30 @@ const holds =
     can(permission);
 
 export const WIDGETS: Record<WidgetId, WidgetDef> = {
+  "activity-rhythm": {
+    id: "activity-rhythm",
+    gate: holds(Perm.runsView),
+    defaultSpan: "s8",
+    defaultRows: "r3",
+    category: "usage",
+    seeAll: ROUTES.RUNS,
+  },
+  channels: {
+    id: "channels",
+    gate: holds(Perm.channelsManage),
+    defaultSpan: "s4",
+    defaultRows: "r3",
+    category: "attention",
+    seeAll: ROUTES.CHANNELS,
+  },
+  knowledge: {
+    id: "knowledge",
+    gate: holds(Perm.collectionsView),
+    defaultSpan: "s4",
+    defaultRows: "r2",
+    category: "attention",
+    seeAll: ROUTES.RAG,
+  },
   summary: {
     id: "summary",
     gate: holds(Perm.runsView),
