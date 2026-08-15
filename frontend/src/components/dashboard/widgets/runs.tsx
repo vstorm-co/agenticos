@@ -6,6 +6,8 @@ import { DeltaChip, Figure } from "@/components/ui";
 
 import { deltaPercent } from "../format";
 import { TrendChart } from "../primitives/trend-chart";
+import { CHART_MIN_HEIGHT } from "@/lib/dashboard/system";
+import { cn } from "@/lib/utils";
 import { WidgetFrame } from "../widget-frame";
 import type { DashboardWidgetProps } from "./types";
 import { UsageBody } from "./usage-body";
@@ -28,7 +30,7 @@ export function RunsWidget({ title, hint, period, seeAll }: DashboardWidgetProps
                 delta={delta !== null ? <DeltaChip delta={delta} label={t("delta")} /> : undefined}
               />
               <TrendChart
-                className="min-h-32 flex-1"
+                className={cn(CHART_MIN_HEIGHT, "flex-1")}
                 data={(usage.by_day ?? []).map((day) => ({
                   label: day.date.slice(5),
                   value: day.runs,

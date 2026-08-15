@@ -1,7 +1,7 @@
 "use client";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui";
-import { QUIET_SURFACE } from "@/lib/dashboard/system";
+import { MARK_CLASS, QUIET_SURFACE } from "@/lib/dashboard/system";
 import { cn } from "@/lib/utils";
 
 export interface HeatCell {
@@ -69,7 +69,7 @@ export function Heatmap({
           <Tooltip key={index}>
             <TooltipTrigger asChild>
               <div
-                className="bg-chart aspect-square rounded-[2px]"
+                className={cn("aspect-square rounded-[2px]", MARK_CLASS)}
                 style={{ opacity: 0.2 * step }}
               />
             </TooltipTrigger>

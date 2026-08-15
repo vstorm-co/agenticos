@@ -67,8 +67,19 @@ export const HEADING_GAP = "mt-3";
 /** Between blocks inside one card - a figure and the chart under it. */
 export const CARD_STACK = "gap-3";
 
-/** A data mark: a bar fill, a line, the solid part of a meter. */
-export const MARK_CLASS = "bg-chart";
+/**
+ * A filled data mark - a bar, a heatmap cell, the solid part of a meter.
+ *
+ * A step lighter than {@link STROKE_TOKEN} in light and a step deeper in dark,
+ * because a fill covers area and a stroke is a hairline: the method's rule is
+ * that saturated fills are for small marks, never large blocks. Every list that
+ * draws one prints its value as text, which is the relief that lets the fill
+ * sit under the 3:1 a lone mark would owe its surface.
+ */
+export const MARK_CLASS = "bg-chart-fill";
+
+/** A stroked mark - a line, a sparkline. Thin, so it keeps the fuller tone. */
+export const STROKE_TOKEN = "var(--color-chart)";
 
 /** The unfilled part of a bar drawn in {@link MARK_CLASS}. */
 export const TRACK_CLASS = "bg-track";
@@ -86,3 +97,14 @@ export const AREA_FILL_OPACITY = 0.1;
 
 /** Recharts wants numbers, not classes: a line is 2px. */
 export const LINE_WIDTH = 2;
+
+/**
+ * How tall a card's chart is, before its container gives it more.
+ *
+ * A chart has an aspect ratio whether or not anybody chose one. `min-h-28`
+ * (112px) inside a full-width card gave the runs series a plot thirteen times
+ * wider than tall, in which a real spike reads as a rounding error and a flat
+ * fortnight reads as a rule. 192px is the floor now, and a card with room
+ * gives more.
+ */
+export const CHART_MIN_HEIGHT = "min-h-48";

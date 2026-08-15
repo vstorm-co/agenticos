@@ -7,6 +7,8 @@ import { Figure } from "@/components/ui";
 
 import { useUsageStats } from "@/hooks";
 import { TrendChart } from "../primitives/trend-chart";
+import { CHART_MIN_HEIGHT } from "@/lib/dashboard/system";
+import { cn } from "@/lib/utils";
 import { WidgetFrame } from "../widget-frame";
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
@@ -46,7 +48,7 @@ export function MyActivityWidget({ title, hint, period, seeAll }: DashboardWidge
             }
           />
           <TrendChart
-            className="min-h-28 flex-1"
+            className={cn(CHART_MIN_HEIGHT, "flex-1")}
             data={(usage.by_day ?? []).map((day) => ({
               label: day.date.slice(5),
               value: day.runs,

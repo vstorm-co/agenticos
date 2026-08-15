@@ -103,6 +103,7 @@
      picked: at 1.41:1 it reads as a filled bar, so a provider that spent
      nothing showed a full-width mark against $0.00. */
   --color-chart: var(--brand-500);
+  --color-chart-fill: var(--brand-400);
   --color-track: var(--brand-100);
 
   /* Light theme - cool near-white, Logfire-family neutrals. White cards and a
@@ -138,6 +139,12 @@
      clears 3:1 against all four surfaces (light bg/card, dark bg/card). */
   --color-warning: oklch(62% 0.136 68);
   --color-success: oklch(60% 0.15 150);
+  /* The fill counterpart of `success`, and the only status tone that needs
+     one: `completed` is the segment that fills most of the outcomes ring, and
+     a large block takes a tint where a label takes the tone. Themed, unlike
+     the tones above, because a wash that reads calm on white reads as a glare
+     on near-black - the dark blocks below repoint it. */
+  --color-success-fill: oklch(82% 0.08 150);
   --color-border: oklch(89% 0.004 250);
   --color-input: oklch(89% 0.004 250);
   --color-ring: var(--color-brand);
@@ -202,6 +209,8 @@
     --color-border: oklch(28% 0.008 250);
     --color-input: oklch(27% 0.008 250);
     --color-chart: var(--brand-500);
+    --color-chart-fill: var(--brand-600);
+    --color-success-fill: oklch(52% 0.09 150);
     --color-track: var(--brand-950);
   }
 }
@@ -235,6 +244,8 @@
   --color-border: oklch(28% 0.008 250);
   --color-input: oklch(27% 0.008 250);
   --color-chart: var(--brand-500);
+  --color-chart-fill: var(--brand-600);
+  --color-success-fill: oklch(52% 0.09 150);
   --color-track: var(--brand-950);
 }
 
@@ -265,6 +276,8 @@
   --color-brand-subtle-hover: var(--brand-100);
   --color-brand-line: var(--brand-300);
   --color-chart: var(--brand-500);
+  --color-chart-fill: var(--brand-400);
+  --color-success-fill: oklch(82% 0.08 150);
   --color-track: var(--brand-100);
 }
 
@@ -288,6 +301,8 @@
   --color-brand-subtle-hover: var(--brand-900);
   --color-brand-line: var(--brand-800);
   --color-chart: var(--brand-500);
+  --color-chart-fill: var(--brand-600);
+  --color-success-fill: oklch(52% 0.09 150);
   --color-track: var(--brand-950);
 }
 

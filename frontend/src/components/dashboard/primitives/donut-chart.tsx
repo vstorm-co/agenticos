@@ -35,7 +35,7 @@ export function DonutChart({
           <li key={segment.name} className="flex items-center gap-2 text-xs">
             <span
               className="size-2 shrink-0 rounded-full"
-              style={{ background: segment.color }}
+              style={{ background: segment.tone ?? segment.color }}
               aria-hidden
             />
             <span className="text-muted-foreground min-w-0 flex-1 truncate">{segment.name}</span>

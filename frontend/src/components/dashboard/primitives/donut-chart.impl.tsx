@@ -5,14 +5,22 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 export interface DonutSegment {
   name: string;
   value: number;
-  /** A CSS colour, usually a `var(--color-*)` token. */
+  /** The ring's fill. A CSS colour, usually a `var(--color-*)` token. */
   color: string;
+  /**
+   * The legend dot, when the segment's fill is too washed to carry identity at
+   * 8px. A large block takes a tint and a small mark takes the tone, so the
+   * one segment that fills most of the ring paints itself differently in the
+   * two places. Defaults to `color`, which is right for every sliver.
+   */
+  tone?: string;
 }
 
 /**
  * The donut body. The legend deliberately lives outside (a text list with the
- * numbers printed), because two of the five tones sit below 3:1 contrast -
- * colour is never the only channel.
+ * numbers printed), because several of the fills sit below 3:1 against the
+ * card - deliberately, since a large block takes a tint - so colour is never
+ * the only channel carrying which segment is which.
  */
 export function DonutChartImpl({
   segments,

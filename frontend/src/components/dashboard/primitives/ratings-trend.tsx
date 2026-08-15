@@ -2,6 +2,8 @@
 
 import dynamic from "next/dynamic";
 
+import { CHART_MIN_HEIGHT } from "@/lib/dashboard/system";
+import { cn } from "@/lib/utils";
 import type { RatingsPoint } from "./ratings-trend.impl";
 
 const RatingsTrendImpl = dynamic(
@@ -33,7 +35,7 @@ export function RatingsTrend({
         </span>
         <p className="text-muted-foreground text-xs">{subline}</p>
       </div>
-      <div className="min-h-24 flex-1">
+      <div className={cn(CHART_MIN_HEIGHT, "flex-1")}>
         <RatingsTrendImpl data={data} />
       </div>
     </div>

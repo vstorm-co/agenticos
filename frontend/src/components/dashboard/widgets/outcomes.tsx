@@ -35,11 +35,28 @@ export function OutcomesWidget({ title, hint, period, seeAll }: DashboardWidgetP
           const awaiting = of("awaiting_approval");
           const other = of("running") + of("cancelled");
           const attention = failed + budget;
+          // Ring order is adjacency, and adjacency is what colour-blind
+          // separation is measured on. Failed sat next to budget-exceeded, and
+          // red against amber measures ΔE 2.8 under deuteranopia - the two
+          // segments a reader most needs to tell apart were the two that
+          // collapsed. Putting "awaiting" between them takes the worst
+          // adjacent pair to 17.5 in light and 9.8 in dark, at no cost but the
+          // order. The legend reads in the same order, which costs nothing: it
+          // names every state with its count either way.
+          //
+          // `completed` is the segment that fills most of the ring, so it takes
+          // the washed fill rather than the tone its legend dot wears: a
+          // saturated block is for small marks, and 97% of a ring is not one.
           const segments = [
-            { name: t("status.completed"), value: tally.completed, color: "var(--color-success)" },
+            {
+              name: t("status.completed"),
+              value: tally.completed,
+              color: "var(--color-success-fill)",
+              tone: "var(--color-success)",
+            },
             { name: t("status.failed"), value: failed, color: "var(--color-destructive)" },
-            { name: t("status.budget_exceeded"), value: budget, color: "var(--color-warning)" },
             { name: t("status.awaiting_approval"), value: awaiting, color: "var(--color-chart)" },
+            { name: t("status.budget_exceeded"), value: budget, color: "var(--color-warning)" },
             { name: t("status.other"), value: other, color: "var(--color-muted-foreground)" },
           ];
           return (
