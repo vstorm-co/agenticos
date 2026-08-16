@@ -19,7 +19,7 @@ import logging
 import re
 from collections import Counter
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from uuid import UUID
 
 from pydantic import ValidationError
@@ -55,7 +55,7 @@ from app.repositories import (
     sandbox_connection_repo,
     skill_repo,
 )
-from app.schemas.agent import AgentRead, AgentVersionRead
+from app.schemas.agent import AgentRead, AgentVersionRead, DelegationTree, DelegationTreeNode
 from app.services.access import (
     AGENT,
     COLLECTION,
@@ -229,7 +229,24 @@ class _PinnedDelegate:
 
     agent_id: UUID
     version_id: UUID
+    version: int
     spec: AgentSpec
+
+
+@dataclass
+class _TreeWalk:
+    """Shared state for one delegation-tree walk.
+
+    The caches are what make a diamond cheap - a delegate two parents pin is
+    read and access-checked once - and `capped` is how the walk tells the
+    response it stopped at :data:`_MAX_DELEGATION_NODES` rather than at the
+    bottom of the graph.
+    """
+
+    rows: dict[UUID, Agent | None] = field(default_factory=dict)
+    pins: dict[tuple[UUID, UUID], _PinnedDelegate | None] = field(default_factory=dict)
+    count: int = 0
+    capped: bool = False
 
 
 @dataclass(frozen=True)
@@ -303,6 +320,23 @@ def delegation_binding(spec: AgentSpec) -> CapabilityBindingSpec | None:
         if binding.id == DELEGATION_CAPABILITY_ID and binding.enabled:
             return binding
     return None
+
+
+def _subagents_config(spec: AgentSpec) -> SubagentsConfig | None:
+    """The delegation policy this spec runs under, or None when it cannot delegate.
+
+    None covers both a binding that is absent or switched off and one whose
+    config does not parse: a policy nobody can read delegates nothing, and the
+    parse failure itself is `_binding_problems`' report to make, not this
+    reader's to repeat.
+    """
+    binding = delegation_binding(spec)
+    if binding is None:
+        return None
+    try:
+        return SubagentsConfig.model_validate(binding.config)
+    except ValidationError:
+        return None
 
 
 def _share_problems(spec: AgentSpec, config: SubagentsConfig) -> list[str]:
@@ -1164,6 +1198,7 @@ class AgentRegistryService:
         return _PinnedDelegate(
             agent_id=ref.agent_id,
             version_id=version.id,
+            version=version.version,
             spec=AgentSpec.model_validate(version.spec),
         )
 
@@ -1565,6 +1600,175 @@ class AgentRegistryService:
             )
             for version in versions
         ]
+
+    async def delegation_tree(self, ctx: AuthContext, agent_id: UUID) -> DelegationTree:
+        """The delegation tree under this agent's draft, in one response (#276).
+
+        The map used to walk this one hop at a time - a delegate's page, then its
+        delegate's page - so the whole tree was N requests and N permission
+        checks spread over N clicks. This is the server-side answer: one walk,
+        the same pin resolution publish uses, bounded the same two ways the
+        cycle check is (nothing past :data:`_MAX_DELEGATION_NODES` reads, and a
+        pin that returns to its own branch is named as a cycle rather than
+        followed).
+
+        Depth is the *runtime* bound, not the roster's. A delegate gets the
+        lower of its own `max_depth` and what this branch has left, exactly as
+        `subagent_runtime` hands it down, so the tree shows what a run from this
+        root can actually reach and marks the rest `truncated` rather than
+        drawing levels that would never execute.
+
+        Each delegate is access-checked against the *caller*, not the publisher:
+        a pin to an agent this caller may not see comes back `restricted`, with
+        no name and no children, indistinguishable from a pin to an agent that
+        does not exist - the same no-probing rule `_resolve_pins` applies at
+        publish.
+        """
+        agent = await self.get(ctx, agent_id)
+        spec = AgentSpec.model_validate(agent.draft_spec)
+        config = _subagents_config(spec)
+        caps = config or SubagentsConfig()
+        walk = _TreeWalk()
+        nodes = await self._tree_level(
+            ctx,
+            spec,
+            budget=caps.max_depth if config else 0,
+            ancestors=frozenset({agent.id}),
+            walk=walk,
+        )
+        return DelegationTree(
+            max_depth=caps.max_depth,
+            max_fanout=caps.max_fanout,
+            truncated=walk.capped,
+            nodes=nodes,
+        )
+
+    async def _tree_level(
+        self,
+        ctx: AuthContext,
+        spec: AgentSpec,
+        *,
+        budget: int,
+        ancestors: frozenset[UUID],
+        walk: _TreeWalk,
+    ) -> list[DelegationTreeNode]:
+        """One spec's roster as tree nodes: its pins, then its inline specialists."""
+        nodes: list[DelegationTreeNode] = []
+        for index, ref in enumerate(spec.subagents):
+            if walk.count >= _MAX_DELEGATION_NODES:
+                walk.capped = True
+                break
+            nodes.append(
+                await self._tree_delegate(
+                    ctx, ref, index=index, budget=budget, ancestors=ancestors, walk=walk
+                )
+            )
+        config = _subagents_config(spec)
+        for index, specialist in enumerate(config.inline if config else []):
+            nodes.append(
+                DelegationTreeNode(
+                    key=f"specialist:{index}",
+                    kind="specialist",
+                    status="ok",
+                    name=specialist.name,
+                    mode=specialist.preferred_mode,
+                )
+            )
+        return nodes
+
+    async def _tree_delegate(
+        self,
+        ctx: AuthContext,
+        ref: SubagentRef,
+        *,
+        index: int,
+        budget: int,
+        ancestors: frozenset[UUID],
+        walk: _TreeWalk,
+    ) -> DelegationTreeNode:
+        """One pin as a tree node, expanded only as far as a run could follow it."""
+        walk.count += 1
+        key = f"delegate:{ref.agent_id}:{index}"
+        row = await self._tree_row(ctx, ref.agent_id, walk)
+        if row is None:
+            return DelegationTreeNode(
+                key=key,
+                kind="delegate",
+                status="restricted",
+                agent_id=ref.agent_id,
+                mode=ref.preferred_mode,
+            )
+        if ref.agent_id in ancestors:
+            return DelegationTreeNode(
+                key=key,
+                kind="delegate",
+                status="cycle",
+                agent_id=ref.agent_id,
+                name=row.name,
+                mode=ref.preferred_mode,
+            )
+        pinned = await self._tree_pin(ctx, ref, walk)
+        if pinned is None:
+            return DelegationTreeNode(
+                key=key,
+                kind="delegate",
+                status="unpinned",
+                agent_id=ref.agent_id,
+                name=row.name,
+                mode=ref.preferred_mode,
+            )
+        config = _subagents_config(pinned.spec)
+        roster = len(pinned.spec.subagents) + len(config.inline if config else [])
+        remaining = min(budget - 1, config.max_depth) if config else 0
+        children: list[DelegationTreeNode] = []
+        truncated = False
+        if roster:
+            if remaining >= 1:
+                children = await self._tree_level(
+                    ctx,
+                    pinned.spec,
+                    budget=remaining,
+                    ancestors=ancestors | {ref.agent_id},
+                    walk=walk,
+                )
+            else:
+                truncated = True
+        return DelegationTreeNode(
+            key=key,
+            kind="delegate",
+            status="ok",
+            agent_id=ref.agent_id,
+            name=row.name,
+            mode=ref.preferred_mode,
+            pinned_version=pinned.version,
+            stale=row.current_version_id != pinned.version_id,
+            truncated=truncated,
+            children=children,
+        )
+
+    async def _tree_row(self, ctx: AuthContext, agent_id: UUID, walk: _TreeWalk) -> Agent | None:
+        """The delegate's row, when this caller may see it - cached per walk.
+
+        A row the caller may not view is answered as absent, so the two are
+        indistinguishable downstream by construction, not by discipline.
+        """
+        if agent_id not in walk.rows:
+            row = await agent_repo.get(self.db, agent_id, organization_id=ctx.organization_id)
+            if row is not None and not await resolve_access(
+                self.db, ctx, row, Perm.AGENTS_VIEW, resource_type=AGENT
+            ):
+                row = None
+            walk.rows[agent_id] = row
+        return walk.rows[agent_id]
+
+    async def _tree_pin(
+        self, ctx: AuthContext, ref: SubagentRef, walk: _TreeWalk
+    ) -> _PinnedDelegate | None:
+        """`_resolve_pin`, cached per walk so a diamond costs one version read."""
+        cache_key = (ref.agent_id, ref.agent_version_id)
+        if cache_key not in walk.pins:
+            walk.pins[cache_key] = await self._resolve_pin(ctx, ref)
+        return walk.pins[cache_key]
 
     async def get_runnable_spec(
         self, ctx: AuthContext, agent_id: UUID, *, environment_id: UUID | None = None

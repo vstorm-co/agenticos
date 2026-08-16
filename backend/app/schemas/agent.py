@@ -2,13 +2,13 @@
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import Field
 
 from app.agents.capabilities import CapabilityToolInfo
-from app.agents.spec import AgentSpec, SpecialistSpec
+from app.agents.spec import AgentSpec, DelegationMode, SpecialistSpec
 from app.core.secret_kinds import SecretRequirement
 from app.schemas.base import BaseSchema
 
@@ -188,6 +188,75 @@ class AgentVersionDetail(AgentVersionRead):
     """
 
     spec: AgentSpec
+
+
+class DelegationTreeNode(BaseSchema):
+    """One hop of the delegation tree, as the agent map draws it.
+
+    A node is what the walk could honestly say about a pin, and the `status`
+    says how far it got. `ok` resolved: the caller may see the delegate and the
+    pinned version exists, so `children` holds what *it* delegates to - to the
+    depth the policy lets a run actually reach. `restricted` is a delegate the
+    caller may not see: deliberately indistinguishable from one that does not
+    exist, carrying no name and no children, so a parent's map cannot be used to
+    probe the organization's private agents one pin at a time. `unpinned` is a
+    pin whose version is gone - the delegate is named, because the caller can
+    see the row, but there is no frozen spec left to walk. `cycle` is a pin that
+    returns to an agent already on this branch; it is named and never expanded,
+    which is what keeps an already-stored loop from hanging the walk.
+
+    `truncated` marks a delegate that has a roster of its own which no run
+    starting here would ever reach - the depth budget ran out, or its own
+    delegation binding is switched off - so the map can say "more below" without
+    pretending the levels beyond the cap would run.
+    """
+
+    key: str = Field(description="Stable within one response - what the map focuses by.")
+    kind: Literal["delegate", "specialist"]
+    status: Literal["ok", "restricted", "unpinned", "cycle"]
+    agent_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The delegate's agent row - present on every delegate, including a "
+            "restricted one, because the id already sits in a spec the caller "
+            "may read. A specialist has no row and no id."
+        ),
+    )
+    name: str | None = Field(
+        default=None,
+        description="Absent exactly when the caller may not see the delegate.",
+    )
+    mode: DelegationMode | None = None
+    pinned_version: int | None = Field(
+        default=None,
+        description="The version number the pin froze, when it still exists.",
+    )
+    stale: bool = Field(
+        default=False,
+        description="The delegate has published past the pinned version.",
+    )
+    truncated: bool = Field(
+        default=False,
+        description="Has delegates of its own that a run from this root cannot reach.",
+    )
+    children: list["DelegationTreeNode"] = Field(default_factory=list)
+
+
+class DelegationTree(BaseSchema):
+    """The whole delegation tree under one agent's draft, in one response.
+
+    The map used to walk this a page at a time - one hop per click-through -
+    which is also N+1 requests if a client scripts it. One response, bounded the
+    same way publish's cycle walk is, replaces that (#276).
+    """
+
+    max_depth: int = Field(description="The root's own policy - how deep a run may go.")
+    max_fanout: int = Field(description="The root's policy - delegations running at once.")
+    truncated: bool = Field(
+        default=False,
+        description="The walk stopped at its node bound rather than at the bottom.",
+    )
+    nodes: list[DelegationTreeNode]
 
 
 class AgentVersionList(BaseSchema):
