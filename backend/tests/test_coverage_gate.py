@@ -110,6 +110,8 @@ PLATFORM_MODULES = (
     "app/api/routes/v1/me_dashboard_layout.py",
     "app/services/dashboard_layout.py",
     "app/services/dashboard_preset.py",
+    "app/services/generated_media.py",
+    "app/api/routes/v1/generated_media.py",
 )
 
 

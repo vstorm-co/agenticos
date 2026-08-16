@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
+from uuid import UUID, uuid4
 
 import pytest
 from pydantic import ValidationError
@@ -45,6 +46,7 @@ from app.agents.subagent_runtime import (
     SubagentRuntime,
 )
 from app.core.exceptions import BadRequestError
+from app.core.secret_kinds import ApiKeySecret, SecretKind, StorableSecret
 
 
 @pytest.fixture(autouse=True)
@@ -266,6 +268,25 @@ class TestToolDeclarations:
             )
         )
 
+    @staticmethod
+    def _secret_binding(
+        definition: Any, config: dict[str, Any]
+    ) -> tuple[UUID | None, dict[UUID, StorableSecret]]:
+        """A secret this capability's default config makes it require, if any.
+
+        The parallel of `RESOURCES`: a capability that cannot build without a
+        credential is given one here, so the drift check goes through `build()`
+        for it too rather than skipping it. Only `API_KEY` is handled because it
+        is the only kind any capability requires unconditionally; another kind
+        arriving unconditionally should fail here loudly rather than be skipped.
+        """
+        requirement = definition.secret
+        if requirement is None or not definition.needs_secret(definition.validate_config(config)):
+            return None, {}
+        assert requirement.kind is SecretKind.API_KEY, definition.id
+        secret_id = uuid4()
+        return secret_id, {secret_id: ApiKeySecret(api_key="test-key")}
+
     def test_no_capability_escapes_the_drift_check(self):
         """A capability that cannot be built here is a capability nothing checks.
 
@@ -357,15 +378,19 @@ class TestToolDeclarations:
                 tool.id: ToolOverride(name=f"{tool.id}_as_this_agent_calls_it")
                 for tool in definition.tools
             }
+            config = self.CONFIGS.get(definition.id, {})
+            secret_id, secrets = self._secret_binding(definition, config)
             built = build(
                 [
                     CapabilityBinding(
                         capability_id=definition.id,
-                        config=self.CONFIGS.get(definition.id, {}),
+                        config=config,
                         tool_overrides=overrides,
+                        secret_id=secret_id,
                     )
                 ],
                 resources=self.RESOURCES,
+                secrets=secrets,
             )
             assert built, definition.id
             offered = await self._offered(built[0])

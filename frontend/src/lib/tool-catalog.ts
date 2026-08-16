@@ -32,6 +32,7 @@ export type StepKind =
   | "search"
   | "shell"
   | "chart"
+  | "image"
   | "knowledge"
   | "web"
   | "skill"
@@ -51,7 +52,15 @@ export type StepKind =
  * what it got back is a prompt fragment rather than something a person reads.
  */
 export type ToolRenderer =
-  "chart" | "web-search" | "rag" | "run-python" | "load-skill" | "workspace" | "generic" | "none";
+  | "chart"
+  | "generated-image"
+  | "web-search"
+  | "rag"
+  | "run-python"
+  | "load-skill"
+  | "workspace"
+  | "generic"
+  | "none";
 
 /**
  * The tense pair for a step that names its own subject: *Writing test1.md*.
@@ -151,6 +160,16 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     render: "chart",
     captionKey: "creatingChart",
     displayNameKey: "chart",
+    opensWhenDone: true,
+    opensOnSight: true,
+  },
+
+  // image_generation - the picture is the answer, so it opens wherever it lands.
+  generate_image: {
+    kind: "image",
+    render: "generated-image",
+    captionKey: "generatingImage",
+    displayNameKey: "generateImage",
     opensWhenDone: true,
     opensOnSight: true,
   },
