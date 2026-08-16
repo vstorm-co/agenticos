@@ -499,6 +499,29 @@ describe("WorkspaceBrowser", () => {
       expect(paths()).toEqual(["/new.csv", "/old.csv"]);
     });
 
+    it("groups by agent, and orders one agent's own files by path", async () => {
+      // "Who is holding a copy of that CSV" is the question this view exists for,
+      // so grouping by holder is the sort that answers it - and within a holder
+      // the paths have to be stable, or the grid reshuffles between renders.
+      state.flat = {
+        ...state.flat!,
+        items: [
+          { ...state.flat!.items[0]!, path: "/zeta.csv", agent_name: "Analyst" },
+          { ...state.flat!.items[0]!, path: "/mid.csv", agent_name: "Writer" },
+          { ...state.flat!.items[0]!, path: "/alpha.csv", agent_name: "Analyst" },
+        ],
+      };
+      render(<WorkspaceBrowser />);
+      await userEvent.click(screen.getByRole("button", { name: "All files" }));
+      const paths = () =>
+        screen.getAllByText(/\.csv/).map((node) => node.textContent?.split(" ")[0]);
+
+      await userEvent.click(screen.getByRole("combobox", { name: "Sort files" }));
+      await userEvent.click(screen.getByRole("option", { name: "By agent" }));
+
+      expect(paths()).toEqual(["/alpha.csv", "/zeta.csv", "/mid.csv"]);
+    });
+
     it("shows a stored file's first lines on its tile", async () => {
       state.flat = {
         ...state.flat!,
