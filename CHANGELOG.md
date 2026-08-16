@@ -17,7 +17,25 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
-## [0.0.165] - 2026-08-16
+## [0.0.166] - 2026-08-16
+
+A run's spills no longer pile up on a container workspace that outlives it.
+
+### Fixed
+
+- **A run's spills are pruned off a container workspace at close.** #804
+  stopped `tool_output/` spills outliving the run on a `state` backend, but a
+  longer-scoped container workspace (`conversation`/`user`/`agent`) still kept
+  every past run's blobs on its filesystem forever. The overflow store now
+  records each handle it writes to a per-run spill log — shared with delegates
+  that share the parent's sandbox — and `close` deletes exactly those paths
+  through the backend's own `execute`. Exact handles, not a prefix sweep, so
+  two concurrent runs on a shared workspace cannot take each other's spills
+  mid-flight; the `rmdir` of a still-shared spill directory fails silently,
+  which is the correct answer, while a refused `rm` keeps its status and is
+  logged (`workspace_spill_prune_failed`) rather than raised. Every path is
+  checked against the reserved-prefix invariant — `..` refused outright —
+  before it reaches the shell. (#803)
 
 A delegated run's failure is written in the platform's words, never the
 provider's.
