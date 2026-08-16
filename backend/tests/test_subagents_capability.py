@@ -73,7 +73,7 @@ from app.agents.capabilities.approval import (
     ApprovalRequest,
     approval_required_tools,
 )
-from app.agents.capabilities.budget import SpendEntry, SpendLedger
+from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, SpendEntry, SpendLedger
 from app.agents.capabilities.subagents import Delegation, SubagentsConfig
 from app.agents.capabilities.subagents._capability import (
     BACKGROUND_LIFECYCLE_TOOLS,
@@ -230,6 +230,26 @@ def crashing(text: str) -> FunctionModel:
         _messages: list[ModelMessage], _info: AgentInfo
     ) -> AsyncIterator[DeltaToolCalls]:
         raise RuntimeError(text)
+        yield {}  # pragma: no cover - makes this an async generator, like the client's
+
+    return FunctionModel(respond, stream_function=stream)
+
+
+def budget_stopped() -> FunctionModel:
+    """A model whose next request the budget guard refuses, mid-delegation."""
+
+    def ceiling() -> BudgetExceeded:
+        return BudgetExceeded(
+            limit_usd=Decimal("0.05"), spent_usd=Decimal("0.0500"), scope=BudgetScope.AGENT
+        )
+
+    def respond(_messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+        raise ceiling()
+
+    async def stream(
+        _messages: list[ModelMessage], _info: AgentInfo
+    ) -> AsyncIterator[DeltaToolCalls]:
+        raise ceiling()
         yield {}  # pragma: no cover - makes this an async generator, like the client's
 
     return FunctionModel(respond, stream_function=stream)
@@ -1055,6 +1075,31 @@ class TestRecording:
         assert isinstance(finished, SubagentFinished)
         assert finished.error == outcome.error
         assert vendor_text in caplog.text
+
+    async def test_a_delegate_stopped_by_the_budget_keeps_the_ceiling_sentence(self):
+        """A budget breach is the second ceiling, and its numbers are the point.
+
+        A delegate's requests are budget-checked inside the delegate's own run,
+        so `BudgetExceeded` lands on the handle instead of propagating to the
+        caller the parent's row is written by. Composed away like a provider
+        crash, the row said "retry it" about a breached budget and dropped the
+        ceiling's numbers.
+        """
+        recorder = Recorder()
+        sink = Sink()
+        capability = a_capability(a_runtime(a_delegate(model=budget_stopped()), record=recorder))
+
+        with pytest.raises(Exception, match="researcher"):
+            await delegate_to(capability, a_context(sink))
+
+        (outcome,) = recorder.outcomes
+        assert outcome.status == "failed"
+        assert outcome.error is not None and "budget exhausted" in outcome.error
+        assert "$0.05" in outcome.error
+        assert "The run did not finish" not in outcome.error
+        finished = sink.frames[-1]
+        assert isinstance(finished, SubagentFinished)
+        assert finished.error == outcome.error
 
     async def test_a_delegate_the_runtime_never_resolved_records_nothing(self):
         """The library refuses the name; no delegate ran, so there is no outcome."""

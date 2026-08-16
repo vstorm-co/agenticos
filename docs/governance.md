@@ -307,8 +307,8 @@ What raises under a delegate is a model client whose message can carry the faili
 request URL — key included, on a custom endpoint — so the row and the delegation's
 closing frame store the same controlled sentence the parent's row does, and the
 provider's own text goes to the server log. A delegate stopped by its usage limit
-keeps the limit's message whole: that is a ceiling doing its job, not a failure to
-diagnose.
+or by a budget ceiling keeps the limit's message whole: that is a ceiling doing
+its job, not a failure to diagnose.
 
 **The dashboard's windowed figure carries it too.** `GET /stats/usage` answers a
 `cost` block for whatever period the filter chose, and that block is runs *plus*

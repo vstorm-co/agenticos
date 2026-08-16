@@ -30,9 +30,9 @@ def run_failure_summary(exc: BaseException) -> str:
     shown - "No model profile is configured for this agent" beats any sentence
     composed here. (The one place that folds a foreign `__str__` into an
     `AppException` is `sandbox_workspace._reason`, deliberately and for a route's
-    answer; it runs outside both `try` blocks that call this.) `BudgetExceeded`
-    never reaches this function: it is caught above and its ceiling is the point
-    of it.
+    answer; it runs in a route service, outside every run a caller settles.)
+    `BudgetExceeded` must not reach this function - each caller catches or
+    filters it first, because its ceiling sentence is the point of it.
 
     Anything else is a foreign `__str__` and only its *type* is safe to store,
     plus the status code when a provider answered one. That code is what keeps

@@ -78,7 +78,7 @@ from subagents_pydantic_ai import (
 )
 from subagents_pydantic_ai.registry import DynamicAgentRegistry
 
-from app.agents.capabilities.budget import SpendShare, booked_to
+from app.agents.capabilities.budget import BudgetExceeded, SpendShare, booked_to
 from app.agents.capabilities.subagents._events import FrameLabels, frame_for
 from app.agents.deps import AgentDeps
 from app.agents.failures import run_failure_summary
@@ -165,13 +165,20 @@ def _recorded_error(handle: TaskHandle, subagent: str, task_id: str) -> str | No
     `run_failure_summary` - the one the parent's row gets - and the original goes
     to the log beside it.
 
-    `UsageLimitExceeded` keeps the library's text whole. It is the delegation's
-    `BudgetExceeded`: not a malfunction but a ceiling doing its job, its message
-    is pydantic-ai's own limit sentence - a number, never a request - and the
-    `usage limit exceeded` marker in front of it is the library's telemetry
-    contract across both dispatch modes.
+    The two ceilings keep the library's text whole. A ceiling is not a
+    malfunction, and either message is controlled end to end: `UsageLimitExceeded`
+    carries pydantic-ai's own limit sentence - a number, never a request - behind
+    the `usage limit exceeded` marker that is the library's telemetry contract
+    across both dispatch modes, and `BudgetExceeded` carries this platform's own
+    ceiling sentence behind the library's type-name prefix. `BudgetExceeded`
+    reaches this settlement because a delegate's requests are budget-checked
+    inside the delegate's own run, so the breach lands on the handle rather than
+    propagating to the caller the parent's row is written by - and composing it
+    away would tell the reader to retry against a breached budget.
     """
-    if handle.exception is None or isinstance(handle.exception, UsageLimitExceeded):
+    if handle.exception is None or isinstance(
+        handle.exception, UsageLimitExceeded | BudgetExceeded
+    ):
         return handle.error
     logger.warning(
         "Delegation %r (task %s) failed: %s",
