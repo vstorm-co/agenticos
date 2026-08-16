@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAgentEnvironments, useAgentVersions } from "@/hooks";
+import { VERSION_HISTORY_LIMIT } from "@/lib/agent-spec";
 import type { AgentEnvironment, AgentVersion } from "@/types/agents";
 import { useTranslations } from "next-intl";
 
@@ -28,7 +29,10 @@ const NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
  *
  * A pinned version that is gone from the history still has to render as
  * something: a disabled item carrying the stored number keeps the trigger
- * legible instead of empty, and says why the agent is not answering.
+ * legible instead of empty, and says why the agent is not answering. Absent
+ * is not gone, though - an unread history and one truncated at the backend's
+ * fifty carry the number without the verdict, the same reading `pinStatus`
+ * settled on.
  */
 function VersionPin({
   environment,
@@ -42,16 +46,21 @@ function VersionPin({
   promoting: boolean;
 }) {
   const t = useTranslations("agents");
-  const pinExists = versions.some((version) => version.id === environment.version_id);
+  const pinListed = versions.some((version) => version.id === environment.version_id);
+  const pinGone = !pinListed && versions.length > 0 && versions.length < VERSION_HISTORY_LIMIT;
   return (
     <Select value={environment.version_id} disabled={promoting} onValueChange={onPromote}>
       <SelectTrigger className="w-32" aria-label={t("pinVersionFor", { name: environment.name })}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {!pinExists && (
+        {!pinListed && (
           <SelectItem value={environment.version_id} disabled>
-            {t("removedVersion", { version: environment.version })}
+            {pinGone ? (
+              t("removedVersion", { version: environment.version })
+            ) : (
+              <>v{environment.version}</>
+            )}
           </SelectItem>
         )}
         {versions.map((version) => (
@@ -97,8 +106,13 @@ export function EnvironmentsPanel({ agentId, canManage }: { agentId: string; can
     setName("");
   }
 
-  async function saveRename(environmentId: string, next: string) {
-    await rename.mutateAsync({ environmentId, name: next.trim() });
+  async function saveRename(environment: AgentEnvironment, next: string) {
+    // An unchanged name is a dismissal, not a request: sending it would write
+    // the row and mint an `agent.environment_renamed` audit entry for nothing.
+    const trimmed = next.trim();
+    if (trimmed !== environment.name) {
+      await rename.mutateAsync({ environmentId: environment.id, name: trimmed });
+    }
     setRenaming(null);
   }
 
@@ -121,7 +135,7 @@ export function EnvironmentsPanel({ agentId, canManage }: { agentId: string; can
                     }
                     onKeyDown={(event) => {
                       if (event.key === "Enter" && renameOk) {
-                        void saveRename(environment.id, renaming.name);
+                        void saveRename(environment, renaming.name);
                       }
                       if (event.key === "Escape") setRenaming(null);
                     }}
@@ -131,7 +145,7 @@ export function EnvironmentsPanel({ agentId, canManage }: { agentId: string; can
                     size="sm"
                     aria-label={tc("save")}
                     disabled={!renameOk || rename.isPending}
-                    onClick={() => void saveRename(environment.id, renaming.name)}
+                    onClick={() => void saveRename(environment, renaming.name)}
                   >
                     <Check className="h-4 w-4" />
                   </Button>

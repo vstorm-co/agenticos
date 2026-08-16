@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EnvironmentsPanel } from "./environments-panel";
+import { VERSION_HISTORY_LIMIT } from "@/lib/agent-spec";
 
 type Environment = {
   id: string;
@@ -155,6 +156,39 @@ describe("the environments panel", () => {
     );
   });
 
+  it("does not call a pin removed while the history is unread", () => {
+    // The environments query and the versions query race; an empty history is
+    // a request in flight, and reading it as "removed" would flash the worst
+    // verdict this panel has onto every row on every load - the reading
+    // `pinStatus` already refused.
+    state.environments = [
+      { id: "dev-id", name: "dev", version_id: "v9-id", version: 9, is_default: false },
+    ];
+    versionsState.versions = [];
+    render(<EnvironmentsPanel agentId="a1" canManage />);
+
+    const trigger = screen.getByRole("combobox", { name: "Pin a version for dev" });
+    expect(trigger).toHaveTextContent("v9");
+    expect(trigger).not.toHaveTextContent("removed");
+  });
+
+  it("does not call a pin removed when the history may be truncated", () => {
+    // The backend caps the history at fifty; a pin older than fifty publishes
+    // is off the end of the page, which is not the same fact as deleted.
+    state.environments = [
+      { id: "dev-id", name: "dev", version_id: "v9-id", version: 9, is_default: false },
+    ];
+    versionsState.versions = Array.from({ length: VERSION_HISTORY_LIMIT }, (_, index) => ({
+      id: `v${index + 10}-id`,
+      version: index + 10,
+    }));
+    render(<EnvironmentsPanel agentId="a1" canManage />);
+
+    const trigger = screen.getByRole("combobox", { name: "Pin a version for dev" });
+    expect(trigger).toHaveTextContent("v9");
+    expect(trigger).not.toHaveTextContent("removed");
+  });
+
   it("renames an environment from its own row", async () => {
     render(<EnvironmentsPanel agentId="a1" canManage />);
 
@@ -197,6 +231,18 @@ describe("the environments panel", () => {
     expect(screen.queryByRole("textbox", { name: "Rename staging" })).toBeNull();
     expect(state.rename.mutateAsync).not.toHaveBeenCalled();
     expect(screen.getByText("staging")).toBeInTheDocument();
+  });
+
+  it("closes a rename that changed nothing without sending it", async () => {
+    // Enter on the untouched name is a dismissal; sending it would write the
+    // row and mint an audit entry for a rename nobody made.
+    render(<EnvironmentsPanel agentId="a1" canManage />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Rename staging" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "Rename staging" }), "{enter}");
+
+    expect(screen.queryByRole("textbox", { name: "Rename staging" })).toBeNull();
+    expect(state.rename.mutateAsync).not.toHaveBeenCalled();
   });
 
   it("refuses a rename the backend's slug rule would reject", async () => {
