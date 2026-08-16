@@ -39,13 +39,28 @@ _PREAMBLE = (
 )
 
 
+_ZWSP = "\u200b"
+
+
+def _fence(item: ContextItem) -> str:
+    """One inject-mode file, wrapped so its body cannot end the fence early.
+
+    Best-effort against *accidental* breakout only: a zero-width space after the
+    `<` neutralises a `</context-file>` or `</context-files>` the body happens to
+    contain (an XML doc, a note about this feature), and the attribute quotes are
+    stripped from the name and format. It is not a security boundary - anyone with
+    `context:edit` can inject deliberately - it just stops a well-meaning file
+    from spilling text back into the trusted instructions.
+    """
+    body = item.content.replace("</context-file", f"<{_ZWSP}/context-file")
+    name = item.name.replace('"', "")
+    fmt = item.format.replace('"', "")
+    return f'<context-file name="{name}" format="{fmt}">\n{body}\n</context-file>'
+
+
 def _render(items: Sequence[ContextItem]) -> str:
     """The inject-mode files as one delimited, framed block."""
-    blocks = [
-        f'<context-file name="{item.name}" format="{item.format}">\n{item.content}\n</context-file>'
-        for item in items
-    ]
-    inner = "\n\n".join(blocks)
+    inner = "\n\n".join(_fence(item) for item in items)
     return f"{_PREAMBLE}\n\n<context-files>\n{inner}\n</context-files>"
 
 

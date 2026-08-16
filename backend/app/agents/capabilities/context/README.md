@@ -35,6 +35,13 @@ rather than as instructions - the same discipline a code-review prompt uses on a
 diff it did not write. Without it, a file that happened to contain "ignore your
 previous instructions" would be read as a command.
 
+The fence is best-effort against *accidental* breakout: a body carrying its own
+`</context-file>` or `</context-files>` closing tag has a zero-width space slipped
+in to break it, and a `"` in the name or format is stripped, so a well-meaning
+file (an XML doc, a note about this feature) cannot spill text back into the
+trusted instructions. It is not a security boundary - a `context:edit` holder can
+inject deliberately, and no text escaping closes that.
+
 ## What it deliberately does not do
 
 - **Binary files.** Content is text: an injected body becomes prompt and a linked

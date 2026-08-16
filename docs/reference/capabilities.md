@@ -98,8 +98,13 @@ agent whose files are all `inject` contributes instructions and no tools.
 
 Injected content is framed as reference material — delimited and prefaced with a
 line telling the model to treat it as information, not as instructions — because
-a file's body is written by a person and reaches the model verbatim. Content is
-text: a document to be searched belongs in a knowledge collection, not here.
+a file's body is written by a person and reaches the model verbatim. The fence is
+best-effort against *accidental* breakout: a body that itself contains a closing
+`</context-file>` or `</context-files>` tag, or a name or format holding a `"`,
+is neutralised so it cannot spill text back into the trusted instructions. It is
+not a security boundary — a `context:edit` holder can still inject deliberately.
+Content is text: a document to be searched belongs in a knowledge collection, not
+here.
 
 Bound with nothing usable — no files, or only `link` files with the read tool
 turned off — this capability contributes **nothing** and is not attached, the
