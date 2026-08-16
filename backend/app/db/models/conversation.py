@@ -86,6 +86,24 @@ class Conversation(Base, TimestampMixin):
     next turn starts knowing it (#49).
     """
 
+    reminder_state: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    """How far the system-reminders cadence has advanced in this conversation.
+
+    A reminder fires every N model requests to counter instruction fade, but a
+    request's counter lives only as long as the run that made it - so on the next
+    turn it would reset to zero and a reminder set to fire "every 10 requests"
+    never would in a chat of ten one-request turns. Recorded here, the cadence is
+    the conversation's rather than one run's: `request_count` and the per-reminder
+    `fire_counts` are seeded from this at build time and written back after the
+    turn, so leaving and reloading a conversation resumes where it left off.
+
+    The reminder text itself is never stored - it is injected ephemerally per
+    request and never enters the transcript. Only the counters are durable.
+
+    Null until a system-reminders capability has fired once, which for a
+    conversation whose agent has none is for ever.
+    """
+
     messages: Mapped[list["Message"]] = relationship(
         "Message",
         back_populates="conversation",
