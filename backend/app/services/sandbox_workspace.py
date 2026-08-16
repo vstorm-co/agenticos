@@ -1150,9 +1150,7 @@ def stored_preview(data: dict[str, Any] | None) -> str | None:
     """
     if data is None or data.get("encoding") is not None:
         return None
-    lines = data.get("content")
-    if not isinstance(lines, list):
-        return None
+    lines = data.get("content") or []
     text = "\n".join(str(line) for line in lines[:8])
     return text[:PREVIEW_CHARS] or None
 

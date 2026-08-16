@@ -1302,6 +1302,15 @@ class TestOneFlatListOfFiles:
         assert preview.startswith("# Findings")
         assert len(preview) <= 200
 
+    def test_an_empty_file_previews_as_nothing(self):
+        """An empty band, not an empty string dressed as content."""
+        from app.services.sandbox_workspace import stored_preview
+
+        stored = StateBackend()
+        stored.write("/empty.txt", "")
+
+        assert stored_preview(dict(stored.files["/empty.txt"])) is None
+
     async def test_binary_content_previews_as_nothing_rather_than_noise(
         self, monkeypatch, mock_db_session
     ):
