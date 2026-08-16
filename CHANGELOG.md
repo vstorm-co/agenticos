@@ -17,6 +17,46 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.158] - 2026-08-16
+
+A long run compacts its own history before it hits the model's limit, metered,
+and every agent shows how full its context window is.
+
+### Added
+
+- **Compaction capability.** Ports the `pydantic-ai-harness` compaction strategies
+  into the registry: `summarize` (the default, at 0.9 of the window — the only
+  strategy that keeps what older turns *said*), `tiered`, `clear_tool_results` and
+  `sliding_window`. The trigger is a fraction of the window resolved **per request**
+  against the model the request is going to, so the same history passes untouched on
+  a 1M window and is cut on a 128K one before the request leaves. (#49)
+- **A context-fill gauge on every agent**, not only one that compacts — the warning
+  matters most to the agent that will not, because that is the one the provider
+  refuses. Read from the provider's own `input_tokens`, stored per turn, and divided
+  by the window of the model selected *now*. (#772, #774)
+- **`model_profiles.context_length`** — the window a model accepts, recorded from the
+  provider's listing at creation rather than guessed from the price snapshot. (#773)
+- **`messages.cost_is_partial`** and a server-side conversation cost total; a partial
+  figure is drawn `≥ $x`. (#772)
+
+### Fixed
+
+- **A summary is metered.** The strategy writes it through an agent it builds itself,
+  which no budget guard wraps, so the capability books the run's usage across the
+  hook against the ledger. Recorded, not prevented — the guard refuses on the next
+  request. (#16)
+- **A conversation's history is read from the transcript, not the socket.** A reload,
+  a second tab or a dropped connection left the model answering a follow-up as though
+  the thread had started with it. (#771)
+- **A summary is kept across turns.** The thread between turns was rebuilt from the
+  transcript, so a summary died at the turn boundary and the next turn bought another
+  over a longer history; `conversations.summary_messages` now holds it. (#781)
+- **A window too small for the agent's own overhead says so** rather than buying a
+  summary that cannot get under the instructions and tool schemas on every request
+  for ever. (#776)
+- **The builder draws a capability's defaults as values** and can label what each
+  enum choice does, so a generated form is not a row of empty boxes.
+
 ## [0.0.157] - 2026-08-16
 
 An organization's standing knowledge is put into a run instead of made to be asked
