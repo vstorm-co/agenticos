@@ -36,6 +36,7 @@ from pydantic_ai.tools import DeferredToolRequests
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
+from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.deps import AgentDeps, AskUserCallback
 from app.agents.subagent_events import SubagentEventSink
 from app.core.exceptions import AuthorizationError, BadRequestError
@@ -305,6 +306,9 @@ class ChatAgentRunner:
             BadRequestError: If the agent is unpublished or archived.
             BudgetExceeded: If a limit stopped the run. Surfaced rather than
                 swallowed so the client can say why the answer stopped.
+            GuardrailBlocked: If a guardrail refused the run at one of its edges.
+                Surfaced rather than swallowed so the client sees the guard's
+                safe refusal, not a generic failure.
         """
         ctx = await self._context(user, organization_id)
         prepared = await self.runner.prepare(
@@ -388,6 +392,15 @@ class ChatAgentRunner:
             error = str(exc)
             budget_scope = exc.scope
             logger.info("Chat run %s stopped by budget: %s", prepared.run.id, exc)
+            raise
+        except GuardrailBlocked as exc:
+            # A refusal, not a malfunction - its own status for the same reason
+            # `BUDGET_EXCEEDED` is. The message names the edge and the refusal, not
+            # the content that tripped it, so it is safe to store and to surface.
+            # Raised on so the visitor is told the guard's plain reason.
+            status = RunStatus.GUARDRAIL_BLOCKED
+            error = str(exc)
+            logger.info("Chat run %s blocked by a %s guardrail", prepared.run.id, exc.edge)
             raise
         except Exception as exc:
             error = run_failure_summary(exc)

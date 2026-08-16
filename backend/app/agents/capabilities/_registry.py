@@ -597,11 +597,14 @@ def load_builtins() -> None:
         clock,
         code_execution,
         context,
+        guardrails,
         knowledge,
+        planning,
         sandbox,
         skills,
         subagents,
         thinking,
+        tool_search,
         web_research,
     )
 

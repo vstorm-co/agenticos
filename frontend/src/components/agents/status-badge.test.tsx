@@ -31,6 +31,14 @@ describe("RunStatusBadge", () => {
     expect(container.querySelector('[class*="destructive"]')).not.toBeNull();
   });
 
+  it("does not present a guardrail block as a failure", () => {
+    // A refusal is the platform working, like a budget stop - a warning tone,
+    // never the destructive one an operator reads as a crash.
+    const { container } = render(<RunStatusBadge status="guardrail_blocked" />);
+    expect(screen.getByText("Blocked by guardrail")).toBeInTheDocument();
+    expect(container.querySelector('[class*="destructive"]')).toBeNull();
+  });
+
   it.each([
     ["completed", "Completed"],
     ["running", "Running"],

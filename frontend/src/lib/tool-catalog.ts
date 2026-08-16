@@ -273,6 +273,58 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
   },
   delegate: { kind: "delegate", render: "generic", captionKey: "delegating" },
 
+  // planning - the model's own checklist. The tool result is the rendered plan or a
+  // one-line confirmation, so nothing opens underneath these steps.
+  write_plan: {
+    kind: "write",
+    render: "generic",
+    captionKey: "writingPlan",
+    displayNameKey: "plan",
+  },
+  read_plan: { kind: "read", render: "generic", captionKey: "readingPlan", displayNameKey: "plan" },
+  add_task: {
+    kind: "write",
+    render: "generic",
+    captionKey: "addingStep",
+    displayNameKey: "addStep",
+  },
+  update_task_status: {
+    kind: "edit",
+    render: "generic",
+    captionKey: "updatingStep",
+    displayNameKey: "updateStep",
+  },
+  update_task_statuses: {
+    kind: "edit",
+    render: "generic",
+    captionKey: "updatingSteps",
+    displayNameKey: "updateSteps",
+  },
+  remove_task: {
+    kind: "edit",
+    render: "generic",
+    captionKey: "removingStep",
+    displayNameKey: "removeStep",
+  },
+  add_subtask: {
+    kind: "write",
+    render: "generic",
+    captionKey: "addingSubtask",
+    displayNameKey: "addSubtask",
+  },
+  set_dependency: {
+    kind: "edit",
+    render: "generic",
+    captionKey: "settingDependency",
+    displayNameKey: "setDependency",
+  },
+  get_available_tasks: {
+    kind: "list",
+    render: "generic",
+    captionKey: "checkingAvailableSteps",
+    displayNameKey: "availableSteps",
+  },
+
   // web_research
   web_search: {
     kind: "web",

@@ -30,15 +30,21 @@ tools listed.
 | `sandbox` | Files & shell | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona |
 | `charts` | Charts | analysis | `create_chart` | — | — |
 | `subagents` | Delegation | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
+| `planning` | Planning | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
 | `thinking` | Thinking | reasoning | none, by design | — | — |
+| `tool_search` | Tool search | utility | none, by design | — | — |
 | `clock` | Date and time | utility | none, by design | — | — |
+| `guardrails` | Guardrails | utility | none, by design | — | — |
 | `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 
-Two of those have no tools on purpose. `thinking` changes how the model runs
-rather than what it can reach, and `clock` puts the date in the instructions —
-neither leaves anything for a person to approve, so neither declares a tool. A
-capability with genuinely no tools says so with `tools=()` rather than omitting
-the argument; see [Add a capability](../howto/add-capability.md).
+Four of those have no tools on purpose. `thinking` changes how the model runs
+rather than what it can reach, `clock` puts the date in the instructions,
+`tool_search` contributes its search function only once it wraps a toolset that
+has deferred tools — in isolation it declares nothing — and `guardrails` inspects
+and rewrites the text flowing through a run. None of the four leaves anything for
+a person to approve, so none declares a tool. A capability with genuinely no
+tools says so with `tools=()` rather than omitting the argument; see
+[Add a capability](../howto/add-capability.md).
 
 **This column is what a capability declares, which is not always what a model is
 offered.** Delegation is the one place the two differ: `create_agent` and `delegate`
@@ -528,6 +534,49 @@ For what a delegation costs and which run row records it, see
 [Governance](../governance.md#delegation-spends-the-parents-budget). For who may
 delegate to what, see [Permissions](../permissions.md#delegation-is-not-a-privilege-boundary).
 
+## Planning
+
+`write_plan` — *lay out or replace the whole checklist.*
+`read_plan` — *see the steps and their ids before a granular edit.*
+`add_task`, `update_task_status`, `update_task_statuses`, `remove_task` — *change one
+step, or a batch, without replacing the plan.*
+`add_subtask`, `set_dependency`, `get_available_tasks` — *dependency-aware planning,
+offered only under `enable_subtasks`.*
+
+A checklist the model keeps for itself while it works: what is done, what is in
+progress, what is left. For multi-step work a model does better when it writes the
+steps down first and keeps them in front of itself, so the current plan is surfaced
+back every turn as a **cache-safe tail reminder** — appended after a cache breakpoint,
+so the stable prompt prefix stays byte-identical and only the mutable plan is re-read
+each turn. The plan never lands in the system prompt.
+
+It overlaps with [Delegation](#delegation) the way a plan overlaps with a team:
+planning decides *what* the steps are, delegation decides *who* does them. They are
+orthogonal — a plan is a toolset plus a reminder, delegation is a toolset plus a run
+wrapper — so an agent may bind both, one, or neither.
+
+| Config | Default | Values |
+|---|---|---|
+| `enable_subtasks` | `false` | adds the three subtask/dependency tools and the `blocked` status |
+| `cache_ttl` | `5m` | `5m`, `1h` — how long the prefix before the reminder may cache |
+
+**None of the nine tools acts on the world.** Each mutates a checklist the model
+keeps for itself, so there is nothing here for a person to approve and the capability
+declares `side_effecting=False`. The three subtask tools are declared even when a flat
+checklist does not offer them, because a tool absent from the declaration can be
+neither gated by the approval policy nor renamed by a binding.
+
+**The plan survives an approval park.** The checklist is state, and a run that parks
+on an approval mid-plan resumes as a fresh run — so the store is owned by the runner,
+not the capability: it is seeded from `paused_state` on resume and read back when the
+run stops. An agent that does not bind the capability pays nothing — no tools, no
+reminder, no stored plan.
+
+**It spends no tokens of its own.** The tools are local checklist edits with no model
+or embedding request behind them, so unlike knowledge or delegation there is no
+ambient usage to meter. The round trips the model makes to call them are its own, and
+the budget guard already counts those.
+
 ## Thinking
 
 No tools. Asks the model to reason before it answers: slower and dearer, better on
@@ -549,6 +598,86 @@ about "this quarter" from its training cutoff.
 | Config | Default | |
 |---|---|---|
 | `timezone` | `UTC` | any IANA name, e.g. `Europe/Warsaw` |
+
+## Tool search
+
+No tools of its own. Lets the agent *find* a tool from a large set instead of
+carrying every tool's schema in its context on every request. This matters most
+for [MCP](../mcp.md): an agent may bind an arbitrary number of servers, and every
+tool a server exposes is a schema the model pays for on each turn whether or not
+it ever calls it.
+
+| Config | Default | Values |
+|---|---|---|
+| `strategy` | `auto` | `auto`, `keywords`, `bm25`, `regex` |
+| `max_results` | 10 | 1–50, ignored by native search |
+
+- **`auto`** — native tool search where the provider offers it (Anthropic BM25 or
+  regex, OpenAI server-side), the local keyword algorithm everywhere else.
+- **`keywords`** — always match locally, on any provider.
+- **`bm25` / `regex`** — force an Anthropic-native algorithm; a run on a provider
+  with no native tool search errors rather than silently substituting another. The
+  model is resolved separately from the spec, so this is a run-time cost the author
+  accepts by naming one — `auto` never fails this way.
+
+**Enabling it is what defers the MCP toolsets.** The capability and the deferral
+are two halves of one decision: the library's `ToolSearch` is inert with nothing
+deferred, and a deferred tool with no search to find it is a tool the model can
+never call. So binding `tool_search` is what marks the connected servers'
+toolsets for deferred loading — the registry's own tools stay visible, being few
+and chosen per agent. An agent that does not bind it pays nothing and sees every
+tool as before.
+
+**Deferral changes what the model sees, never a tool's identity.** A discovered
+MCP tool arrives under its real prefixed name, so the [approval gate](#what-a-binding-may-change)
+still pairs on it and a binding's rename still reaches it; `ToolSearch` sits
+outermost, reading the names a rename already applied.
+
+**It needs no metering.** The two local strategies run in Python and spend no
+tokens; native search runs inside the provider's own request, whose usage the
+[budget guard](../governance.md) already meters; and the discovery round-trips are
+ordinary model requests the same guard wraps. The one shape that would escape it —
+a custom search callable that itself calls a model or an embedding — is
+deliberately not exposed.
+
+## Guardrails
+
+No tools. Inspects the text flowing through a run at three edges and either
+**redacts** a match or **blocks** the run. The checks are ready-made detectors from
+`pydantic-ai-harness`; an agent is data, so the config selects and parameterises
+them rather than carrying a Python guard.
+
+| Edge | Reads | Redact | Block |
+|---|---|---|---|
+| input | the user's prompt | `redact_secrets_in`, `redact_pii_in` | `blocked_keywords_in` |
+| output | the agent's answer | `redact_secrets_out`, `redact_pii_out` | `blocked_keywords_out` |
+| tool result | what a tool returned, before the model reads it | `redact_secrets_tool`, `redact_pii_tool` | `blocked_keywords_tool` |
+
+| Config | Default | |
+|---|---|---|
+| `redact_secrets_*` | `false` | scrub API keys, tokens, JWTs and PEM blocks |
+| `redact_pii_*` | `false` | scrub email, IBAN (mod-97), card (Luhn) and US SSN |
+| `blocked_keywords_*` | `""` | comma- or newline-separated terms; a match ends the run |
+
+Every field defaults off, and a capability enabled with no edge configured attaches
+nothing — an agent that does not use it pays nothing.
+
+**Redaction rewrites; a block is a run outcome.** A redactor scrubs the match and
+the run finishes — an answer that quoted a key back has still done the work. A
+keyword block instead ends the run with status `guardrail_blocked`, its own outcome
+beside `budget_exceeded`, because a refusal is the platform working and an operator
+filtering for problems should be able to find it rather than have it read like any
+completed answer. See [Governance](../governance.md).
+
+**Tool-result screening is the reason this edge matters most.** It is the only guard
+on untrusted content entering the loop — a fetched page, a file, an MCP server's
+response — where a prompt-injection payload would otherwise reach the model unread.
+
+Two things are deliberately out of scope. **Tool arguments** are a structured
+mapping with no text detector, so they are not an edge. And the harness's tool
+`approve` verdict is not ported: [approvals](../governance.md) already park a run per
+tool for a human decision, and a second, rule-driven path to the same mechanism is
+what a single door avoids.
 
 ## Chat channel lookup
 

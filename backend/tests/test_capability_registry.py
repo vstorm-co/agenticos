@@ -236,6 +236,15 @@ class TestToolDeclarations:
         # subagents resource above is at its widest - an undeclared tool can only
         # appear where the most tools do.
         "channel_tools": {"tools": sorted(get("channel_tools").tool_ids)},
+        # Builds `None` from an empty blob on purpose - enabling the capability
+        # without turning on an edge attaches no guardrail. One edge on is what
+        # makes it build here; it offers no tools either way.
+        "guardrails": {"blocked_keywords_in": "secret"},
+        # Its three subtask tools are offered only when this is set, so the widest
+        # configuration is the one that switches them on. The default (a flat
+        # checklist) offers the six core tools and would hide the other three from
+        # the comparison rather than check them.
+        "planning": {"enable_subtasks": True},
     }
     """Configurations a capability needs before it offers anything.
 
@@ -412,6 +421,7 @@ class TestRegistration:
             "clock",
             "skills",
             "thinking",
+            "tool_search",
         } <= set(REGISTRY)
 
     def test_catalog_is_ordered_for_a_stable_picker(self):

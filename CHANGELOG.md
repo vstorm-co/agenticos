@@ -17,6 +17,65 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.155] - 2026-08-16
+
+An agent can keep a checklist for itself over a multi-step run.
+
+### Added
+
+- **Planning capability.** Ports the `pydantic-ai-harness` planning checklist into
+  the registry: `write_plan`/`read_plan` plus granular step tools, and under
+  `enable_subtasks` a dependency-aware mode (`add_subtask`, `set_dependency`,
+  `get_available_tasks`, a `blocked` status). The current plan is surfaced back
+  each turn as a cache-safe tail reminder behind a `CachePoint`, so the prompt
+  prefix stays cacheable and the plan never lands in the system prompt. The tools
+  are local checklist edits with no model request behind them, so there is no
+  ambient usage to meter. Registry-only — no `SPEC_VERSION` bump — and orthogonal
+  to delegation, so an agent may bind both. (#47)
+
+### Fixed
+
+- **A parked run's plan survives the approval park.** The runner owns the store:
+  it seeds one from `PausedRunState.plan` on resume, injects it through
+  `PLANNING_STORE_RESOURCE`, and reads it back when the run parks. `paused_state`
+  is already JSONB, so no migration — a run parked before this stays resumable.
+- **The system-prompt guidance is this repository's own string.** The library's
+  `get_instructions()` guidance is pinned via `guidance=` alongside the tool
+  descriptions, so a harness release that rewrites its default can no longer
+  change the agent's system prompt silently. (#778)
+
+## [0.0.154] - 2026-08-16
+
+A tripped guardrail is a visible run outcome, not a crash — on every surface.
+
+### Added
+
+- **Guardrails capability.** A single `guardrails` capability ports the
+  `pydantic-ai-harness` guards into the registry, inspecting the text at three
+  edges — the user's prompt, the agent's answer, and a tool's result before the
+  model reads it — and either redacting a match or blocking the run. Tool-result
+  screening is the headline: it is the only guard on untrusted content entering
+  the loop, where a prompt-injection payload would otherwise reach the model
+  unread. Redactors cover API keys, tokens, JWTs and PEM blocks, plus email,
+  IBAN (mod-97), card (Luhn) and US-SSN. Config is data, not callables — flat
+  toggles and a keyword string per edge — so it crosses the wire as an agent
+  spec. (#46)
+- **`RunStatus.GUARDRAIL_BLOCKED`.** A block is a governance outcome, so it gets
+  its own status beside `budget_exceeded` — the platform working, not a
+  malfunction — visible and filterable in run history, folded into `other` in the
+  outcomes donut, and kept out of the "Recent failures" widget and the "Problems"
+  preset. `agent_runs.status` is an unconstrained string, so no migration.
+
+### Fixed
+
+- **A guardrail block on the streaming web chat is recorded as
+  `guardrail_blocked`, not `failed`.** `GuardrailBlocked` was caught only in the
+  non-streaming runner, so on the primary surface a block landed in the generic
+  `except Exception` — recorded as `failed`, logged like a crash, and shown to
+  the visitor as a generic "turn failed" instead of the guard's safe reason. The
+  streaming path now mirrors the budget handling in `agent_chat.py` and
+  `agent_session.py`. (#779)
+
 ## [0.0.153] - 2026-08-15
 
 The i18n guard stops reading a leading acronym as permission to skip the
