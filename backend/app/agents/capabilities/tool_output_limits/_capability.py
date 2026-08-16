@@ -40,7 +40,6 @@ from pydantic import BaseModel, Field, field_validator
 from pydantic_ai.capabilities import WrapperCapability
 from pydantic_ai.messages import ToolCallPart
 from pydantic_ai.tools import AgentDepsT, RunContext, ToolDefinition
-from pydantic_ai.usage import RequestUsage, RunUsage
 from pydantic_ai_backends import StateBackend
 from pydantic_ai_harness.tool_output_limits import (
     Action,
@@ -52,7 +51,7 @@ from pydantic_ai_harness.tool_output_limits import (
     TruncationStrategy,
 )
 
-from app.agents.capabilities.budget import record_ambient_usage
+from app.agents.capabilities.budget import record_ambient_usage, usage_counts, usage_delta
 from app.agents.capabilities.tool_output_limits._store import BackendOverflowStore
 
 DEFAULT_THRESHOLD = 10_000
@@ -145,8 +144,8 @@ class ToolOutputLimitsConfig(BaseModel):
         max_length=8_000,
         description=(
             "What the summarising model is told, for the 'summarize' action. Must "
-            "contain {tool_name} and {output}, where the tool's name and its full "
-            "output are inserted"
+            "contain {output}, where the tool's full output is inserted; {tool_name} "
+            "is available too, for the name of the tool that produced it"
         ),
         json_schema_extra={"x-multiline": True},
     )
@@ -161,10 +160,13 @@ class ToolOutputLimitsConfig(BaseModel):
         on the long returns an agent actually spills, so the mistake would be a
         turn that summarised an empty string - or raised `KeyError` on an unknown
         placeholder - after the run was already underway.
+
+        Only `{output}` is required. The harness always passes `tool_name=` too,
+        so a prompt that never names the tool formats fine and is a legitimate
+        choice; requiring it would refuse a valid prompt for no mechanism's sake.
         """
-        for required in ("{tool_name}", "{output}"):
-            if required not in prompt:
-                raise ValueError(f"The summary prompt must contain {required}")
+        if "{output}" not in prompt:
+            raise ValueError("The summary prompt must contain {output}")
         try:
             prompt.format(tool_name="", output="")
         except (KeyError, IndexError, ValueError) as exc:
@@ -199,10 +201,14 @@ def _build_store(backend: Any) -> BackendOverflowStore:
 
     An agent that binds `sandbox` has a backend the runner opened and keyed to the
     organization; a spill lives and dies with that workspace, which on the default
-    `run` scope is exactly the run. A longer-scoped workspace (`conversation`,
-    `user`, `agent`) keeps its spills as long as it keeps the agent's own files -
-    a shared lifetime that follows from putting the spill on the backend, and the
-    reason #803 tracks pruning them at run end.
+    `run` scope is exactly the run. A longer-scoped `state` workspace
+    (`conversation`, `user`, `agent`) would otherwise carry its spills into the
+    persisted document and count them against the byte cap every run, so
+    `SandboxWorkspaceService._flush_state` strips the reserved prefix at run end -
+    the spill never survives the run on a `state` backend whatever the scope. A
+    longer-scoped *container* workspace keeps its spills on the container filesystem
+    for now; deleting those needs a run-scoped delete the backend protocol does not
+    expose, tracked in #803.
 
     An agent with no backend gets a fresh in-memory `StateBackend` here, so the
     store is per-run and process-local rather than on shared disk. The fallback is
@@ -258,44 +264,12 @@ class MeteredToolOutputLimits(WrapperCapability[AgentDepsT]):
         args: dict[str, Any],
         result: Any,
     ) -> Any:
-        before = _counts(ctx.usage)
+        before = usage_counts(ctx.usage)
         try:
             return await self.wrapped.after_tool_execute(
                 ctx, call=call, tool_def=tool_def, args=args, result=result
             )
         finally:
-            spent = _spent(before, ctx.usage)
+            spent = usage_delta(before, ctx.usage)
             if spent is not None:
                 record_ambient_usage(ctx.model.model_name or "unknown", spent)
-
-
-def _counts(usage: RunUsage) -> tuple[int, int, int, int]:
-    """The four counters a price is computed from, read off the run's usage.
-
-    A tuple rather than the object: `RunUsage` is accumulated in place, so keeping
-    a reference and comparing later compares it with itself.
-    """
-    return (
-        usage.input_tokens,
-        usage.output_tokens,
-        usage.cache_read_tokens,
-        usage.cache_write_tokens,
-    )
-
-
-def _spent(before: tuple[int, int, int, int], usage: RunUsage) -> RequestUsage | None:
-    """What the reduction added, or `None` when it called no model.
-
-    Cached tokens are carried alongside the plain ones because they are priced
-    differently and `input_tokens` already includes them; dropping them would bill
-    a cache read at the full input rate.
-    """
-    after = _counts(usage)
-    if after == before:
-        return None
-    return RequestUsage(
-        input_tokens=after[0] - before[0],
-        output_tokens=after[1] - before[1],
-        cache_read_tokens=after[2] - before[2],
-        cache_write_tokens=after[3] - before[3],
-    )

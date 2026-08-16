@@ -102,9 +102,10 @@ class TestConfig:
         with pytest.raises(ValidationError):
             ToolOutputLimitsConfig(summary_prompt="Summarise {tool_name}, please.")
 
-    def test_a_summary_prompt_without_the_tool_name_placeholder_is_refused(self):
-        with pytest.raises(ValidationError):
-            ToolOutputLimitsConfig(summary_prompt="Summarise this: {output}")
+    def test_a_summary_prompt_without_the_tool_name_placeholder_is_kept(self):
+        """Only `{output}` is required; the harness passes `tool_name=` regardless."""
+        prompt = "Summarise this: {output}"
+        assert ToolOutputLimitsConfig(summary_prompt=prompt).summary_prompt == prompt
 
     def test_a_summary_prompt_with_a_stray_placeholder_is_refused(self):
         """Caught at publish, not mid-run where the harness would raise `KeyError`."""
@@ -228,6 +229,29 @@ class TestMetering:
 
         assert len(ledger.entries) == 1
         assert (ledger.input_tokens, ledger.output_tokens) == (1_200, 300)
+
+    async def test_a_real_summarize_books_its_model_call(self):
+        """The end-to-end path, so the metering does not silently book zero.
+
+        `_Spender` proves the wrapper books whatever lands in `ctx.usage`; this
+        proves the harness `Summarize` is what lands it there - it runs its own
+        `Agent` with `usage=ctx.usage`, and if that ever stopped, the wrapper would
+        see no delta and this test would go red where the mocked one would not.
+        """
+        ledger = SpendLedger()
+        capability = MeteredToolOutputLimits(
+            wrapped=build_limits(
+                ToolOutputLimitsConfig(action="summarize", threshold=500),
+                backend=StateBackend(),
+            )
+        )
+
+        with metered_by(ledger):
+            await capability.after_tool_execute(
+                _run_context(), call=_call(), tool_def=_tool_def(), args={}, result="x" * 5_000
+            )
+
+        assert ledger.entries and ledger.input_tokens > 0
 
     async def test_a_zero_cost_reduction_books_nothing(self):
         """`spill` and `truncate` call no model and must stay free, though wrapped."""
