@@ -44,6 +44,8 @@ TOOLLESS = {
     # Gates other capabilities' tools. Owning one of its own would mean an
     # approval that could itself be approved.
     "approval",
+    # Inspects and rewrites the text flowing through a run; never a tool.
+    "guardrails",
 }
 
 # Capabilities whose tools come from a library rather than this repository.
@@ -56,6 +58,10 @@ EXTERNAL_TOOLSET = {
     # satisfied without a module that would only re-export somebody else's
     # functions.
     "sandbox",
+    # `pydantic_ai_harness.planning.PlanningToolset`. Same bargain as `sandbox`:
+    # the nine tool descriptions are declared in `_capability.py` and handed to the
+    # library through `descriptions=`, so the text a reader edits still lives here.
+    "planning",
 }
 
 
