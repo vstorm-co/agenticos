@@ -17,7 +17,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
-## [0.0.166] - 2026-08-16
+## [0.0.167] - 2026-08-16
+
+A workspace file's header finally says when it changed, not only how big it is.
+
+### Added
+
+- **Workspace listings carry a file's modified time to the viewer.** The shared
+  file viewer's header could always render `modified …`, but only a knowledge
+  base document ever supplied a time — a workspace file stopped at the size.
+  Rides on pydantic-ai-backend 0.2.26's `FileInfo.modified_at` (ISO 8601,
+  optional): a stored workspace records one on every write inside its JSONB
+  document, a workspace archive reports `st_mtime`, and a live container's
+  shell listing honestly answers `null` — never a guess. `WorkspaceFileRead`
+  (and `FlatFileRead`) gain `modified_at`, the three listing routes pass it
+  through, and the chat panel, the workspace explorer, the flat browser and
+  the chat tool-result card all hand it to the viewer. (#500)
 
 A run's spills no longer pile up on a container workspace that outlives it.
 
