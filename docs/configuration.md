@@ -459,9 +459,11 @@ which reads as "there are no files". Two wrong answers at once. Reading *one fil
 from such a host is refused with the same sentence rather than reported as "no such
 file", which would say the file is missing when it is not.
 
-**What is running is read from the service too.** The Sandboxes screen lists this
-organization's open sandboxes on its default host — runtime, what shares each one,
-idle time, and memory against its own ceiling when asked — plus the activity log
+**What is running is read from the service too.** The Sandboxes screen keeps it on
+its own tab, apart from the connections table, and lists this organization's open
+sandboxes on the host it names — the default connection until the operator picks
+another — sortable by idle time and memory: runtime, what shares each one, idle
+time, and memory against its own ceiling when asked — plus the activity log
 per sandbox: which paths were read, which commands ran, and how each went. Neither
 file contents nor command output is recorded by the service, which is what keeps
 an audit trail from becoming a way to read another agent's work. The dashboard

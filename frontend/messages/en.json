@@ -3159,8 +3159,9 @@
       "pageDescription": "Where this organization's agents run shell commands and keep files. An agent names a connection by id, so moving to another host is one edit here rather than a republish of every agent. The token stays in the vault; nothing on this page can read it back. The files themselves are on Workspaces, which is not an operator screen — everybody sees their own.",
       "registeredCount": "{count, plural, =1 {1 connection} other {# connections}}",
       "sandboxConnections": "Sandbox connections",
-      "sandboxes": "Sandboxes",
-      "sandboxes2": "Sandboxes"
+      "sandboxes2": "Sandboxes",
+      "tabConnections": "Connections",
+      "tabRunning": "Running"
     },
     "settings": {
       "absencesWorthStatingBecause": "Absences worth stating, because a settings page implies the opposite.",
@@ -3522,20 +3523,34 @@
     "sessions": {
       "activity": "Activity",
       "activityOf": "Activity of {id}",
+      "detail": "Detail",
+      "duration": "Duration",
       "hide2": "Hide",
+      "host": "Host",
       "idle": "Idle",
       "memory": "Memory",
+      "noContainerConnection": "No container connection registered",
+      "noContainerConnectionHint": "What is running can only be listed from a container service. Register one under Connections; Daytona sandboxes are managed on the Daytona account they bill to.",
+      "noSessionMatches": "No running sandbox matches that.",
       "nothingRunningSandboxOpens": "Nothing running. A sandbox opens on an agent's first file or shell call, so an agent that has one and never uses it costs nothing here.",
+      "operation": "Operation",
       "runningOn": "Running on {name}",
       "runtime": "Runtime",
       "sampleMemory": "Sample memory",
       "sampleMemoryAndCpu": "Sample memory and CPU",
+      "scopeAgent": "the whole agent",
+      "scopeChannel": "one channel",
+      "scopeConversation": "one conversation",
+      "scopeRun": "a single run",
+      "scopeUser": "one person",
+      "searchSessions": "Search sessions",
       "session": "Session",
       "sessionsCount": "{count} of this organization's sandboxes. Refreshed every ten seconds.",
       "sessionsOfLimit": "{count} of this organization's sandboxes, out of {limit} allowed. Refreshed every ten seconds.",
       "sharedBy": "Shared by",
       "show": "Show",
-      "state": "State"
+      "state": "State",
+      "target": "Target"
     },
     "someUnreadable": "{count} could not be read; their host may be down.",
     "table": {
