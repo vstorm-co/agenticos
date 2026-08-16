@@ -598,6 +598,7 @@ def load_builtins() -> None:
         code_execution,
         guardrails,
         knowledge,
+        planning,
         sandbox,
         skills,
         subagents,
