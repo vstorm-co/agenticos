@@ -1,7 +1,13 @@
 /** Types for run history, approvals and the cost dashboard. */
 
 export type RunStatus =
-  "running" | "completed" | "failed" | "cancelled" | "awaiting_approval" | "budget_exceeded";
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "awaiting_approval"
+  | "budget_exceeded"
+  | "guardrail_blocked";
 
 export interface AgentRun {
   id: string;

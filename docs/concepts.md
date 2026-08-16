@@ -70,7 +70,9 @@ and a cost.
 
 A run that fails still records what it spent. A run that stops on its budget is
 recorded as `budget_exceeded` rather than `failed`, so an operator filtering for
-problems does not wade through the platform working correctly. A run somebody
+problems does not wade through the platform working correctly. A run a
+[guardrail](reference/capabilities.md#guardrails) blocked is `guardrail_blocked`
+for the same reason - a refusal is the platform working, not a malfunction. A run somebody
 stopped - the composer's stop button, a socket that went away, a delegation
 cancelled from above - is `cancelled` for the same reason, on every surface and
 not only the streaming one. A run that parks on an approval is
