@@ -17,7 +17,28 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
-## [0.0.169] - 2026-08-16
+## [0.0.170] - 2026-08-16
+
+The agent map draws the whole delegation tree, and says what it cannot.
+
+### Added
+
+- **The agent map renders the delegation tree recursively, from one endpoint.**
+  `GET /agents/{agent_id}/delegation-tree` walks the draft's pins with the same
+  resolution publish uses — one response instead of a page-walk per hop, with
+  per-walk caches so a diamond is one read. Depth is the runtime's own bound
+  (`min(inherited, own max_depth)`), so the tree shows exactly what a run can
+  reach and marks the rest `truncated` rather than drawing it reachable. What
+  the walk cannot resolve says so on the node: a delegate the caller may not
+  see answers `restricted` (indistinguishable from a pin at nothing, so a
+  shared map cannot probe private agents), a cycle is named and never
+  followed, a gone version answers `unpinned`, a stale pin carries its number,
+  and an **archived** delegate is named rather than drawn as a working hop —
+  the same refusal the runtime raises when a run reaches it. On the map, first-
+  level delegates keep their measured edges; each subtree hangs off its parent
+  with a drawn connector, focusable and keyed by path; a tree still loading or
+  failed says so in the notice instead of posing as a complete one-hop map.
+  (#276)
 
 The sandboxes page stops stacking two clocks down one scroll.
 
