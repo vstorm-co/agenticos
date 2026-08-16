@@ -34,6 +34,7 @@ tools listed.
 | `subagents` | Delegation | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
 | `planning` | Planning | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
 | `thinking` | Thinking | reasoning | none, by design | — | — |
+| `system_reminders` | System reminders | reasoning | none, by design | — | — |
 | `tool_search` | Tool search | utility | none, by design | — | — |
 | `clock` | Date and time | utility | none, by design | — | — |
 | `guardrails` | Guardrails | utility | none, by design | — | — |
@@ -41,12 +42,13 @@ tools listed.
 | `tool_output_limits` | Tool output limits | utility | `read_tool_result` | — | — |
 | `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 
-Five of those have no tools on purpose. `thinking` changes how the model runs
+Six of those have no tools on purpose. `thinking` changes how the model runs
 rather than what it can reach, `clock` puts the date in the instructions,
 `tool_search` contributes its search function only once it wraps a toolset that
 has deferred tools — in isolation it declares nothing — `guardrails` inspects and
-rewrites the text flowing through a run, and `compaction` rewrites the history a
-request carries. None of the five leaves anything for a person to approve, so none
+rewrites the text flowing through a run, `compaction` rewrites the history a
+request carries, and `system_reminders` appends steering text to the request tail.
+None of the six leaves anything for a person to approve, so none
 declares a tool. A capability with genuinely no
 tools says so with `tools=()` rather than omitting the argument; see
 [Add a capability](../howto/add-capability.md).
@@ -681,6 +683,54 @@ work that needs several steps held in mind at once.
 
 Unset means the provider's own default effort. A level a provider does not have
 maps to its closest one, so a spec stays portable across a model swap.
+
+## System reminders
+
+No tools. Re-states steering guidance mid-run so a long session stops drifting
+from its instructions — the failure this fixes is instruction fade, where after
+many tool-use turns a model progressively ignores the guidance it started with. It
+is a port of
+[`pydantic-ai-harness`](https://github.com/pydantic/pydantic-ai-harness)'s
+`SystemReminders`.
+
+There are three reminder kinds, each with its own cadence:
+
+| Kind | Cost | Text it injects |
+|---|---|---|
+| `reminders[]` | none | A fixed line you write |
+| `goal_reanchor` | none | The run's first user request, re-stated as the anchor |
+| `llm_reminder` | one model call per fire | A short nudge a model writes from the recent transcript |
+
+Each kind takes `interval` (fire every N model requests), `first_after` (the
+request number of the first fire) and `max_fires` (the cap over the conversation);
+`cache_ttl` on the capability sets the lifetime of the cache breakpoint. At least
+one kind must be set, or the capability contributes nothing and is dropped from the
+run — which is what an empty config means.
+
+**The cadence counts across the whole conversation, and it is durable.** A reminder
+fires on model-request number N, and that counter is stored on the conversation and
+seeded back at the next turn — so a reminder set to fire every ten requests keeps
+counting where the last turn left off rather than resetting to zero, and leaving and
+reloading a conversation resumes it (#787). Only the counters are stored; the
+reminder text is injected per request and never enters the transcript.
+
+**Injection is cache-safe.** A fired reminder is appended to the *tail* of the
+request as an ephemeral user prompt behind a cache breakpoint, after core has
+persisted the durable history — so it reaches the model but never enters
+`message_history`, no stale reminders pile up, and the cached prefix (tools, system,
+the real conversation) stays byte-identical turn over turn while only the small
+reminder falls outside the cache. Injecting into the system prompt instead would
+bust the cached prefix on every fire *and* accumulate stale reminders.
+
+**An LLM reminder is metered and inherits the run's model.** It writes its text
+through an agent it builds itself, which no budget guard wraps, so its spend is
+booked against the run's ledger the way a summary is, and it runs under the run's
+usage limits minus one reserved request so it can never push the run past its own
+step limit. It uses the run's own model — the one whose credential the vault
+resolved — rather than a name from config, the same decision
+[Context management](#context-management) makes about its summariser. On any error,
+or when the reserved budget is already spent, it falls back to the goal-reanchor
+line, so a failed generation never blocks the run.
 
 ## Date and time
 

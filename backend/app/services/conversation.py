@@ -146,6 +146,22 @@ class ConversationService:
             return
         await conversation_repo.set_overhead(self.db, db_conversation=conversation, tokens=tokens)
 
+    async def keep_reminder_state(self, conversation_id: UUID, state: dict[str, Any]) -> None:
+        """Record how far this conversation's system-reminders cadence has advanced.
+
+        Written only when it moved, for the reason :meth:`keep_overhead` is: a
+        turn that fired no reminder leaves the counters where they were, and an
+        UPDATE per turn to store the number already there is a write nobody reads
+        differently. The next run seeds from it, so a reminder set to fire every
+        N requests keeps counting across turns rather than resetting each one.
+        """
+        conversation = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
+        if conversation is None or conversation.reminder_state == state:
+            return
+        await conversation_repo.set_reminder_state(
+            self.db, db_conversation=conversation, state=state
+        )
+
     async def keep_summary(self, conversation_id: UUID, messages: list[dict[str, Any]]) -> None:
         """Write down the history a summary reduced this conversation to.
 

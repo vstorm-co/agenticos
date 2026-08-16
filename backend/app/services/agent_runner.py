@@ -1455,18 +1455,30 @@ class AgentRunnerService:
             names.append(collection.collection_name)
         return names
 
-    async def _recorded_overhead(self, conversation_id: UUID | None) -> int | None:
-        """What this thread last measured a request to carry before any message.
+    async def _recorded_conversation_state(
+        self, conversation_id: UUID | None
+    ) -> tuple[int | None, dict[str, Any] | None]:
+        """What an earlier turn of this thread recorded, in one read.
 
-        A property of the agent rather than of the conversation, strictly - but
-        the conversation is where a run can find it without asking every surface
-        to carry it, and an agent answering one thread is answering it with the
-        instructions and tools it has now.
+        Two things the build seeds from the conversation - the request overhead
+        (instructions and tool schemas) and how far the system-reminders cadence
+        has advanced. Both are properties of the agent rather than of the
+        conversation, strictly, but the conversation is where a run finds them
+        without asking every surface to carry them, and an agent answering one
+        thread answers with the instructions and tools it has now.
+
+        Read together because they are seeded together: without the overhead a
+        one-request turn cannot tell a window with no room for a summary from one
+        that works (#49), and without the cadence a reminder set to fire every N
+        requests never reaches N in a chat of one-request turns. One row, so one
+        SELECT rather than one each.
         """
         if conversation_id is None:
-            return None
+            return None, None
         conversation = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
-        return None if conversation is None else conversation.overhead_tokens
+        if conversation is None:
+            return None, None
+        return conversation.overhead_tokens, conversation.reminder_state
 
     async def prepare(
         self,
@@ -1756,6 +1768,9 @@ class AgentRunnerService:
         if runtime is not None:
             resources[SUBAGENT_RUNTIME_RESOURCE] = runtime
 
+        recorded_overhead, recorded_reminder_state = await self._recorded_conversation_state(
+            conversation_id
+        )
         built = build_agent(
             spec,
             model_spec,
@@ -1777,11 +1792,13 @@ class AgentRunnerService:
             org_period_spend=org_period_spend,
             org_monthly_budget_usd=organization.monthly_budget_usd,
             request_approval=channel,
-            # What an earlier turn of this thread measured its instructions and
-            # tool schemas at. Without it the reading is `None` until a response
-            # arrives, so on a one-request turn compaction cannot tell a window
-            # with no room from one that works (#49).
-            recorded_overhead=await self._recorded_overhead(conversation_id),
+            # Both from one read of the conversation (see
+            # `_recorded_conversation_state`): the request overhead, without which
+            # a one-request turn cannot tell a window with no room for a summary
+            # from one that works (#49), and how far the reminder cadence has
+            # advanced, so it counts across turns rather than resetting each one.
+            recorded_overhead=recorded_overhead,
+            recorded_reminder_state=recorded_reminder_state,
         )
 
         # Both only assignable now, and both before the run starts. The guard and
@@ -3375,6 +3392,16 @@ class AgentRunnerService:
                 if prepared.built.context.overhead is not None:
                     await conversations.keep_overhead(
                         prepared.run.conversation_id, prepared.built.context.overhead
+                    )
+                # How far the reminder cadence advanced this turn, so the next one
+                # resumes it. Only when the counter has moved off zero, which it
+                # does exactly when a reminders capability ran this turn or a
+                # previous one recorded it - so an agent that has none never writes
+                # an empty blob, and `keep_reminder_state` skips a value unchanged
+                # since it was seeded.
+                if prepared.built.reminder_state.request_count:
+                    await conversations.keep_reminder_state(
+                        prepared.run.conversation_id, prepared.built.reminder_state.snapshot()
                     )
             # Committed here rather than left to the session context: that exit
             # rolls back on any exception, and cancellation never reaches it at

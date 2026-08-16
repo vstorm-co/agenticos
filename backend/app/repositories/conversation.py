@@ -736,6 +736,16 @@ async def set_overhead(
     return db_conversation
 
 
+async def set_reminder_state(
+    db: AsyncSession, *, db_conversation: Conversation, state: dict[str, Any]
+) -> Conversation:
+    """Record how far this conversation's system-reminders cadence has advanced."""
+    db_conversation.reminder_state = state
+    await db.flush()
+    await db.refresh(db_conversation)
+    return db_conversation
+
+
 async def last_ordinal(db: AsyncSession, conversation_id: UUID) -> int:
     """The ordinal of the newest message, or 0 for a conversation with none."""
     highest = await db.scalar(

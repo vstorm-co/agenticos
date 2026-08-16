@@ -247,6 +247,10 @@ class TestToolDeclarations:
         # checklist) offers the six core tools and would hide the other three from
         # the comparison rather than check them.
         "planning": {"enable_subtasks": True},
+        # Builds `None` from an empty blob on purpose - binding the capability
+        # without setting a reminder attaches nothing. One reminder on is what
+        # makes it build here; it offers no tools either way.
+        "system_reminders": {"goal_reanchor": {}},
     }
     """Configurations a capability needs before it offers anything.
 

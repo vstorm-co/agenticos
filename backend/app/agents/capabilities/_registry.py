@@ -606,6 +606,7 @@ def load_builtins() -> None:
         sandbox,
         skills,
         subagents,
+        system_reminders,
         thinking,
         tool_output_limits,
         tool_search,

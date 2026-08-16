@@ -455,10 +455,10 @@ def usage_delta(before: tuple[int, int, int, int], usage: RunUsage) -> RequestUs
     """What a step added to the run's usage, or `None` when it called no model.
 
     A capability that runs its own `Agent` - a compaction summary, a tool-output
-    summary - spends against `ctx.usage` and nowhere the request wrapper can see,
-    so each meters itself by snapshotting :func:`usage_counts` before the step and
-    diffing after. One helper so the two meters cannot drift on how the diff is
-    taken.
+    summary, an LLM reminder - spends against `ctx.usage` and nowhere the request
+    wrapper can see, so each meters itself by snapshotting :func:`usage_counts`
+    before the step and diffing after. One helper so the meters cannot drift on
+    how the diff is taken.
     """
     after = usage_counts(usage)
     if after == before:
