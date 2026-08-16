@@ -91,6 +91,7 @@ from app.agents.capabilities.channel_tools import (
     CHANNEL_TOOLS_CAPABILITY_ID,
     ChannelDirectory,
 )
+from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.planning import (
     PLANNING_STORE_RESOURCE,
     dump_plan,
@@ -3294,6 +3295,13 @@ class AgentRunnerService:
             error = str(exc)
             budget_scope = exc.scope
             logger.info("Run %s stopped by budget: %s", prepared.run.id, exc)
+        except GuardrailBlocked as exc:
+            # A refusal, not a malfunction - its own status for the same reason
+            # `BUDGET_EXCEEDED` is. The message names the edge and the refusal, not
+            # the content that tripped it, so it is safe to store on the row.
+            status = RunStatus.GUARDRAIL_BLOCKED
+            error = str(exc)
+            logger.info("Run %s blocked by a %s guardrail", prepared.run.id, exc.edge)
         except Exception as exc:
             error = run_failure_summary(exc)
             logger.exception("Agent run %s failed", prepared.run.id)

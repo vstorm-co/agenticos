@@ -40,6 +40,8 @@ TOOLLESS = {
     # Gates other capabilities' tools. Owning one of its own would mean an
     # approval that could itself be approved.
     "approval",
+    # Inspects and rewrites the text flowing through a run; never a tool.
+    "guardrails",
 }
 
 # Capabilities whose tools come from a library rather than this repository.

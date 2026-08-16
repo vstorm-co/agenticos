@@ -79,6 +79,7 @@ from subagents_pydantic_ai import TaskStatus
 
 from app.agents.capabilities import CapabilityBinding, build
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, SpendEntry, SpendLedger
+from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.subagents import Delegation
 from app.agents.deps import AgentDeps
 from app.agents.subagent_events import (
@@ -666,6 +667,30 @@ class TestATurnThatDidNotFinish:
             "error",
             {"message": "Organization monthly budget exhausted: $20.0100 spent of $20.00 limit"},
         )
+
+    async def test_a_guardrail_block_says_its_safe_reason_not_a_generic_failure(self, caplog):
+        """The streaming surface is where a block actually happens, and without its
+        own clause it hit the generic handler - logged as a crash with a stack
+        trace and shown to the visitor as "the agent could not finish this turn".
+        The guard's message names the edge and the refusal, never the offending
+        text, so it goes out whole."""
+        session = _session()
+        blocked = GuardrailBlocked(
+            edge="input", message="This request was blocked by an input guardrail."
+        )
+
+        with (
+            _chat(AsyncMock(side_effect=blocked)),
+            caplog.at_level(logging.ERROR, logger="app.services.agent_session"),
+        ):
+            await session.process_message(_message())
+
+        assert _frame_types(session) == ["user_prompt", "error"]
+        assert _sent_events(session)[-1] == (
+            "error",
+            {"message": "This request was blocked by an input guardrail."},
+        )
+        assert "Error processing agent request" not in caplog.text
 
     @pytest.mark.parametrize(
         ("failure", "named"), [(RuntimeError, "RuntimeError"), (TimeoutError, "TimeoutError")]

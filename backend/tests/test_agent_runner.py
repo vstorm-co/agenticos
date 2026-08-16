@@ -25,6 +25,7 @@ from pydantic_ai_harness.planning import PlanItem
 from app.agents.capabilities.approval import ApprovalGranted, ApprovalRejected
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, SpendLedger
 from app.agents.capabilities.channel_tools import CHANNEL_DIRECTORY_RESOURCE
+from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.spec import AgentSpec, CapabilityBindingSpec, ObservabilitySpec
 from app.agents.subagent_runtime import DelegationSpend, DelegationStash, ParkedDelegation
 from app.core.exceptions import BadRequestError, NotFoundError, RunExecutionError
@@ -942,6 +943,33 @@ class TestRunAccounting:
         # ends silently otherwise, and the first anybody hears of the limit is
         # somebody asking why the agent went quiet.
         assert notify.call_args.kwargs["status"] is RunStatus.BUDGET_EXCEEDED
+
+    @pytest.mark.anyio
+    async def test_a_guardrail_block_is_its_own_outcome_not_a_failure(self):
+        """A refusal, recorded like `BUDGET_EXCEEDED` rather than `FAILED`.
+
+        The clause does not re-raise, so `execute` returns the empty answer, and
+        the stored `error` is the guardrail's safe message - the edge and the
+        refusal, never the content that tripped it.
+        """
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.built.agent.run = AsyncMock(
+            side_effect=GuardrailBlocked(
+                edge="input", message="This request was blocked by an input guardrail."
+            )
+        )
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()) as finish,
+            patch.object(service, "_notify", new=AsyncMock()),
+        ):
+            output, _ = await service.execute(_ctx(), uuid.uuid4(), "hello")
+
+        assert output == ""
+        assert finish.call_args.kwargs["status"] == RunStatus.GUARDRAIL_BLOCKED.value
+        assert finish.call_args.kwargs["error"] == "This request was blocked by an input guardrail."
 
     @pytest.mark.anyio
     async def test_a_successful_run_returns_its_answer(self):

@@ -32,13 +32,15 @@ tools listed.
 | `planning` | Planning | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
 | `thinking` | Thinking | reasoning | none, by design | — | — |
 | `clock` | Date and time | utility | none, by design | — | — |
+| `guardrails` | Guardrails | utility | none, by design | — | — |
 | `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 
-Two of those have no tools on purpose. `thinking` changes how the model runs
-rather than what it can reach, and `clock` puts the date in the instructions —
-neither leaves anything for a person to approve, so neither declares a tool. A
-capability with genuinely no tools says so with `tools=()` rather than omitting
-the argument; see [Add a capability](../howto/add-capability.md).
+Three of those have no tools on purpose. `thinking` changes how the model runs
+rather than what it can reach, `clock` puts the date in the instructions, and
+`guardrails` inspects and rewrites the text flowing through a run — none leaves
+anything for a person to approve, so none declares a tool. A capability with
+genuinely no tools says so with `tools=()` rather than omitting the argument; see
+[Add a capability](../howto/add-capability.md).
 
 **This column is what a capability declares, which is not always what a model is
 offered.** Delegation is the one place the two differ: `create_agent` and `delegate`
@@ -564,6 +566,45 @@ about "this quarter" from its training cutoff.
 | Config | Default | |
 |---|---|---|
 | `timezone` | `UTC` | any IANA name, e.g. `Europe/Warsaw` |
+
+## Guardrails
+
+No tools. Inspects the text flowing through a run at three edges and either
+**redacts** a match or **blocks** the run. The checks are ready-made detectors from
+`pydantic-ai-harness`; an agent is data, so the config selects and parameterises
+them rather than carrying a Python guard.
+
+| Edge | Reads | Redact | Block |
+|---|---|---|---|
+| input | the user's prompt | `redact_secrets_in`, `redact_pii_in` | `blocked_keywords_in` |
+| output | the agent's answer | `redact_secrets_out`, `redact_pii_out` | `blocked_keywords_out` |
+| tool result | what a tool returned, before the model reads it | `redact_secrets_tool`, `redact_pii_tool` | `blocked_keywords_tool` |
+
+| Config | Default | |
+|---|---|---|
+| `redact_secrets_*` | `false` | scrub API keys, tokens, JWTs and PEM blocks |
+| `redact_pii_*` | `false` | scrub email, IBAN (mod-97), card (Luhn) and US SSN |
+| `blocked_keywords_*` | `""` | comma- or newline-separated terms; a match ends the run |
+
+Every field defaults off, and a capability enabled with no edge configured attaches
+nothing — an agent that does not use it pays nothing.
+
+**Redaction rewrites; a block is a run outcome.** A redactor scrubs the match and
+the run finishes — an answer that quoted a key back has still done the work. A
+keyword block instead ends the run with status `guardrail_blocked`, its own outcome
+beside `budget_exceeded`, because a refusal is the platform working and an operator
+filtering for problems should be able to find it rather than have it read like any
+completed answer. See [Governance](../governance.md).
+
+**Tool-result screening is the reason this edge matters most.** It is the only guard
+on untrusted content entering the loop — a fetched page, a file, an MCP server's
+response — where a prompt-injection payload would otherwise reach the model unread.
+
+Two things are deliberately out of scope. **Tool arguments** are a structured
+mapping with no text detector, so they are not an edge. And the harness's tool
+`approve` verdict is not ported: [approvals](../governance.md) already park a run per
+tool for a human decision, and a second, rule-driven path to the same mechanism is
+what a single door avoids.
 
 ## Chat channel lookup
 

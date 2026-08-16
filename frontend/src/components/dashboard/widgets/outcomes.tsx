@@ -51,7 +51,11 @@ export function OutcomesWidget({ title, hint, period, seeAll, options }: Dashboa
           const failed = of("failed");
           const budget = of("budget_exceeded");
           const awaiting = of("awaiting_approval");
-          const other = of("running") + of("cancelled");
+          // `guardrail_blocked` joins `other`: the ramp is five colours by
+          // design and the four attention/terminal statuses spend them, so a
+          // sixth is "other" (see `seriesColor`). Without it a blocked run sits
+          // in `total` behind no arc, and the ring stops summing to the whole.
+          const other = of("running") + of("cancelled") + of("guardrail_blocked");
           const attention = failed + budget;
           // The order is the ramp's, and it is fixed by status rather than by
           // which statuses this window happens to hold: "failed" is the same

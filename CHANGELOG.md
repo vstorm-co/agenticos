@@ -17,6 +17,38 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.154] - 2026-08-16
+
+A tripped guardrail is a visible run outcome, not a crash — on every surface.
+
+### Added
+
+- **Guardrails capability.** A single `guardrails` capability ports the
+  `pydantic-ai-harness` guards into the registry, inspecting the text at three
+  edges — the user's prompt, the agent's answer, and a tool's result before the
+  model reads it — and either redacting a match or blocking the run. Tool-result
+  screening is the headline: it is the only guard on untrusted content entering
+  the loop, where a prompt-injection payload would otherwise reach the model
+  unread. Redactors cover API keys, tokens, JWTs and PEM blocks, plus email,
+  IBAN (mod-97), card (Luhn) and US-SSN. Config is data, not callables — flat
+  toggles and a keyword string per edge — so it crosses the wire as an agent
+  spec. (#46)
+- **`RunStatus.GUARDRAIL_BLOCKED`.** A block is a governance outcome, so it gets
+  its own status beside `budget_exceeded` — the platform working, not a
+  malfunction — visible and filterable in run history, folded into `other` in the
+  outcomes donut, and kept out of the "Recent failures" widget and the "Problems"
+  preset. `agent_runs.status` is an unconstrained string, so no migration.
+
+### Fixed
+
+- **A guardrail block on the streaming web chat is recorded as
+  `guardrail_blocked`, not `failed`.** `GuardrailBlocked` was caught only in the
+  non-streaming runner, so on the primary surface a block landed in the generic
+  `except Exception` — recorded as `failed`, logged like a crash, and shown to
+  the visitor as a generic "turn failed" instead of the guard's safe reason. The
+  streaming path now mirrors the budget handling in `agent_chat.py` and
+  `agent_session.py`. (#779)
+
 ## [0.0.153] - 2026-08-15
 
 The i18n guard stops reading a leading acronym as permission to skip the

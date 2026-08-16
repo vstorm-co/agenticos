@@ -194,14 +194,16 @@ export function closeOpenDelegations(current: Delegation[]): Delegation[] {
  *
  * `running` and `awaiting_approval` are absent on purpose: neither is terminal, so
  * a panel waiting on a person stays waiting (`resolveAwaitingOnResume`). A run has
- * no `budget_exceeded` counterpart on a delegation panel, so it reads as `failed` -
- * the delegate stopped without finishing, which is what `failed` says.
+ * no `budget_exceeded` or `guardrail_blocked` counterpart on a delegation panel,
+ * so each reads as `failed` - the delegate stopped without finishing, which is
+ * what `failed` says.
  */
 const TERMINAL_DELEGATION_STATUS: Partial<Record<RunStatus, DelegationStatus>> = {
   completed: "completed",
   failed: "failed",
   cancelled: "cancelled",
   budget_exceeded: "failed",
+  guardrail_blocked: "failed",
 };
 
 /**
