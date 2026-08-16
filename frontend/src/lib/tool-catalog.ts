@@ -118,6 +118,15 @@ export interface ToolEntry {
  * there.
  */
 export const TOOL_CATALOG: Record<string, ToolEntry> = {
+  // browser_use - one autonomous browsing step; what comes back is a text result, so
+  // the generic renderer, not a browser view.
+  browse_web: {
+    kind: "web",
+    render: "generic",
+    captionKey: "browsingWeb",
+    displayNameKey: "browseWeb",
+  },
+
   // channel_tools - only ever called on a Slack, Telegram or Mattermost run, so these
   // steps are read back in the run timeline rather than watched live in the dashboard.
   get_channel_info: {
