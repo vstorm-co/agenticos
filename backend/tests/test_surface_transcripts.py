@@ -48,6 +48,7 @@ from pydantic_ai.usage import RequestUsage
 
 from app.agents.capabilities.budget import SpendLedger, record_ambient_usage
 from app.agents.capabilities.compaction import ContextGauge
+from app.agents.capabilities.system_reminders import ReminderState
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.services.agent_runner import AgentRunnerService, PreparedRun
@@ -150,6 +151,7 @@ def _run_yielding(agent_run: AsyncMock) -> Iterator[tuple[dict[str, PreparedRun]
         built.ledger = SpendLedger()
         built.model_label = "gpt-4.1"
         built.context = ContextGauge()
+        built.reminder_state = ReminderState()
         built.agent.run = agent_run
         # The streaming half, for a surface that shows an answer arriving. The
         # widget is one since #634, so its turns reach `iterate` rather than `run`.
@@ -666,3 +668,45 @@ class TestKeepingASummaryOnASurfaceThatIsNotTheChat:
             await session._answer("What's your refund window?")
 
         assert service.return_value.keep_overhead.await_args.args[1] == 3_865
+
+    async def test_the_reminder_cadence_is_written_back_when_it_advanced(self) -> None:
+        """So a reminder set to fire every N requests resumes next turn (#787)."""
+        session = _widget_session(_db())
+        run = AsyncMock(return_value=_searched_then_answered("The refund window is 30 days."))
+
+        with (
+            _run_yielding(run) as (captured, _conversations),
+            _the_widgets_rows(),
+            patch("app.services.agent_runner.ConversationService") as service,
+        ):
+            service.return_value.keep_summary = AsyncMock()
+            service.return_value.keep_overhead = AsyncMock()
+            service.return_value.keep_reminder_state = AsyncMock()
+
+            def advance(*_args: Any, **_kwargs: Any) -> Any:
+                captured["prepared"].built.reminder_state.request_count = 2
+                captured["prepared"].built.reminder_state.fire_counts["0"] = 1
+                return _searched_then_answered("The refund window is 30 days.")
+
+            run.side_effect = advance
+            await session._answer("What's your refund window?")
+
+        kept = service.return_value.keep_reminder_state
+        assert kept.await_args.args[1] == {"request_count": 2, "fire_counts": {"0": 1}}
+
+    async def test_a_turn_whose_cadence_did_not_advance_writes_nothing(self) -> None:
+        """An agent with no reminders never writes an empty cadence blob."""
+        session = _widget_session(_db())
+        run = AsyncMock(return_value=_searched_then_answered("The refund window is 30 days."))
+
+        with (
+            _run_yielding(run) as (_captured, _conversations),
+            _the_widgets_rows(),
+            patch("app.services.agent_runner.ConversationService") as service,
+        ):
+            service.return_value.keep_summary = AsyncMock()
+            service.return_value.keep_overhead = AsyncMock()
+            service.return_value.keep_reminder_state = AsyncMock()
+            await session._answer("What's your refund window?")
+
+        service.return_value.keep_reminder_state.assert_not_awaited()

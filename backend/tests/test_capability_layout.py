@@ -49,6 +49,9 @@ TOOLLESS = {
     # Rewrites the history a request carries, before it goes out. Nothing the
     # model chooses, so nothing for a person to approve.
     "compaction",
+    # Appends steering text to the request tail, before it goes out. Nothing the
+    # model chooses, so nothing for a person to approve.
+    "system_reminders",
 }
 
 # Capabilities whose tools come from a library rather than this repository.

@@ -42,6 +42,7 @@ from app.agents.capabilities.compaction import (
     ContextGauge,
     build_gauge,
 )
+from app.agents.capabilities.system_reminders import REMINDER_STATE_RESOURCE, ReminderState
 from app.agents.deps import AgentDeps, ApprovalCallback
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.observability import instrument_agent
@@ -82,6 +83,12 @@ class BuiltAgent:
     # reports what a turn cost is the one that reports how close it came to the
     # ceiling.
     context: ContextGauge
+    # How far this conversation's system-reminders cadence has advanced. Seeded
+    # from the conversation before the run and read after it, beside the gauge and
+    # for the same reason: the surface that persists the turn is the one that
+    # writes the cadence back, so a reminder set to fire every N requests keeps
+    # counting across turns instead of resetting each one.
+    reminder_state: ReminderState
     # The capabilities the spec asked for, without the two every agent gets.
     # Callers introspect what an agent can actually do without knowing which
     # entries the factory adds unconditionally.
@@ -118,6 +125,7 @@ def build_agent(
     request_approval: ApprovalCallback | None = None,
     shared_budget: BudgetGuard | None = None,
     recorded_overhead: int | None = None,
+    recorded_reminder_state: dict[str, Any] | None = None,
 ) -> BuiltAgent:
     """Instantiate an agent from its spec.
 
@@ -180,6 +188,12 @@ def build_agent(
     # measurement is this turn's starting estimate, and the first response of
     # this run replaces it (#49).
     gauge = ContextGauge(overhead=recorded_overhead)
+    # Seeded from what an earlier turn of this conversation recorded, for the same
+    # reason the gauge is: the system-reminders cadence counts model requests, and
+    # a counter that reset each turn would never reach a reminder set to fire every
+    # N requests in a chat of one-request turns. The reminders capability mutates
+    # this during the run; the runner writes it back after.
+    reminder_state = ReminderState.seed(recorded_reminder_state)
     configured = build_capabilities(
         bindings,
         granted_scopes=granted_scopes,
@@ -191,6 +205,7 @@ def build_agent(
             **(resources or {}),
             MODEL_CONTEXT_WINDOW_RESOURCE: model_spec.context_length,
             CONTEXT_GAUGE_RESOURCE: gauge,
+            REMINDER_STATE_RESOURCE: reminder_state,
         },
         secrets=secrets,
     )
@@ -282,6 +297,7 @@ def build_agent(
         ledger=ledger,
         budget=budget,
         context=gauge,
+        reminder_state=reminder_state,
         capabilities=configured,
         model_label=model_spec.label,
         approval_required_tools=approval_required,

@@ -1468,6 +1468,18 @@ class AgentRunnerService:
         conversation = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
         return None if conversation is None else conversation.overhead_tokens
 
+    async def _recorded_reminder_state(self, conversation_id: UUID | None) -> dict[str, Any] | None:
+        """How far this thread's system-reminders cadence has advanced.
+
+        Seeds the reminder capability so a reminder set to fire every N model
+        requests keeps counting across turns rather than resetting each one; the
+        run writes the new value back once the turn is over.
+        """
+        if conversation_id is None:
+            return None
+        conversation = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
+        return None if conversation is None else conversation.reminder_state
+
     async def prepare(
         self,
         ctx: AuthContext,
@@ -1782,6 +1794,9 @@ class AgentRunnerService:
             # arrives, so on a one-request turn compaction cannot tell a window
             # with no room from one that works (#49).
             recorded_overhead=await self._recorded_overhead(conversation_id),
+            # How far this thread's reminder cadence has advanced, so it counts
+            # across turns rather than resetting to zero each one.
+            recorded_reminder_state=await self._recorded_reminder_state(conversation_id),
         )
 
         # Both only assignable now, and both before the run starts. The guard and
@@ -3375,6 +3390,16 @@ class AgentRunnerService:
                 if prepared.built.context.overhead is not None:
                     await conversations.keep_overhead(
                         prepared.run.conversation_id, prepared.built.context.overhead
+                    )
+                # How far the reminder cadence advanced this turn, so the next one
+                # resumes it. Only when the counter has moved off zero, which it
+                # does exactly when a reminders capability ran this turn or a
+                # previous one recorded it - so an agent that has none never writes
+                # an empty blob, and `keep_reminder_state` skips a value unchanged
+                # since it was seeded.
+                if prepared.built.reminder_state.request_count:
+                    await conversations.keep_reminder_state(
+                        prepared.run.conversation_id, prepared.built.reminder_state.snapshot()
                     )
             # Committed here rather than left to the session context: that exit
             # rolls back on any exception, and cancellation never reaches it at

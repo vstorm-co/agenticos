@@ -41,6 +41,7 @@ class MockConversation:
         self.summary_messages: list[dict[str, Any]] | None = None
         self.summary_ordinal: int | None = None
         self.overhead_tokens: int | None = None
+        self.reminder_state: dict[str, Any] | None = None
 
 
 class MockMessage:
@@ -1690,5 +1691,50 @@ class TestWhatARequestCarriesBeforeAnyMessage:
         monkeypatch.setattr(conversation_repo, "set_overhead", stored)
 
         await ConversationService(AsyncMock()).keep_overhead(uuid4(), 3_865)
+
+        stored.assert_not_awaited()
+
+
+@pytest.mark.anyio
+class TestHowFarTheReminderCadenceHasAdvanced:
+    """The per-request counter and fire counts, kept so a reminder set to fire
+    every N requests resumes next turn rather than resetting to zero (#787)."""
+
+    async def test_it_is_recorded_so_the_cadence_resumes_next_turn(self, monkeypatch):
+        conversation = MockConversation()
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        stored = AsyncMock()
+        monkeypatch.setattr(conversation_repo, "set_reminder_state", stored)
+
+        state = {"request_count": 5, "fire_counts": {"0": 1}}
+        await ConversationService(AsyncMock()).keep_reminder_state(conversation.id, state)
+
+        assert stored.await_args.kwargs["state"] == state
+
+    async def test_a_cadence_that_has_not_moved_is_not_written_again(self, monkeypatch):
+        conversation = MockConversation()
+        conversation.reminder_state = {"request_count": 5, "fire_counts": {"0": 1}}
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        stored = AsyncMock()
+        monkeypatch.setattr(conversation_repo, "set_reminder_state", stored)
+
+        await ConversationService(AsyncMock()).keep_reminder_state(
+            conversation.id, {"request_count": 5, "fire_counts": {"0": 1}}
+        )
+
+        stored.assert_not_awaited()
+
+    async def test_a_conversation_that_is_gone_records_nothing(self, monkeypatch):
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=None)
+        )
+        stored = AsyncMock()
+        monkeypatch.setattr(conversation_repo, "set_reminder_state", stored)
+
+        await ConversationService(AsyncMock()).keep_reminder_state(uuid4(), {"request_count": 1})
 
         stored.assert_not_awaited()
