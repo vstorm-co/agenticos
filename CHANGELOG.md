@@ -17,7 +17,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
-## [0.0.170] - 2026-08-16
+## [0.0.171] - 2026-08-16
+
+Tool search's scale guarantee is pinned by a fixture, not a claim.
+
+### Added
+
+- **A fixture pins `tool_search`'s schema surface at scale.** An
+  AgenticOS-native `FunctionModel` test at the `build_agent` seam compares an
+  unbound agent against a `tool_search` one over deterministic 12-, 100- and
+  1,000-tool catalogs, capturing the canonical bytes of the model-visible
+  function schemas: 3,480 B / 28,736 B / 287,036 B unbound versus a flat 786 B
+  with the binding — the deferred catalog never grows what the model sees. It
+  then drives the whole closure — `search_tools`, reveal, execution of the
+  revealed target — and proves the other deferred tools stay absent after the
+  call returns. (#794)
 
 The agent map draws the whole delegation tree, and says what it cannot.
 
