@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { EntityAvatar } from "@/components/ui/entity-avatar";
 import { useOrganizations } from "@/hooks";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -57,12 +57,14 @@ export function OrgSwitcher() {
         >
           {/* Decoration: the initials are the same two letters as the name
               beside them, and read out first they bury it. */}
-          <Avatar aria-hidden className="h-5 w-5 shrink-0">
-            {displayOrg.avatar_url && <AvatarImage src={`/api/orgs/${displayOrg.id}/avatar`} />}
-            <AvatarFallback className="text-[10px]">
-              {displayOrg.name.substring(0, 2).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
+          <EntityAvatar
+            seed={displayOrg.id}
+            name={displayOrg.name}
+            imageSrc={`/api/orgs/${displayOrg.id}/avatar`}
+            hasImage={!!displayOrg.avatar_url}
+            className="h-5 w-5 shrink-0 text-[10px]"
+            ariaHidden
+          />
           {/* Named for assistive technology, because "Personal" on its own does
               not say what picking it would change. */}
           <span className="sr-only">{t("organization")}</span>
@@ -73,12 +75,13 @@ export function OrgSwitcher() {
       <DropdownMenuContent align="start" className="w-56">
         {orgs.map((org) => (
           <DropdownMenuItem key={org.id} onSelect={() => switchOrg(org.id)} className="gap-2">
-            <Avatar className="h-5 w-5">
-              {org.avatar_url && <AvatarImage src={`/api/orgs/${org.id}/avatar`} />}
-              <AvatarFallback className="text-[10px]">
-                {org.name.substring(0, 2).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
+            <EntityAvatar
+              seed={org.id}
+              name={org.name}
+              imageSrc={`/api/orgs/${org.id}/avatar`}
+              hasImage={!!org.avatar_url}
+              className="h-5 w-5 text-[10px]"
+            />
             <span className="truncate">{org.name}</span>
             {org.is_personal && (
               <span className="text-muted-foreground ml-auto text-[10px]">{t("personal")}</span>

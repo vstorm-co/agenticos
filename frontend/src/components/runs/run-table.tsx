@@ -6,17 +6,10 @@ import { MessageSquare, ThumbsDown } from "lucide-react";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { RunStatusBadge } from "@/components/agents/status-badge";
-import { displayName, initialsOf, type IdentifiedMember } from "@/components/orgs/member-identity";
+import { displayName, type IdentifiedMember } from "@/components/orgs/member-identity";
 import { SurfaceIcon, surfaceLabel } from "@/components/runs/surface-icon";
 import { ProviderIcon } from "@/components/vault/provider-icon";
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-  Badge,
-  DataTable,
-  type Column,
-} from "@/components/ui";
+import { Badge, DataTable, EntityAvatar, type Column } from "@/components/ui";
 import { useAuthStore } from "@/stores";
 import { ROUTES } from "@/lib/constants";
 import { formatDateTime, formatRunDuration, timeAgo } from "@/lib/utils";
@@ -150,12 +143,13 @@ export function RunTable({
               }
               return (
                 <span className="flex items-center gap-2 text-xs">
-                  <Avatar className="h-5 w-5 shrink-0" aria-hidden>
-                    <AvatarImage src={`/api/users/avatar/${member.user_id}`} alt="" />
-                    <AvatarFallback className="text-[9px]">
-                      {initialsOf(member.full_name || member.email)}
-                    </AvatarFallback>
-                  </Avatar>
+                  <EntityAvatar
+                    seed={member.user_id}
+                    name={member.full_name || member.email}
+                    imageSrc={`/api/users/avatar/${member.user_id}`}
+                    className="h-5 w-5 shrink-0 text-[9px]"
+                    ariaHidden
+                  />
                   {displayName(member)}
                 </span>
               );

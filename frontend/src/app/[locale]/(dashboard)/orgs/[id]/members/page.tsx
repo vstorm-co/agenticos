@@ -19,11 +19,10 @@ import { ErrorState } from "@/components/states";
 import { InviteLinkDialog, InviteMemberDialog, OrgSpendingLimit } from "@/components/teams";
 import { PageHeader } from "@/components/dashboard/page-header";
 import {
-  Avatar,
-  AvatarFallback,
   Badge,
   Button,
   DataTable,
+  EntityAvatar,
   Input,
   ListCard,
   ListCardEmpty,
@@ -61,15 +60,6 @@ const ROLE_VARIANT: Record<OrgRole, "default" | "secondary" | "outline"> = {
   member: "outline",
   viewer: "outline",
 };
-
-function getInitials(nameOrEmail: string): string {
-  return nameOrEmail
-    .split(/[\s@]/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((s) => s[0]?.toUpperCase() ?? "")
-    .join("");
-}
 
 export default function OrgMembersPage({ params }: PageProps) {
   const tErrors = useTranslations("errors");
@@ -158,11 +148,14 @@ export default function OrgMembersPage({ params }: PageProps) {
           const isSelf = m.user_id === user?.id;
           return (
             <div className="flex min-w-0 items-center gap-3">
-              <Avatar className="h-8 w-8 shrink-0">
-                <AvatarFallback className="text-[10px]">
-                  {getInitials(m.full_name || m.email)}
-                </AvatarFallback>
-              </Avatar>
+              <EntityAvatar
+                seed={m.user_id}
+                name={m.full_name || m.email}
+                imageSrc={`/api/users/avatar/${m.user_id}`}
+                hasImage={!!m.avatar_url}
+                className="h-8 w-8 shrink-0 text-[10px]"
+                ariaHidden
+              />
               <div className="min-w-0">
                 <p className="text-foreground truncate text-sm font-medium">
                   {m.full_name || m.email.split("@")[0]}

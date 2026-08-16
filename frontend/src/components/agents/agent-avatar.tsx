@@ -3,6 +3,7 @@
 import { Bot } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui";
+import { avatarPalette } from "@/lib/avatar-color";
 import { cn } from "@/lib/utils";
 
 const SIZES = {
@@ -54,6 +55,7 @@ export function AgentAvatar({
   className,
 }: AgentAvatarProps) {
   const initials = agentInitials(name);
+  const { bg, fg } = avatarPalette(agentId);
   return (
     <Avatar className={cn(SIZES[size], "border-border shrink-0 border", className)}>
       {hasAvatar && (
@@ -62,7 +64,7 @@ export function AgentAvatar({
           alt=""
         />
       )}
-      <AvatarFallback className="font-semibold">
+      <AvatarFallback className={cn(bg, fg, "font-semibold")}>
         {initials || <Bot className={ICON_SIZES[size]} aria-hidden />}
       </AvatarFallback>
     </Avatar>

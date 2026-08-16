@@ -6,11 +6,9 @@ import { useLocale, useTranslations } from "next-intl";
 import { ExternalLink } from "lucide-react";
 
 import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
   Badge,
   DataTable,
+  EntityAvatar,
   ListCard,
   ListCardControlsRow,
   ListCardFootRow,
@@ -39,15 +37,6 @@ type Status = "active" | "archived" | "all";
 
 type Conversation = ReturnType<typeof useAdminConversations>["conversations"][number];
 
-function getInitials(nameOrEmail: string): string {
-  return nameOrEmail
-    .split(/[\s@]/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((s) => s[0]?.toUpperCase() ?? "")
-    .join("");
-}
-
 function UserAvatar({
   userId,
   label,
@@ -59,10 +48,13 @@ function UserAvatar({
 }) {
   const cls = size === "sm" ? "h-6 w-6 text-[10px]" : "h-7 w-7 text-[11px]";
   return (
-    <Avatar className={cls}>
-      {userId && <AvatarImage src={`/api/users/avatar/${userId}`} alt={label} />}
-      <AvatarFallback>{getInitials(label)}</AvatarFallback>
-    </Avatar>
+    <EntityAvatar
+      seed={userId || label}
+      name={label}
+      imageSrc={userId ? `/api/users/avatar/${userId}` : undefined}
+      className={cls}
+      ariaHidden
+    />
   );
 }
 
