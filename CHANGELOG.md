@@ -17,6 +17,32 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.160] - 2026-08-16
+
+Every person, organization and agent gets a designed default avatar, and a colour
+to go with it.
+
+### Added
+
+- **Default avatars, and a colour you can pick.** A row with no uploaded picture
+  now falls back to its initials on a colour rather than a blank circle — one
+  shared `EntityAvatar` across every surface, keyed to the row's id so an entity
+  keeps its colour everywhere it appears. The colour is also choosable: a nullable
+  `avatar_color` slot (1..10, null = auto) on users, organizations and agents,
+  with a swatch picker on the profile, organization and agent-builder screens. The
+  image is drawn only when the row actually has one, which also closes a per-row
+  404 several member and user lists were firing. Ten pastel hues live in a tuned
+  `--avatar-*` token ramp, theme-independent so they read in light and dark alike.
+  (#60)
+
+### Fixed
+
+- **The secrets "Added by" avatar now matches a person's colour everywhere else.**
+  It seeded the fallback hue on the author's email rather than their id, so the
+  same person could wear one colour there and another beside their name in member
+  lists. `SecretRead` now carries `created_by_user_id` and the column seeds on it.
+  (#799)
+
 ## [0.0.159] - 2026-08-16
 
 A new organization starts with a spend ceiling already in place.
