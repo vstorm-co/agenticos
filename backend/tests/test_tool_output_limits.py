@@ -27,6 +27,7 @@ from app.agents.capabilities.budget import SpendLedger, metered_by
 from app.agents.capabilities.sandbox import WORKSPACE_BACKEND_RESOURCE
 from app.agents.capabilities.tool_output_limits import (
     DEFAULT_SUMMARY_PROMPT,
+    SPILL_LOG_RESOURCE,
     BackendOverflowStore,
     MeteredToolOutputLimits,
     OverflowWriteError,
@@ -159,6 +160,22 @@ class TestStore:
         with pytest.raises(FileNotFoundError):
             await store.read("tool_output/never-written")
 
+    async def test_a_written_handle_is_recorded_in_the_run_spill_log(self):
+        """What lands in the log is the handle as the backend normalized it, so the
+        prune at workspace close deletes the path that actually exists (#803)."""
+        log: list[str] = []
+        store = BackendOverflowStore(StateBackend(), spill_log=log)
+        first = await store.write("run-1/call-1.0", b"payload")
+        second = await store.write("run-1/call-2.0", b"payload")
+        assert log == [first, second]
+
+    async def test_a_refused_write_records_nothing(self):
+        log: list[str] = []
+        store = BackendOverflowStore(_RefusingBackend(), spill_log=log)
+        with pytest.raises(OverflowWriteError):
+            await store.write("run-1/call-1.0", b"too big")
+        assert log == []
+
 
 class TestBuildStore:
     def test_no_backend_falls_back_to_an_in_memory_one(self):
@@ -168,6 +185,15 @@ class TestBuildStore:
     def test_a_backend_is_used_as_given(self):
         backend = StateBackend()
         assert _build_store(backend).backend is backend
+
+    def test_the_in_memory_fallback_records_no_handles(self):
+        """A backend discarded with the run leaves nothing to delete, so tracking
+        its spills would offer the prune paths that no longer exist."""
+        assert _build_store(None, ["polluted"]).spill_log is None
+
+    def test_a_bound_backend_records_into_the_run_log(self):
+        log: list[str] = []
+        assert _build_store(StateBackend(), log).spill_log is log
 
 
 class TestReduction:
@@ -287,6 +313,19 @@ class TestRegistration:
         )
         limits = built[0].wrapped
         assert limits.store.backend is backend
+
+    async def test_a_spill_is_recorded_in_the_workspace_spill_log(self):
+        """The runner's log resource reaches the store, so a spill on a shared
+        workspace is deletable at close by the run that wrote it (#803)."""
+        log: list[str] = []
+        built = build(
+            [CapabilityBinding(capability_id=CAPABILITY_ID, config={"threshold": 500})],
+            resources={WORKSPACE_BACKEND_RESOURCE: StateBackend(), SPILL_LOG_RESOURCE: log},
+        )
+        out = await built[0].after_tool_execute(
+            _run_context(), call=_call(), tool_def=_tool_def(), args={}, result="x" * 5_000
+        )
+        assert log == [out.metadata["overflow_handle"]]
 
     def test_the_builder_defaults_a_missing_config(self):
         """The defensive `isinstance` branch: a builder handed no config still builds."""

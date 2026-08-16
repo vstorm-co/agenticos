@@ -37,6 +37,19 @@ if TYPE_CHECKING:
 # the agent wrote and are obvious for what they are when it lists its workspace.
 OVERFLOW_PREFIX = "tool_output"
 
+SPILL_LOG_RESOURCE = "spill_log"
+"""The run's shared record of every spill handle written to its workspace.
+
+The runner registers one list per run beside the workspace backend, the store
+appends each handle it writes, and `SandboxWorkspaceService.close` deletes
+exactly those paths off a container-backed workspace whose scope outlives the
+run (#803). A list of what was actually written, rather than a prefix to sweep,
+because two concurrent runs share a `user`- or `agent`-scoped workspace: a
+prefix delete would take the other run's spills with it mid-flight, while a run
+deleting only its own handles cannot race anybody. Delegates sharing the
+parent's `sandbox` share this list too, for the same reason they share the
+backend - their spills land on the same filesystem."""
+
 
 class OverflowWriteError(Exception):
     """The backend refused a spill - a `state` workspace already at its byte cap.
@@ -73,11 +86,18 @@ class BackendOverflowStore:
 
     backend: BackendProtocol | AsyncBackendProtocol
     prefix: str = OVERFLOW_PREFIX
+    spill_log: list[str] | None = None
+    """Where written handles are recorded, when the run keeps a record at all.
+
+    `None` for the in-memory fallback backend, which is discarded with the run
+    and leaves nothing to delete."""
 
     async def write(self, key: str, data: bytes) -> str:
         result = await _maybe_await(self.backend.write(f"{self.prefix}/{key}", data))
         if result.error is not None:
             raise OverflowWriteError(result.error)
+        if self.spill_log is not None:
+            self.spill_log.append(result.path)
         return result.path
 
     async def read(self, handle: str) -> bytes:

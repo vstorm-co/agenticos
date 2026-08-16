@@ -24,9 +24,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import shlex
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from pathlib import PurePosixPath
 from typing import Any
 from uuid import UUID
 
@@ -131,6 +133,17 @@ class OpenWorkspace:
     container-backed one, which keeps its files on the host rather than here.
     """
 
+    spills: list[str] = field(default_factory=list)
+    """Every spill handle `tool_output_limits` wrote to this workspace this run.
+
+    Registered beside the backend under `SPILL_LOG_RESOURCE`, appended by the
+    overflow store, and read back by `close`: a container-backed workspace whose
+    scope outlives the run deletes exactly these paths, so a spill never survives
+    the run that produced it (#803). Exact handles rather than the `tool_output/`
+    prefix, because concurrent runs share a longer-scoped workspace and a prefix
+    sweep would take another run's spills mid-flight.
+    """
+
 
 def sandbox_config(spec: AgentSpec) -> SandboxConfig | None:
     """This spec's workspace configuration, or `None` if it has no workspace.
@@ -164,6 +177,36 @@ def _without_spills(files: dict[str, Any]) -> dict[str, Any]:
         return relative == OVERFLOW_PREFIX or relative.startswith(f"{OVERFLOW_PREFIX}/")
 
     return {path: data for path, data in files.items() if not _is_spill(path)}
+
+
+def _under_overflow(path: str) -> bool:
+    """Whether this path is a file inside the reserved spill directory.
+
+    The delete in `_prune_spills` runs a shell command over paths from a list, so
+    even though only the overflow store appends to that list, every path is checked
+    against the one invariant that makes the command safe: it removes spills and
+    nothing else. Depth-agnostic because a backend normalizes handles its own way -
+    `/tool_output/…` from `state`, an absolute in-container `/workspace/tool_output/…`
+    from a service. The prefix must be a proper ancestor (`parts[:-1]`), which is
+    what every handle the store writes has, and what guarantees `_overflow_parents`
+    answers at least the spill directory itself.
+    """
+    return OVERFLOW_PREFIX in PurePosixPath(path).parts[:-1]
+
+
+def _overflow_parents(handle: str) -> list[str]:
+    """The directories above a spill handle, up to and including `tool_output/`.
+
+    What `rmdir` is offered once the files are gone, so a pruned run leaves no empty
+    run-directory behind. Ancestors above the reserved prefix are not returned:
+    the workspace root is not this function's to offer for deletion.
+    """
+    parents = []
+    current = PurePosixPath(handle).parent
+    while OVERFLOW_PREFIX in current.parts:
+        parents.append(str(current))
+        current = current.parent
+    return parents
 
 
 class SandboxWorkspaceService:
@@ -387,6 +430,8 @@ class SandboxWorkspaceService:
                 await self._flush_state(workspace)
             elif workspace.scope == "run":
                 await self._release(workspace)
+            else:
+                await self._prune_spills(workspace)
         except Exception:
             logger.exception("workspace_close_failed", extra={"scope_key": workspace.scope_key})
 
@@ -437,6 +482,48 @@ class SandboxWorkspaceService:
                 "paths_lost": overwritten,
             },
         )
+
+    async def _prune_spills(self, workspace: OpenWorkspace) -> None:
+        """Delete this run's spilled tool returns off a workspace that outlives it.
+
+        The container-backed half of #803: a `state` workspace has its spills
+        stripped at flush and a `run`-scoped container dies purged, but a
+        `conversation`/`user`/`agent`-scoped container keeps its filesystem across
+        runs, so the spills this run wrote are removed here, by the exact handles
+        the overflow store recorded. Another run's spills are untouched - its
+        handles are in its own workspace's list.
+
+        Deleted through the backend's own `execute`, because the backend protocol
+        has no delete and growing one belongs upstream. The `rmdir` afterwards
+        clears the now-empty run directories; it fails silently where a concurrent
+        run still keeps files, which is the correct answer. Best-effort like
+        `_release`: a run that crashes before its `finally` leaves its spills for
+        the next manual sweep, and `close` already logs whatever raises here.
+        """
+        handles = [handle for handle in workspace.spills if _under_overflow(handle)]
+        if not handles:
+            return
+        execute = getattr(workspace.backend, "execute", None)
+        if execute is None:
+            return
+        directories = sorted(
+            {parent for handle in handles for parent in _overflow_parents(handle)},
+            key=lambda directory: directory.count("/"),
+            reverse=True,
+        )
+        files = " ".join(shlex.quote(handle) for handle in handles)
+        emptied = " ".join(shlex.quote(directory) for directory in directories)
+        command = f"rm -f -- {files}; rmdir -- {emptied} 2>/dev/null; true"
+        result = await asyncio.to_thread(execute, command)
+        if getattr(result, "exit_code", 0) != 0:
+            logger.warning(
+                "workspace_spill_prune_failed",
+                extra={
+                    "scope_key": workspace.scope_key,
+                    "handles": len(handles),
+                    "output": getattr(result, "output", ""),
+                },
+            )
 
     async def _release(self, workspace: OpenWorkspace) -> None:
         """Stop a run-scoped sandbox, as a courtesy rather than a guarantee.

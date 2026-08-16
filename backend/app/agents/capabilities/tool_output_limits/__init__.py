@@ -20,6 +20,7 @@ from app.agents.capabilities.tool_output_limits._capability import (
 )
 from app.agents.capabilities.tool_output_limits._store import (
     OVERFLOW_PREFIX,
+    SPILL_LOG_RESOURCE,
     BackendOverflowStore,
     OverflowWriteError,
 )
@@ -29,6 +30,7 @@ __all__ = [
     "DEFAULT_SUMMARY_PROMPT",
     "DEFAULT_THRESHOLD",
     "OVERFLOW_PREFIX",
+    "SPILL_LOG_RESOURCE",
     "ActionName",
     "BackendOverflowStore",
     "MeteredToolOutputLimits",
@@ -68,4 +70,8 @@ def _build(ctx: CapabilityBuildContext) -> MeteredToolOutputLimits[object]:
         ctx.config if isinstance(ctx.config, ToolOutputLimitsConfig) else ToolOutputLimitsConfig()
     )
     backend = ctx.resources.get(WORKSPACE_BACKEND_RESOURCE)
-    return MeteredToolOutputLimits(wrapped=build_limits(config, backend=backend))
+    return MeteredToolOutputLimits(
+        wrapped=build_limits(
+            config, backend=backend, spill_log=ctx.resources.get(SPILL_LOG_RESOURCE)
+        )
+    )
