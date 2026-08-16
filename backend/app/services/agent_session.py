@@ -9,6 +9,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 
 from app.agents.ask_user import QuestionItem, render_answer
 from app.agents.capabilities.budget import BudgetExceeded
+from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.subagent_events import SubagentEvent
 from app.core.exceptions import AppException
 from app.db.models.chat_file import ChatFile
@@ -55,9 +56,9 @@ def _turn_failed(exc: Exception) -> str:
     and goes no further, and the frame names only what the reader can act on.
     The class still goes out: it separates an upstream that timed out from one
     that refused a credential, and a class name has never carried a URL. Our own
-    refusals do not come here at all - an `AppException` and a `BudgetExceeded`
-    are caught above and passed through whole, because their messages are
-    written in this repository.
+    refusals do not come here at all - an `AppException`, a `BudgetExceeded` and a
+    `GuardrailBlocked` are caught above and passed through whole, because their
+    messages are written in this repository.
     """
     return (
         f"The agent could not finish this turn ({type(exc).__name__}). "
@@ -359,11 +360,11 @@ class AgentSession:
             )
         except WebSocketDisconnect:
             raise
-        except (AppException, BudgetExceeded) as exc:
+        except (AppException, BudgetExceeded, GuardrailBlocked) as exc:
             # A refusal - an agent that is unpublished, archived, or not theirs
-            # to see - and a budget stop are the platform working, not a crash.
-            # The client is told plainly; nothing answers in the named agent's
-            # place.
+            # to see - a budget stop, and a guardrail block are the platform
+            # working, not a crash. The client is told plainly; nothing answers
+            # in the named agent's place.
             logger.info("Agent turn refused: %s", exc)
             await send_event(self.websocket, "error", {"message": str(exc)})
         except Exception as exc:

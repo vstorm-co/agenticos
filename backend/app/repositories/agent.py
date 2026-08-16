@@ -223,9 +223,9 @@ async def list_active_run_versions(db: AsyncSession) -> list[tuple[Agent, AgentV
     `audit-skill-bindings` sweep is deployment-wide. A run records the version it
     executed in `agent_version_id`, and a run that has not ended still loads it: a
     `running` run is executing it now, and an `awaiting_approval` run reloads it
-    when :meth:`AgentRunnerService.resume` continues it. The four terminal states -
-    `completed`, `failed`, `cancelled` and `budget_exceeded` - never load it again,
-    so there `agent_version_id` is only a historical record.
+    when :meth:`AgentRunnerService.resume` continues it. The five terminal states -
+    `completed`, `failed`, `cancelled`, `budget_exceeded` and `guardrail_blocked` -
+    never load it again, so there `agent_version_id` is only a historical record.
     A parked run resumes only from stored `paused_state`; one without it can never
     continue, so it is excluded rather than seeding a version no resume can reach.
 
