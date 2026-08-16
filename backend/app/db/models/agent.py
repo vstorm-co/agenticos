@@ -15,7 +15,15 @@ import enum
 import uuid
 from typing import Any
 
-from sqlalchemy import CheckConstraint, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    ForeignKey,
+    Integer,
+    SmallInteger,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -74,6 +82,10 @@ class Agent(Base, TimestampMixin):
     # agent does. Deliberately not part of the spec: the spec is what runs and
     # what gets exported to git, and a picture changes neither.
     avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # Default-avatar colour slot 1..10 (`--avatar-*` ramp); null = auto from the id.
+    # A column, not spec, for the same reason avatar_url is: a colour changes
+    # neither what runs nor what exports to git.
+    avatar_color: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
 
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default=AgentStatus.DRAFT.value, index=True

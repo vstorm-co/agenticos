@@ -40,14 +40,21 @@ class OrganizationCreate(BaseSchema):
 class OrganizationUpdate(BaseSchema):
     """A partial update to an organization's settings.
 
-    `monthly_budget_usd` is the one field where omitting it and sending
-    `null` mean different things: absent leaves the cap as it stands, `null`
-    removes it. Renaming an organization must not uncap it, so the service keys
-    on whether the client named the field rather than on its value.
+    `monthly_budget_usd` and `avatar_color` are the fields where omitting them
+    and sending `null` mean different things: absent leaves the setting as it
+    stands, `null` clears it (removes the cap; resets the colour to auto).
+    Renaming an organization must not uncap it or reset its colour, so the
+    service keys on whether the client named the field rather than on its value.
     """
 
     name: str | None = Field(default=None, min_length=2, max_length=128)
     avatar_url: str | None = Field(default=None, max_length=500)
+    avatar_color: int | None = Field(
+        default=None,
+        ge=1,
+        le=10,
+        description="Default-avatar colour, slot 1-10; send null to reset to auto.",
+    )
     monthly_budget_usd: MonthlyBudgetUsd | None = Field(
         default=None,
         description=(
@@ -63,6 +70,7 @@ class OrganizationRead(BaseSchema, TimestampSchema):
     slug: str
     is_personal: bool
     avatar_url: str | None = None
+    avatar_color: int | None = None
     member_count: int = 0
     role: str  # current user's role in this org
     monthly_budget_usd: Decimal | None = None
@@ -81,6 +89,7 @@ class OrganizationMemberRead(BaseSchema):
     email: str
     full_name: str | None = None
     avatar_url: str | None = None
+    avatar_color: int | None = None
     joined_at: datetime
 
 

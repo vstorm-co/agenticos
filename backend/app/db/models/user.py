@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Literal
 
-from sqlalchemy import Boolean, DateTime, String, text
+from sqlalchemy import Boolean, DateTime, SmallInteger, String, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -39,6 +39,9 @@ class User(Base, TimestampMixin):
     # administers the *deployment*, so it is not scoped to a tenant.
     is_app_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # The chosen default-avatar colour, slot 1..10 into the `--avatar-*` ramp;
+    # null means auto (derived from the id). Only used when no picture is set.
+    avatar_color: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     onboarding_completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

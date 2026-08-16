@@ -141,6 +141,20 @@ async def set_monthly_budget(
     return org
 
 
+async def set_avatar_color(
+    db: AsyncSession, org: Organization, *, color: int | None
+) -> Organization:
+    """Set or clear the organization's default-avatar colour.
+
+    Its own function for the same reason as :func:`set_monthly_budget`:
+    :func:`update` skips a `None` argument, so it cannot express "reset to auto".
+    """
+    org.avatar_color = color
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
 async def delete(db: AsyncSession, org: Organization) -> None:
     await db.delete(org)
     await db.flush()
