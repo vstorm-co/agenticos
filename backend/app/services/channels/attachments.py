@@ -34,6 +34,7 @@ from uuid import UUID
 from pydantic_ai_backends import AsyncBackendProtocol, BackendProtocol, ensure_async
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.tool_output_limits import OVERFLOW_PREFIX
 from app.db.models.chat_file import ChatFile
 from app.services.channels.base import (
     ChannelAdapter,
@@ -58,10 +59,12 @@ MAX_OUTBOUND_BYTES = 8 * 1024 * 1024
 be explained. Telegram's is 50 MB, Slack's depends on the workspace plan, and a
 platform-side rejection arrives as an opaque API error the agent cannot act on."""
 
-# Where the platform itself put things. Neither is the agent's work, and neither
-# should come back out: `/uploads` is the user's own file, and `/skills` is
-# organizational know-how materialised for the run.
-_NOT_THE_AGENTS = ("/uploads/", "/skills/")
+# Where the platform itself put things. None of it is the agent's work, and none
+# of it should come back out: `/uploads` is the user's own file, `/skills` is
+# organizational know-how materialised for the run, and `/tool_output` is a
+# spilled tool return `tool_output_limits` parked for the model to page through -
+# an internal artefact, not an answer (#803).
+_NOT_THE_AGENTS = ("/uploads/", "/skills/", f"/{OVERFLOW_PREFIX}/")
 
 
 @dataclass(frozen=True)

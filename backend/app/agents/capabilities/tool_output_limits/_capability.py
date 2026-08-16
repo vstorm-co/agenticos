@@ -196,36 +196,38 @@ def _action(config: ToolOutputLimitsConfig) -> Action:
     return Summarize(then=spill)
 
 
-def _build_store(backend: Any) -> BackendOverflowStore:
+def _build_store(backend: Any, spill_log: list[str] | None = None) -> BackendOverflowStore:
     """Where spills go: the run's own backend, or an ephemeral one built for it.
 
     An agent that binds `sandbox` has a backend the runner opened and keyed to the
     organization; a spill lives and dies with that workspace, which on the default
-    `run` scope is exactly the run. A longer-scoped `state` workspace
-    (`conversation`, `user`, `agent`) would otherwise carry its spills into the
-    persisted document and count them against the byte cap every run, so
-    `SandboxWorkspaceService._flush_state` strips the reserved prefix at run end -
-    the spill never survives the run on a `state` backend whatever the scope. A
-    longer-scoped *container* workspace keeps its spills on the container filesystem
-    for now; deleting those needs a run-scoped delete the backend protocol does not
-    expose, tracked in #803.
+    `run` scope is exactly the run. On a longer-scoped workspace (`conversation`,
+    `user`, `agent`) a spill must not outlive the run either, and each backend
+    shape has its own mechanism: a `state` workspace has the reserved prefix
+    stripped at flush, so spills never enter the persisted document, and a
+    *container* workspace has this run's handles - recorded in `spill_log` -
+    deleted off its filesystem when the workspace closes (#803).
 
     An agent with no backend gets a fresh in-memory `StateBackend` here, so the
     store is per-run and process-local rather than on shared disk. The fallback is
     uncapped: the store itself grows with each spill, but nothing is persisted and
-    the run bounds how much it can accumulate before it is discarded whole.
+    the run bounds how much it can accumulate before it is discarded whole. No
+    handles are recorded for it - there is nothing to delete from a backend that
+    dies with the run.
     """
     if backend is None:
         return BackendOverflowStore(StateBackend())
-    return BackendOverflowStore(backend)
+    return BackendOverflowStore(backend, spill_log=spill_log)
 
 
-def build_limits(config: ToolOutputLimitsConfig, *, backend: Any) -> ToolOutputLimits[object]:
+def build_limits(
+    config: ToolOutputLimitsConfig, *, backend: Any, spill_log: list[str] | None = None
+) -> ToolOutputLimits[object]:
     """The harness capability this configuration asks for, spilling to `backend`."""
     return ToolOutputLimits(
         bands=[Band(over=config.threshold, action=_action(config))],
         over_tokens=config.over_tokens,
-        store=_build_store(backend),
+        store=_build_store(backend, spill_log),
         strip_ansi=config.strip_ansi,
         summary_prompt=config.summary_prompt,
     )
