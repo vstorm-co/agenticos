@@ -17,7 +17,24 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
-## [0.0.168] - 2026-08-16
+## [0.0.169] - 2026-08-16
+
+The sandboxes page stops stacking two clocks down one scroll.
+
+### Changed
+
+- **`/sandboxes` is two tabs: connections, and what is running.** The
+  configuration table and the live **Running on {host}** panel were one scroll
+  on two clocks; now the active tab lives in the URL (`?tab=running`
+  deep-links, the default keeps the parameter off) and the live query only
+  exists while its tab is on screen — the ten-second poll stops on a page
+  nobody is looking at, pinned by a test that the sessions hook is never even
+  constructed. The running tab names its host and lets an operator switch
+  (closing the activity log on the switch, so one host is never asked for
+  another's session); a failed connections request renders the error, never a
+  false "no container connection registered"; the sessions table sorts,
+  filters and explains an empty match; and the activity log is a labelled
+  `DataTable` instead of a bare table in a grey box. (#140)
 
 "dev should serve v3" is answered on the environment's own row.
 
