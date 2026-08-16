@@ -17,6 +17,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.159] - 2026-08-16
+
+A new organization starts with a spend ceiling already in place.
+
+### Added
+
+- **A new organization defaults to a $100 monthly budget.** An org with no cap is
+  one runaway agent away from a surprise bill, and a budget only refuses if it
+  exists — so a fresh org now starts at the deployment's
+  `DEFAULT_ORG_MONTHLY_BUDGET_USD` (`$100` out of the box), editable on the org's
+  row like any other cap and enforced by the same guard. The default is applied at
+  creation across every path — team create, the personal org on signup, and
+  `bootstrap` — and `None` restores the older opt-in posture for a deployment that
+  would rather start uncapped. Existing organizations are untouched; no migration,
+  because the column already existed. (#785)
+
 ## [0.0.158] - 2026-08-16
 
 A long run compacts its own history before it hits the model's limit, metered,
