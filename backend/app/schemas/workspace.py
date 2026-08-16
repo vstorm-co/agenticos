@@ -138,6 +138,14 @@ class FlatFileRead(WorkspaceFileRead):
     workspace_id: UUID
     agent_name: str
     access_label: str
+    preview: str | None = Field(
+        default=None,
+        description=(
+            "The first lines of a stored text file, so a tile can hint at its "
+            "content. Null for binary content and for container-backed workspaces, "
+            "whose bytes live on a host the flat listing does not visit per file."
+        ),
+    )
 
 
 class FlatFileList(BaseSchema):

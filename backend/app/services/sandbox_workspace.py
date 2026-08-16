@@ -104,7 +104,10 @@ class FlatFileListing:
     not holding that document" is a different answer from "we stopped looking".
     """
 
-    files: list[tuple[WorkspaceOverview, FileInfo]]
+    files: list[tuple[WorkspaceOverview, FileInfo, str | None]]
+    """Each file with its workspace and, for a stored text file, the first lines
+    of it - `None` for binary content and for container-backed workspaces, whose
+    bytes live on a host this listing deliberately does not visit per file."""
     workspaces_read: int
     unreadable: int
     truncated: bool
@@ -740,14 +743,19 @@ class SandboxWorkspaceService:
         files.
         """
         overviews = await self.visible_to(ctx)
-        files: list[tuple[WorkspaceOverview, FileInfo]] = []
+        files: list[tuple[WorkspaceOverview, FileInfo, str | None]] = []
         unreadable = 0
         for overview in overviews[:limit]:
             contents = await self._entries(ctx, overview.row)
             if contents.unreadable_reason is not None:
                 unreadable += 1
                 continue
-            files.extend((overview, entry) for entry in contents.entries if not entry.get("is_dir"))
+            stored = dict(overview.row.files or {}) if overview.row.backend == "state" else {}
+            files.extend(
+                (overview, entry, stored_preview(stored.get(str(entry.get("path")))))
+                for entry in contents.entries
+                if not entry.get("is_dir")
+            )
         return FlatFileListing(
             files=files,
             workspaces_read=min(len(overviews), limit) - unreadable,
@@ -1125,6 +1133,28 @@ def stored_entries(files: dict[str, Any]) -> list[FileInfo]:
         for entry in backend.glob_info(pattern):
             seen[str(entry.get("path"))] = entry
     return sorted(seen.values(), key=lambda entry: str(entry.get("path")))
+
+
+PREVIEW_CHARS = 200
+"""Enough of a stored text file for its tile to say what it is, and no more:
+the tile is a hint, and the viewer is one click away for the rest."""
+
+
+def stored_preview(data: dict[str, Any] | None) -> str | None:
+    """The first lines of a stored text file, or `None` where there is nothing a
+    tile could honestly show.
+
+    Reads the `FileData` shape `StateBackend` persists: text is lines under
+    `content`, and anything that is not text carries `encoding` - whose base64
+    would preview as noise, so it previews as nothing instead.
+    """
+    if data is None or data.get("encoding") is not None:
+        return None
+    lines = data.get("content")
+    if not isinstance(lines, list):
+        return None
+    text = "\n".join(str(line) for line in lines[:8])
+    return text[:PREVIEW_CHARS] or None
 
 
 def _reason(exc: Exception) -> str:

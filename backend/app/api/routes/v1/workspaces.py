@@ -100,8 +100,9 @@ async def list_all_files(workspaces: WorkspaceSvc, ctx: Auth) -> Any:
             workspace_id=overview.row.id,
             agent_name=overview.agent_name,
             access_label=overview.access_label,
+            preview=preview,
         )
-        for overview, entry in listing.files
+        for overview, entry, preview in listing.files
     ]
     return FlatFileList(
         items=items,

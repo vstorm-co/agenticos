@@ -1192,7 +1192,7 @@ class TestOneFlatListOfFiles:
 
         listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
 
-        assert sorted(str(entry.get("path")) for _overview, entry in listing.files) == [
+        assert sorted(str(entry.get("path")) for _overview, entry, _preview in listing.files) == [
             "/notes.md",
             "/report.csv",
         ]
@@ -1213,7 +1213,7 @@ class TestOneFlatListOfFiles:
 
         listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
 
-        assert all(not entry.get("is_dir") for _overview, entry in listing.files)
+        assert all(not entry.get("is_dir") for _overview, entry, _preview in listing.files)
 
     async def test_a_partial_answer_says_it_is_partial(self, monkeypatch, mock_db_session):
         """Reading a container-backed workspace is a round trip to its host, so the
@@ -1252,7 +1252,9 @@ class TestOneFlatListOfFiles:
 
         listing = await service.flat_files(_ctx())
 
-        assert [str(entry.get("path")) for _overview, entry in listing.files] == ["/report.csv"]
+        assert [str(entry.get("path")) for _overview, entry, _preview in listing.files] == [
+            "/report.csv"
+        ]
         assert listing.unreadable == 1
         assert listing.workspaces_read == 1
 
@@ -1272,9 +1274,53 @@ class TestOneFlatListOfFiles:
 
         listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
 
-        [(overview, _entry)] = listing.files
+        [(overview, _entry, _preview)] = listing.files
         assert overview.agent_name == "Analyst"
         assert overview.access_label == "Everybody who talks to this agent"
+
+    async def test_a_stored_text_file_carries_its_first_lines(self, monkeypatch, mock_db_session):
+        """The tile is the one place a file is listed with no hint of its content
+        (#138). A stored workspace has the content in the same document the listing
+        already read, so the excerpt is nearly free - and bounded, because the tile
+        is a hint and the viewer is one click away."""
+        from app.repositories import agent as agent_repo
+
+        stored = StateBackend()
+        stored.write("/report.md", "# Findings\n" + "x" * 500)
+        monkeypatch.setattr(
+            workspace_repo,
+            "list_for_reader",
+            AsyncMock(return_value=[_row(files=dict(stored.files))]),
+        )
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+
+        listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
+
+        [(_overview, _entry, preview)] = listing.files
+        assert preview is not None
+        assert preview.startswith("# Findings")
+        assert len(preview) <= 200
+
+    async def test_binary_content_previews_as_nothing_rather_than_noise(
+        self, monkeypatch, mock_db_session
+    ):
+        from app.repositories import agent as agent_repo
+
+        stored = StateBackend()
+        stored.write("/chart.png", b"\x89PNG\r\n\x1a\n....")
+        monkeypatch.setattr(
+            workspace_repo,
+            "list_for_reader",
+            AsyncMock(return_value=[_row(files=dict(stored.files))]),
+        )
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+
+        listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
+
+        [(_overview, _entry, preview)] = listing.files
+        assert preview is None
 
 
 class TestWhatReadingAHostCosts:

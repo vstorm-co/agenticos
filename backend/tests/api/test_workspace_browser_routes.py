@@ -73,7 +73,7 @@ def service() -> MagicMock:
     stub.visible_to = AsyncMock(return_value=[_overview()])
     stub.flat_files = AsyncMock(
         return_value=SimpleNamespace(
-            files=[(_overview(), {"path": "/report.csv", "size": 12, "is_dir": False})],
+            files=[(_overview(), {"path": "/report.csv", "size": 12, "is_dir": False}, None)],
             workspaces_read=1,
             unreadable=0,
             truncated=False,
@@ -300,6 +300,35 @@ class TestOneFlatList:
 
         assert response.status_code == 200
         service.files_of.assert_not_called()
+
+    async def test_a_stored_files_preview_travels_and_a_hosts_absence_is_null(
+        self, client, service
+    ) -> None:
+        """The tile shows the first lines only when the listing carried them (#138):
+        a stored text file has an excerpt, a container-backed file honestly has
+        none - never a second read against the host to invent one."""
+        service.flat_files = AsyncMock(
+            return_value=SimpleNamespace(
+                files=[
+                    (
+                        _overview(),
+                        {"path": "/report.md", "size": 12, "is_dir": False},
+                        "# Findings",
+                    ),
+                    (_overview(), {"path": "/host.csv", "size": 5, "is_dir": False}, None),
+                ],
+                workspaces_read=1,
+                unreadable=0,
+                truncated=False,
+            )
+        )
+
+        async with client() as opened:
+            response = await opened.get(_url("/files"))
+
+        items = {item["path"]: item for item in response.json()["items"]}
+        assert items["/report.md"]["preview"] == "# Findings"
+        assert items["/host.csv"]["preview"] is None
 
     async def test_what_the_answer_left_out_travels_with_it(self, client, service) -> None:
         """A shorter list is indistinguishable from fewer files."""
