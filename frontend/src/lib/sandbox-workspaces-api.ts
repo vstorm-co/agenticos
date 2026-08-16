@@ -74,6 +74,9 @@ export interface FlatFile extends WorkspaceFile {
   workspace_id: string;
   agent_name: string;
   access_label: string;
+  /** The first lines of a stored text file; null for binary content and for
+   *  container-backed workspaces, whose bytes the flat listing does not fetch. */
+  preview: string | null;
 }
 
 /**

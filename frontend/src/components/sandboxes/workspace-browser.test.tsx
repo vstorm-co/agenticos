@@ -309,6 +309,7 @@ describe("WorkspaceBrowser", () => {
             size: 2048,
             is_dir: false,
             modified_at: null,
+            preview: null,
             workspace_id: "w-1",
             agent_name: "Analyst",
             access_label: "Everybody who talks to this agent",
@@ -352,7 +353,7 @@ describe("WorkspaceBrowser", () => {
       render(<WorkspaceBrowser />);
       await userEvent.click(screen.getByRole("button", { name: "All files" }));
 
-      await userEvent.click(screen.getByRole("button", { name: "/report.csv" }));
+      await userEvent.click(screen.getByRole("button", { name: /report\.csv CSV/ }));
 
       expect(await screen.findByRole("dialog")).toBeVisible();
       expect(state.read).toContain("/report.csv");
@@ -362,7 +363,7 @@ describe("WorkspaceBrowser", () => {
       // The flat grid owns the open state, so the way out is its callback.
       render(<WorkspaceBrowser />);
       await userEvent.click(screen.getByRole("button", { name: "All files" }));
-      await userEvent.click(screen.getByRole("button", { name: "/report.csv" }));
+      await userEvent.click(screen.getByRole("button", { name: /report\.csv CSV/ }));
       await screen.findByRole("dialog");
 
       await userEvent.click(screen.getByRole("button", { name: "Close" }));
@@ -370,7 +371,10 @@ describe("WorkspaceBrowser", () => {
       await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     });
 
-    it("reads a file's size in the units a person uses, or says it is unmeasured", async () => {
+    it("reads a file's size in the units a person uses, and its suffix as a badge", async () => {
+      // The card is the same one the chat panel and composer draw (#136), so its
+      // meta line is `TXT · 12 B` - and a file with no measured size keeps the
+      // suffix badge rather than showing a dash.
       state.flat = {
         ...state.flat!,
         items: [
@@ -382,9 +386,9 @@ describe("WorkspaceBrowser", () => {
 
       await userEvent.click(screen.getByRole("button", { name: "All files" }));
 
-      expect(screen.getByText(/12 B/)).toBeVisible();
+      expect(screen.getByText(/TXT · 12 B/)).toBeVisible();
       expect(screen.getByText(/unknown\.bin/)).toBeVisible();
-      expect(screen.getByText(/· —$/)).toBeVisible();
+      expect(screen.getByText(/^BIN$/)).toBeVisible();
     });
 
     it("offers a download for every file, without opening it first", async () => {
@@ -404,6 +408,107 @@ describe("WorkspaceBrowser", () => {
 
       expect(screen.getByText(/Read 25 workspaces/)).toBeVisible();
       expect(screen.getByText(/2 could not be read/)).toBeVisible();
+    });
+
+    it("finds a file by path, by agent and by extension", async () => {
+      state.flat = {
+        ...state.flat!,
+        items: [
+          state.flat!.items[0]!,
+          {
+            ...state.flat!.items[0]!,
+            path: "/notes.md",
+            workspace_id: "w-2",
+            agent_name: "Writer",
+          },
+        ],
+      };
+      render(<WorkspaceBrowser />);
+      await userEvent.click(screen.getByRole("button", { name: "All files" }));
+      const search = screen.getByRole("textbox", { name: "Search files" });
+
+      await userEvent.type(search, "notes");
+      expect(screen.queryByText(/report\.csv/)).toBeNull();
+      expect(screen.getByText(/notes\.md/)).toBeVisible();
+
+      await userEvent.clear(search);
+      await userEvent.type(search, "Analyst");
+      expect(screen.getByText(/report\.csv/)).toBeVisible();
+      expect(screen.queryByText(/notes\.md/)).toBeNull();
+
+      await userEvent.clear(search);
+      await userEvent.type(search, ".csv");
+      expect(screen.getByText(/report\.csv/)).toBeVisible();
+      expect(screen.queryByText(/notes\.md/)).toBeNull();
+    });
+
+    it("says no file matched rather than showing an empty grid", async () => {
+      render(<WorkspaceBrowser />);
+      await userEvent.click(screen.getByRole("button", { name: "All files" }));
+
+      await userEvent.type(screen.getByRole("textbox", { name: "Search files" }), "nowhere");
+
+      expect(screen.getByText(/No file matches that search/)).toBeVisible();
+    });
+
+    it("keeps the truncation warning while a filter is applied, and says the search was a sample", async () => {
+      // A client-side filter over a truncated listing searched a sample - "1
+      // result" with no caveat would claim the search was exhaustive.
+      state.flat = { ...state.flat!, truncated: true, workspaces_read: 25 };
+      render(<WorkspaceBrowser />);
+      await userEvent.click(screen.getByRole("button", { name: "All files" }));
+
+      await userEvent.type(screen.getByRole("textbox", { name: "Search files" }), "report");
+
+      expect(screen.getByText(/Read 25 workspaces/)).toBeVisible();
+      expect(screen.getByText(/searched only the workspaces that were read/)).toBeVisible();
+    });
+
+    it("sorts by what a person is hunting: newest first, biggest first", async () => {
+      state.flat = {
+        ...state.flat!,
+        items: [
+          {
+            ...state.flat!.items[0]!,
+            path: "/old.csv",
+            size: 10,
+            modified_at: "2026-08-01T00:00:00Z",
+          },
+          {
+            ...state.flat!.items[0]!,
+            path: "/new.csv",
+            size: 5,
+            modified_at: "2026-08-16T00:00:00Z",
+          },
+        ],
+      };
+      render(<WorkspaceBrowser />);
+      await userEvent.click(screen.getByRole("button", { name: "All files" }));
+
+      // Alphabetical by default, so the order is deterministic before anybody sorts.
+      const paths = () =>
+        screen.getAllByText(/\.csv/).map((node) => node.textContent?.split(" ")[0]);
+      expect(paths()).toEqual(["/new.csv", "/old.csv"]);
+
+      await userEvent.click(screen.getByRole("combobox", { name: "Sort files" }));
+      await userEvent.click(screen.getByRole("option", { name: "By size" }));
+      expect(paths()).toEqual(["/old.csv", "/new.csv"]);
+
+      await userEvent.click(screen.getByRole("combobox", { name: "Sort files" }));
+      await userEvent.click(screen.getByRole("option", { name: "By modified" }));
+      expect(paths()).toEqual(["/new.csv", "/old.csv"]);
+    });
+
+    it("shows a stored file's first lines on its tile", async () => {
+      state.flat = {
+        ...state.flat!,
+        items: [{ ...state.flat!.items[0]!, path: "/report.md", preview: "# Findings\nline two" }],
+      };
+      render(<WorkspaceBrowser />);
+
+      await userEvent.click(screen.getByRole("button", { name: "All files" }));
+
+      expect(screen.getByText(/# Findings/)).toBeVisible();
     });
 
     it("says nothing is held rather than showing an empty list", async () => {
