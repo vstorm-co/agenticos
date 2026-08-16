@@ -27,6 +27,8 @@ export interface EntityAvatarProps {
    * the coloured initials without a request that would only 404.
    */
   hasImage?: boolean;
+  /** The chosen colour slot (1..10); null or absent derives it from the seed. */
+  colorSlot?: number | null;
   size?: keyof typeof SIZES;
   /** A glyph for an entity with no usable name, in place of empty initials. */
   fallbackIcon?: ReactNode;
@@ -49,13 +51,14 @@ export function EntityAvatar({
   name,
   imageSrc,
   hasImage,
+  colorSlot,
   size = "md",
   fallbackIcon,
   ariaHidden,
   className,
 }: EntityAvatarProps) {
   const initials = avatarInitials(name);
-  const { bg, fg } = avatarPalette(seed);
+  const { bg, fg } = avatarPalette(seed, colorSlot);
   const showImage = (hasImage ?? imageSrc != null) && imageSrc != null;
   return (
     <Avatar aria-hidden={ariaHidden} className={cn(SIZES[size], className)}>

@@ -278,6 +278,8 @@ export interface Agent {
   current_version_id: string | null;
   /** Whether `/api/agents/{id}/avatar` will answer with an image. */
   has_avatar?: boolean;
+  /** Chosen default-avatar colour slot (1..10); null/absent is auto from the id. */
+  avatar_color?: number | null;
   /** How many members hold an explicit grant. Filled by the listing only. */
   shared_user_count?: number;
   /** Surfaces with an active binding ("slack", "telegram", ...). Listing only. */

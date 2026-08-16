@@ -38,6 +38,7 @@ export {
 } from "./alert-dialog";
 export { Avatar, AvatarImage, AvatarFallback } from "./avatar";
 export { EntityAvatar, type EntityAvatarProps } from "./entity-avatar";
+export { AvatarColorPicker, type AvatarColorPickerProps } from "./avatar-color-picker";
 export { Skeleton } from "./skeleton";
 export { Separator } from "./separator";
 export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "./tooltip";

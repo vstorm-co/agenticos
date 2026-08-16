@@ -54,15 +54,36 @@ const PALETTE: readonly AvatarPalette[] = [
   { bg: "bg-[var(--avatar-10)]", fg: "text-[var(--avatar-ink)]" },
 ];
 
-/**
- * The colour an entity wears, chosen by its seed. Deterministic and stable, so
- * the same id draws the same colour on every screen it appears on. A djb2 hash
- * kept unsigned before the modulo, because a negative index selects nothing.
- */
-export function avatarPalette(seed: string): AvatarPalette {
+/** How many colours the picker offers, and the top of the stored 1..N range. */
+export const AVATAR_COLOR_COUNT = PALETTE.length;
+
+/** Every colour, paired with the 1-based slot stored on the row - for the picker. */
+export const AVATAR_COLORS: readonly { slot: number; palette: AvatarPalette }[] = PALETTE.map(
+  (palette, i) => ({ slot: i + 1, palette }),
+);
+
+/** A slot's colour, or the hashed default when the slot is out of range or absent. */
+function paletteForSlot(slot: number | null | undefined, seed: string): AvatarPalette {
+  if (slot != null && slot >= 1 && slot <= AVATAR_COLOR_COUNT) {
+    return PALETTE[slot - 1] as AvatarPalette;
+  }
+  return hashedPalette(seed);
+}
+
+function hashedPalette(seed: string): AvatarPalette {
   let hash = 5381;
   for (let i = 0; i < seed.length; i++) {
     hash = (hash * 33) ^ seed.charCodeAt(i);
   }
   return PALETTE[(hash >>> 0) % PALETTE.length] as AvatarPalette;
+}
+
+/**
+ * The colour an entity wears. A chosen slot (1..N, what the row stores) wins;
+ * otherwise it is derived from the seed, deterministic and stable so the same id
+ * draws the same colour on every screen. A djb2 hash kept unsigned before the
+ * modulo, because a negative index selects nothing.
+ */
+export function avatarPalette(seed: string, colorSlot?: number | null): AvatarPalette {
+  return paletteForSlot(colorSlot, seed);
 }

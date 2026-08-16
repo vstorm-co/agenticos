@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { avatarInitials, avatarPalette } from "./avatar-color";
+import { AVATAR_COLORS, AVATAR_COLOR_COUNT, avatarInitials, avatarPalette } from "./avatar-color";
 
 /**
  * The letters and the colour a face nobody uploaded is drawn from. Both are
@@ -53,5 +53,26 @@ describe("avatarPalette", () => {
   it("does not hand every seed the same colour", () => {
     const colours = new Set(Array.from({ length: 50 }, (_, i) => avatarPalette(`seed-${i}`).bg));
     expect(colours.size).toBeGreaterThan(1);
+  });
+
+  it("lets a chosen slot override the hash, ignoring the seed", () => {
+    // A user who picked slot 3 wears slot 3 whatever their id hashes to.
+    expect(avatarPalette("anything", 3)).toEqual(AVATAR_COLORS[2]!.palette);
+    expect(avatarPalette("other", 3)).toEqual(avatarPalette("different", 3));
+  });
+
+  it("falls back to the hash for a null slot or one out of range", () => {
+    const hashed = avatarPalette("seed-x");
+    expect(avatarPalette("seed-x", null)).toEqual(hashed);
+    expect(avatarPalette("seed-x", 0)).toEqual(hashed);
+    expect(avatarPalette("seed-x", AVATAR_COLOR_COUNT + 1)).toEqual(hashed);
+  });
+});
+
+describe("AVATAR_COLORS", () => {
+  it("offers one entry per slot, numbered from one", () => {
+    expect(AVATAR_COLORS).toHaveLength(AVATAR_COLOR_COUNT);
+    expect(AVATAR_COLORS[0]!.slot).toBe(1);
+    expect(AVATAR_COLORS.at(-1)!.slot).toBe(AVATAR_COLOR_COUNT);
   });
 });

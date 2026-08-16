@@ -32,7 +32,14 @@ const SPEC: AgentSpec = {
 };
 
 vi.mock("@/lib/api-client", () => ({
-  apiClient: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn(), upload: vi.fn() },
+  apiClient: {
+    get: vi.fn(),
+    post: vi.fn(),
+    put: vi.fn(),
+    patch: vi.fn(),
+    delete: vi.fn(),
+    upload: vi.fn(),
+  },
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -210,6 +217,33 @@ describe("useAgent rollback", () => {
     await result.current.rollback.mutateAsync("v1");
 
     expect(apiClient.post).toHaveBeenCalledWith("/agents/a1/rollback", { version_id: "v1" });
+  });
+});
+
+describe("useAgent avatar colour", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("sends the chosen slot to the agent's colour endpoint", async () => {
+    // A column, not the spec: it patches the row directly, like the picture.
+    vi.mocked(apiClient.get).mockResolvedValue({ id: "a1", draft_spec: {} });
+    vi.mocked(apiClient.patch).mockResolvedValue({ id: "a1", avatar_color: 3 });
+
+    const { result } = renderHook(() => useAgent("a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.setColor.mutateAsync(3);
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/agents/a1/avatar-color", { color: 3 });
+  });
+
+  it("reports a failed colour change rather than swallowing it", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ id: "a1", draft_spec: {} });
+    vi.mocked(apiClient.patch).mockRejectedValue(new Error("nope"));
+
+    const { result } = renderHook(() => useAgent("a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await expect(result.current.setColor.mutateAsync(null)).rejects.toThrow();
   });
 });
 

@@ -25,6 +25,8 @@ export interface AgentAvatarProps {
   name: string;
   /** False skips the request entirely and renders the fallback. */
   hasAvatar?: boolean;
+  /** The chosen colour slot (1..10); null or absent derives it from the id. */
+  colorSlot?: number | null;
   size?: keyof typeof SIZES;
   /**
    * Bumped to defeat the browser cache after an upload. Without it a replaced
@@ -50,12 +52,13 @@ export function AgentAvatar({
   agentId,
   name,
   hasAvatar = false,
+  colorSlot,
   size = "md",
   version,
   className,
 }: AgentAvatarProps) {
   const initials = agentInitials(name);
-  const { bg, fg } = avatarPalette(agentId);
+  const { bg, fg } = avatarPalette(agentId, colorSlot);
   return (
     <Avatar className={cn(SIZES[size], "border-border shrink-0 border", className)}>
       {hasAvatar && (

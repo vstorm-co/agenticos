@@ -40,6 +40,7 @@ const member = (userId: string, email: string, fullName: string | null = null) =
     email,
     full_name: fullName,
     avatar_url: null,
+    avatar_color: null,
     joined_at: "2026-01-01T00:00:00Z",
   }) satisfies OrganizationMember;
 

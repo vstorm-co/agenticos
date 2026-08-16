@@ -2656,7 +2656,8 @@
       "writtenKnowHowAgent": "Written know-how the agent loads only when it decides a skill is relevant, so twenty skills cost almost nothing in context. Picking one gives the agent the tools to read them - that used to be a separate capability somebody had to know to switch on, and skills chosen without it were resolved and then dropped on the floor.",
       "context": "Context",
       "standingContextAgent": "Standing context this agent reads - a glossary or policy injected into its prompt, or files it reads on demand.",
-      "youAreSupportCopilot": "You are Support Copilot. Answer from the product wiki and cite the document you used. If the wiki does not cover it, say so rather than guessing."
+      "youAreSupportCopilot": "You are Support Copilot. Answer from the product wiki and cite the document you used. If the wiki does not cover it, say so rather than guessing.",
+      "avatarColour": "Fallback colour"
     },
     "auth": {
       "agentHereDataNot": "An agent here is data, not code - instructions, a model, a set of capabilities. It runs the same way on web chat, the HTTP API and Slack, on your infrastructure and against your keys.",
@@ -2928,7 +2929,8 @@
       "you": "(you)",
       "yourRoleHere": "Your role here is <badge>{role}</badge>",
       "membersCard": "Members",
-      "memberCount": "{count, plural, =1 {1 member} other {# members}}"
+      "memberCount": "{count, plural, =1 {1 member} other {# members}}",
+      "avatarColour": "Fallback colour"
     },
     "rag": {
       "active": "Active",
@@ -3248,7 +3250,9 @@
       "visibleTeammatesSharedOrganizations": "Visible to teammates in shared organizations.",
       "whatNotSent": "What is not sent",
       "yesDeleteMyAccount": "Yes, delete my account",
-      "yourConversationsKnowledgeBase": "Your conversations, knowledge base contents, API keys, and all personal data will be permanently deleted. Active subscriptions will be canceled. This cannot be undone."
+      "yourConversationsKnowledgeBase": "Your conversations, knowledge base contents, API keys, and all personal data will be permanently deleted. Active subscriptions will be canceled. This cannot be undone.",
+      "avatarColour": "Fallback colour",
+      "avatarColourHint": "Shown as your avatar until you upload a picture."
     },
     "skills": {
       "agentsBoundSkillWill": "Agents bound to this skill will run without it from their next run. This cannot be undone.",
@@ -3923,5 +3927,10 @@
     "create": "Create",
     "save": "Save",
     "enabled": "Enabled"
+  },
+  "avatarColor": {
+    "auto": "Automatic colour",
+    "label": "Avatar colour",
+    "option": "Colour {n}"
   }
 }
