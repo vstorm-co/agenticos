@@ -26,6 +26,7 @@ tools listed.
 | `skills` | Skills | knowledge | `list_skills`, `load_skill`, `read_skill_resource` | `knowledge:read` | — |
 | `context` | Context | knowledge | `list_context`, `read_context` | — | — |
 | `web_research` | Web search | research | `web_search` | `web:read` | for paid services |
+| `browser_use` | Browser automation | research | `browse_web` | `web:browse` | via the `browser-use` extra |
 | `code_execution` | Run Python | analysis | `run_python` | `code:execute` | — |
 | `sandbox` | Files & shell | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona |
 | `charts` | Charts | analysis | `create_chart` | — | — |
@@ -38,6 +39,7 @@ tools listed.
 | `clock` | Date and time | utility | none, by design | — | — |
 | `guardrails` | Guardrails | utility | none, by design | — | — |
 | `compaction` | Context management | utility | none, by design | — | — |
+| `tool_output_limits` | Tool output limits | utility | `read_tool_result` | — | — |
 | `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 
 Six of those have no tools on purpose. `thinking` changes how the model runs
@@ -143,6 +145,52 @@ The three paid methods need an API key from the organization's
 conditional rather than flat: a flat one would either lock the free default behind
 an account, or let a Tavily agent publish with nothing to authenticate with and
 fail on its first search.
+
+## Browser automation
+
+`browse_web` — *Delegate an open-ended web task to an autonomous browser agent.*
+
+One goal in natural language, handed to a
+[browser-use](https://github.com/browser-use/browser-use) agent that drives a real
+Chromium — navigating, reading, clicking, extracting — and returns a text result.
+Reach for it when the page layout is unknown or the task needs judgement, not for a
+scripted flow a direct request would do.
+
+This is the largest attack surface a capability opens: a browser follows what a page
+tells it, the page is untrusted, and so `browse_web` turns web content into a tool
+with side effects. It is **`side_effecting` and gateable** for that reason — put it
+behind [approval](../governance.md) and the injected page reaches a person, not an
+action.
+
+| Config | Default | Values |
+|---|---|---|
+| `mode` | `playwright` | `playwright`, `remote` |
+| `cdp_url` | null | a Chromium DevTools endpoint; required by (and only valid in) `remote` |
+| `allowed_domains` | null | domains the agent may reach; globs like `*.example.com` allowed; null is unrestricted |
+| `max_steps` | 25 | 1–100; each step is one model request |
+| `use_vision` | `true` | send page screenshots to the browser agent's model |
+| `headless` | `true` | run a locally launched browser without a window (`playwright` only) |
+
+**`mode` chooses where the browser runs.** `playwright` launches a headless Chromium
+next to the agent; `remote` attaches over CDP to a browser an operator runs
+elsewhere. A self-hosted deployment points `remote` at a hardened, isolated browser
+service rather than giving the app container a browser process. A `remote` `cdp_url`
+is a URL this deployment connects to server-side, so it is SSRF-checked — a loopback,
+private, reserved or metadata address is refused **at publish**, when the spec is
+saved, rather than on every run (the check resolves DNS, which must not block the
+event loop the run assembles on).
+
+**The browser agent's model spend is metered.** The sub-agent runs on the host run's
+model — the one whose credential was resolved from the vault — and each of its steps
+is one model request, booked against the run's budget through the same ambient-usage
+ledger a compaction summary uses. It is not browser-use's own hosted model, and it is
+not spend the budget guard cannot see.
+
+**`browser-use` is an optional extra.** It pulls a heavy tree (Chromium via
+Playwright) and pins dependencies a minor lower than the rest of the platform, so it
+is not installed by default. An operator who wants the capability installs
+`agenticos[browser-use]` and provides a Chromium; a bound agent whose deployment
+lacks it fails the one tool loudly, with the install line.
 
 ## Run Python
 
@@ -783,6 +831,65 @@ reported by every agent, whether or not it compacts — see
 The warning matters most to the agent that will *not* compact, which is the one
 that reaches the ceiling and gets refused.
 
+## Tool output limits
+
+One tool, `read_tool_result`. Where `compaction` trims history *inside* the window
+between requests, this stops an oversized tool return from getting there in the
+first place. A `ToolReturnPart` persists, so a grep over a large repository or a
+verbose API response is re-sent in full on every later request of the run —
+`code_execution` already clips at 8,000 characters for exactly this reason, which
+is the right default and the wrong ceiling: the part that mattered is gone from the
+model's view with nothing to act on. This reduces a return once, when it is
+produced, and lets the reduced form persist. The reduction itself is
+[`pydantic-ai-harness`](https://github.com/pydantic/pydantic-ai-harness)'s
+`ToolOutputLimits`.
+
+| Config | Default | |
+|---|---|---|
+| `action` | `spill` | `spill`, `truncate`, `summarize` |
+| `threshold` | 10000 | size at or above which a return is reduced |
+| `over_tokens` | `false` | measure the threshold in estimated tokens, not characters |
+| `max_chars` | 4000 | characters kept when a return is truncated, or a spill falls back to one |
+| `truncation_strategy` | `head_tail` | `head`, `tail`, `head_tail` — which end(s) to keep |
+| `strip_ansi` | `false` | strip terminal colour codes before measuring and reducing |
+| `summary_prompt` | the library's own | what the summarising model is told; must contain `{tool_name}` and `{output}` |
+
+`spill` is the default and the only lossless one: the full return is written to the
+agent's backend and replaced with a handle, a preview and a shape sketch, and the
+model reads slices of it on demand through `read_tool_result(handle, offset, limit,
+from_end, pattern)` — the same page-through pattern `read_file` gives it over the
+workspace. `truncate` is the cheap, lossy clamp with a marker saying what was cut;
+`summarize` replaces the return with an LLM summary and is the expensive one.
+
+**A spill goes to the agent's own backend.** An agent that binds `sandbox` already
+has a filesystem — `state`, a Docker container, Daytona — that the runner opened for
+the run and keyed to the organization; the spill lives there, under a
+`tool_output/` prefix, so it shares that workspace's lifetime and the agent can even
+reach it through its own `read_file` and `grep`. On the default `run` session scope
+that lifetime *is* the run, which is what the "must not outlive the run" requirement
+asks for. A spill is a within-run artefact and never survives into the persisted
+document: on a longer-scoped `state` workspace (`conversation`, `user`, `agent`) the
+flush strips the reserved prefix at run end, so accumulated spills can no longer push
+the workspace toward its byte cap and refuse the agent's own writes. A longer-scoped
+*container* workspace still keeps its spills on the container filesystem —
+run-scoped deletion there needs a primitive the backend protocol does not expose yet,
+tracked in [#803](https://github.com/vstorm-co/agenticos/issues/803). An agent with
+no backend gets an in-memory one built for the run and discarded with it, so the
+spill is never written to shared disk. A spill the backend refuses — a `state`
+workspace already at its byte cap — falls back to a truncation rather than a silent
+drop; so does a `summarize` whose model call fails (`summarize` → `spill` →
+`truncate`).
+
+**A summary is billed to the run.** Like `compaction`'s, the summarising call runs
+through an `Agent` the harness builds itself, outside the budget guard, so its
+tokens are booked against the run's ledger through the same ambient-usage path — see
+[how a run's cost is counted](../governance.md). `spill` and `truncate` call no model
+and cost nothing.
+
+The harness composes reductions from an ordered list of size *bands*; here an author
+picks one `action` at one `threshold`, because the Builder form cannot draw a nested
+list — the same reason `compaction` picks a strategy rather than composing tiers.
+
 ## Tool search
 
 No tools of its own. Lets the agent *find* a tool from a large set instead of
@@ -943,11 +1050,12 @@ the agent is assembled:
 |---|---|
 | `knowledge:read` | `knowledge`, `skills` |
 | `web:read` | `web_research` |
+| `web:browse` | `browser_use` |
 | `code:execute` | `code_execution` |
 | `sandbox:execute` | `sandbox` |
 | `agents:delegate` | `subagents` |
 
-All five are granted by default today (`DEFAULT_GRANTED_SCOPES` in
+All six are granted by default today (`DEFAULT_GRANTED_SCOPES` in
 `app/services/agent_registry.py`). Per-organization scope management is
 [roadmap](../ROADMAP.md) work; the check is live and honest in the meantime rather
 than disabled and forgotten.

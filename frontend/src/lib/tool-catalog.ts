@@ -127,6 +127,15 @@ export interface ToolEntry {
  * there.
  */
 export const TOOL_CATALOG: Record<string, ToolEntry> = {
+  // browser_use - one autonomous browsing step; what comes back is a text result, so
+  // the generic renderer, not a browser view.
+  browse_web: {
+    kind: "web",
+    render: "generic",
+    captionKey: "browsingWeb",
+    displayNameKey: "browseWeb",
+  },
+
   // channel_tools - only ever called on a Slack, Telegram or Mattermost run, so these
   // steps are read back in the run timeline rather than watched live in the dashboard.
   get_channel_info: {
@@ -350,6 +359,16 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     render: "web-search",
     captionKey: "searchingWeb",
     displayNameKey: "webSearch",
+  },
+
+  // tool_output_limits - reads a slice of a tool result that was spilled to the
+  // backend because it was too large to keep in the window. The slice is text the
+  // model pages through, so the generic renderer shows it.
+  read_tool_result: {
+    kind: "read",
+    render: "generic",
+    captionKey: "readingToolResult",
+    displayNameKey: "toolResult",
   },
 };
 

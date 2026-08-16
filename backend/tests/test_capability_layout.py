@@ -68,6 +68,10 @@ EXTERNAL_TOOLSET = {
     # the nine tool descriptions are declared in `_capability.py` and handed to the
     # library through `descriptions=`, so the text a reader edits still lives here.
     "planning",
+    # `pydantic_ai_harness.tool_output_limits.ToolOutputLimits` registers its own
+    # `read_tool_result` read-back tool from its `get_toolset()`; the capability
+    # here wraps that harness object rather than owning a toolset of its own.
+    "tool_output_limits",
 }
 
 

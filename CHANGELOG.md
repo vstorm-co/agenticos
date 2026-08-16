@@ -17,6 +17,78 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.163] - 2026-08-16
+
+An oversized tool return stops eating the run, and nothing spills onto shared disk.
+
+### Added
+
+- **The `tool_output_limits` capability.** A tool return too large for the
+  model's window is reduced once, when it is produced, instead of being re-sent
+  in full on every later request of the run. Three actions per binding: `spill`
+  (default, lossless — the full return goes to the agent's own sandbox backend
+  under a `tool_output/` prefix and is replaced with a handle + preview the model
+  pages through with `read_tool_result`), `truncate` (a cheap clamp with a marker
+  saying what was cut), and `summarize` (an LLM summary on the run's own model,
+  its spend booked to the run's ledger). Spills land on the tenant's own backend,
+  never shared disk — an agent with no backend gets an in-memory one discarded
+  with the run — and a spill the backend refuses degrades to a truncation, never
+  a silent drop. (#57)
+
+### Fixed
+
+- **Spills no longer outlive the run on a `state` backend.** A longer-scoped
+  `state` workspace was persisting `tool_output/` spills into its stored document
+  every run, counting them against `SANDBOX_STATE_MAX_BYTES` until the agent's
+  own writes were refused. The flush now strips the reserved prefix, so every run
+  self-heals what a prior one left. The container-backend half stays open as
+  #803. (#803)
+
+### Changed
+
+- **The ambient-usage delta is one helper, not two copies.** `compaction` and
+  `tool_output_limits` each carried an identical snapshot-and-diff for booking a
+  self-run `Agent`'s tokens; both now import `usage_counts`/`usage_delta` from
+  `budget`, so a pricing fix lands in one place.
+
+## [0.0.162] - 2026-08-16
+
+An agent can drive a real browser, with the same guards as everything else.
+
+### Added
+
+- **The `browser_use` capability.** One tool, `browse_web`, that hands a
+  self-contained natural-language goal to an autonomous
+  [browser-use](https://github.com/browser-use/browser-use) agent driving a real
+  Chromium — `mode='playwright'` launches a local headless browser,
+  `mode='remote'` attaches over CDP to an operator-supplied `cdp_url`. A remote
+  endpoint is SSRF-checked at publish time, off the event loop, for every binding
+  — the first production caller of `validate_webhook_url` (part of #33). The
+  browser sub-agent runs on the host run's model wrapped in a `MeteredModel`, so
+  its spend is booked against the run's ledger (#802), and the tool is
+  `side_effecting`, so every call can sit behind the approval gate. The engine is
+  an optional dependency the capability builds without: until browser-use loosens
+  its `pydantic` pin (#801), enabling and running it raises a `RuntimeError`
+  naming the fix rather than failing quietly. (#59)
+
+## [0.0.161] - 2026-08-16
+
+An agent can draw an image, with the spend on the ledger like everything else.
+
+### Added
+
+- **The `image_generation` capability.** One tool, `generate_image`, that renders
+  an image from a prompt with a dedicated image model (OpenAI Responses or
+  Google), whatever model the agent itself runs on. The provider key is a
+  `SecretRequirement`, so publishing without one is refused at the form; the tool
+  is `side_effecting`, so every call can sit behind the approval gate; and the
+  subagent's usage is booked to the run's ledger — an unpriced image model
+  records zero and flags the run's cost partial rather than hiding it. Images
+  land in organization-scoped storage (`generated/{org}`), served only under the
+  caller's own organization at `GET /api/v1/generated/{filename}`, rendered
+  inline in chat, and — when the run has a workspace open — also written under
+  `/output` so a later `execute` step can build with them. (#58)
+
 ## [0.0.160] - 2026-08-16
 
 Every person, organization and agent gets a designed default avatar, and a colour

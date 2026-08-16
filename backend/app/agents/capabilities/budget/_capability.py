@@ -437,8 +437,11 @@ def record_ambient_usage(
 def usage_counts(usage: RunUsage) -> tuple[int, int, int, int]:
     """The four counters a price is computed from, read off the run's usage.
 
-    A tuple rather than the object: `RunUsage` is accumulated in place, so
-    keeping a reference to it and comparing later compares it with itself.
+    A tuple rather than the object: `RunUsage` is accumulated in place, so keeping
+    a reference and comparing later compares it with itself. Cached tokens are
+    carried alongside the plain ones because they are priced differently and
+    `input_tokens` already includes them; dropping them would bill a cache read at
+    the full input rate, the defect :func:`price_request` exists to avoid.
     """
     return (
         usage.input_tokens,
@@ -449,15 +452,13 @@ def usage_counts(usage: RunUsage) -> tuple[int, int, int, int]:
 
 
 def usage_delta(before: tuple[int, int, int, int], usage: RunUsage) -> RequestUsage | None:
-    """What a nested call added to a shared `RunUsage`, or `None` when it made none.
+    """What a step added to the run's usage, or `None` when it called no model.
 
-    Any capability that runs its own agent on `ctx.usage` - a compaction summary,
-    an LLM reminder - measures its spend as the difference the call left in the
-    shared usage, and books that through :func:`record_ambient_usage`. Cached
-    tokens are carried as well as the plain ones because they are priced
-    differently and `input_tokens` already includes them - dropping them here
-    would bill a cache read at the full input rate, which is the defect
-    `price_request` exists to avoid.
+    A capability that runs its own `Agent` - a compaction summary, a tool-output
+    summary, an LLM reminder - spends against `ctx.usage` and nowhere the request
+    wrapper can see, so each meters itself by snapshotting :func:`usage_counts`
+    before the step and diffing after. One helper so the meters cannot drift on
+    how the diff is taken.
     """
     after = usage_counts(usage)
     if after == before:
