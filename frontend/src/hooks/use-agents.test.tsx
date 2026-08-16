@@ -26,6 +26,7 @@ const SPEC: AgentSpec = {
   capabilities: [],
   collection_ids: [],
   skill_ids: [],
+  context_ids: [],
   mcp_server_ids: [],
   budget: null,
 };
@@ -297,6 +298,7 @@ describe("useAgents mutations", () => {
       capabilities: [],
       collection_ids: [],
       skill_ids: [],
+      context_ids: [],
       max_steps: null,
       preferred_mode: null,
     };

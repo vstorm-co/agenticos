@@ -28,6 +28,7 @@ import {
   MessagesSquare,
   Activity,
   Boxes,
+  FileText,
   FolderOpen,
   BookOpen,
   Bot,
@@ -79,6 +80,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { labelKey: "agents", href: ROUTES.AGENTS, icon: Bot, permission: Perm.agentsView },
       { labelKey: "skills", href: ROUTES.SKILLS, icon: BookOpen, permission: Perm.skillsView },
+      { labelKey: "context", href: ROUTES.CONTEXT, icon: FileText, permission: Perm.contextView },
       { labelKey: "activity", href: ROUTES.RUNS, icon: Activity, permission: Perm.runsView },
     ],
   },

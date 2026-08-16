@@ -45,6 +45,7 @@ from app.repositories import (
     agent_environment_repo,
     agent_exposure_repo,
     agent_repo,
+    context_repo,
     credential_repo,
     knowledge_base_repo,
     mcp_connection_repo,
@@ -58,6 +59,7 @@ from app.schemas.agent import AgentRead, AgentVersionRead
 from app.services.access import (
     AGENT,
     COLLECTION,
+    CONTEXT,
     SECRET,
     SKILL,
     resolve_access,
@@ -778,6 +780,7 @@ class AgentRegistryService:
 
         problems.extend(await self._collection_problems(ctx, spec.collection_ids))
         problems.extend(await self._skill_problems(ctx, spec.skill_ids))
+        problems.extend(await self._context_problems(ctx, spec.context_ids))
 
         for connection_id in spec.mcp_server_ids:
             connection = await mcp_connection_repo.get_org_scoped_by_id(
@@ -907,6 +910,37 @@ class AgentRegistryService:
             )
             if not reachable:
                 problems.append(f"Skill not found: {skill_id}")
+        return problems
+
+    async def _context_problems(self, ctx: AuthContext, context_ids: Sequence[UUID]) -> list[str]:
+        """Context files the publisher cannot lend out.
+
+        The same rule as a skill, for the same reason: a bound context file
+        reaches every run of the agent - injected into its instructions or read
+        through the capability's tool - so binding one shares its body. The
+        publisher has to be able to reach it themselves. `CONTEXT_VIEW` through
+        :func:`resolve_access`, so an explicit grant counts.
+
+        "Not found" covers a missing id, another organization's id, and a row this
+        publisher may not read, deliberately indistinguishably: files are bound by
+        UUID from the API and from a hand-edited draft, so a refusal that read
+        differently would map the organization's private context one guess at a
+        time. One query for the whole list, because a run resolves them the same
+        way and publish holds a transaction open.
+        """
+        if not context_ids:
+            return []
+        found = await context_repo.get_many(
+            self.db, list(context_ids), organization_id=ctx.organization_id
+        )
+        problems: list[str] = []
+        for context_id in context_ids:
+            file = found.get(context_id)
+            reachable = file is not None and await resolve_access(
+                self.db, ctx, file, Perm.CONTEXT_VIEW, resource_type=CONTEXT
+            )
+            if not reachable:
+                problems.append(f"Context file not found: {context_id}")
         return problems
 
     async def _secret_problems(
@@ -1052,6 +1086,7 @@ class AgentRegistryService:
             problems.extend(await self._binding_problems(ctx, binding))
         problems.extend(await self._collection_problems(ctx, specialist.collection_ids))
         problems.extend(await self._skill_problems(ctx, specialist.skill_ids))
+        problems.extend(await self._context_problems(ctx, specialist.context_ids))
         # A specialist naming no profile runs on the parent's, which publish has
         # already checked - so only a profile it *did* name is a reference that
         # can be broken, or borrowed from another organization.

@@ -11,8 +11,8 @@ Nullable, and null means **not recorded** rather than "exact": every message
 written before this column has no answer, and inventing `false` for them would
 claim a precision nobody measured. A client draws the caveat on `true` alone.
 
-Revision ID: 0031_message_cost_partial
-Revises: 0030_profile_context_length
+Revision ID: 0032_message_cost_partial
+Revises: 0031_profile_context_length
 Create Date: 2026-08-15
 
 """
@@ -23,8 +23,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0031_message_cost_partial"
-down_revision: str | None = "0030_profile_context_length"
+revision: str = "0032_message_cost_partial"
+down_revision: str | None = "0031_profile_context_length"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

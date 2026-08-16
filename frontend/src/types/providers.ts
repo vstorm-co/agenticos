@@ -132,3 +132,36 @@ export interface SkillList {
   /** The deployment's predefined shelf names - picker suggestions, never a constraint. */
   suggested_categories: string[];
 }
+
+/** How a context file reaches the model - injected into the prompt, or read on demand. */
+export type ContextMode = "inject" | "link";
+
+/** One piece of an organization's standing context, body included. */
+export interface ContextFile {
+  id: string;
+  name: string;
+  description: string | null;
+  content: string;
+  /** A rendering hint (`md`, `txt`, `json`, `yaml`, `csv`), not a constraint. */
+  format: string;
+  mode: ContextMode;
+  enabled: boolean;
+  visibility: string;
+  owner_user_id: string | null;
+}
+
+/** A context file as the listing shows it - the body is a byte count only. */
+export interface ContextFileSummary {
+  id: string;
+  name: string;
+  description: string | null;
+  format: string;
+  mode: ContextMode;
+  enabled: boolean;
+  size_bytes: number;
+}
+
+export interface ContextFileList {
+  items: ContextFileSummary[];
+  total: number;
+}

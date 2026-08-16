@@ -20,11 +20,13 @@ from pydantic_ai.exceptions import ModelHTTPError
 from pydantic_ai.messages import ModelRequest, ModelResponse, ToolCallPart, ToolReturnPart
 from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.usage import RequestUsage
+from pydantic_ai_harness.planning import PlanItem
 
 from app.agents.capabilities.approval import ApprovalGranted, ApprovalRejected
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, SpendLedger
 from app.agents.capabilities.channel_tools import CHANNEL_DIRECTORY_RESOURCE
 from app.agents.capabilities.compaction import ContextGauge
+from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.spec import AgentSpec, CapabilityBindingSpec, ObservabilitySpec
 from app.agents.subagent_runtime import DelegationSpend, DelegationStash, ParkedDelegation
 from app.core.exceptions import BadRequestError, NotFoundError, RunExecutionError
@@ -947,6 +949,33 @@ class TestRunAccounting:
         assert notify.call_args.kwargs["status"] is RunStatus.BUDGET_EXCEEDED
 
     @pytest.mark.anyio
+    async def test_a_guardrail_block_is_its_own_outcome_not_a_failure(self):
+        """A refusal, recorded like `BUDGET_EXCEEDED` rather than `FAILED`.
+
+        The clause does not re-raise, so `execute` returns the empty answer, and
+        the stored `error` is the guardrail's safe message - the edge and the
+        refusal, never the content that tripped it.
+        """
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.built.agent.run = AsyncMock(
+            side_effect=GuardrailBlocked(
+                edge="input", message="This request was blocked by an input guardrail."
+            )
+        )
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()) as finish,
+            patch.object(service, "_notify", new=AsyncMock()),
+        ):
+            output, _ = await service.execute(_ctx(), uuid.uuid4(), "hello")
+
+        assert output == ""
+        assert finish.call_args.kwargs["status"] == RunStatus.GUARDRAIL_BLOCKED.value
+        assert finish.call_args.kwargs["error"] == "This request was blocked by an input guardrail."
+
+    @pytest.mark.anyio
     async def test_a_successful_run_returns_its_answer(self):
         service = AgentRunnerService(_db())
         prepared = _prepared()
@@ -1392,7 +1421,32 @@ class TestParking:
             # And no kept specialists, which is a run that invented none - or, as
             # here, one whose agent binds no delegation at all (agenticos#175).
             "dynamic_specialists": [],
+            # And an empty checklist, which is a run that bound no planning
+            # capability: the store the runner always opens held nothing to snapshot.
+            "plan": [],
         }
+
+    @pytest.mark.anyio
+    async def test_a_parked_run_snapshots_its_plan(self):
+        """A run that parks mid-plan resumes with the checklist it had, not an empty
+        one: `finish` reads the run's store and folds it into the parked state, which
+        `resume` re-seeds. Without this the plan is lost the moment an approval lands."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        await prepared.plan_store.set_items([PlanItem(content="Write the fix")])
+        prepared.approvals.parked = {"approval-1": "call-1"}
+        result = MagicMock(output=DeferredToolRequests())
+        result.all_messages = MagicMock(return_value=[])
+        prepared.built.agent.run = AsyncMock(return_value=result)
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()) as finish,
+        ):
+            await service.execute(_ctx(), uuid.uuid4(), "email the customer")
+
+        stored = finish.call_args.kwargs["paused_state"]["plan"]
+        assert [item["content"] for item in stored] == ["Write the fix"]
 
     @pytest.mark.anyio
     async def test_a_parked_runs_transcript_marks_the_call_that_is_waiting(self):

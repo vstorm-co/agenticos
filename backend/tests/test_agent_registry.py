@@ -129,6 +129,16 @@ def _skill(ctx: AuthContext, *, owner_user_id=None):
     )
 
 
+def _context_file(ctx: AuthContext, *, owner_user_id=None):
+    """A private context-file row in the caller's organization - same shape as `_skill`."""
+    return MagicMock(
+        id=uuid.uuid4(),
+        organization_id=ctx.organization_id,
+        owner_user_id=owner_user_id or ctx.user_id,
+        visibility=Visibility.PRIVATE.value,
+    )
+
+
 def _version(agent_id, *, number: int = 1, spec: AgentSpec | None = None):
     version = MagicMock()
     version.id = uuid.uuid4()
@@ -1146,6 +1156,76 @@ class TestSkillValidation:
         ):
             await AgentRegistryService(_db()).validate_spec(
                 ctx, _spec(skill_ids=[shared.id], model_profile_id=uuid.uuid4())
+            )
+
+
+class TestContextValidation:
+    """Binding a context file lends it, so publish checks the publisher can read it.
+
+    A bound file's body reaches every run - injected or read on demand - and files
+    are bound by UUID, so without this check a member could bind a colleague's
+    private file and read it through the agent. The same rule as a skill.
+    """
+
+    @staticmethod
+    async def _problems(ctx: AuthContext, spec: AgentSpec, **repos) -> list[str]:
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            patch(f"{REGISTRY_PATH}.context_repo.get_many", new=AsyncMock(**repos)),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(ctx, spec)
+        assert refused.value.details is not None
+        problems: list[str] = refused.value.details["problems"]
+        return problems
+
+    @pytest.mark.anyio
+    async def test_a_file_this_organization_does_not_have_is_not_found(self):
+        context_id = uuid.uuid4()
+        problems = await self._problems(
+            _ctx(),
+            _spec(context_ids=[context_id], model_profile_id=uuid.uuid4()),
+            return_value={},
+        )
+        assert problems == [f"Context file not found: {context_id}"]
+
+    @pytest.mark.anyio
+    async def test_a_private_file_the_publisher_cannot_reach_is_not_found(self):
+        ctx = _ctx(OrgRoleName.MEMBER)
+        private = _context_file(ctx, owner_user_id=uuid.uuid4())
+        with patch(
+            "app.services.access.resource_grant_repo.get_level", new=AsyncMock(return_value=None)
+        ):
+            problems = await self._problems(
+                ctx,
+                _spec(context_ids=[private.id], model_profile_id=uuid.uuid4()),
+                return_value={private.id: private},
+            )
+        assert problems == [f"Context file not found: {private.id}"]
+
+    @pytest.mark.anyio
+    async def test_a_grant_lets_a_member_bind_a_file_they_do_not_own(self):
+        ctx = _ctx(OrgRoleName.MEMBER)
+        shared = _context_file(ctx, owner_user_id=uuid.uuid4())
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.context_repo.get_many",
+                new=AsyncMock(return_value={shared.id: shared}),
+            ),
+            patch(
+                "app.services.access.resource_grant_repo.get_level",
+                new=AsyncMock(return_value=GrantLevel.READ),
+            ),
+        ):
+            await AgentRegistryService(_db()).validate_spec(
+                ctx, _spec(context_ids=[shared.id], model_profile_id=uuid.uuid4())
             )
 
 

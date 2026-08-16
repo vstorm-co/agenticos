@@ -21,7 +21,7 @@ from typing import Any
 from uuid import UUID
 
 from pydantic_ai import Agent as PydanticAgent
-from pydantic_ai.capabilities import ReinjectSystemPrompt
+from pydantic_ai.capabilities import AbstractCapability, ReinjectSystemPrompt, ToolSearch
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.toolsets import AbstractToolset
@@ -271,7 +271,7 @@ def build_agent(
         # the approval gate parks a call.
         output_type=[str, DeferredToolRequests],
         capabilities=capabilities,
-        toolsets=extra_toolsets or [],
+        toolsets=_defer_for_tool_search(configured, extra_toolsets or []),
     )
 
     _instrument(agent, spec, secrets or {}, agent_id=agent_id)
@@ -287,6 +287,35 @@ def build_agent(
         approval_required_tools=approval_required,
         usage_limits=UsageLimits(request_limit=spec.max_steps or DEFAULT_MAX_STEPS),
     )
+
+
+def _defer_for_tool_search(
+    configured: list[AbstractCapability[Any]],
+    extra_toolsets: list[AbstractToolset[Any]],
+) -> list[AbstractToolset[Any]]:
+    """Hide the MCP toolsets behind tool search when the agent enabled it.
+
+    The two are paired here or not at all. `ToolSearch` is inert with nothing
+    deferred, and a deferred tool with no `ToolSearch` to find it is a tool the
+    model can never call - so deferring a toolset without the capability, or
+    binding the capability without deferring anything, is each half of a broken
+    agent. Binding `tool_search` is what asks for both.
+
+    MCP is the target the capability exists for. An agent may bind an arbitrary
+    number of servers, and every tool's schema is context the model pays for on
+    every request until it searches for one instead; `extra_toolsets` is exactly
+    those servers. The registry's own tools stay visible - they are few, chosen
+    per agent, and cheap to carry.
+
+    Deferring changes what the model *sees*, never a tool's identity: a
+    discovered MCP tool arrives under its real prefixed name, so the approval
+    gate still pairs on it and a binding's rename still reaches it. `ToolSearch`
+    also sits outermost, so it reads the names a rename already applied rather
+    than the ones underneath.
+    """
+    if not any(isinstance(capability, ToolSearch) for capability in configured):
+        return extra_toolsets
+    return [toolset.defer_loading() for toolset in extra_toolsets]
 
 
 def _as_decimal(value: float) -> Decimal:

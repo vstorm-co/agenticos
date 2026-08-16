@@ -19,8 +19,8 @@ to resolving the window at run time, exactly as before.
 The revision id is shortened from the obvious one: `alembic_version.version_num`
 is `varchar(32)`, and `0030_model_profile_context_length` is 33.
 
-Revision ID: 0030_profile_context_length
-Revises: 0029_dashboard_presets
+Revision ID: 0031_profile_context_length
+Revises: 0030_context_files
 Create Date: 2026-08-15
 
 """
@@ -31,8 +31,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0030_profile_context_length"
-down_revision: str | None = "0029_dashboard_presets"
+revision: str = "0031_profile_context_length"
+down_revision: str | None = "0030_context_files"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

@@ -753,6 +753,8 @@ export function useChat(options: UseChatOptions = {}) {
     setDelegations([]);
     setPendingApproval(null);
     setPendingQuestions(null);
+    setCompacting(null);
+    setCompactionImpossible(null);
     approvalOfferedForRef.current = new Set();
   }, [activeConversationId]);
 

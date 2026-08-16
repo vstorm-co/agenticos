@@ -6,7 +6,7 @@ Notable changes to AgenticOS. The format follows
 
 Two things are versioned separately from this file and worth knowing about:
 
-- **`SPEC_VERSION`** — the agent spec format, currently **8**. A published agent
+- **`SPEC_VERSION`** — the agent spec format, currently **9**. A published agent
   and a client's exported YAML both carry it, so it only ever moves forward with a
   migration that keeps old documents loading. See
   [the spec reference](docs/reference/spec.md).
@@ -16,6 +16,122 @@ Two things are versioned separately from this file and worth knowing about:
   that still exists. Schema changes are listed here by what they do.
 
 ## [Unreleased]
+
+## [0.0.157] - 2026-08-16
+
+An organization's standing knowledge is put into a run instead of made to be asked
+for.
+
+### Added
+
+- **Context capability.** A first-class, org-scoped library of text objects — a
+  glossary, a brand voice, an escalation matrix — each carrying a `mode`: `inject`
+  splices the body into the agent's instructions verbatim, `link` leaves it out of
+  the prompt and reads it on demand through `list_context`/`read_context`, so a
+  large or rarely-needed file costs nothing until the model reaches for it. Mirrors
+  the skills subsystem end to end — model, schemas, repo, the shared access/grant
+  machinery, service, routes, spec binding, publish check, runner resolution, and
+  the frontend library + builder picker. (#48)
+- **`AgentSpec.context_ids`**, bumping `SPEC_VERSION` to **9**. Defaulted, so every
+  stored spec and exported YAML loads unchanged.
+
+### Notes
+
+- **Injected content is untrusted input.** A file's body is user-written and reaches
+  the model verbatim, so it is delimited (`<context-file>`) and framed as reference
+  material rather than instructions. The fence resists accidental breakout — a body
+  or name that forges a closing tag or an attribute quote can no longer escape it —
+  though an operator with `context:edit` injecting deliberately is out of scope by
+  design.
+- **Tenant-scoped, checked at publish.** Binding a file hands its body to every run,
+  so it is checked against the publisher's own access; a private file another member
+  owns is refused indistinguishably from a missing id.
+
+## [0.0.156] - 2026-08-16
+
+An agent can bind many MCP servers without paying for every tool's schema on
+every request.
+
+### Added
+
+- **Tool search capability.** Ports Pydantic AI's `ToolSearch` into the registry
+  as `tool_search` and pairs it with deferring the connected MCP toolsets, so the
+  model discovers the tool it needs instead of carrying every server's schema on
+  each turn. Config is `strategy` (`auto` | `keywords` | `bm25` | `regex`) and
+  `max_results` (1–50). The capability and the deferral are two halves of one
+  decision — `ToolSearch` is inert with nothing deferred, and a deferred tool with
+  no search to find it is unreachable — so binding it is what marks the servers'
+  toolsets for deferred loading; the registry's own tools stay visible. An agent
+  that does not bind it pays nothing. (#50)
+
+### Notes
+
+- **Deferral changes what the model sees, never a tool's identity.** A discovered
+  MCP tool arrives under its real prefixed name, so the approval gate still pairs
+  on it and a binding's rename still reaches it — `ToolSearch` sits outermost,
+  reading the names a rename already applied.
+- **No un-metered spend.** Local strategies run in Python; native search runs
+  inside the provider's own metered request; the discovery round-trips are
+  ordinary model requests the budget guard already wraps.
+
+## [0.0.155] - 2026-08-16
+
+An agent can keep a checklist for itself over a multi-step run.
+
+### Added
+
+- **Planning capability.** Ports the `pydantic-ai-harness` planning checklist into
+  the registry: `write_plan`/`read_plan` plus granular step tools, and under
+  `enable_subtasks` a dependency-aware mode (`add_subtask`, `set_dependency`,
+  `get_available_tasks`, a `blocked` status). The current plan is surfaced back
+  each turn as a cache-safe tail reminder behind a `CachePoint`, so the prompt
+  prefix stays cacheable and the plan never lands in the system prompt. The tools
+  are local checklist edits with no model request behind them, so there is no
+  ambient usage to meter. Registry-only — no `SPEC_VERSION` bump — and orthogonal
+  to delegation, so an agent may bind both. (#47)
+
+### Fixed
+
+- **A parked run's plan survives the approval park.** The runner owns the store:
+  it seeds one from `PausedRunState.plan` on resume, injects it through
+  `PLANNING_STORE_RESOURCE`, and reads it back when the run parks. `paused_state`
+  is already JSONB, so no migration — a run parked before this stays resumable.
+- **The system-prompt guidance is this repository's own string.** The library's
+  `get_instructions()` guidance is pinned via `guidance=` alongside the tool
+  descriptions, so a harness release that rewrites its default can no longer
+  change the agent's system prompt silently. (#778)
+
+## [0.0.154] - 2026-08-16
+
+A tripped guardrail is a visible run outcome, not a crash — on every surface.
+
+### Added
+
+- **Guardrails capability.** A single `guardrails` capability ports the
+  `pydantic-ai-harness` guards into the registry, inspecting the text at three
+  edges — the user's prompt, the agent's answer, and a tool's result before the
+  model reads it — and either redacting a match or blocking the run. Tool-result
+  screening is the headline: it is the only guard on untrusted content entering
+  the loop, where a prompt-injection payload would otherwise reach the model
+  unread. Redactors cover API keys, tokens, JWTs and PEM blocks, plus email,
+  IBAN (mod-97), card (Luhn) and US-SSN. Config is data, not callables — flat
+  toggles and a keyword string per edge — so it crosses the wire as an agent
+  spec. (#46)
+- **`RunStatus.GUARDRAIL_BLOCKED`.** A block is a governance outcome, so it gets
+  its own status beside `budget_exceeded` — the platform working, not a
+  malfunction — visible and filterable in run history, folded into `other` in the
+  outcomes donut, and kept out of the "Recent failures" widget and the "Problems"
+  preset. `agent_runs.status` is an unconstrained string, so no migration.
+
+### Fixed
+
+- **A guardrail block on the streaming web chat is recorded as
+  `guardrail_blocked`, not `failed`.** `GuardrailBlocked` was caught only in the
+  non-streaming runner, so on the primary surface a block landed in the generic
+  `except Exception` — recorded as `failed`, logged like a crash, and shown to
+  the visitor as a generic "turn failed" instead of the guard's safe reason. The
+  streaming path now mirrors the budget handling in `agent_chat.py` and
+  `agent_session.py`. (#779)
 
 ## [0.0.153] - 2026-08-15
 

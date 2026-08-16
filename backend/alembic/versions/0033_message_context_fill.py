@@ -17,8 +17,8 @@ and only this half is written down.
 Null means not recorded: every message written before this, and any turn that
 never reached a model.
 
-Revision ID: 0032_message_context_fill
-Revises: 0031_message_cost_partial
+Revision ID: 0033_message_context_fill
+Revises: 0032_message_cost_partial
 Create Date: 2026-08-15
 
 """
@@ -29,8 +29,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0032_message_context_fill"
-down_revision: str | None = "0031_message_cost_partial"
+revision: str = "0033_message_context_fill"
+down_revision: str | None = "0032_message_cost_partial"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

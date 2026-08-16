@@ -42,6 +42,7 @@ vi.mock("@/hooks", () => ({
         capabilities: [],
         collection_ids: [],
         skill_ids: [],
+        context_ids: [],
         mcp_server_ids: [],
         subagents: [],
       } satisfies AgentSpec,
@@ -91,6 +92,10 @@ vi.mock("@/hooks", () => ({
   useSecretPurposes: () => ({ purposes: [] }),
   useSecrets: () => ({ secrets: [] }),
   useSkills: () => ({ skills: [], total: 0 }),
+}));
+
+vi.mock("@/hooks/use-context", () => ({
+  useContextFiles: () => ({ files: [], total: 0 }),
 }));
 
 vi.mock("@/stores", () => ({

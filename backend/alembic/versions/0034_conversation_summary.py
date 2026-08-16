@@ -23,8 +23,8 @@ run it is unknown until one arrives, which on a one-request chat turn is never.
 Written down, the next turn starts knowing it, and a window with no room for a
 summary is refused instead of buying one on every turn for ever.
 
-Revision ID: 0033_conversation_summary
-Revises: 0032_message_context_fill
+Revision ID: 0034_conversation_summary
+Revises: 0033_message_context_fill
 Create Date: 2026-08-16
 
 """
@@ -36,8 +36,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0033_conversation_summary"
-down_revision: str | None = "0032_message_context_fill"
+revision: str = "0034_conversation_summary"
+down_revision: str | None = "0033_message_context_fill"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

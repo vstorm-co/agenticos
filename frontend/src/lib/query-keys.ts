@@ -187,6 +187,12 @@ export const qk = {
     resource: (skillId: string, resourceId: string) =>
       ["skills", skillId, "resources", resourceId] as const,
   },
+  context: {
+    all: () => ["context"] as const,
+    list: (query: { search: string; sort: string; skip: number; limit: number }) =>
+      ["context", "list", query] as const,
+    detail: (id: string) => ["context", id] as const,
+  },
   invitations: {
     all: () => ["invitations"] as const,
     list: (orgId: string) => ["invitations", orgId] as const,

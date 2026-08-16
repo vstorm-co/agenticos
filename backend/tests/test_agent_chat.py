@@ -35,6 +35,7 @@ from app.agents.capabilities.budget import (
     record_ambient_usage,
 )
 from app.agents.capabilities.compaction import ContextGauge
+from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.deps import AgentDeps
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import OrgRoleName
@@ -596,6 +597,19 @@ class TestRecordingTheRun:
         finished = runner.finish.call_args.kwargs
         assert finished["status"] is RunStatus.BUDGET_EXCEEDED
         assert "budget exhausted" in finished["error"]
+
+    async def test_a_guardrail_block_is_recorded_as_blocked_not_a_failure(self):
+        """The streaming surface does not go through the runner's `_run`, so a
+        block here would have been logged like a crash and recorded as FAILED
+        without its own clause - the visitor owed the guard's safe refusal."""
+        blocked = GuardrailBlocked(edge="input", message="This request was blocked.")
+
+        with _runner(_prepared()) as runner, pytest.raises(GuardrailBlocked):
+            await _run(_db(), stream=AsyncMock(side_effect=blocked))
+
+        finished = runner.finish.call_args.kwargs
+        assert finished["status"] is RunStatus.GUARDRAIL_BLOCKED
+        assert finished["error"] == "This request was blocked."
 
     async def test_a_run_that_ends_with_nothing_at_all_fails_loudly(self):
         """An empty answer persisted as the agent's reply would be a lie about it."""
