@@ -951,6 +951,8 @@
       "availableContext": "Available Context",
       "availableSkills": "Available Skills",
       "availableSteps": "Available Steps",
+      "browseWeb": "Browse the Web",
+      "browsingWeb": "Browsing the web",
       "cancelTask": "Cancel Task",
       "cancellingDelegate": "Cancelling a delegate",
       "channelHistory": "Channel History",

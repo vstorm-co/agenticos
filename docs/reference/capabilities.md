@@ -26,6 +26,7 @@ tools listed.
 | `skills` | Skills | knowledge | `list_skills`, `load_skill`, `read_skill_resource` | `knowledge:read` | — |
 | `context` | Context | knowledge | `list_context`, `read_context` | — | — |
 | `web_research` | Web search | research | `web_search` | `web:read` | for paid services |
+| `browser_use` | Browser automation | research | `browse_web` | `web:browse` | via the `browser-use` extra |
 | `code_execution` | Run Python | analysis | `run_python` | `code:execute` | — |
 | `sandbox` | Files & shell | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona |
 | `charts` | Charts | analysis | `create_chart` | — | — |
@@ -141,6 +142,52 @@ The three paid methods need an API key from the organization's
 conditional rather than flat: a flat one would either lock the free default behind
 an account, or let a Tavily agent publish with nothing to authenticate with and
 fail on its first search.
+
+## Browser automation
+
+`browse_web` — *Delegate an open-ended web task to an autonomous browser agent.*
+
+One goal in natural language, handed to a
+[browser-use](https://github.com/browser-use/browser-use) agent that drives a real
+Chromium — navigating, reading, clicking, extracting — and returns a text result.
+Reach for it when the page layout is unknown or the task needs judgement, not for a
+scripted flow a direct request would do.
+
+This is the largest attack surface a capability opens: a browser follows what a page
+tells it, the page is untrusted, and so `browse_web` turns web content into a tool
+with side effects. It is **`side_effecting` and gateable** for that reason — put it
+behind [approval](../governance.md) and the injected page reaches a person, not an
+action.
+
+| Config | Default | Values |
+|---|---|---|
+| `mode` | `playwright` | `playwright`, `remote` |
+| `cdp_url` | null | a Chromium DevTools endpoint; required by (and only valid in) `remote` |
+| `allowed_domains` | null | domains the agent may reach; globs like `*.example.com` allowed; null is unrestricted |
+| `max_steps` | 25 | 1–100; each step is one model request |
+| `use_vision` | `true` | send page screenshots to the browser agent's model |
+| `headless` | `true` | run a locally launched browser without a window (`playwright` only) |
+
+**`mode` chooses where the browser runs.** `playwright` launches a headless Chromium
+next to the agent; `remote` attaches over CDP to a browser an operator runs
+elsewhere. A self-hosted deployment points `remote` at a hardened, isolated browser
+service rather than giving the app container a browser process. A `remote` `cdp_url`
+is a URL this deployment connects to server-side, so it is SSRF-checked — a loopback,
+private, reserved or metadata address is refused **at publish**, when the spec is
+saved, rather than on every run (the check resolves DNS, which must not block the
+event loop the run assembles on).
+
+**The browser agent's model spend is metered.** The sub-agent runs on the host run's
+model — the one whose credential was resolved from the vault — and each of its steps
+is one model request, booked against the run's budget through the same ambient-usage
+ledger a compaction summary uses. It is not browser-use's own hosted model, and it is
+not spend the budget guard cannot see.
+
+**`browser-use` is an optional extra.** It pulls a heavy tree (Chromium via
+Playwright) and pins dependencies a minor lower than the rest of the platform, so it
+is not installed by default. An operator who wants the capability installs
+`agenticos[browser-use]` and provides a Chromium; a bound agent whose deployment
+lacks it fails the one tool loudly, with the install line.
 
 ## Run Python
 
@@ -893,11 +940,12 @@ the agent is assembled:
 |---|---|
 | `knowledge:read` | `knowledge`, `skills` |
 | `web:read` | `web_research` |
+| `web:browse` | `browser_use` |
 | `code:execute` | `code_execution` |
 | `sandbox:execute` | `sandbox` |
 | `agents:delegate` | `subagents` |
 
-All five are granted by default today (`DEFAULT_GRANTED_SCOPES` in
+All six are granted by default today (`DEFAULT_GRANTED_SCOPES` in
 `app/services/agent_registry.py`). Per-organization scope management is
 [roadmap](../ROADMAP.md) work; the check is live and honest in the meantime rather
 than disabled and forgotten.

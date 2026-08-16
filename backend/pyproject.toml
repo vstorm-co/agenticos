@@ -95,6 +95,15 @@ dependencies = [
     "slack-sdk>=3.35.0",
 ]
 
+# No `[project.optional-dependencies]` entry for the `browser_use` capability's
+# engine. `browser-use` (0.13.x) hard-pins `pydantic==2.12.5`, which is
+# irreconcilable with this project's `pydantic>=2.13.4`: uv's universal resolver
+# refuses to lock even an *optional* extra whose transitive pins conflict with the
+# base ones. So it cannot be a managed dependency here at all, and installing it
+# into the venv would drag `pydantic` back a minor across the whole platform.
+# Until browser-use loosens that pin, the capability is wired and tested but its
+# engine is not co-installable - see the capability's README and docs/reference.
+
 # PEP 735 dependency group — installed by `uv sync` / `uv sync --dev` and
 # excluded by `--no-dev`. (A `dev` extra under [project.optional-dependencies]
 # only installed via uv's deprecated dev-extra special-casing, so `uv sync --dev`
