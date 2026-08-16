@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
     BigInteger,
@@ -55,6 +55,36 @@ class Conversation(Base, TimestampMixin):
     )
     title: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    summary_messages: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB, nullable=True)
+    """The history as the model last saw it, after a summary replaced part of it.
+
+    Compaction reaches the messages of one run. Rebuilt from the transcript next
+    turn, the summary is thrown away and bought again over a history one turn
+    longer - which is what two consecutive turns of a real conversation did here
+    (#49). Serialised the way a parked run's messages are, so tool calls, their
+    returns and the provider usage each answer carried all survive the boundary.
+
+    Null until a summary has run, which for most conversations is for ever.
+    """
+
+    summary_ordinal: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    """The last transcript row `summary_messages` accounts for.
+
+    The next turn replays the summary and the rows written after this, which is
+    what makes the two halves one history rather than a duplicate of the tail.
+    """
+
+    overhead_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    """What a request here carries before a single message.
+
+    The instructions and every tool schema, which the provider bills every time
+    and no summary can compact away, so this is the number that says whether a
+    window has room for a summary at all. Measured from a response, which is why
+    it is written down: within one run it is unknown until one arrives, and a
+    one-request chat turn - most of them - never gets that far. Recorded, the
+    next turn starts knowing it (#49).
+    """
 
     messages: Mapped[list["Message"]] = relationship(
         "Message",

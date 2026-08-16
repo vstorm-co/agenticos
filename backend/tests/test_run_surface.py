@@ -80,9 +80,13 @@ def _a_turn(runner: MagicMock) -> Any:
     with (
         patch("app.services.embed_session.AgentRunnerService", return_value=runner),
         patch("app.services.embed_session.conversation_repo") as conversations,
+        # The thread the model is told. Read through the service since #49,
+        # because where a summary has run that is where the history starts.
+        patch("app.services.embed_session.ConversationService") as history,
         patch("app.services.access.member_repo") as members,
     ):
         conversations.get_recent_messages = AsyncMock(return_value=[])
+        history.return_value.model_history = AsyncMock(return_value=[])
         yield members
 
 

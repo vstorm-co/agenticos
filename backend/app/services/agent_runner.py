@@ -157,6 +157,7 @@ from app.services.attachments import AttachmentRouter
 from app.services.channels.attachments import files_written, workspace_snapshot
 from app.services.channels.base import OutgoingAttachment
 from app.services.channels.prompt_variables import resolve as resolve_prompt_variables
+from app.services.conversation import ConversationService
 from app.services.mcp_connection import build_toolsets_for_agent
 from app.services.model_profile import ModelProfileService
 from app.services.notifications import NotificationService
@@ -1421,6 +1422,19 @@ class AgentRunnerService:
             names.append(collection.collection_name)
         return names
 
+    async def _recorded_overhead(self, conversation_id: UUID | None) -> int | None:
+        """What this thread last measured a request to carry before any message.
+
+        A property of the agent rather than of the conversation, strictly - but
+        the conversation is where a run can find it without asking every surface
+        to carry it, and an agent answering one thread is answering it with the
+        instructions and tools it has now.
+        """
+        if conversation_id is None:
+            return None
+        conversation = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
+        return None if conversation is None else conversation.overhead_tokens
+
     async def prepare(
         self,
         ctx: AuthContext,
@@ -1721,6 +1735,11 @@ class AgentRunnerService:
             org_period_spend=org_period_spend,
             org_monthly_budget_usd=organization.monthly_budget_usd,
             request_approval=channel,
+            # What an earlier turn of this thread measured its instructions and
+            # tool schemas at. Without it the reading is `None` until a response
+            # arrives, so on a one-request turn compaction cannot tell a window
+            # with no room from one that works (#49).
+            recorded_overhead=await self._recorded_overhead(conversation_id),
         )
 
         # Both only assignable now, and both before the run starts. The guard and
@@ -3193,6 +3212,7 @@ class AgentRunnerService:
         budget_scope: BudgetScope | None = None
         called: list[RecordedToolCall] = []
         settled: dict[str, str] = {}
+        summarized: list[dict[str, Any]] | None = None
         try:
             result = await self._answer(
                 prepared,
@@ -3204,6 +3224,10 @@ class AgentRunnerService:
             # `new_messages`, not `all_messages`: a resumed run is handed
             # everything up to the park as history, and the wider list would
             # write the first attempt's calls again under the same run.
+            if prepared.built.context.summarized:
+                summarized = ModelMessagesTypeAdapter.dump_python(
+                    result.all_messages(), mode="json"
+                )
             new_messages = result.new_messages()
             called = tool_calls_in(new_messages)
             # And what the *inherited* calls returned. On a resume the approved
@@ -3270,6 +3294,21 @@ class AgentRunnerService:
                 # is measured against - see `build_message_history`.
                 context_used_tokens=prepared.built.context.latest,
             )
+            # After the rows, because what is stored beside a summary is how far
+            # it reaches: recorded before them it would stop short of this turn
+            # and replay it twice. A channel thread is long-lived and never rolls
+            # over, so without this every message past the window buys its own
+            # summary of a history one turn longer (#49).
+            if prepared.run.conversation_id is not None:
+                conversations = ConversationService(self.db)
+                if summarized is not None:
+                    await conversations.keep_summary(prepared.run.conversation_id, summarized)
+                # On every turn, not only a summarising one: it is what the *next*
+                # turn needs before it has a response of its own to measure.
+                if prepared.built.context.overhead is not None:
+                    await conversations.keep_overhead(
+                        prepared.run.conversation_id, prepared.built.context.overhead
+                    )
             # Committed here rather than left to the session context: that exit
             # rolls back on any exception, and cancellation never reaches it at
             # all, since `CancelledError` is not an `Exception`. A run that

@@ -435,6 +435,21 @@ class TestAWindowWithNoRoomForASummary:
 
         assert len(compacted.messages) == len(history)
 
+    async def test_a_reading_from_an_earlier_turn_is_enough_to_refuse(self):
+        """The reading comes off a *response*, so a one-request turn - which is
+        most chat turns - never measures one of its own before it has to decide.
+        Left per-run, this refusal never fired at all and the agent bought a
+        summary every turn in silence (#49); the conversation carries it now, and
+        `build_agent` seeds the gauge with it."""
+        capability, history = self._wrapper(5_000, None)
+        capability.gauge = ContextGauge(overhead=3_865)
+
+        compacted = await capability.before_model_request(
+            _run_context(), _request_context(list(history))
+        )
+
+        assert len(compacted.messages) == len(history)
+
     async def test_without_a_reading_nothing_is_skipped(self):
         """Nothing is measured until a response has been seen, and skipping on a
         guess is a run that never compacts for a reason nobody can see."""
@@ -625,6 +640,50 @@ class TestSayingItIsWorking:
         # Not a number: the history is whatever it was, and one here would report
         # a compaction that did not happen.
         assert seen[1].messages_after is None
+
+    async def test_a_summary_that_ran_is_marked_so_the_surface_can_keep_it(self):
+        """Read off the built agent once the run is over. Without it the summary
+        dies at the turn boundary and the next turn buys another over a history
+        one turn longer (#49)."""
+        gauge = ContextGauge()
+        strategy = build_strategy(_triggers_immediately("summarize", keep_messages=2), gauge=gauge)
+        history = [_user("x") for _ in range(5)]
+
+        with patch.object(SummarizingCompaction, "compact", AsyncMock(return_value=history[:2])):
+            await strategy.compact(history, self._ctx(None))
+
+        assert gauge.summarized is True
+
+    async def test_a_summary_that_raised_is_not_marked(self):
+        """Nothing was reduced, so there is nothing to keep - and keeping the
+        pre-summary history would freeze the thread at its longest."""
+        gauge = ContextGauge()
+        strategy = build_strategy(_triggers_immediately("summarize"), gauge=gauge)
+
+        with (
+            patch.object(SummarizingCompaction, "compact", AsyncMock(side_effect=RuntimeError)),
+            pytest.raises(RuntimeError),
+        ):
+            await strategy.compact([_user("x")], self._ctx(None))
+
+        assert gauge.summarized is False
+
+    async def test_dropping_messages_is_not_worth_writing_down(self):
+        """A sliding window costs nothing to redo, and persisting it would make
+        permanent a loss the next turn would otherwise reconsider."""
+        gauge = ContextGauge()
+        strategy = build_strategy(
+            _triggers_immediately("sliding_window", keep_messages=2), gauge=gauge
+        )
+
+        history = [_user("x") for _ in range(5)]
+
+        compacted = await strategy.compact(history, self._ctx(None))
+
+        assert len(compacted) < len(history), (
+            "the strategy has to have run for this to mean anything"
+        )
+        assert gauge.summarized is False
 
     async def test_a_surface_that_cannot_narrate_gets_a_silent_summary(self):
         """A progress report, not a permission: the summary still happens."""

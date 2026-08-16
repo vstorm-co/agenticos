@@ -67,6 +67,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import WebSocket
+from pydantic_ai.messages import ModelMessage
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AppException
@@ -77,8 +78,8 @@ from app.db.models.chat_file import ChatFile
 from app.repositories import chat_file_repo, conversation_repo, embed_visitor_repo
 from app.schemas.agent_embed import EmbedVariable, PageConfig
 from app.services.access import publisher_context
-from app.services.agent import build_message_history
 from app.services.agent_runner import AgentRunnerService
+from app.services.conversation import ConversationService
 from app.services.run_stream import RunFrames
 
 logger = logging.getLogger(__name__)
@@ -566,31 +567,22 @@ class EmbedSession:
             )
         return usable
 
-    async def _history(self, db: AsyncSession) -> list[Any]:
+    async def _history(self, db: AsyncSession) -> list[ModelMessage]:
         """What this visitor and the agent have already said to each other.
 
         The embed was the one surface that passed none, so a widget forgot the
         previous question the moment it answered it: the conversation row grouped
         the turns for whoever read it afterwards, and the model saw a stranger
         every time. Web chat, the API and all three channels carry theirs (#39).
+
+        Where a summary has run, that is where the thread starts - a bookmarked
+        hosted page is long-lived, and rebuilding it from the transcript buys the
+        same summary again on every visit (#49).
         """
         if self.conversation_id is None:
             return []
-        messages = await conversation_repo.get_recent_messages(
-            db, self.conversation_id, limit=HISTORY_MESSAGES
-        )
-        return build_message_history(
-            [
-                {
-                    "role": m.role,
-                    "content": m.content,
-                    # The size of the request this answer came out of: the anchor the
-                    # compaction estimator measures against, in place of counting
-                    # characters - see `agent.build_message_history`.
-                    "context_used_tokens": m.context_used_tokens,
-                }
-                for m in messages
-            ]
+        return await ConversationService(db).model_history(
+            self.conversation_id, limit=HISTORY_MESSAGES
         )
 
     def _supplied_block(self) -> str:

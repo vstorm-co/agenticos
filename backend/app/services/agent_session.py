@@ -6,6 +6,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import WebSocket, WebSocketDisconnect
+from pydantic_ai.messages import ModelMessage
 
 from app.agents.ask_user import QuestionItem, render_answer
 from app.agents.capabilities.budget import BudgetExceeded
@@ -16,17 +17,15 @@ from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.db.session import get_db_context
-from app.repositories import conversation as conversation_repo
 from app.schemas.conversation import MessagePart
 from app.services.agent import (
-    HistoryMessage,
-    build_message_history,
     persist_assistant_turn,
     persist_user_turn,
     send_event,
 )
 from app.services.agent_chat import (
     ChatAgentRunner,
+    ChatTurn,
     OpenedRun,
     requested_agent_id,
     requested_environment_id,
@@ -34,6 +33,7 @@ from app.services.agent_chat import (
 )
 from app.services.attachments import load_attached_files
 from app.services.chat_timeline import TurnTimeline
+from app.services.conversation import ConversationService
 from app.services.run_stream import RunFrames
 from app.services.usage_report import usage_frame
 
@@ -244,7 +244,7 @@ class AgentSession:
         # failure inside it - the history, the attachment lookup - must not turn
         # a lost answer into a `NameError`.
         try:
-            model_history = build_message_history(await self._history(prompt.message_id))
+            model_history = await self._history(prompt.message_id)
             # The files, not a prompt built from them. Where an attachment goes
             # depends on whether the agent has a workspace, and only `prepare`
             # knows that - so the routing happens one layer down.
@@ -312,6 +312,7 @@ class AgentSession:
                 # cannot read `turn` to work that out - the whole point of it is
                 # the paths where `turn` was never assigned.
                 answered = True
+                await self._remember_context(turn)
 
             if assistant_msg_id:
                 await send_event(
@@ -505,8 +506,41 @@ class AgentSession:
         frame = event.model_dump(mode="json")
         await send_event(self.websocket, event.kind, frame)
 
-    async def _history(self, prompt_message_id: UUID | None) -> list[HistoryMessage]:
+    async def _remember_context(self, turn: ChatTurn) -> None:
+        """Record what this turn learned about the thread's own context.
+
+        The summary it produced, so the next turn starts from it rather than
+        buying another; and what a request here carries before a single message,
+        so the next turn can tell a window with no room for a summary from one
+        that works before it has a response of its own to measure.
+
+        After the turn's own rows, never before: what is stored beside the
+        history is how far it reaches, and reaching short of the answer would
+        replay that answer twice.
+
+        Its own session because the turn's has been committed and closed by the
+        time this runs, and its own for a second reason - a failure to record
+        either must cost the record, not the answer somebody is reading.
+        """
+        if turn.summarized_history is None and turn.overhead_tokens is None:
+            return
+        # Called from inside the branch that has one, which is also the branch
+        # that has just written the rows this is measured against.
+        conversation_id = UUID(str(self.current_conversation_id))
+        async with get_db_context() as db:
+            conversations = ConversationService(db)
+            if turn.summarized_history is not None:
+                await conversations.keep_summary(conversation_id, turn.summarized_history)
+            if turn.overhead_tokens is not None:
+                await conversations.keep_overhead(conversation_id, turn.overhead_tokens)
+
+    async def _history(self, prompt_message_id: UUID | None) -> list[ModelMessage]:
         """What has already been said in this thread, without the turn being run.
+
+        **The summary counts as what was said.** Where one has run, the thread
+        starts from the history it reduced the older turns to rather than from
+        the transcript, which is what stops the next turn buying the same summary
+        again (#49) - see `ConversationService.model_history`.
 
         **Read from the database, not from this session.** It used to be a list on
         the socket, appended to as turns went by and loaded from nowhere - so a
@@ -536,21 +570,11 @@ class AgentSession:
         if self.current_conversation_id is None:
             return []
         async with get_db_context() as db:
-            messages = await conversation_repo.get_recent_messages(
-                db, UUID(self.current_conversation_id), limit=HISTORY_MESSAGES
+            return await ConversationService(db).model_history(
+                UUID(self.current_conversation_id),
+                limit=HISTORY_MESSAGES,
+                exclude_message_id=prompt_message_id,
             )
-        return [
-            {
-                "role": message.role,
-                "content": message.content,
-                # The size of the request this answer came out of: the anchor the
-                # compaction estimator measures against, in place of counting
-                # characters - see `agent.build_message_history`.
-                "context_used_tokens": message.context_used_tokens,
-            }
-            for message in messages
-            if message.id != prompt_message_id
-        ]
 
     async def _attached_files(self, file_ids: list[Any]) -> list[ChatFile]:
         """The rows for the files this frame attached.

@@ -8,6 +8,8 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from pydantic_ai.messages import ModelMessage
+
 from app.core.config import settings
 from app.core.exceptions import AppException, AuthorizationError, BadRequestError
 from app.db.models.agent_run import RunStatus
@@ -17,7 +19,6 @@ from app.repositories import (
     channel_session_repo,
     conversation_repo,
 )
-from app.services.agent import HistoryMessage, build_message_history
 from app.services.channel_bot import unseal_bot_token
 from app.services.channel_link import ChannelLinkService
 from app.services.channels import get_adapter
@@ -36,6 +37,7 @@ from app.services.channels.mentions import (
     UnaddressedMessage,
     parse_mention,
 )
+from app.services.conversation import ConversationService
 
 logger = logging.getLogger(__name__)
 
@@ -295,7 +297,7 @@ class ChannelMessageRouter:
                 # binding's, and the binding is resolved a layer down.
                 turn=session.turn_count,
                 attachments=files,
-                message_history=build_message_history(history),
+                message_history=history,
                 stream=None if live is None else channel_stream(live),
             )
         except AppException as exc:
@@ -962,27 +964,17 @@ class ChannelMessageRouter:
             )
 
     @staticmethod
-    async def _load_history(db: Any, conversation_id: Any) -> list[HistoryMessage]:
+    async def _load_history(db: Any, conversation_id: Any) -> list[ModelMessage]:
         """The most recent turns of the channel thread, oldest first.
 
         **The most recent, which took a `count` to get right** - and the count
-        lives in `conversation_repo.get_recent_messages` now, with the two bugs
-        that paid for it. A support channel passes 200 turns in days, because
+        lives in `ConversationService.model_history` now, with the two bugs that
+        paid for it. A support channel passes 200 turns in days, because
         `channel_sessions` keys the conversation to the chat and the thread never
         rolls over; past that the bot answered plausibly from a version of the
         conversation that had stopped hundreds of turns ago (#638).
+
+        Where a summary has run it starts from that instead, which is what stops
+        a long-lived channel thread buying one on every message (#49).
         """
-        messages = await conversation_repo.get_recent_messages(
-            db, conversation_id, limit=HISTORY_MESSAGES
-        )
-        return [
-            {
-                "role": m.role,
-                "content": m.content,
-                # The size of the request this answer came out of: the anchor the
-                # compaction estimator measures against, in place of counting
-                # characters - see `agent.build_message_history`.
-                "context_used_tokens": m.context_used_tokens,
-            }
-            for m in messages
-        ]
+        return await ConversationService(db).model_history(conversation_id, limit=HISTORY_MESSAGES)

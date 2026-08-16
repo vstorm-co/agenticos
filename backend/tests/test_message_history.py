@@ -18,7 +18,7 @@ from __future__ import annotations
 from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart
 from pydantic_ai_harness.compaction import estimate_context_tokens
 
-from app.services.agent import build_message_history
+from app.services.message_history import build_message_history
 
 
 def test_a_row_with_text_becomes_a_part_of_the_matching_kind() -> None:

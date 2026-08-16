@@ -221,34 +221,45 @@ class NotifyingSummarizingCompaction(SummarizingCompaction[AgentDepsT]):
     leave a surface spinning for ever, and the run carries on either way.
     """
 
+    gauge: ContextGauge | None = None
+    """The run's reading, so a summary that ran can be *kept*.
+
+    A dataclass field rather than a constructor argument to `compact`, because
+    the surface needs the answer after the run has finished and nothing else
+    carries it that far. `None` in a test that builds a strategy on its own."""
+
     async def compact(
         self, messages: list[ModelMessage], ctx: RunContext[AgentDepsT]
     ) -> list[ModelMessage]:
-        sink = getattr(ctx.deps, "on_compaction", None)
-        if sink is None:
-            return await super().compact(messages, ctx)
-
         before = len(messages)
+        sink = getattr(ctx.deps, "on_compaction", None)
         compacted: list[ModelMessage] | None = None
-        await sink(CompactionEvent(kind="compaction_started", messages_before=before))
+        if sink is not None:
+            await sink(CompactionEvent(kind="compaction_started", messages_before=before))
         try:
             compacted = await super().compact(messages, ctx)
             return compacted
         finally:
-            await sink(
-                CompactionEvent(
-                    kind="compaction_finished",
-                    messages_before=before,
-                    # `None` where the summary raised: the history is whatever it
-                    # was, and a number here would report a compaction that did
-                    # not happen.
-                    messages_after=None if compacted is None else len(compacted),
+            if compacted is not None and self.gauge is not None:
+                self.gauge.summarized = True
+            if sink is not None:
+                await sink(
+                    CompactionEvent(
+                        kind="compaction_finished",
+                        messages_before=before,
+                        # `None` where the summary raised: the history is whatever
+                        # it was, and a number here would report a compaction that
+                        # did not happen.
+                        messages_after=None if compacted is None else len(compacted),
+                    )
                 )
-            )
 
 
 def build_strategy(
-    config: CompactionConfig, *, recorded_window: int | None = None
+    config: CompactionConfig,
+    *,
+    recorded_window: int | None = None,
+    gauge: ContextGauge | None = None,
 ) -> AbstractCapability[Any]:
     """The harness strategy this configuration asks for.
 
@@ -302,6 +313,7 @@ def build_strategy(
 
     def summarizing() -> NotifyingSummarizingCompaction[Any]:
         return NotifyingSummarizingCompaction(
+            gauge=gauge,
             max_fraction=config.max_fraction,
             keep_messages=config.keep_messages,
             summary_prompt=config.summary_prompt,
@@ -350,6 +362,20 @@ class ContextGauge:
     """
 
     latest: int | None = None
+
+    summarized: bool = False
+    """Whether a summary replaced part of this run's history.
+
+    Read after the run, by the surface that persists the conversation: a summary
+    is a model request paid for over a history that is by definition long, and
+    rebuilding the thread from the transcript next turn throws it away and buys
+    it again on a history one turn longer. Two consecutive turns of a real
+    conversation here each bought one (#49).
+
+    Only a *summary* sets it. Dropping the oldest messages and clearing tool
+    results cost nothing to redo, and persisting them would make a loss permanent
+    that is currently reconsidered against the window on every turn.
+    """
 
     overhead: int | None = None
     """What every request carries before a single message: instructions and tool

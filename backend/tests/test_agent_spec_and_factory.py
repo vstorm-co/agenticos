@@ -156,6 +156,33 @@ class TestFactory:
         )
         assert built.context.latest == 41_806
 
+    def test_an_earlier_turns_measurement_starts_the_gauge_off(self):
+        """The gauge is per run and filled by a *response*, so on a one-request
+        turn it is empty for the whole of it - and compaction, which reads it to
+        decide whether the window has room for a summary at all, could never tell
+        that case from a working one. The overhead is a property of the agent's
+        instructions and tool schemas rather than of one run, so what an earlier
+        turn measured is where this one starts (#49)."""
+        built = build_agent(
+            AgentSpec(name="Bare", instructions="Be brief."),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+            recorded_overhead=3_865,
+        )
+
+        assert built.context.overhead == 3_865
+
+    def test_a_thread_that_has_measured_nothing_starts_empty(self):
+        """A first turn. Nothing is guessed here - a made-up overhead would move
+        a refusal that costs an agent its compaction."""
+        built = build_agent(
+            AgentSpec(name="Bare", instructions="Be brief."),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+        )
+
+        assert built.context.overhead is None
+
     def test_agent_settings_override_the_profile(self):
         """The agent is the more specific statement of intent."""
         spec = AgentSpec(name="x", model_settings={"temperature": 0.9})

@@ -102,6 +102,7 @@ from app.services.agent_chat import ChatTurn, OpenedRun
 from app.services.agent_runner import ParkedApproval, PreparedRun
 from app.services.agent_session import AgentSession
 from app.services.chat_timeline import TurnTimeline
+from app.services.message_history import build_message_history
 from app.services.run_stream import RunFrames
 from app.services.usage_report import UsageReport
 
@@ -155,6 +156,8 @@ def _finished_turn(
     output: str = "Two are open.",
     parked: tuple[ParkedApproval, ...] = (),
     usage: UsageReport | None = None,
+    summarized_history: list[dict[str, Any]] | None = None,
+    overhead_tokens: int | None = None,
 ) -> ChatTurn:
     return ChatTurn(
         output=output,
@@ -164,6 +167,8 @@ def _finished_turn(
         run_id=uuid4(),
         parked=parked,
         usage=usage,
+        summarized_history=summarized_history,
+        overhead_tokens=overhead_tokens,
     )
 
 
@@ -213,18 +218,44 @@ def _chat(
     )
     answer = AsyncMock(return_value=message_id)
     history = AsyncMock(return_value=stored or [])
+    # The thread the model is told, and where a summary is kept. Both go through
+    # `ConversationService` since #49, so the seam this module stubs is the
+    # service rather than the repository under it.
+    conversations = MagicMock()
+    conversations.model_history = AsyncMock(
+        side_effect=lambda conversation_id, *, limit, exclude_message_id=None: (
+            build_message_history(
+                [
+                    {
+                        "role": row.role,
+                        "content": row.content,
+                        "context_used_tokens": row.context_used_tokens,
+                    }
+                    for row in (stored or [])
+                    if row.id != exclude_message_id
+                ]
+            )
+        )
+    )
+    conversations.keep_summary = AsyncMock()
+    conversations.keep_overhead = AsyncMock()
     with (
         patch("app.services.agent_session.persist_user_turn", new=prompt),
         patch("app.services.agent_session.persist_assistant_turn", new=answer),
         patch("app.services.agent_session.get_db_context") as db_context,
         patch("app.services.agent_session.ChatAgentRunner") as runner_cls,
+        patch("app.services.agent_session.ConversationService", return_value=conversations),
         patch.object(conversation_repo, "get_recent_messages", new=history),
     ):
         db_context.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
         db_context.return_value.__aexit__ = AsyncMock(return_value=False)
         runner_cls.return_value.run = run
         yield SimpleNamespace(
-            prompt=prompt, answer=answer, runner=runner_cls.return_value, history=history
+            prompt=prompt,
+            answer=answer,
+            runner=runner_cls.return_value,
+            history=history,
+            conversations=conversations,
         )
 
 
@@ -544,6 +575,55 @@ class TestATurnThatFinished:
             "how many are open?",
             "Two are open.",
         ]
+
+    async def test_a_summary_the_turn_produced_is_kept_for_the_next_one(self):
+        """Compaction reaches one run's messages. Rebuilt from the transcript, the
+        summary died at the turn boundary and the next turn bought another over a
+        history one turn longer - twice in a row, in a real conversation (#49)."""
+        session = _session()
+        summary = [{"kind": "request", "parts": []}]
+
+        with _chat(AsyncMock(return_value=_finished_turn(summarized_history=summary))) as stubs:
+            await session.process_message(_message())
+
+        assert stubs.conversations.keep_summary.await_args.args[1] == summary
+
+    async def test_a_turn_that_summarised_nothing_writes_nothing(self):
+        """Most turns. A write per turn would replace the history with itself and
+        pin the thread to whatever the last one happened to send."""
+        session = _session()
+
+        with _chat(AsyncMock(return_value=_finished_turn())) as stubs:
+            await session.process_message(_message())
+
+        stubs.conversations.keep_summary.assert_not_awaited()
+
+    async def test_what_a_request_carries_before_any_message_is_kept_too(self):
+        """Written on every turn, not only a summarising one: it is what the next
+        turn needs before it has a response of its own to measure (#49)."""
+        session = _session()
+
+        with _chat(AsyncMock(return_value=_finished_turn(overhead_tokens=3_865))) as stubs:
+            await session.process_message(_message())
+
+        assert stubs.conversations.keep_overhead.await_args.args[1] == 3_865
+
+    async def test_a_summary_is_kept_after_the_turn_it_belongs_to_is_written(self):
+        """What is stored beside it is how far it reaches. Recorded before the
+        answer, it would stop short of this turn and replay it twice."""
+        session = _session()
+        order: list[str] = []
+
+        with _chat(
+            AsyncMock(return_value=_finished_turn(summarized_history=[{"kind": "request"}]))
+        ) as stubs:
+            stubs.answer.side_effect = lambda *args, **kwargs: order.append("answer") or "saved-1"
+            stubs.conversations.keep_summary.side_effect = lambda *args, **kwargs: order.append(
+                "summary"
+            )
+            await session.process_message(_message())
+
+        assert order == ["answer", "summary"]
 
     async def test_a_replayed_answer_carries_the_size_of_the_request_it_came_from(self):
         """What makes compaction fire at all: its estimator anchors on a response
@@ -1913,9 +1993,10 @@ class _Turn:
             patch("app.services.agent_chat.member_repo") as members,
             patch("app.services.agent_chat.AgentRunnerService") as runner_cls,
             # The thread this turn continues, which since #771 is read from the
-            # transcript rather than from the socket. Empty here: what this class
+            # transcript rather than from the socket, and since #49 through the
+            # service that also keeps a summary. Empty here: what this class
             # drives is a delegation's teardown, not what the model was told.
-            patch.object(conversation_repo, "get_recent_messages", new=AsyncMock(return_value=[])),
+            patch("app.services.agent_session.ConversationService") as conversations,
         ):
             persist.return_value = PersistedPrompt(
                 conversation_id=_CONVERSATION, newly_created=False
@@ -1927,6 +2008,9 @@ class _Turn:
             members.get = AsyncMock(return_value=MagicMock())
             runner_cls.return_value.prepare = AsyncMock(return_value=self.prepared)
             runner_cls.return_value.finish = self._finish
+            conversations.return_value.model_history = AsyncMock(return_value=[])
+            conversations.return_value.keep_summary = AsyncMock()
+            conversations.return_value.keep_overhead = AsyncMock()
             yield
 
     async def in_flight(self) -> None:

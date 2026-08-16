@@ -142,11 +142,32 @@ without an anchor the trigger counts characters, and a real agent here read 9
 tokens where the provider had charged for 3,859. The gauge said 77%; the trigger
 saw nothing to do.
 
+**A summary is kept.** Compaction rewrites the messages of one run; the thread
+between turns is rebuilt from the transcript, so a summary used to be thrown away
+at the turn boundary and the next turn bought another one over a history one turn
+longer — two consecutive turns of a real conversation here each paid for a summary
+of the same five messages, and the second announced itself as summarising nine. So
+the compacted history is written to the conversation, along with how far it
+reaches, and the next turn starts from it and replays only what has been said
+since. Reopening the thread finds the same thing the model does.
+
+Only a summary is kept. Dropping the oldest messages and clearing tool results
+cost nothing to redo, and writing them down would make permanent a loss that is
+currently reconsidered against the window on every turn.
+
 One setting cannot work, and says so instead of running. When the instructions and
 tool schemas alone are past the trigger, no summary can get under it — they are
 not in the history to summarise. Every request would then buy a summary that
 changes nothing. Compaction is skipped, the chat says why, and the fix is an
 author's: a larger window, or a higher fraction.
+
+That refusal rests on a number a *response* produces, so a turn cannot measure
+its own before it has to decide — and a chat turn is usually one request. The
+conversation carries the last reading, and a run starts from it. The first turn
+of a thread therefore has nothing to go on and compacts as configured; from the
+second, the refusal is available. Only the strategies that buy something are
+refused: dropping the oldest messages and clearing tool results call no model, so
+they run whatever the window is.
 
 ### Delegation spends the parent's budget
 

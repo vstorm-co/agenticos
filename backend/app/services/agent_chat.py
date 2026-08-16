@@ -208,6 +208,22 @@ class ChatTurn:
     decision.
     """
 
+    summarized_history: list[dict[str, Any]] | None = None
+    """The history a summary reduced this turn to, or `None` if none ran.
+
+    Carried out rather than written here because the surface writes the turn's
+    own rows *after* this returns, and what is recorded alongside it is how far
+    the summary reaches - see `ConversationService.keep_summary`.
+    """
+
+    overhead_tokens: int | None = None
+    """What this turn measured a request to carry before a single message.
+
+    Recorded against the conversation so the *next* turn starts knowing it. It
+    comes off a response, so within one run it is unknown until one arrives -
+    and a one-request turn, which is most of them, never gets that far (#49).
+    """
+
     usage: UsageReport | None = None
     """What the turn cost, and how full its workspace is.
 
@@ -360,6 +376,7 @@ class ChatAgentRunner:
         paused: PausedRunState | None = None
         budget_scope: BudgetScope | None = None
         output = ""
+        summarized: list[dict[str, Any]] | None = None
         try:
             async with prepared.iterate(
                 user_input,
@@ -368,6 +385,13 @@ class ChatAgentRunner:
                 await stream(agent_run)
 
             result = _outcome(agent_run)
+            # Before the branch, so a turn that parked on an approval keeps its
+            # summary too: the resume replays the parked state, but the *next*
+            # turn reads the conversation and would otherwise summarise again.
+            if prepared.built.context.summarized:
+                summarized = ModelMessagesTypeAdapter.dump_python(
+                    result.all_messages(), mode="json"
+                )
             if isinstance(result.output, DeferredToolRequests):
                 paused = PausedRunState(
                     messages=ModelMessagesTypeAdapter.dump_python(
@@ -421,6 +445,8 @@ class ChatAgentRunner:
             run_id=prepared.run.id,
             parked=tuple(prepared.approvals.requested),
             usage=await self._usage(ctx, prepared),
+            summarized_history=summarized,
+            overhead_tokens=prepared.built.context.overhead,
         )
 
     async def _usage(self, ctx: AuthContext, prepared: PreparedRun) -> UsageReport | None:

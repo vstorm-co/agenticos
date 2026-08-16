@@ -7,8 +7,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
+from pydantic_ai.messages import ModelMessagesTypeAdapter, ModelRequest, SystemPromptPart
 
 from app.core.exceptions import BadRequestError, NotFoundError
+from app.repositories import conversation_repo
 from app.services.conversation import ConversationService
 
 # Every conversation belongs to a tenant; the service refuses reads from another one.
@@ -36,6 +38,9 @@ class MockConversation:
         self.created_at = datetime(2026, 7, 27, tzinfo=UTC)
         self.updated_at = None
         self.messages: list[Any] = []
+        self.summary_messages: list[dict[str, Any]] | None = None
+        self.summary_ordinal: int | None = None
+        self.overhead_tokens: int | None = None
 
 
 class MockMessage:
@@ -1525,3 +1530,165 @@ class TestWhatTheThreadCost:
         assert (cost.input_tokens, cost.output_tokens) == (3_000, 300)
         assert cost.cost_usd == Decimal("0.030000")
         assert cost.cost_is_partial is True
+
+
+@pytest.mark.anyio
+class TestTheThreadAModelIsGivenBack:
+    """A summary is bought once, not once per turn.
+
+    Compaction rewrites the messages of one run, and the thread between turns is
+    rebuilt from the transcript - so the summary used to be thrown away at the
+    turn boundary and the next turn bought another over a history one turn
+    longer. Two consecutive turns of a real conversation each paid for one, the
+    second announcing itself as summarising nine messages (#49).
+    """
+
+    @staticmethod
+    def _row(role: str, content: str, *, used: int | None = None, row_id: Any = None) -> Any:
+        message = MockMessage(role=role, content=content, id=row_id)
+        message.context_used_tokens = used
+        return message
+
+    async def test_a_conversation_with_no_summary_is_read_from_its_transcript(self, monkeypatch):
+        conversation = MockConversation()
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        recent = AsyncMock(return_value=[self._row("user", "hi"), self._row("assistant", "hello")])
+        monkeypatch.setattr(conversation_repo, "get_recent_messages", recent)
+
+        history = await ConversationService(AsyncMock()).model_history(conversation.id, limit=50)
+
+        assert [part.content for message in history for part in message.parts] == ["hi", "hello"]
+
+    async def test_a_summary_replaces_the_turns_it_accounts_for(self, monkeypatch):
+        """The whole point: the summarised turns are not read back at all, so the
+        next turn has nothing left to summarise a second time."""
+        conversation = MockConversation()
+        conversation.summary_messages = ModelMessagesTypeAdapter.dump_python(
+            [ModelRequest(parts=[SystemPromptPart(content="Summary: they said hello.")])],
+            mode="json",
+        )
+        conversation.summary_ordinal = 4
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        after = AsyncMock(return_value=[self._row("user", "and now?")])
+        monkeypatch.setattr(conversation_repo, "get_messages_after", after)
+        monkeypatch.setattr(conversation_repo, "get_recent_messages", AsyncMock())
+
+        history = await ConversationService(AsyncMock()).model_history(conversation.id, limit=50)
+
+        assert [part.content for message in history for part in message.parts] == [
+            "Summary: they said hello.",
+            "and now?",
+        ]
+        assert after.await_args.kwargs["ordinal"] == 4
+        conversation_repo.get_recent_messages.assert_not_awaited()
+
+    async def test_the_turn_being_answered_is_not_read_back_as_history(self, monkeypatch):
+        """The prompt is written before the run so a refusal cannot lose it, so it
+        is a row by the time this reads. Left in, the model is asked twice."""
+        conversation = MockConversation()
+        prompt_id = uuid4()
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        monkeypatch.setattr(
+            conversation_repo,
+            "get_recent_messages",
+            AsyncMock(return_value=[self._row("user", "asked now", row_id=prompt_id)]),
+        )
+
+        history = await ConversationService(AsyncMock()).model_history(
+            conversation.id, limit=50, exclude_message_id=prompt_id
+        )
+
+        assert history == []
+
+    async def test_a_summary_is_recorded_against_everything_written_so_far(self, monkeypatch):
+        """Including the turn that produced it. Stored short of the answer, the
+        next turn would replay the summary and the answer already inside it."""
+        conversation = MockConversation()
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        monkeypatch.setattr(conversation_repo, "last_ordinal", AsyncMock(return_value=9))
+        stored = AsyncMock()
+        monkeypatch.setattr(conversation_repo, "set_summary", stored)
+
+        await ConversationService(AsyncMock()).keep_summary(conversation.id, [{"kind": "request"}])
+
+        assert stored.await_args.kwargs["ordinal"] == 9
+        assert stored.await_args.kwargs["messages"] == [{"kind": "request"}]
+
+    async def test_a_summary_for_a_conversation_that_is_gone_is_dropped(self, monkeypatch):
+        """A thread deleted while its last turn was still running. The answer has
+        already been produced; failing here would lose it to bookkeeping."""
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=None)
+        )
+        stored = AsyncMock()
+        monkeypatch.setattr(conversation_repo, "set_summary", stored)
+
+        await ConversationService(AsyncMock()).keep_summary(uuid4(), [{"kind": "request"}])
+
+        stored.assert_not_awaited()
+
+    async def test_a_conversation_that_is_gone_has_no_history(self, monkeypatch):
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=None)
+        )
+        monkeypatch.setattr(conversation_repo, "get_recent_messages", AsyncMock(return_value=[]))
+
+        assert await ConversationService(AsyncMock()).model_history(uuid4(), limit=50) == []
+
+
+@pytest.mark.anyio
+class TestWhatARequestCarriesBeforeAnyMessage:
+    """The instructions and every tool schema, which no summary compacts away.
+
+    Measured from a response, so within one run it is unknown until one arrives -
+    and a one-request chat turn, which is most of them, never gets that far. Left
+    per-run it was `None` for the whole turn, so compaction could not tell a
+    window with no room for a summary from one that works, and bought one every
+    turn in silence (#49).
+    """
+
+    async def test_it_is_recorded_so_the_next_turn_starts_knowing_it(self, monkeypatch):
+        conversation = MockConversation()
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        stored = AsyncMock()
+        monkeypatch.setattr(conversation_repo, "set_overhead", stored)
+
+        await ConversationService(AsyncMock()).keep_overhead(conversation.id, 3_865)
+
+        assert stored.await_args.kwargs["tokens"] == 3_865
+
+    async def test_a_reading_that_has_not_moved_is_not_written_again(self, monkeypatch):
+        """It moves only when the agent does - a tool bound, a prompt rewritten -
+        so an UPDATE per turn writes the number that was already there."""
+        conversation = MockConversation()
+        conversation.overhead_tokens = 3_865
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        stored = AsyncMock()
+        monkeypatch.setattr(conversation_repo, "set_overhead", stored)
+
+        await ConversationService(AsyncMock()).keep_overhead(conversation.id, 3_865)
+
+        stored.assert_not_awaited()
+
+    async def test_a_conversation_that_is_gone_records_nothing(self, monkeypatch):
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=None)
+        )
+        stored = AsyncMock()
+        monkeypatch.setattr(conversation_repo, "set_overhead", stored)
+
+        await ConversationService(AsyncMock()).keep_overhead(uuid4(), 3_865)
+
+        stored.assert_not_awaited()

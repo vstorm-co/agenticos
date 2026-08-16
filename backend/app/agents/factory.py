@@ -117,6 +117,7 @@ def build_agent(
     org_monthly_budget_usd: Decimal | None = None,
     request_approval: ApprovalCallback | None = None,
     shared_budget: BudgetGuard | None = None,
+    recorded_overhead: int | None = None,
 ) -> BuiltAgent:
     """Instantiate an agent from its spec.
 
@@ -167,10 +168,18 @@ def build_agent(
             the organization no longer has.
     """
     bindings = spec.bindings()
-    # Built before the capabilities, not after: compaction reads it to allow for
-    # what every request carries before a single message, and the reading is
+    # Built before the capabilities, not after: compaction reads it to decide
+    # whether this window has room for a summary at all, and the reading is
     # filled by the capability appended at the end of the list below.
-    gauge = ContextGauge()
+    #
+    # Seeded with what an earlier turn of this conversation measured, because
+    # otherwise it is only filled by a *response* - so on a one-request chat
+    # turn, which is most of them, it is `None` for the whole turn and the
+    # refusal it guards never fires. The overhead is a property of the agent's
+    # instructions and tool schemas rather than of one run, so last turn's
+    # measurement is this turn's starting estimate, and the first response of
+    # this run replaces it (#49).
+    gauge = ContextGauge(overhead=recorded_overhead)
     configured = build_capabilities(
         bindings,
         granted_scopes=granted_scopes,

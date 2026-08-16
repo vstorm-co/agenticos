@@ -679,6 +679,71 @@ async def get_recent_messages(
     )
 
 
+async def get_messages_after(
+    db: AsyncSession, conversation_id: UUID, *, ordinal: int, limit: int
+) -> list[Message]:
+    """The last `limit` messages written after `ordinal`, still oldest first.
+
+    What a conversation has said since its summary was taken, which is the half
+    of the history the summary does not account for. Bounded like
+    `get_recent_messages` is, and for the same reason: a thread nobody compacts
+    again must not grow into an unbounded prompt.
+    """
+    total = await db.scalar(
+        select(func.count(Message.id)).where(
+            Message.conversation_id == conversation_id, Message.ordinal > ordinal
+        )
+    )
+    query = (
+        select(Message)
+        .where(Message.conversation_id == conversation_id, Message.ordinal > ordinal)
+        .options(selectinload(Message.files))
+        .order_by(Message.ordinal.asc())
+        .offset(max(0, (total or 0) - limit))
+        .limit(limit)
+    )
+    result = await db.execute(query)
+    return list(result.scalars().all())
+
+
+async def set_summary(
+    db: AsyncSession,
+    *,
+    db_conversation: Conversation,
+    messages: list[dict[str, Any]],
+    ordinal: int,
+) -> Conversation:
+    """Record the history a summary reduced this conversation to.
+
+    One row per conversation rather than a log of them: the newest summary is
+    written over the last, because it was produced *from* it and the older one
+    describes a thread that no longer exists.
+    """
+    db_conversation.summary_messages = messages
+    db_conversation.summary_ordinal = ordinal
+    await db.flush()
+    await db.refresh(db_conversation)
+    return db_conversation
+
+
+async def set_overhead(
+    db: AsyncSession, *, db_conversation: Conversation, tokens: int
+) -> Conversation:
+    """Record what a request here carries before a single message."""
+    db_conversation.overhead_tokens = tokens
+    await db.flush()
+    await db.refresh(db_conversation)
+    return db_conversation
+
+
+async def last_ordinal(db: AsyncSession, conversation_id: UUID) -> int:
+    """The ordinal of the newest message, or 0 for a conversation with none."""
+    highest = await db.scalar(
+        select(func.max(Message.ordinal)).where(Message.conversation_id == conversation_id)
+    )
+    return highest or 0
+
+
 async def get_messages_by_run(
     db: AsyncSession,
     run_id: UUID,

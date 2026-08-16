@@ -13,6 +13,7 @@ from datetime import UTC, datetime
 from typing import Any, Final, Literal
 from uuid import UUID
 
+from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import BadRequestError, NotFoundError
@@ -36,6 +37,7 @@ from app.schemas.conversation import (
 )
 from app.schemas.conversation_share import AdminConversationList, AdminConversationRead
 from app.services.channels import membership as channel_membership
+from app.services.message_history import HistoryMessage, build_message_history
 
 logger = logging.getLogger(__name__)
 
@@ -74,9 +76,92 @@ def _file_uuids(file_ids: Sequence[str]) -> tuple[list[UUID], list[str]]:
     return ids, malformed
 
 
+def _as_history(rows: Sequence[Message], exclude_message_id: UUID | None) -> list[HistoryMessage]:
+    """Transcript rows as the replayer wants them, minus the turn being answered."""
+    return [
+        {
+            "role": row.role,
+            "content": row.content,
+            # The size of the request this answer came out of: the anchor the
+            # compaction estimator measures against, in place of counting
+            # characters - see `agent.build_message_history`.
+            "context_used_tokens": row.context_used_tokens,
+        }
+        for row in rows
+        if row.id != exclude_message_id
+    ]
+
+
 class ConversationService:
     def __init__(self, db: AsyncSession):
         self.db = db
+
+    async def model_history(
+        self, conversation_id: UUID, *, limit: int, exclude_message_id: UUID | None = None
+    ) -> list[ModelMessage]:
+        """The thread as the model should read it, summary included.
+
+        Two halves where a summary has run: the history it reduced the older
+        turns to, replayed exactly as the model last saw it - tool calls, their
+        returns and the provider usage each answer carried - followed by the
+        transcript rows written since. One half where none has, which is the
+        recent window and what every surface did before (#49).
+
+        Rebuilding from the transcript alone is what made a summary a per-turn
+        purchase: the next turn saw the whole thread again, compacted it again,
+        and paid again over a history one turn longer.
+
+        `exclude_message_id` is the turn being answered. The prompt is written
+        before the run so a refusal cannot lose it, so it is a row by the time
+        this reads - and left in, the model is asked the same question twice.
+        """
+        conversation = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
+        summary = None if conversation is None else conversation.summary_messages
+        if conversation is None or summary is None or conversation.summary_ordinal is None:
+            rows = await conversation_repo.get_recent_messages(
+                self.db, conversation_id, limit=limit
+            )
+            return build_message_history(_as_history(rows, exclude_message_id))
+        since = await conversation_repo.get_messages_after(
+            self.db, conversation_id, ordinal=conversation.summary_ordinal, limit=limit
+        )
+        return [
+            *ModelMessagesTypeAdapter.validate_python(summary),
+            *build_message_history(_as_history(since, exclude_message_id)),
+        ]
+
+    async def keep_overhead(self, conversation_id: UUID, tokens: int) -> None:
+        """Record what a turn measured its instructions and tool schemas at.
+
+        Written only when it moved, because it moves only when the agent does -
+        a tool bound, a prompt rewritten - and an UPDATE per turn to store the
+        number that was already there is a write nobody reads differently.
+
+        The next run starts from it. Measured from a response, it is otherwise
+        unknown until one arrives, so a one-request turn - most of them - could
+        never tell a window with no room for a summary from one that works (#49).
+        """
+        conversation = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
+        if conversation is None or conversation.overhead_tokens == tokens:
+            return
+        await conversation_repo.set_overhead(self.db, db_conversation=conversation, tokens=tokens)
+
+    async def keep_summary(self, conversation_id: UUID, messages: list[dict[str, Any]]) -> None:
+        """Write down the history a summary reduced this conversation to.
+
+        Called once a turn's rows are written, so the ordinal it records covers
+        the answer as well as the question - which is what stops the next turn
+        replaying the summary *and* the turn already inside it.
+        """
+        conversation = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
+        if conversation is None:
+            return
+        await conversation_repo.set_summary(
+            self.db,
+            db_conversation=conversation,
+            messages=messages,
+            ordinal=await conversation_repo.last_ordinal(self.db, conversation_id),
+        )
 
     async def get_conversation(
         self,

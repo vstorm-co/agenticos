@@ -24,6 +24,7 @@ from pydantic_ai.usage import RequestUsage
 from app.agents.capabilities.approval import ApprovalGranted, ApprovalRejected
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, SpendLedger
 from app.agents.capabilities.channel_tools import CHANNEL_DIRECTORY_RESOURCE
+from app.agents.capabilities.compaction import ContextGauge
 from app.agents.spec import AgentSpec, CapabilityBindingSpec, ObservabilitySpec
 from app.agents.subagent_runtime import DelegationSpend, DelegationStash, ParkedDelegation
 from app.core.exceptions import BadRequestError, NotFoundError, RunExecutionError
@@ -80,6 +81,9 @@ def _prepared(
     built = MagicMock()
     built.ledger = ledger or SpendLedger()
     built.model_label = "gpt-4.1"
+    # A real gauge: what a turn records against its conversation is read off
+    # this, and a `MagicMock` answers "yes, summarised" to every turn.
+    built.context = ContextGauge()
     return PreparedRun(
         run=MagicMock(
             id=uuid.uuid4(),
@@ -1504,6 +1508,9 @@ class TestResume:
     def _built(self, output: str = "sent"):
         built = MagicMock()
         built.ledger = SpendLedger()
+        # A real gauge: what a turn records against its conversation is read off
+        # this, and a `MagicMock` answers "yes, summarised" to every turn.
+        built.context = ContextGauge()
         built.agent.run = AsyncMock(return_value=MagicMock(output=output))
         return built
 
