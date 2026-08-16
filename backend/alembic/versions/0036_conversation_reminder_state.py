@@ -15,8 +15,8 @@ per request and never enters the transcript. Only the counters are durable.
 Null until a system-reminders capability has fired once, which for a conversation
 whose agent has none is for ever.
 
-Revision ID: 0035_conversation_reminder_state
-Revises: 0034_conversation_summary
+Revision ID: 0036_conversation_reminder_state
+Revises: 0035_avatar_color
 Create Date: 2026-08-16
 
 """
@@ -28,8 +28,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0035_conversation_reminder_state"
-down_revision: str | None = "0034_conversation_summary"
+revision: str = "0036_conversation_reminder_state"
+down_revision: str | None = "0035_avatar_color"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
