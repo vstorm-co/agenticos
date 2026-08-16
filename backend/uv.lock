@@ -125,7 +125,7 @@ requires-dist = [
     { name = "redis", specifier = ">=8.1.0" },
     { name = "slack-sdk", specifier = ">=3.35.0" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.51" },
-    { name = "subagents-pydantic-ai", specifier = ">=0.2.18" },
+    { name = "subagents-pydantic-ai", specifier = ">=0.2.19" },
     { name = "tabulate", specifier = ">=0.9.0" },
     { name = "tavily-python", specifier = ">=0.7.27" },
     { name = "tqdm", specifier = ">=4.70.0" },
@@ -4979,16 +4979,16 @@ wheels = [
 
 [[package]]
 name = "subagents-pydantic-ai"
-version = "0.2.18"
+version = "0.2.19"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
     { name = "pydantic-ai-slim" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/26/1d/776ff26ca85ca659092a5cf47452577abefd22a794f49d5abcd04a3d9c28/subagents_pydantic_ai-0.2.18.tar.gz", hash = "sha256:5153bc2372f994d0f2b0ceec09b6b88fe08b8aa7990c3546f084b82a2157b1ac", size = 644494, upload-time = "2026-08-05T16:02:47.644Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e9/3f/5a02502cf56f7617898e8279ef51927c1e55ab02a33941dff502bed050fb/subagents_pydantic_ai-0.2.19.tar.gz", hash = "sha256:d4797d3e459dd611221d6dd72745fdaa93ec4aedfdbe6a57f2cbf8a74e2adc05", size = 645858, upload-time = "2026-08-16T18:42:56.057Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ed/37/98e6305c56116f297f2c82ed175c06a5ad86b2805b300733e15da24405d0/subagents_pydantic_ai-0.2.18-py3-none-any.whl", hash = "sha256:82d1933b4f8aacc63a65f098768a39170882a675afe40450ca962d34141c480a", size = 82053, upload-time = "2026-08-05T16:02:46.343Z" },
+    { url = "https://files.pythonhosted.org/packages/07/d8/3663c63eb9826261efae0d1e7ca1c42c932bc58bd15c4e4d8130bb89ac97/subagents_pydantic_ai-0.2.19-py3-none-any.whl", hash = "sha256:fd2321dbaa1231e5f8672d2c361b4de90563f2d2330eb2ca4f8ea377bcc1be15", size = 82313, upload-time = "2026-08-16T18:42:54.361Z" },
 ]
 
 [[package]]

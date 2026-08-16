@@ -38,6 +38,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.deps import AgentDeps, AskUserCallback, CompactionSink
+from app.agents.failures import run_failure_summary
 from app.agents.subagent_events import SubagentEventSink
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import AuthContext
@@ -52,7 +53,6 @@ from app.services.agent_runner import (
     PausedRunState,
     PreparedRun,
     _outcome,
-    run_failure_summary,
 )
 from app.services.attachments import AttachmentRouter
 from app.services.usage_report import UsageReport, UsageReportService, context_fill

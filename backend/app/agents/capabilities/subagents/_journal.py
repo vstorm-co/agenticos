@@ -65,6 +65,7 @@ from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from pydantic_ai.agent import EventStreamHandler
+from pydantic_ai.exceptions import UsageLimitExceeded
 from pydantic_ai.messages import AgentStreamEvent
 from pydantic_ai.tools import RunContext
 from subagents_pydantic_ai import (
@@ -80,6 +81,7 @@ from subagents_pydantic_ai.registry import DynamicAgentRegistry
 from app.agents.capabilities.budget import SpendShare, booked_to
 from app.agents.capabilities.subagents._events import FrameLabels, frame_for
 from app.agents.deps import AgentDeps
+from app.agents.failures import run_failure_summary
 from app.agents.spec import DelegationMode
 from app.agents.subagent_events import (
     SpecialistDefinition,
@@ -146,6 +148,39 @@ def _terminal_status(handle: TaskHandle, mode: Literal["sync", "async"]) -> Dele
     if handle.status is TaskStatus.DEFERRED:
         return "failed" if mode == "async" else None
     return _RESOLVED.get(handle.status)
+
+
+def _recorded_error(handle: TaskHandle, subagent: str, task_id: str) -> str | None:
+    """The error a settled delegation may store and stream.
+
+    `handle.error` is safe only while the library composed every word of it. When
+    a delegation fails on an exception, the library embeds that exception's own
+    text - and what raises under a delegate is the same model client the parent
+    runs on, whose message routinely carries the failing request URL, key still
+    in its query string, for a profile on a custom `base_url`. The parent's row
+    already refuses that text (#676); this is the same rule for the child's row
+    and its closing frame, which used to render the provider's words on the same
+    page (#699). `TaskHandle.exception` is how the library hands over the
+    exception instead of a formatted string, so the sentence is composed by
+    `run_failure_summary` - the one the parent's row gets - and the original goes
+    to the log beside it.
+
+    `UsageLimitExceeded` keeps the library's text whole. It is the delegation's
+    `BudgetExceeded`: not a malfunction but a ceiling doing its job, its message
+    is pydantic-ai's own limit sentence - a number, never a request - and the
+    `usage limit exceeded` marker in front of it is the library's telemetry
+    contract across both dispatch modes.
+    """
+    if handle.exception is None or isinstance(handle.exception, UsageLimitExceeded):
+        return handle.error
+    logger.warning(
+        "Delegation %r (task %s) failed: %s",
+        subagent,
+        task_id,
+        handle.error,
+        exc_info=handle.exception,
+    )
+    return run_failure_summary(handle.exception)
 
 
 _NO_PREFERENCE: SubAgentConfig = SubAgentConfig(name="auto", description="", instructions="")
@@ -913,6 +948,7 @@ class DelegationJournal:
         status = _terminal_status(handle, delegation.mode)
         if status is None:
             return False
+        error = _recorded_error(handle, delegation.name, task_id)
 
         # The id the delegation is *named* by, which is the one it streamed under
         # before any park - so its recorded outcome and its closing frame reach the
@@ -937,7 +973,7 @@ class DelegationJournal:
                 cost_is_partial=billed.has_unpriced_models,
                 agent_id=delegation.agent_id,
                 agent_version_id=delegation.agent_version_id,
-                error=handle.error,
+                error=error,
                 # The delegation's own span, not this settlement. The library
                 # stamps both when the delegate starts and when it ends, which for
                 # a background one is well before the poll that collects it here.
@@ -960,7 +996,7 @@ class DelegationJournal:
                     cost_usd=spent.cost_usd,
                     input_tokens=spent.input_tokens,
                     output_tokens=spent.output_tokens,
-                    error=handle.error,
+                    error=error,
                 )
             )
         return True
