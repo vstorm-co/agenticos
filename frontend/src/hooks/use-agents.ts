@@ -16,6 +16,7 @@ import type {
   AgentVersionDetail,
   AgentVersionList,
   CapabilityCatalog,
+  DelegationTree,
   SpecialistSpec,
 } from "@/types/agents";
 
@@ -277,6 +278,24 @@ export function useAgentVersions(agentId: string | null) {
     enabled: !!agentId,
   });
   return { versions: data?.items ?? [], isLoading };
+}
+
+/**
+ * The delegation tree under an agent's draft - what the map draws recursively.
+ *
+ * Fetched only while something shows it (`enabled`), because the walk resolves
+ * and access-checks every pinned version server-side; the map dialog is the one
+ * caller and it opens rarely. Saving the draft invalidates `qk.agents.all()`,
+ * which this key sits under, so a re-pinned delegate is re-walked without
+ * anything here knowing why.
+ */
+export function useDelegationTree(agentId: string | null, { enabled = true } = {}) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: qk.agents.delegationTree(agentId ?? ""),
+    queryFn: () => apiClient.get<DelegationTree>(`/agents/${agentId}/delegation-tree`),
+    enabled: enabled && !!agentId,
+  });
+  return { tree: data ?? null, isLoading, error };
 }
 
 /**

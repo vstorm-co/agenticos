@@ -18,7 +18,13 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import { CapabilityNode, DelegateNode, type MapDelegate, type MapNode } from "./agent-map-nodes";
+import {
+  CapabilityNode,
+  DelegateBranch,
+  DelegateNode,
+  type MapDelegate,
+  type MapNode,
+} from "./agent-map-nodes";
 import { MapDetail } from "./agent-map-detail";
 import { useMapView, type EdgeInput } from "./agent-map-view";
 import { useFocusedNode } from "./use-focused-node";
@@ -32,8 +38,12 @@ interface AgentMapProps {
   agentName: string;
   instructions: string;
   nodes: MapNode[];
-  /** Published delegates and inline specialists, drawn as their own kind of node. */
+  /** Published delegates and inline specialists, drawn as their own kind of node.
+   * A delegate's `children` is the recursive half - its own tree, drawn inline. */
   delegates?: MapDelegate[];
+  /** One line under the delegation heading when the tree is partial - the fetch
+   * failed, or the server stopped at its node bound. Null when it is whole. */
+  delegationNotice?: string | null;
 }
 
 /** The icon each subagent kind wears - an agent, never a tool. */
@@ -74,9 +84,18 @@ export function AgentMap({
   instructions,
   nodes,
   delegates = NO_DELEGATES,
+  delegationNotice = null,
 }: AgentMapProps) {
   const t = useTranslations("agents");
   const { focused, focus, clear } = useFocusedNode();
+
+  // Every delegate at every depth, for the detail panel: focus is one flat
+  // namespace however deep the node sits, because the panel is one panel.
+  const flatDelegates = useMemo(() => {
+    const flatten = (list: MapDelegate[]): MapDelegate[] =>
+      list.flatMap((entry) => [entry, ...(entry.children ? flatten(entry.children) : [])]);
+    return flatten(delegates);
+  }, [delegates]);
 
   const edgeInputs = useMemo<EdgeInput[]>(
     () => [
@@ -109,7 +128,7 @@ export function AgentMap({
 
   // The focused item, for the detail panel. Exactly one of these matches.
   const focusedNode = nodes.find((node) => node.key === focused);
-  const focusedDelegate = delegates.find((delegate) => delegate.key === focused);
+  const focusedDelegate = flatDelegates.find((delegate) => delegate.key === focused);
 
   return (
     <div className="relative">
@@ -277,18 +296,32 @@ export function AgentMap({
                     />
                   ))}
                   {delegates.length > 0 && (
-                    <section className="grid gap-2 sm:grid-cols-2" aria-label={t("delegation")}>
-                      {delegates.map((delegate) => (
-                        <DelegateNode
-                          key={delegate.key}
-                          delegate={delegate}
-                          icon={DELEGATE_ICON[delegate.kind]}
-                          focused={focused === delegate.key}
-                          dimmed={focused !== null && focused !== delegate.key}
-                          onFocus={() => focus(delegate.key)}
-                          registerRef={registerBox(delegate.key)}
-                        />
-                      ))}
+                    <section className="space-y-2" aria-label={t("delegation")}>
+                      {delegationNotice && (
+                        <p className="text-muted-foreground text-xs">{delegationNotice}</p>
+                      )}
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {delegates.map((delegate) => (
+                          <div key={delegate.key} className="min-w-0">
+                            <DelegateNode
+                              delegate={delegate}
+                              icon={DELEGATE_ICON[delegate.kind]}
+                              focused={focused === delegate.key}
+                              dimmed={focused !== null && focused !== delegate.key}
+                              onFocus={() => focus(delegate.key)}
+                              registerRef={registerBox(delegate.key)}
+                            />
+                            {delegate.children && delegate.children.length > 0 && (
+                              <DelegateBranch
+                                nodes={delegate.children}
+                                icons={DELEGATE_ICON}
+                                focused={focused}
+                                onFocus={focus}
+                              />
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </section>
                   )}
                 </div>

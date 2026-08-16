@@ -26,6 +26,7 @@ export const qk = {
     list: (includeArchived = false) => ["agents", "list", includeArchived] as const,
     detail: (id: string) => ["agents", id] as const,
     versions: (id: string) => ["agents", id, "versions"] as const,
+    delegationTree: (id: string) => ["agents", id, "delegation-tree"] as const,
     version: (id: string, versionId: string) => ["agents", id, "versions", versionId] as const,
     capabilityCatalog: () => ["agents", "capability-catalog"] as const,
   },

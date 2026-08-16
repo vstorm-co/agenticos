@@ -27,6 +27,7 @@ export {
   useAgentVersion,
   useAgentVersions,
   useCapabilityCatalog,
+  useDelegationTree,
 } from "./use-agents";
 export { useMcpCatalog, useMcpServers, type McpServerRow } from "./use-mcp-servers";
 export { useMcpOAuthOutcome } from "./use-mcp-oauth-outcome";
