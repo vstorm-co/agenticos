@@ -159,7 +159,7 @@ export function SecretsTable({
           secret.created_by_email ? (
             <div className="flex items-center gap-2">
               <EntityAvatar
-                seed={secret.created_by_email}
+                seed={secret.created_by_user_id ?? secret.created_by_email}
                 name={secret.created_by_email}
                 imageSrc={secret.created_by_avatar_url ?? undefined}
                 className="h-6 w-6 text-[10px]"
