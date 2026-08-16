@@ -3147,8 +3147,9 @@
       "pageDescription": "Where this organization's agents run shell commands and keep files. An agent names a connection by id, so moving to another host is one edit here rather than a republish of every agent. The token stays in the vault; nothing on this page can read it back. The files themselves are on Workspaces, which is not an operator screen — everybody sees their own.",
       "registeredCount": "{count, plural, =1 {1 connection} other {# connections}}",
       "sandboxConnections": "Sandbox connections",
-      "sandboxes": "Sandboxes",
-      "sandboxes2": "Sandboxes"
+      "sandboxes2": "Sandboxes",
+      "tabConnections": "Connections",
+      "tabRunning": "Running"
     },
     "settings": {
       "absencesWorthStatingBecause": "Absences worth stating, because a settings page implies the opposite.",
@@ -3523,7 +3524,21 @@
       "sessionsOfLimit": "{count} of this organization's sandboxes, out of {limit} allowed. Refreshed every ten seconds.",
       "sharedBy": "Shared by",
       "show": "Show",
-      "state": "State"
+      "state": "State",
+      "host": "Host",
+      "searchSessions": "Search sessions",
+      "noSessionMatches": "No running sandbox matches that.",
+      "noContainerConnection": "No container connection registered",
+      "noContainerConnectionHint": "What is running can only be listed from a container service. Register one under Connections; Daytona sandboxes are managed on the Daytona account they bill to.",
+      "operation": "Operation",
+      "target": "Target",
+      "detail": "Detail",
+      "duration": "Duration",
+      "scopeRun": "a single run",
+      "scopeConversation": "one conversation",
+      "scopeChannel": "one channel",
+      "scopeUser": "one person",
+      "scopeAgent": "the whole agent"
     },
     "someUnreadable": "{count} could not be read; their host may be down.",
     "table": {
