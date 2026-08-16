@@ -86,7 +86,14 @@ _SLUG_TRIM = re.compile(r"-{2,}")
 # what an operator who does not want fan-out billing or nested runs needs, and
 # every spec that delegates then says so at publish instead of at 3am.
 DEFAULT_GRANTED_SCOPES = frozenset(
-    {"knowledge:read", "web:read", "code:execute", "sandbox:execute", "agents:delegate"}
+    {
+        "knowledge:read",
+        "web:read",
+        "web:browse",
+        "code:execute",
+        "sandbox:execute",
+        "agents:delegate",
+    }
 )
 
 # The registry id of the delegation capability. Held here rather than imported
