@@ -41,7 +41,6 @@ from pydantic_ai.capabilities import AbstractCapability, WrapperCapability
 from pydantic_ai.messages import ModelMessage, ModelResponse
 from pydantic_ai.models import ModelRequestContext
 from pydantic_ai.tools import AgentDepsT, RunContext
-from pydantic_ai.usage import RequestUsage, RunUsage
 from pydantic_ai_harness.compaction import (
     DEFAULT_CONTEXT_WINDOW,
     ClearToolResults,
@@ -51,7 +50,7 @@ from pydantic_ai_harness.compaction import (
     estimate_token_count,
 )
 
-from app.agents.capabilities.budget import record_ambient_usage
+from app.agents.capabilities.budget import record_ambient_usage, usage_counts, usage_delta
 from app.agents.compaction_events import CompactionEvent
 
 logger = logging.getLogger(__name__)
@@ -473,11 +472,11 @@ class MeteredCompaction(WrapperCapability[AgentDepsT]):
     ) -> ModelRequestContext:
         if await self._has_no_room(ctx):
             return request_context
-        before = _counts(ctx.usage)
+        before = usage_counts(ctx.usage)
         try:
             return await self.wrapped.before_model_request(ctx, request_context)
         finally:
-            spent = _spent(before, ctx.usage)
+            spent = usage_delta(before, ctx.usage)
             if spent is not None:
                 record_ambient_usage(_model_name(request_context), spent)
 
@@ -557,39 +556,6 @@ def _trigger_tokens(strategy: AbstractCapability[Any]) -> tuple[int, int] | None
         strategy, "target_fraction"
     )
     return int(window * fraction), window
-
-
-def _counts(usage: RunUsage) -> tuple[int, int, int, int]:
-    """The four counters a price is computed from, read off the run's usage.
-
-    A tuple rather than the object: `RunUsage` is accumulated in place, so
-    keeping a reference to it and comparing later compares it with itself.
-    """
-    return (
-        usage.input_tokens,
-        usage.output_tokens,
-        usage.cache_read_tokens,
-        usage.cache_write_tokens,
-    )
-
-
-def _spent(before: tuple[int, int, int, int], usage: RunUsage) -> RequestUsage | None:
-    """What the strategy added, or `None` when it called no model.
-
-    Cached tokens are carried as well as the plain ones because they are priced
-    differently and `input_tokens` already includes them - dropping them here
-    would bill a cache read at the full input rate, which is the defect
-    `price_request` exists to avoid.
-    """
-    after = _counts(usage)
-    if after == before:
-        return None
-    return RequestUsage(
-        input_tokens=after[0] - before[0],
-        output_tokens=after[1] - before[1],
-        cache_read_tokens=after[2] - before[2],
-        cache_write_tokens=after[3] - before[3],
-    )
 
 
 def _model_name(request_context: ModelRequestContext) -> str:

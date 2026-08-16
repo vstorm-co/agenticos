@@ -31,6 +31,7 @@ from app.agents.capabilities.sandbox._identity import (
     WorkspaceScopeUnavailable,
     scope_key,
 )
+from app.agents.capabilities.tool_output_limits import OVERFLOW_PREFIX, BackendOverflowStore
 from app.agents.spec import AgentSpec
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
@@ -522,6 +523,40 @@ class TestOpeningAndClosing:
 
     async def test_closing_nothing_is_not_an_error(self, mock_db_session):
         await SandboxWorkspaceService(mock_db_session).close(None)
+
+    async def test_a_spill_is_not_persisted_so_it_cannot_outlive_the_run(
+        self, monkeypatch, mock_db_session
+    ):
+        """#803: a `tool_output_limits` spill is a within-run artefact.
+
+        On a longer-scoped state workspace it would otherwise accumulate every run
+        and count against the byte cap until the agent's own writes are refused, so
+        the flush strips the reserved prefix - the agent's file is kept, the spill
+        is not.
+        """
+        row = _row()
+        monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=None))
+        monkeypatch.setattr(workspace_repo, "create", AsyncMock(return_value=row))
+        saved = AsyncMock(return_value=row)
+        monkeypatch.setattr(workspace_repo, "save_files", saved)
+        mock_db_session.get = AsyncMock(return_value=row)
+        service = SandboxWorkspaceService(mock_db_session)
+
+        workspace = await service.open(
+            _spec(session_scope="user"), ctx=_ctx(), identity=_identity()
+        )
+        assert workspace is not None
+        workspace.backend.write("/report.md", "the agent's own work")
+        store = BackendOverflowStore(workspace.backend)
+        await store.write("run-1/call-1.0", b"y" * 5_000)
+
+        await service.close(workspace)
+
+        persisted = saved.await_args.kwargs["files"]
+        assert "/report.md" in persisted
+        assert not [
+            path for path in persisted if path.lstrip("/").startswith(f"{OVERFLOW_PREFIX}/")
+        ]
 
     async def test_a_flush_overtaken_by_another_run_says_which_paths_it_dropped(
         self, monkeypatch, mock_db_session, caplog

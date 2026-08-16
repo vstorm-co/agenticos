@@ -360,6 +360,16 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     captionKey: "searchingWeb",
     displayNameKey: "webSearch",
   },
+
+  // tool_output_limits - reads a slice of a tool result that was spilled to the
+  // backend because it was too large to keep in the window. The slice is text the
+  // model pages through, so the generic renderer shows it.
+  read_tool_result: {
+    kind: "read",
+    render: "generic",
+    captionKey: "readingToolResult",
+    displayNameKey: "toolResult",
+  },
 };
 
 /** What this side knows about `name`, or null for a tool it has never heard of. */
