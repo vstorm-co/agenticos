@@ -153,6 +153,19 @@ describe("the sandboxes page", () => {
     expect(screen.queryByText(/No sandbox connections yet/)).toBeNull();
   });
 
+  it("shows the refusal on the running tab too, never a false empty state", async () => {
+    state.error = "Failed to load sandbox connections";
+    state.connections = [];
+    render(<SandboxesPage />);
+
+    await userEvent.click(screen.getByRole("tab", { name: "Running" }));
+
+    // "No container connection registered" would state as fact something the
+    // request never answered — hosts may be registered and running things.
+    expect(screen.getByText("Failed to load sandbox connections")).toBeVisible();
+    expect(screen.queryByText("No container connection registered")).toBeNull();
+  });
+
   it("hides the add button from a caller who may not manage connections", () => {
     state.canManage = false;
     render(<SandboxesPage />);

@@ -25,6 +25,7 @@ import {
   type Column,
 } from "@/components/ui";
 import { useSandboxSessions } from "@/hooks";
+import { primaryConnection } from "@/lib/dashboard/sandbox";
 import type { SandboxConnectionRecord, SandboxSession } from "@/lib/sandbox-connections-api";
 import { useTranslations } from "next-intl";
 
@@ -82,10 +83,7 @@ export function SessionsPanel({ connections }: SessionsPanelProps) {
   // gets — but saying which one it is, and offering the rest, rather than
   // silently showing one of three (#140).
   const connection =
-    connections.find((entry) => entry.id === chosenId) ??
-    connections.find((entry) => entry.is_default) ??
-    connections[0] ??
-    null;
+    connections.find((entry) => entry.id === chosenId) ?? primaryConnection(connections);
 
   const { listing, isLoading, error } = useSandboxSessions(connection?.id ?? null, usage);
 
@@ -198,7 +196,15 @@ export function SessionsPanel({ connections }: SessionsPanelProps) {
         </div>
         <div className="flex items-center gap-4">
           {connections.length > 1 && (
-            <Select value={connection.id} onValueChange={setChosenId}>
+            <Select
+              value={connection.id}
+              // A session id names a sandbox on one host, so an activity log
+              // left open would ask the new host for the old host's session.
+              onValueChange={(id) => {
+                setChosenId(id);
+                setWatching(null);
+              }}
+            >
               <SelectTrigger className="h-8 w-44" aria-label={t("host")}>
                 <SelectValue />
               </SelectTrigger>

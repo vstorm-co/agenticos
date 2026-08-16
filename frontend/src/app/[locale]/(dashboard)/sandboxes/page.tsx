@@ -21,6 +21,7 @@ import {
 import { ErrorState } from "@/components/states";
 import { usePermissions, useSandboxConnections, useUrlState } from "@/hooks";
 import { Perm } from "@/types/permissions";
+import { holdsSessions, watchableConnections } from "@/lib/dashboard/sandbox";
 import type { SandboxConnectionRecord } from "@/lib/sandbox-connections-api";
 import { useTranslations } from "next-intl";
 
@@ -49,11 +50,7 @@ export default function SandboxesPage() {
   const [tabParam, setTabParam] = useUrlState("tab");
   const tab = tabParam === "running" ? "running" : "connections";
 
-  // Daytona holds no sessions of ours to enumerate, so only container
-  // connections can be watched at all.
-  const watchable = connections.filter(
-    (connection) => connection.is_active && connection.kind === "docker",
-  );
+  const watchable = watchableConnections(connections).filter(holdsSessions);
 
   return (
     <div className="space-y-6">
@@ -134,6 +131,10 @@ export default function SandboxesPage() {
                 <Skeleton key={row} className="h-10 w-full" />
               ))}
             </div>
+          ) : error !== null ? (
+            // With the list refused, "no container connection registered" would
+            // state as fact something the request never answered.
+            <ErrorState description={error} className="m-5" />
           ) : (
             <SessionsPanel connections={watchable} />
           )}

@@ -19,7 +19,7 @@ const state = vi.hoisted(() => ({
   log: null as SandboxEventList | null,
   logError: null as string | null,
   logLoading: false,
-  watched: [] as (string | null)[],
+  watched: [] as { connection: string | null; session: string | null }[],
 }));
 
 vi.mock("@/hooks", () => ({
@@ -32,8 +32,8 @@ vi.mock("@/hooks", () => ({
       error: state.sessionsError,
     };
   },
-  useSandboxEvents: (_id: string | null, sessionId: string | null) => {
-    state.watched.push(sessionId);
+  useSandboxEvents: (id: string | null, sessionId: string | null) => {
+    state.watched.push({ connection: id, session: sessionId });
     return { log: state.log, isLoading: state.logLoading, error: state.logError };
   },
 }));
@@ -146,6 +146,27 @@ describe("SessionsPanel", () => {
 
       expect(screen.getByText("Running on Backup host")).toBeVisible();
       expect(state.connectionsAsked.at(-1)).toBe("c-b");
+    });
+
+    it("closes an open activity log when the host is switched", async () => {
+      render(
+        <SessionsPanel
+          connections={[
+            connection({ id: "c-a", name: "Primary host", is_default: true }),
+            connection({ id: "c-b", name: "Backup host", is_default: false }),
+          ]}
+        />,
+      );
+      await userEvent.click(screen.getByRole("button", { name: "Activity of xc-1" }));
+      expect(screen.getByText(/Nothing recorded for/)).toBeVisible();
+
+      await userEvent.click(screen.getByRole("combobox", { name: "Host" }));
+      await userEvent.click(screen.getByRole("option", { name: "Backup host" }));
+
+      // A session id names a sandbox on one host; a log left open would ask
+      // the new host for the old host's session.
+      expect(screen.queryByText(/Nothing recorded for/)).toBeNull();
+      expect(state.watched).not.toContainEqual({ connection: "c-b", session: "xc-1" });
     });
   });
 
@@ -334,7 +355,7 @@ describe("SessionsPanel", () => {
       const toggle = screen.getByRole("button", { name: "Activity of xc-1" });
 
       await userEvent.click(toggle);
-      expect(state.watched.at(-1)).toBe("xc-1");
+      expect(state.watched.at(-1)).toEqual({ connection: "c-1", session: "xc-1" });
 
       const opened = state.watched.length;
       await userEvent.click(toggle);
