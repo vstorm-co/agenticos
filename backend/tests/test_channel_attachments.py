@@ -468,6 +468,16 @@ class TestChoosingWhatToSendBack:
 
         assert (await files_written(backend, before)).attachments == []
 
+    async def test_a_spilled_tool_return_is_not_the_agents_work(self):
+        """A `tool_output_limits` spill is parked for the model to page through,
+        not produced for the user - posting it would hand a channel the raw
+        oversized return the reduction existed to keep out of sight (#803)."""
+        backend = StateBackend()
+        before = await workspace_snapshot(backend)
+        backend.write("/tool_output/run-1/call-1.0", "y" * 5_000)
+
+        assert (await files_written(backend, before)).attachments == []
+
     async def test_a_file_too_large_for_a_reply_is_named_rather_than_dropped(self):
         """An agent told its file was delivered will tell the user the same."""
         backend = StateBackend()
