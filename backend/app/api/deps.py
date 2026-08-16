@@ -461,6 +461,16 @@ def get_skill_service(db: DBSession) -> SkillService:
 
 SkillSvc = Annotated[SkillService, Depends(get_skill_service)]
 
+from app.services.context import ContextService
+
+
+def get_context_service(db: DBSession) -> ContextService:
+    """Create ContextService instance with database session."""
+    return ContextService(db)
+
+
+ContextSvc = Annotated[ContextService, Depends(get_context_service)]
+
 
 def get_skill_proposal_service(db: DBSession) -> SkillProposalService:
     return SkillProposalService(db)

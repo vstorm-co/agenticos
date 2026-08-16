@@ -572,7 +572,13 @@
     "pageShowToolResults": "What each step returned",
     "pageShowToolResultsHint": "The arguments a step was called with and what came back. Written for the model, so this is where something internal turns up - an address, a row from a system, a passage nobody meant to publish.",
     "pageShowThinking": "The agent's reasoning",
-    "pageShowThinkingHint": "What the model says to itself before it answers. It is not written for anybody to read and it is not an answer you can stand behind."
+    "pageShowThinkingHint": "What the model says to itself before it answers. It is not written for anybody to read and it is not an answer you can stand behind.",
+    "organizationHasNoContext": "This organization has no context files yet.",
+    "addOne": "Add one",
+    "searchContext": "Search context files…",
+    "contextCount": "{count, plural, =1 {1 context file} other {# context files}}",
+    "orphanedContext": "This agent also references {count, plural, =1 {1 context file} other {# context files}} this organization no longer has. Publishing is refused until they are cleared:",
+    "contextLoadingHint": "An injected file is added to every run; a linked one the agent reads only when it decides it is relevant. <link>Manage context</link>"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -938,6 +944,7 @@
       "answeringDelegate": "Answering a delegate",
       "arguments": "Arguments",
       "askingDelegateStop": "Asking a delegate to stop",
+      "availableContext": "Available Context",
       "availableSkills": "Available Skills",
       "availableSteps": "Available Steps",
       "cancelTask": "Cancel Task",
@@ -946,6 +953,7 @@
       "channelInfo": "Channel Info",
       "channelMembers": "Channel Members",
       "channelSearch": "Channel Search",
+      "contextFile": "Context File",
       "chart": "Chart",
       "checkingAvailableSteps": "Checking available steps",
       "checkingDelegate": "Checking on a delegate",
@@ -978,6 +986,7 @@
       "lookingFor": "{named, select, no {Looking for…} other {Looking for {subject}}}",
       "lookingForChannel": "Looking for a channel",
       "lookingThatUp": "Looking that up",
+      "lookingThroughContext": "Looking through the context files",
       "lookingThroughSkills": "Looking through the skills",
       "messageDelegate": "Message Delegate",
       "moreEntries": "and {count, plural, =1 {1 more} other {# more}} — open the raw view for all of them",
@@ -990,6 +999,7 @@
       "read": "{named, select, no {Read…} other {Read {subject}}}",
       "reading": "{named, select, no {Reading…} other {Reading {subject}}}",
       "readingChannel": "Reading the channel",
+      "readingContext": "Reading a context file",
       "readingPlan": "Reading the plan",
       "readingSkillFiles": "Reading a skill's files",
       "relevanceScore": "Relevance: {score}",
@@ -2418,7 +2428,8 @@
     "vault": "Vault",
     "workspace": "Workspace",
     "workspaces": "Workspaces",
-    "allOrganizations": "All organizations"
+    "allOrganizations": "All organizations",
+    "context": "Context"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -2634,6 +2645,8 @@
       "whatAgentMaySearch": "What this agent may search. The model chooses what to look for; it can never widen where it looks. Each collection says what it holds, because attaching an empty one produces an agent that searches, finds nothing, and reads as broken.",
       "whetherAgentWorkingWhat": "Whether this agent is working, and what it has cost. The full history - surfaces, tokens, the version each run executed - lives in Activity rather than being half-rebuilt here.",
       "writtenKnowHowAgent": "Written know-how the agent loads only when it decides a skill is relevant, so twenty skills cost almost nothing in context. Picking one gives the agent the tools to read them - that used to be a separate capability somebody had to know to switch on, and skills chosen without it were resolved and then dropped on the floor.",
+      "context": "Context",
+      "standingContextAgent": "Standing context this agent reads - a glossary or policy injected into its prompt, or files it reads on demand.",
       "youAreSupportCopilot": "You are Support Copilot. Answer from the product wiki and cite the document you used. If the wiki does not cover it, say so rather than guessing."
     },
     "auth": {
@@ -3273,6 +3286,28 @@
       "workspace": "Workspace",
       "workspaceUnreadable": "That workspace could not be read",
       "workspaces": "Workspaces"
+    },
+    "context": {
+      "context": "Context",
+      "contextStandingKnowledge": "Standing context every agent can draw on - a glossary, a policy, a brand voice. Injected into the prompt or read on demand, and current the moment you edit it here.",
+      "newContext": "New context file",
+      "youCannotSeeOrganization": "You cannot see this organization's context files",
+      "askAdministratorAccessContext": "Ask an administrator for access to context files.",
+      "contextFiles": "Context files",
+      "searchContext": "Search context files…",
+      "contextCount": "{count, plural, =1 {1 context file} other {# context files}}",
+      "sort": "Sort",
+      "name": "Name",
+      "recentlyUpdated": "Recently updated",
+      "noContextMatches": "No context file matches",
+      "noContextYet": "No context files yet",
+      "namesDescriptionsSearched": "Names and descriptions were checked. Clear the search to see everything.",
+      "addSomethingYourAgents": "Add something your agents should always know, and every one of them can draw on it.",
+      "nobodyHasAddedContext": "Nobody has added a context file for this organization yet.",
+      "newContext2": "New context file",
+      "nameHowItIsReferred": "The name is how this file is referred to, and it cannot change. Everything else here can.",
+      "agentsBoundContextWill": "Agents bound to this file will run without it from their next run. This cannot be undone.",
+      "delete": "Delete"
     }
   },
   "profile": {
@@ -3849,5 +3884,35 @@
     "zendeskApiToken": "Zendesk API token",
     "filterByService": "Filter by service",
     "anyService": "Any service"
+  },
+  "context": {
+    "created": "Created {name}",
+    "savedAgentsCurrent": "Saved. Every agent using this context file is now current.",
+    "deleted": "Context file deleted",
+    "disabled": "disabled",
+    "modeInject": "injected",
+    "modeLink": "linked",
+    "modeInjectHint": "Spliced into the agent's instructions on every run.",
+    "modeLinkHint": "Left out of the prompt; the agent reads it on demand.",
+    "sizeWithFormat": "{format} · {size}",
+    "newContext": "New context file",
+    "availableEveryAgentOrganization": "It is available to every agent in this organization the moment you create it.",
+    "name": "Name",
+    "howItIsReferredTo": "How this file is referred to; it cannot change afterwards.",
+    "mode": "Mode",
+    "format": "Format",
+    "formatHint": "A rendering hint, for example md or txt.",
+    "description": "Description",
+    "whatIsInIt": "What is in it, so a linked file can be chosen without opening it",
+    "shownWhenLinked": "Shown beside the name when the file is linked.",
+    "content": "Content",
+    "theBodyAsText": "The file body, as text…",
+    "namePlaceholder": "glossary",
+    "formatPlaceholder": "md",
+    "textOnlyBinaryElsewhere": "Text only. A document to be searched belongs in a knowledge collection instead.",
+    "cancel": "Cancel",
+    "create": "Create",
+    "save": "Save",
+    "enabled": "Enabled"
   }
 }

@@ -196,6 +196,7 @@ export interface SpecialistSpec {
   capabilities: CapabilityBindingSpec[];
   collection_ids: string[];
   skill_ids: string[];
+  context_ids: string[];
   max_steps?: number | null;
   preferred_mode?: DelegationMode | null;
 }
@@ -240,6 +241,7 @@ export interface AgentSpec {
   capabilities: CapabilityBindingSpec[];
   collection_ids: string[];
   skill_ids: string[];
+  context_ids: string[];
   mcp_server_ids: string[];
   /**
    * Delegates, each pinned to a published version.

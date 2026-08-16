@@ -91,6 +91,7 @@ from app.agents.capabilities.channel_tools import (
     CHANNEL_TOOLS_CAPABILITY_ID,
     ChannelDirectory,
 )
+from app.agents.capabilities.context import CONTEXT_FILES_RESOURCE
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.planning import (
     PLANNING_STORE_RESOURCE,
@@ -164,6 +165,7 @@ from app.services.attachments import AttachmentRouter
 from app.services.channels.attachments import files_written, workspace_snapshot
 from app.services.channels.base import OutgoingAttachment
 from app.services.channels.prompt_variables import resolve as resolve_prompt_variables
+from app.services.context import ContextService
 from app.services.mcp_connection import build_toolsets_for_agent
 from app.services.model_profile import ModelProfileService
 from app.services.notifications import NotificationService
@@ -1292,7 +1294,7 @@ def _dynamic_builder(
             ),
             model=profiles[model],
             agent_id=delegation.agent_id,
-            resources={"kb_collection_names": [], "skills": []},
+            resources={"kb_collection_names": [], "skills": [], CONTEXT_FILES_RESOURCE: []},
             secrets={},
             extra_toolsets=[],
         )()
@@ -1423,6 +1425,7 @@ class AgentRunnerService:
         self.registry = AgentRegistryService(db)
         self.models = ModelProfileService(db)
         self.skills = SkillService(db)
+        self.context = ContextService(db)
         self.secrets = OrganizationSecretService(db)
         self.approvals = ApprovalService(db)
         self.organizations = OrganizationService(db)
@@ -1604,6 +1607,7 @@ class AgentRunnerService:
         resources: dict[str, Any] = {
             "kb_collection_names": await self._collection_names(spec, ctx),
             "skills": await self.skills.resolve_for_agent(ctx, spec.skill_ids),
+            CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(ctx, spec.context_ids),
         }
         # Always present, like the two above and unlike the conditional resources
         # below: the planning capability reads it only when bound, but the runner
@@ -2289,6 +2293,7 @@ class AgentRunnerService:
         resources: dict[str, Any] = {
             "kb_collection_names": await self._collection_names(spec, ctx),
             "skills": await self.skills.resolve_for_agent(ctx, spec.skill_ids),
+            CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(ctx, spec.context_ids),
         }
         if any(binding.id == SANDBOX_CAPABILITY_ID for binding in shared):
             resources[WORKSPACE_BACKEND_RESOURCE] = parent_resources.get(WORKSPACE_BACKEND_RESOURCE)

@@ -37,6 +37,7 @@ import { PublishState } from "@/components/agents/publish-state";
 import { RunSummary } from "@/components/agents/run-summary";
 import { ModelSettingsForm } from "@/components/agents/model-settings-form";
 import { SkillGallery } from "@/components/agents/skill-gallery";
+import { ContextGallery } from "@/components/agents/context-gallery";
 import { ThinkingSetting } from "@/components/agents/thinking-setting";
 import { EnvironmentsPanel } from "@/components/agents/environments-panel";
 import { VersionHistory } from "@/components/agents/version-history";
@@ -92,8 +93,10 @@ import {
   SUBAGENTS_ID,
   THINKING_ID,
   withCapability,
+  withContextFiles,
   withSkills,
 } from "@/lib/agent-spec";
+import { useContextFiles } from "@/hooks/use-context";
 import { ROUTES } from "@/lib/constants";
 import { useAgentSelectionStore, useConversationStore } from "@/stores";
 import { cn } from "@/lib/utils";
@@ -120,6 +123,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // which selected skills still exist, and it can only tell that from what it
   // has. 100 is the endpoint's ceiling; `total` says when that is not all.
   const { skills, total: skillCount } = useSkills({ limit: 100 });
+  const { files: contextFiles, total: contextCount } = useContextFiles({ limit: 100 });
   const { kbs: collections } = useKnowledgeBases();
   const { versions } = useAgentVersions(id);
   const { runs } = useRuns(id);
@@ -401,6 +405,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
     list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
 
   const setSkills = (skillIds: string[]) => update(withSkills(spec, skillIds));
+  const setContext = (contextIds: string[]) => update(withContextFiles(spec, contextIds));
 
   /**
    * Store the draft, and stop if it did not store.
@@ -881,6 +886,25 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 total={skillCount}
                 selectedIds={spec.skill_ids}
                 onToggle={(skillId) => setSkills(toggleId(spec.skill_ids, skillId))}
+                disabled={!canEdit}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Standing context, beside skills because both are things the agent
+              reads rather than searches - a glossary or a policy injected into
+              the prompt or read on demand, not a procedure loaded on decision. */}
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("context")}</CardTitle>
+              <CardDescription>{t("standingContextAgent")}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ContextGallery
+                files={contextFiles}
+                total={contextCount}
+                selectedIds={spec.context_ids}
+                onToggle={(fileId) => setContext(toggleId(spec.context_ids, fileId))}
                 disabled={!canEdit}
               />
             </CardContent>

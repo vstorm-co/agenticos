@@ -104,6 +104,28 @@ export function withSkills(
   };
 }
 
+/** The capability that injects bound context files and exposes the linked ones. */
+export const CONTEXT_ID = "context";
+
+/**
+ * Bind context files, and the capability that reaches them, as one decision.
+ *
+ * `context_ids` resolves the files into the run's resources; the `context`
+ * capability is what injects the `inject`-mode ones and exposes a read tool for
+ * the `link`-mode ones. Bound without it, the files were fetched and discarded -
+ * the same silent half a skill binding avoids - so one function owns both. The
+ * mode lives on each file, not here, so switching the capability on covers both.
+ */
+export function withContextFiles(
+  spec: { capabilities: CapabilityBindingSpec[] },
+  contextIds: string[],
+): Pick<AgentSpec, "context_ids" | "capabilities"> {
+  return {
+    context_ids: contextIds,
+    capabilities: withCapability(spec.capabilities, CONTEXT_ID, contextIds.length > 0),
+  };
+}
+
 /**
  * The delegation capability, which has a section of its own.
  *
@@ -149,6 +171,7 @@ export function newSpecialist(): SpecialistSpec {
     capabilities: [],
     collection_ids: [],
     skill_ids: [],
+    context_ids: [],
     max_steps: null,
     preferred_mode: null,
   };
