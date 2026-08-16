@@ -14,23 +14,18 @@ import logging
 from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
 from fastapi import WebSocket, WebSocketDisconnect
-from pydantic_ai.messages import (
-    ModelRequest,
-    ModelResponse,
-    SystemPromptPart,
-    TextPart,
-    UserPromptPart,
-)
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.api.deps import get_conversation_service
 from app.core.exceptions import AppException, AuthorizationError, BadRequestError, NotFoundError
 from app.db.models.conversation import Conversation
 from app.db.session import get_db_context
+from app.repositories import conversation as conversation_repo
 from app.schemas.conversation import (
     ConversationCreate,
     ConversationUpdate,
@@ -85,29 +80,6 @@ class AgentConnectionManager:
     async def send_event(self, websocket: WebSocket, event_type: str, data: Any) -> bool:
         """Forward to the module-level :func:`send_event`."""
         return await send_event(websocket, event_type, data)
-
-
-def build_message_history(history: list[dict[str, str]]) -> list[ModelRequest | ModelResponse]:
-    """Convert conversation history to PydanticAI message format."""
-    model_history: list[ModelRequest | ModelResponse] = []
-
-    for msg in history:
-        content = msg["content"]
-        # An empty text part is not history, it is a 400: Anthropic rejects one,
-        # and a row with no text carries nothing to the model regardless. A
-        # caption-less file is recorded as an empty user turn so the file has a
-        # row to hang off (transcript.py), but the file's bytes are not in the
-        # history this reconstructs - so the empty row is pure liability here.
-        if not content.strip():
-            continue
-        if msg["role"] == "user":
-            model_history.append(ModelRequest(parts=[UserPromptPart(content=content)]))
-        elif msg["role"] == "assistant":
-            model_history.append(ModelResponse(parts=[TextPart(content=content)]))
-        elif msg["role"] == "system":
-            model_history.append(ModelRequest(parts=[SystemPromptPart(content=content)]))
-
-    return model_history
 
 
 def truncate_title(text: str, limit: int = 50) -> str:
@@ -360,6 +332,11 @@ async def persist_assistant_turn(
     try:
         async with get_db_context() as db:
             conv_service = get_conversation_service(db)
+            spent_in, spent_out, spent_usd = (
+                (0, 0, Decimal(0))
+                if run_id is None
+                else await conversation_repo.attributed_to_run(db, run_id)
+            )
             assistant_msg = await conv_service.add_message(
                 UUID(conversation_id),
                 organization_id=organization_id,
@@ -376,9 +353,31 @@ async def persist_assistant_turn(
                     # frame alone, so it existed for as long as the tab did and a
                     # reopened conversation showed no cost anywhere - which is
                     # exactly when "what did that answer cost" gets asked.
-                    input_tokens=None if usage is None else usage.input_tokens,
-                    output_tokens=None if usage is None else usage.output_tokens,
-                    cost_usd=None if usage is None else usage.cost_usd,
+                    # The *difference* from what this run's earlier turns already
+                    # claim, not the run row's figure: a run that parked and was
+                    # resumed writes two assistant turns - this one and the
+                    # continuation the transcript service writes - and the row is
+                    # cumulative, so stamping both with it counts the parked half
+                    # twice. Nothing is attributed yet on an ordinary turn, where
+                    # the difference is the whole of it.
+                    input_tokens=None if usage is None else usage.input_tokens - spent_in,
+                    output_tokens=None if usage is None else usage.output_tokens - spent_out,
+                    cost_usd=None if usage is None else usage.cost_usd - spent_usd,
+                    # Beside the total, because without it the total lies: a turn
+                    # that reached an unpriced model is booked at zero for that
+                    # request, and rendered identically to one measured exactly
+                    # (#772).
+                    cost_is_partial=None if usage is None else usage.cost_is_partial,
+                    # Only the token count. The window it is a share of belongs to
+                    # whichever model answers next, and the chat lets somebody
+                    # switch that between turns - a share stored against a model
+                    # they have since left is wrong in the one direction that
+                    # costs a run (#774).
+                    context_used_tokens=(
+                        None
+                        if usage is None or usage.context is None
+                        else usage.context.used_tokens
+                    ),
                 ),
             )
             for tc in collected_tool_calls:

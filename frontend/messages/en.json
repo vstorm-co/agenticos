@@ -712,6 +712,9 @@
       "summarizeDescription": "Ask the agent to summarize the conversation so far.",
       "summarizePrompt": "Please give me a concise summary of our conversation so far - key topics, decisions, and any open questions."
     },
+    "compacting": "Summarising the conversation so far, to keep it inside the model's limit…",
+    "compactingCount": "{count, plural, =1 {Summarising 1 earlier message} other {Summarising # earlier messages}} to keep the conversation inside the model's limit…",
+    "compactionImpossible": "Context management cannot run: this agent's instructions and tools take {overhead, number} tokens of the {window, number}-token window it was given, which is already past the point it would compact at. Raise the window or the fraction in the Toolbox.",
     "controls": {
       "backAgentAposS": "Back to the agent's own model",
       "controls": "Controls",
@@ -933,6 +936,7 @@
     "thoughtAboutIt": "Thought about it",
     "title": "Chat",
     "tokensDetail": "{input, number} input · {output, number} output tokens",
+    "tokensDetailPartial": "{input, number} input · {output, number} output tokens — a floor: some model in this run had no price",
     "toolApprovalRequired": "Tool approval required",
     "tools": {
       "activeTasks": "Active Tasks",
@@ -1035,14 +1039,19 @@
       "writingPlan": "Writing the plan",
       "wrote": "{named, select, no {Wrote…} other {Wrote {subject}}}"
     },
+    "turnWasStopped": "stopped",
     "unknownError": "Unknown error",
     "usage": {
       "agentShare": "· {percent}% of this agent's month",
+      "contextOf": "{used, number} of {window, number} tokens in the model's context window",
+      "contextPercent": "Context {percent}%",
       "inContainer": "{used} of {limit} in the container",
-      "inputOutputSplit": "{input, number} in · {output, number} out",
       "orgShare": "· {percent}% of the organization's",
       "storedOf": "{used} of {limit} stored",
-      "tokensAndCost": "{count, number} tokens · ${cost}",
+      "threadTotal": "${cost}",
+      "threadTotalDetail": "{input, number} in · {output, number} out billed across this conversation",
+      "threadTotalPartial": "≥ ${cost}",
+      "threadTotalPartialDetail": "{input, number} in · {output, number} out billed across this conversation — a floor: some model in it had no price",
       "unmeasured": "in use — this host did not report a number",
       "workspaceFull": "workspace {percent}% full",
       "workspaceInUse": "workspace in use",

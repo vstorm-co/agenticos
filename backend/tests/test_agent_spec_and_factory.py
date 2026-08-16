@@ -13,12 +13,17 @@ from unittest.mock import AsyncMock
 
 import pytest
 from pydantic import ValidationError
+from pydantic_ai._run_context import RunContext
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
+from pydantic_ai.models import ModelRequestContext, ModelRequestParameters
 from pydantic_ai.models.function import AgentInfo, FunctionModel
+from pydantic_ai.models.test import TestModel
 from pydantic_ai.toolsets import FunctionToolset
+from pydantic_ai.usage import RequestUsage, RunUsage
 
 from app.agents.capabilities import load_builtins
 from app.agents.capabilities.budget import BudgetScope
+from app.agents.capabilities.compaction import ReportContextSize
 from app.agents.factory import DEFAULT_MAX_STEPS, BuiltAgent, build_agent
 from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
 from app.agents.spec import (
@@ -34,6 +39,19 @@ from app.core.secret_kinds import ApiKeySecret
 @pytest.fixture(autouse=True)
 def _builtins_loaded():
     load_builtins()
+
+
+def _run_context() -> RunContext[None]:
+    return RunContext(deps=None, model=TestModel(), usage=RunUsage())
+
+
+def _request_context() -> ModelRequestContext:
+    return ModelRequestContext(
+        model=TestModel(),
+        messages=[],
+        model_settings=None,
+        model_request_parameters=ModelRequestParameters(),
+    )
 
 
 def _model_spec(params: dict | None = None) -> ModelRequestSpec:
@@ -110,6 +128,63 @@ class TestFactory:
         )
         assert built.model_label == "GPT-4.1 (prod)"
         assert [type(c).__name__ for c in built.capabilities] == ["Clock", "Knowledge"]
+
+    @pytest.mark.anyio
+    async def test_an_agent_that_binds_nothing_still_reports_its_context(self):
+        """The gauge is attached whatever the spec says, and this is the point.
+
+        An agent with no `compaction` binding is the one that reaches the context
+        ceiling and is refused by the provider mid-answer - there is no strategy
+        to save it, so the reading is the whole of what it gets. Bound to the
+        capability list beside the budget guard rather than inside `*configured`,
+        which is what makes it independent of the spec.
+        """
+        built = build_agent(
+            AgentSpec(name="Bare", instructions="Be brief."),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+        )
+
+        attached: list[object] = []
+        built.agent.root_capability.apply(attached.append)
+        gauge = next(c for c in attached if isinstance(c, ReportContextSize))
+
+        assert built.capabilities == []
+        await gauge.after_model_request(
+            _run_context(),
+            request_context=_request_context(),
+            response=ModelResponse(
+                parts=[TextPart(content="ok")], usage=RequestUsage(input_tokens=41_806)
+            ),
+        )
+        assert built.context.latest == 41_806
+
+    def test_an_earlier_turns_measurement_starts_the_gauge_off(self):
+        """The gauge is per run and filled by a *response*, so on a one-request
+        turn it is empty for the whole of it - and compaction, which reads it to
+        decide whether the window has room for a summary at all, could never tell
+        that case from a working one. The overhead is a property of the agent's
+        instructions and tool schemas rather than of one run, so what an earlier
+        turn measured is where this one starts (#49)."""
+        built = build_agent(
+            AgentSpec(name="Bare", instructions="Be brief."),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+            recorded_overhead=3_865,
+        )
+
+        assert built.context.overhead == 3_865
+
+    def test_a_thread_that_has_measured_nothing_starts_empty(self):
+        """A first turn. Nothing is guessed here - a made-up overhead would move
+        a refusal that costs an agent its compaction."""
+        built = build_agent(
+            AgentSpec(name="Bare", instructions="Be brief."),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+        )
+
+        assert built.context.overhead is None
 
     def test_agent_settings_override_the_profile(self):
         """The agent is the more specific statement of intent."""

@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from pydantic import ValidationError
+from pydantic_ai_harness.compaction import resolve_context_window
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities import TOOL_NAME_PATTERN, CapabilityDef, all_capabilities
@@ -39,6 +40,7 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
+from app.db.models.credential import ModelProfile
 from app.repositories import (
     agent_environment_repo,
     agent_exposure_repo,
@@ -392,6 +394,26 @@ def slugify(name: str) -> str:
     return f"{slug}-agent" if slug in ROOM_HANDLES else slug
 
 
+def _window_of(profile: ModelProfile | None) -> int | None:
+    """The context window this profile's model accepts, or `None`.
+
+    The profile's recorded number first: it is what the provider's own listing
+    published when somebody added the model, and it beats the pricing registry -
+    which records 1,000,000 for `anthropic:claude-sonnet-4-5` against a real
+    200,000, wrong in the direction that lets a run reach the ceiling.
+
+    The registry is the fallback for a profile older than that column. Nothing is
+    invented past it: a conservative default here would be drawn as a percentage,
+    and a share against a window nobody could resolve is a guess presented as a
+    measurement.
+    """
+    if profile is None:
+        return None
+    if profile.context_length is not None:
+        return profile.context_length
+    return resolve_context_window(f"{profile.provider}:{profile.model}")
+
+
 class AgentRegistryService:
     """Manage an organization's agents."""
 
@@ -471,10 +493,9 @@ class AgentRegistryService:
         surfaces = await agent_exposure_repo.active_surfaces_for_agents(
             self.db, organization_id=ctx.organization_id, agent_ids=agent_ids
         )
-        budget_caps = await agent_repo.published_budget_caps(
-            self.db,
-            version_ids=[agent.current_version_id for agent in agents if agent.current_version_id],
-        )
+        version_ids = [agent.current_version_id for agent in agents if agent.current_version_id]
+        budget_caps = await agent_repo.published_budget_caps(self.db, version_ids=version_ids)
+        windows = await self._context_windows(ctx, version_ids)
         rows = [
             AgentRead(
                 id=agent.id,
@@ -491,12 +512,56 @@ class AgentRegistryService:
                 budget_monthly_usd=(
                     budget_caps.get(agent.current_version_id) if agent.current_version_id else None
                 ),
+                context_window_tokens=(
+                    windows.get(agent.current_version_id) if agent.current_version_id else None
+                ),
                 created_at=agent.created_at,
                 updated_at=agent.updated_at,
             )
             for agent in agents
         ]
         return rows, total
+
+    async def _context_windows(
+        self, ctx: AuthContext, version_ids: list[UUID]
+    ) -> dict[UUID, int | None]:
+        """How many tokens each published version's model accepts, by version id.
+
+        Resolved for the listing rather than per run, because the *share* of a
+        window is drawn where the model is known: the chat lets somebody switch
+        model between turns, and a share carried forward from another model reads
+        "50%" for a history that is really at 390% of the new one.
+
+        Three sources, in this order. The `compaction` binding's own
+        `context_window` first: an author sets it precisely because the resolved
+        number is wrong for them, and it is what the compaction *trigger* already
+        uses - a gauge dividing by something else would describe a different
+        ceiling than the one the agent acts on. Then the profile's
+        `context_length`, which is what its provider published when the model was
+        added, and which beats the pricing registry - that records 1,000,000 for
+        `anthropic:claude-sonnet-4-5` against a real 200,000. The registry is the
+        fallback for a profile older than that column.
+
+        `None` where neither can say, and a surface then draws no share at all
+        rather than one against a conservative guess.
+        """
+        overrides = await agent_repo.published_compaction_windows(self.db, version_ids=version_ids)
+        profile_ids = await agent_repo.published_model_profiles(self.db, version_ids=version_ids)
+        profiles = (
+            await credential_repo.get_profiles_by_ids(
+                self.db, list(set(profile_ids.values())), organization_id=ctx.organization_id
+            )
+            if profile_ids
+            else {}
+        )
+        return {
+            version_id: overrides.get(version_id) or _window_of(profiles.get(profile_id))
+            for version_id, profile_id in profile_ids.items()
+        } | {
+            version_id: window
+            for version_id, window in overrides.items()
+            if version_id not in profile_ids
+        }
 
     async def create(self, ctx: AuthContext, spec: AgentSpec) -> Agent:
         """Create an agent in draft.

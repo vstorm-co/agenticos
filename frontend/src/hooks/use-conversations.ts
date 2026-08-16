@@ -9,7 +9,12 @@ import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { setUrlParam } from "@/lib/utils";
 import { useAgentSelectionStore, useAuthStore, useConversationStore, useChatStore } from "@/stores";
-import type { Conversation, ConversationMessage, ConversationListResponse } from "@/types";
+import type {
+  Conversation,
+  ConversationCost,
+  ConversationListResponse,
+  ConversationMessage,
+} from "@/types";
 
 interface CreateConversationResponse {
   id: string;
@@ -22,6 +27,8 @@ interface CreateConversationResponse {
 interface MessagesResponse {
   items: ConversationMessage[];
   total: number;
+  /** What the whole thread cost, summed server-side. Null when nothing was measured. */
+  cost: ConversationCost | null;
 }
 
 const PAGE_SIZE = 30;
@@ -235,7 +242,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       try {
         const msgs = await apiClient.get<MessagesResponse>(`/conversations/${urlId}/messages`);
         if (!stillSameAccount(startedAs)) return;
-        setCurrentMessages(msgs.items);
+        setCurrentMessages(msgs.items, msgs.cost);
       } catch {
         // The failure belongs to whoever asked. A refusal answering after
         // somebody else has signed in says nothing about the conversation they
@@ -325,7 +332,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
         });
         // Guard against a superseded request resolving after a newer select.
         if (controller.signal.aborted || !stillSameAccount(startedAs)) return;
-        setCurrentMessages(response.items);
+        setCurrentMessages(response.items, response.cost);
       } catch (err) {
         // Ignore aborted/superseded requests - they're expected on rapid switch.
         if (

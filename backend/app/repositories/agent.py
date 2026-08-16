@@ -148,6 +148,68 @@ async def published_budget_caps(
     return {row[0]: row[1] for row in result.all()}
 
 
+async def published_model_profiles(
+    db: AsyncSession, *, version_ids: Sequence[UUID]
+) -> dict[UUID, UUID]:
+    """Which model profile each version's frozen spec names, keyed by version id.
+
+    The same one-path-per-row extraction `published_budget_caps` does, and for the
+    same reason: the listing wants one id out of documents that can carry
+    kilobytes of instructions.
+
+    A version whose spec names no profile is absent rather than null - publish
+    validation refuses a spec without one, so it can only be a spec that predates
+    the rule, and there is nothing to resolve for it either way.
+    """
+    if not version_ids:
+        return {}
+    profile = AgentVersion.spec["model_profile_id"].astext
+    result = await db.execute(
+        select(AgentVersion.id, profile).where(AgentVersion.id.in_(list(version_ids)))
+    )
+    # `UUID(raw)` without a guard: `AgentSpec.model_profile_id` is typed, so what
+    # is frozen into the JSONB has already been through Pydantic. A malformed id
+    # cannot be published, and a branch for one would be a branch nothing reaches.
+    return {version_id: UUID(raw) for version_id, raw in result.all() if raw is not None}
+
+
+async def published_compaction_windows(
+    db: AsyncSession, *, version_ids: Sequence[UUID]
+) -> dict[UUID, int]:
+    """The window each version's `compaction` binding overrides its model's with.
+
+    An author sets this when the resolved window is wrong - the pricing registry
+    records 1,000,000 for `anthropic:claude-sonnet-4-5` against a real 200,000 -
+    or when they want the trigger to allow for the instructions and tool schemas
+    the compaction estimator does not count. Either way it is the number the
+    *trigger* uses, so it has to be the number the gauge divides by: two figures
+    describing one ceiling, disagreeing, is what this whole area kept producing.
+
+    The capability array rather than one path, because the binding is an entry in
+    a list and JSONB has no readable way to filter one out. It is a handful of
+    small objects beside instructions that run to kilobytes.
+
+    Absent where no compaction binding is published, or where it sets no
+    override; the caller then falls back to the model's own window.
+    """
+    if not version_ids:
+        return {}
+    result = await db.execute(
+        select(AgentVersion.id, AgentVersion.spec["capabilities"]).where(
+            AgentVersion.id.in_(list(version_ids))
+        )
+    )
+    found: dict[UUID, int] = {}
+    for version_id, bindings in result.all():
+        for binding in bindings or []:
+            if binding.get("id") != "compaction":
+                continue
+            window = (binding.get("config") or {}).get("context_window")
+            if isinstance(window, int):
+                found[version_id] = window
+    return found
+
+
 async def list_all_published(db: AsyncSession) -> list[Agent]:
     """Every published agent on the deployment, whoever owns it.
 

@@ -23,6 +23,24 @@ function message(overrides: Partial<ConversationMessage> = {}): ConversationMess
  * exactly when nobody is asking.
  */
 describe("what a stored message says it cost", () => {
+  it("carries the partial flag, so a reloaded turn draws the same caveat", () => {
+    // The whole point of storing it: a live turn said the cost was a floor and a
+    // reopened one said nothing, so the same answer read as exact the next day.
+    const usage = storedUsage(
+      message({ input_tokens: 10, output_tokens: 2, cost_usd: "0.0001", cost_is_partial: true }),
+    );
+
+    expect(usage?.cost_is_partial).toBe(true);
+  });
+
+  it("treats an unrecorded flag as an unmarked cost, not as a caveat", () => {
+    // Null is every message written before the column existed. `true` is the only
+    // claim this knows to be right, and the caveat is a claim too.
+    const usage = storedUsage(message({ input_tokens: 10, output_tokens: 2, cost_usd: "0.0001" }));
+
+    expect(usage?.cost_is_partial).toBe(false);
+  });
+
   it("reads the split and the money off the row", () => {
     const usage = storedUsage(
       message({ input_tokens: 1200, output_tokens: 300, cost_usd: "0.012500" }),

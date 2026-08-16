@@ -73,6 +73,7 @@ async def create_profile(
     params: dict | None = None,
     allow_byo: bool = False,
     fallback_profile_ids: list[str] | None = None,
+    context_length: int | None = None,
 ) -> ModelProfile:
     profile = ModelProfile(
         organization_id=organization_id,
@@ -84,6 +85,7 @@ async def create_profile(
         params=params or {},
         allow_byo=allow_byo,
         fallback_profile_ids=fallback_profile_ids or [],
+        context_length=context_length,
     )
     db.add(profile)
     await db.flush()

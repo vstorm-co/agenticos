@@ -35,14 +35,16 @@ tools listed.
 | `tool_search` | Tool search | utility | none, by design | — | — |
 | `clock` | Date and time | utility | none, by design | — | — |
 | `guardrails` | Guardrails | utility | none, by design | — | — |
+| `compaction` | Context management | utility | none, by design | — | — |
 | `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 
-Four of those have no tools on purpose. `thinking` changes how the model runs
+Five of those have no tools on purpose. `thinking` changes how the model runs
 rather than what it can reach, `clock` puts the date in the instructions,
 `tool_search` contributes its search function only once it wraps a toolset that
-has deferred tools — in isolation it declares nothing — and `guardrails` inspects
-and rewrites the text flowing through a run. None of the four leaves anything for
-a person to approve, so none declares a tool. A capability with genuinely no
+has deferred tools — in isolation it declares nothing — `guardrails` inspects and
+rewrites the text flowing through a run, and `compaction` rewrites the history a
+request carries. None of the five leaves anything for a person to approve, so none
+declares a tool. A capability with genuinely no
 tools says so with `tools=()` rather than omitting the argument; see
 [Add a capability](../howto/add-capability.md).
 
@@ -598,6 +600,95 @@ about "this quarter" from its training cutoff.
 | Config | Default | |
 |---|---|---|
 | `timezone` | `UTC` | any IANA name, e.g. `Europe/Warsaw` |
+
+## Context management
+
+No tools. Trims a long run's message history before each request, so a run that
+would have hit the model's limit keeps working instead. The strategies come from
+[`pydantic-ai-harness`](https://github.com/pydantic/pydantic-ai-harness).
+
+| Config | Default | |
+|---|---|---|
+| `strategy` | `summarize` | `summarize`, `tiered`, `clear_tool_results`, `sliding_window` |
+| `max_fraction` | `0.9` | 0.05–0.95 of the window, at which compaction starts |
+| `keep_messages` | 20 | recent messages that survive a summary or a window |
+| `keep_tool_pairs` | 3 | recent tool calls that keep their results |
+| `summary_prompt` | the library's own | what the summarising model is told; must contain `{messages}` |
+| `context_window` | unset | override the window — what this triggers against *and* what the chat's gauge divides by |
+| `fallback_context_window` | 200000 | window to assume when the model's cannot be resolved |
+
+`summarize` is the default because it is the only strategy that keeps what the
+older turns *said*. The zero-LLM ones are cheaper because they throw information
+away — a sliding window drops the oldest messages outright, clearing a tool result
+blanks an answer the agent may still need — and an agent that silently forgets
+what it was told mid-run is a worse failure than a summary nobody asked for. It
+fires at 0.9 of the window for the same reason: compaction is where a run starts
+losing detail, so it is deferred until the window is nearly full.
+
+`tiered` is the frugal choice and one binding away: it clears old tool results
+first and pays for a summary only if that was not enough. Summarising turns input
+tokens into output tokens, which are billed at a premium and generated serially,
+so an agent whose runs are dominated by large tool results is usually better on
+`tiered`.
+
+**It reaches one run, not one conversation.** Between turns the history is rebuilt
+from the transcript as user and assistant text, so tool calls and their results
+are not there to compact and no edit made here survives a turn boundary. The
+history worth compacting is the long tool loop inside a single run, where one
+directory listing or knowledge search is tens of thousands of tokens.
+
+**The trigger is a fraction because an absolute number is only right for one
+model**, and the same agent runs on whatever profile its spec points at. The
+window comes from the model profile, which recorded it from the provider's own
+listing when somebody added the model — see
+[Which models a provider offers](../models.md#the-window-a-model-accepts-is-read-once-and-kept).
+
+Where the profile recorded nothing, the window is resolved from the bundled price
+snapshot instead, and two cases resolve wrongly — both in the direction that
+breaks a run rather than the one that wastes a summary: a spec with fallbacks
+builds a `FallbackModel` whose composite id resolves to nothing, and
+`genai-prices` records 1,000,000 for `anthropic:claude-sonnet-4-5` against a real
+200,000, where `max_fraction=0.9` puts the trigger at 900,000 and compaction never
+fires. `context_window` overrides everything and is the answer to both — a
+provider publishes the maximum a model *can* be made to accept, and a beta- or
+tier-gated deployment gets less.
+
+**The trigger allows for what every request carries.** It measures the message
+parts; a request also carries the instructions and every tool schema. On a real
+agent the estimator saw 60 tokens where the provider charged for 3,865 — so the
+overhead is measured against each response and the trigger's window is moved down
+by it, which is what keeps the gauge and the trigger describing one ceiling rather
+than two.
+
+It waits for a response to measure from, so the first request of a run triggers on
+the messages alone. And it gives up when the overhead alone is past the trigger:
+no summary can get under it, the schemas are not in the history, and a corrected
+window would buy a summary on every request for ever.
+
+**When it gives up, it says so.** A `context_window` smaller than the agent's own
+overhead is that case, and doing nothing about it is indistinguishable on screen
+from a setting that is working — so the chat shows what the overhead is and what
+window it was measured against, which is the pair somebody needs to pick a number
+that works. Once per run, because it describes a configuration rather than an
+event, and it is displaced the moment a summary actually runs.
+
+**A summary says it is happening.** It is a whole model request between two of the
+turn's own, where nothing else streams — the chat used to stop dead for the length
+of it, which reads as a broken screen and gets the page reloaded, cancelling the
+turn. The chat now shows what is being summarised while it happens. Only the
+summarising strategy: the others edit a list and return.
+
+**A summary is metered.** The strategy writes it through an agent it builds
+itself, which no budget guard wraps, so the capability measures the run's usage
+across the hook and books the difference against the run's ledger. It is recorded
+rather than prevented: the guard refuses on the *next* request, so a compaction
+that crosses a cap stops the run after it, not during it.
+
+**The gauge beside it is not part of this binding.** How full the window was is
+reported by every agent, whether or not it compacts — see
+[how full the context window is](../governance.md#how-full-the-context-window-is).
+The warning matters most to the agent that will *not* compact, which is the one
+that reaches the ceiling and gets refused.
 
 ## Tool search
 

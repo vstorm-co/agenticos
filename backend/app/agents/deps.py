@@ -18,6 +18,7 @@ from typing import Any
 from uuid import UUID
 
 from app.agents.approval import ApprovalDecision, ApprovalRequest
+from app.agents.compaction_events import CompactionEvent
 from app.agents.subagent_events import SubagentEventSink
 
 AskUserCallback = Callable[[str, list[str]], Awaitable[str]]
@@ -32,6 +33,17 @@ delegate that would ask is told a person could not be reached.
 """
 
 ApprovalCallback = Callable[[ApprovalRequest], Awaitable[ApprovalDecision]]
+
+CompactionSink = Callable[[CompactionEvent], Awaitable[None]]
+"""Where a surface hears that the history is being summarised, and that it is done.
+
+Only the summarising strategy reaches for this. The zero-LLM ones edit a list and
+return, so announcing them would be a spinner that appears and vanishes within a
+frame; a summary is a whole model request, and until this existed the chat simply
+stopped for the length of it with nothing said. A run whose surface cannot show
+anything leaves it `None` and the summary is silent, the way a delegation is
+silent on a surface with no `subagent_events`.
+"""
 
 
 @dataclass
@@ -58,6 +70,11 @@ class AgentDeps:
     # Set when the surface can show a delegation while it is happening; None
     # everywhere else, so the delegation still runs and simply is not narrated.
     subagent_events: SubagentEventSink | None = None
+
+    # Set when the surface can say "still working" while the history is being
+    # summarised. None elsewhere, and the summary is then silent rather than
+    # refused - it is a progress report, not a permission.
+    on_compaction: CompactionSink | None = None
 
     metadata: dict[str, Any] = field(default_factory=dict)
 

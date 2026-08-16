@@ -37,7 +37,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
 from app.agents.capabilities.guardrails import GuardrailBlocked
-from app.agents.deps import AgentDeps, AskUserCallback
+from app.agents.deps import AgentDeps, AskUserCallback, CompactionSink
 from app.agents.subagent_events import SubagentEventSink
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import AuthContext
@@ -55,7 +55,7 @@ from app.services.agent_runner import (
     run_failure_summary,
 )
 from app.services.attachments import AttachmentRouter
-from app.services.usage_report import UsageReport, UsageReportService
+from app.services.usage_report import UsageReport, UsageReportService, context_fill
 
 logger = logging.getLogger(__name__)
 
@@ -209,6 +209,22 @@ class ChatTurn:
     decision.
     """
 
+    summarized_history: list[dict[str, Any]] | None = None
+    """The history a summary reduced this turn to, or `None` if none ran.
+
+    Carried out rather than written here because the surface writes the turn's
+    own rows *after* this returns, and what is recorded alongside it is how far
+    the summary reaches - see `ConversationService.keep_summary`.
+    """
+
+    overhead_tokens: int | None = None
+    """What this turn measured a request to carry before a single message.
+
+    Recorded against the conversation so the *next* turn starts knowing it. It
+    comes off a response, so within one run it is unknown until one arrives -
+    and a one-request turn, which is most of them, never gets that far (#49).
+    """
+
     usage: UsageReport | None = None
     """What the turn cost, and how full its workspace is.
 
@@ -254,6 +270,7 @@ class ChatAgentRunner:
         stream: ChatStream,
         on_run_open: Callable[[OpenedRun], None] | None = None,
         subagent_events: SubagentEventSink | None = None,
+        on_compaction: CompactionSink | None = None,
         model_profile_id: UUID | None = None,
         environment_id: UUID | None = None,
     ) -> ChatTurn:
@@ -328,6 +345,10 @@ class ChatAgentRunner:
         # delegation is a tool call named `task` that goes quiet for thirty seconds.
         prepared.deps.ask_user = ask_user
         prepared.deps.subagent_events = subagent_events
+        # And the third: summarising a long history is a whole model request
+        # between two of this turn's own, where nothing streams. Without this the
+        # chat stops dead for the length of it with nothing said.
+        prepared.deps.on_compaction = on_compaction
 
         # Before the run, not after: this run may fail, park or be cancelled, and
         # a transcript that holds the answer but not the question is the one shape
@@ -359,6 +380,7 @@ class ChatAgentRunner:
         paused: PausedRunState | None = None
         budget_scope: BudgetScope | None = None
         output = ""
+        summarized: list[dict[str, Any]] | None = None
         try:
             async with prepared.iterate(
                 user_input,
@@ -367,6 +389,13 @@ class ChatAgentRunner:
                 await stream(agent_run)
 
             result = _outcome(agent_run)
+            # Before the branch, so a turn that parked on an approval keeps its
+            # summary too: the resume replays the parked state, but the *next*
+            # turn reads the conversation and would otherwise summarise again.
+            if prepared.built.context.summarized:
+                summarized = ModelMessagesTypeAdapter.dump_python(
+                    result.all_messages(), mode="json"
+                )
             if isinstance(result.output, DeferredToolRequests):
                 paused = PausedRunState(
                     messages=ModelMessagesTypeAdapter.dump_python(
@@ -429,6 +458,8 @@ class ChatAgentRunner:
             run_id=prepared.run.id,
             parked=tuple(prepared.approvals.requested),
             usage=await self._usage(ctx, prepared),
+            summarized_history=summarized,
+            overhead_tokens=prepared.built.context.overhead,
         )
 
     async def _usage(self, ctx: AuthContext, prepared: PreparedRun) -> UsageReport | None:
@@ -458,6 +489,11 @@ class ChatAgentRunner:
                     else self._as_decimal(prepared.spec.budget.monthly_usd)
                 ),
                 include_sandbox=True,
+                # Read off the run's own gauge rather than recomputed: the
+                # compaction capability's estimator has already counted these
+                # tokens for its own trigger, against the window the profile
+                # recorded. A second count here would be a second answer.
+                context=context_fill(prepared.built.context),
             )
         except Exception:
             logger.warning("chat_usage_report_failed", extra={"run_id": str(prepared.run.id)})

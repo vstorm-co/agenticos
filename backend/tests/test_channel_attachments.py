@@ -155,6 +155,12 @@ def _channel(agent_router: Any, rows: list[Any]) -> Iterator[None]:
         patch(
             f"{router}.conversation_repo.get_messages_by_conversation", AsyncMock(return_value=[])
         ),
+        # The thread the model is told. Read through the service since #49,
+        # because where a summary has run that is where the history starts.
+        patch(
+            f"{router}.ConversationService",
+            return_value=MagicMock(model_history=AsyncMock(return_value=[])),
+        ),
         patch(
             f"{router}.get_adapter",
             return_value=MagicMock(begin_reply=AsyncMock(return_value=None)),
@@ -618,6 +624,10 @@ async def _route_one_file(text: str) -> tuple[MagicMock, MagicMock, AsyncMock]:
         # The window is sized off a `COUNT`, and the session here is a mock. What
         # this helper is about is which files reach the run.
         patch(f"{router}.conversation_repo.count_messages", AsyncMock(return_value=0)),
+        patch(
+            f"{router}.ConversationService",
+            return_value=MagicMock(model_history=AsyncMock(return_value=[])),
+        ),
         patch(f"{router}.ChannelAgentRouter", return_value=agents),
         patch.object(FileUploadService, "upload", upload),
     ):

@@ -100,6 +100,10 @@ def _turns(answer: str = "hi", history: list[MagicMock] | None = None):
             new=AsyncMock(return_value=messages),
         ),
         patch(
+            "app.services.embed_session.conversation_repo.get_conversation_by_id",
+            new=AsyncMock(return_value=MagicMock(summary_messages=None, summary_ordinal=None)),
+        ),
+        patch(
             "app.services.access.member_repo.get_active",
             new=AsyncMock(return_value=MagicMock(role="builder")),
         ),

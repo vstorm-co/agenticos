@@ -586,6 +586,164 @@ async def count_messages(db: AsyncSession, conversation_id: UUID) -> int:
     return result.scalar() or 0
 
 
+async def conversation_cost(
+    db: AsyncSession, conversation_id: UUID
+) -> tuple[int, int, Decimal, bool | None] | None:
+    """Input tokens, output tokens, money and whether the money is a floor.
+
+    Aggregated here rather than summed by a client, because a client only holds
+    the page it asked for: the transcript endpoint pages at 100, so adding up
+    what is on screen answers "the first hundred turns" while reading as "this
+    conversation".
+
+    `None` when nothing in the thread was ever measured - a conversation older
+    than the columns, or one whose every turn failed before a cost was read.
+    Zeroes would be a claim, and this has none to make.
+
+    The partial flag is `bool_or`: one unpriced turn makes the whole total a
+    floor. It stays `None` where no turn recorded the flag at all, which is the
+    honest "nobody knows" rather than "exact".
+    """
+    result = await db.execute(
+        select(
+            func.coalesce(func.sum(Message.input_tokens), 0),
+            func.coalesce(func.sum(Message.output_tokens), 0),
+            func.coalesce(func.sum(Message.cost_usd), 0),
+            func.bool_or(Message.cost_is_partial),
+            func.count(Message.input_tokens),
+        ).where(Message.conversation_id == conversation_id)
+    )
+    input_tokens, output_tokens, cost_usd, partial, measured = result.one()
+    if not measured:
+        return None
+    return int(input_tokens), int(output_tokens), Decimal(cost_usd), partial
+
+
+async def attributed_to_run(db: AsyncSession, run_id: UUID) -> tuple[int, int, Decimal]:
+    """What this run's messages already claim of what the run spent.
+
+    A run row carries *cumulative* totals, and one run can write more than one
+    assistant turn: a run that parks and is resumed writes the parked half and the
+    continuation, and the resume's row says what the whole run has cost by then.
+    Stamping each with the row's figure would count the parked half twice, so each
+    turn is written with the difference - and the messages of a run then sum to
+    exactly what the run says it spent.
+
+    Zero for a run that has written nothing yet, which is every ordinary turn.
+    """
+    result = await db.execute(
+        select(
+            func.coalesce(func.sum(Message.input_tokens), 0),
+            func.coalesce(func.sum(Message.output_tokens), 0),
+            func.coalesce(func.sum(Message.cost_usd), 0),
+        ).where(Message.run_id == run_id)
+    )
+    input_tokens, output_tokens, cost_usd = result.one()
+    return int(input_tokens), int(output_tokens), Decimal(cost_usd)
+
+
+async def run_statuses(db: AsyncSession, run_ids: Collection[UUID]) -> dict[UUID, str]:
+    """How each of these runs ended, for the turns they produced.
+
+    One query for a page of messages, the same bargain the rating counts make. A
+    transcript needs it to say that a turn was *stopped*: a cancelled run leaves a
+    half-written answer that reads exactly like a complete one, and the reader is
+    left believing the agent said all it had to say.
+    """
+    if not run_ids:
+        return {}
+    result = await db.execute(
+        select(AgentRun.id, AgentRun.status).where(AgentRun.id.in_(list(run_ids)))
+    )
+    return dict(result.all())
+
+
+async def get_recent_messages(
+    db: AsyncSession, conversation_id: UUID, *, limit: int
+) -> list[Message]:
+    """The last `limit` messages of a conversation, still oldest first.
+
+    The window every surface reminds a model of, in one place because the offset
+    has been got wrong from both ends already. `get_messages_by_conversation`
+    orders oldest-first, so a bare `limit` returns a thread's *opening*
+    exchanges and drops what was just said: that is how the widget forgot the
+    question before the one it was answering (#39), and how a channel bot past
+    200 messages came to answer plausibly from a conversation that had stopped
+    hundreds of turns ago (#638). Neither errored.
+
+    One `COUNT(*)` on an indexed column is what the right offset costs.
+    """
+    total = await count_messages(db, conversation_id)
+    return await get_messages_by_conversation(
+        db, conversation_id, skip=max(0, total - limit), limit=limit
+    )
+
+
+async def get_messages_after(
+    db: AsyncSession, conversation_id: UUID, *, ordinal: int, limit: int
+) -> list[Message]:
+    """The last `limit` messages written after `ordinal`, still oldest first.
+
+    What a conversation has said since its summary was taken, which is the half
+    of the history the summary does not account for. Bounded like
+    `get_recent_messages` is, and for the same reason: a thread nobody compacts
+    again must not grow into an unbounded prompt.
+    """
+    total = await db.scalar(
+        select(func.count(Message.id)).where(
+            Message.conversation_id == conversation_id, Message.ordinal > ordinal
+        )
+    )
+    query = (
+        select(Message)
+        .where(Message.conversation_id == conversation_id, Message.ordinal > ordinal)
+        .options(selectinload(Message.files))
+        .order_by(Message.ordinal.asc())
+        .offset(max(0, (total or 0) - limit))
+        .limit(limit)
+    )
+    result = await db.execute(query)
+    return list(result.scalars().all())
+
+
+async def set_summary(
+    db: AsyncSession,
+    *,
+    db_conversation: Conversation,
+    messages: list[dict[str, Any]],
+    ordinal: int,
+) -> Conversation:
+    """Record the history a summary reduced this conversation to.
+
+    One row per conversation rather than a log of them: the newest summary is
+    written over the last, because it was produced *from* it and the older one
+    describes a thread that no longer exists.
+    """
+    db_conversation.summary_messages = messages
+    db_conversation.summary_ordinal = ordinal
+    await db.flush()
+    await db.refresh(db_conversation)
+    return db_conversation
+
+
+async def set_overhead(
+    db: AsyncSession, *, db_conversation: Conversation, tokens: int
+) -> Conversation:
+    """Record what a request here carries before a single message."""
+    db_conversation.overhead_tokens = tokens
+    await db.flush()
+    await db.refresh(db_conversation)
+    return db_conversation
+
+
+async def last_ordinal(db: AsyncSession, conversation_id: UUID) -> int:
+    """The ordinal of the newest message, or 0 for a conversation with none."""
+    highest = await db.scalar(
+        select(func.max(Message.ordinal)).where(Message.conversation_id == conversation_id)
+    )
+    return highest or 0
+
+
 async def get_messages_by_run(
     db: AsyncSession,
     run_id: UUID,
@@ -630,6 +788,8 @@ async def create_message(
     input_tokens: int | None = None,
     output_tokens: int | None = None,
     cost_usd: Decimal | None = None,
+    cost_is_partial: bool | None = None,
+    context_used_tokens: int | None = None,
     agent_id: UUID | None = None,
     agent_version_id: UUID | None = None,
     run_id: UUID | None = None,
@@ -648,6 +808,8 @@ async def create_message(
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         cost_usd=cost_usd,
+        cost_is_partial=cost_is_partial,
+        context_used_tokens=context_used_tokens,
         agent_id=agent_id,
         agent_version_id=agent_version_id,
         run_id=run_id,

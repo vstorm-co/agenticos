@@ -21,6 +21,7 @@ import logging
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -260,6 +261,10 @@ class TestWritingTheTranscript:
             repo.create_message = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
             repo.create_tool_call = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
             repo.complete_tool_call = AsyncMock()
+            # What this run's earlier turns already claim of its cost. Zero on an
+            # ordinary turn; the subtraction is what stops a resumed run counting
+            # its parked half twice.
+            repo.attributed_to_run = AsyncMock(return_value=(0, 0, Decimal(0)))
             yield repo
 
     @pytest.fixture
@@ -357,6 +362,25 @@ class TestWritingTheTranscript:
         )
         assert (answer["role"], answer["content"], answer["run_id"]) == ("assistant", "two", run.id)
         assert answer["model_name"] == "gpt-4.1"
+
+    async def test_the_answer_records_the_size_of_the_request_it_came_out_of(self, conversations):
+        """Not the run's totals beside it: those sum every request of a tool loop,
+        and this is the anchor a replayed history is measured against - a
+        statement about one request (`agent.build_message_history`)."""
+        await TranscriptService(_session()).record(
+            _run(), prompt="hello", answer="hi", context_used_tokens=3_843
+        )
+
+        answer = conversations.create_message.await_args_list[1].kwargs
+        assert answer["context_used_tokens"] == 3_843
+
+    async def test_a_run_that_reached_no_model_records_no_size(self, conversations):
+        """An expiry settles a parked run without a model request, and a zero
+        there would read as a request that carried nothing."""
+        await TranscriptService(_session()).record(_run(), prompt="hello", answer="hi")
+
+        answer = conversations.create_message.await_args_list[1].kwargs
+        assert answer["context_used_tokens"] is None
 
     async def test_a_turn_from_a_channel_records_which_chat_account_wrote_it(self, conversations):
         """A room is one thread with several people in it, so `role="user"` does

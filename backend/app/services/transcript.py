@@ -227,6 +227,7 @@ class TranscriptService:
         settled: Mapping[str, str] | None = None,
         parked: Collection[str] = (),
         model_label: str | None = None,
+        context_used_tokens: int | None = None,
     ) -> None:
         """Write whatever this run produced, and never fail the run for it.
 
@@ -316,6 +317,7 @@ class TranscriptService:
                         tool_calls=tool_calls,
                         parked=parked,
                         model_label=model_label,
+                        context_used_tokens=context_used_tokens,
                     )
         except Exception:
             # `exception`, not `warning`: this is the only place in this file that
@@ -390,6 +392,7 @@ class TranscriptService:
         tool_calls: Sequence[RecordedToolCall],
         parked: Collection[str],
         model_label: str | None,
+        context_used_tokens: int | None,
     ) -> None:
         """The assistant turn and the calls it made, attributed to the version.
 
@@ -397,12 +400,32 @@ class TranscriptService:
         rewritten between runs, and attributing last Tuesday's answer to the
         spec it has today would rewrite what it was told to do.
         """
+        # What this turn cost, so a channel, an API caller and a widget report it
+        # the way web chat has since the columns existed - and so a conversation
+        # can be totalled at all on those surfaces, where every message read null.
+        #
+        # The *difference*, not the run row's figure: a run that parked and was
+        # resumed writes two assistant turns and the row is cumulative, so
+        # stamping both with it would count the parked half twice.
+        spent_in, spent_out, spent_usd = await conversation_repo.attributed_to_run(self.db, run.id)
         message = await conversation_repo.create_message(
             self.db,
             conversation_id=conversation_id,
             role="assistant",
             content=answer,
             model_name=model_label,
+            input_tokens=run.input_tokens - spent_in,
+            output_tokens=run.output_tokens - spent_out,
+            cost_usd=run.cost_usd - spent_usd,
+            # Not a difference: one unpriced request makes the whole run's figure a
+            # floor, and every turn of it is short by an amount nobody can split.
+            cost_is_partial=run.cost_is_partial,
+            # What the *last* request of the run carried, which is not the sum
+            # above and must not be confused with it. It is the anchor the
+            # compaction estimator reads when this turn is replayed - one
+            # request's true size, where the totals are a run's whole bill
+            # (`app.services.agent.build_message_history`).
+            context_used_tokens=context_used_tokens,
             agent_id=run.agent_id,
             agent_version_id=run.agent_version_id,
             run_id=run.id,

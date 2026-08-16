@@ -59,6 +59,16 @@ export interface ModelProfile {
   params: Record<string, unknown>;
   allow_byo: boolean;
   fallback_profile_ids: string[];
+  /**
+   * Tokens this model accepts, as its provider's listing said when the profile
+   * was created.
+   *
+   * Null means *not recorded* - a profile older than the column, a provider that
+   * publishes no length, a listing that could not be reached - and not that the
+   * model accepts none. Re-adding the model records it; nothing backfills a row
+   * that already exists.
+   */
+  context_length?: number | null;
   created_at?: string;
 }
 

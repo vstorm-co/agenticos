@@ -1,13 +1,16 @@
 """Tests for ConversationService (PostgreSQL async variant)."""
 
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
+from pydantic_ai.messages import ModelMessagesTypeAdapter, ModelRequest, SystemPromptPart
 
 from app.core.exceptions import BadRequestError, NotFoundError
+from app.repositories import conversation_repo
 from app.services.conversation import ConversationService
 
 # Every conversation belongs to a tenant; the service refuses reads from another one.
@@ -35,6 +38,9 @@ class MockConversation:
         self.created_at = datetime(2026, 7, 27, tzinfo=UTC)
         self.updated_at = None
         self.messages: list[Any] = []
+        self.summary_messages: list[dict[str, Any]] | None = None
+        self.summary_ordinal: int | None = None
+        self.overhead_tokens: int | None = None
 
 
 class MockMessage:
@@ -48,6 +54,7 @@ class MockMessage:
         content="Hello",
         model_name=None,
         tokens_used=None,
+        run_id=None,
     ):
         self.id = id or uuid4()
         self.conversation_id = conversation_id or uuid4()
@@ -55,6 +62,13 @@ class MockMessage:
         self.content = content
         self.model_name = model_name
         self.tokens_used = tokens_used
+        # Which run produced the turn, and therefore how it ended - a listing
+        # reads a status off it so a stopped turn can say it was stopped.
+        self.run_id = run_id
+        # Enough of a row for `MessageRead.model_validate`, which the listing runs
+        # when it has a reader to attach ratings for.
+        self.created_at = datetime(2026, 8, 16, tzinfo=UTC)
+        self.updated_at = None
 
 
 class MockToolCall:
@@ -919,7 +933,9 @@ class TestConversationServiceListMessages:
         with patch("app.services.conversation.conversation_repo") as mock_repo:
             mock_repo.get_conversation_by_id = AsyncMock(return_value=mock_conv)
             mock_repo.get_messages_by_conversation = AsyncMock(return_value=mock_messages)
+            mock_repo.run_statuses = AsyncMock(return_value={})
             mock_repo.count_messages = AsyncMock(return_value=2)
+            mock_repo.run_statuses = AsyncMock(return_value={})
 
             items, total = await service.list_messages(conv_id, organization_id=TEST_ORG_ID)
 
@@ -944,6 +960,7 @@ class TestConversationServiceListMessages:
         with patch("app.services.conversation.conversation_repo") as mock_repo:
             mock_repo.get_conversation_by_id = AsyncMock(return_value=mock_conv)
             mock_repo.get_messages_by_conversation = AsyncMock(return_value=[])
+            mock_repo.run_statuses = AsyncMock(return_value={})
             mock_repo.count_messages = AsyncMock(return_value=0)
 
             await service.list_messages(conv_id, skip=5, limit=10, organization_id=TEST_ORG_ID)
@@ -961,6 +978,7 @@ class TestConversationServiceListMessages:
         with patch("app.services.conversation.conversation_repo") as mock_repo:
             mock_repo.get_conversation_by_id = AsyncMock(return_value=mock_conv)
             mock_repo.get_messages_by_conversation = AsyncMock(return_value=[])
+            mock_repo.run_statuses = AsyncMock(return_value={})
             mock_repo.count_messages = AsyncMock(return_value=0)
 
             await service.list_messages(
@@ -1403,3 +1421,274 @@ class TestConversationServiceLinkFiles:
 
         assert refusal.value.details == {"file_ids": [spent]}
         repo.link_to_message.assert_not_awaited()
+
+
+class TestSayingATurnWasStopped:
+    """`run_status` on a listed message.
+
+    A cancelled run leaves a half-written answer that reads exactly like a
+    complete one, so the reader believes the agent said all it had to say. The
+    status is on the run and the message links to it; carrying it here is what
+    lets a transcript mark the turn without a second request per row.
+    """
+
+    @pytest.fixture
+    def service(self) -> ConversationService:
+        return ConversationService(AsyncMock())
+
+    @staticmethod
+    async def _listed(service: ConversationService, conv_id):
+        """Listed as the transcript route lists them - with a reader, so the
+        schema-enriching branch runs rather than the raw-row one."""
+        with patch("app.services.conversation.message_rating_repo") as ratings:
+            ratings.get_user_ratings_for_messages = AsyncMock(return_value={})
+            ratings.get_rating_counts_for_messages = AsyncMock(return_value={})
+            return await service.list_messages(
+                conv_id, organization_id=TEST_ORG_ID, user_id=uuid4()
+            )
+
+    @pytest.mark.anyio
+    async def test_a_turn_carries_how_its_run_ended(self, service: ConversationService):
+        conv_id = uuid4()
+        run_id = uuid4()
+        with patch("app.services.conversation.conversation_repo") as mock_repo:
+            mock_repo.get_conversation_by_id = AsyncMock(
+                return_value=MockConversation(id=conv_id, organization_id=TEST_ORG_ID)
+            )
+            mock_repo.get_messages_by_conversation = AsyncMock(
+                return_value=[MockMessage(run_id=run_id)]
+            )
+            mock_repo.count_messages = AsyncMock(return_value=1)
+            mock_repo.run_statuses = AsyncMock(return_value={run_id: "cancelled"})
+
+            items, _total = await self._listed(service, conv_id)
+
+        assert items[0].run_status == "cancelled"
+
+    @pytest.mark.anyio
+    async def test_a_turn_written_outside_a_run_says_nothing(self, service: ConversationService):
+        """A system message, or a prompt whose run row could not be opened."""
+        conv_id = uuid4()
+        with patch("app.services.conversation.conversation_repo") as mock_repo:
+            mock_repo.get_conversation_by_id = AsyncMock(
+                return_value=MockConversation(id=conv_id, organization_id=TEST_ORG_ID)
+            )
+            mock_repo.get_messages_by_conversation = AsyncMock(return_value=[MockMessage()])
+            mock_repo.count_messages = AsyncMock(return_value=1)
+            mock_repo.run_statuses = AsyncMock(return_value={})
+
+            items, _total = await self._listed(service, conv_id)
+
+        assert items[0].run_status is None
+
+
+class TestWhatTheThreadCost:
+    """`conversation_cost` - the total beside the page of messages.
+
+    Scoped exactly as `list_messages` is, and for the same reason: a total is
+    enough to tell how heavily somebody else's conversation was used.
+    """
+
+    @pytest.fixture
+    def service(self) -> ConversationService:
+        return ConversationService(AsyncMock())
+
+    @pytest.mark.anyio
+    async def test_another_tenants_thread_is_not_totalled(self, service: ConversationService):
+        with patch("app.services.conversation.conversation_repo") as mock_repo:
+            mock_repo.get_conversation_by_id = AsyncMock(return_value=None)
+
+            with pytest.raises(NotFoundError):
+                await service.conversation_cost(uuid4(), organization_id=TEST_ORG_ID)
+
+    @pytest.mark.anyio
+    async def test_a_thread_nobody_measured_answers_nothing(self, service: ConversationService):
+        """Zeroes would be a claim, and this has none to make."""
+        conv_id = uuid4()
+        with patch("app.services.conversation.conversation_repo") as mock_repo:
+            mock_repo.get_conversation_by_id = AsyncMock(
+                return_value=MockConversation(id=conv_id, organization_id=TEST_ORG_ID)
+            )
+            mock_repo.conversation_cost = AsyncMock(return_value=None)
+
+            assert await service.conversation_cost(conv_id, organization_id=TEST_ORG_ID) is None
+
+    @pytest.mark.anyio
+    async def test_the_totals_reach_the_schema_the_client_reads(self, service: ConversationService):
+        conv_id = uuid4()
+        with patch("app.services.conversation.conversation_repo") as mock_repo:
+            mock_repo.get_conversation_by_id = AsyncMock(
+                return_value=MockConversation(id=conv_id, organization_id=TEST_ORG_ID)
+            )
+            mock_repo.conversation_cost = AsyncMock(
+                return_value=(3_000, 300, Decimal("0.030000"), True)
+            )
+
+            cost = await service.conversation_cost(conv_id, organization_id=TEST_ORG_ID)
+
+        assert cost is not None
+        assert (cost.input_tokens, cost.output_tokens) == (3_000, 300)
+        assert cost.cost_usd == Decimal("0.030000")
+        assert cost.cost_is_partial is True
+
+
+@pytest.mark.anyio
+class TestTheThreadAModelIsGivenBack:
+    """A summary is bought once, not once per turn.
+
+    Compaction rewrites the messages of one run, and the thread between turns is
+    rebuilt from the transcript - so the summary used to be thrown away at the
+    turn boundary and the next turn bought another over a history one turn
+    longer. Two consecutive turns of a real conversation each paid for one, the
+    second announcing itself as summarising nine messages (#49).
+    """
+
+    @staticmethod
+    def _row(role: str, content: str, *, used: int | None = None, row_id: Any = None) -> Any:
+        message = MockMessage(role=role, content=content, id=row_id)
+        message.context_used_tokens = used
+        return message
+
+    async def test_a_conversation_with_no_summary_is_read_from_its_transcript(self, monkeypatch):
+        conversation = MockConversation()
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        recent = AsyncMock(return_value=[self._row("user", "hi"), self._row("assistant", "hello")])
+        monkeypatch.setattr(conversation_repo, "get_recent_messages", recent)
+
+        history = await ConversationService(AsyncMock()).model_history(conversation.id, limit=50)
+
+        assert [part.content for message in history for part in message.parts] == ["hi", "hello"]
+
+    async def test_a_summary_replaces_the_turns_it_accounts_for(self, monkeypatch):
+        """The whole point: the summarised turns are not read back at all, so the
+        next turn has nothing left to summarise a second time."""
+        conversation = MockConversation()
+        conversation.summary_messages = ModelMessagesTypeAdapter.dump_python(
+            [ModelRequest(parts=[SystemPromptPart(content="Summary: they said hello.")])],
+            mode="json",
+        )
+        conversation.summary_ordinal = 4
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        after = AsyncMock(return_value=[self._row("user", "and now?")])
+        monkeypatch.setattr(conversation_repo, "get_messages_after", after)
+        monkeypatch.setattr(conversation_repo, "get_recent_messages", AsyncMock())
+
+        history = await ConversationService(AsyncMock()).model_history(conversation.id, limit=50)
+
+        assert [part.content for message in history for part in message.parts] == [
+            "Summary: they said hello.",
+            "and now?",
+        ]
+        assert after.await_args.kwargs["ordinal"] == 4
+        conversation_repo.get_recent_messages.assert_not_awaited()
+
+    async def test_the_turn_being_answered_is_not_read_back_as_history(self, monkeypatch):
+        """The prompt is written before the run so a refusal cannot lose it, so it
+        is a row by the time this reads. Left in, the model is asked twice."""
+        conversation = MockConversation()
+        prompt_id = uuid4()
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        monkeypatch.setattr(
+            conversation_repo,
+            "get_recent_messages",
+            AsyncMock(return_value=[self._row("user", "asked now", row_id=prompt_id)]),
+        )
+
+        history = await ConversationService(AsyncMock()).model_history(
+            conversation.id, limit=50, exclude_message_id=prompt_id
+        )
+
+        assert history == []
+
+    async def test_a_summary_is_recorded_against_everything_written_so_far(self, monkeypatch):
+        """Including the turn that produced it. Stored short of the answer, the
+        next turn would replay the summary and the answer already inside it."""
+        conversation = MockConversation()
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        monkeypatch.setattr(conversation_repo, "last_ordinal", AsyncMock(return_value=9))
+        stored = AsyncMock()
+        monkeypatch.setattr(conversation_repo, "set_summary", stored)
+
+        await ConversationService(AsyncMock()).keep_summary(conversation.id, [{"kind": "request"}])
+
+        assert stored.await_args.kwargs["ordinal"] == 9
+        assert stored.await_args.kwargs["messages"] == [{"kind": "request"}]
+
+    async def test_a_summary_for_a_conversation_that_is_gone_is_dropped(self, monkeypatch):
+        """A thread deleted while its last turn was still running. The answer has
+        already been produced; failing here would lose it to bookkeeping."""
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=None)
+        )
+        stored = AsyncMock()
+        monkeypatch.setattr(conversation_repo, "set_summary", stored)
+
+        await ConversationService(AsyncMock()).keep_summary(uuid4(), [{"kind": "request"}])
+
+        stored.assert_not_awaited()
+
+    async def test_a_conversation_that_is_gone_has_no_history(self, monkeypatch):
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=None)
+        )
+        monkeypatch.setattr(conversation_repo, "get_recent_messages", AsyncMock(return_value=[]))
+
+        assert await ConversationService(AsyncMock()).model_history(uuid4(), limit=50) == []
+
+
+@pytest.mark.anyio
+class TestWhatARequestCarriesBeforeAnyMessage:
+    """The instructions and every tool schema, which no summary compacts away.
+
+    Measured from a response, so within one run it is unknown until one arrives -
+    and a one-request chat turn, which is most of them, never gets that far. Left
+    per-run it was `None` for the whole turn, so compaction could not tell a
+    window with no room for a summary from one that works, and bought one every
+    turn in silence (#49).
+    """
+
+    async def test_it_is_recorded_so_the_next_turn_starts_knowing_it(self, monkeypatch):
+        conversation = MockConversation()
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        stored = AsyncMock()
+        monkeypatch.setattr(conversation_repo, "set_overhead", stored)
+
+        await ConversationService(AsyncMock()).keep_overhead(conversation.id, 3_865)
+
+        assert stored.await_args.kwargs["tokens"] == 3_865
+
+    async def test_a_reading_that_has_not_moved_is_not_written_again(self, monkeypatch):
+        """It moves only when the agent does - a tool bound, a prompt rewritten -
+        so an UPDATE per turn writes the number that was already there."""
+        conversation = MockConversation()
+        conversation.overhead_tokens = 3_865
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        stored = AsyncMock()
+        monkeypatch.setattr(conversation_repo, "set_overhead", stored)
+
+        await ConversationService(AsyncMock()).keep_overhead(conversation.id, 3_865)
+
+        stored.assert_not_awaited()
+
+    async def test_a_conversation_that_is_gone_records_nothing(self, monkeypatch):
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=None)
+        )
+        stored = AsyncMock()
+        monkeypatch.setattr(conversation_repo, "set_overhead", stored)
+
+        await ConversationService(AsyncMock()).keep_overhead(uuid4(), 3_865)
+
+        stored.assert_not_awaited()

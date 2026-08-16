@@ -46,6 +46,9 @@ TOOLLESS = {
     "approval",
     # Inspects and rewrites the text flowing through a run; never a tool.
     "guardrails",
+    # Rewrites the history a request carries, before it goes out. Nothing the
+    # model chooses, so nothing for a person to approve.
+    "compaction",
 }
 
 # Capabilities whose tools come from a library rather than this repository.

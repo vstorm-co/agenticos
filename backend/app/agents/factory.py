@@ -36,6 +36,12 @@ from app.agents.capabilities.budget import (
     SpendLedger,
     SpendLimit,
 )
+from app.agents.capabilities.compaction import (
+    CONTEXT_GAUGE_RESOURCE,
+    MODEL_CONTEXT_WINDOW_RESOURCE,
+    ContextGauge,
+    build_gauge,
+)
 from app.agents.deps import AgentDeps, ApprovalCallback
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.observability import instrument_agent
@@ -71,6 +77,11 @@ class BuiltAgent:
     # needs the limits to explain a stopped run, and reaching into another
     # library's internals to find them would break on its next release.
     budget: BudgetGuard
+    # How full the context was before the last model request of this run. Read
+    # after the run, beside the ledger, and for the same reason: the surface that
+    # reports what a turn cost is the one that reports how close it came to the
+    # ceiling.
+    context: ContextGauge
     # The capabilities the spec asked for, without the two every agent gets.
     # Callers introspect what an agent can actually do without knowing which
     # entries the factory adds unconditionally.
@@ -106,6 +117,7 @@ def build_agent(
     org_monthly_budget_usd: Decimal | None = None,
     request_approval: ApprovalCallback | None = None,
     shared_budget: BudgetGuard | None = None,
+    recorded_overhead: int | None = None,
 ) -> BuiltAgent:
     """Instantiate an agent from its spec.
 
@@ -156,10 +168,30 @@ def build_agent(
             the organization no longer has.
     """
     bindings = spec.bindings()
+    # Built before the capabilities, not after: compaction reads it to decide
+    # whether this window has room for a summary at all, and the reading is
+    # filled by the capability appended at the end of the list below.
+    #
+    # Seeded with what an earlier turn of this conversation measured, because
+    # otherwise it is only filled by a *response* - so on a one-request chat
+    # turn, which is most of them, it is `None` for the whole turn and the
+    # refusal it guards never fires. The overhead is a property of the agent's
+    # instructions and tool schemas rather than of one run, so last turn's
+    # measurement is this turn's starting estimate, and the first response of
+    # this run replaces it (#49).
+    gauge = ContextGauge(overhead=recorded_overhead)
     configured = build_capabilities(
         bindings,
         granted_scopes=granted_scopes,
-        resources=resources or {},
+        # Added here rather than by every caller: the model is resolved before an
+        # agent is built and nowhere above this knows the window it accepts, so a
+        # capability needing it would otherwise have to reach for the model - which
+        # is exactly what `resources` exists to stop.
+        resources={
+            **(resources or {}),
+            MODEL_CONTEXT_WINDOW_RESOURCE: model_spec.context_length,
+            CONTEXT_GAUGE_RESOURCE: gauge,
+        },
         secrets=secrets,
     )
 
@@ -214,6 +246,10 @@ def build_agent(
         budget,
         ApprovalGate(required_tool_names=approval_required),
         *configured,
+        # Every agent, not only one that compacts. The warning is most useful to
+        # exactly the agent that will not: it is the one that reaches the ceiling
+        # and gets refused by the provider.
+        build_gauge(gauge),
     ]
 
     # Profile settings first, agent overrides second - the agent is the more
@@ -245,6 +281,7 @@ def build_agent(
         deps=deps,
         ledger=ledger,
         budget=budget,
+        context=gauge,
         capabilities=configured,
         model_label=model_spec.label,
         approval_required_tools=approval_required,

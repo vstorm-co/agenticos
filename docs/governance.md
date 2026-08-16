@@ -65,6 +65,110 @@ organization's month that never sees it. So the meter belongs to the prepared ru
 rather than to the surface. Opening one is not a step a new surface has to know
 about, because there is no way to execute a prepared agent without it.
 
+[Context management](reference/capabilities.md#context-management) is the other
+one. Its summarizing strategy writes the summary through an agent it builds
+itself, so that request passes no budget guard; the capability books what it cost
+against the same meter. Being *outside* the guard has one consequence worth
+knowing: the spend is recorded rather than refused, so a compaction that crosses a
+cap stops the run on the request after it.
+
+### A cost that could not be measured says so
+
+`genai-prices` does not know every model. When a run reaches one it has no entry
+for, that request is booked at zero and the run is marked `cost_is_partial` — the
+total is short by exactly what those requests cost, and the honest reading of it
+is a **floor**.
+
+That flag now travels the whole way down. It is on the run row, on the message
+row a turn writes, and on the total a conversation reports; every surface that
+draws money draws `≥` in front of it rather than a figure that reads as exact.
+Null on a message written before the column existed means *not recorded*, which
+is not the same claim as "exact" — a client marks only what it knows.
+
+**Every surface records it now, and each turn records its own share.** A message
+written by a channel, the API or the widget carried no cost at all until
+recently, so a Slack thread could not be totalled. The number written is the
+*difference* from what that run's earlier turns already claim, not the run row's
+figure: a run row is cumulative, and a run that parked and was resumed writes two
+assistant turns — stamping both with the row would count the parked half twice.
+The messages of a run therefore sum to exactly what the run says it spent.
+
+**A turn the run was stopped part-way through says so.** A cancelled run leaves
+whatever the agent had written when the socket closed or `stop` was pressed, and
+that reads exactly like a finished answer — so a reader takes a truncated one as
+everything the agent had to say, and the money it spent looks like it bought that.
+The transcript carries the run's status per turn, and the chat marks it.
+
+### How full the context window is
+
+The third ceiling, and the one nobody sees coming. A budget refuses with a
+message somebody can act on. A workspace refuses a write. A **context window** is
+refused by the provider, mid-answer, and the run simply fails.
+
+Every agent therefore carries a gauge — not only one with
+[context management](reference/capabilities.md#context-management) bound, because
+the warning matters most to the agent that will *not* compact. It reports how
+many tokens the last request of a turn carried, *after* any compaction: the
+reading falls when compaction works, because it measures what went out rather
+than what the conversation holds.
+
+The number is the provider's own `input_tokens`, not an estimate of the history.
+A character count cannot see the tool definitions, and those are billed on every
+request — thousands of tokens on an agent with knowledge, a sandbox and
+delegation, which is a third of the real figure missing at exactly the moment the
+figure matters.
+
+**The count is stored on the turn; the share is not.** How much history there is
+survives a model change; what fraction of a window that is does not, and the chat
+lets somebody switch model between turns. A 500,000-token history is half of a
+1M-context model and 390% of a 128K one — and the second is a request the
+provider refuses outright. A share frozen with the reading would still read
+"50%". So the denominator is resolved where the selection is known, from the
+model profile's own recorded window and the pricing registry behind it; where
+neither can say, no share is drawn at all, because a percentage against an
+assumed window is a guess presented as a measurement.
+
+That switch is also what compaction is for. Its trigger is a **fraction resolved
+per request** against the model the request is going to, so a history that sat
+comfortably in the old window is compacted on the very next turn under the new
+one — before the request leaves, not after the provider has refused it. An agent
+with no compaction bound has the gauge instead, and nothing else.
+
+**The trigger measures what the provider measured.** It anchors on the most recent
+answer carrying provider usage — that request's `input_tokens` counted the
+instructions, every tool schema and every prior message — and estimates only what
+came after it. This is why a replayed conversation carries what each answer cost:
+without an anchor the trigger counts characters, and a real agent here read 9
+tokens where the provider had charged for 3,859. The gauge said 77%; the trigger
+saw nothing to do.
+
+**A summary is kept.** Compaction rewrites the messages of one run; the thread
+between turns is rebuilt from the transcript, so a summary used to be thrown away
+at the turn boundary and the next turn bought another one over a history one turn
+longer — two consecutive turns of a real conversation here each paid for a summary
+of the same five messages, and the second announced itself as summarising nine. So
+the compacted history is written to the conversation, along with how far it
+reaches, and the next turn starts from it and replays only what has been said
+since. Reopening the thread finds the same thing the model does.
+
+Only a summary is kept. Dropping the oldest messages and clearing tool results
+cost nothing to redo, and writing them down would make permanent a loss that is
+currently reconsidered against the window on every turn.
+
+One setting cannot work, and says so instead of running. When the instructions and
+tool schemas alone are past the trigger, no summary can get under it — they are
+not in the history to summarise. Every request would then buy a summary that
+changes nothing. Compaction is skipped, the chat says why, and the fix is an
+author's: a larger window, or a higher fraction.
+
+That refusal rests on a number a *response* produces, so a turn cannot measure
+its own before it has to decide — and a chat turn is usually one request. The
+conversation carries the last reading, and a run starts from it. The first turn
+of a thread therefore has nothing to go on and compacts as configured; from the
+second, the refusal is available. Only the strategies that buy something are
+refused: dropping the oldest messages and clearing tool results call no model, so
+they run whatever the window is.
+
 ### Delegation spends the parent's budget
 
 A run can contain another agent's whole conversation - see
