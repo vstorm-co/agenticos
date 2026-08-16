@@ -977,6 +977,33 @@ describe("useChat - the summary of its own history", () => {
 
     expect(result.current.compacting).toBeNull();
   });
+
+  it("leaves neither frame behind when another conversation is opened", () => {
+    // Both survived a conversation switch: switch away mid-summary and
+    // "Summarising…" drew over the thread just opened, and the "cannot run"
+    // warning describes one agent's window against another's.
+    useConversationStore.getState().setCurrentConversationId("c-a");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("compaction_started", {
+      kind: "compaction_started",
+      messages_before: 62,
+      messages_after: null,
+    });
+    receive("compaction_impossible", {
+      kind: "compaction_impossible",
+      messages_before: null,
+      messages_after: null,
+      overhead_tokens: 3_843,
+      window_tokens: 5_000,
+    });
+
+    act(() => {
+      useConversationStore.getState().setCurrentConversationId("c-b");
+    });
+
+    expect(result.current.compacting).toBeNull();
+    expect(result.current.compactionImpossible).toBeNull();
+  });
 });
 
 describe("useChat - approvals and questions", () => {

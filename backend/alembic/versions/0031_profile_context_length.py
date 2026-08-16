@@ -17,7 +17,7 @@ length, and so does one whose listing could not be reached. All three fall back
 to resolving the window at run time, exactly as before.
 
 The revision id is shortened from the obvious one: `alembic_version.version_num`
-is `varchar(32)`, and `0030_model_profile_context_length` is 33.
+is `varchar(32)`, and `0031_model_profile_context_length` is 33.
 
 Revision ID: 0031_profile_context_length
 Revises: 0030_context_files
