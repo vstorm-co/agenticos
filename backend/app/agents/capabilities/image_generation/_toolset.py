@@ -119,7 +119,6 @@ def build_image_toolset(
     image settings and the workspace it may write into. The model chooses only the
     prompt.
     """
-    model_name = model_id.split(":")[-1]
 
     async def generate_image(ctx: RunContext[AgentDeps], prompt: str) -> str:
         """Generate an image from a written description.
@@ -146,8 +145,9 @@ def build_image_toolset(
             # survives, and nothing is spent or stored.
             raise ModelRetry("Image generation has no API key configured.")
 
+        model = _build_image_model(model_id, api_key)
         agent: PydanticAgent[None, BinaryImage] = PydanticAgent(
-            _build_image_model(model_id, api_key),
+            model,
             output_type=BinaryImage,
             capabilities=[NativeTool(ImageGenerationTool(**tool_settings))],
             instructions=_SUBAGENT_INSTRUCTIONS,
@@ -161,11 +161,13 @@ def build_image_toolset(
             raise ModelRetry(f"Image generation failed: {exc}") from exc
 
         image = result.output
-        # Booked to the run's ledger, which the runner is holding open. Image
-        # models are frequently unpriced by `genai-prices`, in which case this
-        # records at zero and flags the run's cost as partial - the honest
-        # outcome, and the one #58 asked to be sure of rather than assume.
-        record_ambient_usage(model_name, result.usage)
+        # Booked to the run's ledger, which the runner is holding open. The model
+        # names itself and its provider (`model.system`), the hint `genai-prices`
+        # prices from - the same shape the image describer books usage with. Image
+        # models are frequently unpriced there, in which case this records at zero
+        # and flags the run's cost as partial - the honest outcome, and the one
+        # #58 asked to be sure of rather than assume.
+        record_ambient_usage(model.model_name, result.usage, provider=model.system)
 
         image_format = image.format or "png"
         organization_id = ctx.deps.organization_id
