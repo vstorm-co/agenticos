@@ -193,8 +193,8 @@ function showsPath(path: string | null | undefined): boolean {
  * The file in one line: what kind, how big, when it changed.
  *
  * Built as parts and joined rather than written as a sentence with holes in it, since
- * every one of the three is missing on some surface - a workspace listing carries no
- * modification time at all, and a directory entry carries no size.
+ * every one of the three is missing on some surface - a live container's listing
+ * carries no modification time, and a directory entry carries no size.
  */
 function describe(
   file: ViewerFile,

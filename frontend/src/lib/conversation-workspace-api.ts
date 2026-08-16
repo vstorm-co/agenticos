@@ -17,6 +17,8 @@ export interface ConversationFile {
   path: string;
   size: number | null;
   is_dir: boolean;
+  /** ISO 8601, or null where the backend records no per-file time. */
+  modified_at: string | null;
 }
 
 export interface ConversationWorkspace {

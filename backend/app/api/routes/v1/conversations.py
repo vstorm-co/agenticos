@@ -397,6 +397,7 @@ async def list_workspace_files(
             path=str(entry.get("path")),
             size=entry.get("size"),
             is_dir=bool(entry.get("is_dir")),
+            modified_at=entry.get("modified_at"),
         )
         for entry in contents.entries
     ]

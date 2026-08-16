@@ -290,6 +290,7 @@ function FlatFiles() {
             name: opened.path.split("/").filter(Boolean).pop() ?? opened.path,
             path: opened.path,
             size: opened.size,
+            modifiedAt: opened.modified_at,
           }}
           access={workspaceFileAccess({ kind: "workspace", id: opened.workspace_id }, opened.path)}
           onClose={() => setOpened(null)}
