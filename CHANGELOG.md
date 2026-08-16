@@ -17,6 +17,28 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.165] - 2026-08-16
+
+A delegated run's failure is written in the platform's words, never the
+provider's.
+
+### Fixed
+
+- **A delegated run's stored error is composed, not copied.** A failed
+  delegation wrote `agent_runs.error` and its closing `SubagentFinished` frame
+  from the subagents library's own exception text — routinely a provider
+  client's message carrying the failing request URL, key still in its query
+  string on a custom `base_url`. The settlement now composes the same
+  controlled sentence the parent's row gets (`run_failure_summary`, moved to
+  `app/agents/failures.py` so the capability layer can reach it), and the
+  library's text goes to the server log with the original exception beside it.
+  Rides on subagents-pydantic-ai 0.2.19, whose `TaskHandle.exception` hands the
+  platform the exception instead of a string to parse. The two deliberate
+  exceptions keep their own words whole: pydantic-ai's `UsageLimitExceeded`
+  (the delegation's own ceiling doing its job) and `BudgetExceeded` raised
+  inside a delegate by the parent's shared ledger — a ceiling sentence with its
+  numbers is the one failure text the reader acts on. (#699)
+
 ## [0.0.164] - 2026-08-16
 
 An agent stops forgetting its instructions mid-run, and remembers across turns.
