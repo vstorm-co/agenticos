@@ -428,12 +428,18 @@ class MeteredCompaction(WrapperCapability[AgentDepsT]):
     """The run's reading, for the trigger correction below. `None` in a test that
     only cares about the metering, and the correction is then not applied."""
 
+    _said_it_cannot: bool = False
+    """Whether this run has already reported that its window has no room.
+
+    A configuration, not an event: repeating it on every request of a hundred-step
+    loop would bury the turn's own steps under the same sentence."""
+
     async def before_model_request(
         self,
         ctx: RunContext[AgentDepsT],
         request_context: ModelRequestContext,
     ) -> ModelRequestContext:
-        _allow_for_overhead(self.wrapped, self.gauge)
+        await self._correct_the_trigger(ctx)
         before = _counts(ctx.usage)
         try:
             return await self.wrapped.before_model_request(ctx, request_context)
@@ -442,8 +448,40 @@ class MeteredCompaction(WrapperCapability[AgentDepsT]):
             if spent is not None:
                 record_ambient_usage(_model_name(request_context), spent)
 
+    async def _correct_the_trigger(self, ctx: RunContext[AgentDepsT]) -> None:
+        """Move the trigger for the overhead, or say why it cannot be moved.
 
-def _allow_for_overhead(strategy: AbstractCapability[Any], gauge: ContextGauge | None) -> None:
+        The refusal is the part worth having. A window whose fixed overhead
+        already exceeds the trigger cannot be compacted under it, so the platform
+        does nothing - and doing nothing looks exactly like a setting that is
+        working. Said once per run, because it describes a configuration rather
+        than an event, and on the channel the summary already narrates itself on.
+        """
+        window = _allow_for_overhead(self.wrapped, self.gauge)
+        if window is None or self._said_it_cannot:
+            return
+        self._said_it_cannot = True
+        sink = getattr(ctx.deps, "on_compaction", None)
+        overhead = None if self.gauge is None else self.gauge.overhead
+        logger.warning(
+            "Compaction cannot help: %s tokens of instructions and tool schemas "
+            "against a %s-token window",
+            overhead,
+            window,
+        )
+        if sink is not None:
+            await sink(
+                CompactionEvent(
+                    kind="compaction_impossible",
+                    overhead_tokens=overhead,
+                    window_tokens=window,
+                )
+            )
+
+
+def _allow_for_overhead(
+    strategy: AbstractCapability[Any], gauge: ContextGauge | None
+) -> int | None:
     """Move the trigger down by what the request carries before any message.
 
     The trigger measures the message parts; a request also carries the
@@ -467,19 +505,30 @@ def _allow_for_overhead(strategy: AbstractCapability[Any], gauge: ContextGauge |
     Written onto the strategy rather than passed, because `context_window` is a
     field decided at construction and the overhead cannot be measured until a
     response exists. Each run builds its own strategy, so nothing is shared.
+
+    Returns:
+        The configured window, when there was no room in it and nothing was
+        corrected - the caller says so, because silence here is a setting that
+        looks like it is working. `None` when the correction applied, or when
+        there is no reading to correct from yet.
     """
     overhead = None if gauge is None else gauge.overhead
     if not overhead:
-        return
+        return None
+    impossible: int | None = None
     for target in _corrigible(strategy):
         # `max_fraction` on a strategy, `target_fraction` on the orchestrator -
         # `build_strategy` sets one or the other on everything it returns, so an
         # object here without either is one nothing built and is worth the
         # `AttributeError` rather than a silent no-op.
         fraction = getattr(target, "max_fraction", None) or target.target_fraction
-        corrected = getattr(target, _CONFIGURED_WINDOW) - overhead / fraction
+        configured = getattr(target, _CONFIGURED_WINDOW)
+        corrected = configured - overhead / fraction
         if corrected > 0:
             target.context_window = int(corrected)
+        else:
+            impossible = configured
+    return impossible
 
 
 _CONFIGURED_WINDOW = "_agenticos_configured_window"

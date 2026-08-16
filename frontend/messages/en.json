@@ -707,6 +707,7 @@
     },
     "compacting": "Summarising the conversation so far, to keep it inside the model's limit…",
     "compactingCount": "{count, plural, =1 {Summarising 1 earlier message} other {Summarising # earlier messages}} to keep the conversation inside the model's limit…",
+    "compactionImpossible": "Context management cannot run: this agent's instructions and tools take {overhead, number} tokens of the {window, number}-token window it was given, which is already past the point it would compact at. Raise the window or the fraction in the Toolbox.",
     "controls": {
       "backAgentAposS": "Back to the agent's own model",
       "controls": "Controls",

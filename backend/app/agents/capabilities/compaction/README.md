@@ -94,9 +94,13 @@ Two things this deliberately does not do:
   a corrected window would ask for one on every request, for ever, paying each
   time. The window is then left as configured, which under-fires the way it did
   before, because under-firing is recoverable and an unbounded paid loop is not.
-  A `context_window` smaller than the agent's own overhead is that case, and the
-  gauge is what shows you the overhead: it is what the first turn of an empty
-  conversation reads.
+  A `context_window` smaller than the agent's own overhead is that case.
+
+  **And it says so**, on the same channel the summary narrates itself on: doing
+  nothing is indistinguishable on screen from a setting that is working, and this
+  one cannot be made to work by waiting. Once per run, because it describes a
+  configuration rather than an event, carrying the overhead and the window — the
+  pair somebody needs to pick a number that works.
 
 ### Why a fraction, and when the fraction is wrong
 

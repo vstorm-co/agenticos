@@ -585,9 +585,14 @@ than two.
 It waits for a response to measure from, so the first request of a run triggers on
 the messages alone. And it gives up when the overhead alone is past the trigger:
 no summary can get under it, the schemas are not in the history, and a corrected
-window would buy a summary on every request for ever. A `context_window` smaller
-than the agent's own overhead is that case, and the chat's gauge is what shows you
-the overhead — it is what the first turn of an empty conversation reads.
+window would buy a summary on every request for ever.
+
+**When it gives up, it says so.** A `context_window` smaller than the agent's own
+overhead is that case, and doing nothing about it is indistinguishable on screen
+from a setting that is working — so the chat shows what the overhead is and what
+window it was measured against, which is the pair somebody needs to pick a number
+that works. Once per run, because it describes a configuration rather than an
+event, and it is displaced the moment a summary actually runs.
 
 **A summary says it is happening.** It is a whole model request between two of the
 turn's own, where nothing else streams — the chat used to stop dead for the length

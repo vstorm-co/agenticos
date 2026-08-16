@@ -1543,7 +1543,13 @@ class TestForwardingCompactionFrames:
         assert _sent_events(session) == [
             (
                 "compaction_started",
-                {"kind": "compaction_started", "messages_before": 62, "messages_after": None},
+                {
+                    "kind": "compaction_started",
+                    "messages_before": 62,
+                    "messages_after": None,
+                    "overhead_tokens": None,
+                    "window_tokens": None,
+                },
             )
         ]
 
@@ -1559,6 +1565,22 @@ class TestForwardingCompactionFrames:
         kind, frame = _sent_events(session)[0]
         assert kind == "compaction_finished"
         assert (frame["messages_before"], frame["messages_after"]) == (62, 9)
+
+    async def test_a_window_that_cannot_work_reaches_the_person_who_set_it(self):
+        """The one frame that describes a setting rather than an event: the fixed
+        overhead is past the trigger, so nothing will ever compact, and doing
+        nothing looks exactly like a setting that works."""
+        session = _session()
+
+        await session._compaction_event(
+            CompactionEvent(
+                kind="compaction_impossible", overhead_tokens=3_843, window_tokens=5_000
+            )
+        )
+
+        kind, frame = _sent_events(session)[0]
+        assert kind == "compaction_impossible"
+        assert (frame["overhead_tokens"], frame["window_tokens"]) == (3_843, 5_000)
 
 
 class TestForwardingDelegationFrames:

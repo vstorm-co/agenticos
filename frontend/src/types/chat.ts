@@ -177,6 +177,7 @@ export type WSEventType =
   | "ask_user"
   | "compaction_started"
   | "compaction_finished"
+  | "compaction_impossible"
   // Sent on every turn and deliberately unread, because each only announces a step
   // the frame after it already carries: `model_request_start` opens the assistant
   // message, so `user_prompt`, `user_prompt_processed` and `part_start` have nothing
@@ -476,11 +477,15 @@ export interface SubagentCompleteFrame extends SubagentFrameBase {
  * would be a spinner that appeared and vanished within a frame.
  */
 export interface Compaction {
-  kind: "compaction_started" | "compaction_finished";
+  kind: "compaction_started" | "compaction_finished" | "compaction_impossible";
   /** How many messages the history held when it started. */
   messages_before: number | null;
   /** How many it holds now. Null while it is running, and null if it failed. */
   messages_after: number | null;
+  /** On `compaction_impossible`: what every request carries before any message. */
+  overhead_tokens?: number | null;
+  /** On `compaction_impossible`: the window the trigger was measured against. */
+  window_tokens?: number | null;
 }
 
 /** What a whole conversation has cost, as `GET /conversations/{id}/messages` totals it. */

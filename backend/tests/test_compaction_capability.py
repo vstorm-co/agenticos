@@ -450,6 +450,48 @@ class TestAllowingForWhatEveryRequestCarries:
         assert capability.wrapped.context_window == 5_000
         assert len(compacted.messages) == len(history)
 
+    async def test_a_window_with_no_room_left_says_so(self):
+        """Doing nothing is indistinguishable on screen from a setting that
+        works, and this one cannot be made to work by waiting."""
+        seen: list[CompactionEvent] = []
+
+        async def sink(event: CompactionEvent) -> None:
+            seen.append(event)
+
+        capability, history = self._fire(5_000, 3_865)
+
+        await capability.before_model_request(_ctx_with(sink), _request_context(list(history)))
+
+        assert [event.kind for event in seen] == ["compaction_impossible"]
+        assert (seen[0].overhead_tokens, seen[0].window_tokens) == (3_865, 5_000)
+
+    async def test_it_says_so_once_rather_than_on_every_request(self):
+        """A configuration, not an event: repeated on a hundred-step loop it would
+        bury the turn's own steps under the same sentence."""
+        seen: list[CompactionEvent] = []
+
+        async def sink(event: CompactionEvent) -> None:
+            seen.append(event)
+
+        capability, history = self._fire(5_000, 3_865)
+
+        for _ in range(3):
+            await capability.before_model_request(_ctx_with(sink), _request_context(list(history)))
+
+        assert len(seen) == 1
+
+    async def test_a_window_that_works_says_nothing(self):
+        seen: list[CompactionEvent] = []
+
+        async def sink(event: CompactionEvent) -> None:
+            seen.append(event)
+
+        capability, history = self._fire(10_000, 3_865)
+
+        await capability.before_model_request(_ctx_with(sink), _request_context(list(history)))
+
+        assert seen == []
+
     async def test_the_correction_does_not_compound_over_a_tool_loop(self):
         """Applied to what the author configured, not to its own last answer -
         which would walk the trigger down to nothing over a long run."""
@@ -701,6 +743,11 @@ class TestToolPairingSurvives:
 
         assert len(request_context.messages) < len(history)
         assert _orphaned_returns(request_context.messages) == set()
+
+
+def _ctx_with(sink: object) -> RunContext[Any]:
+    """A run whose surface can be told things - the chat, in practice."""
+    return RunContext(deps=SimpleNamespace(on_compaction=sink), model=TestModel(), usage=RunUsage())
 
 
 def _triggers_immediately(strategy: str, *, keep_messages: int = 1) -> CompactionConfig:

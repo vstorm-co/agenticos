@@ -18,6 +18,15 @@ progress and `None` everywhere else - the same shape, and the same reasoning, as
 `ask_user`, `request_approval` and `subagent_events`. A summary on a surface that
 cannot narrate one still happens; it is simply not narrated.
 
+**And a third, for the configuration that cannot work.** When the fixed overhead
+alone is past the trigger, no summary can get under it and the platform refuses to
+buy one on every request for ever - so it does nothing, which on screen is
+indistinguishable from a setting that is working. `compaction_impossible` is that
+silence given a voice: it says what the overhead is and what window it was
+measured against, which is the pair somebody needs to pick a number that works. It
+is sent once per run rather than per request, because it describes a setting
+rather than an event.
+
 **The finish frame is sent whatever the outcome.** A summary that raised leaves a
 spinner running for ever otherwise, and the run itself carries on - the strategy
 either returns a compacted history or the request goes out uncompacted, and
@@ -41,7 +50,7 @@ class CompactionEvent(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    kind: Literal["compaction_started", "compaction_finished"]
+    kind: Literal["compaction_started", "compaction_finished", "compaction_impossible"]
 
     messages_before: int | None = Field(
         default=None,
@@ -50,6 +59,18 @@ class CompactionEvent(BaseModel):
             "that only learns it at the end cannot say what is being worked on while "
             "the work is happening."
         ),
+    )
+    overhead_tokens: int | None = Field(
+        default=None,
+        description=(
+            "On `compaction_impossible`: what every request carries before a single "
+            "message - the instructions and every tool schema, which no strategy can "
+            "compact away."
+        ),
+    )
+    window_tokens: int | None = Field(
+        default=None,
+        description="On `compaction_impossible`: the window the trigger was measured against.",
     )
     messages_after: int | None = Field(
         default=None,

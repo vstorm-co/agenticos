@@ -927,6 +927,42 @@ describe("useChat - the summary of its own history", () => {
     expect(result.current.compacting).toBeNull();
   });
 
+  it("keeps a window that cannot work on screen after the turn", () => {
+    // A setting, not a state: clearing it when the turn ends would flash the one
+    // message explaining why nothing happened.
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    receive("compaction_impossible", {
+      kind: "compaction_impossible",
+      messages_before: null,
+      messages_after: null,
+      overhead_tokens: 3_843,
+      window_tokens: 5_000,
+    });
+    receive("complete", {});
+
+    expect(result.current.compactionImpossible).toMatchObject({ overhead_tokens: 3_843 });
+  });
+
+  it("drops the warning once a summary actually runs", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("compaction_impossible", {
+      kind: "compaction_impossible",
+      messages_before: null,
+      messages_after: null,
+      overhead_tokens: 3_843,
+      window_tokens: 5_000,
+    });
+
+    receive("compaction_started", {
+      kind: "compaction_started",
+      messages_before: 8,
+      messages_after: null,
+    });
+
+    expect(result.current.compactionImpossible).toBeNull();
+  });
+
   it("clears it when the turn ends without one", () => {
     // A run that failed between the two frames would otherwise leave the notice
     // up until the next message, over a composer somebody is typing into.

@@ -47,6 +47,46 @@ describe("CompactionNotice", () => {
     expect(screen.getByText(/Summarising the conversation/)).toBeVisible();
   });
 
+  it("says why nothing is being summarised, when nothing can be", () => {
+    // The fixed overhead is already past the trigger, so no summary can get under
+    // it and the platform refuses to buy one on every request for ever. It does
+    // nothing - which on screen is indistinguishable from a setting that works.
+    render(
+      <CompactionNotice
+        compacting={null}
+        impossible={{
+          kind: "compaction_impossible",
+          messages_before: null,
+          messages_after: null,
+          overhead_tokens: 3_843,
+          window_tokens: 5_000,
+        }}
+      />,
+    );
+
+    expect(screen.getByText(/3,843 tokens of the 5,000-token window/)).toBeVisible();
+  });
+
+  it("gives way the moment a summary actually runs", () => {
+    // A summary that ran is the answer to the warning, and two notices about one
+    // subject is one too many above a composer.
+    render(
+      <CompactionNotice
+        compacting={{ kind: "compaction_started", messages_before: 8, messages_after: null }}
+        impossible={{
+          kind: "compaction_impossible",
+          messages_before: null,
+          messages_after: null,
+          overhead_tokens: 3_843,
+          window_tokens: 5_000,
+        }}
+      />,
+    );
+
+    expect(screen.getByText(/Summarising 8 earlier messages/)).toBeVisible();
+    expect(screen.queryByText(/cannot run/)).toBeNull();
+  });
+
   it("announces itself to a screen reader without stealing focus", () => {
     render(
       <CompactionNotice

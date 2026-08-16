@@ -147,6 +147,10 @@ export function useChat(options: UseChatOptions = {}) {
   // end of the turn: a `complete` that arrived without one - a run that failed
   // between the two - would otherwise leave the notice up until the next message.
   const [compacting, setCompacting] = useState<Compaction | null>(null);
+  // The window that cannot work, or `null`. Held apart from `compacting` because
+  // it outlives a turn: it describes what is configured, and clearing it when the
+  // turn ends would flash the one message that explains why nothing happened.
+  const [compactionImpossible, setCompactionImpossible] = useState<Compaction | null>(null);
 
   /**
    * Re-read what the whole thread has cost, after a turn has added to it.
@@ -371,6 +375,15 @@ export function useChat(options: UseChatOptions = {}) {
           break;
         }
 
+        case "compaction_impossible": {
+          // Not a state - a setting. The fixed overhead is already past the
+          // trigger, so no summary can get under it and the platform refuses to
+          // buy one on every request for ever. It does nothing, which on screen
+          // is indistinguishable from a setting that works, so it says so.
+          setCompactionImpossible(wsEvent.data as Compaction);
+          break;
+        }
+
         case "compaction_started":
         case "compaction_finished": {
           // Between two of the turn's own model requests, where nothing else
@@ -381,6 +394,8 @@ export function useChat(options: UseChatOptions = {}) {
           setCompacting(
             wsEvent.type === "compaction_started" ? (wsEvent.data as Compaction) : null,
           );
+          // A summary that ran is the answer to the warning above it.
+          setCompactionImpossible(null);
           break;
         }
 
@@ -1074,6 +1089,7 @@ export function useChat(options: UseChatOptions = {}) {
     isConnected,
     isProcessing,
     compacting,
+    compactionImpossible,
     lastUsage: onThisConversation ? liveUsage.usage : null,
     /** The turn's delegations, in the order they started. See `DelegationPanels`. */
     delegations,

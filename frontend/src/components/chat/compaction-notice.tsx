@@ -1,6 +1,6 @@
 "use client";
 
-import { Shrink } from "lucide-react";
+import { Shrink, TriangleAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import type { Compaction } from "@/types";
@@ -8,10 +8,19 @@ import type { Compaction } from "@/types";
 interface CompactionNoticeProps {
   /** The summary in flight, or `null` when none is. */
   compacting: Compaction | null;
+  /**
+   * A window whose fixed overhead is already past the trigger, or `null`.
+   *
+   * Not a state — a setting. No summary can get under an overhead that is not in
+   * the history, so the platform does nothing rather than buy one on every
+   * request for ever; and doing nothing is indistinguishable on screen from a
+   * setting that works. This is that silence given a voice.
+   */
+  impossible?: Compaction | null;
 }
 
 /**
- * Says the agent is summarising its own history, while it is doing it.
+ * Says the agent is summarising its own history — or why it cannot.
  *
  * Compaction happens between two of a turn's model requests, where nothing else
  * streams — and a summary is a whole request of its own, over a history that is
@@ -26,9 +35,27 @@ interface CompactionNoticeProps {
  *
  * Only the summarising strategy reaches this. The ones that edit a list and
  * return would be a notice that appeared and vanished within a frame.
+ *
+ * The warning takes precedence when nothing is running, and is displaced the
+ * moment something is: a summary that ran is the answer to it.
  */
-export function CompactionNotice({ compacting }: CompactionNoticeProps) {
+export function CompactionNotice({ compacting, impossible = null }: CompactionNoticeProps) {
   const t = useTranslations("chat");
+  if (compacting === null && impossible !== null) {
+    return (
+      <div
+        className="mb-2 flex items-center gap-2 px-1 text-xs text-amber-600"
+        role="status"
+        aria-live="polite"
+      >
+        <TriangleAlert className="h-3 w-3" aria-hidden />
+        {t("compactionImpossible", {
+          overhead: impossible.overhead_tokens ?? 0,
+          window: impossible.window_tokens ?? 0,
+        })}
+      </div>
+    );
+  }
   if (compacting === null) return null;
 
   return (
