@@ -189,9 +189,12 @@ def _under_overflow(path: str) -> bool:
     `/tool_output/…` from `state`, an absolute in-container `/workspace/tool_output/…`
     from a service. The prefix must be a proper ancestor (`parts[:-1]`), which is
     what every handle the store writes has, and what guarantees `_overflow_parents`
-    answers at least the spill directory itself.
+    answers at least the spill directory itself. A `..` component is refused
+    outright: `PurePosixPath` does not resolve one, so `tool_output/../x` would
+    pass the ancestor check while naming a file outside the spill directory.
     """
-    return OVERFLOW_PREFIX in PurePosixPath(path).parts[:-1]
+    parts = PurePosixPath(path).parts
+    return ".." not in parts and OVERFLOW_PREFIX in parts[:-1]
 
 
 def _overflow_parents(handle: str) -> list[str]:
@@ -496,9 +499,12 @@ class SandboxWorkspaceService:
         Deleted through the backend's own `execute`, because the backend protocol
         has no delete and growing one belongs upstream. The `rmdir` afterwards
         clears the now-empty run directories; it fails silently where a concurrent
-        run still keeps files, which is the correct answer. Best-effort like
-        `_release`: a run that crashes before its `finally` leaves its spills for
-        the next manual sweep, and `close` already logs whatever raises here.
+        run still keeps files, which is the correct answer - which is why the
+        command exits with `rm`'s status, captured before the `rmdir`: a refused
+        `rm` is the failure the warning below exists for, and a trailing cleanup
+        must not mask it as success. Best-effort like `_release`: a run that
+        crashes before its `finally` leaves its spills for the next manual sweep,
+        and `close` already logs whatever raises here.
         """
         handles = [handle for handle in workspace.spills if _under_overflow(handle)]
         if not handles:
@@ -513,7 +519,7 @@ class SandboxWorkspaceService:
         )
         files = " ".join(shlex.quote(handle) for handle in handles)
         emptied = " ".join(shlex.quote(directory) for directory in directories)
-        command = f"rm -f -- {files}; rmdir -- {emptied} 2>/dev/null; true"
+        command = f"rm -f -- {files}; status=$?; rmdir -- {emptied} 2>/dev/null; exit $status"
         result = await asyncio.to_thread(execute, command)
         if getattr(result, "exit_code", 0) != 0:
             logger.warning(
