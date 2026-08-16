@@ -825,6 +825,18 @@ class TestListingAStoredWorkspace:
 
         assert [str(entry["path"]) for entry in stored_entries(dict(stored.files))] == ["/notes.md"]
 
+    def test_a_stored_file_reports_when_it_was_modified(self):
+        """The viewer's header reads `modified 2 minutes ago` only if the listing
+        carries a time; a stored workspace records one on every write (#500)."""
+        from app.services.sandbox_workspace import stored_entries
+
+        stored = StateBackend()
+        stored.write("/report.md", "# findings")
+
+        (entry,) = stored_entries(dict(stored.files))
+
+        assert entry.get("modified_at") == stored.files["/report.md"]["modified_at"]
+
 
 class TestServingAFileAsBytes:
     """Downloads and image previews, and why text is not enough.

@@ -96,6 +96,7 @@ async def list_all_files(workspaces: WorkspaceSvc, ctx: Auth) -> Any:
             path=str(entry.get("path")),
             size=entry.get("size"),
             is_dir=False,
+            modified_at=entry.get("modified_at"),
             workspace_id=overview.row.id,
             agent_name=overview.agent_name,
             access_label=overview.access_label,
@@ -120,6 +121,7 @@ async def list_files(workspace_id: UUID, workspaces: WorkspaceSvc, ctx: Auth) ->
             path=str(entry.get("path")),
             size=entry.get("size"),
             is_dir=bool(entry.get("is_dir")),
+            modified_at=entry.get("modified_at"),
         )
         for entry in contents.entries
     ]

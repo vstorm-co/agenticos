@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -34,8 +34,8 @@ function workspace(overrides: Record<string, unknown> = {}) {
     backend: "state",
     owner_label: "This conversation",
     items: [
-      { path: "/report.csv", size: 2048, is_dir: false },
-      { path: "/out", size: null, is_dir: true },
+      { path: "/report.csv", size: 2048, is_dir: false, modified_at: "2026-08-16T11:58:00Z" },
+      { path: "/out", size: null, is_dir: true, modified_at: null },
     ],
     total: 2,
     bytes_total: 2048,
@@ -213,6 +213,24 @@ describe("the workspace panel", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Close" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("says when the file changed, which only the listing knows (#500)", async () => {
+    // The viewer's header read `MD · 3 B` and stopped: `ViewerFile.modifiedAt`
+    // existed and the header rendered it, but the workspace listing had no time
+    // to give. Now it does, and the panel passes it through.
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path.includes("/file")
+        ? { path: "/report.csv", content: "month,total", truncated: false }
+        : workspace(),
+    );
+
+    draw(<WorkspaceFiles conversationId="c1" attachments={[]} revision={0} />);
+    await openPanel();
+    await userEvent.click(await screen.findByRole("button", { name: /report\.csv/ }));
+
+    const dialog = await screen.findByRole("dialog");
+    await waitFor(() => expect(within(dialog).getByText(/modified/i)).toBeVisible());
   });
 
   it("reads a file through its conversation, which is what a shared chat can do", async () => {

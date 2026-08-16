@@ -109,7 +109,7 @@ requires-dist = [
     { name = "prefect", specifier = ">=3.8.0" },
     { name = "psycopg2-binary", specifier = ">=2.9.0" },
     { name = "pydantic", extras = ["email"], specifier = ">=2.13.4" },
-    { name = "pydantic-ai-backend", extras = ["console", "remote"], specifier = ">=0.2.25" },
+    { name = "pydantic-ai-backend", extras = ["console", "remote"], specifier = ">=0.2.26" },
     { name = "pydantic-ai-harness", specifier = ">=0.21.0" },
     { name = "pydantic-ai-skills", specifier = ">=0.11.0" },
     { name = "pydantic-ai-slim", extras = ["mcp"], specifier = ">=2.28.0" },
@@ -3804,15 +3804,15 @@ email = [
 
 [[package]]
 name = "pydantic-ai-backend"
-version = "0.2.25"
+version = "0.2.26"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
     { name = "wcmatch" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/af/b1/9a46ded7721c84915d1cfdde2a918fb045321438e13595afbf7c4c1c1102/pydantic_ai_backend-0.2.25.tar.gz", hash = "sha256:50dd97204aeadd4178eecb1f67016b6c2a984bb07028da0fd63c427a1bb3c003", size = 15166922, upload-time = "2026-08-04T17:22:14.216Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f2/61/cadb38eebeff1b7827361165bc6830697d5d2998312858cf96b4033551a6/pydantic_ai_backend-0.2.26.tar.gz", hash = "sha256:e8a91c3eff0058e2f7d0008475e1bcc3f016e1b9d2a5697305f8cec24e5ea7dd", size = 15168896, upload-time = "2026-08-16T18:47:46.311Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/79/83/a8d9cba3d905cd4769d224d14eab26827675d982da883daea70d790b6caf/pydantic_ai_backend-0.2.25-py3-none-any.whl", hash = "sha256:860c5c5f83da0c2134e18a4e35eee5c0e5ed37e8e9bd43c7b5e666b4f123ca5f", size = 197508, upload-time = "2026-08-04T17:22:12.05Z" },
+    { url = "https://files.pythonhosted.org/packages/e0/45/f87019fb494d2a062b49fd4066b10cba081e3dfcb230dbcc1b91486c99dd/pydantic_ai_backend-0.2.26-py3-none-any.whl", hash = "sha256:3821e4f721a205781daf9c0f0d29200f970f8299e532ec364177efffb273009e", size = 198522, upload-time = "2026-08-16T18:47:44.613Z" },
 ]
 
 [package.optional-dependencies]

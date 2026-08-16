@@ -16,6 +16,14 @@ class WorkspaceFileRead(BaseSchema):
     path: str
     size: int | None = Field(default=None, description="Bytes, or null for a directory entry")
     is_dir: bool = False
+    modified_at: datetime | None = Field(
+        default=None,
+        description=(
+            "When the file last changed, where the backend records one. A stored "
+            "workspace records it on every write; a live container's shell listing "
+            "does not, and null is the honest answer there - never 'just now'."
+        ),
+    )
 
 
 class WorkspaceListing(BaseSchema):
