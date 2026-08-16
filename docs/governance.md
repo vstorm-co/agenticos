@@ -302,6 +302,14 @@ what a per-agent usage report or a budget alert on that agent fires on. The
 organization's monthly number also carries ingestion spend, which the per-agent
 number does not: indexing a shared knowledge base is nobody's agent's spend.
 
+A failed child row is also held to the parent's rule about what `error` may say.
+What raises under a delegate is a model client whose message can carry the failing
+request URL — key included, on a custom endpoint — so the row and the delegation's
+closing frame store the same controlled sentence the parent's row does, and the
+provider's own text goes to the server log. A delegate stopped by its usage limit
+or by a budget ceiling keeps the limit's message whole: that is a ceiling doing
+its job, not a failure to diagnose.
+
 **The dashboard's windowed figure carries it too.** `GET /stats/usage` answers a
 `cost` block for whatever period the filter chose, and that block is runs *plus*
 ingestion — the same arithmetic the monthly cap is measured with — with

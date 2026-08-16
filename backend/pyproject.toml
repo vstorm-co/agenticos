@@ -88,8 +88,9 @@ dependencies = [
     # 0.2.17 first carried the caller-supplied-subagent ask_parent fix a sync
     # delegate needs to reach the person waiting on its parent
     # (subagents-pydantic-ai#76); 0.2.18 also fixes the general-purpose delegate
-    # (#78), so the floor is 0.2.18.
-    "subagents-pydantic-ai>=0.2.18",
+    # (#78). 0.2.19 adds `TaskHandle.exception`, which is what keeps a provider's
+    # own text off a delegated run's row (#699), so the floor is 0.2.19.
+    "subagents-pydantic-ai>=0.2.19",
     "cryptography>=50.0.0",
     "aiogram>=3.17,<4.0",
     "slack-sdk>=3.35.0",
