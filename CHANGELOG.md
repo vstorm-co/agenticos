@@ -17,7 +17,24 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
-## [0.0.167] - 2026-08-16
+## [0.0.168] - 2026-08-16
+
+"dev should serve v3" is answered on the environment's own row.
+
+### Added
+
+- **An environment row pins its own version.** Each environment in the History
+  tab carries a select of the agent's published versions, calling the same
+  `promote` mutation the Versions list's **Promote to…** menu already used —
+  two directions through one edit. The row also renames (the default
+  environment is refused one, its name being part of the publish contract; the
+  mutation sends the name and nothing else, so a relabel can never silently
+  repoint a pin — and an unchanged name sends nothing at all, so the audit log
+  records no rename nobody made). A pin at a version genuinely gone renders as
+  `v9 (removed)` — legible, since that stale pin is exactly why the agent is
+  not answering — while a version merely unlisted (the history still loading,
+  or a pin older than the fifty-publish page) renders plain, never with the
+  false verdict. (#134)
 
 A workspace file's header finally says when it changed, not only how big it is.
 
