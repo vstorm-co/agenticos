@@ -389,23 +389,23 @@ class TestSwitchingToASmallerModel:
         assert gauge.latest == 250_000
 
 
-class TestAllowingForWhatEveryRequestCarries:
-    """The trigger counts message parts; a request also carries the instructions
-    and every tool schema, which the provider bills and no strategy can compact.
+class TestAWindowWithNoRoomForASummary:
+    """The overhead - instructions and every tool schema - is billed on every
+    request and is not in the history, so no strategy can compact it away.
 
-    Measured on a real agent here: 3,865 tokens charged against 60 the estimator
-    saw. Left uncorrected, a gauge reading 77% of a window sat beside a trigger
-    that had noticed nothing - the same ceiling described two ways, which is the
-    defect this whole area kept producing.
+    Once it is past the trigger on its own, every request is over the line, every
+    request buys a summary, and not one of them can bring the next below it. The
+    platform skips compaction rather than paying for that loop, and says why:
+    doing nothing silently is what a working setting also looks like.
     """
 
     @staticmethod
-    def _fire(window: int, overhead: int | None, *, messages: int = 12) -> tuple[int, int]:
-        """Run one request through the wrapper; answer (window used, messages kept)."""
-        history = [_user("x" * 400) for _ in range(messages)]
+    def _wrapper(window: int, overhead: int | None) -> tuple[MeteredCompaction, list[Any]]:
+        """A wrapped summariser, and a history well past any trigger here."""
+        history = [_user("x" * 2_000) for _ in range(12)]
         wrapped = build_strategy(
             CompactionConfig(
-                strategy="sliding_window",
+                strategy="summarize",
                 max_fraction=0.5,
                 keep_messages=2,
                 context_window=window,
@@ -414,55 +414,50 @@ class TestAllowingForWhatEveryRequestCarries:
         capability = MeteredCompaction(wrapped=wrapped, gauge=ContextGauge(overhead=overhead))
         return capability, history
 
-    async def test_a_measured_overhead_moves_the_trigger_down(self):
-        capability, history = self._fire(10_000, 3_865)
+    async def test_an_overhead_under_the_trigger_compacts_as_configured(self):
+        # 3,865 against a trigger of 5,000: there is room for a summary to land in.
+        capability, history = self._wrapper(10_000, 3_865)
 
         compacted = await capability.before_model_request(
             _run_context(), _request_context(list(history))
         )
 
-        # 10,000 - 3,865/0.5 = 2,270: a trigger of 1,135 against ~1,200 of text.
-        assert capability.wrapped.context_window == 2_270
         assert len(compacted.messages) < len(history)
 
-    async def test_without_a_reading_the_trigger_is_left_alone(self):
-        """Nothing is measured until a response has been seen, and guessing at the
-        overhead would move the trigger by an invented number."""
-        capability, history = self._fire(10_000, None)
+    async def test_an_overhead_past_the_trigger_compacts_nothing(self):
+        # 3,865 against a trigger of 2,500: no summary can get under it, so buying
+        # one on this request and on every request after it is pure spend.
+        capability, history = self._wrapper(5_000, 3_865)
 
         compacted = await capability.before_model_request(
             _run_context(), _request_context(list(history))
         )
 
-        assert capability.wrapped.context_window == 10_000
         assert len(compacted.messages) == len(history)
 
-    async def test_a_window_with_no_room_left_is_not_corrected(self):
-        """When the overhead alone is past the trigger, no summary can get under
-        it - the schemas are not in the history. A corrected window would ask for
-        one on every request, for ever, paying each time."""
-        capability, history = self._fire(5_000, 3_865)
+    async def test_without_a_reading_nothing_is_skipped(self):
+        """Nothing is measured until a response has been seen, and skipping on a
+        guess is a run that never compacts for a reason nobody can see."""
+        capability, history = self._wrapper(5_000, None)
 
         compacted = await capability.before_model_request(
             _run_context(), _request_context(list(history))
         )
 
-        assert capability.wrapped.context_window == 5_000
-        assert len(compacted.messages) == len(history)
+        assert len(compacted.messages) < len(history)
 
-    async def test_a_window_with_no_room_left_says_so(self):
-        """Doing nothing is indistinguishable on screen from a setting that
-        works, and this one cannot be made to work by waiting."""
+    async def test_it_says_so_rather_than_going_quiet(self):
         seen: list[CompactionEvent] = []
 
         async def sink(event: CompactionEvent) -> None:
             seen.append(event)
 
-        capability, history = self._fire(5_000, 3_865)
+        capability, history = self._wrapper(5_000, 3_865)
 
         await capability.before_model_request(_ctx_with(sink), _request_context(list(history)))
 
         assert [event.kind for event in seen] == ["compaction_impossible"]
+        # The window, not the trigger: it is what the author set and can raise.
         assert (seen[0].overhead_tokens, seen[0].window_tokens) == (3_865, 5_000)
 
     async def test_it_says_so_once_rather_than_on_every_request(self):
@@ -473,7 +468,7 @@ class TestAllowingForWhatEveryRequestCarries:
         async def sink(event: CompactionEvent) -> None:
             seen.append(event)
 
-        capability, history = self._fire(5_000, 3_865)
+        capability, history = self._wrapper(5_000, 3_865)
 
         for _ in range(3):
             await capability.before_model_request(_ctx_with(sink), _request_context(list(history)))
@@ -486,35 +481,62 @@ class TestAllowingForWhatEveryRequestCarries:
         async def sink(event: CompactionEvent) -> None:
             seen.append(event)
 
-        capability, history = self._fire(10_000, 3_865)
+        capability, history = self._wrapper(10_000, 3_865)
 
         await capability.before_model_request(_ctx_with(sink), _request_context(list(history)))
 
+        assert [event.kind for event in seen if event.kind == "compaction_impossible"] == []
+
+    async def test_a_tiered_strategy_is_judged_on_the_target_it_stops_at(self):
+        """`TieredCompaction` carries `target_fraction` where a strategy carries
+        `max_fraction`, and reading the wrong one answers that nothing ever
+        triggers."""
+        wrapped = build_strategy(
+            CompactionConfig(strategy="tiered", max_fraction=0.5, context_window=5_000)
+        )
+        capability = MeteredCompaction(wrapped=wrapped, gauge=ContextGauge(overhead=3_865))
+        seen: list[CompactionEvent] = []
+
+        async def sink(event: CompactionEvent) -> None:
+            seen.append(event)
+
+        await capability.before_model_request(_ctx_with(sink), _request_context([]))
+
+        assert [event.kind for event in seen] == ["compaction_impossible"]
+
+    async def test_a_strategy_that_buys_nothing_is_left_to_run(self):
+        """Dropping messages calls no model, so there is no loop to prevent - and
+        a smaller request is still better than an unbounded one, however far past
+        the trigger the overhead is."""
+        capability, history = self._wrapper(5_000, 3_865)
+        capability.wrapped = build_strategy(
+            CompactionConfig(strategy="sliding_window", max_fraction=0.5, keep_messages=2)
+        )
+        capability.wrapped.context_window = 5_000
+
+        compacted = await capability.before_model_request(
+            _run_context(), _request_context(list(history))
+        )
+
+        assert len(compacted.messages) < len(history)
+
+    async def test_a_window_that_could_not_be_resolved_skips_nothing(self):
+        """No window is no line to be past, and a run that silently stops
+        compacting is the failure this whole area kept producing."""
+        wrapped = build_strategy(CompactionConfig(strategy="summarize", keep_messages=2))
+        wrapped.context_window = None
+        capability = MeteredCompaction(wrapped=wrapped, gauge=ContextGauge(overhead=3_865))
+        seen: list[CompactionEvent] = []
+
+        async def sink(event: CompactionEvent) -> None:
+            seen.append(event)
+
+        await capability.before_model_request(_ctx_with(sink), _request_context([]))
+
         assert seen == []
 
-    async def test_the_correction_does_not_compound_over_a_tool_loop(self):
-        """Applied to what the author configured, not to its own last answer -
-        which would walk the trigger down to nothing over a long run."""
-        capability, _history = self._fire(10_000, 1_000)
 
-        for _ in range(3):
-            await capability.before_model_request(_run_context(), _request_context([]))
-
-        assert capability.wrapped.context_window == 8_000
-
-    async def test_every_tier_of_a_tiered_strategy_is_corrected(self):
-        """The orchestrator stops on its own target and each tier has its own; a
-        tier left on the uncorrected number measures a different ceiling."""
-        wrapped = build_strategy(
-            CompactionConfig(strategy="tiered", max_fraction=0.5, context_window=10_000)
-        )
-        capability = MeteredCompaction(wrapped=wrapped, gauge=ContextGauge(overhead=1_000))
-
-        await capability.before_model_request(_run_context(), _request_context([]))
-
-        assert capability.wrapped.context_window == 8_000
-        assert [tier.context_window for tier in capability.wrapped.tiers] == [8_000, 8_000]
-
+class TestWhatEveryRequestCarries:
     async def test_the_overhead_is_what_the_provider_charged_less_what_was_counted(self):
         gauge = ContextGauge()
 

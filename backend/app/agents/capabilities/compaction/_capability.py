@@ -20,6 +20,14 @@ worth compacting is the hundred-step tool loop `DEFAULT_MAX_STEPS` allows, where
 one sandbox listing or one knowledge search can be tens of thousands of tokens.
 It does mean a summarizing pass is paid for once per run rather than amortised
 across a conversation, which is why the cheap tiers come first.
+
+What *does* cross the boundary is what each replayed answer cost, and it is what
+makes any of this fire. The estimator anchors on the most recent response carrying
+provider usage - that request's `input_tokens` counted the instructions, every
+tool schema and every prior message - and estimates only what came after. Replayed
+as bare text there is nothing to anchor on and it counts characters instead: a real
+agent here measured 9 tokens where the provider had charged for 3,859, so a
+window the gauge showed at 77% sat beside a trigger that had noticed nothing.
 """
 
 from __future__ import annotations
@@ -49,12 +57,13 @@ from app.agents.compaction_events import CompactionEvent
 logger = logging.getLogger(__name__)
 
 CONTEXT_GAUGE_RESOURCE = "context_gauge"
-"""Where the factory puts the run's own gauge, for the trigger to read.
+"""Where the factory puts the run's own gauge, for the strip and the guard to read.
 
 A resource rather than a config field, for the reason the window is one: it is
-not a decision an author makes. The gauge measures what every request carries
-before a single message, and the trigger has to allow for it - see
-:func:`_allow_for_overhead`.
+not a decision an author makes. The gauge measures what every request actually
+carried, which is what the chat reports - and what it carried *before a single
+message*, which is what says whether a window has room for a summary at all; see
+:func:`MeteredCompaction._has_no_room`.
 """
 
 MODEL_CONTEXT_WINDOW_RESOURCE = "model_context_window"
@@ -161,10 +170,10 @@ class CompactionConfig(BaseModel):
         ge=1_000,
         description=(
             "Override the window this triggers against. Also what the chat's context "
-            "gauge divides by, so the two describe one ceiling. Two reasons to set it: "
-            "the resolved number is wrong, or you are allowing for the instructions and "
-            "tool schemas the trigger does not count - subtract what the gauge reads on "
-            "the first turn of an empty conversation"
+            "gauge divides by, so the two describe one ceiling. Set it when the "
+            "resolved number is wrong for your deployment - a beta or a tier can be "
+            "given less than the provider publishes - or to make an agent compact "
+            "earlier than its model would require"
         ),
     )
     fallback_context_window: int = Field(
@@ -260,14 +269,15 @@ def build_strategy(
     bypasses. An absolute number is correct only for the model it was measured
     against, and the same agent here runs on whatever profile its spec points at.
 
-    **The trigger does not count everything the provider bills.** It measures the
-    message parts, and a request also carries the instructions and every tool
-    schema - which on a real agent here was 3,882 tokens against 16 the estimator
-    saw. So it fires late by the size of that overhead, which on a large MCP
-    surface is tens of thousands of tokens and is late in the direction that
-    reaches the ceiling. The harness documents the gap ("tool schemas are outside
-    that count") and `context_window` is the lever: set it to the real window
-    minus what the gauge reads on the first turn of an empty conversation.
+    **What the trigger measures is the provider's own number, where a history
+    carries one.** The estimator anchors on the most recent response with usage on
+    it - that request's `input_tokens` counted the instructions, every tool schema
+    and every prior message - and estimates only what came after. So the overhead
+    is inside the count rather than outside it, and no lever is needed to allow for
+    it. What makes that true here is `app.services.agent.build_message_history`
+    replaying each answer with what it cost; replayed as bare text there is nothing
+    to anchor on, and a real agent here measured 9 tokens where the provider had
+    charged for 3,859.
 
     `recorded_window` is what the model profile stored from its provider's own
     listing. It beats resolving the window from the pricing snapshot, which is
@@ -300,25 +310,21 @@ def build_strategy(
         )
 
     if config.strategy == "clear_tool_results":
-        return _remembering(clearing())
+        return clearing()
     if config.strategy == "sliding_window":
-        return _remembering(
-            SlidingWindowCompaction(
-                max_fraction=config.max_fraction,
-                keep_messages=config.keep_messages,
-                context_window=window,
-                fallback_context_window=fallback,
-            )
-        )
-    if config.strategy == "summarize":
-        return _remembering(summarizing())
-    return _remembering(
-        TieredCompaction(
-            tiers=[clearing(), summarizing()],
-            target_fraction=config.max_fraction,
+        return SlidingWindowCompaction(
+            max_fraction=config.max_fraction,
+            keep_messages=config.keep_messages,
             context_window=window,
             fallback_context_window=fallback,
         )
+    if config.strategy == "summarize":
+        return summarizing()
+    return TieredCompaction(
+        tiers=[clearing(), summarizing()],
+        target_fraction=config.max_fraction,
+        context_window=window,
+        fallback_context_window=fallback,
     )
 
 
@@ -350,10 +356,10 @@ class ContextGauge:
     schemas.
 
     The difference between what the provider charged for a request and what the
-    compaction estimator counts in the same messages - a real agent here: 3,865
+    character heuristic counts in the same messages - a real agent here: 3,865
     against 60. It is fixed for the run, it is billed every time, and no strategy
-    can compact it away, which is exactly why the trigger has to allow for it
-    rather than pretend the messages are the whole request.
+    can compact it away, which is what makes it the one number that says whether a
+    window has room for a summary at all.
 
     `None` until a response has been seen, because it cannot be measured before
     one."""
@@ -439,7 +445,8 @@ class MeteredCompaction(WrapperCapability[AgentDepsT]):
         ctx: RunContext[AgentDepsT],
         request_context: ModelRequestContext,
     ) -> ModelRequestContext:
-        await self._correct_the_trigger(ctx)
+        if await self._has_no_room(ctx):
+            return request_context
         before = _counts(ctx.usage)
         try:
             return await self.wrapped.before_model_request(ctx, request_context)
@@ -448,27 +455,45 @@ class MeteredCompaction(WrapperCapability[AgentDepsT]):
             if spent is not None:
                 record_ambient_usage(_model_name(request_context), spent)
 
-    async def _correct_the_trigger(self, ctx: RunContext[AgentDepsT]) -> None:
-        """Move the trigger for the overhead, or say why it cannot be moved.
+    async def _has_no_room(self, ctx: RunContext[AgentDepsT]) -> bool:
+        """Whether this window is too small for a summary to ever get under it.
 
-        The refusal is the part worth having. A window whose fixed overhead
-        already exceeds the trigger cannot be compacted under it, so the platform
-        does nothing - and doing nothing looks exactly like a setting that is
-        working. Said once per run, because it describes a configuration rather
-        than an event, and on the channel the summary already narrates itself on.
+        The overhead - instructions and tool schemas - is billed on every request
+        and is not in the history, so no strategy can compact it away. Once it is
+        past the trigger on its own, every request is over the line, every request
+        buys a summary, and not one of them can bring the next below it. That is an
+        unbounded paid loop, so compaction is skipped outright.
+
+        **Only where a summary is bought.** Dropping messages and clearing tool
+        results call no model, so running them on a window they can never get under
+        costs nothing and still keeps the request smaller than not running them -
+        skipping those would trade a warning for an unbounded history.
+
+        Said once per run, on the channel the summary already narrates itself on,
+        because it describes a configuration rather than an event - and because
+        silence here is indistinguishable from a setting that works, which is what
+        it looked like for two rounds of testing.
         """
-        window = _allow_for_overhead(self.wrapped, self.gauge)
-        if window is None or self._said_it_cannot:
-            return
-        self._said_it_cannot = True
-        sink = getattr(ctx.deps, "on_compaction", None)
+        if not isinstance(self.wrapped, SummarizingCompaction | TieredCompaction):
+            return False
+        thresholds = _trigger_tokens(self.wrapped)
         overhead = None if self.gauge is None else self.gauge.overhead
+        if thresholds is None or not overhead:
+            return False
+        trigger, window = thresholds
+        if overhead < trigger:
+            return False
+        if self._said_it_cannot:
+            return True
+        self._said_it_cannot = True
         logger.warning(
             "Compaction cannot help: %s tokens of instructions and tool schemas "
-            "against a %s-token window",
+            "against a %s-token trigger in a %s-token window",
             overhead,
+            trigger,
             window,
         )
+        sink = getattr(ctx.deps, "on_compaction", None)
         if sink is not None:
             await sink(
                 CompactionEvent(
@@ -477,84 +502,35 @@ class MeteredCompaction(WrapperCapability[AgentDepsT]):
                     window_tokens=window,
                 )
             )
+        return True
 
 
-def _allow_for_overhead(
-    strategy: AbstractCapability[Any], gauge: ContextGauge | None
-) -> int | None:
-    """Move the trigger down by what the request carries before any message.
+def _trigger_tokens(strategy: AbstractCapability[Any]) -> tuple[int, int] | None:
+    """The token count above which this strategy compacts, and the window it is of.
 
-    The trigger measures the message parts; a request also carries the
-    instructions and every tool schema, which the provider bills and no strategy
-    can compact. On a real agent here that was 3,865 tokens against the 60 the
-    estimator saw - so a gauge reading 77% of a window sat beside a trigger that
-    had not noticed anything, which is the same ceiling described two ways.
+    Both, because the caller reports one and decides on the other: the window is
+    what an author set and can raise, the trigger is the line their overhead is
+    past.
 
-    The correction is exact rather than approximate. The trigger fires on
-    `estimate > f x W'`; what is wanted is `estimate + overhead > f x W`, and
-    `W' = W - overhead / f` is the substitution that makes those the same
-    statement.
+    `max_fraction` on a strategy, `target_fraction` on the orchestrator -
+    `build_strategy` sets one or the other on everything it returns, so an object
+    here with neither is one nothing built and is worth the `AttributeError`
+    rather than a silent no-op. The orchestrator's own target is what decides when
+    its tiers stop escalating, so reading the top level answers for all of them.
 
-    **Applied only while there is room left.** When the overhead alone exceeds the
-    trigger, no summary can get under it - the schemas are not in the history -
-    and a corrected window would ask for one on every request, for ever, paying
-    each time. The window is then left as configured, which under-fires the way it
-    did before, because under-firing is recoverable and an unbounded paid loop is
-    not.
-
-    Written onto the strategy rather than passed, because `context_window` is a
-    field decided at construction and the overhead cannot be measured until a
-    response exists. Each run builds its own strategy, so nothing is shared.
-
-    Returns:
-        The configured window, when there was no room in it and nothing was
-        corrected - the caller says so, because silence here is a setting that
-        looks like it is working. `None` when the correction applied, or when
-        there is no reading to correct from yet.
+    `None` when no window could be resolved at all, and there is then no line to be
+    past.
     """
-    overhead = None if gauge is None else gauge.overhead
-    if not overhead:
+    window: int | None = getattr(strategy, "context_window", None)
+    if not window:
         return None
-    impossible: int | None = None
-    for target in _corrigible(strategy):
-        # `max_fraction` on a strategy, `target_fraction` on the orchestrator -
-        # `build_strategy` sets one or the other on everything it returns, so an
-        # object here without either is one nothing built and is worth the
-        # `AttributeError` rather than a silent no-op.
-        fraction = getattr(target, "max_fraction", None) or target.target_fraction
-        configured = getattr(target, _CONFIGURED_WINDOW)
-        corrected = configured - overhead / fraction
-        if corrected > 0:
-            target.context_window = int(corrected)
-        else:
-            impossible = configured
-    return impossible
-
-
-_CONFIGURED_WINDOW = "_agenticos_configured_window"
-"""Where the author's own `context_window` is kept, so the correction is applied to
-it rather than to its own previous answer.
-
-Reading `context_window` back each request would subtract the overhead again from
-an already-corrected number, walking the trigger down to nothing over a long tool
-loop."""
-
-
-def _corrigible(strategy: AbstractCapability[Any]) -> tuple[Any, ...]:
-    """The strategy, and each tier when it escalates through others.
-
-    A tier left on the uncorrected window measures a different ceiling than the
-    orchestrator driving it, and the orchestrator's own target is what decides
-    when to stop escalating - so both are moved or neither is.
-    """
-    return (*getattr(strategy, "tiers", ()), strategy)
-
-
-def _remembering[S: AbstractCapability[Any]](strategy: S) -> S:
-    """Stash the window the author configured, before anything corrects it."""
-    for target in _corrigible(strategy):
-        setattr(target, _CONFIGURED_WINDOW, target.context_window)
-    return strategy
+    # One-argument `getattr` on purpose: a strategy with neither fraction is one
+    # nothing here built, and the `AttributeError` says so rather than answering
+    # that it never triggers.
+    fraction: float = getattr(strategy, "max_fraction", None) or getattr(  # noqa: B009
+        strategy, "target_fraction"
+    )
+    return int(window * fraction), window
 
 
 def _counts(usage: RunUsage) -> tuple[int, int, int, int]:

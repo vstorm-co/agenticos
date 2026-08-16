@@ -579,7 +579,19 @@ class EmbedSession:
         messages = await conversation_repo.get_recent_messages(
             db, self.conversation_id, limit=HISTORY_MESSAGES
         )
-        return build_message_history([{"role": m.role, "content": m.content} for m in messages])
+        return build_message_history(
+            [
+                {
+                    "role": m.role,
+                    "content": m.content,
+                    # The size of the request this answer came out of: the anchor the
+                    # compaction estimator measures against, in place of counting
+                    # characters - see `agent.build_message_history`.
+                    "context_used_tokens": m.context_used_tokens,
+                }
+                for m in messages
+            ]
+        )
 
     def _supplied_block(self) -> str:
         """What the page told us about this visitor, as data the model may read.

@@ -228,9 +228,20 @@ def _chat(
         )
 
 
-def _stored(role: str, content: str, *, message_id: UUID | None = None) -> SimpleNamespace:
+def _stored(
+    role: str,
+    content: str,
+    *,
+    message_id: UUID | None = None,
+    context_used_tokens: int | None = None,
+) -> SimpleNamespace:
     """One row as `get_recent_messages` returns it."""
-    return SimpleNamespace(id=message_id or uuid4(), role=role, content=content)
+    return SimpleNamespace(
+        id=message_id or uuid4(),
+        role=role,
+        content=content,
+        context_used_tokens=context_used_tokens,
+    )
 
 
 def _next_frame(session: AgentSession) -> asyncio.Event:
@@ -533,6 +544,23 @@ class TestATurnThatFinished:
             "how many are open?",
             "Two are open.",
         ]
+
+    async def test_a_replayed_answer_carries_the_size_of_the_request_it_came_from(self):
+        """What makes compaction fire at all: its estimator anchors on a response
+        with usage on it and counts characters without one, so a history replayed
+        as bare text reads as a few tokens whatever it really cost."""
+        session = _session()
+        run = AsyncMock(return_value=_finished_turn())
+        stored = [
+            _stored("user", "how many are open?"),
+            _stored("assistant", "Two are open.", context_used_tokens=3_843),
+        ]
+
+        with _chat(run, stored=stored):
+            await session.process_message(_message("and how many of those are mine?"))
+
+        history = run.await_args.kwargs["message_history"]
+        assert history[1].usage.input_tokens == 3_843
 
     async def test_the_turn_being_answered_is_not_also_handed_back_as_history(self):
         """`persist_user_turn` writes the prompt before the run, so it is a row by

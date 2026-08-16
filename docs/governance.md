@@ -134,6 +134,20 @@ comfortably in the old window is compacted on the very next turn under the new
 one — before the request leaves, not after the provider has refused it. An agent
 with no compaction bound has the gauge instead, and nothing else.
 
+**The trigger measures what the provider measured.** It anchors on the most recent
+answer carrying provider usage — that request's `input_tokens` counted the
+instructions, every tool schema and every prior message — and estimates only what
+came after it. This is why a replayed conversation carries what each answer cost:
+without an anchor the trigger counts characters, and a real agent here read 9
+tokens where the provider had charged for 3,859. The gauge said 77%; the trigger
+saw nothing to do.
+
+One setting cannot work, and says so instead of running. When the instructions and
+tool schemas alone are past the trigger, no summary can get under it — they are
+not in the history to summarise. Every request would then buy a summary that
+changes nothing. Compaction is skipped, the chat says why, and the fix is an
+author's: a larger window, or a higher fraction.
+
 ### Delegation spends the parent's budget
 
 A run can contain another agent's whole conversation - see

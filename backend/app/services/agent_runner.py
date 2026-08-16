@@ -3266,6 +3266,9 @@ class AgentRunnerService:
                 # the conversation is read back, not as a call that ran (#601).
                 parked=frozenset(paused.tool_call_ids.values()) if paused else frozenset(),
                 model_label=prepared.built.model_label,
+                # The last request's own size, for the anchor a replayed history
+                # is measured against - see `build_message_history`.
+                context_used_tokens=prepared.built.context.latest,
             )
             # Committed here rather than left to the session context: that exit
             # rolls back on any exception, and cancellation never reaches it at

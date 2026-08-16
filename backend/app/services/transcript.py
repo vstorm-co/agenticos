@@ -227,6 +227,7 @@ class TranscriptService:
         settled: Mapping[str, str] | None = None,
         parked: Collection[str] = (),
         model_label: str | None = None,
+        context_used_tokens: int | None = None,
     ) -> None:
         """Write whatever this run produced, and never fail the run for it.
 
@@ -316,6 +317,7 @@ class TranscriptService:
                         tool_calls=tool_calls,
                         parked=parked,
                         model_label=model_label,
+                        context_used_tokens=context_used_tokens,
                     )
         except Exception:
             # `exception`, not `warning`: this is the only place in this file that
@@ -390,6 +392,7 @@ class TranscriptService:
         tool_calls: Sequence[RecordedToolCall],
         parked: Collection[str],
         model_label: str | None,
+        context_used_tokens: int | None,
     ) -> None:
         """The assistant turn and the calls it made, attributed to the version.
 
@@ -417,6 +420,12 @@ class TranscriptService:
             # Not a difference: one unpriced request makes the whole run's figure a
             # floor, and every turn of it is short by an amount nobody can split.
             cost_is_partial=run.cost_is_partial,
+            # What the *last* request of the run carried, which is not the sum
+            # above and must not be confused with it. It is the anchor the
+            # compaction estimator reads when this turn is replayed - one
+            # request's true size, where the totals are a run's whole bill
+            # (`app.services.agent.build_message_history`).
+            context_used_tokens=context_used_tokens,
             agent_id=run.agent_id,
             agent_version_id=run.agent_version_id,
             run_id=run.id,

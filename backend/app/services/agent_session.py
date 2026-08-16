@@ -19,6 +19,7 @@ from app.db.session import get_db_context
 from app.repositories import conversation as conversation_repo
 from app.schemas.conversation import MessagePart
 from app.services.agent import (
+    HistoryMessage,
     build_message_history,
     persist_assistant_turn,
     persist_user_turn,
@@ -504,7 +505,7 @@ class AgentSession:
         frame = event.model_dump(mode="json")
         await send_event(self.websocket, event.kind, frame)
 
-    async def _history(self, prompt_message_id: UUID | None) -> list[dict[str, str]]:
+    async def _history(self, prompt_message_id: UUID | None) -> list[HistoryMessage]:
         """What has already been said in this thread, without the turn being run.
 
         **Read from the database, not from this session.** It used to be a list on
@@ -539,7 +540,14 @@ class AgentSession:
                 db, UUID(self.current_conversation_id), limit=HISTORY_MESSAGES
             )
         return [
-            {"role": message.role, "content": message.content}
+            {
+                "role": message.role,
+                "content": message.content,
+                # The size of the request this answer came out of: the anchor the
+                # compaction estimator measures against, in place of counting
+                # characters - see `agent.build_message_history`.
+                "context_used_tokens": message.context_used_tokens,
+            }
             for message in messages
             if message.id != prompt_message_id
         ]

@@ -17,7 +17,7 @@ from app.repositories import (
     channel_session_repo,
     conversation_repo,
 )
-from app.services.agent import build_message_history
+from app.services.agent import HistoryMessage, build_message_history
 from app.services.channel_bot import unseal_bot_token
 from app.services.channel_link import ChannelLinkService
 from app.services.channels import get_adapter
@@ -962,7 +962,7 @@ class ChannelMessageRouter:
             )
 
     @staticmethod
-    async def _load_history(db: Any, conversation_id: Any) -> list[dict[str, str]]:
+    async def _load_history(db: Any, conversation_id: Any) -> list[HistoryMessage]:
         """The most recent turns of the channel thread, oldest first.
 
         **The most recent, which took a `count` to get right** - and the count
@@ -975,4 +975,14 @@ class ChannelMessageRouter:
         messages = await conversation_repo.get_recent_messages(
             db, conversation_id, limit=HISTORY_MESSAGES
         )
-        return [{"role": m.role, "content": m.content} for m in messages]
+        return [
+            {
+                "role": m.role,
+                "content": m.content,
+                # The size of the request this answer came out of: the anchor the
+                # compaction estimator measures against, in place of counting
+                # characters - see `agent.build_message_history`.
+                "context_used_tokens": m.context_used_tokens,
+            }
+            for m in messages
+        ]
