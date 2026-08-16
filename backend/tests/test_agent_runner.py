@@ -565,6 +565,50 @@ class TestSpendReporting:
         ingested.assert_not_called()
 
 
+class TestRecordedConversationState:
+    """The overhead and the reminder cadence a build seeds from - both off one
+    read of the conversation, so a thread with neither still costs one SELECT."""
+
+    @pytest.mark.anyio
+    async def test_no_conversation_id_reads_nothing(self):
+        """A run with no thread has nothing to seed and does not touch the row."""
+        with patch(
+            "app.services.agent_runner.conversation_repo.get_conversation_by_id",
+            new=AsyncMock(),
+        ) as fetch:
+            result = await AgentRunnerService(_db())._recorded_conversation_state(None)
+
+        assert result == (None, None)
+        fetch.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_a_missing_conversation_seeds_nothing(self):
+        """A conversation_id that resolves to no row seeds a fresh build."""
+        with patch(
+            "app.services.agent_runner.conversation_repo.get_conversation_by_id",
+            new=AsyncMock(return_value=None),
+        ):
+            result = await AgentRunnerService(_db())._recorded_conversation_state(uuid.uuid4())
+
+        assert result == (None, None)
+
+    @pytest.mark.anyio
+    async def test_both_recorded_values_come_from_one_read(self):
+        """Overhead and cadence are returned together from a single fetch."""
+        conversation = MagicMock(overhead_tokens=3_865, reminder_state={"request_count": 4})
+        with patch(
+            "app.services.agent_runner.conversation_repo.get_conversation_by_id",
+            new=AsyncMock(return_value=conversation),
+        ) as fetch:
+            overhead, reminder_state = await AgentRunnerService(_db())._recorded_conversation_state(
+                uuid.uuid4()
+            )
+
+        assert overhead == 3_865
+        assert reminder_state == {"request_count": 4}
+        assert fetch.await_count == 1
+
+
 class TestReadingRunHistory:
     """The two reads behind the run-history surface, scoped in the service so
     the route never touches the repository - and so the tenant boundary has one
