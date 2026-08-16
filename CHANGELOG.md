@@ -17,6 +17,26 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.162] - 2026-08-16
+
+An agent can drive a real browser, with the same guards as everything else.
+
+### Added
+
+- **The `browser_use` capability.** One tool, `browse_web`, that hands a
+  self-contained natural-language goal to an autonomous
+  [browser-use](https://github.com/browser-use/browser-use) agent driving a real
+  Chromium — `mode='playwright'` launches a local headless browser,
+  `mode='remote'` attaches over CDP to an operator-supplied `cdp_url`. A remote
+  endpoint is SSRF-checked at publish time, off the event loop, for every binding
+  — the first production caller of `validate_webhook_url` (part of #33). The
+  browser sub-agent runs on the host run's model wrapped in a `MeteredModel`, so
+  its spend is booked against the run's ledger (#802), and the tool is
+  `side_effecting`, so every call can sit behind the approval gate. The engine is
+  an optional dependency the capability builds without: until browser-use loosens
+  its `pydantic` pin (#801), enabling and running it raises a `RuntimeError`
+  naming the fix rather than failing quietly. (#59)
+
 ## [0.0.161] - 2026-08-16
 
 An agent can draw an image, with the spend on the ledger like everything else.
