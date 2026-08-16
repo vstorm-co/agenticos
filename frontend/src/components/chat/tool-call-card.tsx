@@ -9,6 +9,7 @@ import { AgentStep } from "./agent-step";
 import { ChartMessage, parseChartResult } from "./chart-message";
 import { RAGSearchResults } from "./tool-results/rag";
 import { WebSearchResults, parseWebSearch } from "./tool-results/web-search";
+import { GeneratedImageResult, parseGeneratedImage } from "./tool-results/generated-image";
 import { LoadSkillResult } from "./tool-results/skills";
 import { GenericToolResult, RawToolView } from "./tool-results/generic";
 import { RunPythonResult } from "./tool-results/run-python";
@@ -126,6 +127,12 @@ export function ToolCallCard({
     typeof toolCall.result === "string"
       ? parseWebSearch(toolCall.result)
       : null;
+  const generatedImage =
+    renderer === "generated-image" &&
+    toolCall.status === "completed" &&
+    typeof toolCall.result === "string"
+      ? parseGeneratedImage(toolCall.result)
+      : null;
 
   const isRunning = toolCall.status === "running" || toolCall.status === "pending";
   // Its own state, not a kind of running: a parked call produces no result until
@@ -199,6 +206,8 @@ export function ToolCallCard({
         <RAGSearchResults result={resultText} />
       ) : webResults !== null ? (
         <WebSearchResults data={webResults} />
+      ) : generatedImage !== null ? (
+        <GeneratedImageResult data={generatedImage} />
       ) : chartSpec !== null ? (
         <ChartMessage spec={chartSpec} />
       ) : renderer === "run-python" ? (

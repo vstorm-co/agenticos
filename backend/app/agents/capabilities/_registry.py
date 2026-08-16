@@ -599,6 +599,7 @@ def load_builtins() -> None:
         compaction,
         context,
         guardrails,
+        image_generation,
         knowledge,
         planning,
         sandbox,
