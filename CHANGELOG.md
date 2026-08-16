@@ -17,6 +17,27 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.164] - 2026-08-16
+
+An agent stops forgetting its instructions mid-run, and remembers across turns.
+
+### Added
+
+- **The `system_reminders` capability.** Re-states steering guidance mid-run to
+  counter instruction fade — a model progressively ignoring the guidance it
+  started with after many tool-use turns. Three declarative reminder kinds, each
+  on its own cadence (`interval` / `first_after` / `max_fires`): fixed
+  `reminders[]` lines, `goal_reanchor` (the run's first user request, re-stated),
+  and `llm_reminder` (a model-written nudge from the recent transcript, metered
+  to the run's ledger, running on the run's own model under its limits minus one
+  reserved request, falling back to the goal-reanchor line on any error). The
+  cadence is durable per conversation — counters live in a new
+  `conversations.reminder_state` JSONB column, so leaving and reloading a
+  conversation resumes it; only the counters are stored, never the reminder
+  text. A fired reminder is injected as an ephemeral prompt part behind a
+  `CachePoint`, so it never enters `message_history` and the cached prefix stays
+  byte-identical turn over turn. (#787)
+
 ## [0.0.163] - 2026-08-16
 
 An oversized tool return stops eating the run, and nothing spills onto shared disk.
