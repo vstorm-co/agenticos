@@ -35,21 +35,23 @@ export interface AvatarPalette {
 }
 
 /**
- * Ten pairs legible in both themes: a translucent tint for the circle and a
- * solid ink for the letters, the ink lightened under `dark`. Written as literal
- * class strings so Tailwind keeps them - a computed `bg-${hue}-500/15` is purged.
+ * Ten pastel fills on one charcoal ink, from the `--avatar-*` tokens in
+ * `globals.css`. Referenced as arbitrary-value classes so the class strings
+ * survive as literals for Tailwind to generate; the tokens are theme-independent
+ * (see the ramp's comment there), so the chip reads in light and dark alike
+ * without a `dark:` variant.
  */
 const PALETTE: readonly AvatarPalette[] = [
-  { bg: "bg-indigo-500/15", fg: "text-indigo-700 dark:text-indigo-300" },
-  { bg: "bg-sky-500/15", fg: "text-sky-700 dark:text-sky-300" },
-  { bg: "bg-teal-500/15", fg: "text-teal-700 dark:text-teal-300" },
-  { bg: "bg-emerald-500/15", fg: "text-emerald-700 dark:text-emerald-300" },
-  { bg: "bg-amber-500/15", fg: "text-amber-700 dark:text-amber-300" },
-  { bg: "bg-orange-500/15", fg: "text-orange-700 dark:text-orange-300" },
-  { bg: "bg-rose-500/15", fg: "text-rose-700 dark:text-rose-300" },
-  { bg: "bg-violet-500/15", fg: "text-violet-700 dark:text-violet-300" },
-  { bg: "bg-fuchsia-500/15", fg: "text-fuchsia-700 dark:text-fuchsia-300" },
-  { bg: "bg-cyan-500/15", fg: "text-cyan-700 dark:text-cyan-300" },
+  { bg: "bg-[var(--avatar-1)]", fg: "text-[var(--avatar-ink)]" },
+  { bg: "bg-[var(--avatar-2)]", fg: "text-[var(--avatar-ink)]" },
+  { bg: "bg-[var(--avatar-3)]", fg: "text-[var(--avatar-ink)]" },
+  { bg: "bg-[var(--avatar-4)]", fg: "text-[var(--avatar-ink)]" },
+  { bg: "bg-[var(--avatar-5)]", fg: "text-[var(--avatar-ink)]" },
+  { bg: "bg-[var(--avatar-6)]", fg: "text-[var(--avatar-ink)]" },
+  { bg: "bg-[var(--avatar-7)]", fg: "text-[var(--avatar-ink)]" },
+  { bg: "bg-[var(--avatar-8)]", fg: "text-[var(--avatar-ink)]" },
+  { bg: "bg-[var(--avatar-9)]", fg: "text-[var(--avatar-ink)]" },
+  { bg: "bg-[var(--avatar-10)]", fg: "text-[var(--avatar-ink)]" },
 ];
 
 /**
