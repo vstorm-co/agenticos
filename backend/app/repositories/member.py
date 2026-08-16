@@ -61,17 +61,23 @@ async def list_for_org(
     *,
     skip: int = 0,
     limit: int = 100,
-) -> list[tuple[OrganizationMember, str, str | None, str | None]]:
-    """Return (member, email, full_name, avatar_url) tuples ordered by join date."""
+) -> list[tuple[OrganizationMember, str, str | None, str | None, int | None]]:
+    """Return (member, email, full_name, avatar_url, avatar_color) tuples by join date."""
     result = await db.execute(
-        select(OrganizationMember, User.email, User.full_name, User.avatar_url)
+        select(
+            OrganizationMember,
+            User.email,
+            User.full_name,
+            User.avatar_url,
+            User.avatar_color,
+        )
         .join(User, User.id == OrganizationMember.user_id)
         .where(OrganizationMember.organization_id == organization_id)
         .order_by(OrganizationMember.joined_at.asc())
         .offset(skip)
         .limit(limit)
     )
-    return [(row[0], row[1], row[2], row[3]) for row in result.all()]
+    return [(row[0], row[1], row[2], row[3], row[4]) for row in result.all()]
 
 
 class MemberIdentity(NamedTuple):

@@ -5,12 +5,10 @@ import { Lock, RotateCw, Trash2, Users } from "lucide-react";
 
 import { ProviderIcon } from "@/components/vault/provider-icon";
 import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
   Badge,
   Button,
   DataTable,
+  EntityAvatar,
   ListCardControlsRow,
   Select,
   SelectContent,
@@ -64,11 +62,6 @@ function reach(
   if (secret.visibility === "private") return { label: t("visibilityPrivate"), detail: sharedWith };
   if (secret.visibility === "team") return { label: t("visibilityTeam"), detail: sharedWith };
   return { label: t("visibilityOrg"), detail: null };
-}
-
-/** Two letters for a face nobody uploaded, and nothing at all for nobody. */
-function initials(email: string | null | undefined): string {
-  return (email ?? "?").slice(0, 2).toUpperCase();
 }
 
 /**
@@ -165,14 +158,13 @@ export function SecretsTable({
         cell: (secret) =>
           secret.created_by_email ? (
             <div className="flex items-center gap-2">
-              <Avatar className="h-6 w-6">
-                {secret.created_by_avatar_url && (
-                  <AvatarImage src={secret.created_by_avatar_url} alt="" />
-                )}
-                <AvatarFallback className="text-[10px]">
-                  {initials(secret.created_by_email)}
-                </AvatarFallback>
-              </Avatar>
+              <EntityAvatar
+                seed={secret.created_by_user_id ?? secret.created_by_email}
+                name={secret.created_by_email}
+                imageSrc={secret.created_by_avatar_url ?? undefined}
+                className="h-6 w-6 text-[10px]"
+                ariaHidden
+              />
               <span className="text-muted-foreground truncate text-xs">
                 {secret.created_by_email}
               </span>

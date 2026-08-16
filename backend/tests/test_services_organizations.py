@@ -462,6 +462,67 @@ class TestOrganizationService:
         assert write.await_args.kwargs["limit_usd"] == limit
 
     @pytest.mark.anyio
+    @pytest.mark.parametrize("slot", [5, None])
+    async def test_naming_the_colour_writes_exactly_what_was_named(self, service, mock_db, slot):
+        """Including an explicit `null`, which is how the colour resets to auto."""
+        membership = MagicMock(role="owner")
+        org = MagicMock()
+
+        with (
+            patch.object(service, "get_for_user", new=AsyncMock(return_value=(org, membership))),
+            patch(
+                "app.services.organization.organization_repo.set_avatar_color",
+                new=AsyncMock(return_value=org),
+            ) as write,
+            patch("app.services.organization.organization_repo.update", new=AsyncMock()),
+        ):
+            await service.update(
+                uuid.uuid4(),
+                OrganizationUpdate.model_validate({"avatar_color": slot}),
+                requester_id=uuid.uuid4(),
+            )
+
+        assert write.await_args.kwargs["color"] == slot
+
+    @pytest.mark.anyio
+    async def test_an_update_that_does_not_name_the_colour_leaves_it_alone(self, service, mock_db):
+        """A rename must not reset the colour to auto, so the write only fires when
+        the client named the field - `null` is a value here, not an absence."""
+        membership = MagicMock(role="owner")
+
+        with (
+            patch.object(
+                service, "get_for_user", new=AsyncMock(return_value=(MagicMock(), membership))
+            ),
+            patch(
+                "app.services.organization.organization_repo.set_avatar_color", new=AsyncMock()
+            ) as write,
+            patch("app.services.organization.organization_repo.update", new=AsyncMock()),
+        ):
+            await service.update(
+                uuid.uuid4(), OrganizationUpdate(name="Renamed"), requester_id=uuid.uuid4()
+            )
+
+        write.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_choosing_a_colour_is_metadata_and_needs_org_settings(self, service, mock_db):
+        """A colour is org metadata, so a plain member cannot set it."""
+        membership = MagicMock(role="member")
+
+        with (
+            patch.object(
+                service, "get_for_user", new=AsyncMock(return_value=(MagicMock(), membership))
+            ),
+            pytest.raises(AuthorizationError),
+        ):
+            await service.update(
+                uuid.uuid4(),
+                OrganizationUpdate.model_validate({"avatar_color": 5}),
+                requester_id=uuid.uuid4(),
+            )
+
+    @pytest.mark.anyio
     async def test_a_cap_of_zero_is_refused_before_it_reaches_the_database(self):
         """Zero is an organization whose agents can never answer.
 

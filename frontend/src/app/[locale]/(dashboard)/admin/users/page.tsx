@@ -5,7 +5,7 @@ import { Shield } from "lucide-react";
 
 import { UserDetailDrawer } from "@/components/admin/user-detail-drawer";
 import { ErrorState } from "@/components/states";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { EntityAvatar } from "@/components/ui/entity-avatar";
 import {
   Badge,
   Button,
@@ -26,15 +26,6 @@ import { useLocale, useTranslations } from "next-intl";
 const PAGE_SIZE = 50;
 // Keys the backend can sort on (route → service → repo).
 const SORT_KEYS = ["email", "full_name", "conversations", "created_at"] as const;
-
-function getInitials(nameOrEmail: string): string {
-  return nameOrEmail
-    .split(/[\s@]/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((s) => s[0]?.toUpperCase() ?? "")
-    .join("");
-}
 
 export default function AdminUsersPage() {
   const t = useTranslations("pages.admin");
@@ -92,12 +83,13 @@ export default function AdminUsersPage() {
         sortable: true,
         cell: (u) => (
           <div className="flex min-w-0 items-center gap-3">
-            <Avatar className="h-8 w-8 shrink-0">
-              <AvatarImage src={`/api/users/avatar/${u.id}`} alt={u.email} />
-              <AvatarFallback className="text-[10px]">
-                {getInitials(u.full_name || u.email)}
-              </AvatarFallback>
-            </Avatar>
+            <EntityAvatar
+              seed={u.id}
+              name={u.full_name || u.email}
+              imageSrc={`/api/users/avatar/${u.id}`}
+              className="h-8 w-8 shrink-0 text-[10px]"
+              ariaHidden
+            />
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
                 <p className="text-foreground truncate text-sm font-medium">

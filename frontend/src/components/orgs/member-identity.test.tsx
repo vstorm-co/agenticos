@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { MemberIdentity, displayName, initialsOf } from "./member-identity";
+import { MemberIdentity, displayName } from "./member-identity";
 
 /**
  * One person, as this application draws a person.
@@ -48,15 +48,6 @@ describe("drawing a person", () => {
     );
 
     expect(container.textContent).toContain("BA");
-  });
-
-  it("reads two letters out of a name or out of an address", () => {
-    // Split on `@` as well as whitespace, so an account with no name gets two
-    // letters rather than one from "kacper@vstorm.co".
-    expect(initialsOf("Ada Lovelace")).toBe("AL");
-    expect(initialsOf("bob@acme.test")).toBe("BA");
-    expect(initialsOf("solo")).toBe("S");
-    expect(initialsOf("")).toBe("");
   });
 
   it("prefers the name somebody gave over their address", () => {

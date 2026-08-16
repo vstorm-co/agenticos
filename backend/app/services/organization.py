@@ -40,6 +40,7 @@ def _org_read(org: Organization, member_count: int, role: str) -> OrganizationRe
         slug=org.slug,
         is_personal=org.is_personal,
         avatar_url=org.avatar_url,
+        avatar_color=org.avatar_color,
         member_count=member_count,
         role=role,
         monthly_budget_usd=org.monthly_budget_usd,
@@ -211,6 +212,7 @@ class OrganizationService:
         """
         org, membership = await self.get_for_user(org_id, requester_id)
         wants_budget = "monthly_budget_usd" in data.model_fields_set
+        wants_color = "avatar_color" in data.model_fields_set
         wants_metadata = bool(data.model_fields_set - {"monthly_budget_usd"})
         if wants_metadata and not role_has(membership.role, Perm.ORG_SETTINGS):
             raise AuthorizationError(message="Only Owner or Admin can update the organization")
@@ -226,6 +228,10 @@ class OrganizationService:
             org = await organization_repo.set_monthly_budget(
                 self.db, org, limit_usd=data.monthly_budget_usd
             )
+
+        if wants_color:
+            # Same field-named-not-valued rule: `null` resets the colour to auto.
+            org = await organization_repo.set_avatar_color(self.db, org, color=data.avatar_color)
 
         return await organization_repo.update(
             self.db,

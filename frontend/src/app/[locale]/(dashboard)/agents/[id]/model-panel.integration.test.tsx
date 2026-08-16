@@ -53,6 +53,7 @@ vi.mock("@/hooks", () => ({
     publish: { mutateAsync: vi.fn(), isPending: false },
     rollback: { mutateAsync: vi.fn() },
     setAvatar: { mutateAsync: vi.fn(), isPending: false },
+    setColor: { mutate: vi.fn(), isPending: false },
   }),
   useAgentEnvironments: () => ({ environments: [], promote: { mutateAsync: vi.fn() } }),
   useAgents: () => ({

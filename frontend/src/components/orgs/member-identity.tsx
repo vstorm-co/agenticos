@@ -1,25 +1,6 @@
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui";
+import { EntityAvatar } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
-
-/**
- * Two letters for a face nobody uploaded.
- *
- * Splits on whitespace *and* `@`, so an account with no name still gets initials
- * from the local part of its address rather than one letter from "kacper@vstorm.co".
- */
-export function initialsOf(nameOrEmail: string): string {
-  return (
-    nameOrEmail
-      .split(/[\s@]/)
-      .filter((part) => part.length > 0)
-      .slice(0, 2)
-      // `charAt`, not `[0]`: it returns a string for any index, so there is no
-      // impossible-empty case to guard against and no dead branch to leave behind.
-      .map((part) => part.charAt(0).toUpperCase())
-      .join("")
-  );
-}
 
 export interface IdentifiedMember {
   user_id: string;
@@ -61,12 +42,13 @@ export function MemberIdentity({
 
   return (
     <span className={cn("flex min-w-0 items-center gap-2.5", className)}>
-      <Avatar className="h-7 w-7 shrink-0">
-        <AvatarImage src={`/api/users/avatar/${member.user_id}`} alt="" />
-        <AvatarFallback className="text-[10px]">
-          {initialsOf(member.full_name || member.email)}
-        </AvatarFallback>
-      </Avatar>
+      <EntityAvatar
+        seed={member.user_id}
+        name={member.full_name || member.email}
+        imageSrc={`/api/users/avatar/${member.user_id}`}
+        size="sm"
+        className="shrink-0"
+      />
       <span className="min-w-0">
         <span className="text-foreground block truncate text-sm">
           {name}

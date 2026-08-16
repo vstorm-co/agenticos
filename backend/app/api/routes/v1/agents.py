@@ -31,6 +31,7 @@ from app.api.deps import AgentRegistrySvc, AgentRunnerSvc, Auth, limit_agent_run
 from app.core.permissions import Perm
 from app.db.models.agent_run import RunSurface
 from app.schemas.agent import (
+    AgentAvatarColorRequest,
     AgentClone,
     AgentCreate,
     AgentDetail,
@@ -190,6 +191,7 @@ async def get_agent(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> Any
         owner_user_id=agent.owner_user_id,
         current_version_id=agent.current_version_id,
         has_avatar=agent.has_avatar,
+        avatar_color=agent.avatar_color,
         created_at=agent.created_at,
         updated_at=agent.updated_at,
         draft_spec=AgentSpec.model_validate(agent.draft_spec),
@@ -340,6 +342,20 @@ async def upload_agent_avatar(
         filename=file.filename or "avatar.jpg",
         content_type=file.content_type,
     )
+
+
+@router.patch(
+    "/{agent_id}/avatar-color",
+    response_model=AgentRead,
+)
+async def set_agent_avatar_color(
+    agent_id: UUID,
+    data: AgentAvatarColorRequest,
+    service: AgentRegistrySvc,
+    ctx: Auth,
+) -> Any:
+    """Choose the colour the agent's fallback avatar uses, or null for auto."""
+    return await service.set_avatar_color(ctx, agent_id, color=data.color)
 
 
 @router.get(

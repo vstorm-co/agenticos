@@ -32,6 +32,13 @@ class AgentRead(BaseSchema):
             "would be holding a second, unchecked way to name the file."
         ),
     )
+    avatar_color: int | None = Field(
+        default=None,
+        description=(
+            "Chosen default-avatar colour, slot 1-10; null is auto (derived from the id). "
+            "Only shown when the agent has no picture. A display choice, not the spec."
+        ),
+    )
     shared_user_count: int = Field(
         default=0,
         description=(
@@ -92,6 +99,21 @@ class AgentCreate(BaseSchema):
 
 class AgentDraftUpdate(BaseSchema):
     spec: AgentSpec
+
+
+class AgentAvatarColorRequest(BaseSchema):
+    """The chosen default-avatar colour for an agent, or null to reset to auto.
+
+    A command body, not a partial `*Update`: its one field is always meant, and
+    a null is the reset rather than "unspecified".
+    """
+
+    color: int | None = Field(
+        default=None,
+        ge=1,
+        le=10,
+        description="Default-avatar colour, slot 1-10; null resets to auto.",
+    )
 
 
 class AgentPublish(BaseSchema):

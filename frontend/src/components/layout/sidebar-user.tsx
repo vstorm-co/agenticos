@@ -5,14 +5,12 @@ import { useTranslations } from "next-intl";
 import { ChevronsUpDown, LogOut, UserCircle } from "lucide-react";
 
 import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  EntityAvatar,
 } from "@/components/ui";
 import { useAuth } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
@@ -50,14 +48,16 @@ export function SidebarUser() {
         >
           {/* Decoration: the initials repeat the address underneath, and read
               out first they bury the name they abbreviate. */}
-          <Avatar aria-hidden className="h-6 w-6 shrink-0">
-            {user.avatar_url && (
-              <AvatarImage src={`/api/users/avatar/${user.id}?v=${avatarVersion}`} alt="" />
-            )}
-            <AvatarFallback className="bg-foreground text-background text-[10px] font-semibold">
-              {user.email.substring(0, 2).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
+          <EntityAvatar
+            seed={user.id}
+            name={user.full_name || user.email}
+            imageSrc={`/api/users/avatar/${user.id}?v=${avatarVersion}`}
+            hasImage={!!user.avatar_url}
+            colorSlot={user.avatar_color}
+            size="xs"
+            className="shrink-0"
+            ariaHidden
+          />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-medium">
               {user.full_name || user.email.split("@")[0]}

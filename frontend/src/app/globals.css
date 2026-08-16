@@ -77,6 +77,29 @@
   --series-3: oklch(88% 0.085 82);
   --series-4: oklch(72% 0.1 22);
   --series-5: oklch(66% 0.09 312);
+
+  /* The default-avatar ramp: ten hues for a face nobody uploaded, chosen by a
+     hash of the row's id so one entity keeps its colour everywhere. The one
+     categorical use the "surfaces are neutral" rule bends for - identity is the
+     only channel a fallback avatar has, the same argument the series ramp makes.
+
+     Theme-independent on purpose. Each is a light pastel and the ink is one
+     charcoal, so the chip carries its own contrast and reads on a white sidebar
+     or a dark one without a `dark:` variant - which here follows
+     prefers-color-scheme, not the `.dark`/`.light` toggle, and would light the
+     wrong way when the two disagree. Lightness ~85% against a ~34% ink clears
+     4.5:1 in both themes; hue is spread ~every 35deg so adjacent ids differ. */
+  --avatar-ink: oklch(34% 0.03 265);
+  --avatar-1: oklch(86% 0.085 265);
+  --avatar-2: oklch(85% 0.09 300);
+  --avatar-3: oklch(84% 0.095 330);
+  --avatar-4: oklch(83% 0.1 20);
+  --avatar-5: oklch(86% 0.1 55);
+  --avatar-6: oklch(89% 0.11 95);
+  --avatar-7: oklch(87% 0.1 140);
+  --avatar-8: oklch(86% 0.08 175);
+  --avatar-9: oklch(85% 0.08 205);
+  --avatar-10: oklch(85% 0.085 240);
 }
 
 @theme {

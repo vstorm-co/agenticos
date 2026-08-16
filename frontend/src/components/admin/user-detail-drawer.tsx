@@ -8,7 +8,7 @@ import { ArrowUpRight, Copy, KeyRound, Mail, Shield, ShieldOff, Trash2, UserX } 
 import { toast } from "sonner";
 
 import { LoadingState } from "@/components/states";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { EntityAvatar } from "@/components/ui/entity-avatar";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -113,13 +113,6 @@ export function UserDetailDrawer({
     }
   };
 
-  const initials = (subject.full_name || subject.email)
-    .split(/[\s@]/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((s) => s[0]?.toUpperCase() ?? "")
-    .join("");
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       {/* The same drawer dialect as the run detail: SheetHeader with the
@@ -127,10 +120,13 @@ export function UserDetailDrawer({
       <SheetContent side="right" className="w-full sm:max-w-lg">
         <SheetHeader className="px-5">
           <SheetTitle className="flex min-w-0 items-center gap-3 text-sm">
-            <Avatar className="h-8 w-8 shrink-0" aria-hidden>
-              <AvatarImage src={`/api/users/avatar/${subject.id}`} alt="" />
-              <AvatarFallback className="font-mono text-xs">{initials || "?"}</AvatarFallback>
-            </Avatar>
+            <EntityAvatar
+              seed={subject.id}
+              name={subject.full_name || subject.email}
+              imageSrc={`/api/users/avatar/${subject.id}`}
+              className="h-8 w-8 shrink-0 text-xs"
+              ariaHidden
+            />
             <span className="min-w-0">
               <span className="text-foreground block truncate">
                 {subject.full_name || subject.email.split("@")[0]}
