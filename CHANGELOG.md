@@ -17,6 +17,33 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.156] - 2026-08-16
+
+An agent can bind many MCP servers without paying for every tool's schema on
+every request.
+
+### Added
+
+- **Tool search capability.** Ports Pydantic AI's `ToolSearch` into the registry
+  as `tool_search` and pairs it with deferring the connected MCP toolsets, so the
+  model discovers the tool it needs instead of carrying every server's schema on
+  each turn. Config is `strategy` (`auto` | `keywords` | `bm25` | `regex`) and
+  `max_results` (1–50). The capability and the deferral are two halves of one
+  decision — `ToolSearch` is inert with nothing deferred, and a deferred tool with
+  no search to find it is unreachable — so binding it is what marks the servers'
+  toolsets for deferred loading; the registry's own tools stay visible. An agent
+  that does not bind it pays nothing. (#50)
+
+### Notes
+
+- **Deferral changes what the model sees, never a tool's identity.** A discovered
+  MCP tool arrives under its real prefixed name, so the approval gate still pairs
+  on it and a binding's rename still reaches it — `ToolSearch` sits outermost,
+  reading the names a rename already applied.
+- **No un-metered spend.** Local strategies run in Python; native search runs
+  inside the provider's own metered request; the discovery round-trips are
+  ordinary model requests the budget guard already wraps.
+
 ## [0.0.155] - 2026-08-16
 
 An agent can keep a checklist for itself over a multi-step run.
