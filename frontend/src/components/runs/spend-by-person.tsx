@@ -2,16 +2,8 @@
 
 import { useTranslations } from "next-intl";
 
-import { initialsOf } from "@/components/orgs/member-identity";
 import { LoadingState } from "@/components/states";
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-  Button,
-  DataTable,
-  type Column,
-} from "@/components/ui";
+import { Button, DataTable, EntityAvatar, type Column } from "@/components/ui";
 import { usePeopleUsage, usePermissions, useUsageStats } from "@/hooks";
 import { Perm } from "@/types/permissions";
 import type { PersonUsageRow } from "@/types/stats";
@@ -68,12 +60,13 @@ export function SpendByPerson({ from, to }: { from: string; to: string }) {
         <span className="flex items-center gap-2">
           {/* The application's one way of drawing a person - the same face the
               member lists and the run filter show. */}
-          <Avatar className="h-5 w-5 shrink-0" aria-hidden>
-            <AvatarImage src={`/api/users/avatar/${person.user_id}`} alt="" />
-            <AvatarFallback className="text-[9px]">
-              {initialsOf(person.full_name || person.email)}
-            </AvatarFallback>
-          </Avatar>
+          <EntityAvatar
+            seed={person.user_id}
+            name={person.full_name || person.email}
+            imageSrc={`/api/users/avatar/${person.user_id}`}
+            className="h-5 w-5 shrink-0 text-[9px]"
+            ariaHidden
+          />
           {person.full_name ?? person.email}
         </span>
       ),

@@ -24,7 +24,7 @@ class MemberService:
         *,
         skip: int = 0,
         limit: int = 100,
-    ) -> tuple[list[tuple[OrganizationMember, str, str | None, str | None]], int]:
+    ) -> tuple[list[tuple[OrganizationMember, str, str | None, str | None, int | None]], int]:
         """List members with their joined user info. Any org member may list."""
         membership = await member_repo.get(
             self.db, organization_id=organization_id, user_id=requester_id
@@ -44,7 +44,7 @@ class MemberService:
         target_user_id: UUID,
         new_role: str,
         requester_id: UUID,
-    ) -> tuple[OrganizationMember, str, str | None, str | None]:
+    ) -> tuple[OrganizationMember, str, str | None, str | None, int | None]:
         """Change a member's role.
 
         Rules:
@@ -97,7 +97,8 @@ class MemberService:
         email = user.email if user else ""
         full_name = user.full_name if user else None
         avatar_url = user.avatar_url if user else None
-        return updated, email, full_name, avatar_url
+        avatar_color = user.avatar_color if user else None
+        return updated, email, full_name, avatar_url, avatar_color
 
     async def remove(
         self,

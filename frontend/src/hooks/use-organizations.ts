@@ -142,7 +142,10 @@ export function useOrganizations() {
   );
 
   const patchOrg = useCallback(
-    async (id: string, patch: Partial<Pick<Organization, "name" | "avatar_url">>) => {
+    async (
+      id: string,
+      patch: Partial<Pick<Organization, "name" | "avatar_url" | "avatar_color">>,
+    ) => {
       try {
         const updated = await apiClient.patch<Organization>(`/orgs/${id}`, patch);
         writeCache((prev) => prev.map((o) => (o.id === id ? updated : o)));

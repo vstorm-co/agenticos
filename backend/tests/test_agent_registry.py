@@ -2140,6 +2140,57 @@ class TestAvatar:
         assert path == "/data/avatars/agents/x/logo.png"
         assert storage.get_full_path.call_args.args == ("avatars/agents/x/logo.png",)
 
+    @pytest.mark.anyio
+    async def test_choosing_a_colour_writes_the_slot(self):
+        ctx = _ctx()
+        agent = _agent(ctx)
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock(return_value=agent)
+            ) as update,
+        ):
+            await AgentRegistryService(_db()).set_avatar_color(ctx, agent.id, color=5)
+
+        assert update.call_args.kwargs["update_data"] == {"avatar_color": 5}
+
+    @pytest.mark.anyio
+    async def test_a_null_colour_resets_to_auto(self):
+        """The picker's Auto sends null; it must reach the column, not be dropped."""
+        ctx = _ctx()
+        agent = _agent(ctx)
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock(return_value=agent)
+            ) as update,
+        ):
+            await AgentRegistryService(_db()).set_avatar_color(ctx, agent.id, color=None)
+
+        assert update.call_args.kwargs["update_data"] == {"avatar_color": None}
+
+    @pytest.mark.anyio
+    async def test_choosing_a_colour_needs_edit_on_the_agent(self):
+        """A colour is an edit; a Member with no grant is refused, and the refusal
+        looks like an absence - the same as reaching an agent that is not there."""
+        ctx = _ctx(OrgRoleName.MEMBER)
+        agent = _agent(ctx, owner_user_id=uuid.uuid4())
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(
+                "app.services.access.resource_grant_repo.get_level",
+                new=AsyncMock(return_value=None),
+            ),
+            patch(f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock()) as update,
+            pytest.raises(NotFoundError),
+        ):
+            await AgentRegistryService(_db()).set_avatar_color(ctx, agent.id, color=3)
+
+        assert update.await_count == 0
+
 
 class TestWhatANewAgentOpensWith:
     """A prompt, not an empty box.

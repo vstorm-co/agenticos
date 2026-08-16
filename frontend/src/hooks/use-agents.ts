@@ -254,7 +254,20 @@ export function useAgent(agentId: string | null) {
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
-  return { agent: data, isLoading, saveDraft, validate, publish, rollback, setAvatar };
+  /**
+   * Choose the colour of the agent's fallback avatar, or null for auto. A
+   * column like the picture, not the spec, for the same reason `setAvatar` is.
+   */
+  const setColor = useMutation({
+    mutationFn: (color: number | null) =>
+      apiClient.patch<Agent>(`/agents/${agentId}/avatar-color`, { color }),
+    onSuccess: async () => {
+      await invalidate();
+    },
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+  });
+
+  return { agent: data, isLoading, saveDraft, validate, publish, rollback, setAvatar, setColor };
 }
 
 export function useAgentVersions(agentId: string | null) {

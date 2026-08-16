@@ -4,12 +4,10 @@ import { useTranslations } from "next-intl";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { RUN_LABEL } from "@/components/agents/status-badge";
-import { displayName, initialsOf } from "@/components/orgs/member-identity";
+import { displayName } from "@/components/orgs/member-identity";
 import { SurfaceIcon, surfaceLabel } from "@/components/runs/surface-icon";
 import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
+  EntityAvatar,
   Select,
   SelectContent,
   SelectItem,
@@ -260,12 +258,13 @@ function PersonSelect({
         {members.map((member) => (
           <SelectItem key={member.user_id} value={member.user_id}>
             <span className="flex items-center gap-2">
-              <Avatar className="h-5 w-5 shrink-0" aria-hidden>
-                <AvatarImage src={`/api/users/avatar/${member.user_id}`} alt="" />
-                <AvatarFallback className="text-[9px]">
-                  {initialsOf(member.full_name || member.email)}
-                </AvatarFallback>
-              </Avatar>
+              <EntityAvatar
+                seed={member.user_id}
+                name={member.full_name || member.email}
+                imageSrc={`/api/users/avatar/${member.user_id}`}
+                className="h-5 w-5 shrink-0 text-[9px]"
+                ariaHidden
+              />
               {displayName(member)}
             </span>
           </SelectItem>

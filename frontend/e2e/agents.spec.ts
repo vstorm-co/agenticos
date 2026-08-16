@@ -475,14 +475,16 @@ test.describe("Agents", () => {
 
     const group = await capabilityPanel(page, needy.name);
 
-    // The requirement is conditional now, and the condition is the whole reason
-    // it is worth asserting: Web search takes a key for Tavily and none for
-    // DuckDuckGo, so a flat requirement would lock the free default behind an
-    // account. Nothing is asked for until the configuration that needs it is
-    // chosen.
+    // The picker's behaviour depends on which shape of requirement this is. A
+    // *conditional* one (Web search takes a key for Tavily and none for
+    // DuckDuckGo) asks for nothing until the configuration that needs it is
+    // chosen, so a flat requirement would lock the free default behind an
+    // account - the picker is absent until the condition is met. An
+    // *unconditional* one (image generation always needs a provider key) asks
+    // from the moment the capability is on.
     const condition = needy.requires_secret.required_when;
-    await expect(group.getByLabel("Secret")).toHaveCount(0);
     if (condition !== null) {
+      await expect(group.getByLabel("Secret")).toHaveCount(0);
       await group.getByLabel(fieldLabel(condition.field)).click();
       await page.getByRole("option", { name: condition.equals[0]!, exact: true }).click();
     }

@@ -29,6 +29,7 @@ tools listed.
 | `code_execution` | Run Python | analysis | `run_python` | `code:execute` | — |
 | `sandbox` | Files & shell | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona |
 | `charts` | Charts | analysis | `create_chart` | — | — |
+| `image_generation` | Image generation | analysis | `generate_image` | — | required |
 | `subagents` | Delegation | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
 | `planning` | Planning | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
 | `thinking` | Thinking | reasoning | none, by design | — | — |
@@ -305,6 +306,48 @@ series, or a series holding fewer numbers than the axis has points all come back
 as a retry naming what is missing. A frame drawn around no data reads as "there
 is no trend" rather than as a mistake, and it is persisted and re-rendered on
 every replay of the conversation.
+
+## Image generation
+
+`generate_image` — *Generate an image from a written description.*
+
+Draws an image with a dedicated image model — separate from the agent's own — so
+it works whatever model the agent runs on. `create_chart` plots numbers; this
+draws pictures.
+
+| Config | Default | Values |
+|---|---|---|
+| `model` | `openai-responses:gpt-5.4` | `openai-responses:gpt-5.4`, `google:gemini-3-pro-image` |
+| `quality` | provider default | `low`, `medium`, `high`, `auto` |
+| `size` | provider default | `auto`, `1024x1024`, `1024x1536`, `1536x1024`, `512`, `1K`, `2K`, `4K` |
+| `background` | provider default | `transparent`, `opaque`, `auto` |
+| `output_format` | provider default | `png`, `webp`, `jpeg` |
+| `aspect_ratio` | provider default | `16:9`, `1:1`, `9:16`, … |
+
+`model` also decides which provider the API key belongs to. The key is required —
+publishing an agent that binds this without one is refused — and comes from the
+organization's [secrets](../secrets.md), named by the binding's `secret_id`. Every
+other setting is optional; unset, the provider applies its own default, so turning
+the capability on is enough to generate.
+
+**It is side-effecting.** Drawing an image spends real money on a provider key and
+produces content a person may publish, so every call is a candidate for the
+[approval gate](../governance.md) and can be gated per binding.
+
+**Its spend is metered.** The image model is run as a subagent whose usage is
+booked to the run's ledger, so image cost counts against a budget the same as a
+model request. Image models are often unpriced by the pricing snapshot, in which
+case the run records the call at zero and flags its total as partial (`cost_is_partial`)
+rather than hiding the spend.
+
+**Where the image goes.** Every generated image is stored **per organization** and
+served back by [`GET /api/v1/generated/{filename}`](../architecture.md), scoped to
+the caller's own organization — a wider boundary than a chat upload, which is owned
+by one user, because there is no record of who produced an image. When the agent
+also has a workspace (the `sandbox` capability), the same image is written into it
+under `/output`, so a later `execute` step can build with it — assemble a PDF, a
+slide, a page. An agent without a workspace still generates and shows images; it
+simply has nowhere to build with them.
 
 ## Delegation
 

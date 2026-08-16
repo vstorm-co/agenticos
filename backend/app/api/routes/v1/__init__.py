@@ -17,6 +17,7 @@ from app.api.routes.v1 import sandbox_connections
 from app.api.routes.v1 import agent
 from app.api.routes.v1 import rag
 from app.api.routes.v1 import files
+from app.api.routes.v1 import generated_media
 from app.api.routes.v1 import channels
 from app.api.routes.v1 import audit
 from app.api.routes.v1 import sharing
@@ -110,6 +111,8 @@ v1_router.include_router(agent.router, tags=["agent"])
 v1_router.include_router(rag.router, prefix="/rag", tags=["rag"])
 
 v1_router.include_router(files.router, tags=["files"])
+
+v1_router.include_router(generated_media.router, prefix="/generated", tags=["generated"])
 
 v1_router.include_router(
     admin_conversations.router, prefix="/admin/conversations", tags=["admin-conversations"]

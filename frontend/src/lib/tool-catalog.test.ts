@@ -36,7 +36,13 @@ describe("the tool catalog", () => {
       .filter(([, entry]) => entry.opensWhenDone === true)
       .map(([id]) => id);
 
-    expect(opens.sort()).toEqual(["create_chart", "edit_file", "run_python", "write_file"]);
+    expect(opens.sort()).toEqual([
+      "create_chart",
+      "edit_file",
+      "generate_image",
+      "run_python",
+      "write_file",
+    ]);
   });
 
   it("answers for a tool it has never heard of rather than throwing", () => {

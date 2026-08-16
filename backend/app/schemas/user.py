@@ -34,6 +34,12 @@ class UserUpdate(BaseSchema):
     password: str | None = Field(default=None, min_length=8, max_length=128)
     full_name: str | None = Field(default=None, max_length=255)
     is_active: bool | None = None
+    avatar_color: int | None = Field(
+        default=None,
+        ge=1,
+        le=10,
+        description="Default-avatar colour, slot 1-10; send null to reset to auto.",
+    )
     onboarding_completed_at: datetime | None = Field(
         default=None,
         description="Set to a timestamp to mark onboarding complete; null to reset.",
@@ -66,6 +72,7 @@ class UserRead(UserBase, TimestampSchema):
     # admin endpoint, so a client that lies to itself gains nothing.
     is_app_admin: bool = False
     avatar_url: str | None = None
+    avatar_color: int | None = None
     onboarding_completed_at: datetime | None = None
     notify_budget_alerts: bool = True
     notify_approval_requests: bool = True

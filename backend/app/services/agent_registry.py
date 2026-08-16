@@ -507,6 +507,7 @@ class AgentRegistryService:
                 owner_user_id=agent.owner_user_id,
                 current_version_id=agent.current_version_id,
                 has_avatar=agent.has_avatar,
+                avatar_color=agent.avatar_color,
                 shared_user_count=shared_counts.get(agent.id, 0),
                 channels=surfaces.get(agent.id, []),
                 budget_monthly_usd=(
@@ -1462,6 +1463,17 @@ class AgentRegistryService:
                 await storage.delete(agent.avatar_url)
         path = await storage.save(f"avatars/agents/{agent.id}", filename, file_data)
         return await agent_repo.update(self.db, agent=agent, update_data={"avatar_url": path})
+
+    async def set_avatar_color(
+        self, ctx: AuthContext, agent_id: UUID, *, color: int | None
+    ) -> Agent:
+        """Choose the agent's default-avatar colour, or null to reset to auto.
+
+        A column like the picture, not the spec: editing it takes the same
+        access check (`AGENTS_EDIT` on this agent) but does not touch a version.
+        """
+        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
+        return await agent_repo.update(self.db, agent=agent, update_data={"avatar_color": color})
 
     async def avatar_path(self, ctx: AuthContext, agent_id: UUID) -> str:
         """Where the agent's picture is on disk, for the route that streams it.

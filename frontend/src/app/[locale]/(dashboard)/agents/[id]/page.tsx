@@ -52,9 +52,11 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  AvatarColorPicker,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   Card,
@@ -114,7 +116,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const tAgents = useTranslations("agents");
   const { id } = use(params);
   const router = useRouter();
-  const { agent, isLoading, saveDraft, validate, publish, rollback, setAvatar } = useAgent(id);
+  const { agent, isLoading, saveDraft, validate, publish, rollback, setAvatar, setColor } =
+    useAgent(id);
   const { environments, promote } = useAgentEnvironments(id);
   const { agents, clone, archive, unarchive, remove } = useAgents();
   const { capabilities } = useCapabilityCatalog();
@@ -476,6 +479,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 agentId={id}
                 name={agent.name}
                 hasAvatar={agent.has_avatar}
+                colorSlot={agent.avatar_color}
                 size="lg"
                 version={avatarVersion}
               />
@@ -574,6 +578,19 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     <ImagePlus className="h-4 w-4" />
                     {agent.has_avatar ? t("replaceAvatar2") : t("uploadAvatar2")}
                   </DropdownMenuItem>
+                  <DropdownMenuLabel className="text-muted-foreground text-xs font-normal">
+                    {t("avatarColour")}
+                  </DropdownMenuLabel>
+                  {/* Not menu items: a swatch click picks a colour and leaves the
+                      menu open, where selecting an item would close it. */}
+                  <div className="px-2 pb-1.5">
+                    <AvatarColorPicker
+                      value={agent.avatar_color ?? null}
+                      onChange={(slot) => setColor.mutate(slot)}
+                      disabled={setColor.isPending}
+                    />
+                  </div>
+                  <DropdownMenuSeparator />
                   {agent.status === "archived" ? (
                     <DropdownMenuItem onSelect={() => unarchive.mutate(id)}>
                       <ArchiveRestore className="h-4 w-4" />

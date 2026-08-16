@@ -142,6 +142,17 @@ describe("a tool call in the transcript", () => {
         "Web Search",
       ],
       [{ name: "create_chart", result: "the tool failed to draw one" }, "Chart"],
+      [
+        {
+          name: "generate_image",
+          result: JSON.stringify({
+            kind: "generated_image",
+            filename: "x_image.png",
+            prompt: "a cat",
+          }),
+        },
+        "Image",
+      ],
       [{ name: "delegate", args: {} }, "Delegate"],
       [{ name: "run_python", args: { code: "x=1" }, result: "result: 1" }, "Run Python"],
       [{ name: "list_skills", result: "[]" }, "Available Skills"],
@@ -306,6 +317,18 @@ describe("a tool call in the transcript", () => {
       result: JSON.stringify({ kind: "chart", title: "Udzial", series: [] }),
     });
     expect(screen.getByTestId("chart")).toHaveTextContent("Udzial");
+  });
+
+  it("opens a generated image on sight, since the picture is the answer", () => {
+    card({
+      name: "generate_image",
+      result: JSON.stringify({ kind: "generated_image", filename: "x_image.png", prompt: "a cat" }),
+    });
+
+    expect(screen.getByRole("img", { name: "a cat" })).toHaveAttribute(
+      "src",
+      "/api/generated/x_image.png",
+    );
   });
 
   it("does not open a chart whose result never became one", () => {

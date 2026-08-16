@@ -12,6 +12,7 @@ from sqlalchemy import (
     Index,
     Integer,
     Numeric,
+    SmallInteger,
     String,
     UniqueConstraint,
 )
@@ -45,6 +46,8 @@ class Organization(Base, TimestampMixin):
     slug: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
     is_personal: Mapped[bool] = mapped_column(nullable=False, default=False, index=True)
     avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # Default-avatar colour slot 1..10 (`--avatar-*` ramp); null = auto from the id.
+    avatar_color: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     created_by_user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="RESTRICT"),
