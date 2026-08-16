@@ -80,6 +80,15 @@ class TestTheRefusal:
         assert exc.value.scope is BudgetScope.ORGANIZATION
         assert (exc.value.limit_usd, exc.value.spent_usd) == (Decimal("40"), Decimal("40"))
 
+    async def test_the_default_cap_a_new_org_starts_with_is_enforced(self):
+        """A fresh org's $100 default is a real ceiling, not a displayed
+        suggestion: the same guard refuses it once the month reaches it (#785)."""
+        org, runs, ingestion = self._repos(_org(Decimal("100")), Decimal("100"))
+        with org, runs, ingestion, pytest.raises(BudgetExceeded) as exc:
+            await assert_organization_within_budget(MagicMock(), uuid.uuid4())
+
+        assert exc.value.limit_usd == Decimal("100")
+
     async def test_an_organization_under_its_cap_passes(self):
         org, runs, ingestion = self._repos(_org(Decimal("40")), Decimal("39.99"))
         with org, runs, ingestion:

@@ -4,6 +4,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
@@ -128,6 +129,7 @@ class OrganizationService:
             slug=slug,
             created_by_user_id=owner_id,
             is_personal=False,
+            monthly_budget_usd=settings.DEFAULT_ORG_MONTHLY_BUDGET_USD,
         )
         await member_repo.create(
             self.db,
@@ -169,8 +171,10 @@ class OrganizationService:
     async def create_personal_org(self, user_id: UUID, email: str) -> Organization:
         """Create the Personal Organization for a newly registered user.
 
-        Also grants the configured free-tier credit bonus so AI usage works on
-        the free plan up to the granted amount.
+        It starts with the deployment's default monthly budget
+        (`DEFAULT_ORG_MONTHLY_BUDGET_USD`, $100 unless configured otherwise), so
+        a fresh account is not one runaway agent away from a surprise bill. A
+        deployment that would rather start uncapped sets that to nothing.
         """
         slug = await organization_repo.generate_unique_slug(self.db, email.split("@")[0])
         org = await organization_repo.create(
@@ -179,6 +183,7 @@ class OrganizationService:
             slug=slug,
             created_by_user_id=user_id,
             is_personal=True,
+            monthly_budget_usd=settings.DEFAULT_ORG_MONTHLY_BUDGET_USD,
         )
         await member_repo.create(
             self.db,

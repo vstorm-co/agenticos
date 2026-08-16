@@ -93,6 +93,7 @@ async def create(
     created_by_user_id: UUID,
     is_personal: bool = False,
     avatar_url: str | None = None,
+    monthly_budget_usd: Decimal | None = None,
 ) -> Organization:
     org = Organization(
         name=name,
@@ -100,6 +101,7 @@ async def create(
         created_by_user_id=created_by_user_id,
         is_personal=is_personal,
         avatar_url=avatar_url,
+        monthly_budget_usd=monthly_budget_usd,
     )
     db.add(org)
     await db.flush()

@@ -52,9 +52,11 @@ class Organization(Base, TimestampMixin):
         index=True,
     )
     # The ceiling on everything this organization's agents spend in a calendar
-    # month. `None` is no ceiling, which is what an organization that has never
-    # opened the setting has - the cap is opt-in, because a default number
-    # nobody chose would stop somebody's agents on a date they did not pick.
+    # month. `None` is no ceiling. A new organization starts at the deployment's
+    # `DEFAULT_ORG_MONTHLY_BUDGET_USD` ($100 unless configured otherwise), so it
+    # is not one runaway agent away from a surprise bill; a deployment that would
+    # rather start uncapped sets that default to nothing, and any organization
+    # can be cleared back to `None` afterwards.
     #
     # Numeric to the same scale as `agent_runs.cost_usd`: the cap is compared
     # against a sum of those, and a float would drift against the total the

@@ -15,6 +15,14 @@ Two levels, and they are not variations on one number.
 | **Agent monthly** | the agent's spec | that agent's own runs | whoever may edit the agent |
 | **Organization monthly** | organization settings | every run *and* ingestion in the organization | whoever holds `budgets:manage` |
 
+A **new organization starts with the organization ceiling already set** — the
+deployment's `DEFAULT_ORG_MONTHLY_BUDGET_USD` ([configuration](configuration.md),
+$100 out of the box) — so a fresh tenant is not one runaway agent away from a
+surprise bill. It is an ordinary cap from that point on: editable on the org's
+row, and enforced exactly like a hand-set one. A deployment that would rather
+start uncapped leaves that setting empty; either way an existing organization's
+cap is never changed for it.
+
 ### Why they cannot be collapsed
 
 They used to be, with `min()`, and the result was wrong. An agent's cap measured

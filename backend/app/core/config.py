@@ -1,6 +1,7 @@
 """Application configuration using Pydantic BaseSettings."""
 # ruff: noqa: I001 - Imports structured for Jinja2 template conditionals
 
+from decimal import Decimal
 from pathlib import Path
 from typing import Literal
 
@@ -48,6 +49,25 @@ class Settings(BaseSettings):
     # the chat path's `MAX_UPLOAD_SIZE`, never a way past either.
     EMBED_MAX_UPLOAD_SIZE_MB: int = 5
     STORAGE_SOFT_LIMIT_BYTES: int = 5 * 1024 * 1024 * 1024
+
+    # The monthly spend ceiling a brand-new organization starts with, in USD. A
+    # new org one runaway agent away from a surprise bill is the posture this
+    # avoids: a budget is only enforced if it exists, so a sensible default is
+    # the safer first-run stance. `None` restores the older opt-in behaviour -
+    # no ceiling until somebody sets one - and is how a deployment that would
+    # rather choose its own turns the default off. Existing orgs are untouched;
+    # this applies at creation only. Enforced exactly like a hand-set cap, so it
+    # must be positive - `0` is an org whose agents can never answer, which the
+    # `ck_organization_budget_positive` constraint already refuses.
+    DEFAULT_ORG_MONTHLY_BUDGET_USD: Decimal | None = Decimal("100")
+
+    @field_validator("DEFAULT_ORG_MONTHLY_BUDGET_USD")
+    @classmethod
+    def validate_default_org_budget(cls, v: Decimal | None) -> Decimal | None:
+        """A default cap of zero or below would refuse every org's first run."""
+        if v is not None and v <= 0:
+            raise ValueError("DEFAULT_ORG_MONTHLY_BUDGET_USD must be positive, or unset for no cap")
+        return v
 
     # Seconds the event loop may stop turning before the worker kills itself so
     # its supervisor replaces it; `0` or below switches the check off, which is
