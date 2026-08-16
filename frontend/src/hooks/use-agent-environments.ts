@@ -47,6 +47,16 @@ export function useAgentEnvironments(agentId: string | null) {
     onError: (error) => toast.error(getErrorMessage(error, tErrors, t("failedPromote"))),
   });
 
+  const rename = useMutation({
+    mutationFn: ({ environmentId, name }: { environmentId: string; name: string }) =>
+      apiClient.patch<AgentEnvironment>(`${base}/${environmentId}`, { name }),
+    onSuccess: () => {
+      invalidate();
+      toast.success(t("renamed"));
+    },
+    onError: (error) => toast.error(getErrorMessage(error, tErrors, t("failedRenameEnvironment"))),
+  });
+
   const remove = useMutation({
     mutationFn: (environmentId: string) => apiClient.delete<void>(`${base}/${environmentId}`),
     onSuccess: invalidate,
@@ -58,6 +68,7 @@ export function useAgentEnvironments(agentId: string | null) {
     isLoading,
     create,
     promote,
+    rename,
     remove,
   };
 }
