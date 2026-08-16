@@ -54,7 +54,11 @@ class BrowserUse(AbstractCapability[AgentDepsT]):
     Chromium locally; `remote` attaches over CDP to a `cdp_url` an operator
     supplies, which is what a self-hosted deployment points at a hardened,
     isolated browser service rather than the app container. The remote endpoint is
-    SSRF-checked before the capability is built.
+    SSRF-checked at publish, off the event loop.
+
+    The sub-agent's own model requests - one per browser step - run on the host
+    run's model and are metered against its budget; the tool wraps the model in a
+    `MeteredModel` for that (agenticos#802).
     """
 
     mode: Literal["playwright", "remote"] = "playwright"
@@ -86,8 +90,8 @@ class BrowserUse(AbstractCapability[AgentDepsT]):
     cdp_url: str | None = field(default=None, repr=False)
     """The remote Chromium DevTools endpoint (`remote` mode).
 
-    SSRF-checked and set by the builder; kept out of `repr()` because a hosted
-    endpoint can carry credentials.
+    SSRF-checked at publish; kept out of `repr()` because a hosted endpoint can
+    carry credentials.
     """
 
     delegate_factory: BrowserDelegateFactory | None = field(default=None, repr=False, compare=False)

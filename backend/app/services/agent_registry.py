@@ -14,6 +14,7 @@ moving a pointer backwards - would make run history lie about what was live.
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import logging
 import re
@@ -22,12 +23,13 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from uuid import UUID
 
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from pydantic_ai_harness.compaction import resolve_context_window
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities import TOOL_NAME_PATTERN, CapabilityDef, all_capabilities
 from app.agents.capabilities import get as get_capability
+from app.agents.capabilities.browser_use import BrowserUseConfig, validate_cdp_url
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
 from app.agents.spec import AgentSpec, CapabilityBindingSpec, SpecialistSpec, SubagentRef
@@ -182,6 +184,29 @@ async def _sandbox_problems(db: AsyncSession, ctx: AuthContext, spec: AgentSpec)
             "sandbox can be opened on it. Attach its key in the vault."
         )
     return problems
+
+
+async def _browser_use_problems(config: BaseModel | None) -> list[str]:
+    """A remote `cdp_url` this deployment must not connect to.
+
+    The `browser_use` capability's remote mode attaches to a browser over a CDP
+    endpoint, which this deployment reaches server-side - so it is SSRF-checked,
+    here at publish rather than at build. The check resolves DNS (`getaddrinfo`),
+    which blocks, and the build path runs on the event loop inside a tool call; run
+    off the loop in a thread it is refused once, when the spec is published, rather
+    than on every run (agenticos#33). Every binding passes through here - a spec's
+    own and each inline specialist's - so a specialist cannot smuggle one past.
+    """
+    if not isinstance(config, BrowserUseConfig):
+        return []
+    try:
+        await asyncio.to_thread(validate_cdp_url, config)
+    except ValueError as exc:
+        return [
+            f"Browser automation's remote endpoint cannot be reached from here: {exc} "
+            "Point it at a public browser service, not a loopback or internal address."
+        ]
+    return []
 
 
 def _tool_override_problems(binding: CapabilityBindingSpec, definition: CapabilityDef) -> list[str]:
@@ -838,9 +863,11 @@ class AgentRegistryService:
                 f"{', '.join(sorted(missing_scopes))}"
             )
         try:
-            definition.validate_config(binding.config)
+            config = definition.validate_config(binding.config)
         except BadRequestError as exc:
             problems.append(f"Capability '{binding.id}': {exc.message}")
+        else:
+            problems.extend(await _browser_use_problems(config))
         # A tool_approval key that matches nothing is the dangerous kind of
         # typo: it is not an error at run time, it is silence - the tool the
         # author meant to gate runs unapproved and nobody is told.

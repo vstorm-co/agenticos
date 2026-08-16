@@ -2328,6 +2328,61 @@ class TestWorkspaceConfigurationsRefusedAtPublish:
             await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
 
 
+class TestBrowserUseRefusedAtPublish:
+    """A remote `cdp_url` this deployment must not connect to.
+
+    The SSRF check resolves DNS, which blocks, so it runs at publish off the event
+    loop rather than at build on it (agenticos#33). Every binding passes through
+    `_binding_problems`, so a specialist's endpoint is checked the same way.
+    """
+
+    @pytest.mark.anyio
+    async def test_a_loopback_cdp_url_is_refused(self):
+        """A debugger on the host, a metadata service - refused before it runs."""
+        spec = _spec(
+            capabilities=[
+                {
+                    "id": "browser_use",
+                    "config": {"mode": "remote", "cdp_url": "http://127.0.0.1:9222"},
+                }
+            ],
+            model_profile_id=uuid.uuid4(),
+        )
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+        assert any(
+            "remote endpoint cannot be reached" in problem
+            for problem in refused.value.details["problems"]
+        )
+
+    @pytest.mark.anyio
+    async def test_a_public_cdp_url_publishes(self):
+        """A reachable public browser service is fine - nothing to refuse."""
+        profile = MagicMock(id=uuid.uuid4())
+        spec = _spec(
+            capabilities=[
+                {
+                    "id": "browser_use",
+                    "config": {"mode": "remote", "cdp_url": "http://8.8.8.8:9222"},
+                }
+            ],
+            model_profile_id=profile.id,
+        )
+
+        with patch(
+            f"{REGISTRY_PATH}.credential_repo.get_profile", new=AsyncMock(return_value=profile)
+        ):
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+
 class TestASharedWorkspaceIsAnswerableAfterwards:
     """`session_scope="agent"` ships without a permission of its own.
 

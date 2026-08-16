@@ -171,21 +171,22 @@ action.
 next to the agent; `remote` attaches over CDP to a browser an operator runs
 elsewhere. A self-hosted deployment points `remote` at a hardened, isolated browser
 service rather than giving the app container a browser process. A `remote` `cdp_url`
-is a URL this deployment connects to server-side, so it is SSRF-checked before the
-agent is assembled — a loopback, private, reserved or metadata address is refused.
+is a URL this deployment connects to server-side, so it is SSRF-checked — a loopback,
+private, reserved or metadata address is refused **at publish**, when the spec is
+saved, rather than on every run (the check resolves DNS, which must not block the
+event loop the run assembles on).
+
+**The browser agent's model spend is metered.** The sub-agent runs on the host run's
+model — the one whose credential was resolved from the vault — and each of its steps
+is one model request, booked against the run's budget through the same ambient-usage
+ledger a compaction summary uses. It is not browser-use's own hosted model, and it is
+not spend the budget guard cannot see.
 
 **`browser-use` is an optional extra.** It pulls a heavy tree (Chromium via
 Playwright) and pins dependencies a minor lower than the rest of the platform, so it
 is not installed by default. An operator who wants the capability installs
 `agenticos[browser-use]` and provides a Chromium; a bound agent whose deployment
 lacks it fails the one tool loudly, with the install line.
-
-!!! warning "The browser agent's model spend is not metered yet"
-    The browser agent makes its own model requests inside browser-use's loop, on
-    browser-use's own model configuration, **outside this platform's budget ledger**.
-    Routing them through the run's ledger is tracked separately; until it lands,
-    enabling this capability enables model spend the budget guard cannot see — which
-    is why it ships off by default and approval-gateable.
 
 ## Run Python
 

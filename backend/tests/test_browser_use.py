@@ -14,16 +14,21 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 from pydantic_ai._run_context import RunContext
+from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
+from pydantic_ai.models import Model, ModelRequestParameters
 from pydantic_ai.models.test import TestModel
-from pydantic_ai.usage import RunUsage
+from pydantic_ai.settings import ModelSettings
+from pydantic_ai.usage import RequestUsage, RunUsage
 
 from app.agents.capabilities import CapabilityBinding, CapabilityBuildContext, get
-from app.agents.capabilities.browser_use import BrowserUse, BrowserUseConfig
+from app.agents.capabilities.browser_use import BrowserUse, BrowserUseConfig, validate_cdp_url
 from app.agents.capabilities.browser_use._toolset import (
     BrowserDelegate,
+    MeteredModel,
     build_toolset,
     harness_kwargs,
 )
+from app.agents.capabilities.budget import SpendLedger, metered_by
 from app.core.sanitize import SSRFBlockedError
 from app.services.agent_registry import DEFAULT_GRANTED_SCOPES
 
@@ -32,6 +37,35 @@ pytestmark = pytest.mark.anyio
 
 def _run_context() -> RunContext[None]:
     return RunContext(deps=None, model=TestModel(), usage=RunUsage())
+
+
+class _UsageModel(Model):
+    """A model that answers with a fixed usage, for metering tests.
+
+    Enough of the `Model` surface for `MeteredModel` to call `request` and read
+    `model_name`; it makes no network call and needs no provider configuration.
+    """
+
+    def __init__(self, usage: RequestUsage, *, name: str = "test-model") -> None:
+        super().__init__()
+        self._usage = usage
+        self._name = name
+
+    async def request(
+        self,
+        messages: list[ModelMessage],
+        model_settings: ModelSettings | None,
+        model_request_parameters: ModelRequestParameters,
+    ) -> ModelResponse:
+        return ModelResponse(parts=[TextPart("ok")], usage=self._usage, model_name=self._name)
+
+    @property
+    def model_name(self) -> str:
+        return self._name
+
+    @property
+    def system(self) -> str:
+        return "test"
 
 
 def _build(config: dict[str, Any]) -> BrowserUse:
@@ -82,26 +116,39 @@ def test_a_cdp_url_in_playwright_mode_is_refused():
         BrowserUseConfig(mode="playwright", cdp_url="http://browser.internal:9222")
 
 
-def test_a_remote_cdp_url_on_a_private_address_is_refused():
+def test_validate_cdp_url_refuses_a_private_address():
     """The SSRF guard's first production caller (agenticos#33).
 
     A `cdp_url` is a URL this deployment connects to server-side, so a loopback
-    endpoint - a debugger on the host, a metadata service - is refused before the
-    agent is assembled, not reached.
+    endpoint - a debugger on the host, a metadata service - is refused. Run at
+    publish (this function), off the event loop, rather than at build.
     """
     with pytest.raises(SSRFBlockedError):
-        _build({"mode": "remote", "cdp_url": "http://127.0.0.1:9222"})
+        validate_cdp_url(BrowserUseConfig(mode="remote", cdp_url="http://127.0.0.1:9222"))
 
 
-def test_a_remote_cdp_url_on_a_public_address_builds():
-    built = _build({"mode": "remote", "cdp_url": "http://8.8.8.8:9222"})
+def test_validate_cdp_url_accepts_a_public_address():
+    validate_cdp_url(BrowserUseConfig(mode="remote", cdp_url="http://8.8.8.8:9222"))
+
+
+def test_validate_cdp_url_allows_a_websocket_scheme():
+    validate_cdp_url(BrowserUseConfig(mode="remote", cdp_url="ws://8.8.8.8:9222/devtools/browser"))
+
+
+def test_validate_cdp_url_has_nothing_to_check_in_playwright_mode():
+    """No `cdp_url` to reach, so nothing to resolve - and no blocking DNS on the loop."""
+    validate_cdp_url(BrowserUseConfig(mode="playwright"))
+
+
+def test_building_a_remote_capability_does_no_network_io():
+    """The builder runs on the event loop, so it must not resolve a `cdp_url`.
+
+    A loopback endpoint that publish would refuse still *builds* without raising -
+    the SSRF check has moved off the build path to `validate_cdp_url` at publish.
+    """
+    built = _build({"mode": "remote", "cdp_url": "http://127.0.0.1:9222"})
     assert built.mode == "remote"
-    assert built.cdp_url == "http://8.8.8.8:9222"
-
-
-def test_a_websocket_cdp_scheme_is_allowed():
-    built = _build({"mode": "remote", "cdp_url": "ws://8.8.8.8:9222/devtools/browser"})
-    assert built.cdp_url == "ws://8.8.8.8:9222/devtools/browser"
+    assert built.cdp_url == "http://127.0.0.1:9222"
 
 
 async def test_the_capability_offers_only_browse_web():
@@ -166,12 +213,66 @@ async def test_browse_web_passes_the_mapped_config_to_the_engine():
         delegate_factory=factory,
     )
     await _call_browse_web(built, "go")
+    llm = seen.pop("llm")
+    assert isinstance(llm, MeteredModel)
     assert seen == {
         "allowed_domains": ["*.example.com"],
         "max_steps": 7,
         "use_vision": False,
         "cdp_url": "http://8.8.8.8:9222",
     }
+
+
+async def test_browse_web_hands_the_engine_the_runs_model_wrapped_for_metering():
+    """The sub-agent inherits the run's model, wrapped so its steps are billed."""
+    seen: dict[str, Any] = {}
+
+    def factory(kwargs: dict[str, Any]) -> BrowserDelegate:
+        seen.update(kwargs)
+        return _FakeDelegate()
+
+    built = BrowserUse(delegate_factory=factory)
+    ctx = _run_context()
+    toolset = built.get_toolset()
+    tools = await toolset.get_tools(ctx)
+    await toolset.call_tool("browse_web", {"task": "go"}, ctx, tools["browse_web"])
+
+    assert isinstance(seen["llm"], MeteredModel)
+    assert seen["llm"].wrapped is ctx.model
+
+
+class TestMetering:
+    async def test_a_browser_step_is_booked_against_the_run_that_paid_for_it(self):
+        """Each sub-agent turn is one model request outside the host BudgetGuard.
+
+        Without the wrapper it lands nowhere the ledger can see, and no cap can
+        stop a browse loop (agenticos#802).
+        """
+        ledger = SpendLedger()
+        model = MeteredModel(_UsageModel(RequestUsage(input_tokens=1_200, output_tokens=300)))
+
+        with metered_by(ledger):
+            await model.request([], None, ModelRequestParameters())
+
+        assert len(ledger.entries) == 1
+        assert (ledger.input_tokens, ledger.output_tokens) == (1_200, 300)
+        assert [entry.model_name for entry in ledger.entries] == ["test-model"]
+
+    async def test_a_browser_step_with_no_active_ledger_is_a_no_op(self):
+        """A preview, a test or the CLI meters nothing, and the turn still runs."""
+        model = MeteredModel(_UsageModel(RequestUsage(input_tokens=10)))
+        response = await model.request([], None, ModelRequestParameters())
+        assert response.usage.input_tokens == 10
+
+    async def test_a_step_from_a_nameless_model_is_booked_as_unknown(self):
+        """A blank name prices against nothing rather than reading as an absent field."""
+        ledger = SpendLedger()
+        model = MeteredModel(_UsageModel(RequestUsage(input_tokens=50), name=""))
+
+        with metered_by(ledger):
+            await model.request([], None, ModelRequestParameters())
+
+        assert [entry.model_name for entry in ledger.entries] == ["unknown"]
 
 
 async def test_browse_web_fails_loudly_when_the_extra_is_absent():

@@ -35,17 +35,20 @@ The modes differ only in whether the harness gets a `cdp_url` or a `headless`
 flag, so `harness_kwargs` is a pure mapping tested without the extra.
 
 **The remote endpoint is SSRF-checked.** `cdp_url` is a URL this deployment
-connects to server-side, so `_build` runs it through
+connects to server-side, so it runs through
 `app.core.sanitize.validate_webhook_url` (allowing `ws`/`wss` alongside
 `http`/`https`) - the guard's first production caller (agenticos#33). A loopback,
-private, reserved or metadata address is refused before the agent is assembled.
+private, reserved or metadata address is refused **at publish**, in
+`agent_registry._browser_use_problems`, run off the event loop in a thread. Not at
+build: the check resolves DNS, and a capability is built on the loop inside a tool
+call, where a blocking `getaddrinfo` would stall the run.
 
-## Known limitation - the sub-agent's model is not metered yet
-
-The browser agent makes its own model requests inside browser-use's loop, on
-browser-use's own model configuration, **outside this platform's budget ledger**.
-Routing them through the run's ledger (the `budget` capability's ambient-usage
-recording, the shape `MeteredCompaction` uses) is the same work as the subagent
-runtime and is filed as its own issue. Until it lands, an operator enabling this
-capability is enabling model spend the budget guard cannot see - which is why it
-ships off by default and approval-gateable.
+**The sub-agent's model is metered.** The browser agent makes one model request
+per step, and they run on the host run's model - the one whose credential was
+resolved from the vault - wrapped in a `MeteredModel` (`_toolset.py`) that books
+each response against the run's ledger through the `budget` capability's
+ambient-usage recorder, the shape `MeteredCompaction` uses (agenticos#802). So the
+browse loop's spend counts against the agent's budget rather than running on
+browser-use's own hosted model outside it. End-to-end verification waits on the
+engine being installable (agenticos#801); the wrapper is tested against a fake
+model now.

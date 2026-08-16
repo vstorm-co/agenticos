@@ -13,7 +13,7 @@ from app.agents.capabilities._registry import (
 from app.agents.capabilities.browser_use._capability import BrowserUse
 from app.core.sanitize import validate_webhook_url
 
-__all__ = ["BrowserUse", "BrowserUseConfig"]
+__all__ = ["BrowserUse", "BrowserUseConfig", "validate_cdp_url"]
 
 # A CDP endpoint is reached over HTTP(S) or a WebSocket, so the SSRF check allows
 # those four rather than webhook's http/https default. Everything else it enforces
@@ -75,6 +75,27 @@ class BrowserUseConfig(BaseModel):
         return self
 
 
+def validate_cdp_url(config: BrowserUseConfig) -> None:
+    """Refuse a remote `cdp_url` that SSRF protection blocks.
+
+    A `cdp_url` is a URL this deployment connects to server-side, so it is exactly
+    what `validate_webhook_url` exists to refuse - a metadata endpoint, a loopback
+    debugger, an internal service. Nothing to check in `playwright` mode, where the
+    config validator has already forbidden a `cdp_url`.
+
+    Run at publish, not at build: it resolves DNS through `socket.getaddrinfo`,
+    which blocks, and the build path runs on the event loop inside a tool call. The
+    caller runs it in a thread (`asyncio.to_thread`) so a run is refused once, at
+    publish, off the loop - rather than re-resolved on every build.
+
+    Raises:
+        SSRFBlockedError: the endpoint is loopback, private, reserved or metadata.
+        ValueError: the URL is malformed.
+    """
+    if config.mode == "remote" and config.cdp_url is not None:
+        validate_webhook_url(config.cdp_url, allowed_schemes=_CDP_SCHEMES)
+
+
 @register(
     id="browser_use",
     name="Browser automation",
@@ -92,18 +113,15 @@ class BrowserUseConfig(BaseModel):
     scopes=("web:browse",),
 )
 def _build(ctx: CapabilityBuildContext) -> AbstractCapability[object]:
+    # No I/O here: `build` runs on the event loop inside a tool call, and the SSRF
+    # check resolves DNS. The remote `cdp_url` is refused at publish instead, by
+    # `validate_cdp_url` run off the loop - see agenticos#33.
     config = ctx.config if isinstance(ctx.config, BrowserUseConfig) else BrowserUseConfig()
-    cdp_url: str | None = None
-    if config.mode == "remote" and config.cdp_url is not None:
-        # The one production caller of the SSRF guard (agenticos#33): a user-supplied
-        # URL this deployment connects to server-side is exactly what it exists to
-        # refuse - a metadata endpoint, a loopback debugger, an internal service.
-        cdp_url = validate_webhook_url(config.cdp_url, allowed_schemes=_CDP_SCHEMES)
     return BrowserUse(
         mode=config.mode,
         allowed_domains=config.allowed_domains,
         max_steps=config.max_steps,
         use_vision=config.use_vision,
         headless=config.headless,
-        cdp_url=cdp_url,
+        cdp_url=config.cdp_url,
     )
