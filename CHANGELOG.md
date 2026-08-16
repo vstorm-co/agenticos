@@ -17,6 +17,33 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.155] - 2026-08-16
+
+An agent can keep a checklist for itself over a multi-step run.
+
+### Added
+
+- **Planning capability.** Ports the `pydantic-ai-harness` planning checklist into
+  the registry: `write_plan`/`read_plan` plus granular step tools, and under
+  `enable_subtasks` a dependency-aware mode (`add_subtask`, `set_dependency`,
+  `get_available_tasks`, a `blocked` status). The current plan is surfaced back
+  each turn as a cache-safe tail reminder behind a `CachePoint`, so the prompt
+  prefix stays cacheable and the plan never lands in the system prompt. The tools
+  are local checklist edits with no model request behind them, so there is no
+  ambient usage to meter. Registry-only — no `SPEC_VERSION` bump — and orthogonal
+  to delegation, so an agent may bind both. (#47)
+
+### Fixed
+
+- **A parked run's plan survives the approval park.** The runner owns the store:
+  it seeds one from `PausedRunState.plan` on resume, injects it through
+  `PLANNING_STORE_RESOURCE`, and reads it back when the run parks. `paused_state`
+  is already JSONB, so no migration — a run parked before this stays resumable.
+- **The system-prompt guidance is this repository's own string.** The library's
+  `get_instructions()` guidance is pinned via `guidance=` alongside the tool
+  descriptions, so a harness release that rewrites its default can no longer
+  change the agent's system prompt silently. (#778)
+
 ## [0.0.154] - 2026-08-16
 
 A tripped guardrail is a visible run outcome, not a crash — on every surface.
