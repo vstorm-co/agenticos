@@ -17,6 +17,40 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.163] - 2026-08-16
+
+An oversized tool return stops eating the run, and nothing spills onto shared disk.
+
+### Added
+
+- **The `tool_output_limits` capability.** A tool return too large for the
+  model's window is reduced once, when it is produced, instead of being re-sent
+  in full on every later request of the run. Three actions per binding: `spill`
+  (default, lossless — the full return goes to the agent's own sandbox backend
+  under a `tool_output/` prefix and is replaced with a handle + preview the model
+  pages through with `read_tool_result`), `truncate` (a cheap clamp with a marker
+  saying what was cut), and `summarize` (an LLM summary on the run's own model,
+  its spend booked to the run's ledger). Spills land on the tenant's own backend,
+  never shared disk — an agent with no backend gets an in-memory one discarded
+  with the run — and a spill the backend refuses degrades to a truncation, never
+  a silent drop. (#57)
+
+### Fixed
+
+- **Spills no longer outlive the run on a `state` backend.** A longer-scoped
+  `state` workspace was persisting `tool_output/` spills into its stored document
+  every run, counting them against `SANDBOX_STATE_MAX_BYTES` until the agent's
+  own writes were refused. The flush now strips the reserved prefix, so every run
+  self-heals what a prior one left. The container-backend half stays open as
+  #803. (#803)
+
+### Changed
+
+- **The ambient-usage delta is one helper, not two copies.** `compaction` and
+  `tool_output_limits` each carried an identical snapshot-and-diff for booking a
+  self-run `Agent`'s tokens; both now import `usage_counts`/`usage_delta` from
+  `budget`, so a pricing fix lands in one place.
+
 ## [0.0.162] - 2026-08-16
 
 An agent can drive a real browser, with the same guards as everything else.
