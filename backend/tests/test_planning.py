@@ -24,7 +24,12 @@ from app.agents.capabilities.planning import (
     new_plan_store,
     open_plan_store,
 )
-from app.agents.capabilities.planning._capability import _DESCRIPTIONS, PLANNING_TOOLS
+from app.agents.capabilities.planning._capability import (
+    _DESCRIPTIONS,
+    PLANNING_TOOLS,
+    SUBTASK_GUIDANCE,
+    _guidance,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -106,6 +111,36 @@ class TestDescriptions:
 
         offered = {name: tool.description for name, tool in toolset.tools.items()}
         assert offered == _DESCRIPTIONS
+
+
+class TestGuidance:
+    """The `get_instructions()` text this capability contributes to the system prompt.
+
+    It lands in the prompt every turn, so - like the tool descriptions - it is pinned
+    to this repository's string rather than left at the library default, where a
+    harness release could rewrite it silently.
+    """
+
+    def test_the_model_reads_this_repositorys_guidance_not_the_librarys_default(self):
+        built = build([CapabilityBinding(capability_id="planning")])
+
+        assert built[0].guidance == _guidance(subtasks=False)
+        assert built[0].get_instructions() == _guidance(subtasks=False)
+
+    def test_a_flat_checklist_omits_the_subtask_guidance(self):
+        built = build([CapabilityBinding(capability_id="planning")])
+
+        assert SUBTASK_GUIDANCE not in _guidance(subtasks=False)
+        assert built[0].get_instructions() == _guidance(subtasks=False)
+
+    def test_enabling_subtasks_adds_the_subtask_guidance(self):
+        built = build(
+            [CapabilityBinding(capability_id="planning", config={"enable_subtasks": True})]
+        )
+
+        assert SUBTASK_GUIDANCE in _guidance(subtasks=True)
+        assert built[0].guidance == _guidance(subtasks=True)
+        assert built[0].get_instructions() == _guidance(subtasks=True)
 
 
 class TestConfig:
@@ -202,6 +237,23 @@ class TestParkSurvival:
         reopened = await open_plan_store(snapshot)
 
         assert await dump_plan(reopened) == snapshot
+
+    async def test_a_blocked_dependency_survives_a_park(self):
+        """The fragile cell of the matrix: subtasks mode, where a `blocked` step and
+        its `depends_on` edge have to reach the resumed run intact."""
+        original = InMemoryPlanStore()
+        await original.set_items(
+            [
+                PlanItem(id="a", content="Migration", status=TaskStatus.in_progress),
+                PlanItem(id="b", content="Backfill", status=TaskStatus.blocked, depends_on=["a"]),
+            ]
+        )
+
+        reopened = await open_plan_store(await dump_plan(original))
+        seeded = {item.id: item for item in await reopened.get_items()}
+
+        assert seeded["b"].status == TaskStatus.blocked
+        assert seeded["b"].depends_on == ["a"]
 
     def test_a_default_store_is_empty_and_in_memory(self):
         assert isinstance(new_plan_store(), InMemoryPlanStore)

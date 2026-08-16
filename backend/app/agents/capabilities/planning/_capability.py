@@ -9,13 +9,16 @@ stating because "just return theirs" is usually right:
 behaviour is only documented in another repository is one nobody here can answer a
 question about - and what an agent may do is exactly the question a client asks.
 
-*The tool text is this repository's.* A tool's description is the strongest prompt
+*The prompt text is this repository's.* A tool's description is the strongest prompt
 in the product - the model reads it before deciding to call the tool - so the nine
 descriptions are declared here, once, and handed to the library through
 `descriptions=`. That keeps the text the model reads, the text the Builder shows an
 operator choosing what needs approval, and the text this repository's tests assert
-on all the same string. It is the same bargain `sandbox` strikes with its console
-library.
+on all the same string. The same holds for the library's `get_instructions()`
+guidance - the write-plan, granular and subtask sentences it puts in the system
+prompt every turn - which is declared here too and handed over through `guidance=`,
+so a harness release that rewrites its default guidance cannot silently rewrite our
+system prompt. It is the same bargain `sandbox` strikes with its console library.
 
 *The plan has to survive an approval park, and the store is the runner's, not
 this capability's.* The library's default `InMemoryPlanStore` is fresh per run, so a
@@ -96,6 +99,24 @@ GET_AVAILABLE_TASKS_DESCRIPTION = (
     "when dependencies are involved."
 )
 
+WRITE_PLAN_GUIDANCE = (
+    "You have a planning tool, `write_plan`. For multi-step work, call it first to lay "
+    "out the steps, then keep it current: mark exactly one step `in_progress`, and mark "
+    "a step `completed` as soon as it is fully done. Pass the full plan every time you "
+    "call `write_plan`."
+)
+GRANULAR_GUIDANCE = (
+    "Use `add_task` to append a single step, `update_task_status`/`update_task_statuses` "
+    "to move steps between statuses, and `read_plan` to see step ids before a granular "
+    "edit."
+)
+SUBTASK_GUIDANCE = (
+    "Break a complex step into subtasks with `add_subtask`, and record ordering with "
+    "`set_dependency`: a step stays `blocked` until every step it depends on is resolved "
+    "(`completed` or `cancelled`). Call `get_available_tasks` to pick the next step that "
+    "has no incomplete dependencies."
+)
+
 _CORE_DESCRIPTIONS: dict[str, str] = {
     "write_plan": WRITE_PLAN_DESCRIPTION,
     "read_plan": READ_PLAN_DESCRIPTION,
@@ -131,6 +152,21 @@ def _offered_names(*, subtasks: bool) -> list[str]:
     return list(_CORE_DESCRIPTIONS)
 
 
+def _guidance(*, subtasks: bool) -> str:
+    """The system-prompt guidance for a given configuration.
+
+    Assembled to track the tools the configuration actually offers - the core build
+    always registers `write_plan` and the granular tools, and the subtask sentence is
+    added only under `enable_subtasks` - so the model is never told about a tool it
+    lacks. This mirrors the library's own default assembly, but the wording is this
+    repository's and pinned, so a harness release cannot silently rewrite the prompt.
+    """
+    parts = [WRITE_PLAN_GUIDANCE, GRANULAR_GUIDANCE]
+    if subtasks:
+        parts.append(SUBTASK_GUIDANCE)
+    return " ".join(parts)
+
+
 def build_planning(
     *,
     enable_subtasks: bool,
@@ -142,6 +178,9 @@ def build_planning(
     `descriptions` is handed the text for exactly the tools this configuration
     offers - the library rejects a description keyed by a tool it will not register -
     so the model reads this repository's wording rather than the library's default.
+    `guidance` pins the system-prompt instructions to this repository's string for the
+    same reason: left at the default, a harness release that rewrites its guidance
+    would silently rewrite our system prompt every turn.
 
     `store` is the run's, injected by the runner so the plan survives an approval
     park; `None` lets the library keep a fresh in-memory plan per run, which is the
@@ -154,6 +193,7 @@ def build_planning(
         descriptions={
             name: _DESCRIPTIONS[name] for name in _offered_names(subtasks=enable_subtasks)
         },
+        guidance=_guidance(subtasks=enable_subtasks),
     )
 
 
