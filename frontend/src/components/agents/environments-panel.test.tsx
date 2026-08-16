@@ -4,28 +4,49 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EnvironmentsPanel } from "./environments-panel";
 
+type Environment = {
+  id: string;
+  name: string;
+  version_id: string;
+  version: number;
+  is_default: boolean;
+};
+
 const state = {
-  environments: [] as { id: string; name: string; version: number; is_default: boolean }[],
+  environments: [] as Environment[],
   isLoading: false,
   create: { mutateAsync: vi.fn(), isPending: false },
+  promote: { mutate: vi.fn(), isPending: false },
+  rename: { mutateAsync: vi.fn(), isPending: false },
   remove: { mutate: vi.fn(), isPending: false },
 };
 
-vi.mock("@/hooks", () => ({ useAgentEnvironments: () => state }));
+const versionsState = {
+  versions: [] as { id: string; version: number }[],
+  isLoading: false,
+};
 
-function environment(
-  name: string,
-  version: number,
-  is_default = false,
-): { id: string; name: string; version: number; is_default: boolean } {
-  return { id: `${name}-id`, name, version, is_default };
+vi.mock("@/hooks", () => ({
+  useAgentEnvironments: () => state,
+  useAgentVersions: () => versionsState,
+}));
+
+function environment(name: string, version: number, is_default = false): Environment {
+  return { id: `${name}-id`, name, version_id: `v${version}-id`, version, is_default };
 }
 
 beforeEach(() => {
   state.environments = [environment("production", 3, true), environment("staging", 2)];
   state.isLoading = false;
   state.create = { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false };
+  state.promote = { mutate: vi.fn(), isPending: false };
+  state.rename = { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false };
   state.remove = { mutate: vi.fn(), isPending: false };
+  versionsState.versions = [
+    { id: "v3-id", version: 3 },
+    { id: "v2-id", version: 2 },
+    { id: "v1-id", version: 1 },
+  ];
 });
 
 describe("the environments panel", () => {
@@ -86,6 +107,118 @@ describe("the environments panel", () => {
     expect(screen.getByText(/serves v3/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Remove staging" })).toBeNull();
     expect(screen.queryByLabelText("New environment")).toBeNull();
+    expect(screen.queryByRole("combobox")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Rename staging" })).toBeNull();
+  });
+
+  it("pins another version from the environment's own row", async () => {
+    // "dev should serve v3" is answered on the row that states what dev
+    // serves, not by scanning the version list for v3.
+    render(<EnvironmentsPanel agentId="a1" canManage />);
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Pin a version for staging" }));
+    await userEvent.click(screen.getByRole("option", { name: "v1" }));
+
+    expect(state.promote.mutate).toHaveBeenCalledWith({
+      environmentId: "staging-id",
+      versionId: "v1-id",
+    });
+  });
+
+  it("does not promote onto the version already served", async () => {
+    render(<EnvironmentsPanel agentId="a1" canManage />);
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Pin a version for staging" }));
+    await userEvent.click(screen.getByRole("option", { name: "v2" }));
+
+    expect(state.promote.mutate).not.toHaveBeenCalled();
+  });
+
+  it("stops a second promotion while one is in flight", () => {
+    state.promote = { mutate: vi.fn(), isPending: true };
+    render(<EnvironmentsPanel agentId="a1" canManage />);
+
+    expect(screen.getByRole("combobox", { name: "Pin a version for staging" })).toBeDisabled();
+  });
+
+  it("names a pinned version that no longer exists instead of going blank", () => {
+    // An environment pinned at a deleted version is why the agent is not
+    // answering; an empty select would hide exactly that.
+    state.environments = [
+      environment("production", 3, true),
+      { id: "dev-id", name: "dev", version_id: "gone-id", version: 9, is_default: false },
+    ];
+    render(<EnvironmentsPanel agentId="a1" canManage />);
+
+    expect(screen.getByRole("combobox", { name: "Pin a version for dev" })).toHaveTextContent(
+      "v9 (removed)",
+    );
+  });
+
+  it("renames an environment from its own row", async () => {
+    render(<EnvironmentsPanel agentId="a1" canManage />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Rename staging" }));
+    const field = screen.getByRole("textbox", { name: "Rename staging" });
+    await userEvent.clear(field);
+    await userEvent.type(field, "canary");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(state.rename.mutateAsync).toHaveBeenCalledWith({
+      environmentId: "staging-id",
+      name: "canary",
+    });
+  });
+
+  it("submits a rename on Enter and trims it first", async () => {
+    render(<EnvironmentsPanel agentId="a1" canManage />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Rename staging" }));
+    const field = screen.getByRole("textbox", { name: "Rename staging" });
+    await userEvent.clear(field);
+    await userEvent.type(field, "canary {enter}");
+
+    expect(state.rename.mutateAsync).toHaveBeenCalledWith({
+      environmentId: "staging-id",
+      name: "canary",
+    });
+  });
+
+  it("abandons a rename on Escape and on Cancel, sending nothing", async () => {
+    render(<EnvironmentsPanel agentId="a1" canManage />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Rename staging" }));
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("textbox", { name: "Rename staging" })).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Rename staging" }));
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("textbox", { name: "Rename staging" })).toBeNull();
+    expect(state.rename.mutateAsync).not.toHaveBeenCalled();
+    expect(screen.getByText("staging")).toBeInTheDocument();
+  });
+
+  it("refuses a rename the backend's slug rule would reject", async () => {
+    // Checked before the request leaves, exactly like creation - the refusal
+    // would otherwise arrive as a 422 about a pattern nobody was shown.
+    render(<EnvironmentsPanel agentId="a1" canManage />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Rename staging" }));
+    const field = screen.getByRole("textbox", { name: "Rename staging" });
+    await userEvent.clear(field);
+    await userEvent.type(field, "Staging Two{enter}");
+
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(state.rename.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("does not offer to rename the default", () => {
+    // Its name is part of the publish contract; the backend refuses the
+    // rename, so the button must not exist.
+    render(<EnvironmentsPanel agentId="a1" canManage />);
+
+    expect(screen.queryByRole("button", { name: "Rename production" })).toBeNull();
   });
 
   it("refuses a name the backend's slug rule would reject", async () => {

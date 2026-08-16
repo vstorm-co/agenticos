@@ -30,7 +30,8 @@
     "openNamed": "Otwórz {name}",
     "rangeOfTotal": "{start, number}–{end, number} z {total, number}",
     "removeNamed": "Usuń {name}",
-    "removeNamedConfirm": "Usunąć {name}?"
+    "removeNamedConfirm": "Usunąć {name}?",
+    "renameNamed": "Zmień nazwę {name}"
   },
   "navigation": {
     "home": "Strona główna",
