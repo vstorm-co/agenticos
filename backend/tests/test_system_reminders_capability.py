@@ -47,8 +47,6 @@ from app.agents.capabilities.system_reminders._capability import (
     _recent_texts,
     _reserved_limits,
     _should_fire,
-    _usage_counts,
-    _usage_delta,
     _wrap,
     goal_reanchor_producer,
     llm_reminder_producer,
@@ -379,20 +377,6 @@ class TestReservedLimits:
 
     def test_it_never_goes_below_zero(self):
         assert _reserved_limits(UsageLimits(request_limit=0)).request_limit == 0
-
-
-class TestUsageHelpers:
-    def test_no_change_is_no_spend(self):
-        usage = RunUsage(input_tokens=10)
-        assert _usage_delta(_usage_counts(usage), usage) is None
-
-    def test_a_change_is_measured_as_a_request(self):
-        before = _usage_counts(RunUsage())
-        usage = RunUsage(input_tokens=8, output_tokens=2, cache_read_tokens=1, cache_write_tokens=3)
-        spent = _usage_delta(before, usage)
-        assert spent == RequestUsage(
-            input_tokens=8, output_tokens=2, cache_read_tokens=1, cache_write_tokens=3
-        )
 
 
 class TestShouldFire:

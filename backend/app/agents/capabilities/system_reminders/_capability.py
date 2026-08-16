@@ -56,10 +56,10 @@ from pydantic_ai.messages import (
 )
 from pydantic_ai.models import Model
 from pydantic_ai.tools import AgentDepsT, RunContext
-from pydantic_ai.usage import RequestUsage, RunUsage, UsageLimits
+from pydantic_ai.usage import UsageLimits
 from pydantic_ai_harness.system_reminders import GoalReanchor
 
-from app.agents.capabilities.budget import record_ambient_usage
+from app.agents.capabilities.budget import record_ambient_usage, usage_counts, usage_delta
 
 if TYPE_CHECKING:
     from pydantic_ai.capabilities.abstract import WrapModelRequestHandler
@@ -294,7 +294,7 @@ class _LlmReminder:
                 raise TypeError(f"{type(model).__name__} cannot generate a reminder")
             agent = Agent[None, str](model, instructions=self.instructions, output_type=str)
             self._agent = agent
-        before = _usage_counts(ctx.usage)
+        before = usage_counts(ctx.usage)
         try:
             result = await agent.run(
                 _compact_transcript(ctx.messages, self.max_context_messages),
@@ -302,7 +302,7 @@ class _LlmReminder:
                 usage_limits=_reserved_limits(ctx.usage_limits),
             )
         finally:
-            spent = _usage_delta(before, ctx.usage)
+            spent = usage_delta(before, ctx.usage)
             if spent is not None:
                 record_ambient_usage(ctx.model.model_name or "unknown", spent)
         return result.output
@@ -329,37 +329,6 @@ def _reserved_limits(limits: UsageLimits | None) -> UsageLimits | None:
     if limits is None or limits.request_limit is None:
         return limits
     return replace(limits, request_limit=max(0, limits.request_limit - 1))
-
-
-def _usage_counts(usage: RunUsage) -> tuple[int, int, int, int]:
-    """The four counters a price is computed from, read off the run's usage.
-
-    A tuple rather than the object: `RunUsage` is accumulated in place, so keeping
-    a reference and comparing later compares it with itself.
-    """
-    return (
-        usage.input_tokens,
-        usage.output_tokens,
-        usage.cache_read_tokens,
-        usage.cache_write_tokens,
-    )
-
-
-def _usage_delta(before: tuple[int, int, int, int], usage: RunUsage) -> RequestUsage | None:
-    """What the reminder's own call added, or `None` when it reached no model.
-
-    Cached tokens are carried as well as the plain ones because they are priced
-    differently and `input_tokens` already includes them.
-    """
-    after = _usage_counts(usage)
-    if after == before:
-        return None
-    return RequestUsage(
-        input_tokens=after[0] - before[0],
-        output_tokens=after[1] - before[1],
-        cache_read_tokens=after[2] - before[2],
-        cache_write_tokens=after[3] - before[3],
-    )
 
 
 def _should_fire(reminder: CompiledReminder, count: int) -> bool:

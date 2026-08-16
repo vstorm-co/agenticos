@@ -9,7 +9,7 @@ from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from pydantic_ai.usage import RequestUsage
+from pydantic_ai.usage import RequestUsage, RunUsage
 
 from app.agents.capabilities.budget import (
     BudgetExceeded,
@@ -20,6 +20,8 @@ from app.agents.capabilities.budget import (
     metered_by,
     price_request,
     record_ambient_usage,
+    usage_counts,
+    usage_delta,
 )
 
 MILLION = 1_000_000
@@ -402,3 +404,19 @@ class TestAmbientMetering:
 
         assert [entry.input_tokens for entry in inner.entries] == [1]
         assert [entry.input_tokens for entry in outer.entries] == [2]
+
+
+class TestUsageDelta:
+    """What a nested call added to a shared `RunUsage`, used by any capability
+    that runs its own agent on `ctx.usage` - compaction, the LLM reminder."""
+
+    def test_no_change_is_no_spend(self):
+        usage = RunUsage(input_tokens=10)
+        assert usage_delta(usage_counts(usage), usage) is None
+
+    def test_a_change_carries_all_four_priced_counts(self):
+        before = usage_counts(RunUsage())
+        usage = RunUsage(input_tokens=8, output_tokens=2, cache_read_tokens=1, cache_write_tokens=3)
+        assert usage_delta(before, usage) == RequestUsage(
+            input_tokens=8, output_tokens=2, cache_read_tokens=1, cache_write_tokens=3
+        )
