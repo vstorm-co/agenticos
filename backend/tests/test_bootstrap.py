@@ -9,6 +9,7 @@ rather than an agent that silently cannot run.
 from __future__ import annotations
 
 import uuid
+from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -64,13 +65,15 @@ class TestOrganization:
             patch(
                 "app.commands.bootstrap.organization_repo.create",
                 new=AsyncMock(return_value=created),
-            ),
+            ) as create_org,
             patch("app.commands.bootstrap.member_repo.create", new=AsyncMock()) as add_member,
         ):
             result = await _resolve_organization(MagicMock(), uuid.uuid4(), "Acme")
 
         assert result is created
         assert add_member.call_args.kwargs["role"] == OrgRoleName.OWNER.value
+        # A bootstrapped org gets the same default cap as any other (#785).
+        assert create_org.await_args.kwargs["monthly_budget_usd"] == Decimal("100")
 
 
 class TestModel:

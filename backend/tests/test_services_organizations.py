@@ -132,6 +132,65 @@ class TestOrganizationService:
         assert result == mock_org
 
     @pytest.mark.anyio
+    async def test_a_new_team_org_starts_with_the_default_monthly_budget(self, service, mock_db):
+        """A fresh org is not one runaway agent away from a surprise bill (#785)."""
+        with (
+            patch(
+                "app.services.organization.organization_repo.generate_unique_slug",
+                new=AsyncMock(return_value="acme"),
+            ),
+            patch(
+                "app.services.organization.organization_repo.create",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ) as create,
+            patch("app.services.organization.member_repo.create", new=AsyncMock()),
+            patch("app.services.organization.skill_library.library", return_value=()),
+        ):
+            await service.create(OrganizationCreate(name="Acme"), owner_id=uuid.uuid4())
+
+        assert create.await_args.kwargs["monthly_budget_usd"] == Decimal("100")
+
+    @pytest.mark.anyio
+    async def test_a_personal_org_starts_with_the_default_monthly_budget(self, service, mock_db):
+        with (
+            patch(
+                "app.services.organization.organization_repo.generate_unique_slug",
+                new=AsyncMock(return_value="alice"),
+            ),
+            patch(
+                "app.services.organization.organization_repo.create",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ) as create,
+            patch("app.services.organization.member_repo.create", new=AsyncMock()),
+            patch("app.services.organization.skill_library.library", return_value=()),
+        ):
+            await service.create_personal_org(uuid.uuid4(), "alice@example.com")
+
+        assert create.await_args.kwargs["monthly_budget_usd"] == Decimal("100")
+
+    @pytest.mark.anyio
+    async def test_the_default_budget_can_be_disabled(self, service, mock_db, monkeypatch):
+        """`None` restores the older opt-in posture: a new org starts uncapped."""
+        monkeypatch.setattr(
+            "app.services.organization.settings.DEFAULT_ORG_MONTHLY_BUDGET_USD", None
+        )
+        with (
+            patch(
+                "app.services.organization.organization_repo.generate_unique_slug",
+                new=AsyncMock(return_value="acme"),
+            ),
+            patch(
+                "app.services.organization.organization_repo.create",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ) as create,
+            patch("app.services.organization.member_repo.create", new=AsyncMock()),
+            patch("app.services.organization.skill_library.library", return_value=()),
+        ):
+            await service.create(OrganizationCreate(name="Acme"), owner_id=uuid.uuid4())
+
+        assert create.await_args.kwargs["monthly_budget_usd"] is None
+
+    @pytest.mark.anyio
     async def test_a_new_organization_starts_with_the_bundled_skills(self, service, mock_db):
         """Seeded at creation, not installed by hand (#281).
 
