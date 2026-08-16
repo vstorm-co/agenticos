@@ -36,6 +36,7 @@ tools listed.
 | `clock` | Date and time | utility | none, by design | — | — |
 | `guardrails` | Guardrails | utility | none, by design | — | — |
 | `compaction` | Context management | utility | none, by design | — | — |
+| `tool_output_limits` | Tool output limits | utility | `read_tool_result` | — | — |
 | `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 
 Five of those have no tools on purpose. `thinking` changes how the model runs
@@ -689,6 +690,61 @@ reported by every agent, whether or not it compacts — see
 [how full the context window is](../governance.md#how-full-the-context-window-is).
 The warning matters most to the agent that will *not* compact, which is the one
 that reaches the ceiling and gets refused.
+
+## Tool output limits
+
+One tool, `read_tool_result`. Where `compaction` trims history *inside* the window
+between requests, this stops an oversized tool return from getting there in the
+first place. A `ToolReturnPart` persists, so a grep over a large repository or a
+verbose API response is re-sent in full on every later request of the run —
+`code_execution` already clips at 8,000 characters for exactly this reason, which
+is the right default and the wrong ceiling: the part that mattered is gone from the
+model's view with nothing to act on. This reduces a return once, when it is
+produced, and lets the reduced form persist. The reduction itself is
+[`pydantic-ai-harness`](https://github.com/pydantic/pydantic-ai-harness)'s
+`ToolOutputLimits`.
+
+| Config | Default | |
+|---|---|---|
+| `action` | `spill` | `spill`, `truncate`, `summarize` |
+| `threshold` | 10000 | size at or above which a return is reduced |
+| `over_tokens` | `false` | measure the threshold in estimated tokens, not characters |
+| `max_chars` | 4000 | characters kept when a return is truncated, or a spill falls back to one |
+| `truncation_strategy` | `head_tail` | `head`, `tail`, `head_tail` — which end(s) to keep |
+| `strip_ansi` | `false` | strip terminal colour codes before measuring and reducing |
+| `summary_prompt` | the library's own | what the summarising model is told; must contain `{tool_name}` and `{output}` |
+
+`spill` is the default and the only lossless one: the full return is written to the
+agent's backend and replaced with a handle, a preview and a shape sketch, and the
+model reads slices of it on demand through `read_tool_result(handle, offset, limit,
+from_end, pattern)` — the same page-through pattern `read_file` gives it over the
+workspace. `truncate` is the cheap, lossy clamp with a marker saying what was cut;
+`summarize` replaces the return with an LLM summary and is the expensive one.
+
+**A spill goes to the agent's own backend.** An agent that binds `sandbox` already
+has a filesystem — `state`, a Docker container, Daytona — that the runner opened for
+the run and keyed to the organization; the spill lives there, under a
+`tool_output/` prefix, so it shares that workspace's lifetime and the agent can even
+reach it through its own `read_file` and `grep`. On the default `run` session scope
+that lifetime *is* the run, which is what the "must not outlive the run" requirement
+asks for; a longer-scoped workspace (`conversation`, `user`, `agent`) keeps its
+spills as long as it keeps the agent's own files, and pruning them at run end is
+tracked in [#803](https://github.com/vstorm-co/agenticos/issues/803). An agent with
+no backend gets an in-memory one built for the run and discarded with it, so the
+spill is never written to shared disk. A spill the backend refuses — a `state`
+workspace already at its byte cap — falls back to a truncation rather than a silent
+drop; so does a `summarize` whose model call fails (`summarize` → `spill` →
+`truncate`).
+
+**A summary is billed to the run.** Like `compaction`'s, the summarising call runs
+through an `Agent` the harness builds itself, outside the budget guard, so its
+tokens are booked against the run's ledger through the same ambient-usage path — see
+[how a run's cost is counted](../governance.md). `spill` and `truncate` call no model
+and cost nothing.
+
+The harness composes reductions from an ordered list of size *bands*; here an author
+picks one `action` at one `threshold`, because the Builder form cannot draw a nested
+list — the same reason `compaction` picks a strategy rather than composing tiers.
 
 ## Tool search
 
