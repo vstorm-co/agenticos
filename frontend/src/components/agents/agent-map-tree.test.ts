@@ -46,6 +46,16 @@ describe("toMapDelegates", () => {
     expect(converted[1]!.problem).toBe("cycle");
   });
 
+  it("marks an archived delegate as a problem, with no page to walk to", () => {
+    // It has a page and the caller may open it - but the map's arrow means "a
+    // run follows this", and a run reaching an archived delegate is refused.
+    const archived = toMapDelegates([node({ status: "archived" })], t, "root")[0]!;
+
+    expect(archived.problem).toBe("archived");
+    expect(archived.name).toBe("Researcher");
+    expect(archived.href).toBeUndefined();
+  });
+
   it("names a restricted node as an agent you cannot see", () => {
     // The server refuses to say - deliberately, so a parent's map cannot probe
     // private agents - and the map must not render an empty chip for it.

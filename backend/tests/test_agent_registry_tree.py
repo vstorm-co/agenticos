@@ -18,6 +18,7 @@ from app.agents.capabilities import load_builtins
 from app.agents.spec import AgentSpec
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
+from app.db.models.agent import AgentStatus
 from app.schemas.agent import DelegationTree
 from app.services import agent_registry
 from app.services.agent_registry import DELEGATION_CAPABILITY_ID, AgentRegistryService
@@ -90,8 +91,6 @@ class TestWhatResolves:
 
         tree = await _tree(ctx, root)
 
-        assert tree.max_depth == 3
-        assert tree.max_fanout == 3
         assert not tree.truncated
         (node,) = tree.nodes
         assert node.key == f"delegate:{child.id}:0"
@@ -254,6 +253,79 @@ class TestWhatIsRefused:
         assert loop.name == "Support"
         assert loop.children == []
 
+    async def test_a_cycle_back_to_an_archived_agent_still_reads_as_the_cycle(self, monkeypatch):
+        """The refusals are ordered as `_resolve_delegate` orders them.
+
+        A run refuses the loop before it has read the delegate's row at all, so
+        a pin that is both a cycle and archived is a cycle here too. Two nodes
+        that would each be correct alone need the tie broken somewhere, and the
+        runtime is the only thing that can break it honestly.
+        """
+        ctx = _ctx()
+        child = _published(ctx, "Researcher")
+        root = _root(ctx, _spec())
+        root.status = AgentStatus.ARCHIVED.value
+        root_version = _version(root.id, spec=_delegating_spec(name="Support"))
+        child_version = _version(
+            child.id,
+            spec=_delegating_spec(
+                name="Researcher",
+                subagents=[_pin(root.id, root_version.id)],
+                config={"max_depth": 3},
+            ),
+        )
+        child.current_version_id = child_version.id
+        root.draft_spec = _delegating_spec(
+            subagents=[_pin(child.id, child_version.id)], config={"max_depth": 3}
+        ).model_dump(mode="json")
+        _repos(
+            monkeypatch,
+            agents=_agents(root, child),
+            versions=_versions(root_version, child_version),
+        )
+
+        (node,) = (await _tree(ctx, root)).nodes
+        (loop,) = node.children
+
+        assert loop.status == "cycle"
+
+    async def test_a_delegate_archived_since_it_was_pinned_is_named_not_expanded(self, monkeypatch):
+        """The map must not draw a hop every run is refused at.
+
+        `_resolve_pins` refuses an archived pin at publish and
+        `_resolve_delegate` refuses one at run time, naming it - but an agent
+        archived *after* a parent pinned it passes both of those unnoticed until
+        somebody runs the parent, which is the caller hardest to reach. The map
+        is where that is meant to become visible, so a resolved pin to a retired
+        delegate is not `ok`: the row is there, the frozen spec is there, and the
+        run still fails.
+        """
+        ctx = _ctx()
+        child = _published(ctx, "Researcher")
+        child.status = AgentStatus.ARCHIVED.value
+        child_version = _version(
+            child.id,
+            spec=_delegating_spec(
+                name="Researcher", subagents=[_pin(uuid4(), uuid4())], config={"max_depth": 2}
+            ),
+        )
+        child.current_version_id = child_version.id
+        root = _root(
+            ctx,
+            _delegating_spec(subagents=[_pin(child.id, child_version.id)], config={"max_depth": 3}),
+        )
+        _repos(monkeypatch, agents=_agents(root, child), versions=_versions(child_version))
+
+        (node,) = (await _tree(ctx, root)).nodes
+
+        assert node.status == "archived"
+        assert node.name == "Researcher"
+        # Both the depth budget and the pin allowed the walk to carry on; it is
+        # the delegate's retirement that stops it, and "more below" would say
+        # the wrong thing about a roster nothing can reach for another reason.
+        assert node.children == []
+        assert not node.truncated
+
     async def test_a_pin_whose_version_is_gone_is_named_but_not_walked(self, monkeypatch):
         ctx = _ctx()
         child = _published(ctx, "Researcher")
@@ -373,10 +445,8 @@ class TestWhereItStops:
         )
         _repos(monkeypatch, agents=_agents(root, child), versions=_versions(child_version))
 
-        tree = await _tree(ctx, root)
+        (node,) = (await _tree(ctx, root)).nodes
 
-        assert tree.max_depth == 1
-        (node,) = tree.nodes
         assert node.status == "ok"
         assert node.truncated
         assert node.children == []

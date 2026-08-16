@@ -203,7 +203,12 @@ class DelegationTreeNode(BaseSchema):
     pin whose version is gone - the delegate is named, because the caller can
     see the row, but there is no frozen spec left to walk. `cycle` is a pin that
     returns to an agent already on this branch; it is named and never expanded,
-    which is what keeps an already-stored loop from hanging the walk.
+    which is what keeps an already-stored loop from hanging the walk. `archived`
+    is a delegate somebody has since retired: the pin was valid when it was
+    published, the row and the frozen spec are both still there, and every run
+    that reaches this hop is refused - so it is named and not expanded, the same
+    lifecycle check `_resolve_pins` makes at publish and `_resolve_delegate`
+    makes at run time.
 
     `truncated` marks a delegate that has a roster of its own which no run
     starting here would ever reach - the depth budget ran out, or its own
@@ -213,7 +218,7 @@ class DelegationTreeNode(BaseSchema):
 
     key: str = Field(description="Stable within one response - what the map focuses by.")
     kind: Literal["delegate", "specialist"]
-    status: Literal["ok", "restricted", "unpinned", "cycle"]
+    status: Literal["ok", "restricted", "unpinned", "cycle", "archived"]
     agent_id: UUID | None = Field(
         default=None,
         description=(
@@ -248,10 +253,14 @@ class DelegationTree(BaseSchema):
     The map used to walk this a page at a time - one hop per click-through -
     which is also N+1 requests if a client scripts it. One response, bounded the
     same way publish's cycle walk is, replaces that (#276).
+
+    The root's own `max_depth` and `max_fanout` are deliberately absent. They
+    are on the draft the caller is editing, so the Builder already has them and
+    already renders them beside the hub; answering with a second copy read out
+    of the *stored* draft is two numbers for one setting, and the one that
+    disagrees is the one nobody is looking at.
     """
 
-    max_depth: int = Field(description="The root's own policy - how deep a run may go.")
-    max_fanout: int = Field(description="The root's policy - delegations running at once.")
     truncated: bool = Field(
         default=False,
         description="The walk stopped at its node bound rather than at the bottom.",

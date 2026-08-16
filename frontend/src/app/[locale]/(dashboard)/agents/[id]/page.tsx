@@ -151,7 +151,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const [mapOpen, setMapOpen] = useState(false);
   // Fetched only while the map shows it: the server resolves and
   // access-checks every pinned version to build this.
-  const { tree, error: treeError } = useDelegationTree(id, { enabled: mapOpen });
+  const {
+    tree,
+    isLoading: treeLoading,
+    error: treeError,
+  } = useDelegationTree(id, { enabled: mapOpen });
   const [connectingMcp, setConnectingMcp] = useState(false);
   // Bumped after an upload so the <img> src changes; the URL is otherwise
   // identical and the browser would keep showing the picture it replaced.
@@ -376,7 +380,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
       const node = walked.get(ref.agent_id);
       return {
         key,
-        name: agent?.name ?? t("delegateUnreachable"),
+        // The walk's name first: it is access-checked, and it reaches rows the
+        // agent list does not carry. An archived delegate is the one that
+        // matters - it is not in the list, so the list alone calls it "an agent
+        // you cannot see" while the badge beside it says "Archived".
+        name: node?.name ?? agent?.name ?? t("delegateUnreachable"),
         kind: "delegate",
         mode: ref.preferred_mode ?? null,
         href: agent ? ROUTES.AGENT_DETAIL(ref.agent_id) : undefined,
@@ -397,6 +405,19 @@ export default function AgentBuilderPage({ params }: PageProps) {
     }));
     return [...delegates, ...specialists];
   }, [spec, agents, tree, t, tAgents]);
+
+  // One line under the delegation heading whenever what is drawn is not the
+  // whole tree. The loading half matters as much as the other two: until the
+  // walk answers, every first-level delegate renders childless, which is what a
+  // leaf looks like - so a map that says nothing is a map claiming a tree it has
+  // not read yet.
+  const delegationNotice = treeLoading
+    ? tAgents("mapTreeLoading")
+    : treeError
+      ? tAgents("mapTreeUnavailable")
+      : tree?.truncated
+        ? tAgents("mapTreeTruncated")
+        : null;
 
   // Two capabilities are configured elsewhere and so are kept off this list,
   // because a second control for one field is a control that disagrees with the
@@ -661,13 +682,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
               instructions={spec.instructions}
               nodes={mapNodes}
               delegates={delegateNodes}
-              delegationNotice={
-                treeError
-                  ? tAgents("mapTreeUnavailable")
-                  : tree?.truncated
-                    ? tAgents("mapTreeTruncated")
-                    : null
-              }
+              delegationNotice={delegationNotice}
             />
           )}
         </DialogContent>

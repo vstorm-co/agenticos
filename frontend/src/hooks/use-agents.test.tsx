@@ -589,18 +589,13 @@ describe("the delegation tree", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("reads the tree from its own endpoint", async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({
-      max_depth: 2,
-      max_fanout: 3,
-      truncated: false,
-      nodes: [],
-    });
+    vi.mocked(apiClient.get).mockResolvedValue({ truncated: true, nodes: [] });
 
     const { result } = renderHook(() => useDelegationTree("a1"), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     expect(apiClient.get).toHaveBeenCalledWith("/agents/a1/delegation-tree");
-    expect(result.current.tree?.max_depth).toBe(2);
+    expect(result.current.tree?.truncated).toBe(true);
   });
 
   it("does not walk the tree while nothing shows it", () => {

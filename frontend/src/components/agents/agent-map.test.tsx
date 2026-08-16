@@ -664,6 +664,36 @@ describe("AgentMap recursive tree", () => {
     ).toHaveLength(1);
   });
 
+  it("says a delegate has been archived since it was pinned", async () => {
+    render(
+      <AgentMap
+        agentName="Support"
+        instructions="Be brief."
+        nodes={[]}
+        delegates={[
+          delegate({
+            children: [
+              delegate({
+                key: "delegate:a1/delegate:a7:0",
+                name: "Retired",
+                href: undefined,
+                problem: "archived",
+              }),
+            ],
+          }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("Archived")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Retired" }));
+    expect(
+      screen.getByText(
+        "This delegate has been archived since it was pinned, so every run that reaches it is refused. Unarchive it, or repin this agent without it.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("says a pin's version is gone", async () => {
     render(
       <AgentMap

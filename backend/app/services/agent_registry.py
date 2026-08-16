@@ -1622,26 +1622,21 @@ class AgentRegistryService:
         a pin to an agent this caller may not see comes back `restricted`, with
         no name and no children, indistinguishable from a pin to an agent that
         does not exist - the same no-probing rule `_resolve_pins` applies at
-        publish.
+        publish. A delegate somebody has since archived comes back `archived`
+        and unexpanded, because a run that reaches that hop is refused.
         """
         agent = await self.get(ctx, agent_id)
         spec = AgentSpec.model_validate(agent.draft_spec)
         config = _subagents_config(spec)
-        caps = config or SubagentsConfig()
         walk = _TreeWalk()
         nodes = await self._tree_level(
             ctx,
             spec,
-            budget=caps.max_depth if config else 0,
+            budget=config.max_depth if config else 0,
             ancestors=frozenset({agent.id}),
             walk=walk,
         )
-        return DelegationTree(
-            max_depth=caps.max_depth,
-            max_fanout=caps.max_fanout,
-            truncated=walk.capped,
-            nodes=nodes,
-        )
+        return DelegationTree(truncated=walk.capped, nodes=nodes)
 
     async def _tree_level(
         self,
@@ -1703,6 +1698,18 @@ class AgentRegistryService:
                 key=key,
                 kind="delegate",
                 status="cycle",
+                agent_id=ref.agent_id,
+                name=row.name,
+                mode=ref.preferred_mode,
+            )
+        # Ordered as `_resolve_delegate` orders its refusals: a run refuses the
+        # loop before it has looked at the delegate at all, so a pin that is both
+        # a cycle and archived reads as the cycle here too.
+        if row.status == AgentStatus.ARCHIVED.value:
+            return DelegationTreeNode(
+                key=key,
+                kind="delegate",
+                status="archived",
                 agent_id=ref.agent_id,
                 name=row.name,
                 mode=ref.preferred_mode,

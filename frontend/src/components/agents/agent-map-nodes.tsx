@@ -36,8 +36,8 @@ export interface MapDelegate {
   mode: DelegationMode | null;
   /** The delegate's own page, when it is a published agent this caller can reach. */
   href?: string;
-  /** Why the server's walk could not resolve this pin - absent means it did. */
-  problem?: "restricted" | "unpinned" | "cycle";
+  /** Why a run would not follow this pin - absent means it would. */
+  problem?: "restricted" | "unpinned" | "cycle" | "archived";
   /** The delegate has published past the pinned version. */
   stale?: boolean;
   /** Has a roster of its own that a run from this map's root can never reach. */
@@ -60,11 +60,13 @@ export const PROBLEM_LABEL: Record<NonNullable<MapDelegate["problem"]>, string> 
   restricted: "mapNoAccessBadge",
   unpinned: "pinGone",
   cycle: "mapCycleBadge",
+  archived: "mapArchivedBadge",
 };
 export const PROBLEM_DETAIL: Record<NonNullable<MapDelegate["problem"]>, string> = {
   restricted: "delegateUnreachableDetail",
   unpinned: "delegatePinGoneDetail",
   cycle: "mapCycleDetail",
+  archived: "mapArchivedDetail",
 };
 
 interface CapabilityNodeProps {
