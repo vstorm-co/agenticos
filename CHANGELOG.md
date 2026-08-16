@@ -17,6 +17,24 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.161] - 2026-08-16
+
+An agent can draw an image, with the spend on the ledger like everything else.
+
+### Added
+
+- **The `image_generation` capability.** One tool, `generate_image`, that renders
+  an image from a prompt with a dedicated image model (OpenAI Responses or
+  Google), whatever model the agent itself runs on. The provider key is a
+  `SecretRequirement`, so publishing without one is refused at the form; the tool
+  is `side_effecting`, so every call can sit behind the approval gate; and the
+  subagent's usage is booked to the run's ledger — an unpriced image model
+  records zero and flags the run's cost partial rather than hiding it. Images
+  land in organization-scoped storage (`generated/{org}`), served only under the
+  caller's own organization at `GET /api/v1/generated/{filename}`, rendered
+  inline in chat, and — when the run has a workspace open — also written under
+  `/output` so a later `execute` step can build with them. (#58)
+
 ## [0.0.160] - 2026-08-16
 
 Every person, organization and agent gets a designed default avatar, and a colour
