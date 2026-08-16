@@ -6,7 +6,7 @@ Notable changes to AgenticOS. The format follows
 
 Two things are versioned separately from this file and worth knowing about:
 
-- **`SPEC_VERSION`** — the agent spec format, currently **8**. A published agent
+- **`SPEC_VERSION`** — the agent spec format, currently **9**. A published agent
   and a client's exported YAML both carry it, so it only ever moves forward with a
   migration that keeps old documents loading. See
   [the spec reference](docs/reference/spec.md).
@@ -16,6 +16,36 @@ Two things are versioned separately from this file and worth knowing about:
   that still exists. Schema changes are listed here by what they do.
 
 ## [Unreleased]
+
+## [0.0.157] - 2026-08-16
+
+An organization's standing knowledge is put into a run instead of made to be asked
+for.
+
+### Added
+
+- **Context capability.** A first-class, org-scoped library of text objects — a
+  glossary, a brand voice, an escalation matrix — each carrying a `mode`: `inject`
+  splices the body into the agent's instructions verbatim, `link` leaves it out of
+  the prompt and reads it on demand through `list_context`/`read_context`, so a
+  large or rarely-needed file costs nothing until the model reaches for it. Mirrors
+  the skills subsystem end to end — model, schemas, repo, the shared access/grant
+  machinery, service, routes, spec binding, publish check, runner resolution, and
+  the frontend library + builder picker. (#48)
+- **`AgentSpec.context_ids`**, bumping `SPEC_VERSION` to **9**. Defaulted, so every
+  stored spec and exported YAML loads unchanged.
+
+### Notes
+
+- **Injected content is untrusted input.** A file's body is user-written and reaches
+  the model verbatim, so it is delimited (`<context-file>`) and framed as reference
+  material rather than instructions. The fence resists accidental breakout — a body
+  or name that forges a closing tag or an attribute quote can no longer escape it —
+  though an operator with `context:edit` injecting deliberately is out of scope by
+  design.
+- **Tenant-scoped, checked at publish.** Binding a file hands its body to every run,
+  so it is checked against the publisher's own access; a private file another member
+  owns is refused indistinguishably from a missing id.
 
 ## [0.0.156] - 2026-08-16
 
