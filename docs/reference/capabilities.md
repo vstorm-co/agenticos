@@ -727,8 +727,12 @@ the run and keyed to the organization; the spill lives there, under a
 `tool_output/` prefix, so it shares that workspace's lifetime and the agent can even
 reach it through its own `read_file` and `grep`. On the default `run` session scope
 that lifetime *is* the run, which is what the "must not outlive the run" requirement
-asks for; a longer-scoped workspace (`conversation`, `user`, `agent`) keeps its
-spills as long as it keeps the agent's own files, and pruning them at run end is
+asks for. A spill is a within-run artefact and never survives into the persisted
+document: on a longer-scoped `state` workspace (`conversation`, `user`, `agent`) the
+flush strips the reserved prefix at run end, so accumulated spills can no longer push
+the workspace toward its byte cap and refuse the agent's own writes. A longer-scoped
+*container* workspace still keeps its spills on the container filesystem —
+run-scoped deletion there needs a primitive the backend protocol does not expose yet,
 tracked in [#803](https://github.com/vstorm-co/agenticos/issues/803). An agent with
 no backend gets an in-memory one built for the run and discarded with it, so the
 spill is never written to shared disk. A spill the backend refuses — a `state`

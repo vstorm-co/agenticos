@@ -42,6 +42,7 @@ from app.agents.capabilities.sandbox._identity import (
     WorkspaceScopeUnavailable,
     scope_key,
 )
+from app.agents.capabilities.tool_output_limits import OVERFLOW_PREFIX
 from app.agents.spec import AgentSpec
 from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
@@ -142,6 +143,27 @@ def sandbox_config(spec: AgentSpec) -> SandboxConfig | None:
         if binding.id == SANDBOX_CAPABILITY_ID and binding.enabled:
             return SandboxConfig.model_validate(binding.config)
     return None
+
+
+def _without_spills(files: dict[str, Any]) -> dict[str, Any]:
+    """The workspace document with `tool_output_limits` spills stripped out (#803).
+
+    A spilled tool return goes to the run's backend under the reserved
+    `tool_output/` prefix so `read_tool_result` can page through it, but it is a
+    within-run artefact and must never survive into the persisted document. On a
+    longer-scoped state workspace it otherwise accumulates every run and counts
+    against `SANDBOX_STATE_MAX_BYTES`, until the cap starts refusing the agent's
+    own writes. Stripping it at flush keeps the invariant "the stored document
+    holds the agent's files, never its spills", every run self-healing whatever a
+    prior one left. Backend keys are normalized with a leading slash; the
+    `lstrip` tolerates both forms.
+    """
+
+    def _is_spill(path: str) -> bool:
+        relative = path.lstrip("/")
+        return relative == OVERFLOW_PREFIX or relative.startswith(f"{OVERFLOW_PREFIX}/")
+
+    return {path: data for path, data in files.items() if not _is_spill(path)}
 
 
 class SandboxWorkspaceService:
@@ -384,7 +406,7 @@ class SandboxWorkspaceService:
             # belonged to it, so there is nothing to keep.
             return
         self._warn_if_overtaken(workspace, row)
-        files = dict(workspace.backend.files)
+        files = _without_spills(workspace.backend.files)
         await workspace_repo.save_files(
             self.db, workspace=row, files=files, bytes_total=document_size(files)
         )
