@@ -322,6 +322,43 @@ export interface AgentList {
   total: number;
 }
 
+/**
+ * One hop of the delegation tree, as `GET /agents/{id}/delegation-tree` answers.
+ *
+ * `status` says how far the server's walk got: `ok` resolved and `children`
+ * holds what the delegate itself delegates to; `restricted` is a delegate the
+ * caller may not see - no name, no children, indistinguishable from one that
+ * does not exist; `unpinned` is a pin whose version is gone; `cycle` returns to
+ * an agent already on this branch and is never expanded; `archived` is a
+ * delegate somebody has retired since the pin was published, which every run
+ * reaching it is refused for. `truncated` marks a roster a run from this root
+ * would never reach.
+ */
+export interface DelegationTreeNode {
+  key: string;
+  kind: "delegate" | "specialist";
+  status: "ok" | "restricted" | "unpinned" | "cycle" | "archived";
+  agent_id: string | null;
+  name: string | null;
+  mode: DelegationMode | null;
+  pinned_version: number | null;
+  stale: boolean;
+  truncated: boolean;
+  children: DelegationTreeNode[];
+}
+
+/**
+ * The whole delegation tree under one agent's draft, in one response.
+ *
+ * No `max_depth` / `max_fanout`: the Builder holds the draft those live on and
+ * already renders them beside the hub, so a second copy read out of the stored
+ * draft would only ever be the half that disagrees.
+ */
+export interface DelegationTree {
+  truncated: boolean;
+  nodes: DelegationTreeNode[];
+}
+
 /** One named environment of an agent, pinned to one published version. */
 export interface AgentEnvironment {
   id: string;

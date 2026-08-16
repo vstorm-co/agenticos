@@ -4,7 +4,13 @@ import Link from "next/link";
 import { ArrowUpRight, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import { KIND_LABEL, MODE_LABEL, type MapDelegate, type MapNode } from "./agent-map-nodes";
+import {
+  KIND_LABEL,
+  MODE_LABEL,
+  PROBLEM_DETAIL,
+  type MapDelegate,
+  type MapNode,
+} from "./agent-map-nodes";
 import { Button } from "@/components/ui";
 import { useTranslations } from "next-intl";
 
@@ -72,6 +78,15 @@ export function MapDetail({ title, icon: Icon, node, delegate, onClose }: MapDet
               {t("mapHandsBack", { mode: t(MODE_LABEL[delegate.mode]) })}
             </p>
           )}
+          {delegate.problem && (
+            <p className="text-muted-foreground text-xs">{t(PROBLEM_DETAIL[delegate.problem])}</p>
+          )}
+          {delegate.stale && (
+            <p className="text-muted-foreground text-xs">{t("mapPinBehindDetail")}</p>
+          )}
+          {delegate.truncated && (
+            <p className="text-muted-foreground text-xs">{t("mapDepthCapDetail")}</p>
+          )}
           {delegate.href ? (
             <Button asChild variant="outline" size="sm" className="w-full">
               <Link href={delegate.href}>
@@ -82,7 +97,9 @@ export function MapDetail({ title, icon: Icon, node, delegate, onClose }: MapDet
           ) : delegate.kind === "specialist" ? (
             <p className="text-muted-foreground text-xs">{t("mapSpecialistDetail")}</p>
           ) : (
-            <p className="text-muted-foreground text-xs">{t("delegateUnreachableDetail")}</p>
+            !delegate.problem && (
+              <p className="text-muted-foreground text-xs">{t("delegateUnreachableDetail")}</p>
+            )
           )}
         </div>
       )}

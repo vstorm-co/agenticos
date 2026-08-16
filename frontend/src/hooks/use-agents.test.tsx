@@ -10,6 +10,7 @@ import {
   useAgentVersions,
   useAgents,
   useCapabilityCatalog,
+  useDelegationTree,
 } from "./use-agents";
 import { useAgentEnvironments } from "./use-agent-environments";
 import { apiClient } from "@/lib/api-client";
@@ -581,5 +582,42 @@ describe("an agent's versions", () => {
 
     await waitFor(() => expect(result.current.error).toBeTruthy());
     expect(result.current.version).toBeUndefined();
+  });
+});
+
+describe("the delegation tree", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("reads the tree from its own endpoint", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ truncated: true, nodes: [] });
+
+    const { result } = renderHook(() => useDelegationTree("a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(apiClient.get).toHaveBeenCalledWith("/agents/a1/delegation-tree");
+    expect(result.current.tree?.truncated).toBe(true);
+  });
+
+  it("does not walk the tree while nothing shows it", () => {
+    // The server resolves and access-checks every pinned version to answer
+    // this; the map dialog is the one caller, so a closed dialog costs nothing.
+    renderHook(() => useDelegationTree("a1", { enabled: false }), { wrapper });
+
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it("does not fetch before an agent is chosen", () => {
+    renderHook(() => useDelegationTree(null), { wrapper });
+
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it("hands back the failure so the map can say the tree is partial", async () => {
+    vi.mocked(apiClient.get).mockRejectedValue(new Error("boom"));
+
+    const { result } = renderHook(() => useDelegationTree("a1"), { wrapper });
+
+    await waitFor(() => expect(result.current.error).toBeTruthy());
+    expect(result.current.tree).toBeNull();
   });
 });

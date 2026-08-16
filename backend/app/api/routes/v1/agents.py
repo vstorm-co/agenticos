@@ -49,6 +49,7 @@ from app.schemas.agent import (
     CapabilityCatalog,
     CapabilityCatalogEntry,
     CapabilityToolContract,
+    DelegationTree,
     McpCatalog,
     McpCatalogEntry,
     SpecialistPromote,
@@ -246,6 +247,22 @@ async def rollback_agent(
 ) -> Any:
     """Republish an earlier spec as a new version, keeping history linear."""
     return await service.rollback(ctx, agent_id, to_version_id=data.version_id)
+
+
+@router.get(
+    "/{agent_id}/delegation-tree",
+    response_model=DelegationTree,
+)
+async def get_delegation_tree(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> Any:
+    """The delegation tree under this agent's draft, to the depth a run can reach.
+
+    What the agent map renders recursively - delegates, their delegates, inline
+    specialists - in one response instead of a page-walk per hop. Each pin is
+    access-checked against the caller: a delegate they may not see is
+    `restricted`, with no name and no children, indistinguishable from one that
+    does not exist.
+    """
+    return await service.delegation_tree(ctx, agent_id)
 
 
 @router.get(

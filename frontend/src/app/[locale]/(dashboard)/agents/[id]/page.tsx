@@ -22,6 +22,7 @@ import {
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { AgentMap, MAP_ICONS, type MapDelegate, type MapNode } from "@/components/agents/agent-map";
 import { MODE_LABEL } from "@/components/agents/agent-map-nodes";
+import { toMapDelegates } from "@/components/agents/agent-map-tree";
 import { AgentStatusBadge } from "@/components/agents/status-badge";
 import { AlertsPanel } from "@/components/agents/alerts-panel";
 import { CapabilityWorkbench } from "@/components/agents/capability-workbench";
@@ -78,6 +79,7 @@ import {
   useAgents,
   useAgentVersions,
   useCapabilityCatalog,
+  useDelegationTree,
   useEmbeds,
   useExposures,
   useKnowledgeBases,
@@ -147,6 +149,13 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const [confirming, setConfirming] = useState<"archive" | "delete" | null>(null);
   const [publishOpen, setPublishOpen] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
+  // Fetched only while the map shows it: the server resolves and
+  // access-checks every pinned version to build this.
+  const {
+    tree,
+    isLoading: treeLoading,
+    error: treeError,
+  } = useDelegationTree(id, { enabled: mapOpen });
   const [connectingMcp, setConnectingMcp] = useState(false);
   // Bumped after an upload so the <img> src changes; the URL is otherwise
   // identical and the browser would keep showing the picture it replaced.
@@ -339,16 +348,27 @@ export default function AgentBuilderPage({ params }: PageProps) {
   ]);
 
   // Subagents as their own kind of node - another agent this one reaches for,
-  // not a tool. A pinned delegate carries a link to its own page, so the map
-  // walks the delegation tree one hop at a time; an inline specialist has no
-  // page and no link. A delegate the organization no longer has, or that this
-  // caller cannot see, is named as unreachable rather than dropped - the same
-  // silence that hides what publishing will refuse.
+  // not a tool. A pinned delegate carries a link to its own page and, when the
+  // server has walked the tree, its own delegates as children - recursively, so
+  // the whole delegation tree reads on one map (#276). An inline specialist has
+  // no page and no link. A delegate the organization no longer has, or that
+  // this caller cannot see, is named as unreachable rather than dropped - the
+  // same silence that hides what publishing will refuse.
+  //
+  // The first level stays built from the local draft rather than the server
+  // tree, because the draft on screen may be ahead of the stored one by an
+  // autosave; the server's answer is matched onto it by agent id, which
+  // `_one_pin_per_delegate` makes unique on anything publishable.
   const delegateNodes = useMemo<MapDelegate[]>(() => {
     if (!spec) return [];
     const inline = readSubagentsConfig(
       spec.capabilities.find((binding) => binding.id === SUBAGENTS_ID),
     ).inline;
+    const walked = new Map(
+      (tree?.nodes ?? [])
+        .filter((node) => node.kind === "delegate" && node.agent_id !== null)
+        .map((node) => [node.agent_id, node] as const),
+    );
     // The index is part of the key because a draft can carry a duplicate before
     // publishing refuses it - two pins of one agent, or two specialists sharing
     // a name - and two nodes under one key would collide in the ref map the
@@ -356,12 +376,25 @@ export default function AgentBuilderPage({ params }: PageProps) {
     // same way, for the same reason.
     const delegates: MapDelegate[] = (spec.subagents ?? []).map((ref, index) => {
       const agent = agents.find((entry) => entry.id === ref.agent_id);
+      const key = `delegate:${ref.agent_id}:${index}`;
+      const node = walked.get(ref.agent_id);
       return {
-        key: `delegate:${ref.agent_id}:${index}`,
-        name: agent?.name ?? t("delegateUnreachable"),
+        key,
+        // The walk's name first: it is access-checked, and it reaches rows the
+        // agent list does not carry. An archived delegate is the one that
+        // matters - it is not in the list, so the list alone calls it "an agent
+        // you cannot see" while the badge beside it says "Archived".
+        name: node?.name ?? agent?.name ?? t("delegateUnreachable"),
         kind: "delegate",
         mode: ref.preferred_mode ?? null,
         href: agent ? ROUTES.AGENT_DETAIL(ref.agent_id) : undefined,
+        problem: node && node.status !== "ok" ? node.status : undefined,
+        stale: node?.stale || undefined,
+        truncated: node?.truncated || undefined,
+        children:
+          node && node.children.length > 0
+            ? toMapDelegates(node.children, tAgents, key)
+            : undefined,
       };
     });
     const specialists: MapDelegate[] = inline.map((specialist, index) => ({
@@ -371,7 +404,20 @@ export default function AgentBuilderPage({ params }: PageProps) {
       mode: specialist.preferred_mode ?? null,
     }));
     return [...delegates, ...specialists];
-  }, [spec, agents, t]);
+  }, [spec, agents, tree, t, tAgents]);
+
+  // One line under the delegation heading whenever what is drawn is not the
+  // whole tree. The loading half matters as much as the other two: until the
+  // walk answers, every first-level delegate renders childless, which is what a
+  // leaf looks like - so a map that says nothing is a map claiming a tree it has
+  // not read yet.
+  const delegationNotice = treeLoading
+    ? tAgents("mapTreeLoading")
+    : treeError
+      ? tAgents("mapTreeUnavailable")
+      : tree?.truncated
+        ? tAgents("mapTreeTruncated")
+        : null;
 
   // Two capabilities are configured elsewhere and so are kept off this list,
   // because a second control for one field is a control that disagrees with the
@@ -636,6 +682,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
               instructions={spec.instructions}
               nodes={mapNodes}
               delegates={delegateNodes}
+              delegationNotice={delegationNotice}
             />
           )}
         </DialogContent>
