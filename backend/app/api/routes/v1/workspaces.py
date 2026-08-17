@@ -93,15 +93,17 @@ async def list_all_files(workspaces: WorkspaceSvc, ctx: Auth) -> Any:
     listing = await workspaces.flat_files(ctx)
     items = [
         FlatFileRead(
-            path=str(entry.get("path")),
-            size=entry.get("size"),
+            path=str(file.info.get("path")),
+            size=file.info.get("size"),
             is_dir=False,
-            modified_at=entry.get("modified_at"),
-            workspace_id=overview.row.id,
-            agent_name=overview.agent_name,
-            access_label=overview.access_label,
+            modified_at=file.info.get("modified_at"),
+            workspace_id=file.overview.row.id,
+            agent_name=file.overview.agent_name,
+            access_label=file.overview.access_label,
+            preview=file.preview,
+            thumbnail=file.thumbnail,
         )
-        for overview, entry in listing.files
+        for file in listing.files
     ]
     return FlatFileList(
         items=items,
