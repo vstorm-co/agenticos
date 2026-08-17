@@ -96,12 +96,20 @@ class IngestionStatus(StrEnum):
 
 
 class IngestionResult(BaseModel):
-    """A schema to handle document ingestion results."""
+    """A schema to handle document ingestion results.
+
+    `chunk_count` is how many vectors the store now holds for this document. It
+    is carried here because the caller records it on the `rag_documents` row and
+    has no other way to learn it: it had no field to read, so every call site
+    took `complete_ingestion`'s default and every document ever ingested claimed
+    zero chunks (#147).
+    """
 
     status: IngestionStatus = IngestionStatus.NEW
     message: str | None = None
     error_message: str | None = None
     document_id: str | None = None
+    chunk_count: int = 0
 
 
 class CollectionInfo(BaseModel):

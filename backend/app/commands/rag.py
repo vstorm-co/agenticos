@@ -217,7 +217,9 @@ async def ingest_path_async(
                         replaced_count += 1
                     async with get_db_context() as db:
                         await RAGDocumentService(db).complete_ingestion(
-                            doc_id, vector_document_id=result.document_id
+                            doc_id,
+                            vector_document_id=result.document_id,
+                            chunk_count=result.chunk_count,
                         )
                 else:
                     error_count += 1

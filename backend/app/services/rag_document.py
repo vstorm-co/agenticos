@@ -294,9 +294,15 @@ class RAGDocumentService:
         self,
         doc_id: str,
         vector_document_id: str,
-        chunk_count: int = 0,
+        *,
+        chunk_count: int,
     ) -> None:
-        """Mark a document as successfully ingested."""
+        """Mark a document as successfully ingested.
+
+        `chunk_count` has no default on purpose. It had one, `0`, and all four
+        call sites took it - so every document in the product reported an empty
+        collection that answered searches perfectly well (#147).
+        """
         doc = await self.get_document(doc_id)
         await rag_document_repo.update_status(
             self.db,

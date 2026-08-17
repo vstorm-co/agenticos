@@ -321,7 +321,9 @@ async def _run_ingestion(
     try:
         async with get_worker_db_context() as db:
             await RAGDocumentService(db).complete_ingestion(
-                rag_document_id, vector_document_id=result.document_id
+                rag_document_id,
+                vector_document_id=result.document_id,
+                chunk_count=result.chunk_count,
             )
     except Exception as exc:
         logger.exception("Indexed %s but could not record it", source_path)
@@ -426,7 +428,9 @@ async def _run_sync(
                         filetype=filepath.suffix.lstrip(".").lower(),
                     )
                     await RAGDocumentService(db).complete_ingestion(
-                        str(doc.id), vector_document_id=result.document_id
+                        str(doc.id),
+                        vector_document_id=result.document_id,
+                        chunk_count=result.chunk_count,
                     )
             else:
                 failed += 1
