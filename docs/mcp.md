@@ -91,9 +91,10 @@ discovery documents. So connecting a single hostile server is enough to aim the
 gap: nobody in your organization has to be the attacker for a name to answer a
 public address to the check and a private one to the request that follows.
 Closing it means dialling the address that was validated rather than the name,
-which is [#860](https://github.com/vstorm-co/agenticos/issues/860). A URL chosen
-by a *model* never goes through this check at all — it is fetched with Pydantic
-AI's `safe_download`, which pins what it resolved.
+which is [#860](https://github.com/vstorm-co/agenticos/issues/860). Nothing a
+*model* chooses reaches this check today, and nothing should: a URL an agent
+picked wants Pydantic AI's `safe_download`, which dials what it resolved rather
+than handing a string back to be resolved again.
 
 A step that fails says **which step gave up and what class of thing raised**,
 never what the upstream client wrote. `httpx` puts the failing request in its

@@ -85,9 +85,10 @@ def validate_webhook_url(
     *model*, or from anyone unprivileged, does not belong here at all - fetch it
     through Pydantic AI's `safe_download`, which pins the address it checked.
 
-    Because of that, the refusals below name the **host** and never the URL. A
-    URL carries a key in its query string, and the one this refuses may have
-    been written by the party being refused (`.claude/rules/exceptions-security.md`).
+    Because of that, the refusals below name the **host**, or nothing, but never
+    the URL. A URL carries a key in its query string, and the one being refused
+    may have been written by the party being refused
+    (`.claude/rules/exceptions-security.md`).
 
     Args:
         url: The webhook URL to validate.
