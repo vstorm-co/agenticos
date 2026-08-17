@@ -349,10 +349,17 @@ export const qk = {
   },
   admin: {
     stats: () => ["admin", "stats"] as const,
-    users: (params?: unknown) => ["admin", "users", params] as const,
-    conversations: (params?: unknown) => ["admin", "conversations", params] as const,
+    // One user's recent conversations, for the admin user drawer. Both are part
+    // of the key because both are part of the request: a different user or a
+    // different limit is a different answer, and `unknown` let a caller drift
+    // onto a fresh key with a typo instead of failing.
+    conversations: (params: { userId?: string; limit?: number }) =>
+      ["admin", "conversations", params] as const,
     system: () => ["admin", "system"] as const,
-    ratings: (params?: unknown) => ["admin", "ratings", params] as const,
+    // The deployment-wide answer-quality summary over a window. The window is
+    // the key, so picking another period refetches rather than re-rendering the
+    // last one's chart.
+    ratings: (params: { from?: string; to?: string }) => ["admin", "ratings", params] as const,
     organizations: () => ["admin", "organizations"] as const,
   },
 } as const;
