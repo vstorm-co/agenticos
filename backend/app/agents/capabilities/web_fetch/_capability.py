@@ -99,7 +99,10 @@ def _dns_aliases(hostname: str) -> list[str]:
 
 
 def _filter_list(hostnames: list[str] | None) -> list[str] | None:
-    return None if hostnames is None else [alias for h in hostnames for alias in _dns_aliases(h)]
+    """One configured filter as the comparison needs it: every entry, every alias."""
+    if hostnames is None:
+        return None
+    return [alias for hostname in hostnames for alias in _dns_aliases(hostname)]
 
 
 def build_web_fetch(

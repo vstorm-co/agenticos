@@ -107,7 +107,10 @@ class WebFetchConfig(BaseModel):
             except UnicodeError:
                 bad.append(entry)
                 continue
-            (cleaned if _HOSTNAME.match(canonical) else bad).append(canonical)
+            if _HOSTNAME.match(canonical):
+                cleaned.append(canonical)
+            else:
+                bad.append(canonical)
         if bad:
             raise ValueError(
                 f"not bare hostnames: {', '.join(bad)}. Give a host on its own, "
