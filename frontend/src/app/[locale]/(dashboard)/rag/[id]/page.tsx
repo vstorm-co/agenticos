@@ -42,6 +42,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
     connectors,
     sectionFailures,
     isLoading,
+    loadFailed,
     isLoadingMoreDocs,
     isUploading,
     uploadProgress,
@@ -128,7 +129,10 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
   };
 
   if (isLoading && !kb) return <KBDetailSkeleton />;
-  if (error && !kb) {
+  // A cold failure of a load-bearing read - the collection or its documents -
+  // takes the whole page. A failed *refresh* does not reach here: it keeps `kb`
+  // and shows the "may be stale" banner below instead.
+  if (loadFailed) {
     return (
       <div className="text-destructive flex h-64 items-center justify-center text-sm">{error}</div>
     );
