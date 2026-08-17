@@ -6,6 +6,7 @@ import { AddModel } from "./add-model";
 import { Perm } from "@/types/permissions";
 import type { Permission } from "@/types/permissions";
 import type { SecretPurpose } from "@/types/secrets";
+import { providerMarkIn } from "@/test-utils/brand-marks";
 
 /**
  * Adding a model: a provider, a model id, and which stored key pays for it.
@@ -136,11 +137,6 @@ function mount(props: Partial<Parameters<typeof AddModel>[0]> = {}) {
   return { onCreated };
 }
 
-/** The brand mark actually drawn, by the name lobehub titles its SVG with. */
-function markIn(element: HTMLElement): string | null {
-  return element.querySelector("svg > title")?.textContent ?? null;
-}
-
 async function pickProvider(label: string) {
   await userEvent.click(screen.getByLabelText("Provider"));
   await userEvent.click(screen.getByRole("option", { name: new RegExp(label) }));
@@ -193,8 +189,8 @@ describe("the add-model form", () => {
 
     await userEvent.click(screen.getByLabelText("Provider"));
 
-    expect(markIn(screen.getByRole("option", { name: /OpenAI/ }))).toBe("OpenAI");
-    expect(markIn(screen.getByRole("option", { name: /OpenRouter/ }))).toBe("OpenRouter");
+    expect(providerMarkIn(screen.getByRole("option", { name: /OpenAI/ }))).toBe("openai");
+    expect(providerMarkIn(screen.getByRole("option", { name: /OpenRouter/ }))).toBe("openrouter");
   });
 
   it("carries the chosen provider's mark on the closed trigger", async () => {
@@ -202,7 +198,7 @@ describe("the add-model form", () => {
     mount();
     await pickProvider("OpenRouter");
 
-    expect(markIn(screen.getByLabelText("Provider"))).toBe("OpenRouter");
+    expect(providerMarkIn(screen.getByLabelText("Provider"))).toBe("openrouter");
   });
 
   it("leaves the has-a-key tick in the list rather than repeating it in the trigger", async () => {
@@ -224,7 +220,7 @@ describe("the add-model form", () => {
     await userEvent.click(screen.getByLabelText("Key"));
 
     const staging = screen.getByRole("option", { name: /OpenAI staging/ });
-    expect(markIn(staging)).toBe("OpenAI");
+    expect(providerMarkIn(staging)).toBe("openai");
     expect(staging).toHaveTextContent("····9999");
   });
 
