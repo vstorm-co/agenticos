@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 
-import { backendFetch, BackendApiError } from "@/lib/server-api";
+import { BackendApiError, backendFetch, bffJson } from "@/lib/server-api";
 
 export async function POST(request: NextRequest) {
   const refreshToken = request.cookies.get("refresh_token")?.value;
@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const response = NextResponse.json({ ok: true });
+  const response = bffJson({ ok: true });
 
   response.cookies.set("access_token", "", {
     httpOnly: true,

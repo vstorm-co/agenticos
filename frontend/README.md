@@ -32,7 +32,7 @@ one and restart.
 | Variable | |
 |---|---|
 | `BACKEND_URL` | Where the route handlers proxy to. Same-origin proxying is what keeps auth cookies working |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` / `_HEADERS` | Optional. Server-side traces to Logfire |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` / `_HEADERS` | Optional. Server-side traces to Logfire. **Unset, the spans are built and dropped** — `instrumentation.ts` registers the SDK on every boot, and off Vercel `@vercel/otel` has no exporter without these. Point them at the project the backend writes to and the two halves land together; `docker-compose-prod.frontend.yml` passes both through |
 
 **`NEXT_PUBLIC_*` — build arguments, not runtime configuration.** Next inlines
 these into the browser bundle at build time. Changing one means **rebuilding the

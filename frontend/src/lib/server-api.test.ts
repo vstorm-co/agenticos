@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { BackendApiError, backendFetch, getAuthHeaders } from "./server-api";
+import { BackendApiError, backendFetch, bffJson, bffRefusal, getAuthHeaders } from "./server-api";
 
 /**
  * The server-side half of every proxy route.
@@ -110,6 +110,35 @@ describe("backendFetch", () => {
     const failure = await backendFetch("/api/v1/agents").catch((error: unknown) => error);
 
     expect(failure).toMatchObject({ status: 502, data: null });
+  });
+});
+
+describe("bffJson", () => {
+  it("stamps no-store, so a list refetched right after a write reaches the server", () => {
+    // Every answer here depends on the caller's cookie, permissions and org
+    // header. Left unmarked, the members / invitations / integrations lists
+    // refetched after a create or revoke could be served stale (#553, same
+    // class as #230).
+    expect(bffJson({ items: [] }).headers.get("Cache-Control")).toBe("no-store");
+  });
+
+  it("keeps the status the caller asked for", () => {
+    expect(bffJson({ id: "x" }, { status: 201 }).status).toBe(201);
+  });
+
+  it("leaves an explicit cache policy alone rather than overwriting it", () => {
+    // A response that deliberately caches - an icon, an embed bundle - says so,
+    // and no-store must not clobber it.
+    const response = bffJson("body", { headers: { "Cache-Control": "public, max-age=300" } });
+    expect(response.headers.get("Cache-Control")).toBe("public, max-age=300");
+  });
+});
+
+describe("bffRefusal", () => {
+  it("carries the status and no-store, so a refusal is never cached either", () => {
+    const response = bffRefusal("NOT_AUTHENTICATED", 401);
+    expect(response.status).toBe(401);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
   });
 });
 

@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 
-import { BackendApiError, backendFetch, bffRefusal } from "@/lib/server-api";
+import { BackendApiError, backendFetch, bffJson, bffRefusal } from "@/lib/server-api";
 
 interface OAuthCallbackBody {
   access_token: string;
@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
       headers: { Authorization: `Bearer ${body.access_token}` },
     });
 
-    const response = NextResponse.json({
+    const response = bffJson({
       user,
       access_token: body.access_token,
     });
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof BackendApiError) {
       const detail = (error.data as { detail?: string })?.detail;
       if (!detail) return bffRefusal("LOGIN_FAILED", error.status);
-      return NextResponse.json({ detail }, { status: error.status });
+      return bffJson({ detail }, { status: error.status });
     }
     return bffRefusal("INTERNAL_SERVER_ERROR", 500);
   }

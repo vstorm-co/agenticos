@@ -3,8 +3,8 @@ import { render } from "@testing-library/react";
 
 import { MARKED_PROVIDERS, ProviderIcon } from "./provider-icon";
 
-// One custom mark shipped, under a name lobehub does not know. Only the hook
-// is replaced; `CustomMark` stays real.
+// One custom mark shipped, under a name the glyph set does not carry. Only the
+// hook is replaced; `CustomMark` stays real.
 vi.mock("@/components/icons/custom-icons", async () => {
   const actual = await vi.importActual<typeof import("@/components/icons/custom-icons")>(
     "@/components/icons/custom-icons",
@@ -35,9 +35,13 @@ describe("ProviderIcon", () => {
     }
   });
 
-  it("renders the brand mark for a provider the set carries", () => {
-    const { container } = render(<ProviderIcon provider="openai" />);
-    expect(container.querySelector("svg")).not.toBeNull();
+  it("renders a brand mark for every provider the set carries", () => {
+    // A provider whose mark went missing still gets a row, a name and a
+    // monogram - which reads as "this one has no logo" rather than as a defect.
+    for (const provider of MARKED_PROVIDERS) {
+      const { container } = render(<ProviderIcon provider={provider} />);
+      expect(container.querySelector("svg path"), provider).not.toBeNull();
+    }
   });
 
   it("renders a monogram for one it does not, rather than nothing", () => {
@@ -51,8 +55,8 @@ describe("ProviderIcon", () => {
 
   it("stays out of the accessibility tree either way", () => {
     // Every row prints the provider beside the icon. A mark that named itself
-    // would make a screen reader say it twice - and lobehub's SVGs carry a
-    // <title>, so this has to be switched off rather than merely omitted.
+    // would make a screen reader say it twice - which is why the generator
+    // drops each source SVG's <title> rather than carrying it through.
     const { container: known } = render(<ProviderIcon provider="anthropic" />);
     const { container: unknown } = render(<ProviderIcon provider="ovhcloud" />);
 

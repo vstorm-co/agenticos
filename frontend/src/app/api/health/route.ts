@@ -1,11 +1,10 @@
-import { NextResponse } from "next/server";
-import { BackendApiError, backendFetch, bffRefusal } from "@/lib/server-api";
+import { BackendApiError, backendFetch, bffJson, bffRefusal } from "@/lib/server-api";
 import type { HealthResponse } from "@/types";
 
 export async function GET() {
   try {
     const data = await backendFetch<HealthResponse>("/api/v1/health");
-    return NextResponse.json(data);
+    return bffJson(data);
   } catch (error) {
     if (error instanceof BackendApiError) {
       return bffRefusal("BACKEND_UNAVAILABLE", error.status);

@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
-import { BackendApiError, backendFetch, bffRefusal } from "@/lib/server-api";
+import { NextRequest } from "next/server";
+import { BackendApiError, backendFetch, bffJson, bffRefusal } from "@/lib/server-api";
 import type { User } from "@/types";
 
 const ACCESS_MAXAGE = 60 * 15; // 15 min
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
   if (accessToken) {
     try {
       const data = await fetchMe(accessToken);
-      return NextResponse.json({ ...data, access_token: accessToken });
+      return bffJson({ ...data, access_token: accessToken });
     } catch (error) {
       if (!(error instanceof BackendApiError) || error.status !== 401) {
         const status = error instanceof BackendApiError ? error.status : 500;
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
       { method: "POST", body: JSON.stringify({ refresh_token: refreshToken }) },
     );
     const data = await fetchMe(refreshed.access_token);
-    const response = NextResponse.json({ ...data, access_token: refreshed.access_token });
+    const response = bffJson({ ...data, access_token: refreshed.access_token });
     response.cookies.set("access_token", refreshed.access_token, cookieOpts(ACCESS_MAXAGE));
     if (refreshed.refresh_token) {
       response.cookies.set("refresh_token", refreshed.refresh_token, cookieOpts(REFRESH_MAXAGE));

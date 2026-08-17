@@ -1,6 +1,6 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 
-import { BackendApiError, backendFetch, bffRefusal } from "@/lib/server-api";
+import { BackendApiError, backendFetch, bffJson, bffRefusal } from "@/lib/server-api";
 
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const accessToken = request.cookies.get("access_token")?.value;
@@ -13,10 +13,10 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       method: "POST",
       headers: { Authorization: `Bearer ${accessToken}` },
     });
-    return NextResponse.json(data);
+    return bffJson(data);
   } catch (error) {
     if (error instanceof BackendApiError) {
-      return NextResponse.json({ detail: error.message }, { status: error.status });
+      return bffJson({ detail: error.message }, { status: error.status });
     }
     return bffRefusal("INTERNAL_SERVER_ERROR", 500);
   }
