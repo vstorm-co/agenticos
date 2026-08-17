@@ -53,6 +53,7 @@ dependencies = [
     { name = "slack-sdk" },
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "subagents-pydantic-ai" },
+    { name = "tabulate" },
     { name = "tavily-python" },
     { name = "tqdm" },
     { name = "uvicorn", extra = ["standard"] },
@@ -123,6 +124,7 @@ requires-dist = [
     { name = "slack-sdk", specifier = ">=3.35.0" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.51" },
     { name = "subagents-pydantic-ai", specifier = ">=0.2.19" },
+    { name = "tabulate", specifier = ">=0.9.0" },
     { name = "tavily-python", specifier = ">=0.7.27" },
     { name = "tqdm", specifier = ">=4.70.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.52.1" },
@@ -5006,6 +5008,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/e9/3f/5a02502cf56f7617898e8279ef51927c1e55ab02a33941dff502bed050fb/subagents_pydantic_ai-0.2.19.tar.gz", hash = "sha256:d4797d3e459dd611221d6dd72745fdaa93ec4aedfdbe6a57f2cbf8a74e2adc05", size = 645858, upload-time = "2026-08-16T18:42:56.057Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/07/d8/3663c63eb9826261efae0d1e7ca1c42c932bc58bd15c4e4d8130bb89ac97/subagents_pydantic_ai-0.2.19-py3-none-any.whl", hash = "sha256:fd2321dbaa1231e5f8672d2c361b4de90563f2d2330eb2ca4f8ea377bcc1be15", size = 82313, upload-time = "2026-08-16T18:42:54.361Z" },
+]
+
+[[package]]
+name = "tabulate"
+version = "0.10.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/46/58/8c37dea7bbf769b20d58e7ace7e5edfe65b849442b00ffcdd56be88697c6/tabulate-0.10.0.tar.gz", hash = "sha256:e2cfde8f79420f6deeffdeda9aaec3b6bc5abce947655d17ac662b126e48a60d", size = 91754, upload-time = "2026-03-04T18:55:34.402Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/99/55/db07de81b5c630da5cbf5c7df646580ca26dfaefa593667fc6f2fe016d2e/tabulate-0.10.0-py3-none-any.whl", hash = "sha256:f0b0622e567335c8fabaaa659f1b33bcb6ddfe2e496071b743aa113f8774f2d3", size = 39814, upload-time = "2026-03-04T18:55:31.284Z" },
 ]
 
 [[package]]

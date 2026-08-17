@@ -84,6 +84,10 @@ dependencies = [
     "boto3>=1.43.66",
     "httpx>=0.28.0",
     "click>=8.1.0",
+    # `cli/commands.py` renders every list the CLI prints. It has no import site
+    # under `app/`, which is how it was briefly deleted as dead (#155) - the
+    # `deptry` step reads `cli/` as well for exactly that reason.
+    "tabulate>=0.9.0",
     "tqdm>=4.70.0",
     "tavily-python>=0.7.27",
     "pydantic-monty>=0.0.19",
@@ -143,8 +147,8 @@ dev = [
     "vulture>=2.14",
     # vulture reads the code and finds what is written but unused; deptry reads
     # the manifest and finds what is declared but unimported. Nothing noticed
-    # `fastapi-cache2`, `jinja2` or `tabulate` going dead, which is the half of
-    # #155 worth more than the megabytes it recovered.
+    # `fastapi-cache2` or `jinja2` going dead, which is the half of #155 worth
+    # more than the megabytes it recovered.
     "deptry>=0.23.0",
 ]
 # The documentation site. Its own group rather than part of `dev`, because the
@@ -198,34 +202,41 @@ ignore_decorators = [
 ignore_names = []
 
 # The other half of vulture: vulture finds code nothing calls, deptry finds a
-# distribution nothing imports. Only DEP002 is a gate, because that is the one
-# failure this repository has actually had - `fastapi-cache2`, `jinja2` and
-# `tabulate` sat declared and unimported until somebody read all 46 lines by
+# distribution nothing imports. DEP002 is the gate this was added for - that is
+# the failure this repository has actually had, with `fastapi-cache2` and
+# `jinja2` sitting declared and unimported until somebody read all 46 lines by
 # hand (#155).
 #
-# The other three rules are off, each for its own reason, and turning any of
-# them on is its own change rather than a flag flip:
-#   DEP001 (imported, undeclared) fires on `faker` and `resend`, both imported
-#     behind a guard for an install that may not have them. Real enough to be
-#     worth deciding - #814 - but the decision is whether they become extras,
-#     not whether deptry shouts.
+# It reads `app`, `cli` and `alembic`, which is every tree that ships, and the
+# scope is the whole point rather than a detail: reading `app` alone called
+# `tabulate` dead when `cli/commands.py` imports it, which took the e2e seed
+# down on this very branch. A tree that ships and is not scanned is a tree whose
+# imports do not count.
+#
+# Two rules are off, each for its own reason, and turning either on is its own
+# change rather than a flag flip:
+#   DEP001 (imported, undeclared) fires on `faker` and `resend`, neither declared
+#     anywhere and neither in `uv.lock`. `faker` is guarded; `resend` is not, so
+#     a deployment that configures it raises `ModuleNotFoundError` at first send.
+#     That is #829, and the decision there is whether they become extras - not
+#     whether deptry shouts.
 #   DEP003 (imported, only transitive) fires 27 times on `starlette`, `mcp`,
 #     `yaml`, `openai`, `botocore`, `ddgs` and `opentelemetry` - every one of
 #     them arriving through a declaration we do control (`fastapi`, the
 #     `pydantic-ai-slim` extras, `boto3`, `logfire`). Declaring each by hand
 #     would double the manifest to restate what those extras already promise.
-# DEP004 (imported, declared dev-only) stays on: it found `anyio`, imported at
-# module scope in application code and declared only in the `dev` group, and
-# there is nothing left for it to be noisy about.
+#
+# DEP004 (imported, declared dev-only) is the second gate: it found `anyio`,
+# imported at module scope in application code and declared only in the `dev`
+# group, and there is nothing left for it to be noisy about.
 [tool.deptry]
-known_first_party = ["app"]
+known_first_party = ["app", "cli"]
 ignore = ["DEP001", "DEP003"]
 
 [tool.deptry.per_rule_ignores]
-# Required, and imported by nobody in `app/` on purpose. Each is either a
-# runtime somebody else imports or a driver a URL scheme selects.
+# Required, and imported nowhere in the scanned trees on purpose. Each is either
+# a runtime somebody else imports or a driver a URL scheme selects.
 DEP002 = [
-    "uvicorn",          # the ASGI server, run as a process
     "python-multipart", # Starlette parses uploads with it; FastAPI refuses `File(...)` without it
     "asyncpg",          # selected by the `postgresql+asyncpg://` URL
     "psycopg2-binary",  # selected by Alembic's bare `postgresql://` URL

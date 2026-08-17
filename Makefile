@@ -292,7 +292,7 @@ lint-backend:
 	uv run --directory backend ruff format . ../scripts --check
 	uv run --directory backend ty check
 	uv run --directory backend vulture
-	uv run --directory backend deptry app
+	uv run --directory backend deptry app cli alembic
 	python3 scripts/check_backticks.py
 	python3 scripts/check_routes.py
 	python3 scripts/check_comments.py
