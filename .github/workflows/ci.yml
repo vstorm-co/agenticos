@@ -167,8 +167,8 @@ jobs:
       - name: Install dependencies
         run: uv sync --directory backend --dev
 
-      # ruff check, ruff format --check, ty, vulture and the three guard scripts -
-      # the target, not a second copy of its commands. Every step this job used to
+      # ruff check, ruff format --check, ty, vulture, deptry and the three guard
+      # scripts - the target, not a second copy of its commands. Every step this job used to
       # spell out was also spelled out in the Makefile, and the pair drifted: the
       # i18n guard was in `make lint` and never here, so hardcoded copy failed
       # locally and passed the build. Calling the target is how the two stay equal

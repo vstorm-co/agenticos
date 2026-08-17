@@ -17,6 +17,49 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.172] - 2026-08-17
+
+All files answers "what is that file", not only "who is holding a copy of it".
+
+### Added
+
+- **Search and sort on the All files grid.** The same `useListControls` +
+  `SearchInput` pair the five galleries use, filtering on path, agent name and
+  extension — `.csv` matches the suffix rather than the string — and ordering by
+  name, size, modified or agent. Size and modified descend, because "what is
+  biggest" and "what changed" are the questions those orders answer. The bound
+  stays on screen while a filter is applied, with a line saying the filter
+  searched only what was read: a client-side filter over a truncated listing
+  searched a sample, and "3 results" with no caveat would claim the search was
+  exhaustive. (#138)
+- **A tile is the file card every other surface draws.** The three-line row is
+  gone; the grid now uses `components/files`' `FileCard`, so a CSV looks like the
+  same thing in the composer, the transcript and here — including the suffix and
+  size band (`CSV · 2.0 KB`) that was the extension-legibility half of the issue.
+  The line under each card carries what only this view knows: the agent holding
+  the file, who else can see it, and the download. (#138)
+- **A stored text file previews its first lines, and a stored image draws
+  itself.** Both come out of the JSONB document the listing already reads, so a
+  grid of thirty tiles is still one request: eight lines capped at 200 characters
+  for text, and a 160×128 `data:` URI for a raster image. A container-backed
+  workspace answers `null` for both — its bytes are on a host, and one round trip
+  per file is exactly what this listing refuses. (#827)
+
+### Fixed
+
+- **A thumbnail's decode is bounded by pixels, not by bytes.** A PNG under a
+  kilobyte can declare 8000×8000, and scaling it allocates all 64 megapixels on a
+  request somebody made by opening a page. Pillow's own ceiling does not catch
+  it — it refuses at 89 megapixels — so the declared size is checked against a
+  16 Mpx limit in the header, before any pixel is read. (#827)
+- **A thumbnail is drawn as the image is.** Transparency survives (converting to
+  `RGB` does not remove what the alpha channel hid, it paints it — usually
+  black), and a camera's EXIF orientation is applied before the scale, so a
+  portrait photograph is no longer sideways on its tile. (#827)
+- **A file's React key joins its workspace and path with a separator.** Without
+  one, `{workspace: "ab", path: "c"}` and `{workspace: "a", path: "bc"}`
+  collided into a single key. (#138)
+
 ## [0.0.171] - 2026-08-16
 
 Tool search's scale guarantee is pinned by a fixture, not a claim.

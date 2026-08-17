@@ -3,21 +3,59 @@
 import { useMemo, useState } from "react";
 import { Download, MessageSquare } from "lucide-react";
 
-import { Badge, Button, DataTable, ListCard, Skeleton, type Column } from "@/components/ui";
+import {
+  Badge,
+  Button,
+  DataTable,
+  ListCard,
+  Pager,
+  SearchInput,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Skeleton,
+  useListControls,
+  type Column,
+} from "@/components/ui";
 import Link from "next/link";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
-import { FileIcon, FileViewer } from "@/components/files";
+import { FileCard, FileViewer } from "@/components/files";
 import { useAllWorkspaceFiles, useSandboxWorkspaces } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
+import { suffixOf } from "@/lib/file-kinds";
 import { workspaceFileAccess } from "@/lib/workspace-files";
 import { formatBytes } from "@/lib/utils";
 import type { FlatFile, WorkspaceSummary } from "@/lib/sandbox-workspaces-api";
 import { useTranslations } from "next-intl";
 
-/** One file's identity across workspaces: the same path exists in several. */
+/** One file's identity across workspaces: the same path exists in several.
+ *  The separator matters - without it `{w:"ab", p:"c"}` and `{w:"a", p:"bc"}`
+ *  collide into one React key. */
 function key(file: { workspace_id: string; path: string }): string {
-  return `${file.workspace_id}${file.path}`;
+  return `${file.workspace_id}:${file.path}`;
+}
+
+type FlatSort = "name" | "size" | "modified" | "agent";
+
+/** Newest and biggest first: those orders answer "what changed" and "what is
+ *  eating the quota", where a name orders alphabetically. */
+function compareFlat(sort: FlatSort, a: FlatFile, b: FlatFile): number {
+  switch (sort) {
+    case "size":
+      return (b.size ?? -1) - (a.size ?? -1);
+    case "modified": {
+      const at = a.modified_at === null ? 0 : new Date(a.modified_at).getTime();
+      const bt = b.modified_at === null ? 0 : new Date(b.modified_at).getTime();
+      return bt - at;
+    }
+    case "agent":
+      return a.agent_name.localeCompare(b.agent_name) || a.path.localeCompare(b.path);
+    default:
+      return a.path.localeCompare(b.path);
+  }
 }
 
 /** When it was last touched, roughly. */
@@ -219,6 +257,19 @@ function FlatFiles() {
   const tc = useTranslations("common");
   const { listing, isLoading, error } = useAllWorkspaceFiles(true);
   const [opened, setOpened] = useState<FlatFile | null>(null);
+  const [sort, setSort] = useState<FlatSort>("name");
+
+  const sorted = useMemo(
+    () => [...(listing?.items ?? [])].sort((a, b) => compareFlat(sort, a, b)),
+    [listing, sort],
+  );
+  const list = useListControls({
+    items: sorted,
+    matches: (file, query) =>
+      file.path.toLowerCase().includes(query) ||
+      file.agent_name.toLowerCase().includes(query) ||
+      suffixOf(file.path) === query.replace(/^\./, ""),
+  });
 
   if (isLoading) return <Skeleton className="m-5 h-24" />;
   if (error !== null) return <p className="text-destructive px-5 py-4 text-sm">{error}</p>;
@@ -233,57 +284,74 @@ function FlatFiles() {
 
   return (
     <div className="space-y-3 p-5">
-      {/* Tiles rather than rows, and each one carries the thing a row could not:
-          the icon for what kind of file it is, the agent holding it, who else can
-          see it, and a way to get it onto this machine. */}
-      <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {listing.items.map((file) => (
-          <li key={key(file)} className="border-border rounded-lg border">
-            <div className="flex items-start gap-2 p-3">
-              <FileIcon
+      <div className="flex flex-wrap items-center gap-2">
+        <SearchInput value={list.query} onChange={list.setQuery} placeholder={t("searchFiles")} />
+        <Select value={sort} onValueChange={(value) => setSort(value as FlatSort)}>
+          <SelectTrigger className="w-auto min-w-36" aria-label={t("sortFiles")}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="name">{t("sortByName")}</SelectItem>
+            <SelectItem value="size">{t("sortBySize")}</SelectItem>
+            <SelectItem value="modified">{t("sortByModified")}</SelectItem>
+            <SelectItem value="agent">{t("sortByAgent")}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      {list.matched === 0 ? (
+        <p className="text-muted-foreground py-8 text-center text-sm">{t("noFileMatches")}</p>
+      ) : (
+        /* Tiles rather than rows, on the card every other surface shows a file
+           as - so a CSV looks like the same thing here, in the chat panel and in
+           the composer. The card carries the preview or the thumbnail, the
+           suffix and the size;
+           the line under it carries what only this view knows: the agent holding
+           the file and who else can see it. */
+        <ul className="grid items-start gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {list.visible.map((file) => (
+            <li key={key(file)} className="space-y-1">
+              <FileCard
                 name={file.path}
-                className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0"
+                size={file.size}
+                preview={file.preview}
+                imageUrl={file.thumbnail}
+                onOpen={() => setOpened(file)}
+                className="w-full"
               />
-              <div className="min-w-0 flex-1 space-y-1">
-                {/* The path opens the file, here, rather than only linking to the
-                    workspace it lives in - "who is holding a copy of that CSV" is
-                    usually followed by "what is in it". The workspace is one click
-                    away on the line below, for the times it is not. */}
+              <p className="text-muted-foreground flex items-center gap-1 px-1 text-[11px]">
+                <Link
+                  href={ROUTES.WORKSPACE_DETAIL(file.workspace_id)}
+                  className="truncate hover:underline"
+                >
+                  {file.agent_name}
+                </Link>
+                <span className="truncate">· {file.access_label}</span>
                 <button
                   type="button"
-                  onClick={() => setOpened(file)}
-                  className="block w-full truncate text-left font-mono text-xs hover:underline"
-                  title={file.path}
+                  aria-label={tc("downloadNamed", { name: file.path })}
+                  onClick={() =>
+                    void workspaceFileAccess(
+                      { kind: "workspace", id: file.workspace_id },
+                      file.path,
+                    ).download()
+                  }
+                  className="hover:text-foreground ml-auto shrink-0 rounded-md p-1"
                 >
-                  {file.path}
+                  <Download className="h-3.5 w-3.5" />
                 </button>
-                <p className="text-muted-foreground truncate text-[11px]">
-                  <Link
-                    href={ROUTES.WORKSPACE_DETAIL(file.workspace_id)}
-                    className="hover:underline"
-                  >
-                    {file.agent_name}
-                  </Link>{" "}
-                  · {file.access_label} · {file.size == null ? "—" : formatBytes(file.size)}
-                </p>
-              </div>
-              <button
-                type="button"
-                aria-label={tc("downloadNamed", { name: file.path })}
-                onClick={() =>
-                  void workspaceFileAccess(
-                    { kind: "workspace", id: file.workspace_id },
-                    file.path,
-                  ).download()
-                }
-                className="text-muted-foreground hover:text-foreground shrink-0 rounded-md p-1"
-              >
-                <Download className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
+      <Pager
+        page={list.page}
+        pageCount={list.pageCount}
+        matched={list.matched}
+        total={list.total}
+        onPage={list.setPage}
+        counted={t("fileCount", { count: list.total })}
+      />
       {opened !== null && (
         <FileViewer
           file={{
@@ -296,10 +364,14 @@ function FlatFiles() {
           onClose={() => setOpened(null)}
         />
       )}
+      {/* The bound and the failures stay on screen while a filter is applied: a
+          filter over a truncated listing searched a sample, and "3 results" with
+          no caveat would claim the search was exhaustive. */}
       {(listing.truncated || listing.unreadable > 0) && (
         <p className="text-muted-foreground text-xs">
           {listing.truncated && t("readSoManyWorkspaces", { count: listing.workspaces_read })}
           {listing.unreadable > 0 && t("someUnreadable", { count: listing.unreadable })}
+          {listing.truncated && list.query !== "" && <> {t("filterSearchedASample")}</>}
         </p>
       )}
     </div>

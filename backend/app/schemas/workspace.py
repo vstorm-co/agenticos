@@ -138,6 +138,23 @@ class FlatFileRead(WorkspaceFileRead):
     workspace_id: UUID
     agent_name: str
     access_label: str
+    preview: str | None = Field(
+        default=None,
+        description=(
+            "The first lines of a stored text file, so a tile can hint at its "
+            "content. Null for binary content and for container-backed workspaces, "
+            "whose bytes live on a host the flat listing does not visit per file."
+        ),
+    )
+    thumbnail: str | None = Field(
+        default=None,
+        description=(
+            "A stored image scaled down to a `data:` URI, so a tile draws the "
+            "picture rather than a glyph. A URI rather than an address because the "
+            "bytes are already in this listing's hand - an address would be a "
+            "request per tile. Null for everything that is not a small stored image."
+        ),
+    )
 
 
 class FlatFileList(BaseSchema):

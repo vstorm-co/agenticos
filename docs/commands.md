@@ -24,7 +24,7 @@ Run these from the project root directory.
 | `make test` | Backend suite plus the 100% gate on the platform layer. Runs across worker processes (`-n auto --maxprocesses 4`); `pytest-cov` combines their data, so the gate is unchanged |
 | `make test-cov` | Run tests with coverage report (HTML + terminal). Runs across worker processes like `make test` |
 | `make format` | Auto-format code — ruff on the backend, prettier on the frontend |
-| `make lint` | Every static check: ruff, ruff format, ty, vulture, eslint, prettier, tsc, the guard scripts (backtick, i18n, routes, banner comments), and codespell over the whole tree |
+| `make lint` | Every static check: ruff, ruff format, ty, vulture, deptry, eslint, prettier, tsc, the guard scripts (backtick, i18n, routes, banner comments), and codespell over the whole tree |
 | `make lint-backend` / `make lint-frontend` | One half of the above. CI runs them in two different jobs, so either can be run on its own |
 | `make dead-code` | Unused functions and methods — vulture at a lower confidence than the `lint` gate, plus knip on the frontend. A report to read, not a gate: on a registry-driven codebase it comes with false positives (a CLI command, a capability hook), so read each before deleting. The same role `dependency-freshness` plays for dependencies |
 | `make lint-spelling` | codespell over every tracked file. The pre-commit hook reads only the files a commit touches, so a misspelling that lands with its file waits there to refuse somebody else's unrelated commit |
