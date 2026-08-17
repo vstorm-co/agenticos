@@ -13,7 +13,8 @@ import { useAuthStore, useOrgStore } from "@/stores";
 export { ApiError };
 
 interface RequestOptions extends Omit<RequestInit, "body"> {
-  params?: Record<string, string>;
+  /** Pairs allow a repeated key - FastAPI list params arrive as ?status=a&status=b. */
+  params?: Record<string, string> | [string, string][];
   body?: unknown;
 }
 

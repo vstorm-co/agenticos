@@ -21,6 +21,8 @@ import {
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { AgentMap, MAP_ICONS, type MapDelegate, type MapNode } from "@/components/agents/agent-map";
+import { MODE_LABEL } from "@/components/agents/agent-map-nodes";
+import { toMapDelegates } from "@/components/agents/agent-map-tree";
 import { AgentStatusBadge } from "@/components/agents/status-badge";
 import { AlertsPanel } from "@/components/agents/alerts-panel";
 import { CapabilityWorkbench } from "@/components/agents/capability-workbench";
@@ -36,6 +38,7 @@ import { PublishState } from "@/components/agents/publish-state";
 import { RunSummary } from "@/components/agents/run-summary";
 import { ModelSettingsForm } from "@/components/agents/model-settings-form";
 import { SkillGallery } from "@/components/agents/skill-gallery";
+import { ContextGallery } from "@/components/agents/context-gallery";
 import { ThinkingSetting } from "@/components/agents/thinking-setting";
 import { EnvironmentsPanel } from "@/components/agents/environments-panel";
 import { VersionHistory } from "@/components/agents/version-history";
@@ -50,9 +53,11 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  AvatarColorPicker,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   Card,
@@ -74,6 +79,8 @@ import {
   useAgents,
   useAgentVersions,
   useCapabilityCatalog,
+  useDelegationTree,
+  useEmbeds,
   useExposures,
   useKnowledgeBases,
   useMcpCatalog,
@@ -90,8 +97,10 @@ import {
   SUBAGENTS_ID,
   THINKING_ID,
   withCapability,
+  withContextFiles,
   withSkills,
 } from "@/lib/agent-spec";
+import { useContextFiles } from "@/hooks/use-context";
 import { ROUTES } from "@/lib/constants";
 import { useAgentSelectionStore, useConversationStore } from "@/stores";
 import { cn } from "@/lib/utils";
@@ -106,9 +115,11 @@ interface PageProps {
 export default function AgentBuilderPage({ params }: PageProps) {
   const t = useTranslations("pages.agents");
   const tc = useTranslations("common");
+  const tAgents = useTranslations("agents");
   const { id } = use(params);
   const router = useRouter();
-  const { agent, isLoading, saveDraft, validate, publish, rollback, setAvatar } = useAgent(id);
+  const { agent, isLoading, saveDraft, validate, publish, rollback, setAvatar, setColor } =
+    useAgent(id);
   const { environments, promote } = useAgentEnvironments(id);
   const { agents, clone, archive, unarchive, remove } = useAgents();
   const { capabilities } = useCapabilityCatalog();
@@ -117,6 +128,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // which selected skills still exist, and it can only tell that from what it
   // has. 100 is the endpoint's ceiling; `total` says when that is not all.
   const { skills, total: skillCount } = useSkills({ limit: 100 });
+  const { files: contextFiles, total: contextCount } = useContextFiles({ limit: 100 });
   const { kbs: collections } = useKnowledgeBases();
   const { versions } = useAgentVersions(id);
   const { runs } = useRuns(id);
@@ -127,6 +139,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // the ids the spec stores belong to the connections.
   const { connections: mcpConnections } = useOrgMcpConnections();
   const { exposures } = useExposures(id);
+  const { embeds } = useEmbeds(id);
   const { servers: mcpCatalog } = useMcpCatalog();
   const selectAgentForChat = useAgentSelectionStore((state) => state.select);
   const resetConversation = useConversationStore((state) => state.reset);
@@ -136,6 +149,13 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const [confirming, setConfirming] = useState<"archive" | "delete" | null>(null);
   const [publishOpen, setPublishOpen] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
+  // Fetched only while the map shows it: the server resolves and
+  // access-checks every pinned version to build this.
+  const {
+    tree,
+    isLoading: treeLoading,
+    error: treeError,
+  } = useDelegationTree(id, { enabled: mapOpen });
   const [connectingMcp, setConnectingMcp] = useState(false);
   // Bumped after an upload so the <img> src changes; the URL is otherwise
   // identical and the browser would keep showing the picture it replaced.
@@ -205,6 +225,10 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // thing it replaces. Anything the spec references but the organization no
   // longer has is named as missing rather than dropped - a silently shorter
   // list hides exactly the problem that refuses at publish.
+  //
+  // Four directions, each its own question (#518): what reaches the agent on
+  // the left, what it runs as on top, what it reaches for on the right, and
+  // what it hands work to at the bottom.
   const mapNodes = useMemo<MapNode[]>(() => {
     if (!spec) return [];
     const name = <T extends { id: string; name: string }>(pool: T[], id: string) =>
@@ -216,38 +240,47 @@ export default function AgentBuilderPage({ params }: PageProps) {
         : t("namedMissing", { name: spec.model_profile_id })
       : t("organizationDefault");
 
-    return [
+    const nodes: MapNode[] = [
       {
-        key: "channels",
-        title: t("channels"),
-        icon: MAP_ICONS.channels,
-        side: "in",
-        items: exposures.map(
-          (exposure) => `${exposure.channel_bot_name}${exposure.is_active ? "" : " (paused)"}`,
-        ),
+        key: "surfaces",
+        title: t("mapSurfaces"),
+        icon: MAP_ICONS.surfaces,
+        side: "left",
+        // The standing surfaces first - every agent is reachable from the
+        // dashboard, the API and the raw socket - then whatever this one was
+        // published as: widgets, and each channel binding.
+        items: [
+          t("surfaceChat"),
+          t("surfaceApi"),
+          t("surfaceSocket"),
+          ...embeds.map((embed) => t("surfaceWidget", { name: embed.name })),
+          ...exposures.map(
+            (exposure) => `${exposure.channel_bot_name}${exposure.is_active ? "" : " (paused)"}`,
+          ),
+        ],
         empty: t("chatOnlyNotSlack"),
-      },
-      {
-        key: "knowledge",
-        title: t("knowledge"),
-        icon: MAP_ICONS.knowledge,
-        side: "in",
-        items: spec.collection_ids.map((entry) => name(collections, entry)),
-        empty: t("noCollectionsAttached"),
       },
       {
         key: "model",
         title: t("model"),
         icon: MAP_ICONS.model,
-        side: "out",
+        side: "top",
         items: [profile],
         empty: t("noModel"),
+      },
+      {
+        key: "budget",
+        title: t("budget"),
+        icon: MAP_ICONS.budget,
+        side: "top",
+        items: spec.budget?.monthly_usd ? [t("perMonth", { amount: spec.budget.monthly_usd })] : [],
+        empty: t("spendsWithoutCeilingIts"),
       },
       {
         key: "capabilities",
         title: t("toolbox"),
         icon: MAP_ICONS.capabilities,
-        side: "out",
+        side: "right",
         items: spec.capabilities
           .filter((binding) => binding.enabled)
           .map((binding) => name(capabilities, binding.id)),
@@ -257,40 +290,85 @@ export default function AgentBuilderPage({ params }: PageProps) {
         key: "mcp",
         title: t("mcpServers"),
         icon: MAP_ICONS.mcp,
-        side: "out",
+        side: "right",
         items: spec.mcp_server_ids.map((entry) => name(mcpConnections, entry)),
         empty: t("noMcpServersAttached"),
+      },
+      {
+        key: "knowledge",
+        title: t("knowledge"),
+        icon: MAP_ICONS.knowledge,
+        side: "right",
+        items: spec.collection_ids.map((entry) => name(collections, entry)),
+        empty: t("noCollectionsAttached"),
       },
       {
         key: "skills",
         title: t("skills"),
         icon: MAP_ICONS.skills,
-        side: "out",
+        side: "right",
         items: spec.skill_ids.map((entry) => name(skills, entry)),
         empty: t("noSkillsAttached"),
       },
-      {
-        key: "budget",
-        title: t("budget"),
-        icon: MAP_ICONS.budget,
-        side: "out",
-        items: spec.budget?.monthly_usd ? [t("perMonth", { amount: spec.budget.monthly_usd })] : [],
-        empty: t("spendsWithoutCeilingIts"),
-      },
     ];
-  }, [spec, exposures, collections, profiles, capabilities, mcpConnections, skills, t]);
+
+    // The delegation policy, next to the delegates it governs. `allow_dynamic`
+    // is the setting with the widest consequences on this page - an agent that
+    // may invent specialists mid-run - so the map says it either way.
+    const subagentsBinding = spec.capabilities.find((binding) => binding.id === SUBAGENTS_ID);
+    if (subagentsBinding?.enabled) {
+      const config = readSubagentsConfig(subagentsBinding);
+      nodes.push({
+        key: "delegation",
+        title: tAgents("delegation"),
+        icon: MAP_ICONS.delegation,
+        side: "bottom",
+        items: [
+          tAgents("mapHandsBack", { mode: tAgents(MODE_LABEL[config.mode]) }),
+          config.allow_dynamic ? t("mapMayInventSpecialists") : t("mapFixedRosterOnly"),
+          t("mapDepthLimit", { depth: config.max_depth }),
+          t("mapFanoutLimit", { fanout: config.max_fanout }),
+        ],
+        empty: "",
+      });
+    }
+
+    return nodes;
+  }, [
+    spec,
+    exposures,
+    embeds,
+    collections,
+    profiles,
+    capabilities,
+    mcpConnections,
+    skills,
+    t,
+    tAgents,
+  ]);
 
   // Subagents as their own kind of node - another agent this one reaches for,
-  // not a tool. A pinned delegate carries a link to its own page, so the map
-  // walks the delegation tree one hop at a time; an inline specialist has no
-  // page and no link. A delegate the organization no longer has, or that this
-  // caller cannot see, is named as unreachable rather than dropped - the same
-  // silence that hides what publishing will refuse.
+  // not a tool. A pinned delegate carries a link to its own page and, when the
+  // server has walked the tree, its own delegates as children - recursively, so
+  // the whole delegation tree reads on one map (#276). An inline specialist has
+  // no page and no link. A delegate the organization no longer has, or that
+  // this caller cannot see, is named as unreachable rather than dropped - the
+  // same silence that hides what publishing will refuse.
+  //
+  // The first level stays built from the local draft rather than the server
+  // tree, because the draft on screen may be ahead of the stored one by an
+  // autosave; the server's answer is matched onto it by agent id, which
+  // `_one_pin_per_delegate` makes unique on anything publishable.
   const delegateNodes = useMemo<MapDelegate[]>(() => {
     if (!spec) return [];
     const inline = readSubagentsConfig(
       spec.capabilities.find((binding) => binding.id === SUBAGENTS_ID),
     ).inline;
+    const walked = new Map(
+      (tree?.nodes ?? [])
+        .filter((node) => node.kind === "delegate" && node.agent_id !== null)
+        .map((node) => [node.agent_id, node] as const),
+    );
     // The index is part of the key because a draft can carry a duplicate before
     // publishing refuses it - two pins of one agent, or two specialists sharing
     // a name - and two nodes under one key would collide in the ref map the
@@ -298,12 +376,25 @@ export default function AgentBuilderPage({ params }: PageProps) {
     // same way, for the same reason.
     const delegates: MapDelegate[] = (spec.subagents ?? []).map((ref, index) => {
       const agent = agents.find((entry) => entry.id === ref.agent_id);
+      const key = `delegate:${ref.agent_id}:${index}`;
+      const node = walked.get(ref.agent_id);
       return {
-        key: `delegate:${ref.agent_id}:${index}`,
-        name: agent?.name ?? t("delegateUnreachable"),
+        key,
+        // The walk's name first: it is access-checked, and it reaches rows the
+        // agent list does not carry. An archived delegate is the one that
+        // matters - it is not in the list, so the list alone calls it "an agent
+        // you cannot see" while the badge beside it says "Archived".
+        name: node?.name ?? agent?.name ?? t("delegateUnreachable"),
         kind: "delegate",
         mode: ref.preferred_mode ?? null,
         href: agent ? ROUTES.AGENT_DETAIL(ref.agent_id) : undefined,
+        problem: node && node.status !== "ok" ? node.status : undefined,
+        stale: node?.stale || undefined,
+        truncated: node?.truncated || undefined,
+        children:
+          node && node.children.length > 0
+            ? toMapDelegates(node.children, tAgents, key)
+            : undefined,
       };
     });
     const specialists: MapDelegate[] = inline.map((specialist, index) => ({
@@ -313,7 +404,20 @@ export default function AgentBuilderPage({ params }: PageProps) {
       mode: specialist.preferred_mode ?? null,
     }));
     return [...delegates, ...specialists];
-  }, [spec, agents, t]);
+  }, [spec, agents, tree, t, tAgents]);
+
+  // One line under the delegation heading whenever what is drawn is not the
+  // whole tree. The loading half matters as much as the other two: until the
+  // walk answers, every first-level delegate renders childless, which is what a
+  // leaf looks like - so a map that says nothing is a map claiming a tree it has
+  // not read yet.
+  const delegationNotice = treeLoading
+    ? tAgents("mapTreeLoading")
+    : treeError
+      ? tAgents("mapTreeUnavailable")
+      : tree?.truncated
+        ? tAgents("mapTreeTruncated")
+        : null;
 
   // Two capabilities are configured elsewhere and so are kept off this list,
   // because a second control for one field is a control that disagrees with the
@@ -350,6 +454,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
     list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
 
   const setSkills = (skillIds: string[]) => update(withSkills(spec, skillIds));
+  const setContext = (contextIds: string[]) => update(withContextFiles(spec, contextIds));
 
   /**
    * Store the draft, and stop if it did not store.
@@ -420,6 +525,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 agentId={id}
                 name={agent.name}
                 hasAvatar={agent.has_avatar}
+                colorSlot={agent.avatar_color}
                 size="lg"
                 version={avatarVersion}
               />
@@ -522,6 +628,19 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     <ImagePlus className="h-4 w-4" />
                     {agent.has_avatar ? t("replaceAvatar2") : t("uploadAvatar2")}
                   </DropdownMenuItem>
+                  <DropdownMenuLabel className="text-muted-foreground text-xs font-normal">
+                    {t("avatarColour")}
+                  </DropdownMenuLabel>
+                  {/* Not menu items: a swatch click picks a colour and leaves the
+                      menu open, where selecting an item would close it. */}
+                  <div className="px-2 pb-1.5">
+                    <AvatarColorPicker
+                      value={agent.avatar_color ?? null}
+                      onChange={(slot) => setColor.mutate(slot)}
+                      disabled={setColor.isPending}
+                    />
+                  </div>
+                  <DropdownMenuSeparator />
                   {agent.status === "archived" ? (
                     <DropdownMenuItem onSelect={() => unarchive.mutate(id)}>
                       <ArchiveRestore className="h-4 w-4" />
@@ -567,6 +686,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
               instructions={spec.instructions}
               nodes={mapNodes}
               delegates={delegateNodes}
+              delegationNotice={delegationNotice}
             />
           )}
         </DialogContent>
@@ -853,6 +973,25 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 total={skillCount}
                 selectedIds={spec.skill_ids}
                 onToggle={(skillId) => setSkills(toggleId(spec.skill_ids, skillId))}
+                disabled={!canEdit}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Standing context, beside skills because both are things the agent
+              reads rather than searches - a glossary or a policy injected into
+              the prompt or read on demand, not a procedure loaded on decision. */}
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("context")}</CardTitle>
+              <CardDescription>{t("standingContextAgent")}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ContextGallery
+                files={contextFiles}
+                total={contextCount}
+                selectedIds={spec.context_ids}
+                onToggle={(fileId) => setContext(toggleId(spec.context_ids, fileId))}
                 disabled={!canEdit}
               />
             </CardContent>

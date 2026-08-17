@@ -17,6 +17,7 @@ from app.api.routes.v1 import sandbox_connections
 from app.api.routes.v1 import agent
 from app.api.routes.v1 import rag
 from app.api.routes.v1 import files
+from app.api.routes.v1 import generated_media
 from app.api.routes.v1 import channels
 from app.api.routes.v1 import audit
 from app.api.routes.v1 import sharing
@@ -30,6 +31,7 @@ from app.api.routes.v1 import stats
 from app.api.routes.v1 import skill_changes
 from app.api.routes.v1 import workspaces as agent_workspaces
 from app.api.routes.v1 import skills as agent_skills
+from app.api.routes.v1 import context as context_files
 from app.api.routes.v1 import permissions
 from app.api.routes.v1 import telegram_webhook
 from app.api.routes.v1 import slack_webhook
@@ -42,6 +44,7 @@ from app.api.routes.v1.invitations import (
 )
 from app.api.routes.v1 import knowledge_bases
 from app.api.routes.v1 import me_slash_commands
+from app.api.routes.v1 import me_dashboard_layout
 from app.api.routes.v1 import admin_stats
 from app.api.routes.v1 import catalog_icons
 from app.api.routes.v1 import org_integrations
@@ -65,12 +68,16 @@ v1_router.include_router(embed_widget.router, prefix="/embed", tags=["embed"])
 v1_router.include_router(agent_runs.router, tags=["runs"])
 v1_router.include_router(stats.router, tags=["stats"])
 v1_router.include_router(agent_skills.router, prefix="/skills", tags=["skills"])
+v1_router.include_router(context_files.router, prefix="/context", tags=["context"])
 v1_router.include_router(skill_changes.router, prefix="/skill-changes", tags=["skills:changes"])
 v1_router.include_router(
     sharing.collection_sharing_router, prefix="/kb", tags=["collections:sharing"]
 )
 v1_router.include_router(sharing.agent_sharing_router, prefix="/agents", tags=["agents:sharing"])
 v1_router.include_router(sharing.skill_sharing_router, prefix="/skills", tags=["skills:sharing"])
+v1_router.include_router(
+    sharing.context_sharing_router, prefix="/context", tags=["context:sharing"]
+)
 v1_router.include_router(sharing.secret_sharing_router, prefix="/secrets", tags=["secrets:sharing"])
 
 v1_router.include_router(admin_ratings.router, prefix="/admin/ratings", tags=["admin:ratings"])
@@ -105,6 +112,8 @@ v1_router.include_router(rag.router, prefix="/rag", tags=["rag"])
 
 v1_router.include_router(files.router, tags=["files"])
 
+v1_router.include_router(generated_media.router, prefix="/generated", tags=["generated"])
+
 v1_router.include_router(
     admin_conversations.router, prefix="/admin/conversations", tags=["admin-conversations"]
 )
@@ -127,6 +136,9 @@ v1_router.include_router(invitations_token_router, tags=["invitations"])
 v1_router.include_router(knowledge_bases.router, prefix="/kb", tags=["knowledge-bases"])
 v1_router.include_router(
     me_slash_commands.router, prefix="/me/slash-commands", tags=["me:slash-commands"]
+)
+v1_router.include_router(
+    me_dashboard_layout.router, prefix="/me/dashboard-layout", tags=["me:dashboard-layout"]
 )
 v1_router.include_router(admin_stats.router, prefix="/admin", tags=["admin:stats"])
 v1_router.include_router(

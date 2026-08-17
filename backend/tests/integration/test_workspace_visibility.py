@@ -220,3 +220,25 @@ class TestWhatAnOperatorSees:
         )
 
         assert rows == []
+
+
+class TestWhatAListingCarries:
+    async def test_a_stored_file_keeps_its_modified_time_through_the_database(self, db) -> None:
+        """The state backend is the one every deployment has, and its per-file
+        timestamps live inside the JSONB document - so the round trip through
+        Postgres is the part worth proving, not the in-memory dict (#500)."""
+        from pydantic_ai_backends import StateBackend
+
+        from app.services.sandbox_workspace import stored_entries
+
+        organization = await _org(db)
+        member = await _user(db)
+        agent = await _agent(db, organization, member)
+        stored = StateBackend()
+        stored.write("/report.md", "# findings")
+        workspace = await _workspace(db, organization, agent, files=dict(stored.files))
+
+        await db.refresh(workspace)
+        (entry,) = stored_entries(dict(workspace.files))
+
+        assert entry.get("modified_at") == stored.files["/report.md"]["modified_at"]

@@ -15,16 +15,18 @@ import {
 import { toast } from "sonner";
 
 import { ApiError, getErrorMessage, parseErrorMessage } from "@/lib/api-error";
+import { ErrorState } from "@/components/states";
 import { InviteLinkDialog, InviteMemberDialog, OrgSpendingLimit } from "@/components/teams";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { EmptyState } from "@/components/states";
 import {
-  Avatar,
-  AvatarFallback,
   Badge,
   Button,
   DataTable,
+  AvatarColorPicker,
+  EntityAvatar,
   Input,
+  ListCard,
+  ListCardEmpty,
   Select,
   SelectContent,
   SelectItem,
@@ -42,7 +44,8 @@ import {
 } from "@/hooks";
 import { Perm } from "@/types/permissions";
 import type { OrganizationMember, OrgRole } from "@/types";
-import { formatDate, MAX_AVATAR_SIZE_BYTES } from "@/lib/utils";
+import { avatarInitials, avatarPalette } from "@/lib/avatar-color";
+import { cn, formatDate, MAX_AVATAR_SIZE_BYTES } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants";
 import { useChanged } from "@/hooks/use-changed";
 
@@ -60,15 +63,6 @@ const ROLE_VARIANT: Record<OrgRole, "default" | "secondary" | "outline"> = {
   viewer: "outline",
 };
 
-function getInitials(nameOrEmail: string): string {
-  return nameOrEmail
-    .split(/[\s@]/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((s) => s[0]?.toUpperCase() ?? "")
-    .join("");
-}
-
 export default function OrgMembersPage({ params }: PageProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("pages.orgs");
@@ -76,7 +70,8 @@ export default function OrgMembersPage({ params }: PageProps) {
   const locale = useLocale();
   const { id } = use(params);
   const { user } = useAuth();
-  const { members, total, isLoading, fetchMembers, changeRole, removeMember } = useMembers(id);
+  const { members, total, isLoading, error, fetchMembers, changeRole, removeMember } =
+    useMembers(id);
   const { invitations, fetchInvitations, revokeInvitation } = useInvitations(id);
   const { orgs, fetchOrgs, patchOrg } = useOrganizations();
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -119,6 +114,11 @@ export default function OrgMembersPage({ params }: PageProps) {
     }
   };
 
+  const handleColorChange = async (slot: number | null) => {
+    if (!org || slot === (org.avatar_color ?? null)) return;
+    await patchOrg(org.id, { avatar_color: slot });
+  };
+
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -149,16 +149,21 @@ export default function OrgMembersPage({ params }: PageProps) {
     const cols: Column<OrganizationMember>[] = [
       {
         key: "member",
+        className: "pl-5",
         header: t("member"),
         cell: (m) => {
           const isSelf = m.user_id === user?.id;
           return (
             <div className="flex min-w-0 items-center gap-3">
-              <Avatar className="h-8 w-8 shrink-0">
-                <AvatarFallback className="text-[10px]">
-                  {getInitials(m.full_name || m.email)}
-                </AvatarFallback>
-              </Avatar>
+              <EntityAvatar
+                seed={m.user_id}
+                name={m.full_name || m.email}
+                imageSrc={`/api/users/avatar/${m.user_id}`}
+                hasImage={!!m.avatar_url}
+                colorSlot={m.avatar_color}
+                className="h-8 w-8 shrink-0 text-[10px]"
+                ariaHidden
+              />
               <div className="min-w-0">
                 <p className="text-foreground truncate text-sm font-medium">
                   {m.full_name || m.email.split("@")[0]}
@@ -216,7 +221,7 @@ export default function OrgMembersPage({ params }: PageProps) {
         key: "actions",
         header: "",
         align: "right",
-        className: "w-0",
+        className: "w-0 pr-5",
         cell: (m) => {
           const isSelf = m.user_id === user?.id;
           const isOwner = m.role === "owner";
@@ -285,7 +290,12 @@ export default function OrgMembersPage({ params }: PageProps) {
             type="button"
             onClick={() => avatarInputRef.current?.click()}
             disabled={!canManage || avatarUploading}
-            className="bg-muted text-foreground group relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl disabled:cursor-default"
+            className={cn(
+              "group relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl disabled:cursor-default",
+              org.avatar_url
+                ? "bg-muted text-foreground"
+                : avatarPalette(org.id, org.avatar_color).bg,
+            )}
             title={canManage ? t("changeWorkspaceAvatar") : t("onlyOwnersAdminsCan")}
           >
             {org.avatar_url ? (
@@ -296,8 +306,13 @@ export default function OrgMembersPage({ params }: PageProps) {
                 className="h-full w-full object-cover"
               />
             ) : (
-              <span className="text-foreground font-mono text-base font-semibold">
-                {org.name.slice(0, 2).toUpperCase()}
+              <span
+                className={cn(
+                  avatarPalette(org.id, org.avatar_color).fg,
+                  "text-base font-semibold",
+                )}
+              >
+                {avatarInitials(org.name)}
               </span>
             )}
             {canManage && (
@@ -345,6 +360,12 @@ export default function OrgMembersPage({ params }: PageProps) {
             {!canManage && (
               <p className="text-muted-foreground text-[11px]">{t("onlyOwnersAdminsCan")}</p>
             )}
+            {canManage && (
+              <div>
+                <p className="text-muted-foreground mb-2 text-xs">{t("avatarColour")}</p>
+                <AvatarColorPicker value={org.avatar_color} onChange={handleColorChange} />
+              </div>
+            )}
           </div>
         </section>
       )}
@@ -355,10 +376,20 @@ export default function OrgMembersPage({ params }: PageProps) {
 
       {/* The table draws its own skeleton from the same column definitions, so
           the header and every column width are already right while it loads -
-          a stand-in list could only approximate them. */}
-      <div data-tour="org-members">
-        {!isLoading && members.length === 0 ? (
-          <EmptyState
+          a stand-in list could only approximate them. The shared list card
+          keeps the page's shape whether it is empty, loading or full. */}
+      <ListCard
+        data-tour="org-members"
+        title={t("membersCard")}
+        counted={isLoading || error ? null : t("memberCount", { count: members.length })}
+        contentClassName="p-0"
+      >
+        {error ? (
+          // Every organization has at least its owner, so "no members yet"
+          // over a failed read is a sentence that cannot be true (#32).
+          <ErrorState description={getErrorMessage(error, tErrors)} className="m-5" />
+        ) : !isLoading && members.length === 0 ? (
+          <ListCardEmpty
             icon={Users}
             title={t("noMembersYet")}
             description={t("inviteTeammatesByEmail")}
@@ -376,9 +407,10 @@ export default function OrgMembersPage({ params }: PageProps) {
             skeletonRows={4}
             getRowKey={(m) => m.id}
             empty={t("noMembersYet")}
+            className="rounded-none border-0 bg-transparent"
           />
         )}
-      </div>
+      </ListCard>
 
       {pendingInvitations.length > 0 && (
         <section className="space-y-3">

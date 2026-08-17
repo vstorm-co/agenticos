@@ -129,6 +129,16 @@ def _skill(ctx: AuthContext, *, owner_user_id=None):
     )
 
 
+def _context_file(ctx: AuthContext, *, owner_user_id=None):
+    """A private context-file row in the caller's organization - same shape as `_skill`."""
+    return MagicMock(
+        id=uuid.uuid4(),
+        organization_id=ctx.organization_id,
+        owner_user_id=owner_user_id or ctx.user_id,
+        visibility=Visibility.PRIVATE.value,
+    )
+
+
 def _version(agent_id, *, number: int = 1, spec: AgentSpec | None = None):
     version = MagicMock()
     version.id = uuid.uuid4()
@@ -385,12 +395,272 @@ class TestList:
                 f"{REGISTRY_PATH}.agent_repo.published_budget_caps",
                 new=AsyncMock(return_value={version_id: 60.0}),
             ) as caps,
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_compaction_windows",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_model_profiles",
+                new=AsyncMock(return_value={}),
+            ),
         ):
             rows, _total = await AgentRegistryService(_db()).list_agents(ctx)
 
         assert caps.call_args.kwargs["version_ids"] == [version_id]
         assert rows[0].budget_monthly_usd == 60.0
         assert rows[1].budget_monthly_usd is None
+
+    @pytest.mark.anyio
+    async def test_the_window_a_listed_agents_model_accepts_rides_along(self):
+        """What a chat divides its context gauge by.
+
+        The share is resolved on the surface rather than stored with the reading,
+        because the window belongs to the model answering *next* - and the chat
+        lets somebody switch that between turns.
+        """
+        ctx = _ctx(OrgRoleName.OWNER)
+        version_id = uuid.uuid4()
+        profile_id = uuid.uuid4()
+        published = _agent(ctx, current_version_id=version_id)
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_visible",
+                new=AsyncMock(return_value=([published], 1)),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.resource_grant_repo.count_for_resources",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_exposure_repo.active_surfaces_for_agents",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_budget_caps",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_compaction_windows",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_model_profiles",
+                new=AsyncMock(return_value={version_id: profile_id}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profiles_by_ids",
+                new=AsyncMock(
+                    return_value={
+                        profile_id: MagicMock(
+                            context_length=128_000, provider="openai", model="gpt-4o"
+                        )
+                    }
+                ),
+            ),
+        ):
+            rows, _total = await AgentRegistryService(_db()).list_agents(ctx)
+
+        assert rows[0].context_window_tokens == 128_000
+
+    @pytest.mark.anyio
+    async def test_a_profile_with_no_recorded_window_falls_back_to_the_registry(self):
+        """The pricing snapshot is the fallback for a profile older than the
+        column, and it is right more often than not - a self-hosted endpoint is
+        where it is not."""
+        ctx = _ctx(OrgRoleName.OWNER)
+        version_id = uuid.uuid4()
+        profile_id = uuid.uuid4()
+        published = _agent(ctx, current_version_id=version_id)
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_visible",
+                new=AsyncMock(return_value=([published], 1)),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.resource_grant_repo.count_for_resources",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_exposure_repo.active_surfaces_for_agents",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_budget_caps",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_compaction_windows",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_model_profiles",
+                new=AsyncMock(return_value={version_id: profile_id}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profiles_by_ids",
+                new=AsyncMock(
+                    return_value={
+                        profile_id: MagicMock(
+                            context_length=None, provider="openai", model="gpt-4o"
+                        )
+                    }
+                ),
+            ),
+        ):
+            rows, _total = await AgentRegistryService(_db()).list_agents(ctx)
+
+        assert rows[0].context_window_tokens == 128_000
+
+    @pytest.mark.anyio
+    async def test_a_model_nothing_can_size_reports_no_window_rather_than_a_guess(self):
+        """A share against an assumed window is a guess presented as a
+        measurement, and it errs in the direction that lets a run reach the
+        ceiling. The surface draws nothing instead."""
+        ctx = _ctx(OrgRoleName.OWNER)
+        version_id = uuid.uuid4()
+        profile_id = uuid.uuid4()
+        published = _agent(ctx, current_version_id=version_id)
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_visible",
+                new=AsyncMock(return_value=([published], 1)),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.resource_grant_repo.count_for_resources",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_exposure_repo.active_surfaces_for_agents",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_budget_caps",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_compaction_windows",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_model_profiles",
+                new=AsyncMock(return_value={version_id: profile_id}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profiles_by_ids",
+                new=AsyncMock(
+                    return_value={
+                        profile_id: MagicMock(
+                            context_length=None, provider="ollama", model="llama3.3"
+                        )
+                    }
+                ),
+            ),
+        ):
+            rows, _total = await AgentRegistryService(_db()).list_agents(ctx)
+
+        assert rows[0].context_window_tokens is None
+
+    @pytest.mark.anyio
+    async def test_an_author_who_overrode_the_window_is_the_one_the_gauge_believes(self):
+        """One ceiling, one number.
+
+        `compaction`'s `context_window` is what the *trigger* already measures
+        against - an author sets it because the resolved figure is wrong for them,
+        or to allow for the instructions and tool schemas the estimator does not
+        count. A gauge dividing by the profile's number instead would describe a
+        different ceiling than the one the agent acts on, which is how somebody
+        watches 0.4% while their history is being summarised.
+        """
+        ctx = _ctx(OrgRoleName.OWNER)
+        version_id = uuid.uuid4()
+        profile_id = uuid.uuid4()
+        published = _agent(ctx, current_version_id=version_id)
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_visible",
+                new=AsyncMock(return_value=([published], 1)),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.resource_grant_repo.count_for_resources",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_exposure_repo.active_surfaces_for_agents",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_budget_caps",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_compaction_windows",
+                new=AsyncMock(return_value={version_id: 5_000}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_model_profiles",
+                new=AsyncMock(return_value={version_id: profile_id}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profiles_by_ids",
+                new=AsyncMock(
+                    return_value={
+                        profile_id: MagicMock(
+                            context_length=1_050_000, provider="openrouter", model="openai/gpt-5.5"
+                        )
+                    }
+                ),
+            ),
+        ):
+            rows, _total = await AgentRegistryService(_db()).list_agents(ctx)
+
+        assert rows[0].context_window_tokens == 5_000
+
+    @pytest.mark.anyio
+    async def test_a_deleted_profile_leaves_the_window_unknown(self):
+        """A published spec names a profile by id, and the row can be removed
+        afterwards. The listing is about names and avatars; it says nothing about
+        the window rather than failing over one."""
+        ctx = _ctx(OrgRoleName.OWNER)
+        version_id = uuid.uuid4()
+        published = _agent(ctx, current_version_id=version_id)
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_visible",
+                new=AsyncMock(return_value=([published], 1)),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.resource_grant_repo.count_for_resources",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_exposure_repo.active_surfaces_for_agents",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_budget_caps",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_compaction_windows",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_model_profiles",
+                new=AsyncMock(return_value={version_id: uuid.uuid4()}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profiles_by_ids",
+                new=AsyncMock(return_value={}),
+            ),
+        ):
+            rows, _total = await AgentRegistryService(_db()).list_agents(ctx)
+
+        assert rows[0].context_window_tokens is None
 
     @pytest.mark.anyio
     async def test_the_listing_returns_the_page_and_the_total(self):
@@ -886,6 +1156,76 @@ class TestSkillValidation:
         ):
             await AgentRegistryService(_db()).validate_spec(
                 ctx, _spec(skill_ids=[shared.id], model_profile_id=uuid.uuid4())
+            )
+
+
+class TestContextValidation:
+    """Binding a context file lends it, so publish checks the publisher can read it.
+
+    A bound file's body reaches every run - injected or read on demand - and files
+    are bound by UUID, so without this check a member could bind a colleague's
+    private file and read it through the agent. The same rule as a skill.
+    """
+
+    @staticmethod
+    async def _problems(ctx: AuthContext, spec: AgentSpec, **repos) -> list[str]:
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            patch(f"{REGISTRY_PATH}.context_repo.get_many", new=AsyncMock(**repos)),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(ctx, spec)
+        assert refused.value.details is not None
+        problems: list[str] = refused.value.details["problems"]
+        return problems
+
+    @pytest.mark.anyio
+    async def test_a_file_this_organization_does_not_have_is_not_found(self):
+        context_id = uuid.uuid4()
+        problems = await self._problems(
+            _ctx(),
+            _spec(context_ids=[context_id], model_profile_id=uuid.uuid4()),
+            return_value={},
+        )
+        assert problems == [f"Context file not found: {context_id}"]
+
+    @pytest.mark.anyio
+    async def test_a_private_file_the_publisher_cannot_reach_is_not_found(self):
+        ctx = _ctx(OrgRoleName.MEMBER)
+        private = _context_file(ctx, owner_user_id=uuid.uuid4())
+        with patch(
+            "app.services.access.resource_grant_repo.get_level", new=AsyncMock(return_value=None)
+        ):
+            problems = await self._problems(
+                ctx,
+                _spec(context_ids=[private.id], model_profile_id=uuid.uuid4()),
+                return_value={private.id: private},
+            )
+        assert problems == [f"Context file not found: {private.id}"]
+
+    @pytest.mark.anyio
+    async def test_a_grant_lets_a_member_bind_a_file_they_do_not_own(self):
+        ctx = _ctx(OrgRoleName.MEMBER)
+        shared = _context_file(ctx, owner_user_id=uuid.uuid4())
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.context_repo.get_many",
+                new=AsyncMock(return_value={shared.id: shared}),
+            ),
+            patch(
+                "app.services.access.resource_grant_repo.get_level",
+                new=AsyncMock(return_value=GrantLevel.READ),
+            ),
+        ):
+            await AgentRegistryService(_db()).validate_spec(
+                ctx, _spec(context_ids=[shared.id], model_profile_id=uuid.uuid4())
             )
 
 
@@ -1800,6 +2140,57 @@ class TestAvatar:
         assert path == "/data/avatars/agents/x/logo.png"
         assert storage.get_full_path.call_args.args == ("avatars/agents/x/logo.png",)
 
+    @pytest.mark.anyio
+    async def test_choosing_a_colour_writes_the_slot(self):
+        ctx = _ctx()
+        agent = _agent(ctx)
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock(return_value=agent)
+            ) as update,
+        ):
+            await AgentRegistryService(_db()).set_avatar_color(ctx, agent.id, color=5)
+
+        assert update.call_args.kwargs["update_data"] == {"avatar_color": 5}
+
+    @pytest.mark.anyio
+    async def test_a_null_colour_resets_to_auto(self):
+        """The picker's Auto sends null; it must reach the column, not be dropped."""
+        ctx = _ctx()
+        agent = _agent(ctx)
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock(return_value=agent)
+            ) as update,
+        ):
+            await AgentRegistryService(_db()).set_avatar_color(ctx, agent.id, color=None)
+
+        assert update.call_args.kwargs["update_data"] == {"avatar_color": None}
+
+    @pytest.mark.anyio
+    async def test_choosing_a_colour_needs_edit_on_the_agent(self):
+        """A colour is an edit; a Member with no grant is refused, and the refusal
+        looks like an absence - the same as reaching an agent that is not there."""
+        ctx = _ctx(OrgRoleName.MEMBER)
+        agent = _agent(ctx, owner_user_id=uuid.uuid4())
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(
+                "app.services.access.resource_grant_repo.get_level",
+                new=AsyncMock(return_value=None),
+            ),
+            patch(f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock()) as update,
+            pytest.raises(NotFoundError),
+        ):
+            await AgentRegistryService(_db()).set_avatar_color(ctx, agent.id, color=3)
+
+        assert update.await_count == 0
+
 
 class TestWhatANewAgentOpensWith:
     """A prompt, not an empty box.
@@ -1979,6 +2370,61 @@ class TestWorkspaceConfigurationsRefusedAtPublish:
         profile = MagicMock(id=uuid.uuid4())
         spec = _spec(
             capabilities=[{"id": "sandbox", "config": {"session_scope": "user"}}],
+            model_profile_id=profile.id,
+        )
+
+        with patch(
+            f"{REGISTRY_PATH}.credential_repo.get_profile", new=AsyncMock(return_value=profile)
+        ):
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+
+class TestBrowserUseRefusedAtPublish:
+    """A remote `cdp_url` this deployment must not connect to.
+
+    The SSRF check resolves DNS, which blocks, so it runs at publish off the event
+    loop rather than at build on it (agenticos#33). Every binding passes through
+    `_binding_problems`, so a specialist's endpoint is checked the same way.
+    """
+
+    @pytest.mark.anyio
+    async def test_a_loopback_cdp_url_is_refused(self):
+        """A debugger on the host, a metadata service - refused before it runs."""
+        spec = _spec(
+            capabilities=[
+                {
+                    "id": "browser_use",
+                    "config": {"mode": "remote", "cdp_url": "http://127.0.0.1:9222"},
+                }
+            ],
+            model_profile_id=uuid.uuid4(),
+        )
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+        assert any(
+            "remote endpoint cannot be reached" in problem
+            for problem in refused.value.details["problems"]
+        )
+
+    @pytest.mark.anyio
+    async def test_a_public_cdp_url_publishes(self):
+        """A reachable public browser service is fine - nothing to refuse."""
+        profile = MagicMock(id=uuid.uuid4())
+        spec = _spec(
+            capabilities=[
+                {
+                    "id": "browser_use",
+                    "config": {"mode": "remote", "cdp_url": "http://8.8.8.8:9222"},
+                }
+            ],
             model_profile_id=profile.id,
         )
 

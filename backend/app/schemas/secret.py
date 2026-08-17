@@ -95,6 +95,14 @@ class SecretRead(BaseSchema, TimestampSchema):
     owner_email: str | None = Field(
         default=None, description="Whose key it is, when it belongs to one person"
     )
+    created_by_user_id: UUID | None = Field(
+        default=None,
+        description=(
+            "Who stored it, by id - the stable seed the listing draws their fallback "
+            "avatar from, so the same person wears one colour here and in member lists. "
+            "Outlives the account: still set once they have left, when the email is null."
+        ),
+    )
     created_by_email: str | None = Field(
         default=None,
         description=(

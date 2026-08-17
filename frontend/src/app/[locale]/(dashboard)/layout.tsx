@@ -20,6 +20,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           every icon down the tree reads it from context instead of querying. */}
       <CustomIconsProvider>
         <div className="flex h-screen flex-col">
+          {/* The fixed accent wash every translucent surface frosts - see
+              .ambient-backdrop in globals.css for why a sidebar needs one. */}
+          <div aria-hidden className="ambient-backdrop" />
           {/* Nothing above `md`: the brand, the organization, search, settings
             and the account are all in the column now, and this renders only
             where the column is a slide-over that needs opening. */}

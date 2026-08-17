@@ -13,7 +13,7 @@ import { toast } from "sonner";
  *
  * The two properties worth proving: it is absent - not disabled - without the
  * permission its tab is gated on, and the request it makes carries the tab's
- * current filters plus a bounded window, because the backend refuses a range
+ * current filters plus the page's window, because the backend refuses a range
  * that is missing and caps one that is too wide. A refusal comes back as a toast
  * rather than an empty file, so the wide-range case is said out loud.
  */
@@ -53,6 +53,7 @@ const RUNS_PROPS = {
   endpoint: "/runs/export",
   kind: "runs",
   rangeParams: { from: "started_from", to: "started_to" },
+  range: { from: "2026-07-16T00:00:00.000Z", to: "2026-08-14T23:59:59.999Z" },
 } as const;
 
 describe("the export control's permission gate", () => {
@@ -70,7 +71,7 @@ describe("the export control's permission gate", () => {
 });
 
 describe("the download it makes", () => {
-  it("sends the current filters and a bounded window, and saves the file", async () => {
+  it("sends the current filters and the page's window, and saves the file", async () => {
     grant("runs:view");
     respondWith('attachment; filename="runs_export_20260810_120000.csv"');
 
@@ -78,7 +79,6 @@ describe("the download it makes", () => {
       <ExportMenu {...RUNS_PROPS} params={{ agent_id: "a-1", include_delegations: "true" }} />,
     );
     await userEvent.click(screen.getByRole("button", { name: "Export CSV" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: "Last 30 days" }));
 
     await waitFor(() => expect(apiClient.raw).toHaveBeenCalledTimes(1));
     expect(vi.mocked(apiClient.raw).mock.calls.at(-1)?.[0]).toBe("/runs/export");
@@ -86,9 +86,10 @@ describe("the download it makes", () => {
     // The filters travel verbatim.
     expect(params.agent_id).toBe("a-1");
     expect(params.include_delegations).toBe("true");
-    // A window is always sent - the endpoint refuses one without it.
-    expect(params.started_from).toMatch(/^\d{4}-\d{2}-\d{2}T/);
-    expect(params.started_to).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    // The window is the page's, under the endpoint's own parameter names - the
+    // endpoint refuses a request without one.
+    expect(params.started_from).toBe("2026-07-16T00:00:00.000Z");
+    expect(params.started_to).toBe("2026-08-14T23:59:59.999Z");
     // The server's own filename is honoured.
     await waitFor(() =>
       expect(saveBlob).toHaveBeenCalledWith(expect.any(Blob), "runs_export_20260810_120000.csv"),
@@ -101,7 +102,6 @@ describe("the download it makes", () => {
 
     render(<ExportMenu {...RUNS_PROPS} />);
     await userEvent.click(screen.getByRole("button", { name: "Export CSV" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: "Last 7 days" }));
 
     await waitFor(() => expect(saveBlob).toHaveBeenCalledWith(expect.any(Blob), "runs_export.csv"));
     // No filters were passed, so only the window is on the request.
@@ -114,7 +114,6 @@ describe("the download it makes", () => {
 
     render(<ExportMenu {...RUNS_PROPS} />);
     await userEvent.click(screen.getByRole("button", { name: "Export CSV" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: "Last 90 days" }));
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("matched too many rows"));
     expect(saveBlob).not.toHaveBeenCalled();

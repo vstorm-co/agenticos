@@ -205,15 +205,6 @@ export const TOUR_STEPS: readonly TourStep[] = [
     inTour: true,
   },
   { id: "skills-list", page: ROUTES.SKILLS, target: "skills-list", permission: Perm.skillsView },
-  // Gated like its sibling `skills-list`: `/skills` refuses the whole page without
-  // `skills:view`, so `SkillLibraryGallery` never mounts and an ungated stop would
-  // wait out its timeout on a control that cannot be there.
-  {
-    id: "skills-library",
-    page: ROUTES.SKILLS,
-    target: "skills-library",
-    permission: Perm.skillsView,
-  },
 
   {
     id: "activity-overview",

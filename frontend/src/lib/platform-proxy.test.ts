@@ -361,15 +361,13 @@ function calledPaths(): Set<string> {
 /**
  * Paths the client asks for on purpose that no route answers, and why.
  *
- * Both are calls to endpoints the backend has never had, made by pages that
- * handle the 404 explicitly - a fallback query and a message naming the missing
- * endpoint. They are listed rather than deleted because the UI they belong to is
- * real; they are listed rather than ignored because "the client calls something
- * that does not exist" is otherwise exactly the thing this sweep is for.
+ * A call to an endpoint the backend has never had, made by a page that handles
+ * the 404 explicitly - a message naming the missing endpoint. Listed rather
+ * than deleted because the UI it belongs to is real; listed rather than
+ * ignored because "the client calls something that does not exist" is
+ * otherwise exactly the thing this sweep is for.
  */
 const CALLED_WITHOUT_AN_ENDPOINT: ReadonlySet<string> = new Set([
-  // The admin dashboard's activity feed. Falls back to recent conversations.
-  "/api/admin/events",
   // Settings → Account. The form is built; the backend endpoint is not, and the
   // page says so in the toast it shows on the 404.
   "/api/auth/password/change",

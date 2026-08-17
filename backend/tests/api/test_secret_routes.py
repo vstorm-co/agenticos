@@ -38,6 +38,7 @@ def _row(**overrides: Any) -> MagicMock:
     row.hint = "4242"
     # Who stored it and what it is holding up. Both are read off the row rather
     # than joined per request, so a route test has to carry them.
+    row.created_by_user_id = None
     row.created_by_email = "owner@acme.test"
     row.created_by_avatar_url = None
     row.shared_with = 0

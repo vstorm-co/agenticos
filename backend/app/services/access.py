@@ -62,6 +62,7 @@ class ResourceType:
 COLLECTION = ResourceType(key="collection", view=Perm.COLLECTIONS_VIEW, edit=Perm.COLLECTIONS_EDIT)
 AGENT = ResourceType(key="agent", view=Perm.AGENTS_VIEW, edit=Perm.AGENTS_EDIT)
 SKILL = ResourceType(key="skill", view=Perm.SKILLS_VIEW, edit=Perm.SKILLS_EDIT)
+CONTEXT = ResourceType(key="context", view=Perm.CONTEXT_VIEW, edit=Perm.CONTEXT_EDIT)
 # A stored key. The same rules as everything else here on purpose: a personal
 # key is private to its owner, a team key reaches whoever holds a grant, and an
 # organization key is everybody's - decided per row rather than by one
@@ -79,6 +80,8 @@ _PERM_MIN_GRANT: dict[Perm, GrantLevel] = {
     Perm.COLLECTIONS_EDIT: GrantLevel.EDIT,
     Perm.SKILLS_VIEW: GrantLevel.READ,
     Perm.SKILLS_EDIT: GrantLevel.EDIT,
+    Perm.CONTEXT_VIEW: GrantLevel.READ,
+    Perm.CONTEXT_EDIT: GrantLevel.EDIT,
     Perm.SECRETS_VIEW: GrantLevel.READ,
     Perm.SECRETS_EDIT: GrantLevel.EDIT,
 }

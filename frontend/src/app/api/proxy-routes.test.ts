@@ -11,10 +11,14 @@ import * as approvals from "./approvals/[[...path]]/route";
 import * as audit from "./audit/[[...path]]/route";
 import * as catalog from "./catalog/[[...path]]/route";
 import * as channels from "./channels/[[...path]]/route";
+import * as context from "./context/[[...path]]/route";
 import * as conversations from "./conversations/[[...path]]/route";
 import * as kb from "./kb/[[...path]]/route";
 import * as mcpConnections from "./mcp-connections/[[...path]]/route";
 import * as permissions from "./me/permissions/route";
+import * as dashboardLayout from "./me/dashboard-layout/route";
+import * as dashboardPresets from "./me/dashboard-layout/presets/route";
+import * as dashboardPreset from "./me/dashboard-layout/presets/[presetId]/route";
 import * as builtinCommands from "./me/slash-commands/builtin/route";
 import * as providers from "./providers/[[...path]]/route";
 import * as rag from "./rag/[[...path]]/route";
@@ -46,6 +50,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["audit", audit],
   ["catalog", catalog],
   ["channels", channels],
+  ["context", context],
   ["conversations", conversations],
   ["kb", kb],
   ["mcp-connections", mcpConnections],
@@ -63,6 +68,9 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["stats", stats],
   ["users/[userId]", users],
   ["me/permissions", permissions],
+  ["me/dashboard-layout", dashboardLayout],
+  ["me/dashboard-layout/presets", dashboardPresets],
+  ["me/dashboard-layout/presets/[presetId]", dashboardPreset],
 ];
 
 const VERBS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;

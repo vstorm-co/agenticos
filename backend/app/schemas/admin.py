@@ -26,7 +26,12 @@ class AdminStats(BaseSchema):
 
 
 class AdminOrganizationRead(BaseSchema):
-    """One organization as the platform admin sees it - every tenant, with size."""
+    """One organization as the platform admin sees it - every tenant, with size.
+
+    The owner is the earliest of them, and every field of it is nullable: an
+    organization whose last owner left has none, which is a state the deployment
+    admin is the one person able to fix and so the one person who must see it.
+    """
 
     id: UUID
     name: str
@@ -34,6 +39,9 @@ class AdminOrganizationRead(BaseSchema):
     is_personal: bool
     member_count: int
     agent_count: int
+    owner_user_id: UUID | None = None
+    owner_email: str | None = None
+    owner_name: str | None = None
     created_at: datetime
 
 

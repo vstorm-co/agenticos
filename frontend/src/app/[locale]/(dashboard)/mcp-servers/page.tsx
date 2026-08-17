@@ -2,9 +2,11 @@
 
 import { Plug } from "lucide-react";
 
+import { getErrorMessage } from "@/lib/api-error";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { McpServerList, ServersCard } from "@/components/mcp/mcp-server-list";
-import { Skeleton } from "@/components/ui";
+import { McpServerList } from "@/components/mcp/mcp-server-list";
+import { ErrorState } from "@/components/states";
+import { ListCard, ListCardEmpty, Skeleton } from "@/components/ui";
 import { useMcpOAuthOutcome, useMcpServers, usePermissions } from "@/hooks";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
@@ -34,7 +36,9 @@ import { useTranslations } from "next-intl";
  */
 export default function McpServersPage() {
   const t = useTranslations("pages.mcp-servers");
-  const { rows, isLoading } = useMcpServers();
+  const tMcp = useTranslations("mcp");
+  const tErrors = useTranslations("errors");
+  const { rows, isLoading, error } = useMcpServers();
   const { can } = usePermissions();
   useMcpOAuthOutcome();
 
@@ -46,7 +50,7 @@ export default function McpServersPage() {
         // The same card frame the list draws, with card-shaped skeletons in the
         // same columns - a skeleton that draws a different shape is a layout
         // jump on every load.
-        <ServersCard count={null}>
+        <ListCard title={tMcp("servers")} counted={null} contentClassName="p-4">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {Array.from({ length: 8 }, (_, tile) => (
               <div key={tile} className="border-border rounded-xl border p-4">
@@ -63,23 +67,25 @@ export default function McpServersPage() {
               </div>
             ))}
           </div>
-        </ServersCard>
+        </ListCard>
+      ) : error ? (
+        // `counted` stays null while refused: the count was never answered,
+        // and "0 servers" over a failure would state it as fact.
+        <ListCard title={tMcp("servers")} counted={null}>
+          <ErrorState description={getErrorMessage(error, tErrors)} />
+        </ListCard>
       ) : rows.length === 0 ? (
-        <ServersCard count={0}>
-          {/* Inline rather than an `EmptyState`: that component draws its own
-              bordered box, and inside a card it would frame one message twice. The
-              "?" walk's `mcp-catalog` stop rides on `ServersCard`'s header, which is
-              drawn in this empty state too, so it needs no anchor of its own here. */}
-          <div className="px-6 py-12 text-center">
-            <div className="bg-muted text-muted-foreground mx-auto flex h-11 w-11 items-center justify-center rounded-xl">
-              <Plug className="h-5 w-5" />
-            </div>
-            <p className="text-foreground mt-4 text-sm font-medium">{t("noServersConnect")}</p>
-            <p className="text-muted-foreground mx-auto mt-1 max-w-sm text-sm">
-              {t("catalogCompiledIntoBackend")}
-            </p>
-          </div>
-        </ServersCard>
+        <ListCard
+          data-tour="mcp-catalog"
+          title={tMcp("servers")}
+          counted={tMcp("serverCount", { count: 0 })}
+        >
+          <ListCardEmpty
+            icon={Plug}
+            title={t("noServersConnect")}
+            description={t("catalogCompiledIntoBackend")}
+          />
+        </ListCard>
       ) : (
         <McpServerList canManageOrganization={can(Perm.connectionsManage)} />
       )}

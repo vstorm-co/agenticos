@@ -93,7 +93,12 @@ function WorkspaceFileCard({
       )}
       {opened && access !== null && (
         <FileViewer
-          file={{ name, path: target, size: entry?.size ?? null }}
+          file={{
+            name,
+            path: target,
+            size: entry?.size ?? null,
+            modifiedAt: entry?.modified_at ?? null,
+          }}
           access={access}
           onClose={() => setOpened(false)}
         />

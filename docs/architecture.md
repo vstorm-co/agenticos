@@ -326,6 +326,34 @@ return await service.usage(ctx, scope=scope, ...)
     gate lives in the service. `tests/api/test_platform_routes.py` enforces
     all of it.
 
+!!! note "A personal preference carries no gate at all"
+
+    A row scoped to `(user_id, organization_id)` that only its owner reads and
+    writes is not org data, so no permission gates it and there is no route that
+    reaches somebody else's. `GET`/`PUT`/`DELETE /me/dashboard-layout` (the
+    saved dashboard arrangement) and its `/presets` shelf underneath (the named
+    arrangements a person switches between) are the pattern: `CurrentUser` +
+    `ActiveOrg`, every query filtered on **both** ids. The composite key is the
+    whole tenant boundary — a layout or preset saved in one organization is
+    invisible in another *even to its owner*, which a per-user check alone would
+    wave through, so `tests/integration/test_dashboard_layout.py` and
+    `tests/integration/test_dashboard_preset.py` cover exactly that. There is no
+    *apply-a-preset* route: applying one is the client's `PUT` of the preset's
+    entries as the active arrangement, so the dashboard keeps one write path and
+    one validation for what it renders.
+
+    A placement may also carry `options` — the card's own window (`period`),
+    presentation (`style`), and narrowing (`agent_id`, `user_id`). **A stored
+    option is a request, never an authorisation**: it reaches `GET /stats/usage`
+    as a query parameter and is refused there if the caller may not read what it
+    asks for, the same as if they had typed the URL. Narrowing to a colleague is
+    reading somebody else's rows, so it is `scope=org` and behind `runs:view`;
+    `scope=own` with a `user_id` is a 422 rather than a silent reinterpretation.
+    On write, the style and the window are validated against the closed sets the
+    frontend registry declares (`tests/test_dashboard_registry.py` keeps the two
+    mirrors equal); on read, options come back verbatim, because an agent that
+    has since been deleted must not take a whole arrangement down with it.
+
 `UserRole`, `User.has_role()`, `RoleChecker`, `CurrentAdmin` and
 `CurrentSuperuser` were the template's model and are gone, along with the
 `users.role` column (migration `0066`). They were a third answer to a question
@@ -347,7 +375,10 @@ bounds a read; the user is what narrows it further.**
   enriches each message with the caller's own rating. That overload is why its
   authorizing half went missing for so long: the route passed it, the argument
   was plainly there in review, and it was doing the other job.
-- File downloads verify `chat_file.user_id == current_user.id`.
+- File downloads verify `chat_file.user_id == current_user.id`, and attaching a
+  file to a message carries the same owner in the `WHERE`: a turn naming
+  another user's file id — or a file already on a message — is refused, never
+  silently applied.
 
 `ConversationService` makes the distinction impossible to omit: `organization_id`
 is a **required** keyword, and a caller that genuinely reads across tenants

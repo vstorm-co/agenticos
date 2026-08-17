@@ -194,7 +194,7 @@ export function AddSecretDialog({
           <DialogDescription>{t("encryptedBoundOrganizationAgent")}</DialogDescription>
         </DialogHeader>
 
-        <div className="max-h-[65vh] space-y-5 overflow-y-auto px-1">
+        <div className="max-h-[65vh] scrollbar-thin space-y-5 overflow-y-auto px-1">
           {/* First, because it decides everything below it: which shape the
               form asks for, what the key unlocks, and where it can be picked. */}
           {/* Two steps rather than one list of thirty-one. The first question
@@ -445,7 +445,7 @@ export function RotateSecretDialog({
         </DialogHeader>
 
         {secret && info && (
-          <div className="max-h-[60vh] space-y-4 overflow-y-auto px-1">
+          <div className="max-h-[60vh] scrollbar-thin space-y-4 overflow-y-auto px-1">
             <p className="text-muted-foreground text-xs">
               {t("nameCurrentlyEnds", { name: info.name })}{" "}
               <span className="font-mono">····{secret.hint}</span>

@@ -234,6 +234,22 @@ describe("which run a replayed turn belongs to", () => {
   });
 });
 
+describe("a replayed turn whose run was stopped", () => {
+  it("says so, because a truncated answer reads like a finished one", () => {
+    expect(conversationMessageToChatMessage(raw({ run_status: "cancelled" })).wasStopped).toBe(
+      true,
+    );
+  });
+
+  it("marks only a cancelled run", () => {
+    // A completed run needs no marker; a run still going has no answer on screen
+    // to mark; a failed one already says so through the error frame.
+    for (const status of ["completed", "running", "failed", "budget_exceeded", null]) {
+      expect(conversationMessageToChatMessage(raw({ run_status: status })).wasStopped).toBe(false);
+    }
+  });
+});
+
 describe("a stored tool call that never finished", () => {
   it("stops looking like it is running", () => {
     // Nothing on this screen can finish it: the frames that would have are long

@@ -45,6 +45,7 @@ explicitly is also what lets stored secrets survive a `SECRET_KEY` rotation.
 | `MEDIA_DIR` | `./media` | Directory for uploaded files |
 | `MAX_UPLOAD_SIZE_MB` | `50` | Knowledge-base document cap, and the number the whole-request ceiling below is derived from. Chat and embed uploads are bounded by the hardcoded `MAX_UPLOAD_SIZE` (10 MiB in `file_storage.py`), not by this |
 | `EMBED_MAX_UPLOAD_SIZE_MB` | `5` | What a **stranger** may upload to a hosted page. A ceiling on top of the chat path's `MAX_UPLOAD_SIZE`, never a way past it |
+| `DEFAULT_ORG_MONTHLY_BUDGET_USD` | `100` | The monthly spend ceiling a **new** organization starts with, in USD, so it is not one runaway agent away from a surprise bill. Applies at creation only; existing organizations are untouched and any organization can be cleared back to no cap afterwards. Must be positive; leave **empty** to start organizations uncapped (the older opt-in posture) |
 
 ### The size of a request, as opposed to the size of a file
 
@@ -458,9 +459,11 @@ which reads as "there are no files". Two wrong answers at once. Reading *one fil
 from such a host is refused with the same sentence rather than reported as "no such
 file", which would say the file is missing when it is not.
 
-**What is running is read from the service too.** The Sandboxes screen lists this
-organization's open sandboxes on its default host — runtime, what shares each one,
-idle time, and memory against its own ceiling when asked — plus the activity log
+**What is running is read from the service too.** The Sandboxes screen keeps it on
+its own tab, apart from the connections table, and lists this organization's open
+sandboxes on the host it names — the default connection until the operator picks
+another — sortable by idle time and memory: runtime, what shares each one, idle
+time, and memory against its own ceiling when asked — plus the activity log
 per sandbox: which paths were read, which commands ran, and how each went. Neither
 file contents nor command output is recorded by the service, which is what keeps
 an audit trail from becoming a way to read another agent's work. The dashboard

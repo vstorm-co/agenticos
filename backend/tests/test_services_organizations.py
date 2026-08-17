@@ -81,6 +81,7 @@ class TestOrganizationService:
                 "app.services.organization.member_repo.create",
                 new=AsyncMock(return_value=mock_member),
             ),
+            patch("app.services.organization.skill_library.library", return_value=()),
         ):
             result = await service.create(
                 OrganizationCreate(name="My Org"),
@@ -124,10 +125,164 @@ class TestOrganizationService:
                 new=AsyncMock(return_value=mock_org),
             ),
             patch("app.services.organization.member_repo.create", new=AsyncMock()),
+            patch("app.services.organization.skill_library.library", return_value=()),
         ):
             result = await service.create_personal_org(uuid.uuid4(), "alice@example.com")
 
         assert result == mock_org
+
+    @pytest.mark.anyio
+    async def test_a_new_team_org_starts_with_the_default_monthly_budget(self, service, mock_db):
+        """A fresh org is not one runaway agent away from a surprise bill (#785)."""
+        with (
+            patch(
+                "app.services.organization.organization_repo.generate_unique_slug",
+                new=AsyncMock(return_value="acme"),
+            ),
+            patch(
+                "app.services.organization.organization_repo.create",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ) as create,
+            patch("app.services.organization.member_repo.create", new=AsyncMock()),
+            patch("app.services.organization.skill_library.library", return_value=()),
+        ):
+            await service.create(OrganizationCreate(name="Acme"), owner_id=uuid.uuid4())
+
+        assert create.await_args.kwargs["monthly_budget_usd"] == Decimal("100")
+
+    @pytest.mark.anyio
+    async def test_a_personal_org_starts_with_the_default_monthly_budget(self, service, mock_db):
+        with (
+            patch(
+                "app.services.organization.organization_repo.generate_unique_slug",
+                new=AsyncMock(return_value="alice"),
+            ),
+            patch(
+                "app.services.organization.organization_repo.create",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ) as create,
+            patch("app.services.organization.member_repo.create", new=AsyncMock()),
+            patch("app.services.organization.skill_library.library", return_value=()),
+        ):
+            await service.create_personal_org(uuid.uuid4(), "alice@example.com")
+
+        assert create.await_args.kwargs["monthly_budget_usd"] == Decimal("100")
+
+    @pytest.mark.anyio
+    async def test_the_default_budget_can_be_disabled(self, service, mock_db, monkeypatch):
+        """`None` restores the older opt-in posture: a new org starts uncapped."""
+        monkeypatch.setattr(
+            "app.services.organization.settings.DEFAULT_ORG_MONTHLY_BUDGET_USD", None
+        )
+        with (
+            patch(
+                "app.services.organization.organization_repo.generate_unique_slug",
+                new=AsyncMock(return_value="acme"),
+            ),
+            patch(
+                "app.services.organization.organization_repo.create",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ) as create,
+            patch("app.services.organization.member_repo.create", new=AsyncMock()),
+            patch("app.services.organization.skill_library.library", return_value=()),
+        ):
+            await service.create(OrganizationCreate(name="Acme"), owner_id=uuid.uuid4())
+
+        assert create.await_args.kwargs["monthly_budget_usd"] is None
+
+    @pytest.mark.anyio
+    async def test_a_new_organization_starts_with_the_bundled_skills(self, service, mock_db):
+        """Seeded at creation, not installed by hand (#281).
+
+        A spec binds a skill by row id, so a bundled skill has to be a row
+        before the Builder can offer it - and the row is written as the owner,
+        with organization visibility, exactly as `seed-skills` writes it.
+        """
+        mock_org = MagicMock()
+        mock_org.id = uuid.uuid4()
+        owner_id = uuid.uuid4()
+        bundled = MagicMock()
+        bundled.key = "code-review"
+
+        with (
+            patch(
+                "app.services.organization.organization_repo.generate_unique_slug",
+                new=AsyncMock(return_value="my-org"),
+            ),
+            patch(
+                "app.services.organization.organization_repo.create",
+                new=AsyncMock(return_value=mock_org),
+            ),
+            patch("app.services.organization.member_repo.create", new=AsyncMock()),
+            patch("app.services.organization.skill_library.library", return_value=(bundled,)),
+            patch("app.services.organization.SkillService") as skill_service,
+        ):
+            install = skill_service.return_value.install_from_library = AsyncMock()
+            await service.create(OrganizationCreate(name="My Org"), owner_id=owner_id)
+
+        install.assert_awaited_once()
+        ctx, key = install.await_args.args
+        assert key == "code-review"
+        assert ctx.organization_id == mock_org.id
+        assert ctx.user_id == owner_id
+
+    @pytest.mark.anyio
+    async def test_a_bundled_name_collision_skips_the_twin_rather_than_refusing_the_org(
+        self, service, mock_db
+    ):
+        """Nothing validates the shipped library's own name uniqueness, and a
+        packaging mistake there must not refuse every registration."""
+        mock_org = MagicMock()
+        mock_org.id = uuid.uuid4()
+        first, twin = MagicMock(), MagicMock()
+        first.key, twin.key = "refund-policy", "refund-policy-copy"
+
+        with (
+            patch(
+                "app.services.organization.organization_repo.generate_unique_slug",
+                new=AsyncMock(return_value="my-org"),
+            ),
+            patch(
+                "app.services.organization.organization_repo.create",
+                new=AsyncMock(return_value=mock_org),
+            ),
+            patch("app.services.organization.member_repo.create", new=AsyncMock()),
+            patch("app.services.organization.skill_library.library", return_value=(first, twin)),
+            patch("app.services.organization.SkillService") as skill_service,
+        ):
+            install = skill_service.return_value.install_from_library = AsyncMock(
+                side_effect=[MagicMock(), AlreadyExistsError(message="taken")]
+            )
+            result = await service.create(OrganizationCreate(name="My Org"), owner_id=uuid.uuid4())
+
+        assert result == mock_org
+        assert install.await_count == 2
+
+    @pytest.mark.anyio
+    async def test_a_personal_organization_is_seeded_the_same_way(self, service, mock_db):
+        mock_org = MagicMock()
+        mock_org.id = uuid.uuid4()
+        bundled = MagicMock()
+        bundled.key = "refund-policy"
+
+        with (
+            patch(
+                "app.services.organization.organization_repo.generate_unique_slug",
+                new=AsyncMock(return_value="alice"),
+            ),
+            patch(
+                "app.services.organization.organization_repo.create",
+                new=AsyncMock(return_value=mock_org),
+            ),
+            patch("app.services.organization.member_repo.create", new=AsyncMock()),
+            patch("app.services.organization.skill_library.library", return_value=(bundled,)),
+            patch("app.services.organization.SkillService") as skill_service,
+        ):
+            install = skill_service.return_value.install_from_library = AsyncMock()
+            await service.create_personal_org(uuid.uuid4(), "alice@example.com")
+
+        install.assert_awaited_once()
+        assert install.await_args.args[1] == "refund-policy"
 
     @pytest.mark.anyio
     async def test_delete_blocks_personal_org(self, service, mock_db):
@@ -305,6 +460,67 @@ class TestOrganizationService:
             )
 
         assert write.await_args.kwargs["limit_usd"] == limit
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("slot", [5, None])
+    async def test_naming_the_colour_writes_exactly_what_was_named(self, service, mock_db, slot):
+        """Including an explicit `null`, which is how the colour resets to auto."""
+        membership = MagicMock(role="owner")
+        org = MagicMock()
+
+        with (
+            patch.object(service, "get_for_user", new=AsyncMock(return_value=(org, membership))),
+            patch(
+                "app.services.organization.organization_repo.set_avatar_color",
+                new=AsyncMock(return_value=org),
+            ) as write,
+            patch("app.services.organization.organization_repo.update", new=AsyncMock()),
+        ):
+            await service.update(
+                uuid.uuid4(),
+                OrganizationUpdate.model_validate({"avatar_color": slot}),
+                requester_id=uuid.uuid4(),
+            )
+
+        assert write.await_args.kwargs["color"] == slot
+
+    @pytest.mark.anyio
+    async def test_an_update_that_does_not_name_the_colour_leaves_it_alone(self, service, mock_db):
+        """A rename must not reset the colour to auto, so the write only fires when
+        the client named the field - `null` is a value here, not an absence."""
+        membership = MagicMock(role="owner")
+
+        with (
+            patch.object(
+                service, "get_for_user", new=AsyncMock(return_value=(MagicMock(), membership))
+            ),
+            patch(
+                "app.services.organization.organization_repo.set_avatar_color", new=AsyncMock()
+            ) as write,
+            patch("app.services.organization.organization_repo.update", new=AsyncMock()),
+        ):
+            await service.update(
+                uuid.uuid4(), OrganizationUpdate(name="Renamed"), requester_id=uuid.uuid4()
+            )
+
+        write.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_choosing_a_colour_is_metadata_and_needs_org_settings(self, service, mock_db):
+        """A colour is org metadata, so a plain member cannot set it."""
+        membership = MagicMock(role="member")
+
+        with (
+            patch.object(
+                service, "get_for_user", new=AsyncMock(return_value=(MagicMock(), membership))
+            ),
+            pytest.raises(AuthorizationError),
+        ):
+            await service.update(
+                uuid.uuid4(),
+                OrganizationUpdate.model_validate({"avatar_color": 5}),
+                requester_id=uuid.uuid4(),
+            )
 
     @pytest.mark.anyio
     async def test_a_cap_of_zero_is_refused_before_it_reaches_the_database(self):

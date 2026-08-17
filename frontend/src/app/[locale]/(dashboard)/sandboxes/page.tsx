@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import type { ReactNode } from "react";
 import { Boxes, Plus } from "lucide-react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -11,43 +10,27 @@ import { PolicyPanel } from "@/components/sandboxes/policy-panel";
 import { SessionsPanel } from "@/components/sandboxes/sessions-panel";
 import {
   Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+  ListCard,
+  ListCardEmpty,
   Skeleton,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
 } from "@/components/ui";
-import { usePermissions, useSandboxConnections } from "@/hooks";
+import { ErrorState } from "@/components/states";
+import { usePermissions, useSandboxConnections, useUrlState } from "@/hooks";
 import { Perm } from "@/types/permissions";
+import { holdsSessions, watchableConnections } from "@/lib/dashboard/sandbox";
 import type { SandboxConnectionRecord } from "@/lib/sandbox-connections-api";
 import { useTranslations } from "next-intl";
 
 /**
- * One sentence, in one place, so the skeleton and the loaded page cannot
- * disagree - a header whose text changes when the data lands is a flicker.
- */
-const SANDBOXES_DESCRIPTION = "pageDescription";
-
-function ConnectionsCard({ count, children }: { count: number | null; children: ReactNode }) {
-  const t = useTranslations("pages.sandboxes");
-  return (
-    <Card>
-      <CardHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-4">
-        <div className="space-y-1">
-          <CardTitle className="text-sm">{t("sandboxConnections")}</CardTitle>
-          <CardDescription className="text-xs">
-            {count === null ? <Skeleton className="h-3 w-24" /> : t("registeredCount", { count })}
-          </CardDescription>
-        </div>
-      </CardHeader>
-      <CardContent className="p-0">{children}</CardContent>
-    </Card>
-  );
-}
-
-/**
- * The operator screen for sandbox connections.
+ * The operator screen for sandboxes, in two tabs on two clocks: connections
+ * are configuration and change when somebody registers a host; what is running
+ * is live and refetches every ten seconds. Stacked, the live half sat below a
+ * table of unknown height (#140) — split, the sessions query only exists while
+ * its tab is on screen, so a page nobody is looking at polls nothing.
  *
  * Gated on `connections:manage`, the same permission the vault carries and for
  * the same reason: whoever edits these decides which host an agent's shell runs
@@ -62,32 +45,18 @@ export default function SandboxesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<SandboxConnectionRecord | null>(null);
   const [inspecting, setInspecting] = useState<SandboxConnectionRecord | null>(null);
-  // The default container connection, which is where an agent that names none
-  // runs. Daytona holds no sessions of ours to enumerate.
-  const watching =
-    connections.find(
-      (connection) => connection.is_default && connection.is_active && connection.kind === "docker",
-    ) ?? null;
+  // In the URL so a pasted link lands on the tab it was sent from. The default
+  // keeps the parameter off, so `/sandboxes` stays the connections screen.
+  const [tabParam, setTabParam] = useUrlState("tab");
+  const tab = tabParam === "running" ? "running" : "connections";
 
-  if (isLoading)
-    return (
-      <div className="space-y-6">
-        <PageHeader title={t("sandboxes")} description={t(SANDBOXES_DESCRIPTION)} />
-        <ConnectionsCard count={null}>
-          <div className="space-y-3 p-5">
-            {[0, 1].map((row) => (
-              <Skeleton key={row} className="h-10 w-full" />
-            ))}
-          </div>
-        </ConnectionsCard>
-      </div>
-    );
+  const watchable = watchableConnections(connections).filter(holdsSessions);
 
   return (
     <div className="space-y-6">
       <PageHeader
         title={t("sandboxes2")}
-        description={t(SANDBOXES_DESCRIPTION)}
+        description={t("pageDescription")}
         actions={
           canManage ? (
             <Button
@@ -103,26 +72,46 @@ export default function SandboxesPage() {
         }
       />
 
-      {/* An empty table and a failed request are the same pixels, so the reason
-          is said out loud rather than left to look like "none registered". */}
-      {error !== null && <p className="text-destructive text-sm">{error}</p>}
+      <Tabs
+        value={tab}
+        onValueChange={(value) => setTabParam(value === "connections" ? null : value)}
+      >
+        <TabsList>
+          <TabsTrigger value="connections">{t("tabConnections")}</TabsTrigger>
+          <TabsTrigger value="running">{t("tabRunning")}</TabsTrigger>
+        </TabsList>
 
-      <div data-tour="sandboxes-connections">
-        <ConnectionsCard count={connections.length}>
-          {connections.length === 0 ? (
-            <div className="px-6 py-16 text-center">
-              <div className="bg-muted text-muted-foreground mx-auto flex h-11 w-11 items-center justify-center rounded-xl">
-                <Boxes className="h-5 w-5" />
+        <TabsContent value="connections">
+          <ListCard
+            data-tour="sandboxes-connections"
+            title={t("sandboxConnections")}
+            // With the list refused or still loading, "0 connections" would
+            // state as fact something no answer has said - the skeleton stays.
+            counted={
+              isLoading || error !== null
+                ? null
+                : t("registeredCount", { count: connections.length })
+            }
+            contentClassName="p-0"
+          >
+            {isLoading ? (
+              <div className="space-y-3 p-5">
+                {[0, 1].map((row) => (
+                  <Skeleton key={row} className="h-10 w-full" />
+                ))}
               </div>
-              <p className="text-foreground mt-4 text-sm font-medium">
-                {t("noSandboxConnectionsYet")}
-              </p>
-              <p className="text-muted-foreground mx-auto mt-1 max-w-md text-sm">
-                {t("agentsCanStillKeep")}
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto px-5 pb-2">
+            ) : error !== null ? (
+              // An empty table and a failed request are the same pixels, so the
+              // refusal is shown where the rows would be rather than dressed as
+              // "none registered".
+              <ErrorState description={error} className="m-5" />
+            ) : connections.length === 0 ? (
+              <ListCardEmpty
+                icon={Boxes}
+                title={t("noSandboxConnectionsYet")}
+                description={t("agentsCanStillKeep")}
+              />
+            ) : (
               <ConnectionsTable
                 connections={connections}
                 onEdit={(connection) => {
@@ -132,10 +121,26 @@ export default function SandboxesPage() {
                 onInspect={setInspecting}
                 onDelete={(connection) => void remove(connection.id)}
               />
+            )}
+          </ListCard>
+        </TabsContent>
+
+        <TabsContent value="running">
+          {isLoading ? (
+            <div className="space-y-3 p-5">
+              {[0, 1].map((row) => (
+                <Skeleton key={row} className="h-10 w-full" />
+              ))}
             </div>
+          ) : error !== null ? (
+            // With the list refused, "no container connection registered" would
+            // state as fact something the request never answered.
+            <ErrorState description={error} className="m-5" />
+          ) : (
+            <SessionsPanel connections={watchable} />
           )}
-        </ConnectionsCard>
-      </div>
+        </TabsContent>
+      </Tabs>
 
       {/* Mounted only while it is open, and keyed on the row it is editing. The
           form reads its initial values once; without this, clicking Edit on a
@@ -152,12 +157,6 @@ export default function SandboxesPage() {
           }}
         />
       )}
-
-      {/* Below the list, for the connection an agent gets by default. What is
-          running is the question an operator asks second - after "is this host
-          registered at all" - and it is live, so it belongs on the page rather
-          than behind a click. */}
-      <SessionsPanel connection={watching} />
 
       <PolicyPanel
         connection={inspecting}

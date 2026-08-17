@@ -51,6 +51,16 @@ export interface ChatMessage {
    *  run has none, and a live turn only learns its run id if something on the
    *  wire says so. Absent never groups. */
   runId?: string;
+  /**
+   * Whether the run that produced this turn was stopped part-way through.
+   *
+   * A cancelled run leaves whatever the agent had written when the socket closed
+   * or `stop` was pressed, and that reads exactly like a finished answer — so a
+   * reader takes a truncated one as everything the agent had to say. Only
+   * `cancelled` sets this: a completed run needs no marker, and a run still going
+   * has no answer on screen to mark.
+   */
+  wasStopped?: boolean;
   /** True if message ID is a temporary nanoid, not yet replaced by server ID */
   isTemporaryId?: boolean;
   /** Current user's rating */
@@ -165,6 +175,9 @@ export type WSEventType =
   | "error"
   | "tool_approval_required"
   | "ask_user"
+  | "compaction_started"
+  | "compaction_finished"
+  | "compaction_impossible"
   // Sent on every turn and deliberately unread, because each only announces a step
   // the frame after it already carries: `model_request_start` opens the assistant
   // message, so `user_prompt`, `user_prompt_processed` and `part_start` have nothing
@@ -201,6 +214,15 @@ export interface TurnUsage {
   input_tokens: number;
   output_tokens: number;
   cost_usd: number;
+  /**
+   * Whether `cost_usd` is a floor rather than the whole of it.
+   *
+   * True when the turn reached a model with no price entry: the ledger books
+   * that request at zero, so the figure is short by however much it cost. Drawn
+   * as a caveat rather than dropped - a number nobody can act on is still worth
+   * more than nothing, provided it does not claim to be exact.
+   */
+  cost_is_partial: boolean;
   budget_percent: number | null;
   /** This agent's own monthly cap, which is the one an author can raise. */
   agent_budget_percent: number | null;
@@ -211,6 +233,23 @@ export interface TurnUsage {
     bytes_limit: number | null;
     memory_bytes: number | null;
     memory_limit_bytes: number | null;
+  } | null;
+  /**
+   * How full the model's context window was on this turn's last request.
+   *
+   * The ceiling nobody sees coming: a budget refuses with a message and a
+   * workspace refuses a write, but a context window is refused by the provider
+   * mid-answer. `null` when no model request was made.
+   */
+  context: {
+    /**
+     * Tokens the history sent with this turn occupied, after any compaction.
+     *
+     * The count only. What share of a window that is depends on the model
+     * answering *next*, which the chat lets somebody switch between turns, so
+     * the denominator is resolved where the selection is known.
+     */
+    used_tokens: number;
   } | null;
 }
 
@@ -424,6 +463,39 @@ export interface SubagentCompleteFrame extends SubagentFrameBase {
   input_tokens: number | null;
   output_tokens: number | null;
   error: string | null;
+}
+
+/**
+ * A summary of the run's own history, while it is being written.
+ *
+ * Compaction happens between two of a turn's model requests, where nothing else
+ * streams — and summarising is a whole request over a history that is by
+ * definition long. Without a frame for it the chat simply stops for the length of
+ * it, which is what makes somebody reload the page and lose the turn.
+ *
+ * Only the summarising strategy sends these. The ones that edit a list and return
+ * would be a spinner that appeared and vanished within a frame.
+ */
+export interface Compaction {
+  kind: "compaction_started" | "compaction_finished" | "compaction_impossible";
+  /** How many messages the history held when it started. */
+  messages_before: number | null;
+  /** How many it holds now. Null while it is running, and null if it failed. */
+  messages_after: number | null;
+  /** On `compaction_impossible`: what every request carries before any message. */
+  overhead_tokens?: number | null;
+  /** On `compaction_impossible`: the window the trigger was measured against. */
+  window_tokens?: number | null;
+}
+
+/** What a whole conversation has cost, as `GET /conversations/{id}/messages` totals it. */
+export interface ConversationCost {
+  input_tokens: number;
+  output_tokens: number;
+  /** A string on the wire, because money is `Numeric`. */
+  cost_usd: string | number;
+  /** Null where no turn recorded the flag - "nobody knows", not "exact". */
+  cost_is_partial: boolean | null;
 }
 
 export type SubagentFrame =

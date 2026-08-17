@@ -24,20 +24,34 @@ tools listed.
 |---|---|---|---|---|---|
 | `knowledge` | Knowledge search | knowledge | `search_documents` | `knowledge:read` | — |
 | `skills` | Skills | knowledge | `list_skills`, `load_skill`, `read_skill_resource` | `knowledge:read` | — |
+| `context` | Context | knowledge | `list_context`, `read_context` | — | — |
 | `web_research` | Web search | research | `web_search` | `web:read` | for paid services |
+| `browser_use` | Browser automation | research | `browse_web` | `web:browse` | via the `browser-use` extra |
 | `code_execution` | Run Python | analysis | `run_python` | `code:execute` | — |
 | `sandbox` | Files & shell | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona |
 | `charts` | Charts | analysis | `create_chart` | — | — |
+| `image_generation` | Image generation | analysis | `generate_image` | — | required |
 | `subagents` | Delegation | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
+| `planning` | Planning | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
 | `thinking` | Thinking | reasoning | none, by design | — | — |
+| `system_reminders` | System reminders | reasoning | none, by design | — | — |
+| `tool_search` | Tool search | utility | none, by design | — | — |
 | `clock` | Date and time | utility | none, by design | — | — |
+| `guardrails` | Guardrails | utility | none, by design | — | — |
+| `compaction` | Context management | utility | none, by design | — | — |
+| `tool_output_limits` | Tool output limits | utility | `read_tool_result` | — | — |
 | `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 
-Two of those have no tools on purpose. `thinking` changes how the model runs
-rather than what it can reach, and `clock` puts the date in the instructions —
-neither leaves anything for a person to approve, so neither declares a tool. A
-capability with genuinely no tools says so with `tools=()` rather than omitting
-the argument; see [Add a capability](../howto/add-capability.md).
+Six of those have no tools on purpose. `thinking` changes how the model runs
+rather than what it can reach, `clock` puts the date in the instructions,
+`tool_search` contributes its search function only once it wraps a toolset that
+has deferred tools — in isolation it declares nothing — `guardrails` inspects and
+rewrites the text flowing through a run, `compaction` rewrites the history a
+request carries, and `system_reminders` appends steering text to the request tail.
+None of the six leaves anything for a person to approve, so none
+declares a tool. A capability with genuinely no
+tools says so with `tools=()` rather than omitting the argument; see
+[Add a capability](../howto/add-capability.md).
 
 **This column is what a capability declares, which is not always what a model is
 offered.** Delegation is the one place the two differ: `create_agent` and `delegate`
@@ -82,6 +96,34 @@ somebody else's to change. A drift test compares what the registry declares
 against the tools the model is actually offered, which is what reports the day
 that happens.
 
+## Context
+
+`list_context`, `read_context`
+
+An organization's standing context put into the run instead of made to be asked
+for — a glossary, a brand voice, an escalation matrix. Each bound file carries a
+`mode`: an `inject` file is spliced into the instructions verbatim, so the model
+simply knows it; a `link` file is left out of the prompt and reached through
+`read_context`, so a large or rarely-needed file costs nothing until the model
+decides it is relevant. `list_context` reports what is available without the
+bodies. The two tools appear only when a `link`-mode file is bound; an
+agent whose files are all `inject` contributes instructions and no tools.
+
+Injected content is framed as reference material — delimited and prefaced with a
+line telling the model to treat it as information, not as instructions — because
+a file's body is written by a person and reaches the model verbatim. The fence is
+best-effort against *accidental* breakout: a body that itself contains a closing
+`</context-file>` or `</context-files>` tag, or a name or format holding a `"`,
+is neutralised so it cannot spill text back into the trusted instructions. It is
+not a security boundary — a `context:edit` holder can still inject deliberately.
+Content is text: a document to be searched belongs in a knowledge collection, not
+here.
+
+Bound with nothing usable — no files, or only `link` files with the read tool
+turned off — this capability contributes **nothing** and is not attached, the
+same way `knowledge` bound to no collections is not. Files are managed under
+`/api/v1/context` and bound to an agent by id (`AgentSpec.context_ids`).
+
 ## Web search
 
 `web_search` — *Search the public web for current information.*
@@ -103,6 +145,52 @@ The three paid methods need an API key from the organization's
 conditional rather than flat: a flat one would either lock the free default behind
 an account, or let a Tavily agent publish with nothing to authenticate with and
 fail on its first search.
+
+## Browser automation
+
+`browse_web` — *Delegate an open-ended web task to an autonomous browser agent.*
+
+One goal in natural language, handed to a
+[browser-use](https://github.com/browser-use/browser-use) agent that drives a real
+Chromium — navigating, reading, clicking, extracting — and returns a text result.
+Reach for it when the page layout is unknown or the task needs judgement, not for a
+scripted flow a direct request would do.
+
+This is the largest attack surface a capability opens: a browser follows what a page
+tells it, the page is untrusted, and so `browse_web` turns web content into a tool
+with side effects. It is **`side_effecting` and gateable** for that reason — put it
+behind [approval](../governance.md) and the injected page reaches a person, not an
+action.
+
+| Config | Default | Values |
+|---|---|---|
+| `mode` | `playwright` | `playwright`, `remote` |
+| `cdp_url` | null | a Chromium DevTools endpoint; required by (and only valid in) `remote` |
+| `allowed_domains` | null | domains the agent may reach; globs like `*.example.com` allowed; null is unrestricted |
+| `max_steps` | 25 | 1–100; each step is one model request |
+| `use_vision` | `true` | send page screenshots to the browser agent's model |
+| `headless` | `true` | run a locally launched browser without a window (`playwright` only) |
+
+**`mode` chooses where the browser runs.** `playwright` launches a headless Chromium
+next to the agent; `remote` attaches over CDP to a browser an operator runs
+elsewhere. A self-hosted deployment points `remote` at a hardened, isolated browser
+service rather than giving the app container a browser process. A `remote` `cdp_url`
+is a URL this deployment connects to server-side, so it is SSRF-checked — a loopback,
+private, reserved or metadata address is refused **at publish**, when the spec is
+saved, rather than on every run (the check resolves DNS, which must not block the
+event loop the run assembles on).
+
+**The browser agent's model spend is metered.** The sub-agent runs on the host run's
+model — the one whose credential was resolved from the vault — and each of its steps
+is one model request, booked against the run's budget through the same ambient-usage
+ledger a compaction summary uses. It is not browser-use's own hosted model, and it is
+not spend the budget guard cannot see.
+
+**`browser-use` is an optional extra.** It pulls a heavy tree (Chromium via
+Playwright) and pins dependencies a minor lower than the rest of the platform, so it
+is not installed by default. An operator who wants the capability installs
+`agenticos[browser-use]` and provides a Chromium; a bound agent whose deployment
+lacks it fails the one tool loudly, with the install line.
 
 ## Run Python
 
@@ -266,6 +354,48 @@ series, or a series holding fewer numbers than the axis has points all come back
 as a retry naming what is missing. A frame drawn around no data reads as "there
 is no trend" rather than as a mistake, and it is persisted and re-rendered on
 every replay of the conversation.
+
+## Image generation
+
+`generate_image` — *Generate an image from a written description.*
+
+Draws an image with a dedicated image model — separate from the agent's own — so
+it works whatever model the agent runs on. `create_chart` plots numbers; this
+draws pictures.
+
+| Config | Default | Values |
+|---|---|---|
+| `model` | `openai-responses:gpt-5.4` | `openai-responses:gpt-5.4`, `google:gemini-3-pro-image` |
+| `quality` | provider default | `low`, `medium`, `high`, `auto` |
+| `size` | provider default | `auto`, `1024x1024`, `1024x1536`, `1536x1024`, `512`, `1K`, `2K`, `4K` |
+| `background` | provider default | `transparent`, `opaque`, `auto` |
+| `output_format` | provider default | `png`, `webp`, `jpeg` |
+| `aspect_ratio` | provider default | `16:9`, `1:1`, `9:16`, … |
+
+`model` also decides which provider the API key belongs to. The key is required —
+publishing an agent that binds this without one is refused — and comes from the
+organization's [secrets](../secrets.md), named by the binding's `secret_id`. Every
+other setting is optional; unset, the provider applies its own default, so turning
+the capability on is enough to generate.
+
+**It is side-effecting.** Drawing an image spends real money on a provider key and
+produces content a person may publish, so every call is a candidate for the
+[approval gate](../governance.md) and can be gated per binding.
+
+**Its spend is metered.** The image model is run as a subagent whose usage is
+booked to the run's ledger, so image cost counts against a budget the same as a
+model request. Image models are often unpriced by the pricing snapshot, in which
+case the run records the call at zero and flags its total as partial (`cost_is_partial`)
+rather than hiding the spend.
+
+**Where the image goes.** Every generated image is stored **per organization** and
+served back by [`GET /api/v1/generated/{filename}`](../architecture.md), scoped to
+the caller's own organization — a wider boundary than a chat upload, which is owned
+by one user, because there is no record of who produced an image. When the agent
+also has a workspace (the `sandbox` capability), the same image is written into it
+under `/output`, so a later `execute` step can build with it — assemble a PDF, a
+slide, a page. An agent without a workspace still generates and shows images; it
+simply has nowhere to build with them.
 
 ## Delegation
 
@@ -499,6 +629,49 @@ For what a delegation costs and which run row records it, see
 [Governance](../governance.md#delegation-spends-the-parents-budget). For who may
 delegate to what, see [Permissions](../permissions.md#delegation-is-not-a-privilege-boundary).
 
+## Planning
+
+`write_plan` — *lay out or replace the whole checklist.*
+`read_plan` — *see the steps and their ids before a granular edit.*
+`add_task`, `update_task_status`, `update_task_statuses`, `remove_task` — *change one
+step, or a batch, without replacing the plan.*
+`add_subtask`, `set_dependency`, `get_available_tasks` — *dependency-aware planning,
+offered only under `enable_subtasks`.*
+
+A checklist the model keeps for itself while it works: what is done, what is in
+progress, what is left. For multi-step work a model does better when it writes the
+steps down first and keeps them in front of itself, so the current plan is surfaced
+back every turn as a **cache-safe tail reminder** — appended after a cache breakpoint,
+so the stable prompt prefix stays byte-identical and only the mutable plan is re-read
+each turn. The plan never lands in the system prompt.
+
+It overlaps with [Delegation](#delegation) the way a plan overlaps with a team:
+planning decides *what* the steps are, delegation decides *who* does them. They are
+orthogonal — a plan is a toolset plus a reminder, delegation is a toolset plus a run
+wrapper — so an agent may bind both, one, or neither.
+
+| Config | Default | Values |
+|---|---|---|
+| `enable_subtasks` | `false` | adds the three subtask/dependency tools and the `blocked` status |
+| `cache_ttl` | `5m` | `5m`, `1h` — how long the prefix before the reminder may cache |
+
+**None of the nine tools acts on the world.** Each mutates a checklist the model
+keeps for itself, so there is nothing here for a person to approve and the capability
+declares `side_effecting=False`. The three subtask tools are declared even when a flat
+checklist does not offer them, because a tool absent from the declaration can be
+neither gated by the approval policy nor renamed by a binding.
+
+**The plan survives an approval park.** The checklist is state, and a run that parks
+on an approval mid-plan resumes as a fresh run — so the store is owned by the runner,
+not the capability: it is seeded from `paused_state` on resume and read back when the
+run stops. An agent that does not bind the capability pays nothing — no tools, no
+reminder, no stored plan.
+
+**It spends no tokens of its own.** The tools are local checklist edits with no model
+or embedding request behind them, so unlike knowledge or delegation there is no
+ambient usage to meter. The round trips the model makes to call them are its own, and
+the budget guard already counts those.
+
 ## Thinking
 
 No tools. Asks the model to reason before it answers: slower and dearer, better on
@@ -511,6 +684,54 @@ work that needs several steps held in mind at once.
 Unset means the provider's own default effort. A level a provider does not have
 maps to its closest one, so a spec stays portable across a model swap.
 
+## System reminders
+
+No tools. Re-states steering guidance mid-run so a long session stops drifting
+from its instructions — the failure this fixes is instruction fade, where after
+many tool-use turns a model progressively ignores the guidance it started with. It
+is a port of
+[`pydantic-ai-harness`](https://github.com/pydantic/pydantic-ai-harness)'s
+`SystemReminders`.
+
+There are three reminder kinds, each with its own cadence:
+
+| Kind | Cost | Text it injects |
+|---|---|---|
+| `reminders[]` | none | A fixed line you write |
+| `goal_reanchor` | none | The run's first user request, re-stated as the anchor |
+| `llm_reminder` | one model call per fire | A short nudge a model writes from the recent transcript |
+
+Each kind takes `interval` (fire every N model requests), `first_after` (the
+request number of the first fire) and `max_fires` (the cap over the conversation);
+`cache_ttl` on the capability sets the lifetime of the cache breakpoint. At least
+one kind must be set, or the capability contributes nothing and is dropped from the
+run — which is what an empty config means.
+
+**The cadence counts across the whole conversation, and it is durable.** A reminder
+fires on model-request number N, and that counter is stored on the conversation and
+seeded back at the next turn — so a reminder set to fire every ten requests keeps
+counting where the last turn left off rather than resetting to zero, and leaving and
+reloading a conversation resumes it (#787). Only the counters are stored; the
+reminder text is injected per request and never enters the transcript.
+
+**Injection is cache-safe.** A fired reminder is appended to the *tail* of the
+request as an ephemeral user prompt behind a cache breakpoint, after core has
+persisted the durable history — so it reaches the model but never enters
+`message_history`, no stale reminders pile up, and the cached prefix (tools, system,
+the real conversation) stays byte-identical turn over turn while only the small
+reminder falls outside the cache. Injecting into the system prompt instead would
+bust the cached prefix on every fire *and* accumulate stale reminders.
+
+**An LLM reminder is metered and inherits the run's model.** It writes its text
+through an agent it builds itself, which no budget guard wraps, so its spend is
+booked against the run's ledger the way a summary is, and it runs under the run's
+usage limits minus one reserved request so it can never push the run past its own
+step limit. It uses the run's own model — the one whose credential the vault
+resolved — rather than a name from config, the same decision
+[Context management](#context-management) makes about its summariser. On any error,
+or when the reserved budget is already spent, it falls back to the goal-reanchor
+line, so a failed generation never blocks the run.
+
 ## Date and time
 
 No tools. Puts the current date and time into the agent's instructions, so it
@@ -520,6 +741,235 @@ about "this quarter" from its training cutoff.
 | Config | Default | |
 |---|---|---|
 | `timezone` | `UTC` | any IANA name, e.g. `Europe/Warsaw` |
+
+## Context management
+
+No tools. Trims a long run's message history before each request, so a run that
+would have hit the model's limit keeps working instead. The strategies come from
+[`pydantic-ai-harness`](https://github.com/pydantic/pydantic-ai-harness).
+
+| Config | Default | |
+|---|---|---|
+| `strategy` | `summarize` | `summarize`, `tiered`, `clear_tool_results`, `sliding_window` |
+| `max_fraction` | `0.9` | 0.05–0.95 of the window, at which compaction starts |
+| `keep_messages` | 20 | recent messages that survive a summary or a window |
+| `keep_tool_pairs` | 3 | recent tool calls that keep their results |
+| `summary_prompt` | the library's own | what the summarising model is told; must contain `{messages}` |
+| `context_window` | unset | override the window — what this triggers against *and* what the chat's gauge divides by |
+| `fallback_context_window` | 200000 | window to assume when the model's cannot be resolved |
+
+`summarize` is the default because it is the only strategy that keeps what the
+older turns *said*. The zero-LLM ones are cheaper because they throw information
+away — a sliding window drops the oldest messages outright, clearing a tool result
+blanks an answer the agent may still need — and an agent that silently forgets
+what it was told mid-run is a worse failure than a summary nobody asked for. It
+fires at 0.9 of the window for the same reason: compaction is where a run starts
+losing detail, so it is deferred until the window is nearly full.
+
+`tiered` is the frugal choice and one binding away: it clears old tool results
+first and pays for a summary only if that was not enough. Summarising turns input
+tokens into output tokens, which are billed at a premium and generated serially,
+so an agent whose runs are dominated by large tool results is usually better on
+`tiered`.
+
+**It reaches one run, not one conversation.** Between turns the history is rebuilt
+from the transcript as user and assistant text, so tool calls and their results
+are not there to compact and no edit made here survives a turn boundary. The
+history worth compacting is the long tool loop inside a single run, where one
+directory listing or knowledge search is tens of thousands of tokens.
+
+**The trigger is a fraction because an absolute number is only right for one
+model**, and the same agent runs on whatever profile its spec points at. The
+window comes from the model profile, which recorded it from the provider's own
+listing when somebody added the model — see
+[Which models a provider offers](../models.md#the-window-a-model-accepts-is-read-once-and-kept).
+
+Where the profile recorded nothing, the window is resolved from the bundled price
+snapshot instead, and two cases resolve wrongly — both in the direction that
+breaks a run rather than the one that wastes a summary: a spec with fallbacks
+builds a `FallbackModel` whose composite id resolves to nothing, and
+`genai-prices` records 1,000,000 for `anthropic:claude-sonnet-4-5` against a real
+200,000, where `max_fraction=0.9` puts the trigger at 900,000 and compaction never
+fires. `context_window` overrides everything and is the answer to both — a
+provider publishes the maximum a model *can* be made to accept, and a beta- or
+tier-gated deployment gets less.
+
+**The trigger allows for what every request carries.** It measures the message
+parts; a request also carries the instructions and every tool schema. On a real
+agent the estimator saw 60 tokens where the provider charged for 3,865 — so the
+overhead is measured against each response and the trigger's window is moved down
+by it, which is what keeps the gauge and the trigger describing one ceiling rather
+than two.
+
+It waits for a response to measure from, so the first request of a run triggers on
+the messages alone. And it gives up when the overhead alone is past the trigger:
+no summary can get under it, the schemas are not in the history, and a corrected
+window would buy a summary on every request for ever.
+
+**When it gives up, it says so.** A `context_window` smaller than the agent's own
+overhead is that case, and doing nothing about it is indistinguishable on screen
+from a setting that is working — so the chat shows what the overhead is and what
+window it was measured against, which is the pair somebody needs to pick a number
+that works. Once per run, because it describes a configuration rather than an
+event, and it is displaced the moment a summary actually runs.
+
+**A summary says it is happening.** It is a whole model request between two of the
+turn's own, where nothing else streams — the chat used to stop dead for the length
+of it, which reads as a broken screen and gets the page reloaded, cancelling the
+turn. The chat now shows what is being summarised while it happens. Only the
+summarising strategy: the others edit a list and return.
+
+**A summary is metered.** The strategy writes it through an agent it builds
+itself, which no budget guard wraps, so the capability measures the run's usage
+across the hook and books the difference against the run's ledger. It is recorded
+rather than prevented: the guard refuses on the *next* request, so a compaction
+that crosses a cap stops the run after it, not during it.
+
+**The gauge beside it is not part of this binding.** How full the window was is
+reported by every agent, whether or not it compacts — see
+[how full the context window is](../governance.md#how-full-the-context-window-is).
+The warning matters most to the agent that will *not* compact, which is the one
+that reaches the ceiling and gets refused.
+
+## Tool output limits
+
+One tool, `read_tool_result`. Where `compaction` trims history *inside* the window
+between requests, this stops an oversized tool return from getting there in the
+first place. A `ToolReturnPart` persists, so a grep over a large repository or a
+verbose API response is re-sent in full on every later request of the run —
+`code_execution` already clips at 8,000 characters for exactly this reason, which
+is the right default and the wrong ceiling: the part that mattered is gone from the
+model's view with nothing to act on. This reduces a return once, when it is
+produced, and lets the reduced form persist. The reduction itself is
+[`pydantic-ai-harness`](https://github.com/pydantic/pydantic-ai-harness)'s
+`ToolOutputLimits`.
+
+| Config | Default | |
+|---|---|---|
+| `action` | `spill` | `spill`, `truncate`, `summarize` |
+| `threshold` | 10000 | size at or above which a return is reduced |
+| `over_tokens` | `false` | measure the threshold in estimated tokens, not characters |
+| `max_chars` | 4000 | characters kept when a return is truncated, or a spill falls back to one |
+| `truncation_strategy` | `head_tail` | `head`, `tail`, `head_tail` — which end(s) to keep |
+| `strip_ansi` | `false` | strip terminal colour codes before measuring and reducing |
+| `summary_prompt` | the library's own | what the summarising model is told; must contain `{tool_name}` and `{output}` |
+
+`spill` is the default and the only lossless one: the full return is written to the
+agent's backend and replaced with a handle, a preview and a shape sketch, and the
+model reads slices of it on demand through `read_tool_result(handle, offset, limit,
+from_end, pattern)` — the same page-through pattern `read_file` gives it over the
+workspace. `truncate` is the cheap, lossy clamp with a marker saying what was cut;
+`summarize` replaces the return with an LLM summary and is the expensive one.
+
+**A spill goes to the agent's own backend.** An agent that binds `sandbox` already
+has a filesystem — `state`, a Docker container, Daytona — that the runner opened for
+the run and keyed to the organization; the spill lives there, under a
+`tool_output/` prefix, so it shares that workspace's lifetime and the agent can even
+reach it through its own `read_file` and `grep`. On the default `run` session scope
+that lifetime *is* the run, which is what the "must not outlive the run" requirement
+asks for. A spill is a within-run artefact and never outlives the run on a
+longer-scoped workspace (`conversation`, `user`, `agent`) either: a `state`
+workspace has the reserved prefix stripped at flush, so accumulated spills can no
+longer push it toward its byte cap and refuse the agent's own writes, and a
+*container* workspace has the run's spills deleted off its filesystem when the
+workspace closes — by the exact handles the run recorded, never by sweeping the
+prefix, so two concurrent runs sharing a workspace cannot take each other's spills
+mid-flight ([#803](https://github.com/vstorm-co/agenticos/issues/803)). An agent with
+no backend gets an in-memory one built for the run and discarded with it, so the
+spill is never written to shared disk. A spill the backend refuses — a `state`
+workspace already at its byte cap — falls back to a truncation rather than a silent
+drop; so does a `summarize` whose model call fails (`summarize` → `spill` →
+`truncate`).
+
+**A summary is billed to the run.** Like `compaction`'s, the summarising call runs
+through an `Agent` the harness builds itself, outside the budget guard, so its
+tokens are booked against the run's ledger through the same ambient-usage path — see
+[how a run's cost is counted](../governance.md). `spill` and `truncate` call no model
+and cost nothing.
+
+The harness composes reductions from an ordered list of size *bands*; here an author
+picks one `action` at one `threshold`, because the Builder form cannot draw a nested
+list — the same reason `compaction` picks a strategy rather than composing tiers.
+
+## Tool search
+
+No tools of its own. Lets the agent *find* a tool from a large set instead of
+carrying every tool's schema in its context on every request. This matters most
+for [MCP](../mcp.md): an agent may bind an arbitrary number of servers, and every
+tool a server exposes is a schema the model pays for on each turn whether or not
+it ever calls it.
+
+| Config | Default | Values |
+|---|---|---|
+| `strategy` | `auto` | `auto`, `keywords`, `bm25`, `regex` |
+| `max_results` | 10 | 1–50, ignored by native search |
+
+- **`auto`** — native tool search where the provider offers it (Anthropic BM25 or
+  regex, OpenAI server-side), the local keyword algorithm everywhere else.
+- **`keywords`** — always match locally, on any provider.
+- **`bm25` / `regex`** — force an Anthropic-native algorithm; a run on a provider
+  with no native tool search errors rather than silently substituting another. The
+  model is resolved separately from the spec, so this is a run-time cost the author
+  accepts by naming one — `auto` never fails this way.
+
+**Enabling it is what defers the MCP toolsets.** The capability and the deferral
+are two halves of one decision: the library's `ToolSearch` is inert with nothing
+deferred, and a deferred tool with no search to find it is a tool the model can
+never call. So binding `tool_search` is what marks the connected servers'
+toolsets for deferred loading — the registry's own tools stay visible, being few
+and chosen per agent. An agent that does not bind it pays nothing and sees every
+tool as before.
+
+**Deferral changes what the model sees, never a tool's identity.** A discovered
+MCP tool arrives under its real prefixed name, so the [approval gate](#what-a-binding-may-change)
+still pairs on it and a binding's rename still reaches it; `ToolSearch` sits
+outermost, reading the names a rename already applied.
+
+**It needs no metering.** The two local strategies run in Python and spend no
+tokens; native search runs inside the provider's own request, whose usage the
+[budget guard](../governance.md) already meters; and the discovery round-trips are
+ordinary model requests the same guard wraps. The one shape that would escape it —
+a custom search callable that itself calls a model or an embedding — is
+deliberately not exposed.
+
+## Guardrails
+
+No tools. Inspects the text flowing through a run at three edges and either
+**redacts** a match or **blocks** the run. The checks are ready-made detectors from
+`pydantic-ai-harness`; an agent is data, so the config selects and parameterises
+them rather than carrying a Python guard.
+
+| Edge | Reads | Redact | Block |
+|---|---|---|---|
+| input | the user's prompt | `redact_secrets_in`, `redact_pii_in` | `blocked_keywords_in` |
+| output | the agent's answer | `redact_secrets_out`, `redact_pii_out` | `blocked_keywords_out` |
+| tool result | what a tool returned, before the model reads it | `redact_secrets_tool`, `redact_pii_tool` | `blocked_keywords_tool` |
+
+| Config | Default | |
+|---|---|---|
+| `redact_secrets_*` | `false` | scrub API keys, tokens, JWTs and PEM blocks |
+| `redact_pii_*` | `false` | scrub email, IBAN (mod-97), card (Luhn) and US SSN |
+| `blocked_keywords_*` | `""` | comma- or newline-separated terms; a match ends the run |
+
+Every field defaults off, and a capability enabled with no edge configured attaches
+nothing — an agent that does not use it pays nothing.
+
+**Redaction rewrites; a block is a run outcome.** A redactor scrubs the match and
+the run finishes — an answer that quoted a key back has still done the work. A
+keyword block instead ends the run with status `guardrail_blocked`, its own outcome
+beside `budget_exceeded`, because a refusal is the platform working and an operator
+filtering for problems should be able to find it rather than have it read like any
+completed answer. See [Governance](../governance.md).
+
+**Tool-result screening is the reason this edge matters most.** It is the only guard
+on untrusted content entering the loop — a fetched page, a file, an MCP server's
+response — where a prompt-injection payload would otherwise reach the model unread.
+
+Two things are deliberately out of scope. **Tool arguments** are a structured
+mapping with no text detector, so they are not an edge. And the harness's tool
+`approve` verdict is not ported: [approvals](../governance.md) already park a run per
+tool for a human decision, and a second, rule-driven path to the same mechanism is
+what a single door avoids.
 
 ## Chat channel lookup
 
@@ -601,11 +1051,12 @@ the agent is assembled:
 |---|---|
 | `knowledge:read` | `knowledge`, `skills` |
 | `web:read` | `web_research` |
+| `web:browse` | `browser_use` |
 | `code:execute` | `code_execution` |
 | `sandbox:execute` | `sandbox` |
 | `agents:delegate` | `subagents` |
 
-All five are granted by default today (`DEFAULT_GRANTED_SCOPES` in
+All six are granted by default today (`DEFAULT_GRANTED_SCOPES` in
 `app/services/agent_registry.py`). Per-organization scope management is
 [roadmap](../ROADMAP.md) work; the check is live and honest in the meantime rather
 than disabled and forgotten.

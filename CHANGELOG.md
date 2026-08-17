@@ -6,7 +6,7 @@ Notable changes to AgenticOS. The format follows
 
 Two things are versioned separately from this file and worth knowing about:
 
-- **`SPEC_VERSION`** — the agent spec format, currently **8**. A published agent
+- **`SPEC_VERSION`** — the agent spec format, currently **9**. A published agent
   and a client's exported YAML both carry it, so it only ever moves forward with a
   migration that keeps old documents loading. See
   [the spec reference](docs/reference/spec.md).
@@ -16,6 +16,712 @@ Two things are versioned separately from this file and worth knowing about:
   that still exists. Schema changes are listed here by what they do.
 
 ## [Unreleased]
+
+## [0.0.171] - 2026-08-16
+
+Tool search's scale guarantee is pinned by a fixture, not a claim.
+
+### Added
+
+- **A fixture pins `tool_search`'s schema surface at scale.** An
+  AgenticOS-native `FunctionModel` test at the `build_agent` seam compares an
+  unbound agent against a `tool_search` one over deterministic 12-, 100- and
+  1,000-tool catalogs, capturing the canonical bytes of the model-visible
+  function schemas: 3,480 B / 28,736 B / 287,036 B unbound versus a flat 786 B
+  with the binding — the deferred catalog never grows what the model sees. It
+  then drives the whole closure — `search_tools`, reveal, execution of the
+  revealed target — and proves the other deferred tools stay absent after the
+  call returns. (#794)
+
+The agent map draws the whole delegation tree, and says what it cannot.
+
+### Added
+
+- **The agent map renders the delegation tree recursively, from one endpoint.**
+  `GET /agents/{agent_id}/delegation-tree` walks the draft's pins with the same
+  resolution publish uses — one response instead of a page-walk per hop, with
+  per-walk caches so a diamond is one read. Depth is the runtime's own bound
+  (`min(inherited, own max_depth)`), so the tree shows exactly what a run can
+  reach and marks the rest `truncated` rather than drawing it reachable. What
+  the walk cannot resolve says so on the node: a delegate the caller may not
+  see answers `restricted` (indistinguishable from a pin at nothing, so a
+  shared map cannot probe private agents), a cycle is named and never
+  followed, a gone version answers `unpinned`, a stale pin carries its number,
+  and an **archived** delegate is named rather than drawn as a working hop —
+  the same refusal the runtime raises when a run reaches it. On the map, first-
+  level delegates keep their measured edges; each subtree hangs off its parent
+  with a drawn connector, focusable and keyed by path; a tree still loading or
+  failed says so in the notice instead of posing as a complete one-hop map.
+  (#276)
+
+The sandboxes page stops stacking two clocks down one scroll.
+
+### Changed
+
+- **`/sandboxes` is two tabs: connections, and what is running.** The
+  configuration table and the live **Running on {host}** panel were one scroll
+  on two clocks; now the active tab lives in the URL (`?tab=running`
+  deep-links, the default keeps the parameter off) and the live query only
+  exists while its tab is on screen — the ten-second poll stops on a page
+  nobody is looking at, pinned by a test that the sessions hook is never even
+  constructed. The running tab names its host and lets an operator switch
+  (closing the activity log on the switch, so one host is never asked for
+  another's session); a failed connections request renders the error, never a
+  false "no container connection registered"; the sessions table sorts,
+  filters and explains an empty match; and the activity log is a labelled
+  `DataTable` instead of a bare table in a grey box. (#140)
+
+"dev should serve v3" is answered on the environment's own row.
+
+### Added
+
+- **An environment row pins its own version.** Each environment in the History
+  tab carries a select of the agent's published versions, calling the same
+  `promote` mutation the Versions list's **Promote to…** menu already used —
+  two directions through one edit. The row also renames (the default
+  environment is refused one, its name being part of the publish contract; the
+  mutation sends the name and nothing else, so a relabel can never silently
+  repoint a pin — and an unchanged name sends nothing at all, so the audit log
+  records no rename nobody made). A pin at a version genuinely gone renders as
+  `v9 (removed)` — legible, since that stale pin is exactly why the agent is
+  not answering — while a version merely unlisted (the history still loading,
+  or a pin older than the fifty-publish page) renders plain, never with the
+  false verdict. (#134)
+
+A workspace file's header finally says when it changed, not only how big it is.
+
+### Added
+
+- **Workspace listings carry a file's modified time to the viewer.** The shared
+  file viewer's header could always render `modified …`, but only a knowledge
+  base document ever supplied a time — a workspace file stopped at the size.
+  Rides on pydantic-ai-backend 0.2.26's `FileInfo.modified_at` (ISO 8601,
+  optional): a stored workspace records one on every write inside its JSONB
+  document, a workspace archive reports `st_mtime`, and a live container's
+  shell listing honestly answers `null` — never a guess. `WorkspaceFileRead`
+  (and `FlatFileRead`) gain `modified_at`, the three listing routes pass it
+  through, and the chat panel, the workspace explorer, the flat browser and
+  the chat tool-result card all hand it to the viewer. (#500)
+
+A run's spills no longer pile up on a container workspace that outlives it.
+
+### Fixed
+
+- **A run's spills are pruned off a container workspace at close.** #804
+  stopped `tool_output/` spills outliving the run on a `state` backend, but a
+  longer-scoped container workspace (`conversation`/`user`/`agent`) still kept
+  every past run's blobs on its filesystem forever. The overflow store now
+  records each handle it writes to a per-run spill log — shared with delegates
+  that share the parent's sandbox — and `close` deletes exactly those paths
+  through the backend's own `execute`. Exact handles, not a prefix sweep, so
+  two concurrent runs on a shared workspace cannot take each other's spills
+  mid-flight; the `rmdir` of a still-shared spill directory fails silently,
+  which is the correct answer, while a refused `rm` keeps its status and is
+  logged (`workspace_spill_prune_failed`) rather than raised. Every path is
+  checked against the reserved-prefix invariant — `..` refused outright —
+  before it reaches the shell. (#803)
+
+A delegated run's failure is written in the platform's words, never the
+provider's.
+
+### Fixed
+
+- **A delegated run's stored error is composed, not copied.** A failed
+  delegation wrote `agent_runs.error` and its closing `SubagentFinished` frame
+  from the subagents library's own exception text — routinely a provider
+  client's message carrying the failing request URL, key still in its query
+  string on a custom `base_url`. The settlement now composes the same
+  controlled sentence the parent's row gets (`run_failure_summary`, moved to
+  `app/agents/failures.py` so the capability layer can reach it), and the
+  library's text goes to the server log with the original exception beside it.
+  Rides on subagents-pydantic-ai 0.2.19, whose `TaskHandle.exception` hands the
+  platform the exception instead of a string to parse. The two deliberate
+  exceptions keep their own words whole: pydantic-ai's `UsageLimitExceeded`
+  (the delegation's own ceiling doing its job) and `BudgetExceeded` raised
+  inside a delegate by the parent's shared ledger — a ceiling sentence with its
+  numbers is the one failure text the reader acts on. (#699)
+
+## [0.0.164] - 2026-08-16
+
+An agent stops forgetting its instructions mid-run, and remembers across turns.
+
+### Added
+
+- **The `system_reminders` capability.** Re-states steering guidance mid-run to
+  counter instruction fade — a model progressively ignoring the guidance it
+  started with after many tool-use turns. Three declarative reminder kinds, each
+  on its own cadence (`interval` / `first_after` / `max_fires`): fixed
+  `reminders[]` lines, `goal_reanchor` (the run's first user request, re-stated),
+  and `llm_reminder` (a model-written nudge from the recent transcript, metered
+  to the run's ledger, running on the run's own model under its limits minus one
+  reserved request, falling back to the goal-reanchor line on any error). The
+  cadence is durable per conversation — counters live in a new
+  `conversations.reminder_state` JSONB column, so leaving and reloading a
+  conversation resumes it; only the counters are stored, never the reminder
+  text. A fired reminder is injected as an ephemeral prompt part behind a
+  `CachePoint`, so it never enters `message_history` and the cached prefix stays
+  byte-identical turn over turn. (#787)
+
+## [0.0.163] - 2026-08-16
+
+An oversized tool return stops eating the run, and nothing spills onto shared disk.
+
+### Added
+
+- **The `tool_output_limits` capability.** A tool return too large for the
+  model's window is reduced once, when it is produced, instead of being re-sent
+  in full on every later request of the run. Three actions per binding: `spill`
+  (default, lossless — the full return goes to the agent's own sandbox backend
+  under a `tool_output/` prefix and is replaced with a handle + preview the model
+  pages through with `read_tool_result`), `truncate` (a cheap clamp with a marker
+  saying what was cut), and `summarize` (an LLM summary on the run's own model,
+  its spend booked to the run's ledger). Spills land on the tenant's own backend,
+  never shared disk — an agent with no backend gets an in-memory one discarded
+  with the run — and a spill the backend refuses degrades to a truncation, never
+  a silent drop. (#57)
+
+### Fixed
+
+- **Spills no longer outlive the run on a `state` backend.** A longer-scoped
+  `state` workspace was persisting `tool_output/` spills into its stored document
+  every run, counting them against `SANDBOX_STATE_MAX_BYTES` until the agent's
+  own writes were refused. The flush now strips the reserved prefix, so every run
+  self-heals what a prior one left. The container-backend half stays open as
+  #803. (#803)
+
+### Changed
+
+- **The ambient-usage delta is one helper, not two copies.** `compaction` and
+  `tool_output_limits` each carried an identical snapshot-and-diff for booking a
+  self-run `Agent`'s tokens; both now import `usage_counts`/`usage_delta` from
+  `budget`, so a pricing fix lands in one place.
+
+## [0.0.162] - 2026-08-16
+
+An agent can drive a real browser, with the same guards as everything else.
+
+### Added
+
+- **The `browser_use` capability.** One tool, `browse_web`, that hands a
+  self-contained natural-language goal to an autonomous
+  [browser-use](https://github.com/browser-use/browser-use) agent driving a real
+  Chromium — `mode='playwright'` launches a local headless browser,
+  `mode='remote'` attaches over CDP to an operator-supplied `cdp_url`. A remote
+  endpoint is SSRF-checked at publish time, off the event loop, for every binding
+  — the first production caller of `validate_webhook_url` (part of #33). The
+  browser sub-agent runs on the host run's model wrapped in a `MeteredModel`, so
+  its spend is booked against the run's ledger (#802), and the tool is
+  `side_effecting`, so every call can sit behind the approval gate. The engine is
+  an optional dependency the capability builds without: until browser-use loosens
+  its `pydantic` pin (#801), enabling and running it raises a `RuntimeError`
+  naming the fix rather than failing quietly. (#59)
+
+## [0.0.161] - 2026-08-16
+
+An agent can draw an image, with the spend on the ledger like everything else.
+
+### Added
+
+- **The `image_generation` capability.** One tool, `generate_image`, that renders
+  an image from a prompt with a dedicated image model (OpenAI Responses or
+  Google), whatever model the agent itself runs on. The provider key is a
+  `SecretRequirement`, so publishing without one is refused at the form; the tool
+  is `side_effecting`, so every call can sit behind the approval gate; and the
+  subagent's usage is booked to the run's ledger — an unpriced image model
+  records zero and flags the run's cost partial rather than hiding it. Images
+  land in organization-scoped storage (`generated/{org}`), served only under the
+  caller's own organization at `GET /api/v1/generated/{filename}`, rendered
+  inline in chat, and — when the run has a workspace open — also written under
+  `/output` so a later `execute` step can build with them. (#58)
+
+## [0.0.160] - 2026-08-16
+
+Every person, organization and agent gets a designed default avatar, and a colour
+to go with it.
+
+### Added
+
+- **Default avatars, and a colour you can pick.** A row with no uploaded picture
+  now falls back to its initials on a colour rather than a blank circle — one
+  shared `EntityAvatar` across every surface, keyed to the row's id so an entity
+  keeps its colour everywhere it appears. The colour is also choosable: a nullable
+  `avatar_color` slot (1..10, null = auto) on users, organizations and agents,
+  with a swatch picker on the profile, organization and agent-builder screens. The
+  image is drawn only when the row actually has one, which also closes a per-row
+  404 several member and user lists were firing. Ten pastel hues live in a tuned
+  `--avatar-*` token ramp, theme-independent so they read in light and dark alike.
+  (#60)
+
+### Fixed
+
+- **The secrets "Added by" avatar now matches a person's colour everywhere else.**
+  It seeded the fallback hue on the author's email rather than their id, so the
+  same person could wear one colour there and another beside their name in member
+  lists. `SecretRead` now carries `created_by_user_id` and the column seeds on it.
+  (#799)
+
+## [0.0.159] - 2026-08-16
+
+A new organization starts with a spend ceiling already in place.
+
+### Added
+
+- **A new organization defaults to a $100 monthly budget.** An org with no cap is
+  one runaway agent away from a surprise bill, and a budget only refuses if it
+  exists — so a fresh org now starts at the deployment's
+  `DEFAULT_ORG_MONTHLY_BUDGET_USD` (`$100` out of the box), editable on the org's
+  row like any other cap and enforced by the same guard. The default is applied at
+  creation across every path — team create, the personal org on signup, and
+  `bootstrap` — and `None` restores the older opt-in posture for a deployment that
+  would rather start uncapped. Existing organizations are untouched; no migration,
+  because the column already existed. (#785)
+
+## [0.0.158] - 2026-08-16
+
+A long run compacts its own history before it hits the model's limit, metered,
+and every agent shows how full its context window is.
+
+### Added
+
+- **Compaction capability.** Ports the `pydantic-ai-harness` compaction strategies
+  into the registry: `summarize` (the default, at 0.9 of the window — the only
+  strategy that keeps what older turns *said*), `tiered`, `clear_tool_results` and
+  `sliding_window`. The trigger is a fraction of the window resolved **per request**
+  against the model the request is going to, so the same history passes untouched on
+  a 1M window and is cut on a 128K one before the request leaves. (#49)
+- **A context-fill gauge on every agent**, not only one that compacts — the warning
+  matters most to the agent that will not, because that is the one the provider
+  refuses. Read from the provider's own `input_tokens`, stored per turn, and divided
+  by the window of the model selected *now*. (#772, #774)
+- **`model_profiles.context_length`** — the window a model accepts, recorded from the
+  provider's listing at creation rather than guessed from the price snapshot. (#773)
+- **`messages.cost_is_partial`** and a server-side conversation cost total; a partial
+  figure is drawn `≥ $x`. (#772)
+
+### Fixed
+
+- **A summary is metered.** The strategy writes it through an agent it builds itself,
+  which no budget guard wraps, so the capability books the run's usage across the
+  hook against the ledger. Recorded, not prevented — the guard refuses on the next
+  request. (#16)
+- **A conversation's history is read from the transcript, not the socket.** A reload,
+  a second tab or a dropped connection left the model answering a follow-up as though
+  the thread had started with it. (#771)
+- **A summary is kept across turns.** The thread between turns was rebuilt from the
+  transcript, so a summary died at the turn boundary and the next turn bought another
+  over a longer history; `conversations.summary_messages` now holds it. (#781)
+- **A window too small for the agent's own overhead says so** rather than buying a
+  summary that cannot get under the instructions and tool schemas on every request
+  for ever. (#776)
+- **The builder draws a capability's defaults as values** and can label what each
+  enum choice does, so a generated form is not a row of empty boxes.
+
+## [0.0.157] - 2026-08-16
+
+An organization's standing knowledge is put into a run instead of made to be asked
+for.
+
+### Added
+
+- **Context capability.** A first-class, org-scoped library of text objects — a
+  glossary, a brand voice, an escalation matrix — each carrying a `mode`: `inject`
+  splices the body into the agent's instructions verbatim, `link` leaves it out of
+  the prompt and reads it on demand through `list_context`/`read_context`, so a
+  large or rarely-needed file costs nothing until the model reaches for it. Mirrors
+  the skills subsystem end to end — model, schemas, repo, the shared access/grant
+  machinery, service, routes, spec binding, publish check, runner resolution, and
+  the frontend library + builder picker. (#48)
+- **`AgentSpec.context_ids`**, bumping `SPEC_VERSION` to **9**. Defaulted, so every
+  stored spec and exported YAML loads unchanged.
+
+### Notes
+
+- **Injected content is untrusted input.** A file's body is user-written and reaches
+  the model verbatim, so it is delimited (`<context-file>`) and framed as reference
+  material rather than instructions. The fence resists accidental breakout — a body
+  or name that forges a closing tag or an attribute quote can no longer escape it —
+  though an operator with `context:edit` injecting deliberately is out of scope by
+  design.
+- **Tenant-scoped, checked at publish.** Binding a file hands its body to every run,
+  so it is checked against the publisher's own access; a private file another member
+  owns is refused indistinguishably from a missing id.
+
+## [0.0.156] - 2026-08-16
+
+An agent can bind many MCP servers without paying for every tool's schema on
+every request.
+
+### Added
+
+- **Tool search capability.** Ports Pydantic AI's `ToolSearch` into the registry
+  as `tool_search` and pairs it with deferring the connected MCP toolsets, so the
+  model discovers the tool it needs instead of carrying every server's schema on
+  each turn. Config is `strategy` (`auto` | `keywords` | `bm25` | `regex`) and
+  `max_results` (1–50). The capability and the deferral are two halves of one
+  decision — `ToolSearch` is inert with nothing deferred, and a deferred tool with
+  no search to find it is unreachable — so binding it is what marks the servers'
+  toolsets for deferred loading; the registry's own tools stay visible. An agent
+  that does not bind it pays nothing. (#50)
+
+### Notes
+
+- **Deferral changes what the model sees, never a tool's identity.** A discovered
+  MCP tool arrives under its real prefixed name, so the approval gate still pairs
+  on it and a binding's rename still reaches it — `ToolSearch` sits outermost,
+  reading the names a rename already applied.
+- **No un-metered spend.** Local strategies run in Python; native search runs
+  inside the provider's own metered request; the discovery round-trips are
+  ordinary model requests the budget guard already wraps.
+
+## [0.0.155] - 2026-08-16
+
+An agent can keep a checklist for itself over a multi-step run.
+
+### Added
+
+- **Planning capability.** Ports the `pydantic-ai-harness` planning checklist into
+  the registry: `write_plan`/`read_plan` plus granular step tools, and under
+  `enable_subtasks` a dependency-aware mode (`add_subtask`, `set_dependency`,
+  `get_available_tasks`, a `blocked` status). The current plan is surfaced back
+  each turn as a cache-safe tail reminder behind a `CachePoint`, so the prompt
+  prefix stays cacheable and the plan never lands in the system prompt. The tools
+  are local checklist edits with no model request behind them, so there is no
+  ambient usage to meter. Registry-only — no `SPEC_VERSION` bump — and orthogonal
+  to delegation, so an agent may bind both. (#47)
+
+### Fixed
+
+- **A parked run's plan survives the approval park.** The runner owns the store:
+  it seeds one from `PausedRunState.plan` on resume, injects it through
+  `PLANNING_STORE_RESOURCE`, and reads it back when the run parks. `paused_state`
+  is already JSONB, so no migration — a run parked before this stays resumable.
+- **The system-prompt guidance is this repository's own string.** The library's
+  `get_instructions()` guidance is pinned via `guidance=` alongside the tool
+  descriptions, so a harness release that rewrites its default can no longer
+  change the agent's system prompt silently. (#778)
+
+## [0.0.154] - 2026-08-16
+
+A tripped guardrail is a visible run outcome, not a crash — on every surface.
+
+### Added
+
+- **Guardrails capability.** A single `guardrails` capability ports the
+  `pydantic-ai-harness` guards into the registry, inspecting the text at three
+  edges — the user's prompt, the agent's answer, and a tool's result before the
+  model reads it — and either redacting a match or blocking the run. Tool-result
+  screening is the headline: it is the only guard on untrusted content entering
+  the loop, where a prompt-injection payload would otherwise reach the model
+  unread. Redactors cover API keys, tokens, JWTs and PEM blocks, plus email,
+  IBAN (mod-97), card (Luhn) and US-SSN. Config is data, not callables — flat
+  toggles and a keyword string per edge — so it crosses the wire as an agent
+  spec. (#46)
+- **`RunStatus.GUARDRAIL_BLOCKED`.** A block is a governance outcome, so it gets
+  its own status beside `budget_exceeded` — the platform working, not a
+  malfunction — visible and filterable in run history, folded into `other` in the
+  outcomes donut, and kept out of the "Recent failures" widget and the "Problems"
+  preset. `agent_runs.status` is an unconstrained string, so no migration.
+
+### Fixed
+
+- **A guardrail block on the streaming web chat is recorded as
+  `guardrail_blocked`, not `failed`.** `GuardrailBlocked` was caught only in the
+  non-streaming runner, so on the primary surface a block landed in the generic
+  `except Exception` — recorded as `failed`, logged like a crash, and shown to
+  the visitor as a generic "turn failed" instead of the guard's safe reason. The
+  streaming path now mirrors the budget handling in `agent_chat.py` and
+  `agent_session.py`. (#779)
+
+## [0.0.153] - 2026-08-15
+
+The i18n guard stops reading a leading acronym as permission to skip the
+sentence behind it.
+
+### Fixed
+
+- **Prose whose first word is an acronym is reported again.**
+  `NOT_A_SENTENCE`'s second alternative was `[A-Z]{2,}\s` — written to exempt a
+  machine token, it exempted the whole string that token opened, so `API keys
+  are stored in the vault` left the sweep while `Provider keys are stored in
+  the vault` did not. A hole the width of a vocabulary, in a product whose copy
+  opens on `MCP`, `API`, `RAG`, `KB` and `JWT`. Anchoring the alternative on a
+  single lower-case word keeps the label it was written for — `MCP server`,
+  `AI agents` — and lets the prose through. This is the same mistake as #656,
+  one alternative to the left; both are anchored now, and `.claude/rules/frontend.md`
+  names both rather than only the first. (#678)
+- **A separator label may lead with an acronym.** Anchoring took away cover the
+  acronym branch had been giving by accident: the separator alternative accepts
+  only a title-case token on the left, so `URL / Endpoint` was exempt through
+  the acronym branch and would have started reporting as copy while
+  `Model / Provider` did not. Its left token now reads
+  `(?:[A-Z][a-z]+|[A-Z]{2,})`. Nothing in `src/` is written that way, so the
+  sweep was clean either way and this was found by review rather than by the
+  guard.
+
+## [0.0.152] - 2026-08-15
+
+The dashboard is arrangeable, and it finally has a visual system to be
+arranged into.
+
+### Added
+
+- **A person arranges their own dashboard.** Cards reorder, resize, hide,
+  take a colour and group under named section dividers; more come from a
+  gated catalog; the result persists per user per organization, either as a
+  single active arrangement or as any number of named presets to switch
+  between. The arrangement is a third layer over the two the page already
+  had (`effective = preference ?? audience default`) and the permission gate
+  still runs **last**, so a preference can reorder or hide a widget but never
+  reveal one the caller may not see. Two tables with their repositories —
+  `dashboard_layouts` and `dashboard_presets`, placements as JSONB — and
+  `/api/v1/me/dashboard-layout` with a `/presets` shelf beneath it; applying
+  a preset is a `PUT` of its entries, so there is one write path. (#213)
+- **The write contract is deliberately asymmetric.** A write validates every
+  placement against the widget registry and the closed span/row sets, so a
+  typo is a 422 at the boundary; a read hands back what was stored, so a
+  retired widget id drops at render time rather than 500ing the page.
+- **A spacing system, in `lib/dashboard/system.ts`.** Band-to-band was 24px
+  against card-to-card's 16px — three levels of structure inside eight
+  pixels of each other, which is why five bands read as one mass. Bands sit
+  at 40px, four times the card gap. Its test asserts the *relationships*,
+  since a constant equal to its own literal tests nothing.
+- **Four cards the page could not answer before.** Channels — what is
+  registered and whether each bot webhooks or polls, which is the difference
+  between "silent because nobody asked" and "silent because nothing is
+  listening". Knowledge — whether documents that arrived ever finished
+  indexing, since a collection can be perfectly fresh and hold two hundred
+  documents nothing can retrieve. A week by the hour on a new
+  `group_by=hour`. And sparklines on three KPI tiles, free from `runs_by_day`
+  answering runs, completed and cost from the one scan it already made.
+- **The page opens on numbers.** A steward's dashboard led with "Needs
+  attention" — five "nothing here" boxes before the first figure in an
+  organization where nothing is wrong. A full-width `summary` strip leads the
+  steward, operator and builder layouts and costs no request: every figure
+  slices the composed `/stats/usage` response the cards below already share,
+  and the completed share reads `run-outcomes`, so it and the Outcomes donut
+  cannot disagree.
+
+### Changed
+
+- **One figure component.** There were three — `StatCard` on Admin, `Metric`
+  on the dashboard, a private `Figure` inside `ActivityFigures` — so the same
+  number changed typeface between a card and the page its "see all" points
+  at. `components/ui/figure.tsx` is the one, and the value is sans, semibold,
+  with the font's own figures: `tabular-nums` and a mono face on a large
+  standalone number are both named anti-patterns, so equal-width digits stay
+  in table rows and axis ticks where columns align.
+- **Chart ink measured, not argued.** `--color-chart` is `brand-500` in both
+  themes at 3.74:1 light and 5.07:1 dark, clear of the 3:1 floor a mark owes
+  its surface; a new `--color-track` draws a bar's unfilled part in the
+  fill's own hue. `brand-900` was tried in dark and is why the pair is
+  measured rather than picked: at 1.41:1 it read as a filled bar, so a
+  provider that spent nothing showed a full-width mark beside $0.00. Dashed
+  gridlines are gone, the area wash is flat at 10% instead of a gradient
+  inventing a second encoding down the y-axis, and a truncated model id has a
+  real hover instead of a native `title`.
+- **A widget is the object every other page draws.** `WidgetFrame` is built
+  on `Card` — same corner, same elevation, the divider under the heading that
+  `ListCard` carries — and each card explains itself once, through an info
+  icon holding the same sentence the add-widget catalog lists it under.
+  Thirteen widgets had rolled their own figure; five carried their
+  explanation as grey prose under the data.
+- **A row holds cards of comparable natural height.** That rule is what the
+  layouts are rebuilt on, and what had left a four-line list beside a chart
+  two-thirds empty. The heatmap takes a row to itself: anything beside
+  seven-by-twenty-four is either dwarfed or stretched.
+- **A period change dims rather than blanks.** It was a new query key, so ten
+  cards dropped to skeletons at once and the page emptied and reflowed.
+  `keepPreviousData` holds the last answer while `UsageBody` dims it and sets
+  `aria-busy`.
+
+### Fixed
+
+- **The Spend card put two definitions of cost side by side.** The headline
+  read `cost.period_usd` — model spend alone — while the line under it read
+  `/spend → month_to_date_usd`, runs *plus* ingestion, which is the
+  arithmetic a monthly cap is measured with. Nothing said they were different
+  questions, and on any deployment that indexes documents they disagreed,
+  with `ingestion_spend` real money against the cap and nowhere on the page.
+  `CostBlock.period_usd` is the whole bill now, with `model_usd` and
+  `ingestion_usd` beside it and `previous_period_usd` following so the change
+  compares like with like. At `scope=own` the ingestion half is zero rather
+  than a share — a worker indexes a document and the ledger records no user.
+- **The sections filter vanished the moment somebody saved an arrangement**,
+  including one that kept every heading it started with: the filter offered a
+  section only if it carried a `titleKey`, and flattening the default turns
+  each heading into a divider named by `title`. `isFilterable` reads either
+  name, and `sectionLabel` is the single copy of "the caption a person typed,
+  else the curated key".
+- **Bar-list labels no longer end in an ellipsis** — every row in two cards
+  did — and each info icon is named for its card rather than being one of
+  twenty-seven identical stops.
+
+## [0.0.151] - 2026-08-15
+
+Every list in the product is now one table and one card, and Activity is a
+page you can actually narrow, page and export.
+
+### Added
+
+- **One table primitive, one list shell.** `DataTable` gained sorting and
+  filtering in two modes — client-side over rows a caller holds whole, and
+  server-side as a request — so a sort header means the same thing everywhere.
+  Which mode a table uses follows where its rows live: a client-side sort of
+  page one, on a list with three pages, is worse than no header at all.
+  `ListCard`/`ListCardEmpty` replaced five per-page card copies and four inline
+  empty states, and `components/ui/table.tsx` went with its last caller. Sort
+  state survives a reload through `?sort_by=`/`?sort_dir=`, validated against
+  the same whitelist the backend route declares. (#139, #282)
+- **Activity became an observability page.** One period window feeding the
+  figures, the table, the version strip, the Spend tab and all three exports;
+  every filter the backend answers (status, surface, a three-state rating,
+  agent, person and — narrowed to an agent — version); pagination with
+  "51–100 of 1,204"; surface brand marks; a run's chat one click away; and the
+  run detail in a drawer whose prev/next walk the run's own conversation.
+  (#760, #761, #762, #764, #765, #766)
+- **Every organization starts with the shipped skill library.** Creation copies
+  each bundled skill in as an ordinary org-visible row, and the listing
+  materializes any the catalog grew since — so the install step, its endpoints
+  and its gallery are gone. (#281)
+
+### Changed
+
+- **Admin standardised onto both primitives**, one pagination control instead
+  of three dialects, organizations on their own tab, and `/admin/ratings`
+  deleted whole — ratings are read where the runs are. (#283, #284)
+- **The agent map reads in four directions** — surfaces left, model and budget
+  above, tools right, delegation below, each subagent a first-class node beside
+  a policy box naming `allow_dynamic`. (#518)
+
+### Fixed
+
+- **A CSV exported beside a narrowed table contained everything.** The export
+  passed only `agent_id`, while both docstrings promised the file was what was
+  on screen. (#763)
+- **Deciding the last outstanding approval now resumes the run.** The queue
+  posted the decision alone, which left runs approved, undisputed and parked
+  forever.
+- **Runs still going no longer sort as the cheapest or the lightest.** Cost and
+  tokens are written at finish and default to zero, so an ascending sort ranked
+  a running row above every finished one; all four orders now put an unfinished
+  run last, as duration always did.
+- **The run detail's arrows no longer step into delegations** the list itself
+  hides — a fan-out's children sat between a run and the thread's next turn.
+- **Six lists stopped reporting a failed request as an empty collection** —
+  vault, MCP, skills, channels, members and the admin users table each drew
+  "nothing here yet" over a refusal, and MCP drew it over a catalog compiled
+  into the backend. (#32's shape)
+- **Seeding a bundled skill twice costs that row, not the reader's page**, and
+  audit entries written by a seeding path now say so rather than asserting the
+  organization's owner made a write they never made.
+
+## [0.0.150] - 2026-08-13
+
+The streaming socket was the last surface still writing blank user turns.
+
+### Fixed
+
+- **A blank streaming turn's user message names its files.** 0.0.148 fixed the
+  blank-turn class for every surface that reaches the transcript's `record` —
+  channels, the embed widget, the HTTP API — but the dashboard's streaming
+  socket writes its own user turn and stored the message verbatim, blank
+  included; only the composer's client-side substitution hid it, so any raw
+  WebSocket client sending `{"message": "", "file_ids": [...]}` stored an
+  empty bubble. Both write sites now compose the same one-line-per-file body,
+  loaded through the owner-scoped file read from 0.0.149. A typed message is
+  never replaced. (#750)
+
+## [0.0.149] - 2026-08-13
+
+A chat turn could attach another user's file by naming its id.
+
+### Security
+
+- **Linking a file the caller does not own is refused.** The link was a blind
+  bulk UPDATE with no owner predicate and no unlinked check, and the ids came
+  straight off the socket payload — so a turn naming another user's file id
+  rendered their filename, MIME and size in the attacker's conversation and
+  silently pulled the file off the victim's own message. Both the read and
+  the UPDATE now carry the owner in their WHERE; a foreign or unknown id
+  answers the same `NotFoundError` (so an id cannot be probed for existence),
+  an already-linked one is refused rather than moved — for everybody, its
+  owner included — and a malformed id is refused at the boundary instead of
+  resurfacing as a failed turn after the message persisted. (#706)
+
+## [0.0.148] - 2026-08-13
+
+A photo sent with no caption read as somebody sending nothing.
+
+### Fixed
+
+- **A caption-less turn's user message names its files.** A channel turn whose
+  attachment produced no prompt text wrote a blank user message, so the thread
+  in `/chat` jumped straight to the answer with the file card as the only
+  trace of the question. The transcript now composes the empty turn's body
+  from its attachments — `Attached image: photo.jpg`, one line per file —
+  reusing the vocabulary the model's briefing already uses. A caption is never
+  replaced, and a resume still writes no user turn at all. (#704)
+
+## [0.0.147] - 2026-08-13
+
+A failed tool's raw error was stored where every reader of the run can see it.
+
+### Security
+
+- **A tool's retry text stays out of the transcript row.** #681 sanitized the
+  chat `tool_result` frame; the stored row was the same leak on the run paths
+  that never open a socket — the HTTP API and the channel bots. A retry's
+  content is written by whichever tool raised (`web_search` builds one from
+  the vendor exception, endpoint and query string included; an MCP tool's is
+  a third party's entirely), and it landed on a tool-call row rendered in run
+  history weeks later. The row now stores the same sentence the frame sends —
+  which tool failed and that the model was asked to retry — and the vendor's
+  own text goes to the server log beside the write, nowhere else. (#695)
+
+## [0.0.146] - 2026-08-13
+
+A thread nobody owned was everybody's to delete.
+
+### Security
+
+- **An unowned room thread is writable only by its participants.** A channel
+  thread's owner is its first *linked* speaker, so a room where nobody linked
+  an account had no owner — and the write check answered yes to any member of
+  the organization: renaming it, archiving it, deleting the transcript, or
+  appending a `role: "assistant"` turn the model reads back as its own words,
+  including for threads their own list never showed them. The write now stops
+  at the same membership-confirmed participation the read admits; an owned
+  thread still refuses its participants the write. (#701)
+
+## [0.0.145] - 2026-08-13
+
+A webhook bot's files had no server to be fetched from.
+
+### Fixed
+
+- **A Mattermost webhook bot's server is recorded per delivery.** Only the
+  polling path ever told the adapter a bot's address, so an attachment on an
+  outgoing-webhook post parsed with an empty handle and the reply said the
+  file could not be downloaded. The receiver now hands the bot row's
+  `api_base_url` to the adapter after the token check and before the parse —
+  per delivery, so an operator's edit takes effect at once. Not a regression:
+  before #547 the file was dropped silently; #547 made the failure visible,
+  this makes the file reachable. (#692)
+
+## [0.0.144] - 2026-08-13
+
+A removed channel member kept the thread.
+
+### Security
+
+- **`/chat` now asks the platform whether a reader is still in the channel.**
+  A channel thread was shown to anybody whose linked account had ever spoken
+  in it, and never asked again — so somebody removed from a Slack, Telegram or
+  Mattermost channel kept the thread, including everything said after they
+  left. Each adapter now answers a per-account membership question, cached for
+  60 seconds and failing closed: an unsupported platform, a missing adapter,
+  an unsealable token or an errored call hides the thread rather than showing
+  it. The owner and an explicit share keep access on every path. (#641)
 
 ## [0.0.143] - 2026-08-13
 

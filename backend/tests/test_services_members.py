@@ -202,14 +202,17 @@ class TestMemberService:
             patch("app.services.member.record_audit", new=AsyncMock()),
             patch(
                 "app.services.member.user_repo.get_by_id",
-                new=AsyncMock(return_value=MagicMock(email="a@example.com")),
+                new=AsyncMock(return_value=MagicMock(email="a@example.com", avatar_color=7)),
             ),
         ):
-            member, _, _, _ = await service.change_role(
+            member, _, _, _, avatar_color = await service.change_role(
                 uuid.uuid4(), uuid.uuid4(), "admin", requester_id=uuid.uuid4()
             )
 
         assert member.role == "admin"
+        # The row a listing redraws after a role change carries the member's
+        # chosen colour, so their avatar does not flip to the auto one.
+        assert avatar_color == 7
 
     @pytest.mark.anyio
     async def test_remove_raises_if_not_authorized(self, service):

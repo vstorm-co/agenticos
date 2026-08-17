@@ -4,13 +4,14 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
     BadRequestError,
     NotFoundError,
 )
-from app.core.permissions import Perm, role_has
+from app.core.permissions import AuthContext, OrgRoleName, Perm, role_has
 from app.db.models.organization import Organization, OrganizationMember, OrgRole
 from app.repositories import member_repo, organization_repo
 from app.schemas.organization import (
@@ -19,7 +20,9 @@ from app.schemas.organization import (
     OrganizationRead,
     OrganizationUpdate,
 )
+from app.services import skill_library
 from app.services.file_storage import get_file_storage
+from app.services.skills import SkillService
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +40,7 @@ def _org_read(org: Organization, member_count: int, role: str) -> OrganizationRe
         slug=org.slug,
         is_personal=org.is_personal,
         avatar_url=org.avatar_url,
+        avatar_color=org.avatar_color,
         member_count=member_count,
         role=role,
         monthly_budget_usd=org.monthly_budget_usd,
@@ -126,6 +130,7 @@ class OrganizationService:
             slug=slug,
             created_by_user_id=owner_id,
             is_personal=False,
+            monthly_budget_usd=settings.DEFAULT_ORG_MONTHLY_BUDGET_USD,
         )
         await member_repo.create(
             self.db,
@@ -133,13 +138,44 @@ class OrganizationService:
             user_id=owner_id,
             role=OrgRole.OWNER.value,
         )
+        await self._seed_bundled_skills(org.id, owner_id)
         return org
+
+    async def _seed_bundled_skills(self, organization_id: UUID, owner_id: UUID) -> None:
+        """Copy every bundled skill into a brand-new organization.
+
+        Implicit rather than an Install click (#281): a spec binds a skill by
+        row id, so a bundled skill has to be a row before the Builder can offer
+        it - and gating that row behind a per-person Install button meant two
+        lists on the skills page and a step with no decision in it. Seeded as
+        the owner with organization visibility, the same shape `seed-skills`
+        and the listing's own top-up (`SkillService._ensure_bundled`) write -
+        the catalog is always present, and disabling a skill is how an
+        organization retires one.
+        """
+        service = SkillService(self.db)
+        ctx = AuthContext(
+            user_id=owner_id,
+            organization_id=organization_id,
+            role=OrgRoleName.OWNER,
+        )
+        for bundled in skill_library.library():
+            try:
+                await service.install_from_library(ctx, bundled.key)
+            except AlreadyExistsError:
+                # Two bundled folders declaring one name - nothing validates the
+                # library's own uniqueness. Skipping the twin keeps a packaging
+                # mistake from refusing every registration on the deployment;
+                # the seed-skills command tolerates the same collision.
+                logger.warning("Bundled skill %r shares a name with another; skipped", bundled.key)
 
     async def create_personal_org(self, user_id: UUID, email: str) -> Organization:
         """Create the Personal Organization for a newly registered user.
 
-        Also grants the configured free-tier credit bonus so AI usage works on
-        the free plan up to the granted amount.
+        It starts with the deployment's default monthly budget
+        (`DEFAULT_ORG_MONTHLY_BUDGET_USD`, $100 unless configured otherwise), so
+        a fresh account is not one runaway agent away from a surprise bill. A
+        deployment that would rather start uncapped sets that to nothing.
         """
         slug = await organization_repo.generate_unique_slug(self.db, email.split("@")[0])
         org = await organization_repo.create(
@@ -148,6 +184,7 @@ class OrganizationService:
             slug=slug,
             created_by_user_id=user_id,
             is_personal=True,
+            monthly_budget_usd=settings.DEFAULT_ORG_MONTHLY_BUDGET_USD,
         )
         await member_repo.create(
             self.db,
@@ -155,6 +192,7 @@ class OrganizationService:
             user_id=user_id,
             role=OrgRole.OWNER.value,
         )
+        await self._seed_bundled_skills(org.id, user_id)
         return org
 
     async def update(
@@ -174,6 +212,7 @@ class OrganizationService:
         """
         org, membership = await self.get_for_user(org_id, requester_id)
         wants_budget = "monthly_budget_usd" in data.model_fields_set
+        wants_color = "avatar_color" in data.model_fields_set
         wants_metadata = bool(data.model_fields_set - {"monthly_budget_usd"})
         if wants_metadata and not role_has(membership.role, Perm.ORG_SETTINGS):
             raise AuthorizationError(message="Only Owner or Admin can update the organization")
@@ -189,6 +228,10 @@ class OrganizationService:
             org = await organization_repo.set_monthly_budget(
                 self.db, org, limit_usd=data.monthly_budget_usd
             )
+
+        if wants_color:
+            # Same field-named-not-valued rule: `null` resets the colour to auto.
+            org = await organization_repo.set_avatar_color(self.db, org, color=data.avatar_color)
 
         return await organization_repo.update(
             self.db,

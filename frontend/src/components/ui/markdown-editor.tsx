@@ -27,6 +27,17 @@ interface MarkdownEditorProps {
    * same coupling with nothing naming it.
    */
   textareaRef?: RefObject<HTMLTextAreaElement | null>;
+  /**
+   * Whether what is in it was refused, and where the refusal is written.
+   *
+   * A generated form has to be able to show a generated refusal, and it puts the
+   * sentence in a paragraph under the field - which a screen reader reaches only
+   * if the control points at it. The instructions field has no such path today;
+   * a capability's configuration does, so the wiring travels with the component
+   * rather than being lost by whoever reuses it.
+   */
+  invalid?: boolean;
+  describedBy?: string;
 }
 
 /**
@@ -46,6 +57,8 @@ export function MarkdownEditor({
   value,
   onChange,
   label,
+  invalid,
+  describedBy,
   placeholder,
   rows = 10,
   disabled,
@@ -82,6 +95,8 @@ export function MarkdownEditor({
           ref={textareaRef}
           id={id}
           aria-label={label}
+          aria-invalid={invalid}
+          aria-describedby={describedBy}
           value={value}
           onChange={(event) => onChange(event.target.value)}
           rows={rows}

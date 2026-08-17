@@ -156,7 +156,7 @@ export function AddChannelDialog({
           <DialogDescription>{t("addChannelDescription")}</DialogDescription>
         </DialogHeader>
 
-        <div className="max-h-[65vh] space-y-5 overflow-y-auto px-1">
+        <div className="max-h-[65vh] scrollbar-thin space-y-5 overflow-y-auto px-1">
           {/* A caption over a group of buttons, not a `Label`: a label names one
               control and this one names three. */}
           <div className="space-y-2">

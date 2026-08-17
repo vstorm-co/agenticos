@@ -3,113 +3,266 @@
 import { useLocale, useTranslations } from "next-intl";
 import { CheckCircle2, XCircle } from "lucide-react";
 
-import { getErrorMessage } from "@/lib/api-error";
 import { ApprovalDelegate } from "@/components/runs/approval-delegate";
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
-import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
-import { useApprovals } from "@/hooks";
+import { ExportMenu } from "@/components/runs/export-menu";
+import { ErrorState } from "@/components/states";
+import {
+  Badge,
+  Button,
+  DataTable,
+  ListCard,
+  ListCardEmpty,
+  ListCardFootRow,
+  type Column,
+} from "@/components/ui";
+import { useApprovalHistory, useApprovals } from "@/hooks";
+import { periodEnd, periodStart, type Period } from "@/lib/dashboard/period";
 import { formatDate } from "@/lib/utils";
+import { Perm } from "@/types/permissions";
+import type { ToolApproval } from "@/types/runs";
+
+const DECISION_LABEL: Record<string, string> = {
+  pending: "decisionPending",
+  approved: "decisionApproved",
+  rejected: "decisionRejected",
+  expired: "decisionExpired",
+};
+
+const DECISION_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  pending: "default",
+  approved: "secondary",
+  rejected: "destructive",
+  expired: "outline",
+};
 
 /**
- * The queue of tool calls waiting on a person, and the two buttons that settle one.
+ * Every approval, one table: what is waiting on a person at the top, the
+ * record of what was decided under it - the same rows in two states, so two
+ * different cards for them was one container too many.
  *
- * Only ever rendered for a caller holding `approvals:decide`. That is not this
- * component's decision and deliberately not its check: reading the queue takes
- * the same permission as deciding one, so the tab is withheld whole - see the
- * page - rather than shown with its buttons removed. A queue somebody can read
- * and cannot act on is a worse answer than no queue.
+ * A pending row keeps its arguments *expanded*: approving a tool name without
+ * seeing what it will do is a rubber stamp, not approval. A decided row folds
+ * them - the decision has been made, the arguments are the record's detail.
+ * Deciding the last outstanding call also resumes the run (see `useApprovals`);
+ * the buttons disable while any decision settles, so a double-click cannot
+ * decide twice.
  *
- * A failed request says so. Every other shape here would draw the empty state
- * for it, and "nothing is waiting for you" is the one sentence this queue must
- * not say when it does not know.
+ * Every row opens the run it belongs to - the drawer is where the surrounding
+ * conversation is read, which is usually what an approver wants before saying
+ * yes.
  *
- * The queue is one page of the endpoint's fifty, and says so when there are more.
- * The figure above and the tab badge both report the server's `total`, so without
- * that line a badge reading 120 sits over 50 cards with nothing explaining the
- * gap - and the reading available to somebody working down the queue is that
- * seventy calls went missing.
+ * Only ever rendered for a caller holding `approvals:decide`; that is the
+ * page's decision, not this component's. A failed queue read says so rather
+ * than drawing "nothing waiting" - the one sentence this table must not say
+ * when it does not know.
  */
-export function ApprovalsTab() {
-  const tErrors = useTranslations("errors");
+export function ApprovalsTab({
+  period,
+  onFocusRun,
+}: {
+  period: Period;
+  onFocusRun: (runId: string | null) => void;
+}) {
   const t = useTranslations("pages.runs");
   const locale = useLocale();
+  const range = { from: periodStart(period), to: periodEnd(period) };
   const { approvals, total, isLoading, error, decide, refetch } = useApprovals();
+  const history = useApprovalHistory(range);
+
+  const rows: ToolApproval[] = [...approvals, ...history.approvals];
+
+  const columns: Column<ToolApproval>[] = [
+    {
+      key: "tool",
+      header: t("toolColumn"),
+      className: "pl-5",
+      cell: (approval) => (
+        <div className="max-w-xl space-y-2">
+          <div className="space-y-1">
+            <span className="block font-mono text-xs">{approval.tool_id}</span>
+            <ApprovalDelegate approval={approval} />
+          </div>
+          {approval.status === "pending" ? (
+            <pre className="bg-muted/40 overflow-x-auto rounded p-2 text-xs">
+              {JSON.stringify(approval.tool_args, null, 2)}
+            </pre>
+          ) : (
+            <details>
+              {/* Toggling the disclosure must not also open the run the row
+                  would - the reader asked to see the arguments, not to leave. */}
+              <summary
+                onClick={(event) => event.stopPropagation()}
+                className="text-muted-foreground cursor-pointer text-xs select-none"
+              >
+                {t("showArguments")}
+              </summary>
+              <pre className="bg-muted/40 mt-1 overflow-x-auto rounded p-2 text-xs">
+                {JSON.stringify(approval.tool_args, null, 2)}
+              </pre>
+            </details>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "decision",
+      header: t("decisionColumn"),
+      cell: (approval) => {
+        // A status this build does not know is shown as the data it is -
+        // labelling it "Expired" would put a specific claim on a row the
+        // backend said something newer about.
+        const labelKey = DECISION_LABEL[approval.status];
+        return (
+          <Badge variant={DECISION_VARIANT[approval.status] ?? "outline"}>
+            {labelKey ? t(labelKey) : approval.status}
+          </Badge>
+        );
+      },
+    },
+    {
+      key: "askedBy",
+      header: t("askedByColumn"),
+      cell: (approval) => (
+        <span className="text-muted-foreground text-xs">{approval.triggered_by_email ?? "-"}</span>
+      ),
+    },
+    {
+      key: "decidedBy",
+      header: t("decidedBy"),
+      cell: (approval) => (
+        <span className="text-muted-foreground text-xs">{approval.decided_by_email ?? "-"}</span>
+      ),
+    },
+    {
+      key: "parked",
+      header: t("parkedColumn"),
+      cell: (approval) => (
+        <span className="text-muted-foreground text-xs whitespace-nowrap">
+          {approval.created_at ? formatDate(approval.created_at, locale) : "-"}
+        </span>
+      ),
+    },
+    {
+      key: "actions",
+      header: "",
+      align: "right",
+      className: "w-0 pr-5",
+      cell: (approval) =>
+        approval.status === "pending" ? (
+          <div className="flex justify-end gap-2">
+            <Button
+              size="sm"
+              disabled={decide.isPending}
+              onClick={(event) => {
+                event.stopPropagation();
+                decide.mutate({ id: approval.id, approved: true });
+              }}
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              {t("approve")}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={decide.isPending}
+              onClick={(event) => {
+                event.stopPropagation();
+                decide.mutate({ id: approval.id, approved: false });
+              }}
+            >
+              <XCircle className="h-4 w-4" />
+              {t("reject")}
+            </Button>
+          </div>
+        ) : null,
+    },
+  ];
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t("waitingDecision")}</CardTitle>
-        <CardDescription>{t("argumentsAreShownFull")}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {isLoading ? (
-          <LoadingState variant="skeleton-table" columns={2} rows={2} />
-        ) : error ? (
-          <ErrorState
-            title={t("queueCouldNotBeRead")}
-            description={getErrorMessage(error, tErrors, t("aParkedRunIsStill"))}
-            cta={{ label: t("tryAgain"), onClick: () => void refetch() }}
+    <ListCard
+      title={t("approvalsTitle")}
+      counted={
+        isLoading || history.isLoading
+          ? null
+          : t("approvalsCounted", { waiting: total, decided: history.total })
+      }
+      controls={
+        <ExportMenu
+          permission={Perm.approvalsDecide}
+          endpoint="/approvals/export"
+          kind="approvals"
+          // Every status the table shows, queue and record alike - absent, the
+          // route exports the pending queue alone. Pairs, because the
+          // parameter repeats.
+          params={[
+            ["status", "pending"],
+            ["status", "approved"],
+            ["status", "rejected"],
+            ["status", "expired"],
+          ]}
+          rangeParams={{ from: "created_from", to: "created_to" }}
+          range={range}
+        />
+      }
+      contentClassName="p-0"
+    >
+      {error ? (
+        <ErrorState
+          title={t("queueCouldNotBeRead")}
+          description={t("aParkedRunIsStill")}
+          cta={{ label: t("tryAgain"), onClick: () => void refetch() }}
+          className="m-5"
+        />
+      ) : (
+        <>
+          <DataTable<ToolApproval>
+            columns={columns}
+            rows={rows}
+            getRowKey={(approval) => approval.id}
+            loading={isLoading}
+            onRowClick={(approval) => onFocusRun(approval.run_id)}
+            empty={
+              <ListCardEmpty
+                icon={CheckCircle2}
+                title={t("nothingWaiting")}
+                description={t("agentsAreRunningWithout")}
+              />
+            }
+            className="rounded-none border-0 bg-transparent"
           />
-        ) : approvals.length === 0 ? (
-          <EmptyState
-            icon={CheckCircle2}
-            title={t("nothingWaiting")}
-            description={t("agentsAreRunningWithout")}
-          />
-        ) : (
-          <>
-            {total > approvals.length && (
+          {/* The queue is one page of the endpoint's fifty; the figure above
+              and the tab badge both report the server's total, so without this
+              line a badge reading 120 sits over 50 rows with nothing
+              explaining the gap. */}
+          {total > approvals.length && (
+            <ListCardFootRow>
               <p className="text-muted-foreground text-xs" role="note">
                 {t("showingTheOldestOf", { shown: approvals.length, total })}
               </p>
-            )}
-            {approvals.map((approval) => (
-              <div key={approval.id} className="space-y-3 rounded-md border p-4">
-                <div className="flex items-start justify-between gap-3">
-                  {/* The tool and its actor together. Two rows queued from two
-                    different delegates are the same tool name twice, so the
-                    delegate is what tells them apart - and it is the fact that
-                    decides the answer, not a detail a click away. */}
-                  <div className="min-w-0 space-y-1">
-                    <span className="block font-mono text-sm">{approval.tool_id}</span>
-                    <ApprovalDelegate approval={approval} />
-                  </div>
-                  <span className="text-muted-foreground shrink-0 text-xs">
-                    {approval.created_at ? formatDate(approval.created_at, locale) : ""}
-                  </span>
-                </div>
-                <pre className="bg-muted/40 overflow-x-auto rounded p-3 text-xs">
-                  {JSON.stringify(approval.tool_args, null, 2)}
-                </pre>
-                {/* Disabled while any decision is settling. The mutation is one
-                  instance shared across the queue, so a second click - on this
-                  row or another - before the first POST returns would decide
-                  twice; the backend refuses the second, but not sending it is
-                  better than surfacing that refusal as a toast. */}
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    disabled={decide.isPending}
-                    onClick={() => decide.mutate({ id: approval.id, approved: true })}
-                  >
-                    <CheckCircle2 className="h-4 w-4" />
-                    {t("approve")}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={decide.isPending}
-                    onClick={() => decide.mutate({ id: approval.id, approved: false })}
-                  >
-                    <XCircle className="h-4 w-4" />
-                    {t("reject")}
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </>
-        )}
-      </CardContent>
-    </Card>
+            </ListCardFootRow>
+          )}
+          {/* The record is one page of the same fifty, newest first - the
+              counted line above reports the window's total, so without this
+              the gap between "214 decided" and fifty rows goes unexplained. */}
+          {history.total > history.approvals.length && (
+            <ListCardFootRow>
+              <p className="text-muted-foreground text-xs" role="note">
+                {t("showingTheNewestOf", {
+                  shown: history.approvals.length,
+                  total: history.total,
+                })}
+              </p>
+            </ListCardFootRow>
+          )}
+          {history.error != null && (
+            <ListCardFootRow>
+              <p className="text-muted-foreground text-xs" role="note">
+                {t("decisionsCouldNotBeRead")}
+              </p>
+            </ListCardFootRow>
+          )}
+        </>
+      )}
+    </ListCard>
   );
 }

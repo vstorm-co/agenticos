@@ -36,6 +36,7 @@ from app.core.secret_kinds import (
     seal_secret,
 )
 from app.core.vault import VaultScope
+from app.services.model_catalog import CatalogModel
 from app.services.model_profile import (
     MAX_FALLBACK_DEPTH,
     ModelProfileService,
@@ -891,3 +892,92 @@ class TestAnEndpointOfItsOwn:
         written = create.call_args.kwargs
         assert written["secret_id"] is None
         assert written["base_url"] == "http://localhost:11434/v1"
+
+
+class TestTheWindowAModelAccepts:
+    """What `context_length` is for, and why it is stored rather than resolved.
+
+    The `compaction` capability triggers on a fraction of the context window, and
+    the only thing it could otherwise resolve one from is the `genai-prices`
+    snapshot - which records 1,000,000 for `anthropic:claude-sonnet-4-5` against
+    a real 200,000, and answers nothing at all for a profile with fallbacks,
+    whose `FallbackModel` has a composite `fallback:...` id. Over-recording is
+    the direction that takes a run down: the trigger lands above the real
+    ceiling, compaction never fires, and the provider refuses the request (#773).
+    """
+
+    @staticmethod
+    def _catalog(*models: tuple[str, int | None]) -> AsyncMock:
+        return AsyncMock(
+            return_value=(
+                [CatalogModel(id=mid, name=mid, context_length=n) for mid, n in models],
+                "live",
+            )
+        )
+
+    async def _created(self, catalog: AsyncMock, *, model: str) -> dict:
+        with (
+            patch("app.services.model_profile.models_for", new=catalog),
+            patch(
+                "app.services.model_profile.credential_repo.create_profile",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ) as create,
+            patch("app.services.model_profile.record_audit", new=AsyncMock()),
+        ):
+            await ModelProfileService(_db()).create_profile(
+                _ctx(),
+                label="Local llama",
+                provider="ollama",
+                model=model,
+                secret_id=None,
+                base_url="http://localhost:11434/v1",
+            )
+        return create.call_args.kwargs
+
+    @pytest.mark.anyio
+    async def test_the_providers_own_number_is_what_gets_stored(self):
+        written = await self._created(
+            self._catalog(("llama3.3", 128_000), ("other", 8_000)), model="llama3.3"
+        )
+
+        assert written["context_length"] == 128_000
+
+    @pytest.mark.anyio
+    async def test_a_model_the_listing_does_not_mention_records_nothing(self):
+        """A bespoke deployment, or one that shipped this morning. Null means not
+        recorded, and the capability resolves the window itself."""
+        written = await self._created(self._catalog(("other", 8_000)), model="llama3.3")
+
+        assert written["context_length"] is None
+
+    @pytest.mark.anyio
+    async def test_a_provider_that_publishes_no_length_records_nothing(self):
+        """A curated list carries ids and names; most of it carries no window."""
+        written = await self._created(self._catalog(("llama3.3", None)), model="llama3.3")
+
+        assert written["context_length"] is None
+
+    @pytest.mark.anyio
+    async def test_the_primarys_window_travels_even_when_the_chain_has_fallbacks(self):
+        """A `FallbackModel` has no window of its own to resolve, and which model a
+        run reaches is not known until one has refused."""
+        profile = MagicMock(
+            id=uuid.uuid4(),
+            label="Prod",
+            provider="ollama",
+            model="llama3.3",
+            params={},
+            secret_id=None,
+            base_url="http://localhost:11434/v1",
+            fallback_profile_ids=[],
+            context_length=128_000,
+        )
+        with patch(
+            "app.services.model_profile.credential_repo.get_profile",
+            new=AsyncMock(return_value=profile),
+        ):
+            spec = await ModelProfileService(_db()).resolve_for_organization(
+                uuid.uuid4(), profile_id=profile.id
+            )
+
+        assert spec.context_length == 128_000

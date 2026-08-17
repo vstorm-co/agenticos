@@ -15,6 +15,14 @@ Two levels, and they are not variations on one number.
 | **Agent monthly** | the agent's spec | that agent's own runs | whoever may edit the agent |
 | **Organization monthly** | organization settings | every run *and* ingestion in the organization | whoever holds `budgets:manage` |
 
+A **new organization starts with the organization ceiling already set** — the
+deployment's `DEFAULT_ORG_MONTHLY_BUDGET_USD` ([configuration](configuration.md),
+$100 out of the box) — so a fresh tenant is not one runaway agent away from a
+surprise bill. It is an ordinary cap from that point on: editable on the org's
+row, and enforced exactly like a hand-set one. A deployment that would rather
+start uncapped leaves that setting empty; either way an existing organization's
+cap is never changed for it.
+
 ### Why they cannot be collapsed
 
 They used to be, with `min()`, and the result was wrong. An agent's cap measured
@@ -64,6 +72,110 @@ no exception and no warning, just a run that reports less than it spent and an
 organization's month that never sees it. So the meter belongs to the prepared run
 rather than to the surface. Opening one is not a step a new surface has to know
 about, because there is no way to execute a prepared agent without it.
+
+[Context management](reference/capabilities.md#context-management) is the other
+one. Its summarizing strategy writes the summary through an agent it builds
+itself, so that request passes no budget guard; the capability books what it cost
+against the same meter. Being *outside* the guard has one consequence worth
+knowing: the spend is recorded rather than refused, so a compaction that crosses a
+cap stops the run on the request after it.
+
+### A cost that could not be measured says so
+
+`genai-prices` does not know every model. When a run reaches one it has no entry
+for, that request is booked at zero and the run is marked `cost_is_partial` — the
+total is short by exactly what those requests cost, and the honest reading of it
+is a **floor**.
+
+That flag now travels the whole way down. It is on the run row, on the message
+row a turn writes, and on the total a conversation reports; every surface that
+draws money draws `≥` in front of it rather than a figure that reads as exact.
+Null on a message written before the column existed means *not recorded*, which
+is not the same claim as "exact" — a client marks only what it knows.
+
+**Every surface records it now, and each turn records its own share.** A message
+written by a channel, the API or the widget carried no cost at all until
+recently, so a Slack thread could not be totalled. The number written is the
+*difference* from what that run's earlier turns already claim, not the run row's
+figure: a run row is cumulative, and a run that parked and was resumed writes two
+assistant turns — stamping both with the row would count the parked half twice.
+The messages of a run therefore sum to exactly what the run says it spent.
+
+**A turn the run was stopped part-way through says so.** A cancelled run leaves
+whatever the agent had written when the socket closed or `stop` was pressed, and
+that reads exactly like a finished answer — so a reader takes a truncated one as
+everything the agent had to say, and the money it spent looks like it bought that.
+The transcript carries the run's status per turn, and the chat marks it.
+
+### How full the context window is
+
+The third ceiling, and the one nobody sees coming. A budget refuses with a
+message somebody can act on. A workspace refuses a write. A **context window** is
+refused by the provider, mid-answer, and the run simply fails.
+
+Every agent therefore carries a gauge — not only one with
+[context management](reference/capabilities.md#context-management) bound, because
+the warning matters most to the agent that will *not* compact. It reports how
+many tokens the last request of a turn carried, *after* any compaction: the
+reading falls when compaction works, because it measures what went out rather
+than what the conversation holds.
+
+The number is the provider's own `input_tokens`, not an estimate of the history.
+A character count cannot see the tool definitions, and those are billed on every
+request — thousands of tokens on an agent with knowledge, a sandbox and
+delegation, which is a third of the real figure missing at exactly the moment the
+figure matters.
+
+**The count is stored on the turn; the share is not.** How much history there is
+survives a model change; what fraction of a window that is does not, and the chat
+lets somebody switch model between turns. A 500,000-token history is half of a
+1M-context model and 390% of a 128K one — and the second is a request the
+provider refuses outright. A share frozen with the reading would still read
+"50%". So the denominator is resolved where the selection is known, from the
+model profile's own recorded window and the pricing registry behind it; where
+neither can say, no share is drawn at all, because a percentage against an
+assumed window is a guess presented as a measurement.
+
+That switch is also what compaction is for. Its trigger is a **fraction resolved
+per request** against the model the request is going to, so a history that sat
+comfortably in the old window is compacted on the very next turn under the new
+one — before the request leaves, not after the provider has refused it. An agent
+with no compaction bound has the gauge instead, and nothing else.
+
+**The trigger measures what the provider measured.** It anchors on the most recent
+answer carrying provider usage — that request's `input_tokens` counted the
+instructions, every tool schema and every prior message — and estimates only what
+came after it. This is why a replayed conversation carries what each answer cost:
+without an anchor the trigger counts characters, and a real agent here read 9
+tokens where the provider had charged for 3,859. The gauge said 77%; the trigger
+saw nothing to do.
+
+**A summary is kept.** Compaction rewrites the messages of one run; the thread
+between turns is rebuilt from the transcript, so a summary used to be thrown away
+at the turn boundary and the next turn bought another one over a history one turn
+longer — two consecutive turns of a real conversation here each paid for a summary
+of the same five messages, and the second announced itself as summarising nine. So
+the compacted history is written to the conversation, along with how far it
+reaches, and the next turn starts from it and replays only what has been said
+since. Reopening the thread finds the same thing the model does.
+
+Only a summary is kept. Dropping the oldest messages and clearing tool results
+cost nothing to redo, and writing them down would make permanent a loss that is
+currently reconsidered against the window on every turn.
+
+One setting cannot work, and says so instead of running. When the instructions and
+tool schemas alone are past the trigger, no summary can get under it — they are
+not in the history to summarise. Every request would then buy a summary that
+changes nothing. Compaction is skipped, the chat says why, and the fix is an
+author's: a larger window, or a higher fraction.
+
+That refusal rests on a number a *response* produces, so a turn cannot measure
+its own before it has to decide — and a chat turn is usually one request. The
+conversation carries the last reading, and a run starts from it. The first turn
+of a thread therefore has nothing to go on and compacts as configured; from the
+second, the refusal is available. Only the strategies that buy something are
+refused: dropping the oldest messages and clearing tool results call no model, so
+they run whatever the window is.
 
 ### Delegation spends the parent's budget
 
@@ -189,6 +301,29 @@ The second is what makes "the researcher cost $40 this month" answerable, and it
 what a per-agent usage report or a budget alert on that agent fires on. The
 organization's monthly number also carries ingestion spend, which the per-agent
 number does not: indexing a shared knowledge base is nobody's agent's spend.
+
+A failed child row is also held to the parent's rule about what `error` may say.
+What raises under a delegate is a model client whose message can carry the failing
+request URL — key included, on a custom endpoint — so the row and the delegation's
+closing frame store the same controlled sentence the parent's row does, and the
+provider's own text goes to the server log. A delegate stopped by its usage limit
+or by a budget ceiling keeps the limit's message whole: that is a ceiling doing
+its job, not a failure to diagnose.
+
+**The dashboard's windowed figure carries it too.** `GET /stats/usage` answers a
+`cost` block for whatever period the filter chose, and that block is runs *plus*
+ingestion — the same arithmetic the monthly cap is measured with — with
+`model_usd` and `ingestion_usd` beside it so a reader can see where the money
+went without subtracting. It reported the model half alone until 0.0.152, which
+put two different definitions of cost on one card: the headline moved with the
+period filter and counted runs, while the month-to-date line under it counted
+the whole bill, and nothing said they were answering different questions. On a
+deployment that indexes documents they simply disagreed.
+
+At `scope=own` the ingestion half is zero rather than a share: a document is
+indexed by a worker and `ingestion_spend` records no user, so charging one
+person's window for a collection somebody else synced would be inventing their
+spend.
 
 **Every query has to say which of the two it is answering**, and the first column
 is the default. The month-to-date figure and the per-agent breakdown behind it
@@ -391,13 +526,14 @@ being deleted and a widget's visitor is anonymous to begin with.
 | `status` | Repeats. `?status=failed&status=budget_exceeded` is the show-me-the-problems query, and the two are separate statuses precisely so that asking for one is not asking for the other |
 | `surface` | Where the run came from |
 | `user_id` | Who the run ran **as**, which is not always who asked — a widget's runs carry the widget owner's identity, because the visitor is anonymous |
+| `model_label` | The model **as the run recorded it**, matched exactly. Not resolved through the model catalog: the column is what answered, and a profile it came from may since have been renamed or deleted. The dashboard's model card counts these same strings, so "the runs behind this bar" is one set on both screens |
 | `started_from`, `started_to` | Inclusive both ends, because a range picker hands over whole days |
 | `environment_id` | Runs on the version that environment pins. **Never a delegated run:** a delegate's version comes from a pin, so the column is deliberately never written on one, and narrowing to `production` drops every delegation. A surface that includes delegations has to say so |
 | `exposure_id` | Runs admitted through one binding. Null for the dashboard and the API |
 | `agent_version_id` | Runs that executed one frozen spec — the version strip's "show me the rows behind this number" |
 | `took_over_ms` | Only runs slower than this. A run that has not finished has no duration and is excluded, not counted as zero |
 | `rated` | `down` or `up` — runs where somebody rated a message the run produced |
-| `order_by`, `descending` | `started_at` (the default, newest first) or `duration` |
+| `order_by`, `descending` | `started_at` (the default, newest first), `duration`, `cost` or `tokens` |
 
 **Every filter narrows the count as well as the page**, so `total` always
 describes the rows under it. The list and the count are two queries, and a filter
@@ -412,17 +548,27 @@ on one screen share one window, or they say which window each is.
 A value outside its type is refused with a 422 rather than matched against
 nothing: `status` and `surface` are string columns, so `?status=complete` would
 otherwise answer with an empty page — and an empty page reads as *nothing went
-wrong this week*. `order_by` takes one of two orders rather than a column name,
+wrong this week*. `order_by` takes one of four orders rather than a column name,
 for the same reason plus one more: an `ORDER BY` assembled from a query string is
 an injection surface.
+
+**Every one of these travels in the URL**, which is what makes a dashboard card
+able to hand over to its own rows: `/runs?surface=mattermost&period=30d` opens
+Activity with the facet already set and the count matching the card that linked
+it. They were local state until #768, so the p95 figure was the only number on
+the dashboard that could reach the runs behind it and three cards carried no link
+at all — there was nothing honest to point them at.
 
 **Duration is computed in SQL, over the whole narrowed set.** That is what gets
 from *"p95 is 14.8s"* on the dashboard to **those runs** — sorting one page of
 twenty-five sorts the wrong set, because the slowest run of a month is not in
-whichever rows a newest-first page happened to return. A run with no `ended_at`
-sorts **last in both directions**: it has no duration, and it is not the fastest
-run either. How long a *still-running* run has been going is a different question
-and this column deliberately does not answer it.
+whichever rows a newest-first page happened to return. `cost` and `tokens` are
+the same arrangement for money and context weight. A run with no `ended_at`
+sorts **last in both directions under all three**: it has no duration, it is not
+the fastest run either, and its cost and token figures are written only when it
+finishes — sorted as stored, a run still going would read as the cheapest and
+lightest in the organization. How long a *still-running* run has been going is a
+different question and none of these orders answers it.
 
 Activity surfaces that duration three ways, and all three lead to the same query.
 The **Took** column header is a sort control — like the Started header beside it,

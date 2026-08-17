@@ -204,6 +204,11 @@ The `ChatFile` database model tracks uploaded files:
   organization role and no grant reaches another person's chat file through this
   API — unlike a collection, which a grant can open up. The comparison is against
   `user_id` and there is no second branch to hold a wider case.
+- **The link step takes the same rule.** A message attaches only the sender's
+  own *unlinked* files: an id naming another user's file, or one already on a
+  message, is refused rather than silently applied — so a turn can neither
+  render a stranger's filename nor pull an attachment off the message it
+  already hangs on.
 
 ## RAG Document Ingestion
 

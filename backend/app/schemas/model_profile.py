@@ -89,6 +89,15 @@ class ModelProfileRead(BaseSchema, TimestampSchema):
     params: dict[str, Any] = Field(default_factory=dict)
     allow_byo: bool
     fallback_profile_ids: list[str] = Field(default_factory=list)
+    context_length: int | None = Field(
+        default=None,
+        description=(
+            "Tokens this model accepts, as its provider's listing said when the profile "
+            "was created. Null means not recorded - a profile older than the column, a "
+            "provider that publishes no length, or a listing that could not be reached - "
+            "and not that the model accepts none."
+        ),
+    )
 
 
 class ModelProfileList(BaseSchema):

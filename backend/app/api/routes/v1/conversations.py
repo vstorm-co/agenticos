@@ -234,7 +234,12 @@ async def list_messages(
         organization_id=active_org.id,
         user_id=current_user.id,
     )
-    return MessageList(items=items, total=total)  # ty: ignore[invalid-argument-type]
+    cost = await conversation_service.conversation_cost(
+        conversation_id,
+        organization_id=active_org.id,
+        user_id=current_user.id,
+    )
+    return MessageList(items=items, total=total, cost=cost)  # ty: ignore[invalid-argument-type]
 
 
 @router.post(
@@ -392,6 +397,7 @@ async def list_workspace_files(
             path=str(entry.get("path")),
             size=entry.get("size"),
             is_dir=bool(entry.get("is_dir")),
+            modified_at=entry.get("modified_at"),
         )
         for entry in contents.entries
     ]

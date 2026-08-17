@@ -15,14 +15,14 @@ describe("RunStatusBadge", () => {
     // "awaiting_approval" tells an engineer something; "waiting for approval"
     // tells the person who has to act.
     render(<RunStatusBadge status="awaiting_approval" />);
-    expect(screen.getByText("waiting for approval")).toBeInTheDocument();
+    expect(screen.getByText("Waiting for approval")).toBeInTheDocument();
   });
 
   it("does not present a budget stop as a failure", () => {
     // It is the platform working as designed. Colouring it like a crash sends
     // operators chasing a problem that is not one.
     const { container } = render(<RunStatusBadge status="budget_exceeded" />);
-    expect(screen.getByText("stopped by budget")).toBeInTheDocument();
+    expect(screen.getByText("Stopped by budget")).toBeInTheDocument();
     expect(container.querySelector('[class*="destructive"]')).toBeNull();
   });
 
@@ -31,8 +31,20 @@ describe("RunStatusBadge", () => {
     expect(container.querySelector('[class*="destructive"]')).not.toBeNull();
   });
 
-  it.each(["completed", "running", "cancelled"] as const)("renders %s", (status) => {
+  it("does not present a guardrail block as a failure", () => {
+    // A refusal is the platform working, like a budget stop - a warning tone,
+    // never the destructive one an operator reads as a crash.
+    const { container } = render(<RunStatusBadge status="guardrail_blocked" />);
+    expect(screen.getByText("Blocked by guardrail")).toBeInTheDocument();
+    expect(container.querySelector('[class*="destructive"]')).toBeNull();
+  });
+
+  it.each([
+    ["completed", "Completed"],
+    ["running", "Running"],
+    ["cancelled", "Cancelled"],
+  ] as const)("renders %s", (status, label) => {
     render(<RunStatusBadge status={status} />);
-    expect(screen.getByText(status)).toBeInTheDocument();
+    expect(screen.getByText(label)).toBeInTheDocument();
   });
 });

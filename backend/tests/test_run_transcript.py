@@ -60,6 +60,32 @@ async def test_a_colleague_holding_runs_view_reads_a_run_they_did_not_start(
     assert agent_runner.agent_run_repo.get_run.await_args.kwargs["organization_id"] == _ORG
 
 
+async def test_the_conversation_scope_reads_the_whole_thread_the_run_sits_in(
+    monkeypatch: pytest.MonkeyPatch, mock_db_session: AsyncMock
+) -> None:
+    """A convenience, not a reach: every turn a run writes carries its run_id,
+    so the thread was already assemblable by iterating its runs' transcripts
+    under the same runs:view."""
+    run = _run(conversation_id=uuid4())
+    thread = [MagicMock(), MagicMock(), MagicMock()]
+    monkeypatch.setattr(agent_runner.agent_run_repo, "get_run", AsyncMock(return_value=run))
+    monkeypatch.setattr(
+        agent_runner.conversation_repo,
+        "get_messages_by_conversation",
+        AsyncMock(return_value=thread),
+    )
+    monkeypatch.setattr(agent_runner.conversation_repo, "count_messages", AsyncMock(return_value=3))
+
+    _, messages, total = await AgentRunnerService(mock_db_session).get_run_transcript(
+        _ctx(role=OrgRoleName.OPERATOR.value), run.id, whole_conversation=True
+    )
+
+    assert (messages, total) == (thread, 3)
+    call = agent_runner.conversation_repo.get_messages_by_conversation.await_args
+    assert call.args[1] == run.conversation_id
+    assert call.kwargs["include_tool_calls"] is True
+
+
 async def test_a_missing_or_foreign_run_is_a_not_found_naming_only_the_id(
     monkeypatch: pytest.MonkeyPatch, mock_db_session: AsyncMock
 ) -> None:

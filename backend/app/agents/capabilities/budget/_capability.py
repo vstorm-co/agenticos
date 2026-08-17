@@ -434,6 +434,43 @@ def record_ambient_usage(
         ledger.record(model_name, usage, provider)
 
 
+def usage_counts(usage: RunUsage) -> tuple[int, int, int, int]:
+    """The four counters a price is computed from, read off the run's usage.
+
+    A tuple rather than the object: `RunUsage` is accumulated in place, so keeping
+    a reference and comparing later compares it with itself. Cached tokens are
+    carried alongside the plain ones because they are priced differently and
+    `input_tokens` already includes them; dropping them would bill a cache read at
+    the full input rate, the defect :func:`price_request` exists to avoid.
+    """
+    return (
+        usage.input_tokens,
+        usage.output_tokens,
+        usage.cache_read_tokens,
+        usage.cache_write_tokens,
+    )
+
+
+def usage_delta(before: tuple[int, int, int, int], usage: RunUsage) -> RequestUsage | None:
+    """What a step added to the run's usage, or `None` when it called no model.
+
+    A capability that runs its own `Agent` - a compaction summary, a tool-output
+    summary, an LLM reminder - spends against `ctx.usage` and nowhere the request
+    wrapper can see, so each meters itself by snapshotting :func:`usage_counts`
+    before the step and diffing after. One helper so the meters cannot drift on
+    how the diff is taken.
+    """
+    after = usage_counts(usage)
+    if after == before:
+        return None
+    return RequestUsage(
+        input_tokens=after[0] - before[0],
+        output_tokens=after[1] - before[1],
+        cache_read_tokens=after[2] - before[2],
+        cache_write_tokens=after[3] - before[3],
+    )
+
+
 PeriodSpendLookup = Callable[[], Awaitable[Decimal]]
 
 

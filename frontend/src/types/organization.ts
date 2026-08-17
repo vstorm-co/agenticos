@@ -8,6 +8,8 @@ export interface Organization {
   name: string;
   slug: string;
   avatar_url: string | null;
+  /** Chosen default-avatar colour slot (1..10); null is auto from the id. */
+  avatar_color: number | null;
   is_personal: boolean;
   owner_id: string;
   stripe_customer_id: string | null;
@@ -31,6 +33,8 @@ export interface OrganizationMember {
   email: string;
   full_name: string | null;
   avatar_url: string | null;
+  /** Chosen default-avatar colour slot (1..10); null is auto from the id. */
+  avatar_color: number | null;
   joined_at: string;
 }
 

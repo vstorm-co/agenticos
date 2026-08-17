@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
     BigInteger,
@@ -55,6 +55,54 @@ class Conversation(Base, TimestampMixin):
     )
     title: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    summary_messages: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB, nullable=True)
+    """The history as the model last saw it, after a summary replaced part of it.
+
+    Compaction reaches the messages of one run. Rebuilt from the transcript next
+    turn, the summary is thrown away and bought again over a history one turn
+    longer - which is what two consecutive turns of a real conversation did here
+    (#49). Serialised the way a parked run's messages are, so tool calls, their
+    returns and the provider usage each answer carried all survive the boundary.
+
+    Null until a summary has run, which for most conversations is for ever.
+    """
+
+    summary_ordinal: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    """The last transcript row `summary_messages` accounts for.
+
+    The next turn replays the summary and the rows written after this, which is
+    what makes the two halves one history rather than a duplicate of the tail.
+    """
+
+    overhead_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    """What a request here carries before a single message.
+
+    The instructions and every tool schema, which the provider bills every time
+    and no summary can compact away, so this is the number that says whether a
+    window has room for a summary at all. Measured from a response, which is why
+    it is written down: within one run it is unknown until one arrives, and a
+    one-request chat turn - most of them - never gets that far. Recorded, the
+    next turn starts knowing it (#49).
+    """
+
+    reminder_state: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    """How far the system-reminders cadence has advanced in this conversation.
+
+    A reminder fires every N model requests to counter instruction fade, but a
+    request's counter lives only as long as the run that made it - so on the next
+    turn it would reset to zero and a reminder set to fire "every 10 requests"
+    never would in a chat of ten one-request turns. Recorded here, the cadence is
+    the conversation's rather than one run's: `request_count` and the per-reminder
+    `fire_counts` are seeded from this at build time and written back after the
+    turn, so leaving and reloading a conversation resumes where it left off.
+
+    The reminder text itself is never stored - it is injected ephemerally per
+    request and never enters the transcript. Only the counters are durable.
+
+    Null until a system-reminders capability has fired once, which for a
+    conversation whose agent has none is for ever.
+    """
 
     messages: Mapped[list["Message"]] = relationship(
         "Message",
@@ -195,6 +243,33 @@ class Message(Base, TimestampMixin):
     Null on every message written before it was recorded, and on any turn whose cost
     could not be read. Null means "not recorded" - a client draws nothing, because
     "$0.0000" under an answer that cost money is worse than saying nothing."""
+
+    cost_is_partial: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    """Whether `cost_usd` is a floor rather than the whole of it.
+
+    Set when the turn reached a model `genai-prices` has no entry for: the ledger
+    books that request with `cost_usd = 0` and `priced = False`, so the total is
+    short by however much it cost. `agent_runs` has recorded this since it existed;
+    a message did not, and an answer whose real cost is unknown rendered exactly
+    like one measured to the cent (#772).
+
+    Null is "not recorded", the same as the three columns above: every message
+    written before this existed has no answer, and `false` would claim a precision
+    nobody measured. A client draws the caveat on `true` alone."""
+
+    context_used_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    """How many tokens the history sent with this turn occupied.
+
+    Only the tokens. How much history there is is a fact about the conversation
+    and survives a model change; the *window* it is a share of belongs to the
+    model answering next, and the chat lets somebody switch that between turns.
+    Stored together, a 500,000-token history measured on a 1M model would go on
+    reading "50%" after a switch to a 128K one, where it is really 390% and the
+    next request is refused - a number that lies in the one direction that costs
+    a run (#774).
+
+    Null is not recorded: a message older than the column, and any turn that
+    never reached a model."""
 
     conversation: Mapped["Conversation"] = relationship("Conversation", back_populates="messages")
     tool_calls: Mapped[list["ToolCall"]] = relationship(

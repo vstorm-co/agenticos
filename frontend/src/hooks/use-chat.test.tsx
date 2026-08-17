@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -680,6 +680,76 @@ describe("useChat - the conversation a turn belongs to", () => {
     expect(streaming()).toMatchObject({ id: "m-real", isTemporaryId: false });
   });
 
+  it("re-reads what the thread has cost once a turn has added to it", async () => {
+    // The total is read when the transcript loads, so without this it is a
+    // conversation out of date by the second message. Re-read rather than added
+    // to: a run that parked reports its cost so far and the resume reports the
+    // run's total, so the obvious arithmetic counts the approved half twice.
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    get.mockResolvedValueOnce({
+      cost: { input_tokens: 40, output_tokens: 4, cost_usd: "0.9", cost_is_partial: false },
+    });
+    renderHook(() => useChat(), { wrapper });
+
+    receive("complete", {
+      usage: {
+        input_tokens: 1200,
+        output_tokens: 300,
+        cost_usd: 0.0125,
+        budget_percent: null,
+        sandbox: null,
+      },
+    });
+
+    await waitFor(() =>
+      expect(useConversationStore.getState().currentCost).toMatchObject({ input_tokens: 40 }),
+    );
+    expect(get).toHaveBeenCalledWith("/conversations/c-1/messages?skip=0&limit=1");
+  });
+
+  it("leaves the total alone when the re-read fails", async () => {
+    // Stale is not wrong, and losing an answer to a failed accounting read would
+    // be the worse trade.
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useConversationStore.getState().setCurrentMessages([], {
+      input_tokens: 7,
+      output_tokens: 1,
+      cost_usd: "0.1",
+      cost_is_partial: false,
+    });
+    get.mockRejectedValueOnce(new Error("gone"));
+    renderHook(() => useChat(), { wrapper });
+
+    receive("complete", {
+      usage: {
+        input_tokens: 1,
+        output_tokens: 1,
+        cost_usd: 0.01,
+        budget_percent: null,
+        sandbox: null,
+      },
+    });
+
+    await waitFor(() => expect(get).toHaveBeenCalled());
+    expect(useConversationStore.getState().currentCost).toMatchObject({ input_tokens: 7 });
+  });
+
+  it("asks for nothing when a turn finished outside any conversation", () => {
+    renderHook(() => useChat(), { wrapper });
+
+    receive("complete", {
+      usage: {
+        input_tokens: 1,
+        output_tokens: 1,
+        cost_usd: 0.01,
+        budget_percent: null,
+        sandbox: null,
+      },
+    });
+
+    expect(get).not.toHaveBeenCalled();
+  });
+
   it("keeps what the last turn cost, and does not clear it when a turn reports none", () => {
     // A turn the server could not measure must not blank a number the previous
     // one legitimately reported - the strip would flicker to nothing mid-chat.
@@ -821,6 +891,118 @@ describe("useChat - the conversation a turn belongs to", () => {
     expect(listener).toHaveBeenCalled();
     expect(result.current.isProcessing).toBe(false);
     window.removeEventListener("billing:refresh", listener);
+  });
+});
+
+describe("useChat - the summary of its own history", () => {
+  it("reports a summary while it is being written", () => {
+    // Compaction runs between two of the turn's model requests, where nothing
+    // else streams: no token, no tool step. Without this frame the screen is
+    // indistinguishable from a broken one, and reloading it cancels the turn.
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    receive("compaction_started", {
+      kind: "compaction_started",
+      messages_before: 62,
+      messages_after: null,
+    });
+
+    expect(result.current.compacting).toMatchObject({ messages_before: 62 });
+  });
+
+  it("clears it when the summary finishes", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("compaction_started", {
+      kind: "compaction_started",
+      messages_before: 62,
+      messages_after: null,
+    });
+
+    receive("compaction_finished", {
+      kind: "compaction_finished",
+      messages_before: 62,
+      messages_after: 9,
+    });
+
+    expect(result.current.compacting).toBeNull();
+  });
+
+  it("keeps a window that cannot work on screen after the turn", () => {
+    // A setting, not a state: clearing it when the turn ends would flash the one
+    // message explaining why nothing happened.
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    receive("compaction_impossible", {
+      kind: "compaction_impossible",
+      messages_before: null,
+      messages_after: null,
+      overhead_tokens: 3_843,
+      window_tokens: 5_000,
+    });
+    receive("complete", {});
+
+    expect(result.current.compactionImpossible).toMatchObject({ overhead_tokens: 3_843 });
+  });
+
+  it("drops the warning once a summary actually runs", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("compaction_impossible", {
+      kind: "compaction_impossible",
+      messages_before: null,
+      messages_after: null,
+      overhead_tokens: 3_843,
+      window_tokens: 5_000,
+    });
+
+    receive("compaction_started", {
+      kind: "compaction_started",
+      messages_before: 8,
+      messages_after: null,
+    });
+
+    expect(result.current.compactionImpossible).toBeNull();
+  });
+
+  it("clears it when the turn ends without one", () => {
+    // A run that failed between the two frames would otherwise leave the notice
+    // up until the next message, over a composer somebody is typing into.
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("compaction_started", {
+      kind: "compaction_started",
+      messages_before: 62,
+      messages_after: null,
+    });
+
+    receive("complete", {});
+
+    expect(result.current.compacting).toBeNull();
+  });
+
+  it("leaves neither frame behind when another conversation is opened", () => {
+    // Both survived a conversation switch: switch away mid-summary and
+    // "Summarising…" drew over the thread just opened, and the "cannot run"
+    // warning describes one agent's window against another's.
+    useConversationStore.getState().setCurrentConversationId("c-a");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("compaction_started", {
+      kind: "compaction_started",
+      messages_before: 62,
+      messages_after: null,
+    });
+    receive("compaction_impossible", {
+      kind: "compaction_impossible",
+      messages_before: null,
+      messages_after: null,
+      overhead_tokens: 3_843,
+      window_tokens: 5_000,
+    });
+
+    act(() => {
+      useConversationStore.getState().setCurrentConversationId("c-b");
+    });
+
+    expect(result.current.compacting).toBeNull();
+    expect(result.current.compactionImpossible).toBeNull();
   });
 });
 

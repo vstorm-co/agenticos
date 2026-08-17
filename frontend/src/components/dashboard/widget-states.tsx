@@ -24,7 +24,7 @@ export function WidgetSkeleton({ rows = 3, className }: { rows?: number; classNa
       {Array.from({ length: rows }, (_, index) => (
         <div
           key={index}
-          className="bg-foreground/5 h-4 rounded"
+          className="bg-muted h-4 rounded"
           style={{ width: `${100 - index * 18}%` }}
         />
       ))}

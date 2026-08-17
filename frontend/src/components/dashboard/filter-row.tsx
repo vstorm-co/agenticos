@@ -1,34 +1,24 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarRange, ListFilter } from "lucide-react";
+import { Bot, ListFilter, ShieldCheck, UserPlus } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import {
   Button,
-  DateRangePicker,
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuTrigger,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
 } from "@/components/ui";
+import { PeriodControl } from "@/components/dashboard/period-control";
 import { useApprovals, usePermissions } from "@/hooks";
 import { useOrgStore } from "@/stores";
 import { ROUTES } from "@/lib/constants";
 import type { SectionDef } from "@/lib/dashboard/layouts";
-import {
-  customPeriod,
-  PERIOD_PRESETS,
-  resolvePreset,
-  type Period,
-  type PeriodPreset,
-} from "@/lib/dashboard/period";
-import { filterableSectionIds } from "@/lib/dashboard/sections";
+import type { Period } from "@/lib/dashboard/period";
+import { filterableSectionIds, isFilterable, sectionLabel } from "@/lib/dashboard/sections";
 import { Perm } from "@/types/permissions";
-import { cn } from "@/lib/utils";
 
 interface FilterRowProps {
   period: Period;
@@ -57,66 +47,23 @@ export function FilterRow({
   const filterable = filterableSectionIds(sections);
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <div
-        data-tour="dashboard-filters"
-        className="flex flex-wrap items-center gap-1"
-        role="group"
-        aria-label={t("period.label")}
-      >
-        {PERIOD_PRESETS.map((preset: PeriodPreset) => (
-          <button
-            key={preset}
-            type="button"
-            aria-pressed={period.preset === preset}
-            onClick={() => onPeriodChange(resolvePreset(preset))}
-            className={cn(
-              "rounded-md px-2.5 py-1 text-xs",
-              period.preset === preset
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:bg-accent hover:text-foreground",
-            )}
-          >
-            {t(`period.${preset}`)}
-          </button>
-        ))}
-        <Popover>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              aria-pressed={period.preset === "custom"}
-              className={cn(
-                "flex items-center gap-1 rounded-md px-2.5 py-1 text-xs",
-                period.preset === "custom"
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-foreground",
-              )}
-            >
-              <CalendarRange className="size-3.5" aria-hidden />
-              {period.preset === "custom" ? `${period.from} – ${period.to}` : t("period.custom")}
-            </button>
-          </PopoverTrigger>
-          <PopoverContent align="start" className="w-auto p-4">
-            <DateRangePicker
-              value={period.preset === "custom" ? { from: period.from, to: period.to } : null}
-              onChange={(range) => onPeriodChange(customPeriod(range.from, range.to))}
-            />
-          </PopoverContent>
-        </Popover>
-      </div>
+    // Two groups, not eight controls: what narrows the page and what leaves it.
+    // Wrapped as groups they stack as two legible rows rather than spilling one
+    // button at a time, and each row still starts where the eye already is.
+    <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+      <div data-tour="dashboard-filters" className="flex flex-wrap items-center gap-2">
+        <PeriodControl period={period} onChange={onPeriodChange} />
 
-      {filterable.length > 1 ? (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-1.5">
-              <ListFilter className="size-3.5" aria-hidden />
-              {t("sectionsFilter.label")}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            {sections
-              .filter((section) => section.titleKey !== null)
-              .map((section) => {
+        {filterable.length > 1 ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5">
+                <ListFilter className="size-3.5" aria-hidden />
+                {t("sectionsFilter.label")}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              {sections.filter(isFilterable).map((section) => {
                 const checked = selectedSections === null || selectedSections.includes(section.id);
                 return (
                   <DropdownMenuCheckboxItem
@@ -137,29 +84,35 @@ export function FilterRow({
                       );
                     }}
                   >
-                    {t(`sections.${section.titleKey}`)}
+                    {sectionLabel(section, t)}
                   </DropdownMenuCheckboxItem>
                 );
               })}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ) : null}
-
-      <div data-tour="dashboard-actions" className="ml-auto flex flex-wrap items-center gap-2">
-        {can(Perm.agentsRun) ? (
-          <Button asChild size="sm">
-            <Link href={ROUTES.CHAT}>{t("actions.newChat")}</Link>
-          </Button>
+            </DropdownMenuContent>
+          </DropdownMenu>
         ) : null}
+      </div>
+
+      {/* Shortcuts, drawn as shortcuts. Four buttons of near-equal weight is
+          four decisions asked at once, so the page's one primary action - go
+          and talk to an agent - sits in the header where every other page in
+          the product puts its primary, and what is left here is quiet. */}
+      <div data-tour="dashboard-actions" className="flex flex-wrap items-center gap-1">
         {can(Perm.agentsEdit) ? (
-          <Button asChild variant="outline" size="sm">
-            <Link href={ROUTES.AGENTS}>{t("actions.createAgent")}</Link>
+          <Button asChild variant="ghost" size="sm" className="gap-1.5">
+            <Link href={ROUTES.AGENTS}>
+              <Bot className="size-3.5" aria-hidden />
+              {t("actions.createAgent")}
+            </Link>
           </Button>
         ) : null}
         {can(Perm.approvalsDecide) ? <ReviewApprovalsAction /> : null}
         {can(Perm.membersManage) && activeOrgId ? (
-          <Button asChild variant="outline" size="sm">
-            <Link href={ROUTES.ORG_MEMBERS(activeOrgId)}>{t("actions.invite")}</Link>
+          <Button asChild variant="ghost" size="sm" className="gap-1.5">
+            <Link href={ROUTES.ORG_MEMBERS(activeOrgId)}>
+              <UserPlus className="size-3.5" aria-hidden />
+              {t("actions.invite")}
+            </Link>
           </Button>
         ) : null}
       </div>
@@ -176,11 +129,12 @@ function ReviewApprovalsAction() {
   const { total } = useApprovals();
 
   return (
-    <Button asChild variant="outline" size="sm">
+    <Button asChild variant="ghost" size="sm" className="gap-1.5">
       <Link href={ROUTES.RUNS}>
+        <ShieldCheck className="size-3.5" aria-hidden />
         {t("actions.reviewApprovals")}
         {total > 0 ? (
-          <span className="bg-warning/15 text-warning ml-1.5 rounded-full px-1.5 text-[10px] font-semibold tabular-nums">
+          <span className="bg-warning/15 text-warning ml-0.5 rounded-full px-1.5 text-[10px] font-semibold tabular-nums">
             {total}
           </span>
         ) : null}

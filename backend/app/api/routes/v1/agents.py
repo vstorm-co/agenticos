@@ -31,6 +31,7 @@ from app.api.deps import AgentRegistrySvc, AgentRunnerSvc, Auth, limit_agent_run
 from app.core.permissions import Perm
 from app.db.models.agent_run import RunSurface
 from app.schemas.agent import (
+    AgentAvatarColorRequest,
     AgentClone,
     AgentCreate,
     AgentDetail,
@@ -48,6 +49,7 @@ from app.schemas.agent import (
     CapabilityCatalog,
     CapabilityCatalogEntry,
     CapabilityToolContract,
+    DelegationTree,
     McpCatalog,
     McpCatalogEntry,
     SpecialistPromote,
@@ -190,6 +192,7 @@ async def get_agent(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> Any
         owner_user_id=agent.owner_user_id,
         current_version_id=agent.current_version_id,
         has_avatar=agent.has_avatar,
+        avatar_color=agent.avatar_color,
         created_at=agent.created_at,
         updated_at=agent.updated_at,
         draft_spec=AgentSpec.model_validate(agent.draft_spec),
@@ -244,6 +247,22 @@ async def rollback_agent(
 ) -> Any:
     """Republish an earlier spec as a new version, keeping history linear."""
     return await service.rollback(ctx, agent_id, to_version_id=data.version_id)
+
+
+@router.get(
+    "/{agent_id}/delegation-tree",
+    response_model=DelegationTree,
+)
+async def get_delegation_tree(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> Any:
+    """The delegation tree under this agent's draft, to the depth a run can reach.
+
+    What the agent map renders recursively - delegates, their delegates, inline
+    specialists - in one response instead of a page-walk per hop. Each pin is
+    access-checked against the caller: a delegate they may not see is
+    `restricted`, with no name and no children, indistinguishable from one that
+    does not exist.
+    """
+    return await service.delegation_tree(ctx, agent_id)
 
 
 @router.get(
@@ -342,6 +361,20 @@ async def upload_agent_avatar(
     )
 
 
+@router.patch(
+    "/{agent_id}/avatar-color",
+    response_model=AgentRead,
+)
+async def set_agent_avatar_color(
+    agent_id: UUID,
+    data: AgentAvatarColorRequest,
+    service: AgentRegistrySvc,
+    ctx: Auth,
+) -> Any:
+    """Choose the colour the agent's fallback avatar uses, or null for auto."""
+    return await service.set_avatar_color(ctx, agent_id, color=data.color)
+
+
 @router.get(
     "/{agent_id}/avatar",
     response_class=FileResponse,
@@ -416,6 +449,7 @@ async def run_agent(
         output=output,
         status=run.status,
         cost_usd=run.cost_usd,
+        cost_is_partial=run.cost_is_partial,
         input_tokens=run.input_tokens,
         output_tokens=run.output_tokens,
     )

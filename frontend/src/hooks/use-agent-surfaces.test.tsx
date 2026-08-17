@@ -81,6 +81,19 @@ describe("an agent's environments", () => {
     expect(toast.success).toHaveBeenCalledWith("Promoted");
   });
 
+  it("renames an environment without touching its pin", async () => {
+    // The same PATCH as promotion, carrying only the name - sending a
+    // version_id here would silently repoint what somebody meant to relabel.
+    const { result } = renderHook(() => useAgentEnvironments("a1"), { wrapper });
+
+    await result.current.rename.mutateAsync({ environmentId: "env-1", name: "canary" });
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/agents/a1/environments/env-1", {
+      name: "canary",
+    });
+    expect(toast.success).toHaveBeenCalledWith("Renamed");
+  });
+
   it("removes an environment", async () => {
     const { result } = renderHook(() => useAgentEnvironments("a1"), { wrapper });
 
@@ -90,7 +103,7 @@ describe("an agent's environments", () => {
   });
 
   it("says which action was refused, not just that something was", async () => {
-    // Three mutations, three sentences: "failed to promote" and "failed to
+    // Four mutations, four sentences: "failed to promote" and "failed to
     // remove" send somebody to different places.
     const refused = new Error("Missing required permission: agents:publish");
     vi.mocked(apiClient.post).mockRejectedValue(refused);
@@ -102,9 +115,13 @@ describe("an agent's environments", () => {
     await expect(
       result.current.promote.mutateAsync({ environmentId: "e", versionId: "v" }),
     ).rejects.toThrow();
+    await expect(
+      result.current.rename.mutateAsync({ environmentId: "e", name: "x" }),
+    ).rejects.toThrow();
     await expect(result.current.remove.mutateAsync("e")).rejects.toThrow();
 
     expect(vi.mocked(toast.error).mock.calls.flat()).toEqual([
+      "Missing required permission: agents:publish",
       "Missing required permission: agents:publish",
       "Missing required permission: agents:publish",
       "Missing required permission: agents:publish",

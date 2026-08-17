@@ -49,25 +49,29 @@ export function AgentStatusBadge({ status }: { status: AgentStatus }) {
 }
 
 /**
- * `budget_exceeded` reads as a warning, not an error.
+ * `budget_exceeded` and `guardrail_blocked` read as a warning, not an error.
  *
- * It is the platform working as designed, and colouring it like a crash makes
- * operators chase a problem that is not one.
+ * Each is the platform working as designed - a cap reached, a rule enforced -
+ * and colouring it like a crash makes operators chase a problem that is not one.
  */
 const RUN_DOT: Record<RunStatus, string> = {
   completed: "bg-success",
   running: "bg-brand animate-pulse",
   awaiting_approval: "bg-warning",
   budget_exceeded: "bg-warning",
+  guardrail_blocked: "bg-warning",
   cancelled: "bg-muted-foreground/50",
   failed: "bg-destructive",
 };
 
-const RUN_LABEL: Record<RunStatus, string> = {
+// Exported for the run-history filter, whose Select options are these same
+// words - one catalog key per status, never a second copy.
+export const RUN_LABEL: Record<RunStatus, string> = {
   completed: "runCompleted",
   running: "runRunning",
   awaiting_approval: "runAwaitingApproval",
   budget_exceeded: "runBudgetExceeded",
+  guardrail_blocked: "runGuardrailBlocked",
   cancelled: "runCancelled",
   failed: "runFailed",
 };

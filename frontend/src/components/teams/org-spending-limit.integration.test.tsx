@@ -34,6 +34,7 @@ function org(overrides: Partial<Organization> = {}): Organization {
     name: "Acme",
     slug: "acme",
     avatar_url: null,
+    avatar_color: null,
     is_personal: false,
     owner_id: "u1",
     stripe_customer_id: null,

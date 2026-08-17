@@ -751,6 +751,11 @@ it is about to wait.
     answered plausibly, from a version of the thread that had stopped hundreds of
     turns ago. Nothing errored, which is why it needed a test rather than a fix.
 
+    The offset is `conversation_repo.get_recent_messages` now, and every surface
+    reads the window through it — the widget, the channels and web chat. Three
+    copies of one `COUNT` and one offset is how it came to be wrong twice, from
+    opposite ends.
+
 - **One bot answers as one agent.** A bot user is a single identity in the chat:
   the same avatar, the same name, whichever agent produced the reply. So a bot
   serves exactly one agent, and binding a second is refused — in the Builder's
@@ -805,11 +810,19 @@ it is about to wait.
     somebody, with no backfill: the turn points at the chat account and the
     account gains a person.
 
-    **That list says who spoke, not who may read.** Participation is never
-    re-checked against the platform, so somebody removed from the channel there
-    keeps the thread in their list here — deliberately, and [#641][641] is what it
-    would take to change. Nothing may use it as an authorization check without
-    asking the platform first.
+    **Speaking is a claim; the platform decides whether it still holds.** The
+    turn record says who *spoke*, and before [#641][641] that was the whole
+    check — somebody removed from the channel kept reading the thread,
+    including everything said after they left. Now every participation claim is
+    confirmed against the platform's current membership (`getChatMember` on
+    Telegram, `conversations.members` on Slack, the per-user member lookup on
+    Mattermost) before the listing shows the thread and before it opens, behind
+    a shared Redis cache of about a minute. The check **fails closed**: a
+    platform that cannot answer, a bot that is gone, and a thread whose channel
+    nothing names any more — `/new` re-points the session at a fresh
+    conversation — all refuse participation rather than trust the claim. The
+    thread's owner and anybody it was explicitly shared with keep their access
+    regardless; the membership check gates participation and nothing else.
 
     **And it opens a thread rather than owning one.** Speaking in a room admits
     you to reading it; renaming it, archiving it, deleting it or appending a turn
@@ -817,6 +830,16 @@ it is about to wait.
     Otherwise one person who said "thanks" in a channel could delete the room's
     whole transcript, or write a turn as the agent that everybody reads and the
     model is handed back as its own words on the next turn.
+
+    A thread whose first speaker never linked an account has no owner, and there
+    the participants *are* who may change it — the same set that may open it.
+    There is nobody the write would be taken from, and the alternative was the
+    whole organization: any member could delete a transcript whose list entry
+    they had never seen ([#701][701]). The write leans on the same confirmed
+    participation as the read: a claim the platform no longer backs carries
+    neither ([#641][641]).
+
+[701]: https://github.com/vstorm-co/agenticos/issues/701
 
 [641]: https://github.com/vstorm-co/agenticos/issues/641
 
@@ -1148,7 +1171,10 @@ had no attachment field, so no adapter parsed one and the agent answered about a
 document it never received. Now a message with a file — with or without a caption —
 reaches the agent the same way a web upload does, and is **read back the same way**:
 the file is a row on the turn it arrived with, so the thread in `/chat` shows a card
-rather than the briefing the model was given about it.
+rather than the briefing the model was given about it. A caption-less upload is
+still a turn, and its message names what arrived — `Attached image: photo.jpg` —
+rather than sitting blank above the card, because a blank user message reads as
+somebody sending nothing.
 
 **On every transport, because each adapter has exactly one parser.** Each platform
 has two ways in — a webhook and a stream, or long-polling — and the second one used

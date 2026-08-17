@@ -1,28 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import type { ReactNode } from "react";
 import { Lock, Plus } from "lucide-react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { SecretsTable } from "@/components/vault/secrets-table";
 import {
   Button,
-  Card,
-  CardContent,
-  CardDescription,
   Dialog,
   DialogContent,
   DialogDescription,
-  CardHeader,
-  CardTitle,
   DialogHeader,
   DialogTitle,
+  ListCard,
+  ListCardEmpty,
   Skeleton,
 } from "@/components/ui";
+import { ErrorState } from "@/components/states";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
 import { AddSecretDialog, RotateSecretDialog } from "@/components/vault/secret-dialog";
 import { usePermissions, useSecretPurposes, useSecrets } from "@/hooks";
+import { getErrorMessage } from "@/lib/api-error";
 import { Perm } from "@/types/permissions";
 import type { Secret } from "@/types/secrets";
 import { useTranslations } from "next-intl";
@@ -33,41 +31,14 @@ import { useTranslations } from "next-intl";
  */
 const VAULT_DESCRIPTION = "pageDescription";
 
-/**
- * The list's frame, drawn whether or not there is anything in it.
- *
- * The card used to be a container around the empty state and a bare stack of
- * rows once a key existed, which reads as the panel disappearing the moment you
- * use it. Same header, same border, in every state: what changes is what is
- * inside it.
- */
-function KeysCard({ count, children }: { count: number | null; children: ReactNode }) {
-  const t = useTranslations("pages.vault");
-  return (
-    <Card data-tour="vault-keys">
-      <CardHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-4">
-        <div className="space-y-1">
-          <CardTitle className="text-sm">{t("keys")}</CardTitle>
-          <CardDescription className="text-xs">
-            {/* `null` is "the request has not answered". Rendering "0 keys
-                stored" there would state something about the organization that
-                nothing has said yet - and it is the one number somebody would
-                read as fact. */}
-            {count === null ? <Skeleton className="h-3 w-24" /> : t("storedCount", { count })}
-          </CardDescription>
-        </div>
-      </CardHeader>
-      <CardContent className="p-0">{children}</CardContent>
-    </Card>
-  );
-}
-
 export default function VaultPage() {
   const t = useTranslations("pages.vault");
+  const tErrors = useTranslations("errors");
   const {
     secrets,
     kinds,
     isLoading: secretsLoading,
+    listError,
     create: createSecret,
     rotate: rotateSecret,
     remove: removeSecret,
@@ -89,7 +60,7 @@ export default function VaultPage() {
     return (
       <div className="space-y-6">
         <PageHeader title={t("vault")} description={t(VAULT_DESCRIPTION)} />
-        <KeysCard count={null}>
+        <ListCard title={t("keys")} counted={null} contentClassName="p-0">
           {[0, 1, 2].map((row) => (
             <div
               key={row}
@@ -102,7 +73,7 @@ export default function VaultPage() {
               </div>
             </div>
           ))}
-        </KeysCard>
+        </ListCard>
       </div>
     );
 
@@ -121,31 +92,35 @@ export default function VaultPage() {
         }
       />
 
-      <KeysCard count={secrets.length}>
-        {secrets.length === 0 ? (
-          // Inline rather than an `EmptyState`: that component draws its own
-          // bordered box, and inside a card it made two frames around one
-          // message with two hundred pixels of nothing between them.
-          <div className="px-6 py-16 text-center">
-            <div className="bg-muted text-muted-foreground mx-auto flex h-11 w-11 items-center justify-center rounded-xl">
-              <Lock className="h-5 w-5" />
-            </div>
-            <p className="text-foreground mt-4 text-sm font-medium">{t("noKeysYet")}</p>
-            <p className="text-muted-foreground mx-auto mt-1 max-w-sm text-sm">
-              {t("addOneBecomesSelectable")}
-            </p>
-            {canManage && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-5"
-                onClick={() => setSecretOpen(true)}
-              >
-                <Plus className="h-3.5 w-3.5" />
-                {t("addKey2")}
-              </Button>
-            )}
-          </div>
+      <ListCard
+        data-tour="vault-keys"
+        title={t("keys")}
+        // With the list refused, "0 keys stored" would state as fact something
+        // the request never answered - the skeleton stays.
+        counted={listError ? null : t("storedCount", { count: secrets.length })}
+        contentClassName="p-0"
+      >
+        {listError ? (
+          <ErrorState description={getErrorMessage(listError, tErrors)} className="m-5" />
+        ) : secrets.length === 0 ? (
+          <ListCardEmpty
+            icon={Lock}
+            title={t("noKeysYet")}
+            description={t("addOneBecomesSelectable")}
+            cta={
+              canManage
+                ? {
+                    label: (
+                      <>
+                        <Plus className="h-3.5 w-3.5" />
+                        {t("addKey2")}
+                      </>
+                    ),
+                    onClick: () => setSecretOpen(true),
+                  }
+                : undefined
+            }
+          />
         ) : (
           <SecretsTable
             secrets={secrets}
@@ -156,7 +131,7 @@ export default function VaultPage() {
             onDelete={(secret) => removeSecret.mutate(secret.id)}
           />
         )}
-      </KeysCard>
+      </ListCard>
 
       <AddSecretDialog
         open={secretOpen}

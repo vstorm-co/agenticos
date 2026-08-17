@@ -3,8 +3,12 @@
 import { Clock } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { Figure } from "@/components/ui";
+
 import { useUsageStats } from "@/hooks";
 import { TrendChart } from "../primitives/trend-chart";
+import { CHART_MIN_HEIGHT } from "@/lib/dashboard/system";
+import { cn } from "@/lib/utils";
 import { WidgetFrame } from "../widget-frame";
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
@@ -14,7 +18,7 @@ import type { DashboardWidgetProps } from "./types";
  * answers "why is my agent stuck" for someone who cannot see the approval
  * queue; deciding stays behind approvals:decide, so there is no button here.
  */
-export function MyActivityWidget({ title, period, seeAll }: DashboardWidgetProps) {
+export function MyActivityWidget({ title, hint, period, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.my-activity");
   const { usage, isLoading, error, refetch } = useUsageStats(
     { from: period.from, to: period.to },
@@ -22,7 +26,7 @@ export function MyActivityWidget({ title, period, seeAll }: DashboardWidgetProps
   );
 
   return (
-    <WidgetFrame title={title} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {isLoading ? (
         <WidgetSkeleton />
       ) : error ? (
@@ -30,21 +34,21 @@ export function MyActivityWidget({ title, period, seeAll }: DashboardWidgetProps
       ) : !usage || !usage.total_runs ? (
         <WidgetEmptyBody title={t("empty.title")} description={t("empty.description")} />
       ) : (
-        <div className="flex h-full flex-col gap-2">
-          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <span className="text-foreground text-2xl font-semibold tabular-nums">
-              {usage.total_runs.toLocaleString()}
-            </span>
-            <span className="text-muted-foreground text-xs">{t("unit")}</span>
-            {usage.pending_approvals ? (
-              <span className="text-warning flex items-center gap-1 text-xs">
-                <Clock className="size-3" aria-hidden />
-                {t("pending", { count: usage.pending_approvals })}
-              </span>
-            ) : null}
-          </div>
+        <div className="flex h-full flex-col gap-3">
+          <Figure
+            value={usage.total_runs.toLocaleString()}
+            unit={t("unit")}
+            delta={
+              usage.pending_approvals ? (
+                <span className="text-warning flex items-center gap-1 text-xs">
+                  <Clock className="size-3" aria-hidden />
+                  {t("pending", { count: usage.pending_approvals })}
+                </span>
+              ) : undefined
+            }
+          />
           <TrendChart
-            className="min-h-28 flex-1"
+            className={cn(CHART_MIN_HEIGHT, "flex-1")}
             data={(usage.by_day ?? []).map((day) => ({
               label: day.date.slice(5),
               value: day.runs,

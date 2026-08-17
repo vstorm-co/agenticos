@@ -28,6 +28,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.compaction import ContextGauge
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import AgentRun
 from app.repositories import agent_workspace_repo
@@ -80,6 +81,32 @@ class SandboxUsage:
 
 
 @dataclass(frozen=True)
+class ContextFill:
+    """How many tokens the history sent with a turn occupied.
+
+    The ceiling nobody sees coming. A budget refuses with a message somebody can
+    act on and a workspace refuses a write; a context window is refused by the
+    *provider*, mid-answer, and the run simply fails.
+
+    **Measured by the provider, not estimated.** It is the `input_tokens` of the
+    request, which counts the instructions and the tool schemas a character
+    heuristic cannot see - thousands of tokens on an agent with knowledge, a
+    sandbox and delegation, and a third of the real figure missing without them.
+
+    **The count only, not a share of anything.** How much history there is is a
+    fact about the conversation; the window it would be a share of belongs to the
+    model answering *next*, and the chat lets somebody switch that between turns.
+    A share computed here and carried forward would go on reading "50%" for a
+    500,000-token history after a switch from a 1M-context model to a 128K one,
+    where it is really 390% and the next request is refused outright - wrong in
+    the one direction that costs a run. So the denominator is resolved where the
+    model is known, which is the surface that knows which one is selected.
+    """
+
+    used_tokens: int
+
+
+@dataclass(frozen=True)
 class UsageReport:
     """What one turn spent, and what it has left.
 
@@ -94,11 +121,21 @@ class UsageReport:
     input_tokens: int
     output_tokens: int
     cost_usd: Decimal
+    cost_is_partial: bool = False
+    """Whether `cost_usd` is a floor rather than the whole of it.
+
+    True when the run reached a model `genai-prices` has no entry for: the ledger
+    books that request at zero, so the total is short by however much it cost. The
+    run row has recorded it since it existed; carrying it here is what lets the
+    turn beside the answer say so too, rather than showing a number that lies
+    (#772)."""
     period_spend_usd: Decimal | None = None
     budget_usd: Decimal | None = None
     agent_spend_usd: Decimal | None = None
     agent_budget_usd: Decimal | None = None
     sandbox: SandboxUsage | None = None
+    context: ContextFill | None = None
+    """How full the window was, or `None` when no model request was made."""
 
     @property
     def budget_percent(self) -> int | None:
@@ -201,6 +238,7 @@ class UsageReportService:
         agent_spend_usd: Decimal | None = None,
         agent_budget_usd: Decimal | None = None,
         include_sandbox: bool = False,
+        context: ContextFill | None = None,
     ) -> UsageReport:
         """What this run spent, and how full its workspace is.
 
@@ -219,11 +257,13 @@ class UsageReportService:
             input_tokens=run.input_tokens,
             output_tokens=run.output_tokens,
             cost_usd=run.cost_usd,
+            cost_is_partial=run.cost_is_partial,
             period_spend_usd=period_spend_usd,
             budget_usd=budget_usd,
             agent_spend_usd=agent_spend_usd,
             agent_budget_usd=agent_budget_usd,
             sandbox=sandbox,
+            context=context,
         )
 
     async def _sandbox(self, ctx: AuthContext, conversation_id: UUID) -> SandboxUsage | None:
@@ -268,6 +308,22 @@ class UsageReportService:
         )
 
 
+def context_fill(gauge: ContextGauge) -> ContextFill | None:
+    """The run's newest context reading, in the shape a report carries.
+
+    A shape of its own rather than a bare int, so a surface reads
+    `report.context.used_tokens` beside `report.sandbox.percent` instead of
+    switching on which fields happen to be scalars.
+
+    `None` when the run made no model request: refused before it started, or
+    stopped by a budget on the first check. A gauge with nothing in it is not a
+    context that was empty.
+    """
+    if gauge.latest is None:
+        return None
+    return ContextFill(used_tokens=gauge.latest)
+
+
 def usage_frame(report: UsageReport | None) -> dict[str, Any] | None:
     """The report as a client reads it.
 
@@ -282,10 +338,14 @@ def usage_frame(report: UsageReport | None) -> dict[str, Any] | None:
         "input_tokens": report.input_tokens,
         "output_tokens": report.output_tokens,
         "cost_usd": float(report.cost_usd),
+        "cost_is_partial": report.cost_is_partial,
         "budget_percent": report.budget_percent,
         "agent_budget_percent": report.agent_budget_percent,
         "sandbox": None,
+        "context": None,
     }
+    if report.context is not None:
+        frame["context"] = {"used_tokens": report.context.used_tokens}
     if report.sandbox is not None:
         frame["sandbox"] = {
             "kind": report.sandbox.kind,
