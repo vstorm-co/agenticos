@@ -57,10 +57,10 @@ which is frequently less than asked for and sometimes nothing at all.
 pgvector holds the embeddings, one row per chunk.
 """
 
-# Every chunk below is one list element written over two source lines. The
-# parentheses are what say so: without them a missing comma and a deliberate
-# continuation look identical, and these lists are the record of what every
-# ingested collection holds.
+# A chunk too long for one source line is parenthesised rather than left as a
+# bare continuation: without the brackets a deliberate split and a missing comma
+# read identically, and these lists are the record of what every ingested
+# collection holds.
 RECURSIVE_CHUNKS = [
     (
         "# Retrieval\n\nThe knowledge base answers a search with the chunks it stored, so what a\n"
