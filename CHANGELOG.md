@@ -17,6 +17,29 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.174] - 2026-08-17
+
+A delegate's provider text no longer reaches the parent's transcript through a
+status answer.
+
+### Fixed
+
+- **`check_task` and `wait_tasks` name the exception's class, not the provider's
+  message.** Both composed their `Error:`, `Retry N:` and `Outcome:` lines from
+  `handle.error`, which embeds the exception's own text — and a model client's
+  message carries the failing request URL with the key still in its query string
+  on a custom `base_url`. What those tools return becomes a `ToolReturnPart`, and
+  a return is stored *whole* on purpose, so `tool_retry_notice` (#695) could
+  never reach it: the key landed on a stored tool-call row, rendered in the
+  conversation and in run history to every member who can read the run, and
+  streamed live as `tool_result`. Fixed upstream in
+  `subagents-pydantic-ai` 0.2.20, which composes all four lines from
+  `TaskHandle.exception`; the floor here moves with it. (#819)
+- **The retry line leaked for delegations that eventually succeed.**
+  `TaskHandle.finish` clears `error` on completion, so the handle ends clean —
+  but a model that polled `check_task` mid-retry already has the answer on a
+  transcript row, and nothing goes back to remove it. (#819)
+
 ## [0.0.173] - 2026-08-17
 
 A dependency nothing imports is now a failing build, not a thing somebody
