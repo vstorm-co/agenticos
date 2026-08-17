@@ -2772,6 +2772,22 @@
         "title": "Your skills",
         "body": "The skills you've written or installed. An agent picks the ones it needs from its Skills tab, and the same skill can serve several agents at once."
       },
+      "context-new": {
+        "title": "Add standing context",
+        "body": "Context files are the background every agent carries — company facts, tone, terms — injected into each prompt without you pasting them in every time. Add one here."
+      },
+      "context-list": {
+        "title": "Shared context",
+        "body": "The context files this organization holds. One file can feed every agent, so a fact you fix here is fixed for all of them at once."
+      },
+      "channels-new": {
+        "title": "Reach agents where people are",
+        "body": "Register a chat platform — Slack, Telegram, Mattermost — and any agent can be bound to answer there. The bot's token is sealed in the vault. Add one here."
+      },
+      "channels-list": {
+        "title": "Connected channels",
+        "body": "The platforms this organization is reachable on. A channel belongs to the organization, not one agent, so the same bot can serve every agent bound to it."
+      },
       "activity-overview": {
         "title": "Watch activity",
         "body": "Every run is recorded with its cost and outcome, so you can see what your agents did and step in when one is waiting on a decision. These figures summarise the lot."

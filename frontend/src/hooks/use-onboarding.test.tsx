@@ -163,12 +163,12 @@ describe("useOnboardingTour", () => {
   });
 
   it("closes a page-mode replay opened where nothing is walkable, so the '?' stays live", async () => {
-    // `/channels` renders the header (and its "?") but has no tour steps, so the
+    // `/profile` renders the header (and its "?") but has no tour steps, so the
     // walk opens onto an empty list. Left open, the engine tears the popover down
     // with nothing to close it, `anchor` freezes here, and every later "?" replays
     // the same empty list — the button dead app-wide. The hook closes it instead.
     useAuthStore.setState({ user: user({ onboarding_completed_at: "2020-01-01T00:00:00Z" }) });
-    nav.pathname = "/channels";
+    nav.pathname = "/profile";
     const { result } = renderHook(() => useOnboardingTour(), { wrapper });
 
     act(() => useOnboardingStore.getState().openPage());

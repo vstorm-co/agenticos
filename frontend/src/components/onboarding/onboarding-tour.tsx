@@ -142,6 +142,10 @@ export function OnboardingTour() {
       const driveStep: DriveStep = {
         element,
         popover: {
+          // Pinned to the top on chat, where the composer the step points at is
+          // itself at the bottom — a bottom-pinned caption sits over the prompt
+          // box (#624). Everywhere else the default bottom pin holds.
+          popoverClass: step.page === ROUTES.CHAT ? "tour-popover tour-popover-top" : undefined,
           title: t(`steps.${step.id}.title`),
           description: t(`steps.${step.id}.body`),
           showButtons: buttons,

@@ -1504,6 +1504,22 @@
         "title": "Twoje umiejętności",
         "body": "Umiejętności, które napisano lub zainstalowano. Agent wybiera te, których potrzebuje, w swojej zakładce Skills, a ta sama umiejętność może służyć kilku agentom naraz."
       },
+      "context-new": {
+        "title": "Dodaj stały kontekst",
+        "body": "Pliki kontekstu to tło, które nosi każdy agent — fakty o firmie, ton, terminy — wstrzykiwane do każdego prompta bez wklejania ich za każdym razem. Dodaj plik tutaj."
+      },
+      "context-list": {
+        "title": "Wspólny kontekst",
+        "body": "Pliki kontekstu, które ma ta organizacja. Jeden plik może zasilać każdego agenta, więc fakt poprawiony tutaj jest poprawiony dla wszystkich naraz."
+      },
+      "channels-new": {
+        "title": "Docieraj tam, gdzie są ludzie",
+        "body": "Zarejestruj platformę czatu — Slack, Telegram, Mattermost — i każdy agent może odpowiadać w niej. Token bota jest zapieczętowany w vault. Dodaj kanał tutaj."
+      },
+      "channels-list": {
+        "title": "Podłączone kanały",
+        "body": "Platformy, na których osiągalna jest ta organizacja. Kanał należy do organizacji, nie do jednego agenta, więc ten sam bot obsługuje każdego przypisanego do niego agenta."
+      },
       "activity-overview": {
         "title": "Obserwuj aktywność",
         "body": "Każde uruchomienie jest zapisane z kosztem i wynikiem, więc widzisz, co zrobili Twoi agenci, i wkraczasz, gdy któryś czeka na decyzję. Te liczby podsumowują całość."

@@ -206,6 +206,23 @@ export const TOUR_STEPS: readonly TourStep[] = [
   },
   { id: "skills-list", page: ROUTES.SKILLS, target: "skills-list", permission: Perm.skillsView },
 
+  // Standing context — the files an organization injects into every agent's
+  // prompt. Beside skills in the Build group, the same shape: a create button the
+  // launch pass points at (edit-gated), and the list the "?" adds (view-gated).
+  {
+    id: "context-new",
+    page: ROUTES.CONTEXT,
+    target: "context-new",
+    permission: Perm.contextEdit,
+    inTour: true,
+  },
+  {
+    id: "context-list",
+    page: ROUTES.CONTEXT,
+    target: "context-list",
+    permission: Perm.contextView,
+  },
+
   {
     id: "activity-overview",
     page: ROUTES.RUNS,
@@ -336,6 +353,24 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "mcp-connect",
     permission: Perm.agentsView,
     optional: true,
+  },
+
+  // The chat platforms the organization is reachable on — beside MCP because it
+  // is the same kind of thing, a connection the organization owns. The add button
+  // is `channels:manage`, so the launch pass carries that; the list only needs the
+  // view the sidebar gates the section on.
+  {
+    id: "channels-new",
+    page: ROUTES.CHANNELS,
+    target: "channels-new",
+    permission: Perm.channelsManage,
+    inTour: true,
+  },
+  {
+    id: "channels-list",
+    page: ROUTES.CHANNELS,
+    target: "channels-list",
+    permission: Perm.agentsView,
   },
 
   {

@@ -13,11 +13,8 @@ import { ROUTES } from "@/lib/constants";
 import { AGENT_BUILDER, pageKey } from "@/lib/onboarding/tour";
 
 /** Space between the control and the freeze layer's cut-out, so the ring plays inside it. */
-const HOLE_PADDING = 10;
+const HOLE_PADDING = 6;
 const HOLE_RADIUS = 12;
-
-/** Space between the control and the highlight ring, so the ring frames rather than traces it. */
-const RING_PAD = 6;
 
 /** The side of the dot the ring starts as, before it grows onto the first control. */
 const DOT = 12;
@@ -70,16 +67,6 @@ function centerDot(): Box {
     left: window.innerWidth / 2 - DOT / 2,
     width: DOT,
     height: DOT,
-  };
-}
-
-/** The ring's box for a control: the control's box, grown by `RING_PAD` on every side. */
-function ringBoxFor(box: Box): Box {
-  return {
-    top: box.top - RING_PAD,
-    left: box.left - RING_PAD,
-    width: box.width + RING_PAD * 2,
-    height: box.height + RING_PAD * 2,
   };
 }
 
@@ -157,6 +144,9 @@ export function OnboardingCoach() {
   } = useOnboardingFlow();
   const [rect, setRect] = useState<Rect | null>(null);
   const [ringRect, setRingRect] = useState<Box | null>(null);
+  // The control's own corner radius, so the ring matches its shape — a pill
+  // button gets a pill ring, not a 10px-cornered rectangle around it (#624).
+  const [ringRadius, setRingRadius] = useState("10px");
   const [ringAnchor, setRingAnchor] = useState<string | null>(null);
   const [overlayOpen, setOverlayOpen] = useState(false);
   const [dialogCount, setDialogCount] = useState(0);
@@ -177,6 +167,21 @@ export function OnboardingCoach() {
   if (anchor !== null && anchor !== ringAnchor && typeof window !== "undefined") {
     setRingAnchor(anchor);
     setRingRect(centerDot());
+  }
+
+  // The ring animates its position, so it can glide as it travels from the centre
+  // dot onto the first control and from one control to the next. But that same
+  // transition made it *lag* the control while the page scrolled — the cut-out
+  // tracks scroll instantly, so the ring visibly drifted off the thing it frames
+  // until the scroll settled (#624). So the transition is on only for the
+  // deliberate travel: it is switched off the moment a scroll or resize moves the
+  // ring, and back on at the next step. Reset render-time, keyed on the step, the
+  // same reset-on-change pattern the anchor above uses.
+  const [ringInstant, setRingInstant] = useState(false);
+  const [ringInstantStep, setRingInstantStep] = useState<string | null>(null);
+  if (stepId !== ringInstantStep) {
+    setRingInstantStep(stepId ?? null);
+    setRingInstant(false);
   }
 
   // The freeze must yield to a floating layer the moment one opens and take back
@@ -289,7 +294,8 @@ export function OnboardingCoach() {
         const b = target.getBoundingClientRect();
         const box = { top: b.top, left: b.left, width: b.width, height: b.height };
         setRect({ stepId: sid, ...box });
-        setRingRect(ringBoxFor(box));
+        setRingRect(box);
+        setRingRadius(getComputedStyle(target).borderTopLeftRadius || "10px");
       };
       place();
       // Measure again once layout has settled. A control measured a frame too
@@ -302,13 +308,19 @@ export function OnboardingCoach() {
       const observer = new ResizeObserver(place);
       observer.observe(target);
       observer.observe(document.body);
-      window.addEventListener("scroll", place, true);
-      window.addEventListener("resize", place);
+      // Scroll and resize are continuous, so the ring must follow them frame for
+      // frame rather than glide behind — switch its transition off before moving it.
+      const track = () => {
+        setRingInstant(true);
+        place();
+      };
+      window.addEventListener("scroll", track, true);
+      window.addEventListener("resize", track);
       signal.addEventListener("abort", () => {
         cancelAnimationFrame(raf);
         observer.disconnect();
-        window.removeEventListener("scroll", place, true);
-        window.removeEventListener("resize", place);
+        window.removeEventListener("scroll", track, true);
+        window.removeEventListener("resize", track);
       });
     })();
 
@@ -419,6 +431,16 @@ export function OnboardingCoach() {
   const frozen = !roam && !inOverlay && !overlayOpen;
   const current = isQuestion ? null : rect?.stepId === stepId ? rect : null;
 
+  // The card is pinned to the bottom, but the chat composer lives there too — so
+  // a step pointing at a control in the lower half of the viewport (the composer,
+  // its model picker) would have the card sit on top of it. Flip the card to the
+  // top when the highlighted control is down there, so it never covers the thing
+  // it is describing or the prompt box beside it (#624).
+  const cardAtTop =
+    current !== null &&
+    typeof window !== "undefined" &&
+    current.top + current.height / 2 > window.innerHeight / 2;
+
   return (
     <>
       {!roam && !overlayOpen && !inOverlay && <FreezeLayer rect={current} />}
@@ -432,6 +454,8 @@ export function OnboardingCoach() {
             left: ringRect.left,
             width: ringRect.width,
             height: ringRect.height,
+            borderRadius: ringRadius,
+            ...(ringInstant ? { transition: "none" } : {}),
           }}
         />
       )}
@@ -465,7 +489,7 @@ export function OnboardingCoach() {
         aria-modal={frozen ? true : undefined}
         aria-label={t(`steps.${step.id}.title`)}
         tabIndex={-1}
-        className="bg-popover text-popover-foreground pointer-events-auto fixed bottom-6 left-1/2 z-[1000000002] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border p-4 shadow-lg outline-none"
+        className={`bg-popover text-popover-foreground pointer-events-auto fixed left-1/2 z-[1000000002] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border p-4 shadow-lg outline-none ${cardAtTop ? "top-6" : "bottom-6"}`}
       >
         <IconButton
           aria-label={t("coachClose")}

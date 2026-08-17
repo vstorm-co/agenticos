@@ -1140,6 +1140,13 @@
   color: var(--color-popover-foreground);
 }
 
+/* The top-pinned variant, for chat: the composer is at the bottom, so a caption
+   pinned there would cover the prompt box it points at (#624). */
+.driver-popover.tour-popover.tour-popover-top {
+  top: 1.5rem !important;
+  bottom: auto !important;
+}
+
 .driver-popover.tour-popover .driver-popover-title,
 .driver-popover.tour-popover .driver-popover-description {
   color: var(--color-popover-foreground);
@@ -1187,8 +1194,13 @@
   position: fixed;
   z-index: 1000000001;
   pointer-events: none;
-  border: 3px solid var(--color-brand);
-  border-radius: 12px;
+  /* Sized to the target's exact box; the frame is an `outline`, which draws
+     outside that box and is unaffected by the box model, so it hugs the control
+     at a uniform `outline-offset` on every side rather than the uneven gap a
+     padded, box-sized border left. `border-radius` still rounds the outline. */
+  border-radius: 10px;
+  outline: 2.5px solid var(--color-brand);
+  outline-offset: 2px;
   box-shadow: 0 0 16px 1px var(--color-brand);
   transition:
     top 0.45s ease,
