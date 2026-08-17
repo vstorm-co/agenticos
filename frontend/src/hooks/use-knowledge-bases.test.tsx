@@ -9,6 +9,7 @@ import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { useOrgStore } from "@/stores";
 import { DEFAULT_INGESTION_CONFIG } from "@/lib/ingestion-config";
+import type { SyncSourceList } from "@/lib/rag-api";
 import type { KnowledgeBase } from "@/types";
 
 vi.mock("@/lib/api-client", async () => {
@@ -944,6 +945,104 @@ describe("the sync sources feeding a collection", () => {
     });
 
     expect(toast.error).toHaveBeenCalledWith("Failed to remove sync source");
+  });
+
+  it("reports a refused removal with the sentence it came with", async () => {
+    const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+    vi.mocked(apiClient.delete).mockRejectedValue(new Error("That source is still syncing"));
+
+    await act(async () => {
+      await result.current.deleteSyncSource("s-1");
+    });
+
+    expect(toast.error).toHaveBeenCalledWith("That source is still syncing");
+  });
+
+  it("reports a refused clone with the sentence it came with", async () => {
+    const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+    vi.mocked(apiClient.post).mockRejectedValue(new Error("That folder is already connected"));
+
+    await expect(result.current.cloneSyncSource("s-org", "handbook", "x")).rejects.toThrow();
+    expect(toast.error).toHaveBeenCalledWith("That folder is already connected");
+  });
+
+  it("shows a first source when the list itself could not be read", async () => {
+    // The three sections sit behind `connections:manage`, so their read can be
+    // refused while the write is allowed - and a refused read leaves nothing
+    // cached. Without the second arm the source is created and the page says
+    // nothing about it until some later refetch happens to run.
+    serveDetail({ sources: new Error("403") });
+    const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+    await waitFor(() => expect(result.current.sectionFailures.syncSources).toBe(true));
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "s-first", name: "Dropbox" });
+
+    await act(async () => {
+      await result.current.createSyncSource({
+        name: "Dropbox",
+        connector_type: "dropbox",
+        config: {},
+      });
+    });
+
+    expect(client.getQueryData<SyncSourceList>(qk.kb.syncSources("kb-1"))).toEqual({
+      items: [{ id: "s-first", name: "Dropbox" }],
+      total: 1,
+    });
+  });
+
+  it("shows a first clone when neither list could be read", async () => {
+    serveDetail({ sources: new Error("403"), integrations: new Error("403") });
+    const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+    await waitFor(() => expect(result.current.sectionFailures.orgIntegrations).toBe(true));
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "s-clone", name: "Shared Drive" });
+
+    await act(async () => {
+      await result.current.cloneSyncSource("s-org", "handbook", "Shared Drive");
+    });
+
+    expect(client.getQueryData<SyncSourceList>(qk.kb.syncSources("kb-1"))).toEqual({
+      items: [{ id: "s-clone", name: "Shared Drive" }],
+      total: 1,
+    });
+    // Nothing was offered, so there is no offer list to take it out of - and
+    // inventing one would put a row nobody read into the next reader's cache.
+    expect(client.getQueryData(qk.kb.orgIntegrations("kb-1"))).toBeUndefined();
+  });
+
+  it("keeps a source connected after the switch out of the next organization", async () => {
+    // The same guard the deletions carry, on the two writes that add a row: a
+    // late answer must not prepend the previous tenant's source to the list the
+    // next one is looking at.
+    for (const write of ["create", "clone"] as const) {
+      client.clear();
+      vi.mocked(toast.success).mockClear();
+      useOrgStore.setState({ activeOrgId: "org-a" });
+      const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+
+      let answer: (value: unknown) => void = () => {};
+      vi.mocked(apiClient.post).mockImplementation(
+        () => new Promise((resolve) => (answer = resolve)),
+      );
+      let writing: Promise<unknown>;
+      await act(async () => {
+        writing =
+          write === "create"
+            ? result.current.createSyncSource({ name: "x", connector_type: "gdrive", config: {} })
+            : result.current.cloneSyncSource("s-org", "handbook", "x");
+        await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+      });
+
+      await act(async () => {
+        useOrgStore.setState({ activeOrgId: "org-b" });
+        answer({ id: "s-late", name: "Late" });
+        await writing!;
+      });
+
+      expect(client.getQueryData<SyncSourceList>(qk.kb.syncSources("kb-1"))?.items ?? []).toEqual(
+        [],
+      );
+      expect(toast.success).not.toHaveBeenCalledWith("Integration cloned");
+    }
   });
 
   it("does nothing to sources when no collection is open", async () => {
