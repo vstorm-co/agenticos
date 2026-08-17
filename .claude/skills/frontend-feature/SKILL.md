@@ -80,10 +80,24 @@ integration tests are `*.integration.test.tsx`.
 
 ## Generated files
 
+`src/lib/brand-glyphs.generated.ts` is written by `bun run gen:brand-icons`, which
+fetches every brand mark the console draws — services and connectors from Simple Icons
+and Font Awesome, model providers from `@lobehub/icons-static-svg` — and bakes them in
+as raw SVG path data. It is the **only** source of a brand mark: `BrandIcon`,
+`brandMark(name)` and `ProviderIcon` read it, and nothing else. Adding a mark is a row
+in `BRANDS` or `PROVIDERS` in `scripts/gen-brand-icons.ts` plus a re-run — not an icon
+package, and not a hand-authored `d`. This replaced `react-icons` and `@lobehub/icons`
+in #156: 199 MB installed for 89 marks whose artwork the generator fetches from the
+same upstream sets, byte for byte.
+
 `src/lib/mcp-logos.generated.ts` is written by `bun run gen:mcp-logos`, which fetches
 each catalog server's favicon and bakes it in as a base64 data URI so the demo MCP badge
 renders in a self-contained HTML export with no network. Do not hand-edit it —
 regenerate after changing `mcp_servers.json`.
+
+Neither is hand-edited, and `make lint` will not catch it if you do — the guard is that
+both files say so at the top and both regenerate deterministically, so a hand edit is
+lost on the next run.
 
 That is separate from the backend icon contract (`app/core/catalog/icons/<name>.svg`,
 served as a `currentColor` silhouette) — see the `project-docs` and `mcp-connections`

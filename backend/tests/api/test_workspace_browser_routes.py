@@ -28,7 +28,7 @@ from app.core.config import settings
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
-from app.services.sandbox_workspace import WorkspaceContents
+from app.services.sandbox_workspace import FlatEntry, WorkspaceContents
 
 pytestmark = pytest.mark.anyio
 
@@ -73,7 +73,14 @@ def service() -> MagicMock:
     stub.visible_to = AsyncMock(return_value=[_overview()])
     stub.flat_files = AsyncMock(
         return_value=SimpleNamespace(
-            files=[(_overview(), {"path": "/report.csv", "size": 12, "is_dir": False})],
+            files=[
+                FlatEntry(
+                    overview=_overview(),
+                    info={"path": "/report.csv", "size": 12, "is_dir": False},
+                    preview=None,
+                    thumbnail=None,
+                )
+            ],
             workspaces_read=1,
             unreadable=0,
             truncated=False,
@@ -300,6 +307,51 @@ class TestOneFlatList:
 
         assert response.status_code == 200
         service.files_of.assert_not_called()
+
+    async def test_what_a_tile_can_draw_travels_and_an_absence_stays_null(
+        self, client, service
+    ) -> None:
+        """The tile shows the first lines or the picture only when the listing
+        carried them (#138, #827): a stored text file has an excerpt, a stored image
+        has a scaled data URI, and a container-backed file honestly has neither -
+        never a second read against the host to invent one."""
+        service.flat_files = AsyncMock(
+            return_value=SimpleNamespace(
+                files=[
+                    FlatEntry(
+                        overview=_overview(),
+                        info={"path": "/report.md", "size": 12, "is_dir": False},
+                        preview="# Findings",
+                        thumbnail=None,
+                    ),
+                    FlatEntry(
+                        overview=_overview(),
+                        info={"path": "/chart.png", "size": 900, "is_dir": False},
+                        preview=None,
+                        thumbnail="data:image/webp;base64,UklGRg==",
+                    ),
+                    FlatEntry(
+                        overview=_overview(),
+                        info={"path": "/host.csv", "size": 5, "is_dir": False},
+                        preview=None,
+                        thumbnail=None,
+                    ),
+                ],
+                workspaces_read=1,
+                unreadable=0,
+                truncated=False,
+            )
+        )
+
+        async with client() as opened:
+            response = await opened.get(_url("/files"))
+
+        items = {item["path"]: item for item in response.json()["items"]}
+        assert items["/report.md"]["preview"] == "# Findings"
+        assert items["/report.md"]["thumbnail"] is None
+        assert items["/chart.png"]["thumbnail"] == "data:image/webp;base64,UklGRg=="
+        assert items["/host.csv"]["preview"] is None
+        assert items["/host.csv"]["thumbnail"] is None
 
     async def test_what_the_answer_left_out_travels_with_it(self, client, service) -> None:
         """A shorter list is indistinguishable from fewer files."""

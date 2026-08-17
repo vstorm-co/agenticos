@@ -10,6 +10,7 @@ import type { CapabilityBindingSpec, CapabilityCatalogEntry } from "@/types/agen
 import { Perm } from "@/types/permissions";
 import type { Permission } from "@/types/permissions";
 import type { Secret } from "@/types/secrets";
+import { providerMarkIn } from "@/test-utils/brand-marks";
 
 vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
@@ -455,11 +456,9 @@ describe("SecretField · narrowing by what a key is for", () => {
     await userEvent.click(await screen.findByLabelText("Secret"));
 
     const marked = screen.getByRole("option", { name: /Prod/ });
-    expect(marked.querySelector("svg > title")?.textContent).toBe("OpenAI");
+    expect(providerMarkIn(marked)).toBe("openai");
     expect(marked).toHaveTextContent("····P7KD");
-    expect(
-      screen.getByRole("option", { name: /Search key/ }).querySelector("svg > title"),
-    ).toBeNull();
+    expect(providerMarkIn(screen.getByRole("option", { name: /Search key/ }))).toBeNull();
   });
 
   it("offers every key of the right kind when nothing names a service", async () => {

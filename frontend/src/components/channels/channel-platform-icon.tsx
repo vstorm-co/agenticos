@@ -1,14 +1,13 @@
 import { MessageSquare } from "lucide-react";
-import { FaSlack } from "react-icons/fa6";
-import { SiMattermost, SiTelegram } from "react-icons/si";
 
+import { brandMark } from "@/components/icons/brand-icon";
 import { cn } from "@/lib/utils";
 import type { ChannelPlatform } from "@/types/channels";
 
 const MARKS = {
-  slack: FaSlack,
-  telegram: SiTelegram,
-  mattermost: SiMattermost,
+  slack: brandMark("slack"),
+  telegram: brandMark("telegram"),
+  mattermost: brandMark("mattermost"),
 } as const;
 
 /**

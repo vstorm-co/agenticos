@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ConnectionDialog } from "./connection-dialog";
 import type { SandboxConnectionRecord } from "@/lib/sandbox-connections-api";
+import { providerMarkIn } from "@/test-utils/brand-marks";
 
 interface VaultKey {
   id: string;
@@ -54,11 +55,6 @@ vi.mock("@/components/vault/inline-secret", () => ({
     </button>
   ),
 }));
-
-/** The brand mark actually drawn, by the name lobehub titles its SVG with. */
-function markIn(element: HTMLElement): string | null {
-  return element.querySelector("svg > title")?.textContent ?? null;
-}
 
 function connection(overrides: Partial<SandboxConnectionRecord> = {}): SandboxConnectionRecord {
   return {
@@ -190,7 +186,7 @@ describe("ConnectionDialog", () => {
     await userEvent.click(screen.getByLabelText("Credential"));
 
     const marked = screen.getByRole("option", { name: /Acme webhook/ });
-    expect(markIn(marked)).toBe("OpenAI");
+    expect(providerMarkIn(marked)).toBe("openai");
     expect(marked).toHaveTextContent("····1111");
     // `daytona` is a service with no compiled-in mark, and so is a key with no
     // purpose at all. Both draw the monogram of what they are for - the initial
@@ -205,7 +201,7 @@ describe("ConnectionDialog", () => {
     ];
     mount(connection());
 
-    expect(markIn(screen.getByLabelText("Credential"))).toBe("OpenAI");
+    expect(providerMarkIn(screen.getByLabelText("Credential"))).toBe("openai");
   });
 
   it("takes one added inline as well", async () => {
