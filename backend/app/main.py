@@ -242,7 +242,7 @@ OS for your agents.
 - **Rate Limiting**: Request rate limiting per client
 - **AI Agent**: PydanticAI-powered conversational assistant
 - **Observability**: Logfire integration for tracing and monitoring
-- **RAG**: Retrieval Augmented Generation with Milvus and LangChain
+- **RAG**: Retrieval Augmented Generation over pgvector
 
 ## Documentation
 

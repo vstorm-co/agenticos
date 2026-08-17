@@ -299,9 +299,31 @@ Per collection, alongside the parser:
 
 | Strategy | Best For |
 |----------|----------|
-| `recursive` | General text; splits by paragraph, then sentence, then word |
-| `markdown` | Markdown/structured docs; splits at heading boundaries |
-| `fixed` | Uniform chunk sizes; simplest but may split mid-sentence |
+| `recursive` | General text; splits on paragraph, then line, then word, then character |
+| `markdown` | Markdown/structured docs; splits at heading boundaries, then by size within each section |
+| `fixed` | Uniform chunk sizes; splits on line ends only, so a long line is emitted whole |
+
+All three come from `app/services/rag/_splitters.py`, which replaced
+`langchain-text-splitters` in [#158](https://github.com/vstorm-co/agenticos/issues/158)
+— the eight packages behind it included `langsmith`, a second hosted-telemetry
+SDK in a platform that standardised on Logfire.
+
+Three things about them are worth knowing before tuning the numbers:
+
+- **`chunk_overlap` is a ceiling, not a guarantee.** A chunk repeats as much of
+  the one before it as still fits under `chunk_size`, which is frequently less
+  than the setting and sometimes nothing at all.
+- **A piece with no separator left is emitted whole, not cut.** `fixed` splits
+  on line ends only, so a 4 KB line becomes a 4 KB chunk; the splitter logs a
+  warning rather than handing the embedding model something it will reject.
+- **`markdown` keeps the heading in the chunk**, and until #158 it applied
+  neither `chunk_size` nor `chunk_overlap` — a 50 KB section between two `##`
+  was one chunk. It now runs the recursive splitter over each section, so both
+  settings mean on this strategy what they mean on the others.
+
+Chunk boundaries are what a search matches against, so a collection ingested
+before that change keeps the chunks it was ingested with. Re-upload a document,
+or re-run `uv run agenticos cmd rag-ingest`, to re-chunk it.
 
 ### Embeddings — the model, and whose key pays
 
@@ -471,7 +493,7 @@ Ingested documents are tracked in the SQL database via the `RAGDocument` model:
 | `status` | `processing`, `done`, or `error` |
 | `error_message` | What failed, if `status` is `error` — see below |
 | `vector_document_id` | ID in the vector store |
-| `chunk_count` | Number of chunks created |
+| `chunk_count` | Number of chunks created. Recorded since [#147](https://github.com/vstorm-co/agenticos/issues/147); a document ingested before it holds `0` and its collection's card under-reports until it is re-ingested |
 | `storage_path` | Path to original file (for re-ingestion/download) |
 | `created_at` | Ingestion start time |
 | `completed_at` | Ingestion completion time |
