@@ -1,21 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useMemo, useRef, useState } from "react";
+import {
+  type InfiniteData,
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { parseErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
 import type {
-  ConnectorInfo,
   ConnectorList,
   SyncSourceCreate,
   SyncSourceList,
   SyncSourceRead,
 } from "@/lib/rag-api";
 import { overrideSize } from "@/lib/ingestion-config";
-import { useChanged } from "@/hooks/use-changed";
 import { useTenantGuard, useTenantId } from "@/hooks/use-organizations";
 import type {
   CreateKnowledgeBaseInput,
@@ -132,12 +135,6 @@ export interface KBSectionFailures {
   connectors: boolean;
 }
 
-const NO_SECTION_FAILURES: KBSectionFailures = {
-  syncSources: false,
-  orgIntegrations: false,
-  connectors: false,
-};
-
 /** In-flight upload progress entry surfaced by `useKBDetail`. */
 export interface UploadProgress {
   /** Stable per-upload id (a file can be uploaded twice with the same name). */
@@ -150,135 +147,162 @@ export interface UploadProgress {
 export function useKBDetail(id: string | null) {
   const queryClient = useQueryClient();
   const t = useTranslations("knowledgeBases");
-  const [kb, setKb] = useState<KnowledgeBase | null>(null);
-  const [documents, setDocuments] = useState<KBDocument[]>([]);
-  const [documentsTotal, setDocumentsTotal] = useState(0);
-  const [syncSources, setSyncSources] = useState<SyncSourceRead[]>([]);
-  const [orgIntegrations, setOrgIntegrations] = useState<SyncSourceRead[]>([]);
-  const [connectors, setConnectors] = useState<ConnectorInfo[]>([]);
-  const [sectionFailures, setSectionFailures] = useState<KBSectionFailures>(NO_SECTION_FAILURES);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isLoadingMoreDocs, setIsLoadingMoreDocs] = useState(false);
-  // Per-file upload progress (0–100), keyed by a stable per-upload id. Entries
-  // are added when an upload starts and removed once it settles.
-  const [uploadProgress, setUploadProgress] = useState<UploadProgress[]>([]);
-  const [error, setError] = useState<string | null>(null);
-
-  // A knowledge base belongs to one organization, and everything above is a
-  // response read as that one. Dropping the query cache on a tenant switch does
-  // not reach any of it - this hook keeps its data in `useState` - so without
-  // this the page went on showing the previous tenant's documents, and an open
-  // file viewer went on showing their file. Cleared during render, so the
-  // stale rows are never painted under the new organization's name; `refresh`
-  // takes the organization in its dependencies below, which is what sends the
-  // page back to the server for whatever this id means here, if anything.
   const activeOrgId = useTenantId();
-  if (useChanged(activeOrgId)) {
-    setKb(null);
-    setDocuments([]);
-    setDocumentsTotal(0);
-    setSyncSources([]);
-    setOrgIntegrations([]);
-    setConnectors([]);
-    setSectionFailures(NO_SECTION_FAILURES);
-    setError(null);
-  }
 
   /**
-   * Whether the organization a request started in is still the active one.
+   * Whether the organization a mutation started in is still the active one.
    *
-   * Clearing the state above is no use on its own: every read and every
-   * mutation here writes after an await, and an answer that lands past the
-   * switch refills what was just emptied - the previous tenant's knowledge base
-   * name and configuration, under the new tenant's.
+   * The reads no longer need this: they live in the query cache now, and the
+   * tenant switch drops that cache wholesale (`useTenantCacheReset` calls
+   * `queryClient.removeQueries()` in a layout effect). The mutations still do -
+   * each writes to the cache after an await, and a write that lands past the
+   * switch would re-create the key the switch had just dropped, painting the
+   * previous tenant's row under the new one's name.
    */
-  // An upload is in flight whenever there's at least one progress entry. Derived
-  // rather than stored so sequential/concurrent uploads stay consistent.
-  const isUploading = uploadProgress.length > 0;
-
-  // Tracks how many documents are loaded without putting `documents.length` in
-  // the deps of `refresh`/`loadMoreDocuments` - keeping them stable so the
-  // page's `useEffect([refresh])` runs once instead of looping after each fetch.
   const stillSameTenant = useTenantGuard();
 
-  // The two failures these callbacks report, resolved *here* rather than inside them.
-  // A string is a stable dependency by value where a translator is one only as long as
-  // it is memoised; `refresh` is a dependency of the page's effect and of the ingest
-  // poll, so it must not be able to change identity at all (#446).
+  // The two failures the paging/loading callbacks report, resolved *here* rather
+  // than inside them. A string is a stable dependency by value where a translator
+  // is one only as long as it is memoised; `refresh` is a dependency of the page's
+  // effect and of the ingest poll, so it must not be able to change identity (#446).
   const failedLoadMessage = t("failedLoad");
   const failedLoadMoreMessage = t("failedLoadMoreDocuments");
 
-  const loadedDocCountRef = useRef(0);
-  useEffect(() => {
-    loadedDocCountRef.current = documents.length;
-  }, [documents.length]);
-
+  // Per-file upload progress (0–100), keyed by a stable per-upload id. Entries
+  // are added when an upload starts and removed once it settles.
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress[]>([]);
+  // An upload is in flight whenever there's at least one progress entry. Derived
+  // rather than stored so sequential/concurrent uploads stay consistent.
+  const isUploading = uploadProgress.length > 0;
   // Monotonic counter so concurrent/repeat uploads of same-named files get
   // distinct progress entries.
   const uploadIdRef = useRef(0);
 
+  const enabled = id !== null;
+
+  // The collection, its documents and the three sources feeding it, each a
+  // query keyed under `["kb", id]`. `retry: false` because these are one-shot
+  // reads with their own error UI: a 403 on a section is that section saying
+  // "not for you", not a flake to retry, and a failed collection read is the
+  // page's error rather than something to hammer.
+  const kbQuery = useQuery({
+    queryKey: qk.kb.detail(id ?? "none"),
+    queryFn: () => apiClient.get<KnowledgeBase>(`/kb/${id}`),
+    enabled,
+    retry: false,
+  });
+
+  const documentsQuery = useInfiniteQuery({
+    queryKey: qk.kb.documents(id ?? "none"),
+    queryFn: ({ pageParam }) =>
+      apiClient.get<KBDocumentList>(
+        `/kb/${id}/documents?skip=${pageParam}&limit=${DOCS_PAGE_SIZE}`,
+      ),
+    enabled,
+    retry: false,
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const loaded = allPages.reduce((sum, page) => sum + page.items.length, 0);
+      return loaded < lastPage.total ? loaded : undefined;
+    },
+  });
+
+  const sourcesQuery = useQuery({
+    queryKey: qk.kb.syncSources(id ?? "none"),
+    queryFn: () => apiClient.get<SyncSourceList>(`/kb/${id}/sync-sources`),
+    enabled,
+    retry: false,
+  });
+  const orgIntegrationsQuery = useQuery({
+    queryKey: qk.kb.orgIntegrations(id ?? "none"),
+    queryFn: () => apiClient.get<SyncSourceList>(`/kb/${id}/sync-sources/org-integrations`),
+    enabled,
+    retry: false,
+  });
+  const connectorsQuery = useQuery({
+    queryKey: qk.kb.connectors(id ?? "none"),
+    queryFn: () => apiClient.get<ConnectorList>(`/kb/${id}/sync-sources/connectors`),
+    enabled,
+    retry: false,
+  });
+
+  const kb = kbQuery.data ?? null;
+
+  // Flattened and de-duplicated across pages: a poll can re-read a page the
+  // append had already fetched, and two copies of one document would list it
+  // twice. `useMemo` over the query's `data` keeps the array's identity stable
+  // when a poll finds nothing changed, which is what lets `usePollWhileIngesting`
+  // stop scheduling - it keys the next poll on a change in the list.
+  const documents = useMemo(() => {
+    const seen = new Set<string>();
+    const flattened: KBDocument[] = [];
+    for (const page of documentsQuery.data?.pages ?? []) {
+      for (const document of page.items) {
+        if (!seen.has(document.id)) {
+          seen.add(document.id);
+          flattened.push(document);
+        }
+      }
+    }
+    return flattened;
+  }, [documentsQuery.data]);
+  const documentsTotal = documentsQuery.data?.pages.at(-1)?.total ?? 0;
+
+  const syncSources = sourcesQuery.data?.items ?? [];
+  const orgIntegrations = orgIntegrationsQuery.data?.items ?? [];
+  const connectors = connectorsQuery.data?.items ?? [];
+  const sectionFailures: KBSectionFailures = {
+    syncSources: sourcesQuery.isError,
+    orgIntegrations: orgIntegrationsQuery.isError,
+    connectors: connectorsQuery.isError,
+  };
+
+  // The collection and its documents are load-bearing: their failure is the
+  // page's error. The three sections are not - they report through
+  // `sectionFailures` instead.
+  const loadError = kbQuery.error ?? documentsQuery.error;
+  const error = loadError
+    ? loadError instanceof Error
+      ? loadError.message
+      : failedLoadMessage
+    : null;
+
+  // A first load of a load-bearing read that failed with nothing to show - as
+  // opposed to a refresh that failed over data already on screen. `isLoadingError`
+  // is exactly that distinction (errored *and* holding no data), and it is what
+  // lets the page show its whole-page error on a cold failure while a failed
+  // refresh keeps the last good answer under a "may be stale" banner. The
+  // documents failing counts: they are not caught to an empty list, so a 502 on
+  // them must not read as "no documents".
+  const loadFailed = kbQuery.isLoadingError || documentsQuery.isLoadingError;
+
+  const isLoading =
+    kbQuery.isFetching || (documentsQuery.isFetching && !documentsQuery.isFetchingNextPage);
+  const isLoadingMoreDocs = documentsQuery.isFetchingNextPage;
+
   /**
-   * Reload the KB and the first page of documents (plus sync sources and
-   * connectors). Refetches as many documents as are currently displayed so an
-   * already-expanded list keeps its items after a mutation/poll.
+   * Reload the collection, its documents and the three sources feeding it.
+   *
+   * One invalidation of the `["kb", id]` prefix, which every query above is
+   * keyed beneath - so a single call refetches the whole page. Stable in
+   * identity (it closes over nothing that changes per render), which the page's
+   * `useEffect([refresh])` and the ingest poll both depend on.
    */
+  const { fetchNextPage } = documentsQuery;
   const refresh = useCallback(async () => {
     if (!id) return;
-    const startedIn = activeOrgId;
-    setIsLoading(true);
-    setError(null);
-    try {
-      // Keep at least the first page; re-fetch however many are already shown
-      // (capped at the backend's max limit of 100).
-      const limit = Math.min(Math.max(loadedDocCountRef.current, DOCS_PAGE_SIZE), 100);
-      const [kbData, docList, sourceList, orgIntList, connectorList] = await Promise.all([
-        apiClient.get<KnowledgeBase>(`/kb/${id}`),
-        apiClient.get<KBDocumentList>(`/kb/${id}/documents?skip=0&limit=${limit}`),
-        apiClient.get<SyncSourceList>(`/kb/${id}/sync-sources`).catch(() => null),
-        apiClient.get<SyncSourceList>(`/kb/${id}/sync-sources/org-integrations`).catch(() => null),
-        apiClient.get<ConnectorList>(`/kb/${id}/sync-sources/connectors`).catch(() => null),
-      ]);
-      if (!stillSameTenant(startedIn)) return;
-      setKb(kbData);
-      setDocuments(docList.items);
-      setDocumentsTotal(docList.total);
-      setSyncSources(sourceList?.items ?? []);
-      setOrgIntegrations(orgIntList?.items ?? []);
-      setConnectors(connectorList?.items ?? []);
-      setSectionFailures({
-        syncSources: sourceList === null,
-        orgIntegrations: orgIntList === null,
-        connectors: connectorList === null,
-      });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : failedLoadMessage);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [id, activeOrgId, stillSameTenant, failedLoadMessage]);
+    await queryClient.invalidateQueries({ queryKey: qk.kb.detail(id) });
+  }, [id, queryClient]);
 
   /** Append the next page of documents (server-side skip/limit pagination). */
   const loadMoreDocuments = useCallback(async () => {
     if (!id) return;
-    const startedIn = activeOrgId;
-    setIsLoadingMoreDocs(true);
     try {
-      const docList = await apiClient.get<KBDocumentList>(
-        `/kb/${id}/documents?skip=${loadedDocCountRef.current}&limit=${DOCS_PAGE_SIZE}`,
-      );
-      if (!stillSameTenant(startedIn)) return;
-      // Dedupe in case a poll/refresh raced with the append.
-      setDocuments((prev) => {
-        const seen = new Set(prev.map((d) => d.id));
-        return [...prev, ...docList.items.filter((d) => !seen.has(d.id))];
-      });
-      setDocumentsTotal(docList.total);
+      await fetchNextPage({ throwOnError: true });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : failedLoadMoreMessage);
-    } finally {
-      setIsLoadingMoreDocs(false);
     }
-  }, [id, activeOrgId, stillSameTenant, failedLoadMoreMessage]);
+  }, [id, fetchNextPage, failedLoadMoreMessage]);
 
   /**
    * Replace how this collection's documents are parsed, from now on.
@@ -298,12 +322,12 @@ export function useKBDetail(id: string | null) {
       // The caller is handed the row either way - it asked for the save and the
       // save happened - but it is not written into a page showing somebody else.
       if (stillSameTenant(startedIn)) {
-        setKb(updated);
+        queryClient.setQueryData(qk.kb.detail(id), updated);
         toast.success(t("ingestionSaved"));
       }
       return updated;
     },
-    [id, activeOrgId, stillSameTenant, t],
+    [id, activeOrgId, stillSameTenant, queryClient, t],
   );
 
   const uploadDocument = useCallback(
@@ -396,14 +420,26 @@ export function useKBDetail(id: string | null) {
       try {
         await apiClient.delete(`/kb/${id}/documents/${docId}`);
         if (!stillSameTenant(startedIn)) return;
-        setDocuments((prev) => prev.filter((d) => d.id !== docId));
-        setDocumentsTotal((prev) => Math.max(0, prev - 1));
+        // Drop the row from every loaded page, and the count with it, rather
+        // than refetching: the page polls anyway, and an optimistic removal is
+        // what keeps the table from flashing the document back for a beat.
+        queryClient.setQueryData<InfiniteData<KBDocumentList>>(qk.kb.documents(id), (prev) =>
+          prev
+            ? {
+                ...prev,
+                pages: prev.pages.map((page) => ({
+                  items: page.items.filter((d) => d.id !== docId),
+                  total: Math.max(0, page.total - 1),
+                })),
+              }
+            : prev,
+        );
         toast.success(t("documentRemoved"));
       } catch (e) {
         toast.error(e instanceof Error ? e.message : t("failedDeleteDocument"));
       }
     },
-    [id, activeOrgId, stillSameTenant, t],
+    [id, activeOrgId, stillSameTenant, queryClient, t],
   );
 
   /**
@@ -437,9 +473,16 @@ export function useKBDetail(id: string | null) {
       const startedIn = activeOrgId;
       try {
         const created = await apiClient.post<SyncSourceRead>(`/kb/${id}/sync-sources`, data);
-        // An append, not a replace - so a late answer does not overwrite the
-        // new tenant's list, it adds the previous tenant's row to it.
-        if (stillSameTenant(startedIn)) setSyncSources((prev) => [created, ...prev]);
+        // Prepended to the cached list rather than the whole list refetched -
+        // and only when the tenant has not moved, so a late answer adds the
+        // previous organization's row to its own list, never the new one's.
+        if (stillSameTenant(startedIn)) {
+          queryClient.setQueryData<SyncSourceList>(qk.kb.syncSources(id), (prev) =>
+            prev
+              ? { items: [created, ...prev.items], total: prev.total + 1 }
+              : { items: [created], total: 1 },
+          );
+        }
         toast.success(t("syncSourceConnected"));
         return created;
       } catch (e) {
@@ -447,7 +490,7 @@ export function useKBDetail(id: string | null) {
         throw e;
       }
     },
-    [id, activeOrgId, stillSameTenant, t],
+    [id, activeOrgId, stillSameTenant, queryClient, t],
   );
 
   const cloneSyncSource = useCallback(
@@ -460,8 +503,21 @@ export function useKBDetail(id: string | null) {
           { collection_name: collectionName, name },
         );
         if (stillSameTenant(startedIn)) {
-          setSyncSources((prev) => [created, ...prev]);
-          setOrgIntegrations((prev) => prev.filter((s) => s.id !== sourceId));
+          queryClient.setQueryData<SyncSourceList>(qk.kb.syncSources(id), (prev) =>
+            prev
+              ? { items: [created, ...prev.items], total: prev.total + 1 }
+              : { items: [created], total: 1 },
+          );
+          // Out of the offer list in the same breath, or it is offered again and
+          // cloning it twice produces two sources pulling the same folder.
+          queryClient.setQueryData<SyncSourceList>(qk.kb.orgIntegrations(id), (prev) =>
+            prev
+              ? {
+                  items: prev.items.filter((s) => s.id !== sourceId),
+                  total: Math.max(0, prev.total - 1),
+                }
+              : prev,
+          );
           toast.success(t("integrationCloned"));
         }
         return created;
@@ -470,7 +526,7 @@ export function useKBDetail(id: string | null) {
         throw e;
       }
     },
-    [id, activeOrgId, stillSameTenant, t],
+    [id, activeOrgId, stillSameTenant, queryClient, t],
   );
 
   const triggerSyncSource = useCallback(
@@ -495,20 +551,28 @@ export function useKBDetail(id: string | null) {
       try {
         await apiClient.delete(`/kb/${id}/sync-sources/${sourceId}`);
         if (!stillSameTenant(startedIn)) return;
-        setSyncSources((prev) => prev.filter((s) => s.id !== sourceId));
+        queryClient.setQueryData<SyncSourceList>(qk.kb.syncSources(id), (prev) =>
+          prev
+            ? {
+                items: prev.items.filter((s) => s.id !== sourceId),
+                total: Math.max(0, prev.total - 1),
+              }
+            : prev,
+        );
         toast.success(t("syncSourceRemoved"));
       } catch (e) {
         toast.error(e instanceof Error ? e.message : t("failedRemoveSyncSource"));
       }
     },
-    [id, activeOrgId, stillSameTenant, t],
+    [id, activeOrgId, stillSameTenant, queryClient, t],
   );
 
   return {
     kb,
     documents,
     documentsTotal,
-    hasMoreDocuments: documents.length < documentsTotal,
+    hasMoreDocuments: documentsQuery.hasNextPage,
+    loadFailed,
     syncSources,
     orgIntegrations,
     connectors,

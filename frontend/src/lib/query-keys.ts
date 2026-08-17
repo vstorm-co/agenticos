@@ -232,8 +232,18 @@ export const qk = {
   kb: {
     all: () => ["kb"] as const,
     list: () => ["kb", "list"] as const,
+    // `["kb", id]` is also the prefix over everything below, so invalidating it
+    // refreshes the whole detail page - the collection, its documents and the
+    // three sources feeding it - in one call.
     detail: (id: string) => ["kb", id] as const,
     documents: (id: string) => ["kb", id, "documents"] as const,
+    // The three sources feeding a collection, each its own key so a failure in
+    // one is that section's rather than the page's. They sit behind
+    // `connections:manage`, so a member who may read the collection but not the
+    // integrations gets the page with these three empty, not an error.
+    syncSources: (id: string) => ["kb", id, "sync-sources"] as const,
+    orgIntegrations: (id: string) => ["kb", id, "org-integrations"] as const,
+    connectors: (id: string) => ["kb", id, "connectors"] as const,
     // One document's stored file, as the viewer reads it. Text and bytes keyed
     // apart because they are two different bodies for one download route, and a
     // viewer showing a PDF must not be handed a cached string for it.

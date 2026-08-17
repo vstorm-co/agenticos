@@ -9,6 +9,7 @@ import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { useOrgStore } from "@/stores";
 import { DEFAULT_INGESTION_CONFIG } from "@/lib/ingestion-config";
+import type { KnowledgeBase } from "@/types";
 
 vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
@@ -282,94 +283,16 @@ describe("one collection's page", () => {
     expect(apiClient.get).not.toHaveBeenCalled();
   });
 
-  it("shows nothing of the organization the caller has just left", async () => {
-    // This hook keeps its data in `useState`, so dropping the query cache on a
-    // tenant switch does not reach it - the page went on showing the previous
-    // organization's documents, and an open file viewer their file.
-    useOrgStore.setState({ activeOrgId: "org-a" });
-    serveDetail();
-    const { result, rerender } = renderHook(() => useKBDetail("kb-1"), { wrapper });
-    await act(async () => {
-      await result.current.refresh();
-    });
-    expect(result.current.kb).toMatchObject({ id: "kb-1" });
-
-    useOrgStore.setState({ activeOrgId: "org-b" });
-    rerender();
-
-    expect(result.current.kb).toBeNull();
-    expect(result.current.documents).toEqual([]);
-    expect(result.current.syncSources).toEqual([]);
-  });
-
-  it("drops a response that lands after the organization moved", async () => {
-    // Five requests, and the switch can happen while they are in the air.
-    // Clearing the state is no use if a late answer refills it.
-    useOrgStore.setState({ activeOrgId: "org-a" });
-    let release: () => void = () => {};
-    const gate = new Promise<void>((resolve) => (release = resolve));
-    serveDetail();
-    const answering = vi.mocked(apiClient.get).getMockImplementation()!;
-    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
-      await gate;
-      return answering(path);
-    });
-    const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
-
-    let refreshing: Promise<void>;
-    await act(async () => {
-      refreshing = result.current.refresh();
-      await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
-    });
-
-    await act(async () => {
-      useOrgStore.setState({ activeOrgId: "org-b" });
-      release();
-      await refreshing!;
-    });
-
-    expect(result.current.kb).toBeNull();
-  });
-
-  it("stops paging in documents once the organization has moved", async () => {
-    // `loadMoreDocuments` appends, so a page that lands after the switch does
-    // not overwrite - it adds the previous tenant's documents to an empty list.
-    useOrgStore.setState({ activeOrgId: "org-a" });
-    serveDetail({ documents: [document("d-1")], documentsTotal: 40 });
-    const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
-    await act(async () => {
-      await result.current.refresh();
-    });
-
-    let answer: (value: unknown) => void = () => {};
-    vi.mocked(apiClient.get).mockImplementation(() => new Promise((resolve) => (answer = resolve)));
-    let paging: Promise<void>;
-    await act(async () => {
-      paging = result.current.loadMoreDocuments();
-      await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
-    });
-
-    await act(async () => {
-      useOrgStore.setState({ activeOrgId: "org-b" });
-      answer({ items: [document("d-2")], total: 40 });
-      await paging!;
-    });
-
-    expect(result.current.documents).toEqual([]);
-  });
-
   it("lets no deletion finished after the switch touch the next organization", async () => {
     // Both are filters, so neither can show the previous tenant's rows - but
     // the document one also decrements a total, and decrementing the count of
     // a list belonging to somebody else is the same mistake wearing a number.
     for (const remove of ["document", "sync source"] as const) {
+      client.clear();
       useOrgStore.setState({ activeOrgId: "org-a" });
       serveDetail({ documents: [document("d-1")], documentsTotal: 7 });
       const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
-      await act(async () => {
-        await result.current.refresh();
-      });
-      expect(result.current.documentsTotal).toBe(7);
+      await waitFor(() => expect(result.current.documentsTotal).toBe(7));
 
       let answer: () => void = () => {};
       vi.mocked(apiClient.delete).mockImplementation(
@@ -399,13 +322,13 @@ describe("one collection's page", () => {
   it("keeps a save that finished late off the next organization's page", async () => {
     // Save the ingestion settings, close the dialog, switch before the PATCH
     // returns. The caller still gets its row - it asked, and the save happened
-    // - but the page it would have been written onto belongs to somebody else.
+    // - but it is never written into the cache the next organization reads: the
+    // guard drops the write, so the collection under `qk.kb.detail` is still the
+    // one that was there, not the saved name from the tenant just left.
     useOrgStore.setState({ activeOrgId: "org-a" });
     serveDetail();
     const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
-    await act(async () => {
-      await result.current.refresh();
-    });
+    await waitFor(() => expect(result.current.kb).toMatchObject({ name: "Handbook" }));
 
     let answer: (value: unknown) => void = () => {};
     vi.mocked(apiClient.patch).mockImplementation(
@@ -423,18 +346,15 @@ describe("one collection's page", () => {
       await saving!;
     });
 
-    expect(result.current.kb).toBeNull();
+    expect(client.getQueryData<KnowledgeBase>(qk.kb.detail("kb-1"))?.name).toBe("Handbook");
+    expect(toast.success).not.toHaveBeenCalledWith("Ingestion settings saved");
   });
 
   it("reads the collection, its documents and its sources together", async () => {
     serveDetail();
     const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
 
-    await act(async () => {
-      await result.current.refresh();
-    });
-
-    expect(result.current.kb).toMatchObject({ id: "kb-1" });
+    await waitFor(() => expect(result.current.kb).toMatchObject({ id: "kb-1" }));
     expect(result.current.documents).toHaveLength(1);
     expect(result.current.syncSources).toHaveLength(1);
     expect(result.current.orgIntegrations).toHaveLength(1);
@@ -452,24 +372,18 @@ describe("one collection's page", () => {
     });
     const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
 
-    await act(async () => {
-      await result.current.refresh();
-    });
+    await waitFor(() => expect(result.current.kb).toMatchObject({ id: "kb-1" }));
 
-    expect(result.current.kb).toMatchObject({ id: "kb-1" });
     expect(result.current.syncSources).toEqual([]);
     expect(result.current.error).toBeNull();
+    expect(result.current.sectionFailures.syncSources).toBe(true);
   });
 
   it("says what went wrong when the collection itself cannot be read", async () => {
     vi.mocked(apiClient.get).mockRejectedValue(new Error("Not your collection"));
     const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
 
-    await act(async () => {
-      await result.current.refresh();
-    });
-
-    expect(result.current.error).toBe("Not your collection");
+    await waitFor(() => expect(result.current.error).toBe("Not your collection"));
     expect(result.current.isLoading).toBe(false);
   });
 
@@ -477,48 +391,41 @@ describe("one collection's page", () => {
     vi.mocked(apiClient.get).mockRejectedValue("boom");
     const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
 
-    await act(async () => {
-      await result.current.refresh();
-    });
-
-    expect(result.current.error).toBe("Failed to load knowledge base");
+    await waitFor(() => expect(result.current.error).toBe("Failed to load knowledge base"));
   });
 
   it("says whether there are more documents than are on screen", async () => {
     serveDetail({ documents: [document("d-1")], documentsTotal: 40 });
     const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
 
-    await act(async () => {
-      await result.current.refresh();
-    });
-
-    expect(result.current.documentsTotal).toBe(40);
+    await waitFor(() => expect(result.current.documentsTotal).toBe(40));
     expect(result.current.hasMoreDocuments).toBe(true);
   });
 
   it("appends the next page rather than replacing the list", async () => {
     serveDetail({ documents: [document("d-1")], documentsTotal: 3 });
     const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
-    await act(async () => {
-      await result.current.refresh();
-    });
+    await waitFor(() => expect(result.current.documents).toHaveLength(1));
 
     serveDetail({ documents: [document("d-2")], documentsTotal: 3 });
     await act(async () => {
       await result.current.loadMoreDocuments();
     });
 
-    expect(result.current.documents.map((doc) => doc.id)).toEqual(["d-1", "d-2"]);
+    await waitFor(() =>
+      expect(result.current.documents.map((doc) => doc.id)).toEqual(["d-1", "d-2"]),
+    );
     expect(apiClient.get).toHaveBeenCalledWith("/kb/kb-1/documents?skip=1&limit=20");
   });
 
   it("does not list a document twice when a poll raced the append", async () => {
     serveDetail({ documents: [document("d-1")], documentsTotal: 2 });
     const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
-    await act(async () => {
-      await result.current.refresh();
-    });
+    await waitFor(() => expect(result.current.documents).toHaveLength(1));
 
+    // The next page comes back holding the same document a poll had already
+    // re-read into the first - two pages, one id, and de-duplication is what
+    // keeps it a list of one rather than the same row twice.
     await act(async () => {
       await result.current.loadMoreDocuments();
     });
@@ -526,31 +433,37 @@ describe("one collection's page", () => {
     expect(result.current.documents.map((doc) => doc.id)).toEqual(["d-1"]);
   });
 
-  it("re-reads as many documents as are already shown, capped at the backend's limit", async () => {
-    // A refresh that dropped back to one page would collapse an expanded list
-    // every time a poll fired.
-    serveDetail({
-      documents: Array.from({ length: 120 }, (_, index) => document(`d-${index}`)),
-      documentsTotal: 300,
+  it("re-reads every loaded page on refresh rather than collapsing the list", async () => {
+    // A refresh that dropped an expanded list back to its first page would lose
+    // the rest every time a poll fired. Each loaded page is re-read at its own
+    // skip instead, so the expansion survives.
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path.includes("skip=0")) return { items: [document("d-0")], total: 300 };
+      if (path.includes("skip=1")) return { items: [document("d-1")], total: 300 };
+      if (path.includes("/documents")) return { items: [], total: 300 };
+      return { id: "kb-1", name: "Handbook", ingestion_config: DEFAULT_INGESTION_CONFIG };
     });
     const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+    await waitFor(() => expect(result.current.documents).toHaveLength(1));
+    await act(async () => {
+      await result.current.loadMoreDocuments();
+    });
+    await waitFor(() => expect(result.current.documents).toHaveLength(2));
+
+    vi.mocked(apiClient.get).mockClear();
     await act(async () => {
       await result.current.refresh();
     });
 
-    await act(async () => {
-      await result.current.refresh();
-    });
-
-    expect(apiClient.get).toHaveBeenCalledWith("/kb/kb-1/documents?skip=0&limit=100");
+    expect(apiClient.get).toHaveBeenCalledWith("/kb/kb-1/documents?skip=0&limit=20");
+    expect(apiClient.get).toHaveBeenCalledWith("/kb/kb-1/documents?skip=1&limit=20");
+    expect(result.current.documents.map((doc) => doc.id)).toEqual(["d-0", "d-1"]);
   });
 
   it("reports a refused next page without emptying the list", async () => {
     serveDetail({ documents: [document("d-1")], documentsTotal: 3 });
     const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
-    await act(async () => {
-      await result.current.refresh();
-    });
+    await waitFor(() => expect(result.current.documents).toHaveLength(1));
 
     vi.mocked(apiClient.get).mockRejectedValue(new Error("Gone"));
     await act(async () => {
@@ -563,9 +476,11 @@ describe("one collection's page", () => {
   });
 
   it("falls back to its own sentence for a next page that failed without one", async () => {
+    serveDetail({ documents: [document("d-1")], documentsTotal: 3 });
     const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
-    vi.mocked(apiClient.get).mockRejectedValue("boom");
+    await waitFor(() => expect(result.current.documents).toHaveLength(1));
 
+    vi.mocked(apiClient.get).mockRejectedValue("boom");
     await act(async () => {
       await result.current.loadMoreDocuments();
     });
@@ -586,9 +501,7 @@ describe("one collection's page", () => {
   it("saves the parsing settings and keeps the collection it was handed back", async () => {
     serveDetail();
     const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
-    await act(async () => {
-      await result.current.refresh();
-    });
+    await waitFor(() => expect(result.current.kb).toMatchObject({ id: "kb-1" }));
     vi.mocked(apiClient.patch).mockResolvedValue({ id: "kb-1", name: "Handbook", ocr: true });
 
     await act(async () => {
@@ -598,7 +511,7 @@ describe("one collection's page", () => {
     expect(apiClient.patch).toHaveBeenCalledWith("/kb/kb-1", {
       ingestion_config: DEFAULT_INGESTION_CONFIG,
     });
-    expect(result.current.kb).toMatchObject({ ocr: true });
+    await waitFor(() => expect(result.current.kb).toMatchObject({ ocr: true }));
     expect(toast.success).toHaveBeenCalledWith("Ingestion settings saved");
   });
 
@@ -624,16 +537,14 @@ describe("one collection's page", () => {
   it("drops a deleted document and the count with it", async () => {
     serveDetail({ documents: [document("d-1"), document("d-2")], documentsTotal: 2 });
     const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
-    await act(async () => {
-      await result.current.refresh();
-    });
+    await waitFor(() => expect(result.current.documents).toHaveLength(2));
 
     await act(async () => {
       await result.current.deleteDocument("d-2");
     });
 
     expect(apiClient.delete).toHaveBeenCalledWith("/kb/kb-1/documents/d-2");
-    expect(result.current.documents.map((doc) => doc.id)).toEqual(["d-1"]);
+    await waitFor(() => expect(result.current.documents.map((doc) => doc.id)).toEqual(["d-1"]));
     expect(result.current.documentsTotal).toBe(1);
   });
 
@@ -902,9 +813,7 @@ describe("the sync sources feeding a collection", () => {
   it("connects a source and shows it at the top", async () => {
     serveDetail();
     const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
-    await act(async () => {
-      await result.current.refresh();
-    });
+    await waitFor(() => expect(result.current.syncSources).toHaveLength(1));
     vi.mocked(apiClient.post).mockResolvedValue({ id: "s-new", name: "Dropbox" });
 
     await act(async () => {
@@ -916,7 +825,7 @@ describe("the sync sources feeding a collection", () => {
     });
 
     expect(apiClient.post).toHaveBeenCalledWith("/kb/kb-1/sync-sources", expect.any(Object));
-    expect(result.current.syncSources[0]).toMatchObject({ id: "s-new" });
+    await waitFor(() => expect(result.current.syncSources[0]).toMatchObject({ id: "s-new" }));
   });
 
   it("reports a refused connection and raises it", async () => {
@@ -945,9 +854,7 @@ describe("the sync sources feeding a collection", () => {
     // pulling the same folder.
     serveDetail();
     const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
-    await act(async () => {
-      await result.current.refresh();
-    });
+    await waitFor(() => expect(result.current.orgIntegrations).toHaveLength(1));
     vi.mocked(apiClient.post).mockResolvedValue({ id: "s-clone", name: "Shared Drive" });
 
     await act(async () => {
@@ -958,7 +865,7 @@ describe("the sync sources feeding a collection", () => {
       collection_name: "handbook",
       name: "Shared Drive",
     });
-    expect(result.current.syncSources[0]).toMatchObject({ id: "s-clone" });
+    await waitFor(() => expect(result.current.syncSources[0]).toMatchObject({ id: "s-clone" }));
     expect(result.current.orgIntegrations).toEqual([]);
   });
 
@@ -1015,16 +922,14 @@ describe("the sync sources feeding a collection", () => {
   it("removes a source from the list", async () => {
     serveDetail();
     const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
-    await act(async () => {
-      await result.current.refresh();
-    });
+    await waitFor(() => expect(result.current.syncSources).toHaveLength(1));
 
     await act(async () => {
       await result.current.deleteSyncSource("s-1");
     });
 
     expect(apiClient.delete).toHaveBeenCalledWith("/kb/kb-1/sync-sources/s-1");
-    expect(result.current.syncSources).toEqual([]);
+    await waitFor(() => expect(result.current.syncSources).toEqual([]));
   });
 
   it("reports a refused removal", async () => {
