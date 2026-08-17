@@ -324,6 +324,7 @@ async def _run_ingestion(
                 rag_document_id,
                 vector_document_id=result.document_id,
                 chunk_count=result.chunk_count,
+                replaced_document_id=result.replaced_document_id,
             )
     except Exception as exc:
         logger.exception("Indexed %s but could not record it", source_path)
@@ -431,6 +432,7 @@ async def _run_sync(
                         str(doc.id),
                         vector_document_id=result.document_id,
                         chunk_count=result.chunk_count,
+                        replaced_document_id=result.replaced_document_id,
                     )
             else:
                 failed += 1

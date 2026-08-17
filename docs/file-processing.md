@@ -315,7 +315,9 @@ Three things about them are worth knowing before tuning the numbers:
   than the setting and sometimes nothing at all.
 - **A piece with no separator left is emitted whole, not cut.** `fixed` splits
   on line ends only, so a 4 KB line becomes a 4 KB chunk; the splitter logs a
-  warning rather than handing the embedding model something it will reject.
+  warning rather than handing the embedding model something it will reject. The
+  warning means *over* `chunk_size` — a line of exactly `chunk_size` characters
+  is within the limit and passes silently.
 - **`markdown` keeps the heading in the chunk**, and until #158 it applied
   neither `chunk_size` nor `chunk_overlap` — a 50 KB section between two `##`
   was one chunk. It now runs the recursive splitter over each section, so both
@@ -497,6 +499,16 @@ Ingested documents are tracked in the SQL database via the `RAGDocument` model:
 | `storage_path` | Path to original file (for re-ingestion/download) |
 | `created_at` | Ingestion start time |
 | `completed_at` | Ingestion completion time |
+
+**A replacement retires the row it replaced.** Every ingest path — the upload,
+the CLI, a sync run — writes a *new* tracking row, while an ingest with
+`replace=true` deletes the vector document it supersedes and inserts one. So the
+older row is left describing vectors nobody holds: its `chunk_count` keeps being
+summed into the collection's totals, and its parsed-content view has nothing to
+read. Completing an ingest therefore deletes the tracking rows pointing at the
+vector document it replaced, along with their stored copies of the file. Without
+that a directory synced nightly reported a collection growing by its own size
+every night.
 
 Failed ingestions can be retried via `POST /rag/documents/{id}/retry`. It
 re-reads `storage_path` — the copy the upload kept for exactly this — and

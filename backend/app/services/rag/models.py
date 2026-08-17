@@ -103,6 +103,13 @@ class IngestionResult(BaseModel):
     has no other way to learn it: it had no field to read, so every call site
     took `complete_ingestion`'s default and every document ever ingested claimed
     zero chunks (#147).
+
+    `replaced_document_id` is the vector document a `replace=True` ingest
+    deleted to make room for this one, and is carried for the same reason: the
+    tracking row that pointed at it is now stale, and the caller cannot work out
+    which row that was. Left unretired, its `chunk_count` keeps being summed
+    into the collection's total, so a nightly sync reports a collection growing
+    by its own size every night while the vector store holds one copy.
     """
 
     status: IngestionStatus = IngestionStatus.NEW
@@ -110,6 +117,7 @@ class IngestionResult(BaseModel):
     error_message: str | None = None
     document_id: str | None = None
     chunk_count: int = 0
+    replaced_document_id: str | None = None
 
 
 class CollectionInfo(BaseModel):

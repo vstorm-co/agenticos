@@ -129,12 +129,17 @@ class RecursiveCharacterSplitter:
             if remaining:
                 chunks.extend(self._split(piece, remaining))
             else:
-                logger.warning(
-                    "Emitting a chunk of %d characters, longer than the configured %d: "
-                    "no separator left to split it on",
-                    len(piece),
-                    self.chunk_size,
-                )
+                # A piece of exactly `chunk_size` reaches here because the port's
+                # comparison above is `<`, and widening that would move every chunk
+                # boundary in every collection. It is within the limit, so it is
+                # emitted without the warning.
+                if len(piece) > self.chunk_size:
+                    logger.warning(
+                        "Emitting a chunk of %d characters, longer than the configured %d: "
+                        "no separator left to split it on",
+                        len(piece),
+                        self.chunk_size,
+                    )
                 chunks.append(piece)
         if pending:
             chunks.extend(self._merge(pending))

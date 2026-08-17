@@ -21,6 +21,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.repositories import rag_document_repo
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.models import (
     Document,
@@ -98,7 +99,10 @@ class TestWhatTheUploadPathRecords:
         ingestion = MagicMock(
             ingest_file=AsyncMock(
                 return_value=MagicMock(
-                    status=IngestionStatus.DONE, document_id="vector-doc", chunk_count=42
+                    status=IngestionStatus.DONE,
+                    document_id="vector-doc",
+                    chunk_count=42,
+                    replaced_document_id=None,
                 )
             )
         )
@@ -116,17 +120,179 @@ class TestWhatTheUploadPathRecords:
             await _run_ingestion(document_id, "docs", "queued/handbook.md", "handbook.md", False)
 
         documents.complete_ingestion.assert_awaited_once_with(
-            document_id, vector_document_id="vector-doc", chunk_count=42
+            document_id,
+            vector_document_id="vector-doc",
+            chunk_count=42,
+            replaced_document_id=None,
         )
 
-    def test_recording_an_ingest_cannot_omit_the_count(self):
+    @pytest.mark.parametrize("name", ["chunk_count", "replaced_document_id"])
+    def test_recording_an_ingest_cannot_omit_what_it_must_report(self, name):
         """The signature is the guard. Four call sites took a `chunk_count=0`
         default and nothing anywhere failed, so the number is keyword-only and
         required - a fifth caller does not compile rather than reporting zero.
+        `replaced_document_id` is the same trap: omitting it leaves the replaced
+        document's row behind and the collection over-reports by its size.
         """
-        parameter = inspect.signature(RAGDocumentService.complete_ingestion).parameters[
-            "chunk_count"
-        ]
+        parameter = inspect.signature(RAGDocumentService.complete_ingestion).parameters[name]
 
         assert parameter.kind is inspect.Parameter.KEYWORD_ONLY
         assert parameter.default is inspect.Parameter.empty
+
+
+class TestRetiringWhatAReplacementDeleted:
+    """Every ingest path creates a fresh `rag_documents` row, the replacing one
+    included, while the vector store keeps a single document. So the row that
+    pointed at the deleted vectors has to go with them - otherwise
+    `counts_by_collection` keeps summing its `chunk_count`, and a directory
+    synced nightly reports a collection growing by its own size every night.
+    """
+
+    async def test_a_replacing_ingest_reports_which_document_it_deleted(self):
+        processor = MagicMock(process_file=AsyncMock(return_value=_document(chunks=3)))
+        service = _service(processor)
+        service.store.get_documents = AsyncMock(
+            return_value=[
+                MagicMock(
+                    document_id="old-vector-doc",
+                    additional_info={"source_path": "handbook.md"},
+                )
+            ]
+        )
+
+        result = await service.ingest_file(
+            filepath=Path("handbook.md"),
+            collection_name="docs",
+            replace=True,
+            source_path="handbook.md",
+        )
+
+        assert result.replaced_document_id == "old-vector-doc"
+        service.store.delete_document.assert_awaited_once_with("docs", "old-vector-doc")
+
+    async def test_a_first_ingest_reports_nothing_replaced(self):
+        processor = MagicMock(process_file=AsyncMock(return_value=_document(chunks=3)))
+        service = _service(processor)
+        service.store.get_documents = AsyncMock(return_value=[])
+
+        result = await service.ingest_file(
+            filepath=Path("handbook.md"), collection_name="docs", replace=True
+        )
+
+        assert result.replaced_document_id is None
+
+    async def test_completing_a_replacement_deletes_the_row_it_superseded(self, monkeypatch):
+        stale_id = uuid.uuid4()
+        stale = MagicMock(id=stale_id, storage_path="rag/docs/handbook.md")
+        current = MagicMock(id=uuid.uuid4(), collection_name="docs")
+        deleted: list[uuid.UUID] = []
+        storage = MagicMock(delete=AsyncMock())
+
+        monkeypatch.setattr(rag_document_repo, "update_status", AsyncMock())
+        monkeypatch.setattr(rag_document_repo, "get_superseded", AsyncMock(return_value=[stale]))
+        monkeypatch.setattr(
+            rag_document_repo,
+            "delete",
+            AsyncMock(side_effect=lambda _db, doc_id: deleted.append(doc_id)),
+        )
+        monkeypatch.setattr("app.services.rag_document.get_file_storage", lambda: storage)
+
+        service = RAGDocumentService(MagicMock())
+        monkeypatch.setattr(service, "get_document", AsyncMock(return_value=current))
+        await service.complete_ingestion(
+            str(current.id),
+            vector_document_id="new-vector-doc",
+            chunk_count=9,
+            replaced_document_id="old-vector-doc",
+        )
+
+        assert deleted == [stale_id]
+        storage.delete.assert_awaited_once_with("rag/docs/handbook.md")
+
+    async def test_a_storage_backend_that_refuses_still_loses_the_row(self, monkeypatch):
+        """The database must not go on describing vectors nobody holds because a
+        file could not be unlinked - the same terms `delete_document` takes.
+        """
+        stale = MagicMock(id=uuid.uuid4(), storage_path="rag/docs/handbook.md")
+        deleted: list[uuid.UUID] = []
+
+        monkeypatch.setattr(rag_document_repo, "update_status", AsyncMock())
+        monkeypatch.setattr(rag_document_repo, "get_superseded", AsyncMock(return_value=[stale]))
+        monkeypatch.setattr(
+            rag_document_repo,
+            "delete",
+            AsyncMock(side_effect=lambda _db, doc_id: deleted.append(doc_id)),
+        )
+        monkeypatch.setattr(
+            "app.services.rag_document.get_file_storage",
+            lambda: MagicMock(delete=AsyncMock(side_effect=OSError("read-only volume"))),
+        )
+
+        service = RAGDocumentService(MagicMock())
+        monkeypatch.setattr(
+            service,
+            "get_document",
+            AsyncMock(return_value=MagicMock(id=uuid.uuid4(), collection_name="docs")),
+        )
+        await service.complete_ingestion(
+            "doc",
+            vector_document_id="new-vector-doc",
+            chunk_count=9,
+            replaced_document_id="old-vector-doc",
+        )
+
+        assert deleted == [stale.id]
+
+    async def test_a_row_with_no_stored_file_is_deleted_without_touching_storage(self, monkeypatch):
+        """The sync path creates its tracking rows with no `storage_path` at all,
+        and it is the path that accumulates them fastest.
+        """
+        stale = MagicMock(id=uuid.uuid4(), storage_path="")
+        storage = MagicMock(delete=AsyncMock())
+        deleted: list[uuid.UUID] = []
+
+        monkeypatch.setattr(rag_document_repo, "update_status", AsyncMock())
+        monkeypatch.setattr(rag_document_repo, "get_superseded", AsyncMock(return_value=[stale]))
+        monkeypatch.setattr(
+            rag_document_repo,
+            "delete",
+            AsyncMock(side_effect=lambda _db, doc_id: deleted.append(doc_id)),
+        )
+        monkeypatch.setattr("app.services.rag_document.get_file_storage", lambda: storage)
+
+        service = RAGDocumentService(MagicMock())
+        monkeypatch.setattr(
+            service,
+            "get_document",
+            AsyncMock(return_value=MagicMock(id=uuid.uuid4(), collection_name="docs")),
+        )
+        await service.complete_ingestion(
+            "doc",
+            vector_document_id="new-vector-doc",
+            chunk_count=9,
+            replaced_document_id="old-vector-doc",
+        )
+
+        assert deleted == [stale.id]
+        storage.delete.assert_not_awaited()
+
+    async def test_an_ingest_that_replaced_nothing_looks_for_no_stale_row(self, monkeypatch):
+        superseded = AsyncMock(return_value=[])
+
+        monkeypatch.setattr(rag_document_repo, "update_status", AsyncMock())
+        monkeypatch.setattr(rag_document_repo, "get_superseded", superseded)
+
+        service = RAGDocumentService(MagicMock())
+        monkeypatch.setattr(
+            service,
+            "get_document",
+            AsyncMock(return_value=MagicMock(id=uuid.uuid4(), collection_name="docs")),
+        )
+        await service.complete_ingestion(
+            "doc",
+            vector_document_id="new-vector-doc",
+            chunk_count=9,
+            replaced_document_id=None,
+        )
+
+        superseded.assert_not_awaited()

@@ -220,6 +220,7 @@ async def ingest_path_async(
                             doc_id,
                             vector_document_id=result.document_id,
                             chunk_count=result.chunk_count,
+                            replaced_document_id=result.replaced_document_id,
                         )
                 else:
                     error_count += 1

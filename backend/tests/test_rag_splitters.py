@@ -57,37 +57,63 @@ which is frequently less than asked for and sometimes nothing at all.
 pgvector holds the embeddings, one row per chunk.
 """
 
+# Every chunk below is one list element written over two source lines. The
+# parentheses are what say so: without them a missing comma and a deliberate
+# continuation look identical, and these lists are the record of what every
+# ingested collection holds.
 RECURSIVE_CHUNKS = [
-    "# Retrieval\n\nThe knowledge base answers a search with the chunks it stored, so what a\n"
-    "splitter decided is what the agent can see.\n\n## Chunking",
-    "## Chunking\n\nThree strategies ship. Each one is a different answer to the same question:\n"
-    "where may a chunk end?",
-    "```python\n# not a heading - a comment inside a fence\ndef chunk(text: str) -> list[str]:\n"
-    "    return []\n```\n\n### Overlap",
-    "### Overlap\n\nOverlap is a ceiling. A chunk repeats as much of the one before it as fits,\n"
-    "which is frequently less than asked for and sometimes nothing at all.\n\n## Storage",
+    (
+        "# Retrieval\n\nThe knowledge base answers a search with the chunks it stored, so what a\n"
+        "splitter decided is what the agent can see.\n\n## Chunking"
+    ),
+    (
+        "## Chunking\n\nThree strategies ship. Each one is a different answer to the same "
+        "question:\nwhere may a chunk end?"
+    ),
+    (
+        "```python\n# not a heading - a comment inside a fence\ndef chunk(text: str) -> list[str]:\n"
+        "    return []\n```\n\n### Overlap"
+    ),
+    (
+        "### Overlap\n\nOverlap is a ceiling. A chunk repeats as much of the one before it as "
+        "fits,\nwhich is frequently less than asked for and sometimes nothing at all.\n\n## Storage"
+    ),
     "## Storage\n\npgvector holds the embeddings, one row per chunk.",
 ]
 
 FIXED_CHUNKS = [
-    "# Retrieval\n\nThe knowledge base answers a search with the chunks it stored, so what a\n"
-    "splitter decided is what the agent can see.\n\n## Chunking",
-    "## Chunking\n\nThree strategies ship. Each one is a different answer to the same question:\n"
-    "where may a chunk end?\n\n```python\n# not a heading - a comment inside a fence",
-    "def chunk(text: str) -> list[str]:\n    return []\n```\n\n### Overlap\n\n"
-    "Overlap is a ceiling. A chunk repeats as much of the one before it as fits,",
-    "which is frequently less than asked for and sometimes nothing at all.\n\n## Storage\n\n"
-    "pgvector holds the embeddings, one row per chunk.",
+    (
+        "# Retrieval\n\nThe knowledge base answers a search with the chunks it stored, so what a\n"
+        "splitter decided is what the agent can see.\n\n## Chunking"
+    ),
+    (
+        "## Chunking\n\nThree strategies ship. Each one is a different answer to the same "
+        "question:\nwhere may a chunk end?\n\n```python\n# not a heading - a comment inside a fence"
+    ),
+    (
+        "def chunk(text: str) -> list[str]:\n    return []\n```\n\n### Overlap\n\n"
+        "Overlap is a ceiling. A chunk repeats as much of the one before it as fits,"
+    ),
+    (
+        "which is frequently less than asked for and sometimes nothing at all.\n\n## Storage\n\n"
+        "pgvector holds the embeddings, one row per chunk."
+    ),
 ]
 
 MARKDOWN_CHUNKS = [
-    "# Retrieval  \nThe knowledge base answers a search with the chunks it stored, so what a\n"
-    "splitter decided is what the agent can see.",
-    "## Chunking  \nThree strategies ship. Each one is a different answer to the same question:\n"
-    "where may a chunk end?  \n```python\n# not a heading - a comment inside a fence",
+    (
+        "# Retrieval  \nThe knowledge base answers a search with the chunks it stored, so what a\n"
+        "splitter decided is what the agent can see."
+    ),
+    (
+        "## Chunking  \nThree strategies ship. Each one is a different answer to the same "
+        "question:\nwhere may a chunk end?  \n```python\n# not a heading - a comment inside a fence"
+    ),
     "def chunk(text: str) -> list[str]:\nreturn []\n```",
-    "### Overlap  \nOverlap is a ceiling. A chunk repeats as much of the one before it as fits,\n"
-    "which is frequently less than asked for and sometimes nothing at all.",
+    (
+        "### Overlap  \nOverlap is a ceiling. A chunk repeats as much of the one before it as "
+        "fits,\nwhich is frequently less than asked for and sometimes nothing at all."
+    ),
     "## Storage  \npgvector holds the embeddings, one row per chunk.",
 ]
 
@@ -180,6 +206,24 @@ class TestRecursiveSplitting:
 
         assert chunks == ["short", "\n" + "x" * 40]
         assert "no separator left" in caplog.text
+
+    def test_a_piece_exactly_at_the_size_limit_is_emitted_without_a_warning(self, caplog):
+        """It is within the limit, not past it.
+
+        The comparison that routes a piece here is `<`, inherited from the port
+        and load-bearing - widening it to `<=` would move every chunk boundary in
+        every collection already ingested. So a 512-character line under the
+        `fixed` strategy with `chunk_size=512` arrives at the oversized branch
+        and is emitted whole, correctly. Warning about it sends an operator
+        looking for a chunk an embedding model will reject, and there is none.
+        """
+        splitter = RecursiveCharacterSplitter(chunk_size=10, chunk_overlap=0, separators=["\n"])
+
+        with caplog.at_level(logging.WARNING):
+            chunks = splitter.split_text("y" * 10)
+
+        assert chunks == ["y" * 10]
+        assert caplog.text == ""
 
     def test_a_paragraph_too_long_to_keep_is_split_on_the_next_separator_down(self):
         """The first piece is already oversized, so nothing is pending when the

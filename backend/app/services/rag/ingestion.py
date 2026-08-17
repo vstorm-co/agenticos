@@ -158,6 +158,7 @@ class IngestionService:
                 document_id=document.id,
                 message=f"Successfully {action} '{filepath.name}'",
                 chunk_count=chunk_count,
+                replaced_document_id=existing_id,
             )
 
         except Exception as exc:
