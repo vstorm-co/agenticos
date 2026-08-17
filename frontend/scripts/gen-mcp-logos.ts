@@ -6,6 +6,7 @@
  * self-contained HTML export with no network — the badge falls back to the live
  * favicon service only for domains not baked here. Run with: bun run gen:mcp-logos
  */
+import { execFileSync } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -105,6 +106,10 @@ const body =
   "\n};\n";
 
 await writeFile(OUT, body, "utf8");
+// Formatted here rather than left to the pre-commit hook, so that regenerating
+// and running `make lint` in the same breath does not fail on the file this
+// script just wrote.
+execFileSync("bunx", ["prettier", "--write", "--log-level", "warn", OUT], { stdio: "inherit" });
 console.log(`\nWrote ${Object.keys(logos).length} logos → ${OUT}`);
 
 if (failed.length > 0) {
