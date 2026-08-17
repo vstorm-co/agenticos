@@ -310,6 +310,7 @@ describe("WorkspaceBrowser", () => {
             is_dir: false,
             modified_at: null,
             preview: null,
+            thumbnail: null,
             workspace_id: "w-1",
             agent_name: "Analyst",
             access_label: "Everybody who talks to this agent",
@@ -532,6 +533,36 @@ describe("WorkspaceBrowser", () => {
       await userEvent.click(screen.getByRole("button", { name: "All files" }));
 
       expect(screen.getByText(/# Findings/)).toBeVisible();
+    });
+
+    it("draws a stored image on its tile rather than a glyph", async () => {
+      state.flat = {
+        ...state.flat!,
+        items: [
+          {
+            ...state.flat!.items[0]!,
+            path: "/chart.png",
+            thumbnail: "data:image/webp;base64,UklGRg==",
+          },
+        ],
+      };
+      render(<WorkspaceBrowser />);
+
+      await userEvent.click(screen.getByRole("button", { name: "All files" }));
+
+      expect(screen.getByRole("img", { name: "/chart.png" })).toBeVisible();
+    });
+
+    it("draws an image with no thumbnail as its mark, not a broken picture", async () => {
+      state.flat = {
+        ...state.flat!,
+        items: [{ ...state.flat!.items[0]!, path: "/photo.png", thumbnail: null }],
+      };
+      render(<WorkspaceBrowser />);
+
+      await userEvent.click(screen.getByRole("button", { name: "All files" }));
+
+      expect(screen.queryByRole("img", { name: "/photo.png" })).toBeNull();
     });
 
     it("says nothing is held rather than showing an empty list", async () => {

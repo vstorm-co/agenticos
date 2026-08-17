@@ -23,15 +23,19 @@ module exists rather than a helper on the capability:
 from __future__ import annotations
 
 import asyncio
+import base64
 import logging
 import shlex
+from binascii import Error as BinasciiError
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
+from io import BytesIO
 from pathlib import PurePosixPath
 from typing import Any
 from uuid import UUID
 
+from PIL import Image
 from pydantic_ai_backends import FileInfo
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -96,6 +100,23 @@ class WorkspaceOverview:
 
 
 @dataclass(frozen=True)
+class FlatEntry:
+    """One file in the flat view, with everything its tile draws.
+
+    Both hints are `None` for a container-backed workspace, whose bytes live on a
+    host this listing deliberately does not visit per file - the whole point of the
+    bound in :meth:`WorkspaceService.flat_files`.
+    """
+
+    overview: WorkspaceOverview
+    info: FileInfo
+    preview: str | None
+    """The first lines of a stored text file. `None` for binary content."""
+    thumbnail: str | None
+    """A stored image, scaled down to a data URI. `None` for anything else."""
+
+
+@dataclass(frozen=True)
 class FlatFileListing:
     """Every file a caller can see, and what the answer left out.
 
@@ -104,10 +125,7 @@ class FlatFileListing:
     not holding that document" is a different answer from "we stopped looking".
     """
 
-    files: list[tuple[WorkspaceOverview, FileInfo, str | None]]
-    """Each file with its workspace and, for a stored text file, the first lines
-    of it - `None` for binary content and for container-backed workspaces, whose
-    bytes live on a host this listing deliberately does not visit per file."""
+    files: list[FlatEntry]
     workspaces_read: int
     unreadable: int
     truncated: bool
@@ -743,7 +761,7 @@ class SandboxWorkspaceService:
         files.
         """
         overviews = await self.visible_to(ctx)
-        files: list[tuple[WorkspaceOverview, FileInfo, str | None]] = []
+        files: list[FlatEntry] = []
         unreadable = 0
         for overview in overviews[:limit]:
             contents = await self._entries(ctx, overview.row)
@@ -752,7 +770,14 @@ class SandboxWorkspaceService:
                 continue
             stored = dict(overview.row.files or {}) if overview.row.backend == "state" else {}
             files.extend(
-                (overview, entry, stored_preview(stored.get(str(entry.get("path")))))
+                FlatEntry(
+                    overview=overview,
+                    info=entry,
+                    preview=stored_preview(stored.get(str(entry.get("path")))),
+                    thumbnail=stored_thumbnail(
+                        str(entry.get("path")), stored.get(str(entry.get("path")))
+                    ),
+                )
                 for entry in contents.entries
                 if not entry.get("is_dir")
             )
@@ -1153,6 +1178,74 @@ def stored_preview(data: dict[str, Any] | None) -> str | None:
     lines = data.get("content") or []
     text = "\n".join(str(line) for line in lines[:8])
     return text[:PREVIEW_CHARS] or None
+
+
+THUMBNAIL_BOX = (160, 128)
+"""Twice the card's 64px band, so the tile is not soft on a retina screen."""
+
+THUMBNAIL_SOURCE_LIMIT = 4 * 1024 * 1024
+"""The largest stored image this will decode.
+
+A listing reads up to 25 workspaces, so the work here is per file and has to stay
+small. Above this the tile keeps its mark: a photograph nobody has resized is the
+one case where decoding costs more than the hint is worth."""
+
+THUMBNAIL_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif", ".webp"})
+"""What is offered a thumbnail, and it is the raster half of `INLINE_TYPES`.
+
+`.svg` is absent for the reason it is absent there: it is a document with script in
+it rather than a picture, and Pillow does not read one anyway. Suffix rather than
+sniffing, so nothing outside this set is ever handed to a decoder."""
+
+
+def stored_thumbnail(path: str, data: dict[str, Any] | None) -> str | None:
+    """A stored image scaled to a data URI, or `None` where a tile has nothing to draw.
+
+    The counterpart of :func:`stored_preview` for the kind of file that has no first
+    lines. Before this, an image in the All files grid was listed under the same grey
+    glyph as a `.parquet` (#827).
+
+    A data URI rather than an address, because the bytes are already in hand: they
+    are base64 in the same JSONB document this listing reads for the preview, so
+    scaling them here costs no request. The alternative - a URL per tile - is a
+    request per tile in a grid of thirty, which is what `FileCard` was written not to
+    do. It is scaled rather than sent whole for the same reason: a chart an agent drew
+    is tens of kilobytes and would be sent in full to fill 64 pixels.
+
+    Failure is a mark, not an error. A file whose suffix says PNG and whose bytes are
+    not one is an agent's mistake at write time, and it must not take out the listing
+    of every other file beside it - so the decoder's complaint is logged and the tile
+    falls back to its glyph.
+
+    Args:
+        path: The file's path inside the workspace, whose suffix decides eligibility.
+        data: The `FileData` the state backend stored, or `None` for a host-backed
+            file this listing never fetched.
+    """
+    if data is None or data.get("encoding") != "base64":
+        return None
+    if PurePosixPath(path).suffix.lower() not in THUMBNAIL_SUFFIXES:
+        return None
+    content = data.get("content") or []
+    try:
+        raw = base64.b64decode("".join(str(line) for line in content), validate=True)
+    except (BinasciiError, ValueError):
+        logger.warning("workspace_thumbnail_undecodable", extra={"path": path})
+        return None
+    if len(raw) > THUMBNAIL_SOURCE_LIMIT:
+        return None
+    try:
+        with Image.open(BytesIO(raw)) as image:
+            image.thumbnail(THUMBNAIL_BOX)
+            scaled = BytesIO()
+            image.convert("RGB").save(scaled, format="WEBP", quality=70)
+    except Exception as exc:
+        logger.warning(
+            "workspace_thumbnail_failed",
+            extra={"path": path, "error": exc.__class__.__name__},
+        )
+        return None
+    return f"data:image/webp;base64,{base64.b64encode(scaled.getvalue()).decode()}"
 
 
 def _reason(exc: Exception) -> str:

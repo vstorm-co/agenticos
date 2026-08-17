@@ -1192,7 +1192,7 @@ class TestOneFlatListOfFiles:
 
         listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
 
-        assert sorted(str(entry.get("path")) for _overview, entry, _preview in listing.files) == [
+        assert sorted(str(file.info.get("path")) for file in listing.files) == [
             "/notes.md",
             "/report.csv",
         ]
@@ -1213,7 +1213,7 @@ class TestOneFlatListOfFiles:
 
         listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
 
-        assert all(not entry.get("is_dir") for _overview, entry, _preview in listing.files)
+        assert all(not file.info.get("is_dir") for file in listing.files)
 
     async def test_a_partial_answer_says_it_is_partial(self, monkeypatch, mock_db_session):
         """Reading a container-backed workspace is a round trip to its host, so the
@@ -1252,9 +1252,7 @@ class TestOneFlatListOfFiles:
 
         listing = await service.flat_files(_ctx())
 
-        assert [str(entry.get("path")) for _overview, entry, _preview in listing.files] == [
-            "/report.csv"
-        ]
+        assert [str(file.info.get("path")) for file in listing.files] == ["/report.csv"]
         assert listing.unreadable == 1
         assert listing.workspaces_read == 1
 
@@ -1274,9 +1272,9 @@ class TestOneFlatListOfFiles:
 
         listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
 
-        [(overview, _entry, _preview)] = listing.files
-        assert overview.agent_name == "Analyst"
-        assert overview.access_label == "Everybody who talks to this agent"
+        [file] = listing.files
+        assert file.overview.agent_name == "Analyst"
+        assert file.overview.access_label == "Everybody who talks to this agent"
 
     async def test_a_stored_text_file_carries_its_first_lines(self, monkeypatch, mock_db_session):
         """The tile is the one place a file is listed with no hint of its content
@@ -1297,7 +1295,8 @@ class TestOneFlatListOfFiles:
 
         listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
 
-        [(_overview, _entry, preview)] = listing.files
+        [file] = listing.files
+        preview = file.preview
         assert preview is not None
         assert preview.startswith("# Findings")
         assert len(preview) <= 200
@@ -1328,8 +1327,131 @@ class TestOneFlatListOfFiles:
 
         listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
 
-        [(_overview, _entry, preview)] = listing.files
-        assert preview is None
+        [file] = listing.files
+        assert file.preview is None
+
+
+def _png(size: tuple[int, int] = (600, 400)) -> bytes:
+    """A real PNG, because the thing under test is a decoder."""
+    from io import BytesIO
+
+    from PIL import Image
+
+    buffer = BytesIO()
+    Image.new("RGB", size, "red").save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+class TestATileDrawsAStoredImage:
+    """An image used to be listed under the same grey glyph as a `.parquet` (#827).
+
+    The bytes are base64 in the document the listing already read for the preview,
+    so the picture costs a scale rather than a request - which is the constraint
+    `FileCard` was written to: a grid of thirty tiles must not be thirty requests.
+    """
+
+    def test_a_stored_image_becomes_a_scaled_data_uri(self):
+        from app.services.sandbox_workspace import THUMBNAIL_BOX, stored_thumbnail
+
+        stored = StateBackend()
+        stored.write("/chart.png", _png())
+
+        uri = stored_thumbnail("/chart.png", dict(stored.files["/chart.png"]))
+
+        assert uri is not None
+        assert uri.startswith("data:image/webp;base64,")
+        drawn = _decoded(uri)
+        assert drawn.width <= THUMBNAIL_BOX[0]
+        assert drawn.height <= THUMBNAIL_BOX[1]
+        assert len(uri) < len(_png()), "a tile must not carry more bytes than the file"
+
+    def test_a_text_file_has_no_thumbnail(self):
+        from app.services.sandbox_workspace import stored_thumbnail
+
+        stored = StateBackend()
+        stored.write("/report.md", "# Findings")
+
+        assert stored_thumbnail("/report.md", dict(stored.files["/report.md"])) is None
+
+    def test_a_host_backed_file_has_no_thumbnail(self):
+        """The listing does not visit a host per file, so there are no bytes to scale."""
+        from app.services.sandbox_workspace import stored_thumbnail
+
+        assert stored_thumbnail("/chart.png", None) is None
+
+    def test_a_binary_that_is_not_an_offered_image_is_never_decoded(self):
+        """A suffix outside the set is refused before anything reaches Pillow - which
+        is what keeps a zip, an `.svg` or a `.parquet` off the decoder entirely."""
+        from app.services.sandbox_workspace import stored_thumbnail
+
+        stored = StateBackend()
+        stored.write("/archive.zip", _png())
+
+        assert stored_thumbnail("/archive.zip", dict(stored.files["/archive.zip"])) is None
+
+    def test_an_image_too_large_to_scale_keeps_its_mark(self, monkeypatch):
+        from app.services import sandbox_workspace
+
+        stored = StateBackend()
+        stored.write("/photo.png", _png())
+        monkeypatch.setattr(sandbox_workspace, "THUMBNAIL_SOURCE_LIMIT", 8)
+
+        assert (
+            sandbox_workspace.stored_thumbnail("/photo.png", dict(stored.files["/photo.png"]))
+            is None
+        )
+
+    def test_a_png_that_is_not_one_is_logged_and_drawn_as_a_mark(self, caplog):
+        """An agent that wrote nonsense under a `.png` name must not take out the
+        listing of every other file beside it."""
+        from app.services.sandbox_workspace import stored_thumbnail
+
+        stored = StateBackend()
+        stored.write("/chart.png", b"\x89PNG\r\n\x1a\n....")
+
+        with caplog.at_level(logging.WARNING):
+            assert stored_thumbnail("/chart.png", dict(stored.files["/chart.png"])) is None
+
+        assert "workspace_thumbnail_failed" in caplog.text
+
+    def test_content_that_is_not_base64_is_logged_and_drawn_as_a_mark(self, caplog):
+        from app.services.sandbox_workspace import stored_thumbnail
+
+        with caplog.at_level(logging.WARNING):
+            assert (
+                stored_thumbnail("/chart.png", {"encoding": "base64", "content": ["!!!"]}) is None
+            )
+
+        assert "workspace_thumbnail_undecodable" in caplog.text
+
+    async def test_the_listing_carries_the_thumbnail(self, monkeypatch, mock_db_session):
+        from app.repositories import agent as agent_repo
+
+        stored = StateBackend()
+        stored.write("/chart.png", _png())
+        monkeypatch.setattr(
+            workspace_repo,
+            "list_for_reader",
+            AsyncMock(return_value=[_row(files=dict(stored.files))]),
+        )
+        monkeypatch.setattr(agent_repo, "get_many", AsyncMock(return_value={}))
+        _no_conversations(monkeypatch)
+
+        listing = await SandboxWorkspaceService(mock_db_session).flat_files(_ctx())
+
+        [file] = listing.files
+        assert file.preview is None
+        assert file.thumbnail is not None
+
+
+def _decoded(uri: str):
+    """The picture a `data:` URI holds, so a test can assert on its dimensions."""
+    import base64
+    from io import BytesIO
+
+    from PIL import Image
+
+    return Image.open(BytesIO(base64.b64decode(uri.split(",", 1)[1])))
 
 
 class TestWhatReadingAHostCosts:

@@ -303,7 +303,8 @@ function FlatFiles() {
       ) : (
         /* Tiles rather than rows, on the card every other surface shows a file
            as - so a CSV looks like the same thing here, in the chat panel and in
-           the composer. The card carries the preview, the suffix and the size;
+           the composer. The card carries the preview or the thumbnail, the
+           suffix and the size;
            the line under it carries what only this view knows: the agent holding
            the file and who else can see it. */
         <ul className="grid items-start gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -313,6 +314,7 @@ function FlatFiles() {
                 name={file.path}
                 size={file.size}
                 preview={file.preview}
+                imageUrl={file.thumbnail}
                 onOpen={() => setOpened(file)}
                 className="w-full"
               />

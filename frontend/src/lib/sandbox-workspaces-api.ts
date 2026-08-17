@@ -77,6 +77,9 @@ export interface FlatFile extends WorkspaceFile {
   /** The first lines of a stored text file; null for binary content and for
    *  container-backed workspaces, whose bytes the flat listing does not fetch. */
   preview: string | null;
+  /** A stored image, scaled server-side into a `data:` URI. Null for everything
+   *  else - an address per tile would be a request per tile. */
+  thumbnail: string | null;
 }
 
 /**

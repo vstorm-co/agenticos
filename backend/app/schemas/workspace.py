@@ -146,6 +146,15 @@ class FlatFileRead(WorkspaceFileRead):
             "whose bytes live on a host the flat listing does not visit per file."
         ),
     )
+    thumbnail: str | None = Field(
+        default=None,
+        description=(
+            "A stored image scaled down to a `data:` URI, so a tile draws the "
+            "picture rather than a glyph. A URI rather than an address because the "
+            "bytes are already in this listing's hand - an address would be a "
+            "request per tile. Null for everything that is not a small stored image."
+        ),
+    )
 
 
 class FlatFileList(BaseSchema):
