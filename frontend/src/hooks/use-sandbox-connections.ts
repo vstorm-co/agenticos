@@ -226,7 +226,7 @@ export function useSandboxSessions(
     isLoading,
     error,
   } = useQuery({
-    queryKey: [...qk.sandboxConnections.sessions(connectionId ?? "none"), usage],
+    queryKey: qk.sandboxConnections.sessions(connectionId ?? "none", usage),
     queryFn: () => listSandboxSessions(connectionId as string, usage),
     enabled: connectionId !== null,
     retry: false,
