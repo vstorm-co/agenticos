@@ -83,7 +83,7 @@ export default function OrgMembersPage({ params }: PageProps) {
     fetchOrgs();
   }, [fetchMembers, fetchInvitations, fetchOrgs]);
 
-  const { can } = usePermissions();
+  const { can, isLoading: permissionsLoading } = usePermissions();
   const assignable = useAssignableRoles();
   const org = orgs.find((o) => o.id === id);
   // Derived from the server's permission catalog rather than a role-name check,
@@ -381,14 +381,18 @@ export default function OrgMembersPage({ params }: PageProps) {
       <ListCard
         data-tour="org-members"
         title={t("membersCard")}
-        counted={isLoading || error ? null : t("memberCount", { count: members.length })}
+        counted={
+          isLoading || permissionsLoading || error
+            ? null
+            : t("memberCount", { count: members.length })
+        }
         contentClassName="p-0"
       >
         {error ? (
           // Every organization has at least its owner, so "no members yet"
           // over a failed read is a sentence that cannot be true (#32).
           <ErrorState description={getErrorMessage(error, tErrors)} className="m-5" />
-        ) : !isLoading && members.length === 0 ? (
+        ) : !isLoading && !permissionsLoading && members.length === 0 ? (
           <ListCardEmpty
             icon={Users}
             title={t("noMembersYet")}
@@ -403,7 +407,10 @@ export default function OrgMembersPage({ params }: PageProps) {
           <DataTable<OrganizationMember>
             columns={columns}
             rows={members}
-            loading={isLoading}
+            // Wait on the permission answer too, or the row-action column - built
+            // from `canManage` - draws without its actions and then flickers them
+            // in a beat later once `can()` resolves (safe direction, but a glitch).
+            loading={isLoading || permissionsLoading}
             skeletonRows={4}
             getRowKey={(m) => m.id}
             empty={t("noMembersYet")}

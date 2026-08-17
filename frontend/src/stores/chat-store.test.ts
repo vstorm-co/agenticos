@@ -278,7 +278,8 @@ describe("part ids on a runtime without randomUUID", () => {
     // `crypto.randomUUID` needs a secure context. A page served over plain HTTP -
     // which is how this is deployed behind a proxy more often than not - has
     // `crypto` and no `randomUUID`, and two parts sharing an id makes React
-    // render one of them twice.
+    // render one of them twice. What `clientId` falls back to is pinned in
+    // `lib/ids.test.ts`; what matters here is that the parts stay distinct.
     vi.stubGlobal("crypto", {});
     useChatStore.setState({ messages: [] });
 
@@ -288,7 +289,6 @@ describe("part ids on a runtime without randomUUID", () => {
 
     const ids = (store().messages[0]?.parts ?? []).map((part) => part.id);
     expect(new Set(ids).size).toBe(2);
-    for (const id of ids) expect(id).toMatch(/^part-/);
 
     vi.unstubAllGlobals();
   });
