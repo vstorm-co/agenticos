@@ -469,6 +469,7 @@ include = [
     # an agent that simply had nothing to say.
     "app/services/notifications.py",
     "app/services/mcp_catalog.py",
+    "app/services/portal_catalog.py",
     "app/services/mcp_connection.py",
     "app/services/model_profile.py",
     "app/services/organization_secret.py",
@@ -667,6 +668,7 @@ include = [
     # an agent that simply had nothing to say.
     "app/services/notifications.py",
     "app/services/mcp_catalog.py",
+    "app/services/portal_catalog.py",
     "app/services/mcp_connection.py",
     "app/services/model_profile.py",
     "app/services/organization_secret.py",
