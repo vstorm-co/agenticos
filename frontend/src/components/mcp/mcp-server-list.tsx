@@ -10,18 +10,11 @@ import {
   Card,
   CardContent,
   ConfirmDialog,
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  Input,
-  Label,
   ListCard,
   Pager,
   SearchInput,
@@ -30,14 +23,22 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Switch,
   useListControls,
 } from "@/components/ui";
 import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
+import { McpConnectionDialog } from "@/components/mcp/mcp-connection-dialog";
+import { McpToolPickerDialog } from "@/components/mcp/mcp-tool-picker-dialog";
+import {
+  SCOPE_LABEL,
+  type DraftAuth,
+  type DraftState,
+  type Scope,
+  type ToolPickerState,
+} from "@/components/mcp/mcp-server-list-types";
 import { useMcpServers } from "@/hooks";
 import { cn } from "@/lib/utils";
 import { getErrorMessage } from "@/lib/api-error";
-import type { McpConnectionRecord, McpToolInfo } from "@/lib/mcp-connections-api";
+import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
 import { startMcpOAuth } from "@/lib/mcp-connections-api";
 import {
   CUSTOM_CATEGORY,
@@ -50,34 +51,8 @@ import { useTranslations } from "next-intl";
 
 const NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
 
-/** Who a connection belongs to. The whole of what the two columns mean. */
-type Scope = "organization" | "personal";
-
 /** Whether a row is filtered by whether anybody has connected it. */
 type StateFilter = "all" | "connected" | "not-connected";
-
-/**
- * How a server checks who is calling.
- *
- * The three the platform can do, in either scope. An organization connection
- * may hold an OAuth grant: the common case is a shared service account that one
- * admin consents with and everybody's agents then use. The grant is still that
- * account's at the provider, which is a real operational cost - the dialog says
- * so where the choice is made rather than withholding the choice.
- */
-type DraftAuth = "none" | "token" | "oauth";
-
-const AUTH_CHOICES: { value: DraftAuth; labelKey: string; hintKey: string }[] = [
-  { value: "none", labelKey: "authChoiceNone", hintKey: "authNoneHint" },
-  { value: "token", labelKey: "authApiToken", hintKey: "authTokenHint" },
-  { value: "oauth", labelKey: "authOauth", hintKey: "authOauthHint" },
-];
-
-/** Keys, like `AUTH_CHOICES` above: a module constant has no translator to reach. */
-const SCOPE_LABEL: Record<Scope, string> = {
-  organization: "scopeOrganization",
-  personal: "scopeYou",
-};
 
 /**
  * A backend category slug as a heading.
@@ -94,13 +69,6 @@ function categoryLabel(category: string): string {
 function rowDescription(row: McpServerRow, t: (key: string) => string): string {
   if (row.descriptionKey !== null) return t(row.descriptionKey);
   return row.description ?? "";
-}
-
-interface DraftState {
-  scope: Scope;
-  row: McpServerRow;
-  /** The connection being edited, or null when connecting for the first time. */
-  existing: McpConnectionRecord | null;
 }
 
 interface McpServerListProps {
@@ -178,18 +146,10 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
   // has to be asked, and asking was the gap - the dialog offered a token field
   // and nothing else, so a server behind OAuth could not be added at all.
   const [draftAuth, setDraftAuth] = useState<DraftAuth>("token");
-  // The hint under the radio group. It used to be rendered as the *key* -
-  // `authTokenHint` on screen, in every locale (#446).
-  const hint = AUTH_CHOICES.find((choice) => choice.value === draftAuth)?.hintKey;
   const [clearToken, setClearToken] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [toolPicker, setToolPicker] = useState<{
-    scope: Scope;
-    connection: McpConnectionRecord;
-    tools: McpToolInfo[];
-    checked: Set<string>;
-  } | null>(null);
+  const [toolPicker, setToolPicker] = useState<ToolPickerState | null>(null);
   // The connection a disconnect has been asked for and not yet granted, and
   // whether a granted one is still in flight. `confirmBusy` is what makes a
   // second click a no-op: `window.confirm` blocked the thread, so a double
@@ -591,238 +551,30 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
         />
       </ListCard>
 
-      <Dialog open={draft !== null} onOpenChange={(open) => !open && !submitting && setDraft(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {draft === null
-                ? ""
-                : draft.existing
-                  ? t("editNamed", { name: draft.existing.name })
-                  : t("connectForScope", { name: draft.row.name, scope: draft.scope })}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="mcp-name">{t("name")}</Label>
-              <Input
-                id="mcp-name"
-                value={draftName}
-                onChange={(event) => setDraftName(event.target.value.toLowerCase())}
-                placeholder={t("github")}
-                maxLength={32}
-                className="mt-1.5"
-              />
-              <p className="text-foreground/45 mt-1 text-[11px]">
-                {t("namePrefixesToolNames", { scope: draft?.scope ?? "personal" })}
-              </p>
-            </div>
-            <div>
-              <Label htmlFor="mcp-url">{t("serverUrl")}</Label>
-              <Input
-                id="mcp-url"
-                value={draftUrl}
-                onChange={(event) => setDraftUrl(event.target.value)}
-                placeholder="https://example.com/mcp"
-                maxLength={2048}
-                className="mt-1.5 font-mono text-sm"
-              />
-            </div>
-            <div>
-              <Label>{t("connectAction")}</Label>
-              <div
-                className="mt-1.5 flex flex-wrap gap-1.5"
-                role="radiogroup"
-                aria-label={t("connect2")}
-              >
-                {(["organization", "personal"] as const)
-                  .filter((scope) => scope !== "organization" || canManageOrganization)
-                  .map((scope) => {
-                    const Icon = scope === "organization" ? Building2 : User;
-                    return (
-                      <button
-                        key={scope}
-                        type="button"
-                        role="radio"
-                        aria-checked={draft?.scope === scope}
-                        disabled={draft?.existing !== null}
-                        onClick={() =>
-                          setDraft((previous) => (previous ? { ...previous, scope } : previous))
-                        }
-                        className={cn(
-                          "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-colors",
-                          draft?.scope === scope
-                            ? "border-foreground/30 bg-accent text-foreground"
-                            : "border-input text-muted-foreground hover:text-foreground",
-                          draft?.existing !== null && "cursor-not-allowed opacity-60",
-                        )}
-                      >
-                        <Icon className="h-3.5 w-3.5" />
-                        {t(SCOPE_LABEL[scope])}
-                      </button>
-                    );
-                  })}
-              </div>
-              <p className="text-muted-foreground mt-1.5 text-xs">
-                {draft?.scope === "organization" ? t("everyAgentCanReach") : t("yoursAloneYourOwn")}
-              </p>
-              {draft?.existing !== null && (
-                // Moving a live connection between owners would mean re-sealing
-                // its credential under another envelope and changing who may
-                // revoke it. Disconnect and connect again is the honest path.
-                <p className="text-muted-foreground mt-1 text-xs">
-                  {t("existingConnectionCannotChange")}
-                </p>
-              )}
-            </div>
+      <McpConnectionDialog
+        draft={draft}
+        setDraft={setDraft}
+        draftName={draftName}
+        setDraftName={setDraftName}
+        draftUrl={draftUrl}
+        setDraftUrl={setDraftUrl}
+        draftToken={draftToken}
+        setDraftToken={setDraftToken}
+        draftAuth={draftAuth}
+        setDraftAuth={setDraftAuth}
+        clearToken={clearToken}
+        setClearToken={setClearToken}
+        submitting={submitting}
+        canManageOrganization={canManageOrganization}
+        onSubmit={handleSubmit}
+      />
 
-            <div>
-              <Label>{t("authentication")}</Label>
-              <div
-                className="mt-1.5 flex flex-wrap gap-1.5"
-                role="radiogroup"
-                aria-label={t("authentication2")}
-              >
-                {AUTH_CHOICES.map((choice) => (
-                  <button
-                    key={choice.value}
-                    type="button"
-                    role="radio"
-                    aria-checked={draftAuth === choice.value}
-                    onClick={() => setDraftAuth(choice.value)}
-                    className={cn(
-                      "rounded-md border px-3 py-1.5 text-sm transition-colors",
-                      draftAuth === choice.value
-                        ? "border-foreground/30 bg-accent text-foreground"
-                        : "border-input text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    {t(choice.labelKey)}
-                  </button>
-                ))}
-              </div>
-              <p className="text-muted-foreground mt-1.5 text-xs">
-                {hint === undefined ? null : t(hint)}
-              </p>
-              {draftAuth === "oauth" && draft?.scope === "organization" && (
-                // Said once, where the choice is made. The grant is the
-                // consenting person's at the provider, so revoking their access
-                // there stops the organization's server working until somebody
-                // authorizes it again - which is why a shared service account is
-                // the right thing to consent with.
-                <p className="text-muted-foreground mt-1.5 text-xs">{t("whoeverSignsGrantsIf")}</p>
-              )}
-            </div>
-
-            <div className={cn(draftAuth !== "token" && "hidden")}>
-              <Label htmlFor="mcp-token">{t("accessToken")}</Label>
-              {/* The catalog's own advice for *this* server, which used to sit on
-                  the card. It is instructions for filling in the field below it,
-                  so it belongs next to the field and not in a list somebody is
-                  still browsing. Generic guidance is the main reason token setup
-                  fails, which is why the backend carries a per-entry hint. */}
-              {draft?.row.tokenHint && (
-                <p className="text-muted-foreground mt-1.5 text-xs">{draft.row.tokenHint}</p>
-              )}
-              <Input
-                id="mcp-token"
-                type="password"
-                value={draftToken}
-                onChange={(event) => {
-                  setDraftToken(event.target.value);
-                  if (event.target.value) setClearToken(false);
-                }}
-                placeholder={
-                  draft?.existing?.has_auth_token
-                    ? "•••••• (stored - type to replace)"
-                    : t("pasteHere")
-                }
-                maxLength={4096}
-                className="mt-1.5 font-mono text-sm"
-              />
-              <p className="text-foreground/45 mt-1 text-[11px]">
-                {draft?.scope === "organization"
-                  ? t("useServiceCredentialNot")
-                  : t("storedEncryptedNeverShown")}
-              </p>
-              {draft?.existing?.has_auth_token && !draftToken && (
-                <div className="mt-2 flex items-center gap-2">
-                  <Switch
-                    id="mcp-clear-token"
-                    checked={clearToken}
-                    onCheckedChange={setClearToken}
-                  />
-                  <Label htmlFor="mcp-clear-token" className="text-xs font-normal">
-                    {t("removeStoredCredential")}
-                  </Label>
-                </div>
-              )}
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setDraft(null)} disabled={submitting}>
-              {t("cancel")}
-            </Button>
-            <Button onClick={handleSubmit} disabled={submitting}>
-              {submitting ? t("saving") : draft?.existing ? t("save") : t("connectCheck")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={toolPicker !== null}
-        onOpenChange={(open) => !open && !submitting && setToolPicker(null)}
-      >
-        <DialogContent className="max-h-[80vh] scrollbar-thin overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{t("toolsFrom", { name: toolPicker?.connection.name ?? "" })}</DialogTitle>
-          </DialogHeader>
-          <p className="text-foreground/55 text-xs">
-            {t("whichToolsExposed", { scope: toolPicker?.scope ?? "personal" })}
-          </p>
-          <ul className="border-foreground/10 divide-foreground/8 divide-y rounded-xl border">
-            {toolPicker?.tools.map((tool) => (
-              <li key={tool.name} className="flex items-start gap-3 px-4 py-2.5">
-                <div className="min-w-0 flex-1">
-                  <code className="text-foreground bg-foreground/8 rounded px-1.5 py-0.5 font-mono text-xs">
-                    {tool.name}
-                  </code>
-                  {tool.description && (
-                    <p className="text-foreground/55 mt-1 line-clamp-2 text-xs">
-                      {tool.description}
-                    </p>
-                  )}
-                </div>
-                <Switch
-                  checked={toolPicker.checked.has(tool.name)}
-                  onCheckedChange={(on) =>
-                    setToolPicker((previous) => {
-                      if (!previous) return previous;
-                      const next = new Set(previous.checked);
-                      if (on) next.add(tool.name);
-                      else next.delete(tool.name);
-                      return { ...previous, checked: next };
-                    })
-                  }
-                  aria-label={t("toggleNamed", { name: tool.name })}
-                />
-              </li>
-            ))}
-          </ul>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setToolPicker(null)} disabled={submitting}>
-              {t("cancel2")}
-            </Button>
-            <Button
-              onClick={handleSaveTools}
-              disabled={submitting || toolPicker?.checked.size === 0}
-            >
-              {submitting ? t("saving2") : t("saveSelection")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <McpToolPickerDialog
+        toolPicker={toolPicker}
+        setToolPicker={setToolPicker}
+        submitting={submitting}
+        onSave={handleSaveTools}
+      />
 
       {disconnecting && (
         <ConfirmDialog
