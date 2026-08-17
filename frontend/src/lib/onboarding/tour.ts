@@ -99,6 +99,9 @@ export const TOUR_STEPS: readonly TourStep[] = [
 
   { id: "dashboard-actions", page: ROUTES.DASHBOARD, target: "dashboard-actions", inTour: true },
   { id: "dashboard-filters", page: ROUTES.DASHBOARD, target: "dashboard-filters", inTour: true },
+  // "?"-only: arranging the dashboard is detail the exhaustive walk covers, not a
+  // first-run essential. Ungated — the layout is the reader's own, not org-scoped.
+  { id: "dashboard-customize", page: ROUTES.DASHBOARD, target: "dashboard-customize" },
 
   { id: "chat-start", page: ROUTES.CHAT, target: "chat-start", inTour: true },
   { id: "chat-agent-picker", page: ROUTES.CHAT, target: "chat-agent-picker", inTour: true },

@@ -159,6 +159,7 @@ describe("useOnboardingTour", () => {
     expect(result.current.steps.map((step) => step.id)).toEqual([
       "dashboard-actions",
       "dashboard-filters",
+      "dashboard-customize",
     ]);
   });
 

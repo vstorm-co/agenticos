@@ -1432,6 +1432,10 @@
         "title": "Filtruj pulpit",
         "body": "Każda liczba na tej stronie podąża za okresem, który tu wybierzesz, a sekcje, których nie potrzebujesz, możesz ukryć. Widok żyje w adresie URL, więc przetrwa odświeżenie i wędruje w linku."
       },
+      "dashboard-customize": {
+        "title": "Dostosuj po swojemu",
+        "body": "Customize otwiera edytor, w którym dodajesz, ukrywasz i przestawiasz karty; Layouts zapisuje układ i przełącza między nimi. Pulpit jest Twój do ułożenia, dla każdej osoby osobno."
+      },
       "chat-start": {
         "title": "Rozmawiaj ze swoimi agentami",
         "body": "Nowy czat otwiera świeży wątek, a Twoje wcześniejsze rozmowy układają się w tym panelu. To najszybszy sposób, żeby wypróbować agenta i zobaczyć, jak działa, krok po kroku."

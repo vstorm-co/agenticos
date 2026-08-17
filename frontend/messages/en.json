@@ -2700,6 +2700,10 @@
         "title": "Slice the dashboard",
         "body": "Every number on this page follows the period you pick here, and you can hide sections you don't need. The view lives in the URL, so it survives a reload and travels in a link."
       },
+      "dashboard-customize": {
+        "title": "Make it your own",
+        "body": "Customize opens an editor where you add, hide and rearrange the cards; Layouts saves an arrangement and switches between them. The dashboard is yours to shape, per person."
+      },
       "chat-start": {
         "title": "Chat with your agents",
         "body": "New chat opens a fresh thread, and your past conversations stack up in this rail. It's the quickest way to try an agent out and watch how it works, step by step."
