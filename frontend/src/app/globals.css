@@ -1133,11 +1133,36 @@
   transform: translateX(-50%) !important;
   margin: 0 !important;
   max-width: min(28rem, calc(100vw - 2rem));
+  border-radius: 0.75rem;
   /* driver.css hard-codes a white card and near-black text, which reads as a light
-     popover beside the coach's own `bg-popover` card in dark mode. Bring both
-     onboarding surfaces onto the same tokens. */
-  background-color: var(--color-popover);
+     popover beside the coach's own card in dark mode. Both onboarding surfaces are
+     the same material as the chat composer instead: a frosted pane over the page
+     it is describing, at the near-opaque strength dialogs use, because this one
+     also floats over a dimmed backdrop and would go murky at the lighter one.
+     Written out rather than reached for as `.glass-strong`, because driver.js owns
+     this element's class list and rebuilds it every step. */
   color: var(--color-popover-foreground);
+  border: 1px solid color-mix(in oklab, var(--color-foreground) 16%, transparent);
+  background: color-mix(in oklab, var(--color-card) 85%, transparent);
+  -webkit-backdrop-filter: blur(24px) saturate(1.8);
+  backdrop-filter: blur(24px) saturate(1.8);
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in oklab, white 20%, transparent),
+    0 1px 2px 0 rgb(0 0 0 / 0.08),
+    0 12px 40px -12px rgb(0 0 0 / 0.3);
+  /* The caption is pinned, so the only thing that changes between steps is its
+     text. Easing the box means a step whose copy is a line longer grows into the
+     extra height instead of jumping, which — with the text swapped in the same
+     frame — is the whole of the transition the reader sees. */
+  transition:
+    height 0.28s ease,
+    width 0.28s ease;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .driver-popover.tour-popover {
+    background: var(--color-popover);
+  }
 }
 
 /* The top-pinned variant, for chat: the composer is at the bottom, so a caption
@@ -1237,6 +1262,79 @@
 @media (prefers-reduced-motion: reduce) {
   .onboarding-coach-ring {
     transition: none;
+    animation: none;
+  }
+}
+
+/*
+ * The coach's card, arriving. The ring travels between controls, so the card
+ * should not also fly — it rises a few pixels and fades in, once per step, which
+ * reads as "new instruction" without competing with the light that is moving. It
+ * is keyed on the step id in the component, so React remounts it and the keyframe
+ * replays; nothing else re-triggers it.
+ */
+@keyframes onboarding-coach-card-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 6px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.onboarding-coach-card {
+  animation: onboarding-coach-card-in 0.24s ease-out both;
+}
+
+/* Inside a dialog the card is in normal flow, so it must not be dragged half its
+   own width to the left the way the floating one is. */
+@keyframes onboarding-coach-card-in-flow {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.onboarding-coach-card-in-flow {
+  animation: onboarding-coach-card-in-flow 0.24s ease-out both;
+}
+
+/*
+ * The page-help "?" breathing until it is first used. Deliberately small: this
+ * control sits in every page header, so anything louder than a slow swell of the
+ * icon's own colour would be a permanent distraction on twenty screens. It stops
+ * for good at the first press (`lib/onboarding/help-hint`), and never starts for a
+ * reader who asked for less motion.
+ */
+@keyframes onboarding-help-hint {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-brand) 45%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 5px color-mix(in oklab, var(--color-brand) 0%, transparent);
+  }
+}
+
+.onboarding-help-hint {
+  color: var(--color-brand);
+  border-radius: 0.5rem;
+  animation: onboarding-help-hint 2.4s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-coach-card,
+  .onboarding-coach-card-in-flow {
+    animation: none;
+  }
+  /* The colour stays — it is the affordance, not the motion — but the swell goes. */
+  .onboarding-help-hint {
     animation: none;
   }
 }

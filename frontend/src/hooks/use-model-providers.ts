@@ -87,6 +87,7 @@ export function useModelProviders() {
     catalog: catalog.data?.items ?? [],
     profiles: profiles.data?.items ?? [],
     isLoading: catalog.isLoading || profiles.isLoading,
+    isFetching: catalog.isFetching || profiles.isFetching,
     createProfile,
     deleteProfile,
   };

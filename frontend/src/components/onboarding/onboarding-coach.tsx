@@ -1,16 +1,27 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { X } from "lucide-react";
 
-import { activateTab, spotlightPath, waitForElement } from "@/components/onboarding/spotlight";
+import {
+  activateTab,
+  isTypingTarget,
+  onlyHiddenMatches,
+  spotlightPath,
+  waitForElement,
+} from "@/components/onboarding/spotlight";
 import { Button, IconButton } from "@/components/ui";
 import { useOnboardingFlow } from "@/hooks/use-onboarding-flow";
 import { stripLocale } from "@/lib/active-route";
 import { ROUTES } from "@/lib/constants";
 import { AGENT_BUILDER, pageKey } from "@/lib/onboarding/tour";
+import { setUrlParam } from "@/lib/utils";
+import { useChatStore } from "@/stores/chat-store";
+import { useConversationStore } from "@/stores/conversation-store";
+import { useSidebarStore } from "@/stores/sidebar-store";
 
 /**
  * Space between the control and the freeze layer's cut-out. Matched to the ring's
@@ -154,6 +165,7 @@ export function OnboardingCoach() {
   const [ringAnchor, setRingAnchor] = useState<string | null>(null);
   const [overlayOpen, setOverlayOpen] = useState(false);
   const [dialogCount, setDialogCount] = useState(0);
+  const [dialogNode, setDialogNode] = useState<HTMLElement | null>(null);
   const [blockRect, setBlockRect] = useState<Rect | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -197,7 +209,13 @@ export function OnboardingCoach() {
     if (!isActive) return;
     const check = () => {
       setOverlayOpen(document.querySelector(OPEN_OVERLAY) !== null);
-      setDialogCount(document.querySelectorAll(OPEN_DIALOG).length);
+      const dialogs = document.querySelectorAll(OPEN_DIALOG);
+      setDialogCount(dialogs.length);
+      // The topmost one, which is the one a step guides into: the builder's catalog
+      // opens the connect form over itself, and the fields the walk points at are
+      // the form's.
+      const top = dialogs[dialogs.length - 1];
+      setDialogNode(top instanceof HTMLElement ? top : null);
     };
     check();
     const observer = new MutationObserver(check);
@@ -245,6 +263,25 @@ export function OnboardingCoach() {
     if (id) setFlowAgentId(id);
   }, [isActive, flowId, flowAgentId, stepId, pathname, setFlowAgentId]);
 
+  // The chat tail asks for a *first* message, so it starts a fresh thread the way
+  // the builder's own "Open in chat" does. Navigating to `/chat` does not: the
+  // loader only ever sets a selection from `?id=` and never clears one, so
+  // whatever thread was last open stays open and the guided first message would
+  // land in it, with its context and whichever agent answered it. Once per step —
+  // the id going null is what stops it re-running.
+  const freshConversation = step?.freshConversation ?? false;
+  useEffect(() => {
+    if (!isActive || !freshConversation) return;
+    if (useConversationStore.getState().currentConversationId === null) return;
+    useChatStore.getState().clearMessages();
+    useConversationStore.getState().reset();
+    // The `?id=` as well as the store: the loader reads it from the address bar on
+    // every refresh, so leaving it there re-selects the thread just cleared — and
+    // a walk that reached this step already on `/chat` never navigates, so nothing
+    // else would strip it.
+    setUrlParam("id", null);
+  }, [isActive, freshConversation]);
+
   // Get to the page, reveal the tab that holds the control, find it, scroll it
   // into view, and measure it — for both the freeze cut-out and the ring. The
   // cut-out is repositioned on scroll and resize until the step changes or the
@@ -286,6 +323,15 @@ export function OnboardingCoach() {
         step.dynamicTarget === "createdAgentEdit"
           ? `[data-tour="agent-card-edit"]${flowAgentId ? `[data-agent-id="${flowAgentId}"]` : ""}`
           : `[data-tour="${step.target}"]`;
+      // The navigation exists twice: a desktop column that is `display: none`
+      // below `md`, and a drawer that mounts only once opened. Below that
+      // breakpoint every match for a nav anchor is therefore hidden, and the wait
+      // below — which skips hidden matches — would sit behind a full-viewport
+      // freeze covering the hamburger that would fix it. So when the document
+      // holds the control but renders no copy of it, open the drawer. On a desktop
+      // the column is rendered, `onlyHiddenMatches` is false, and the drawer (which
+      // is mounted at every width) stays shut.
+      if (onlyHiddenMatches(selector)) useSidebarStore.getState().open();
       // No timeout: a coach target must appear, not be skipped. A fixed deadline
       // that lapsed on a cold query or a slow builder left the freeze full-viewport
       // with no cut-out and no Next — closing the flow the only way out. The abort
@@ -393,6 +439,32 @@ export function OnboardingCoach() {
     if (frozen) cardRef.current?.focus();
   }, [isActive, step, overlayOpen]);
 
+  // The right arrow does what the card's Next does, and only when the card is
+  // showing one: a step that waits for the reader to create something has no Next
+  // for a reason, and a key that skipped it would walk them past the thing the step
+  // is about. There is no left arrow — the coach has no Back either, because a step
+  // behind you may have created a resource that stepping back cannot uncreate.
+  //
+  // `isTypingTarget` is what makes this safe at all: the coach guides the reader
+  // *into* text fields, where an arrow moves a caret and must keep doing so.
+  // The same condition the card renders its Next on, so the key and the button are
+  // never out of step — including the in-dialog step whose dialog was cancelled,
+  // which gains one precisely because its signal can no longer be met.
+  const canAdvance =
+    step !== undefined &&
+    !step.question &&
+    (!step.signal || (step.inOverlay === true && !overlayOpen));
+  useEffect(() => {
+    if (!isActive || !canAdvance) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "ArrowRight" || isTypingTarget(event.target)) return;
+      event.preventDefault();
+      next();
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [isActive, canAdvance, next]);
+
   // Escape ends the walk when the page is frozen — the keyboard equal of the close
   // button, the frozen page having nothing else Escape could act on. With a dialog
   // or picker open, Radix owns Escape (and `dialog.tsx` keeps that dialog from
@@ -431,6 +503,15 @@ export function OnboardingCoach() {
   const frozen = !roam && !inOverlay && !overlayOpen;
   const current = isQuestion ? null : rect?.stepId === stepId ? rect : null;
 
+  // An `inOverlay` step whose dialog is gone — the reader pressed Cancel or the
+  // dialog's own X, both of which stay live while the coach guides it. The page is
+  // deliberately left usable in that state, but the step's signal can no longer be
+  // met: the last field step waits for a creation whose form has closed, carries no
+  // Next of its own, and cannot reopen the dialog from where it stands, so the walk
+  // sat there until the whole coach was closed. Give it a Next — stepping out of
+  // the dialog is a decision, and the walk should follow it rather than trap it.
+  const strandedInOverlay = inOverlay && !overlayOpen;
+
   // The card is pinned to the bottom, but the chat composer lives there too — so
   // a step pointing at a control in the lower half of the viewport (the composer,
   // its model picker) would have the card sit on top of it. Flip the card to the
@@ -440,6 +521,85 @@ export function OnboardingCoach() {
     current !== null &&
     typeof window !== "undefined" &&
     current.top + current.height / 2 > window.innerHeight / 2;
+
+  // Guiding a field inside a dialog, the card renders *within* that dialog rather
+  // than floating over the page. Radix traps keyboard focus inside its own content,
+  // so a card outside it is reachable by pointer and by nothing else: a keyboard
+  // user could fill the field the step points at and never Tab to the Next that
+  // moves off it, and Escape is held by the dialog. Inside the trap it is simply
+  // the last thing in the tab order. It also cannot be `position: fixed` there —
+  // Radix's content is transformed, which would make "fixed" mean "relative to this
+  // dialog" — so the portalled copy sits in the dialog's own grid instead.
+  const inDialog = inOverlay && overlayOpen && dialogNode !== null;
+
+  const card = (
+    <>
+      {/* Floating, a modal Radix dialog sets pointer-events:none on the body while it
+          is open and this card sits outside that dialog — so it re-enables them for
+          itself, or its own Next and close inherit none and go inert while guiding a
+          field inside a create dialog. `onInteractOutside` on DialogContent keeps the
+          click from also dismissing that dialog. Inside one (`inDialog`) neither
+          applies: it is part of the dialog's own content. */}
+      <div
+        // Keyed on the step, so React replaces the card rather than reusing it and
+        // its entry keyframe plays once per instruction. Without the key the copy
+        // swapped in place and a step change had no motion of its own at all.
+        key={step.id}
+        ref={cardRef}
+        data-coach-card
+        role={inDialog ? "group" : "dialog"}
+        aria-modal={frozen ? true : undefined}
+        aria-label={t(`steps.${step.id}.title`)}
+        tabIndex={-1}
+        className={
+          inDialog
+            ? "onboarding-coach-card-in-flow bg-popover text-popover-foreground relative rounded-xl border p-4 outline-none"
+            : // `-translate-x-1/2` stays even though the keyframe ends on the same
+              // transform: it is what centres the card for a reader who asked for
+              // reduced motion, where the animation does not run at all.
+              `onboarding-coach-card glass-strong text-popover-foreground pointer-events-auto fixed left-1/2 z-[1000000002] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl p-4 outline-none ${cardAtTop ? "top-6" : "bottom-6"}`
+        }
+      >
+        <IconButton
+          aria-label={t("coachClose")}
+          onClick={finish}
+          className="absolute top-2 right-2"
+        >
+          <X className="h-4 w-4" />
+        </IconButton>
+        <h2 className="pr-6 text-sm font-semibold">{t(`steps.${step.id}.title`)}</h2>
+        <p className="text-muted-foreground mt-1 text-sm">{t(`steps.${step.id}.body`)}</p>
+        {isQuestion ? (
+          <div className="mt-3 flex items-center justify-end gap-2">
+            <Button size="sm" variant="ghost" onClick={() => answer(step.id, "skip")}>
+              {t("coachSkip")}
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => (step.opensFlow ? openFlow(step.opensFlow) : answer(step.id, "yes"))}
+            >
+              {t("coachYes")}
+            </Button>
+          </div>
+        ) : (
+          <div className="mt-3 flex items-center justify-between gap-2">
+            {steps.length > 1 ? (
+              <span className="text-muted-foreground text-xs">
+                {t("progress", { current: index + 1, total: steps.length })}
+              </span>
+            ) : (
+              <span />
+            )}
+            {(!step.signal || strandedInOverlay) && (
+              <Button size="sm" onClick={next}>
+                {isLast ? t("finish") : t("next")}
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+    </>
+  );
 
   return (
     <>
@@ -477,58 +637,7 @@ export function OnboardingCoach() {
           }}
         />
       )}
-      {/* A modal Radix dialog sets pointer-events:none on the body while it is open,
-          and this card sits outside that dialog — so it re-enables them for itself, or
-          its own Next and close inherit none and go inert while guiding a field inside a
-          create dialog. `onInteractOutside` on DialogContent keeps the click from also
-          dismissing that dialog. */}
-      <div
-        ref={cardRef}
-        data-coach-card
-        role="dialog"
-        aria-modal={frozen ? true : undefined}
-        aria-label={t(`steps.${step.id}.title`)}
-        tabIndex={-1}
-        className={`bg-popover text-popover-foreground pointer-events-auto fixed left-1/2 z-[1000000002] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border p-4 shadow-lg outline-none ${cardAtTop ? "top-6" : "bottom-6"}`}
-      >
-        <IconButton
-          aria-label={t("coachClose")}
-          onClick={finish}
-          className="absolute top-2 right-2"
-        >
-          <X className="h-4 w-4" />
-        </IconButton>
-        <h2 className="pr-6 text-sm font-semibold">{t(`steps.${step.id}.title`)}</h2>
-        <p className="text-muted-foreground mt-1 text-sm">{t(`steps.${step.id}.body`)}</p>
-        {isQuestion ? (
-          <div className="mt-3 flex items-center justify-end gap-2">
-            <Button size="sm" variant="ghost" onClick={() => answer(step.id, "skip")}>
-              {t("coachSkip")}
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => (step.opensFlow ? openFlow(step.opensFlow) : answer(step.id, "yes"))}
-            >
-              {t("coachYes")}
-            </Button>
-          </div>
-        ) : (
-          <div className="mt-3 flex items-center justify-between gap-2">
-            {steps.length > 1 ? (
-              <span className="text-muted-foreground text-xs">
-                {t("progress", { current: index + 1, total: steps.length })}
-              </span>
-            ) : (
-              <span />
-            )}
-            {!step.signal && (
-              <Button size="sm" onClick={next}>
-                {isLast ? t("finish") : t("next")}
-              </Button>
-            )}
-          </div>
-        )}
-      </div>
+      {inDialog && dialogNode !== null ? createPortal(card, dialogNode) : card}
     </>
   );
 }

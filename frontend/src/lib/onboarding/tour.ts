@@ -148,7 +148,10 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     id: "agent-mcp",
     page: AGENT_BUILDER,
-    target: "agent-mcp",
+    // The card's header, not the card: the picker under it holds the whole server
+    // catalog, so the card is taller than the screen and spotlighting it lit
+    // everything — see the anchor's comment in the builder page.
+    target: "agent-mcp-intro",
     activate: "agent-tab-toolbox",
     permission: Perm.agentsView,
   },

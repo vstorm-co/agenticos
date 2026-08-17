@@ -195,6 +195,32 @@ There is no `(marketing)` route group.
   holds is `captionKey` / `displayNameKey` / `verbs`, all of them keys under
   `chat.tools`, because the table is a module constant with no translator to reach.
 
+## A new surface owes the onboarding walkthrough a stop
+
+`src/lib/onboarding/tour.ts` (the passive walk every page's "?" replays) and
+`flows.ts` (the guided creation it offers at the end) are **registries**. A page,
+tab, section or create control added anywhere else is simply missing from them —
+nothing fails and nothing warns, so the feature ships invisible to everyone who
+learns the product through the tour.
+
+Add the stop in the same change: a `TourStep` plus a `data-tour` on the control it
+names; a `CreationFlow` and its `flowForPage` entry where the page can create
+something; a resolver in `components/onboarding/detail-targets.ts` for a detail
+view with no route of its own; and `steps.<id>.title`/`.body` in `messages/en.json`,
+because a missing key renders the key.
+
+Three things decide whether the stop works, each got wrong here at least once:
+gate it on the permission its control carries (an ungated step waits four seconds
+for an element a refusal never mounts); mark it `optional: true` when the control
+renders only where data exists (an empty catalog otherwise pins a caption to
+nothing); and anchor it on something **bounded** — `data-tour` on a card whose body
+is a whole catalog spotlights the entire viewport, which highlights nothing, so the
+describing step takes the header and the card's own anchor is left to the guided
+flow, which needs the list reachable.
+
+The full picture, including what CLAUDE.md requires, is in `CLAUDE.md` under
+"A new surface owes the walkthrough a stop".
+
 ## Permissions
 
 `use-permissions.ts` gives the effective permission set for the active organization. A

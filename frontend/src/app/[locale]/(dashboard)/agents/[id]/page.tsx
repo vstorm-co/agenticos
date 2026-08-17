@@ -888,7 +888,14 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </Card>
 
           <Card data-tour="agent-mcp">
-            <CardHeader>
+            {/* The passive tour points here rather than at the card: the picker
+                below embeds the whole server catalog, so the card runs well past
+                the bottom of the screen and a spotlight on it lit the entire
+                viewport — a highlight that highlights nothing, with the caption
+                stranded in the one dim strip left (#624). The card keeps its own
+                anchor for the guided flow, which needs the list itself reachable
+                so the reader can tick a server. */}
+            <CardHeader data-tour="agent-mcp-intro">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 space-y-1.5">
                   <CardTitle>{t("mcpServers")}</CardTitle>

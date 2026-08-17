@@ -1,9 +1,11 @@
 "use client";
 
 import { useMemo } from "react";
+import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
 import { apiClient } from "@/lib/api-client";
+import { stripLocale } from "@/lib/active-route";
 import { ROUTES } from "@/lib/constants";
 import {
   AGENT_BUILDER,
@@ -18,6 +20,15 @@ import { useOrgStore } from "@/stores";
 import type { AgentList } from "@/types/agents";
 import type { KnowledgeBaseList } from "@/types/knowledge-base";
 import type { OrganizationList } from "@/types/organization";
+
+/**
+ * The organization a path names, for the `/orgs/<id>/…` detail routes, or `null`
+ * for anything else — including `/orgs` itself, which names none.
+ */
+function orgIdFromPath(path: string): string | null {
+  const segments = path.split("/").filter(Boolean);
+  return segments[0] === "orgs" && segments.length > 1 ? (segments[1] ?? null) : null;
+}
 
 /** Where a detail pseudo-page resolves to, and whether we are still finding out. */
 export interface ResolvedDetail {
@@ -64,9 +75,16 @@ export function useDetailTargets(enabled: boolean): Record<string, ResolvedDetai
   });
   const kbId = kbs.data?.find((kb) => kb.is_default)?.id ?? kbs.data?.[0]?.id ?? null;
 
-  // The example organization is the one the reader is already in — resolved from
-  // the store, with the list only as a fallback (and for `pending`). Members and
+  // The example organization is the one the reader is looking at, then the one
+  // they are in, then the list (which is also what `pending` waits on). Members and
   // roles are two routes under the same org, so both resolve from the one id.
+  //
+  // The route comes first because the two can disagree: every card on `/orgs` links
+  // straight to that organization's members without switching to it, so a "?"
+  // pressed there resolved to the *active* organization and the walk's next stop
+  // pushed its roles page — the help silently changing which organization it was
+  // explaining, mid-walk.
+  const routeOrgId = orgIdFromPath(stripLocale(usePathname()));
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const orgs = useQuery({
     queryKey: qk.organizations.list(),
@@ -74,8 +92,12 @@ export function useDetailTargets(enabled: boolean): Record<string, ResolvedDetai
     enabled,
   });
   const orgId =
-    activeOrgId ?? orgs.data?.find((org) => org.is_personal)?.id ?? orgs.data?.[0]?.id ?? null;
-  const orgPending = enabled && !activeOrgId && orgs.isPending;
+    routeOrgId ??
+    activeOrgId ??
+    orgs.data?.find((org) => org.is_personal)?.id ??
+    orgs.data?.[0]?.id ??
+    null;
+  const orgPending = enabled && !routeOrgId && !activeOrgId && orgs.isPending;
 
   return useMemo(
     () => ({

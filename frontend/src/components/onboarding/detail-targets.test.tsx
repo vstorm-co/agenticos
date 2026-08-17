@@ -21,6 +21,11 @@ vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(async () => ({ items: [] })) },
 }));
 
+// The route the resolver reads before anything else; a test moves it to place the
+// reader on one organization's pages while another is the active one.
+const nav = vi.hoisted(() => ({ pathname: "/dashboard" }));
+vi.mock("next/navigation", () => ({ usePathname: () => nav.pathname }));
+
 // Each list is seeded in the exact shape its owning page hook stores under the
 // same key — `useAgents` caches the whole `AgentList`, `useKnowledgeBases` and
 // `useOrganizationList` cache the `.items` array. `staleTime: Infinity` keeps the
@@ -40,6 +45,7 @@ beforeEach(() => {
   // The resolver prefers the active organization; nulling it exercises the list
   // fallback, which is the path that has a shape to get wrong.
   useOrgStore.setState({ activeOrgId: null });
+  nav.pathname = "/dashboard";
 });
 
 describe("useDetailTargets", () => {
@@ -114,5 +120,39 @@ describe("useDetailTargets", () => {
 
     expect(result.current[ORG_MEMBERS]?.href).toBe("/orgs/active-org/members");
     expect(result.current[ORG_ROLES]?.href).toBe("/orgs/active-org/roles");
+  });
+
+  it("keeps the walk on the organization being read, not the active one", () => {
+    // Every card on `/orgs` links straight to that organization's members without
+    // switching to it, so the two disagree routinely. Resolved from the active org,
+    // a "?" pressed there explained one organization and then pushed the other's
+    // roles page — the help changing its subject mid-walk.
+    useOrgStore.setState({ activeOrgId: "active-org" });
+    nav.pathname = "/orgs/other-org/members";
+    const wrapper = wrapperWith(() => {});
+
+    const { result } = renderHook(() => useDetailTargets(true), { wrapper });
+
+    expect(result.current[ORG_MEMBERS]?.href).toBe("/orgs/other-org/members");
+    expect(result.current[ORG_ROLES]?.href).toBe("/orgs/other-org/roles");
+  });
+
+  it("reads no organization from the list route itself, which names none", () => {
+    useOrgStore.setState({ activeOrgId: "active-org" });
+    nav.pathname = "/orgs";
+    const wrapper = wrapperWith(() => {});
+
+    const { result } = renderHook(() => useDetailTargets(true), { wrapper });
+
+    expect(result.current[ORG_MEMBERS]?.href).toBe("/orgs/active-org/members");
+  });
+
+  it("reads the organization from a locale-prefixed route too", () => {
+    nav.pathname = "/pl/orgs/other-org/roles";
+    const wrapper = wrapperWith(() => {});
+
+    const { result } = renderHook(() => useDetailTargets(true), { wrapper });
+
+    expect(result.current[ORG_ROLES]?.href).toBe("/orgs/other-org/roles");
   });
 });

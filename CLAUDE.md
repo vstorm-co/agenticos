@@ -287,6 +287,39 @@ Trigger map — what changed → which page:
 | `.github/workflows/ai-review.yml`, `.github/codex/**` | `docs/code-review.md` |
 | `.pre-commit-config.yaml`, `.github/dependabot.yml`, the branch rulesets | `docs/branching.md` |
 | A capability, permission or setting that changes the first-run path | `docs/first-agent.md`, `docs/install.md` |
+| A new dashboard page, tab or create control | `frontend/src/lib/onboarding/{tour,flows}.ts` — see below |
+
+### A new surface owes the walkthrough a stop (required)
+
+The product teaches itself: `frontend/src/lib/onboarding/tour.ts` is the passive
+walk every page's "?" replays, and `flows.ts` is the guided creation the walk
+offers at its end. Both are **registries**, so a page, tab, section or control
+added anywhere else is simply absent from them — nothing fails, nothing warns,
+and the feature ships invisible to everyone who learns the product through the
+tour. That is the whole failure mode: it is silent.
+
+So a change that adds a surface adds its stop in the same change.
+
+| Added | Owed |
+|---|---|
+| A dashboard page, or a tab/section within one | A `TourStep` in `tour.ts`, and `data-tour` on the control it names |
+| A page that can *create* something | A `CreationFlow` in `flows.ts`, plus its `flowForPage` entry |
+| A detail view with no route of its own | A pseudo-page id and its resolver in `components/onboarding/detail-targets.ts` |
+| A step, of either kind | `steps.<id>.title` / `.body` in `messages/en.json` — a missing key renders the key |
+
+Three things that decide whether a stop actually works, each of which has been
+got wrong here:
+
+- **Gate it on the permission its control carries.** An ungated step describes a
+  control the server hid, and the walk then waits four seconds for an element
+  that will never mount.
+- **`optional: true` for a control that renders only when data exists** — an
+  "add integration" button behind a non-empty catalog. Without it an empty
+  organization gets a caption pinned to nothing.
+- **Point at something bounded.** `data-tour` on a card whose body is a full
+  catalog spotlights the entire viewport, which highlights nothing; anchor the
+  describing step on the header and leave the card's own anchor for the guided
+  flow, which needs the list reachable.
 
 **When updating a page:** keep its altitude — `docs/reference/*` is generated from
 docstrings, so fix the **docstring** there rather than adding prose. Keep the

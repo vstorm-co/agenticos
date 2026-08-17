@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useOnboardingFlow } from "./use-onboarding-flow";
 import { useOnboardingStore } from "@/stores";
 import { useAgentSelectionStore } from "@/stores/agent-selection-store";
+import { useChatStore } from "@/stores/chat-store";
 import { useConversationStore } from "@/stores/conversation-store";
 import type { Permission } from "@/types/permissions";
 
@@ -21,6 +22,7 @@ const rig = vi.hoisted(() => ({
   modelsLoading: false,
   skillTotal: 0,
   skillLoading: false,
+  skillFetching: false,
   kbs: [] as unknown[],
   connections: [] as unknown[],
   personalConnections: [] as unknown[],
@@ -34,27 +36,44 @@ vi.mock("@/hooks/use-agents", () => ({
     agents: rig.agentsList,
     total: rig.agentTotal,
     isLoading: rig.agentsLoading,
+    isFetching: rig.agentsLoading,
   }),
   // Disabled when no id is captured, mirroring `enabled: !!agentId` in the real hook.
   useAgent: (id: string | null) => ({ agent: id ? rig.agentDetail : undefined }),
 }));
 vi.mock("@/hooks/use-model-providers", () => ({
-  useModelProviders: () => ({ profiles: rig.profiles, isLoading: rig.modelsLoading }),
+  useModelProviders: () => ({
+    profiles: rig.profiles,
+    isLoading: rig.modelsLoading,
+    isFetching: rig.modelsLoading,
+  }),
 }));
 vi.mock("@/hooks/use-skills", () => ({
-  useSkills: () => ({ total: rig.skillTotal, isLoading: rig.skillLoading }),
+  useSkills: () => ({
+    total: rig.skillTotal,
+    isLoading: rig.skillLoading,
+    isFetching: rig.skillLoading || rig.skillFetching,
+  }),
 }));
 vi.mock("@/hooks/use-knowledge-bases", () => ({
-  useKnowledgeBases: () => ({ kbs: rig.kbs, isLoading: false }),
+  useKnowledgeBases: () => ({ kbs: rig.kbs, isLoading: false, isFetching: false }),
 }));
 vi.mock("@/hooks/use-org-mcp-connections", () => ({
-  useOrgMcpConnections: () => ({ connections: rig.connections, isLoading: rig.mcpLoading }),
+  useOrgMcpConnections: () => ({
+    connections: rig.connections,
+    isLoading: rig.mcpLoading,
+    isFetching: rig.mcpLoading,
+  }),
 }));
 vi.mock("@/hooks/use-mcp-connections", () => ({
-  useMcpConnections: () => ({ connections: rig.personalConnections, isLoading: false }),
+  useMcpConnections: () => ({
+    connections: rig.personalConnections,
+    isLoading: false,
+    isFetching: false,
+  }),
 }));
 vi.mock("@/hooks/use-organizations", () => ({
-  useOrganizationList: () => ({ data: rig.orgs, isLoading: false }),
+  useOrganizationList: () => ({ data: rig.orgs, isLoading: false, isFetching: false }),
 }));
 vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({ can: rig.can, isLoading: false, error: null }),
@@ -90,6 +109,7 @@ beforeEach(() => {
   rig.modelsLoading = false;
   rig.skillTotal = 0;
   rig.skillLoading = false;
+  rig.skillFetching = false;
   rig.kbs = [];
   rig.connections = [];
   rig.personalConnections = [];
@@ -98,6 +118,7 @@ beforeEach(() => {
   rig.can = () => true;
   nav.pathname = "/dashboard";
   useAgentSelectionStore.setState({ selectedAgentId: null });
+  useChatStore.setState({ messages: [] });
   useConversationStore.setState({ currentConversationId: null, currentMessages: [] });
   useOnboardingStore.setState({
     isOpen: false,
@@ -395,10 +416,9 @@ describe("useOnboardingFlow", () => {
   });
 
   it("ends the run on a message sent while the step shows, not one from before", () => {
-    // A conversation already open when the step begins must not read as the send:
-    // the baseline captures its message count, and only growth past it counts.
-    const before = { id: "m-0" } as never;
-    act(() => useConversationStore.setState({ currentMessages: [before] }));
+    // A transcript already on screen when the step begins must not read as the
+    // send: the baseline captures its message count, and only growth past it counts.
+    act(() => useChatStore.setState({ messages: [{ id: "m-0" } as never] }));
     const { result, rerender } = renderHook(() => useOnboardingFlow());
     act(() => useOnboardingStore.getState().openFlow("create-agent"));
     const sendAt = result.current.steps.findIndex((s) => s.id === "flow-agent-run-send");
@@ -408,7 +428,27 @@ describe("useOnboardingFlow", () => {
     expect(result.current.signalMet).toBe(false);
 
     // Sending appends optimistically; the count growing is the send.
-    act(() => useConversationStore.getState().addMessage({ id: "m-1" } as never));
+    act(() => useChatStore.getState().addMessage({ id: "m-1" } as never));
+    rerender();
+    expect(result.current.signalMet).toBe(true);
+  });
+
+  it("reads the send from the transcript on screen, not the fetched one", () => {
+    // A conversation created over the websocket never has its messages fetched, so
+    // `useConversationStore.currentMessages` stays empty however many turns it
+    // holds. Read from there, the fresh-agent path's first message moved nothing
+    // and the walk sat on the composer while its run was already answering.
+    const { result, rerender } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-agent"));
+    const sendAt = result.current.steps.findIndex((s) => s.id === "flow-agent-run-send");
+    act(() => useOnboardingStore.getState().setIndex(sendAt));
+    expect(result.current.signalMet).toBe(false);
+
+    act(() => useConversationStore.setState({ currentMessages: [{ id: "fetched" } as never] }));
+    rerender();
+    expect(result.current.signalMet).toBe(false);
+
+    act(() => useChatStore.getState().addMessage({ id: "sent" } as never));
     rerender();
     expect(result.current.signalMet).toBe(true);
   });
@@ -456,16 +496,65 @@ describe("useOnboardingFlow", () => {
 
   it("does not let the add-model step morph once the reader adds a model", () => {
     rig.profiles = []; // no models to start
+    rig.agentDetail = { status: "draft", draft_spec: { model_profile_id: null } };
     const { result, rerender } = renderHook(() => useOnboardingFlow());
     act(() => useOnboardingStore.getState().openFlow("create-agent"));
+    act(() => useOnboardingStore.getState().setFlowAgentId("a-1"));
     act(() => useOnboardingStore.getState().setIndex(2)); // the model step
     expect(result.current.step?.id).toBe("flow-agent-model-add");
 
     rig.profiles = [{ secret_id: "sec-1" }]; // AddModel creates a new profile mid-flow
     rerender();
-    // Frozen: still the add step, and its signal now fires rather than the step
-    // turning into "pick a model" with nothing to advance it.
+    // Frozen: still the add step rather than turning into "pick a model" with
+    // nothing to advance it.
     expect(result.current.step?.id).toBe("flow-agent-model-add");
+  });
+
+  it("holds the add-model step until the draft itself carries the model", () => {
+    // The profile list growing is not enough. Creating a profile selects it on the
+    // builder's *local* spec, stored behind a 1.2s debounce — and the step after
+    // this one navigates to Knowledge, unmounting the builder and cancelling that
+    // save. Advancing on the list left the walk at a Publish that refuses a spec
+    // with no model, with no way on.
+    rig.profiles = [];
+    rig.agentDetail = { status: "draft", draft_spec: { model_profile_id: null } };
+    const { result, rerender } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-agent"));
+    act(() => useOnboardingStore.getState().setFlowAgentId("a-1"));
+    act(() => useOnboardingStore.getState().setIndex(2));
+    expect(result.current.step?.id).toBe("flow-agent-model-add");
+
+    rig.profiles = [{ secret_id: "sec-1" }];
+    rerender();
+    expect(result.current.signalMet).toBe(false);
+
+    rig.agentDetail = { status: "draft", draft_spec: { model_profile_id: "mp-1" } };
+    rerender();
+    expect(result.current.signalMet).toBe(true);
+  });
+
+  it("does not read a background refresh of a cached list as a creation", () => {
+    // React Query reports `isLoading` false the moment it has cached data, while a
+    // refresh of that cache is still in flight. Baselined on the cached number, the
+    // refresh alone — a colleague's row, or one made in another tab — advanced the
+    // step with nothing done here.
+    rig.skillTotal = 3;
+    rig.skillFetching = true;
+    const { result, rerender } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-skill"));
+    const createAt = result.current.steps.findIndex((s) => s.id === "flow-skill-field-create");
+    act(() => useOnboardingStore.getState().setIndex(createAt));
+    expect(result.current.step?.id).toBe("flow-skill-field-create");
+    // No baseline yet: the count is withheld while the refresh runs.
+    expect(result.current.signalMet).toBe(false);
+
+    rig.skillTotal = 4; // the refresh lands, carrying somebody else's skill
+    rig.skillFetching = false;
+    rerender();
+    expect(result.current.signalMet).toBe(false);
+
+    rig.skillTotal = 5; // now the reader creates one
+    rerender();
     expect(result.current.signalMet).toBe(true);
   });
 });

@@ -2596,6 +2596,10 @@
         "title": "Open the catalog",
         "body": "Choose Connect a server — the catalog opens right here in the builder, and we'll pick one together."
       },
+      "flow-agent-mcp-attach": {
+        "title": "Give it the server",
+        "body": "Connecting a server doesn't hand it to this agent. Tick the one you just connected so the agent can use its tools, then choose Next."
+      },
       "flow-agent-limits": {
         "title": "Set a budget (optional)",
         "body": "Cap what this agent can spend in a month and how many steps one run may take, and choose who's told when it reaches a limit. It's how an agent that loops or runs away stops itself. Choose Next to move on."

@@ -181,6 +181,14 @@ export interface FlowStep {
    * the walk arrives on it. Leaves every other control, dropdowns included, live.
    */
   blockSubmit?: string;
+  /**
+   * Clear the open conversation on the way into this step, the way the builder's
+   * own "Open in chat" does. Navigating to `/chat` with no `?id=` leaves whatever
+   * thread was last selected selected — the chat loader only ever *sets* a
+   * selection from the parameter, never clears one — so the first message the walk
+   * asks for landed in an old thread, with its context and its agent.
+   */
+  freshConversation?: boolean;
 }
 
 /**
@@ -205,9 +213,11 @@ export interface CreationFlow {
  * and complete when the resource is created (the shared `*DialogSteps`
  * fragments, which the create-agent detours splice in too). `create-org` stays a
  * single step: its dialog is one name field, and walking that would be padding.
- * MCP carries a caveat the coach handles, not the registry: a connection added
- * over OAuth redirects to the provider's consent screen rather than resolving in
- * place, so that path has no in-page `created` signal to wait on.
+ * MCP carries a caveat neither the registry nor the coach can answer on its own: a
+ * connection added over OAuth leaves the app for the provider's consent screen and
+ * returns through a second full page load, so that path has no in-page `created`
+ * signal to wait on and no store left to wait in. `OnboardingFlows` stows the
+ * running flow across that round trip and puts it back on the way in.
  *
  * `create-agent` is the adaptive one. It creates the agent (which opens the
  * builder), walks its instructions and model, guides the knowledge, skills and MCP
@@ -388,7 +398,13 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         // "add" control carries. A caller with `agents:edit` but not that would
         // otherwise be walked to a control the server hides from them.
         permission: Perm.connectionsManage,
-        signal: { kind: "created", resource: "model" },
+        // The *stored draft* gaining a model, not the profile list growing. Adding
+        // a profile selects it on the builder's local spec, which is written back
+        // behind a 1.2s debounce - and the step after this one crosses to Knowledge,
+        // unmounting the builder and cancelling that save. Keyed off the list, the
+        // walk advanced before the draft was ever stored, and the publish step it
+        // walks to refuses a spec with no model, so the flow could not finish.
+        signal: { kind: "modelSet" },
         include: (state) => !state.hasRunnableModel,
       },
       {
@@ -581,6 +597,19 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         requires: "flow-agent-mcp-ask",
       },
       ...mcpDialogSteps(AGENT_BUILDER, "flow-agent-mcp-ask"),
+      // The connection exists, but nothing has given it to the agent: the builder
+      // writes `spec.mcp_server_ids` only when the picker is toggled. So the detour
+      // ends where the knowledge and skill ones do - back at the control that
+      // attaches what was just made - rather than publishing an agent that cannot
+      // reach the server the walk had the reader connect for it.
+      {
+        id: "flow-agent-mcp-attach",
+        page: AGENT_BUILDER,
+        target: "agent-mcp",
+        activate: "agent-tab-toolbox",
+        permission: Perm.agentsView,
+        requires: "flow-agent-mcp-ask",
+      },
       // Limits before Publish: a first agent that can run is a first agent that
       // can overspend, so the walk names the budget rather than leaving the tab
       // for the reader to find. Optional — a Next — because the defaults are safe.
@@ -616,6 +645,7 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         target: "chat-agent-picker",
         permission: Perm.agentsPublish,
         signal: { kind: "selected" },
+        freshConversation: true,
       },
       {
         id: "flow-agent-run-send",
@@ -705,7 +735,13 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         id: "flow-chat-needs-agent",
         page: ROUTES.CHAT,
         permission: Perm.agentsEdit,
-        include: (state) => !state.hasPublishedAgent,
+        // Publish as well as edit, through `include` because a step carries one
+        // `permission`. `create-agent`'s publish step and the whole chat tail after
+        // it are gated on `agents:publish`, which the built-in Member role does not
+        // hold - so a Member accepting this hand-off built a draft, lost the tail to
+        // the filter, and never returned to the chat walk the fork exists to unblock.
+        // Without publish they get the descriptive tour instead, which works.
+        include: (state, can) => !state.hasPublishedAgent && can(Perm.agentsPublish),
         question: true,
         opensFlow: "create-agent",
       },

@@ -1328,6 +1328,10 @@
         "title": "Otwórz katalog",
         "body": "Wybierz Connect server — katalog otworzy się tutaj, w kreatorze, i wybierzemy jeden razem."
       },
+      "flow-agent-mcp-attach": {
+        "title": "Daj mu ten serwer",
+        "body": "Połączenie serwera nie oddaje go jeszcze temu agentowi. Zaznacz ten, który przed chwilą podłączyłeś, żeby agent mógł korzystać z jego narzędzi, potem wybierz Dalej."
+      },
       "flow-agent-limits": {
         "title": "Ustaw budżet (opcjonalnie)",
         "body": "Ogranicz, ile ten agent może wydać w miesiącu i z ilu kroków może się składać jedno uruchomienie, i wybierz, kto zostanie powiadomiony przy limicie. Tak agent, który się zapętli albo wymknie spod kontroli, zatrzyma się sam. Wybierz Dalej, żeby przejść dalej."

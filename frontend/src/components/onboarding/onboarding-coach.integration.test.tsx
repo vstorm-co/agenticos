@@ -3,9 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { OnboardingCoach } from "./onboarding-coach";
-import { waitForElement } from "./spotlight";
+import { onlyHiddenMatches, waitForElement } from "./spotlight";
 import type { OnboardingFlowState } from "@/hooks/use-onboarding-flow";
 import type { FlowStep } from "@/lib/onboarding/flows";
+import { useChatStore } from "@/stores/chat-store";
+import { useConversationStore } from "@/stores/conversation-store";
+import { useSidebarStore } from "@/stores/sidebar-store";
 
 const router = vi.hoisted(() => ({
   push: vi.fn(),
@@ -28,6 +31,7 @@ vi.mock("@/components/onboarding/spotlight", async (importActual) => {
     ...actual,
     waitForElement: vi.fn(async () => document.createElement("div")),
     activateTab: vi.fn(),
+    onlyHiddenMatches: vi.fn(() => false),
   };
 });
 
@@ -70,10 +74,15 @@ beforeEach(() => {
   vi.clearAllMocks();
   // `clearAllMocks` wipes the default implementation a test may have replaced.
   vi.mocked(waitForElement).mockImplementation(async () => document.createElement("div"));
+  vi.mocked(onlyHiddenMatches).mockReturnValue(false);
   // A dialog a prior test appended to simulate an open modal would leak forward.
   document.querySelectorAll('[role="dialog"][data-state]').forEach((node) => node.remove());
   nav.pathname = "/skills";
   flow.state = makeState();
+  useSidebarStore.setState({ isOpen: false });
+  useChatStore.setState({ messages: [] });
+  useConversationStore.getState().reset();
+  window.history.replaceState({}, "", "/");
 });
 
 describe("OnboardingCoach", () => {
@@ -171,6 +180,146 @@ describe("OnboardingCoach", () => {
     await screen.findByText("Name it");
     await waitFor(() => expect(document.querySelector("[data-coach-ring]")).toBeInTheDocument());
     expect(document.querySelector("[data-coach-freeze]")).toBeNull();
+  });
+
+  it("renders the card inside the dialog it is guiding, so a keyboard can reach Next", async () => {
+    // Radix traps focus inside its own content. A card outside it is reachable by
+    // pointer and by nothing else: a keyboard user could fill the field the step
+    // points at and never Tab to the control that moves off it.
+    const dialog = document.createElement("div");
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("data-state", "open");
+    document.body.appendChild(dialog);
+
+    const field = step({ id: "flow-skill-field-name", inOverlay: true, signal: undefined });
+    flow.state = makeState({ step: field, steps: [field] });
+    render(<OnboardingCoach />);
+    await screen.findByText("Name it");
+
+    const card = document.querySelector("[data-coach-card]");
+    expect(card).not.toBeNull();
+    expect(dialog.contains(card)).toBe(true);
+  });
+
+  it("floats the card free of the page when no dialog is guiding it", async () => {
+    render(<OnboardingCoach />);
+    await screen.findByText("Add your skill");
+    const card = document.querySelector("[data-coach-card]");
+    expect(card?.parentElement).not.toBe(null);
+    expect(document.querySelector('[role="dialog"][data-state="open"]')).toBeNull();
+    expect(card?.getAttribute("role")).toBe("dialog");
+  });
+
+  it("gives a Next to an in-dialog step whose dialog the reader cancelled", async () => {
+    // Cancel and the dialog's own X stay live while the coach guides it. Without
+    // this the last field step — which waits for a creation and carries no Next —
+    // could neither advance nor reopen the form, so the walk sat there until the
+    // whole coach was closed.
+    const dialog = document.createElement("div");
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("data-state", "open");
+    document.body.appendChild(dialog);
+
+    const next = vi.fn();
+    const creating = step({ id: "flow-skill-field-create", inOverlay: true });
+    flow.state = makeState({ step: creating, steps: [creating], next });
+    render(<OnboardingCoach />);
+    await screen.findByText("Create it");
+    expect(screen.queryByRole("button", { name: "Finish" })).toBeNull();
+
+    dialog.remove();
+    await userEvent.click(await screen.findByRole("button", { name: "Finish" }));
+    expect(next).toHaveBeenCalled();
+  });
+
+  it("clears the open conversation before the guided first message", async () => {
+    // Navigating to /chat does not: the loader only ever sets a selection from
+    // `?id=` and never clears one, so the message the walk asks for landed in
+    // whatever thread was last open, with its context and its agent.
+    useConversationStore.setState({ currentConversationId: "old-thread" });
+    useChatStore.setState({ messages: [{ id: "m-0" } as never] });
+    window.history.replaceState({}, "", "/chat?id=old-thread");
+    nav.pathname = "/chat";
+
+    const pick = step({
+      id: "flow-agent-run-pick",
+      page: "/chat",
+      target: "chat-agent-picker",
+      signal: { kind: "selected" },
+      freshConversation: true,
+    });
+    flow.state = makeState({ step: pick, steps: [pick] });
+    render(<OnboardingCoach />);
+
+    await waitFor(() => expect(useConversationStore.getState().currentConversationId).toBeNull());
+    expect(useChatStore.getState().messages).toEqual([]);
+    expect(new URL(window.location.href).searchParams.get("id")).toBeNull();
+  });
+
+  it("leaves a conversation alone on a step that did not ask for a fresh one", async () => {
+    useConversationStore.setState({ currentConversationId: "old-thread" });
+    render(<OnboardingCoach />);
+    await screen.findByText("Add your skill");
+    expect(useConversationStore.getState().currentConversationId).toBe("old-thread");
+  });
+
+  it("opens the navigation drawer when every copy of the control is hidden", async () => {
+    // Below `md` the desktop column is `display: none` and the drawer is not
+    // mounted, so a step pointing into the navigation would wait behind a
+    // full-viewport freeze covering the hamburger that would fix it.
+    vi.mocked(onlyHiddenMatches).mockReturnValue(true);
+    const back = step({
+      id: "flow-agent-knowledge-return-nav",
+      page: undefined,
+      target: "nav-agents",
+    });
+    flow.state = makeState({ step: back, steps: [back] });
+    render(<OnboardingCoach />);
+    await waitFor(() => expect(useSidebarStore.getState().isOpen).toBe(true));
+  });
+
+  it("leaves the drawer shut where the control is on screen", async () => {
+    render(<OnboardingCoach />);
+    await screen.findByText("Add your skill");
+    expect(useSidebarStore.getState().isOpen).toBe(false);
+  });
+
+  it("advances on the right arrow where the card carries a Next", async () => {
+    const next = vi.fn();
+    const descriptive = step({ signal: undefined });
+    flow.state = makeState({ step: descriptive, steps: [descriptive], next });
+    render(<OnboardingCoach />);
+    await screen.findByText("Add your skill");
+
+    fireEvent.keyDown(document, { key: "ArrowRight" });
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores the arrow on a step that waits for the reader to create something", async () => {
+    // The step has no Next for a reason; a key that skipped it would walk the
+    // reader past the very thing the step is about.
+    const next = vi.fn();
+    flow.state = makeState({ next });
+    render(<OnboardingCoach />);
+    await screen.findByText("Add your skill");
+
+    fireEvent.keyDown(document, { key: "ArrowRight" });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it("leaves the arrow to the field the reader is typing in", async () => {
+    // The coach guides readers *into* text fields, where an arrow moves a caret.
+    const next = vi.fn();
+    const descriptive = step({ signal: undefined });
+    flow.state = makeState({ step: descriptive, steps: [descriptive], next });
+    render(<OnboardingCoach />);
+    await screen.findByText("Add your skill");
+
+    const input = document.createElement("input");
+    document.body.appendChild(input);
+    fireEvent.keyDown(input, { key: "ArrowRight" });
+    expect(next).not.toHaveBeenCalled();
+    input.remove();
   });
 
   it("advances an opened step the moment a dialog opens on top of the count it began with", async () => {

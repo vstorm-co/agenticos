@@ -85,6 +85,26 @@ export function activateTab(trigger: HTMLElement): void {
   trigger.focus({ preventScroll: true });
 }
 
+/**
+ * Whether a key event landed somewhere the reader is composing text.
+ *
+ * Arrow keys step the walkthrough, but inside a create dialog the same keys move
+ * a caret — and the coach guides the reader *into* those fields, so a step-on-
+ * arrow that did not ask this would make the name field unusable. A Radix select
+ * counts too: it navigates its own options with the arrows.
+ */
+export function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) return true;
+  // The attribute rather than `isContentEditable`, which jsdom does not implement —
+  // the property is always false there, so a rule written on it could not be tested.
+  return (
+    target.closest(
+      '[contenteditable="true"], [role="combobox"], [role="listbox"], [role="menu"]',
+    ) !== null
+  );
+}
+
 /** The class that drives the "clicked" flourish; see `globals.css`. */
 const CLICK_PULSE_CLASS = "tour-click-pulse";
 
@@ -157,11 +177,58 @@ export function spotlightPath(
 }
 
 /**
- * Resolve with the first element matching `selector`, or `null` when the wait
- * ends without one. `timeoutMs` bounds the wait; pass `null` for no timeout, so
- * only the `signal` aborting (a step change, the flow ending) ends it — what the
- * coach wants for a target that must appear rather than be skipped, where a fixed
- * deadline would strand the freeze with no cut-out and no way forward.
+ * Whether an element is actually rendered — nothing in its ancestry is
+ * `display: none` or `visibility: hidden`.
+ *
+ * The navigation exists twice: the desktop column is `hidden … md:flex`, so below
+ * that breakpoint it stays in the document with `display: none` while the real
+ * navigation lives in a sheet that is not mounted until it is opened. A plain
+ * `querySelector` therefore hands the walk the *hidden* link, whose box measures
+ * zero — a full-viewport freeze with a 0×0 cut-out, over a page whose hamburger is
+ * now unreachable, on a step that waits for a click nobody can make.
+ *
+ * Measured with computed style rather than `offsetParent` or `getClientRects`,
+ * both of which report every element as hidden under jsdom and would make this
+ * unfalsifiable in a unit test.
+ */
+function isRendered(element: Element): boolean {
+  for (let node: Element | null = element; node !== null; node = node.parentElement) {
+    const style = getComputedStyle(node);
+    if (style.display === "none" || style.visibility === "hidden") return false;
+  }
+  return true;
+}
+
+/** The first match that is actually rendered, or `null` when none is. */
+function findVisible(selector: string): Element | null {
+  for (const candidate of document.querySelectorAll(selector)) {
+    if (isRendered(candidate)) return candidate;
+  }
+  return null;
+}
+
+/**
+ * The document holds the control, but renders none of the copies it holds.
+ *
+ * Which is the one recoverable case: the surface carrying it is collapsed rather
+ * than absent, so something can be opened and the wait will then find it. The
+ * coach uses it to open the navigation drawer on a viewport where the desktop
+ * column is `display: none` — see `onboarding-coach.tsx`.
+ */
+export function onlyHiddenMatches(selector: string): boolean {
+  return document.querySelector(selector) !== null && findVisible(selector) === null;
+}
+
+/**
+ * Resolve with the first *rendered* element matching `selector`, or `null` when
+ * the wait ends without one. `timeoutMs` bounds the wait; pass `null` for no
+ * timeout, so only the `signal` aborting (a step change, the flow ending) ends it —
+ * what the coach wants for a target that must appear rather than be skipped, where
+ * a fixed deadline would strand the freeze with no cut-out and no way forward.
+ *
+ * A hidden match is skipped rather than returned: a control the reader cannot see
+ * is one they cannot operate, and pointing the walk at it is worse than waiting for
+ * the copy that is on screen (`isRendered`).
  */
 export function waitForElement(
   selector: string,
@@ -169,7 +236,7 @@ export function waitForElement(
   timeoutMs: number | null = 4000,
 ): Promise<Element | null> {
   return new Promise((resolve) => {
-    const existing = document.querySelector(selector);
+    const existing = findVisible(selector);
     if (existing) {
       resolve(existing);
       return;
@@ -184,13 +251,22 @@ export function waitForElement(
       signal.removeEventListener("abort", onAbort);
       resolve(element);
     };
+    // Attributes as well as nodes: a match already in the document becomes
+    // visible when a class or a style changes on it or on an ancestor - the
+    // navigation sheet opening, a tab panel being revealed - and a childList
+    // watch alone never sees that.
     const observer = new MutationObserver(() => {
-      const found = document.querySelector(selector);
+      const found = findVisible(selector);
       if (found) finish(found);
     });
     const timer = timeoutMs === null ? null : setTimeout(() => finish(null), timeoutMs);
     const onAbort = () => finish(null);
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["class", "style", "hidden", "data-state"],
+    });
     signal.addEventListener("abort", onAbort);
   });
 }

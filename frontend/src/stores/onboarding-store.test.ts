@@ -108,4 +108,25 @@ describe("useOnboardingStore", () => {
     useOnboardingStore.getState().dismissOffer();
     expect(useOnboardingStore.getState().offer).toBeNull();
   });
+
+  it("resume puts a flow back where it was, forks and captured agent included", () => {
+    // What a full-page redirect costs — connecting an MCP server over OAuth leaves
+    // the app and returns through a second load. `openFlow` would restart the walk
+    // at nothing; this is the same flow, mid-detour.
+    useOnboardingStore.getState().resume({
+      flowId: "create-agent",
+      index: 12,
+      choices: { "flow-agent-mcp-ask": "yes" },
+      flowAgentId: "agent-7",
+    });
+    expect(useOnboardingStore.getState()).toMatchObject({
+      isOpen: true,
+      mode: "flow",
+      flowId: "create-agent",
+      index: 12,
+      choices: { "flow-agent-mcp-ask": "yes" },
+      flowAgentId: "agent-7",
+      offer: null,
+    });
+  });
 });

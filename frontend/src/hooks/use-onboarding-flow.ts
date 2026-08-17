@@ -23,7 +23,7 @@ import {
 import { pageKey } from "@/lib/onboarding/tour";
 import { useOnboardingStore } from "@/stores";
 import { useAgentSelectionStore } from "@/stores/agent-selection-store";
-import { useConversationStore } from "@/stores/conversation-store";
+import { useChatStore } from "@/stores/chat-store";
 import type { ChoiceValue } from "@/stores/onboarding-store";
 
 export interface OnboardingFlowState {
@@ -68,9 +68,18 @@ const DEFAULT_STATE: OrgState = {
   hasPublishedAgent: false,
 };
 
-/** A list's count, or `null` while it is still loading — the one gate every resource passes through. */
-function settled(loading: boolean, count: number): MaybeCount {
-  return loading ? null : count;
+/**
+ * A list's count, or `null` while it is still in flight — the one gate every
+ * resource passes through.
+ *
+ * `fetching`, not only `loading`: React Query reports `isLoading` false the moment
+ * it has *cached* data, while a background refresh of that cache is still running.
+ * A step that baselined on the cached number then read the refresh alone as a
+ * creation — a colleague's row, or one made in another tab since the cache was
+ * filled, advancing the step with nothing done here.
+ */
+function settled(loading: boolean, fetching: boolean, count: number): MaybeCount {
+  return loading || fetching ? null : count;
 }
 
 /**
@@ -107,18 +116,19 @@ function useOrgSnapshot(): {
     !personalMcp.isLoading;
   return {
     counts: {
-      agent: settled(agents.isLoading, agents.total),
-      model: settled(models.isLoading, models.profiles.length),
-      skill: settled(skills.isLoading, skills.total),
-      kb: settled(kb.isLoading, kb.kbs.length),
+      agent: settled(agents.isLoading, agents.isFetching, agents.total),
+      model: settled(models.isLoading, models.isFetching, models.profiles.length),
+      skill: settled(skills.isLoading, skills.isFetching, skills.total),
+      kb: settled(kb.isLoading, kb.isFetching, kb.kbs.length),
       // Either scope: the connect step ends when the reader connects one, org or
       // personal. `hasOrgMcp` below stays org-only — that is the fork for an agent
       // binding a server, and an agent binds the organization's.
       mcp: settled(
         mcp.isLoading || personalMcp.isLoading,
+        mcp.isFetching || personalMcp.isFetching,
         mcp.connections.length + personalMcp.connections.length,
       ),
-      org: settled(orgs.isLoading, orgs.data?.length ?? 0),
+      org: settled(orgs.isLoading, orgs.isFetching, orgs.data?.length ?? 0),
     },
     // A profile is runnable when it is keyed by a vault secret, or self-hosted at
     // a `base_url` with no key — the same rule the model resolver enforces. A key
@@ -183,11 +193,18 @@ export function useOnboardingFlow(): OnboardingFlowState {
   const agentDetail = useAgent(flowAgentId);
   const here = pageKey(stripLocale(usePathname()));
   // The chat run's tail keys off the chat stores rather than a list: which agent
-  // is selected, and how many messages the open conversation holds — sending
-  // appends optimistically, so the count growing is the send. Read here so
-  // `signalMet` can settle a `selected`/`sent` step.
+  // is selected, and how many messages are *on screen* — sending appends one
+  // optimistically, so the count growing is the send. Read here so `signalMet` can
+  // settle a `selected`/`sent` step.
+  //
+  // The on-screen transcript (`useChatStore`), not the fetched one: a send appends
+  // there and nowhere else, and `useConversationStore.currentMessages` holds only
+  // what a fetch returned — which for a conversation created over the websocket is
+  // never fetched at all and stays empty however many turns it holds. Read from
+  // there, the fresh-agent path's first message never moved the count and the coach
+  // sat on the composer while the run it asked for was already answering.
   const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
-  const messageCount = useConversationStore((state) => state.currentMessages.length);
+  const messageCount = useChatStore((state) => state.messages.length);
 
   // Freeze the org state at flow start, once its inputs have settled, so an
   // adaptive step does not morph as the reader satisfies it: the "add a model"
@@ -219,11 +236,12 @@ export function useOnboardingFlow(): OnboardingFlowState {
 
   const signal = step?.signal;
   const resource = signal?.kind === "created" ? signal.resource : null;
-  // A `sent` step baselines the open conversation's message count the same way a
-  // `created` step baselines its list: the send is the count growing while the
-  // step shows. Keyed to the step, so a conversation the reader had open before
-  // the flow (or a message sent in an earlier session) never reads as this send —
-  // and the freeze keeps the sidebar out of reach, so nothing else can grow it.
+  // A `sent` step baselines the on-screen transcript the same way a `created` step
+  // baselines its list: the send is the count growing while the step shows. Keyed
+  // to the step, so a message sent in an earlier session never reads as this send —
+  // and the freeze keeps the sidebar out of reach, so nothing else can grow it. The
+  // step before it clears the open conversation (`freshConversation`), which is
+  // what keeps the transcript's own load from reading as the send.
   const count = resource ? counts[resource] : signal?.kind === "sent" ? messageCount : null;
   const needsBaseline = resource !== null || signal?.kind === "sent";
 

@@ -2,7 +2,7 @@
 
 import "driver.js/dist/driver.css";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -12,6 +12,7 @@ import { useDetailTargets } from "@/components/onboarding/detail-targets";
 import {
   activateTab,
   createTourDriver,
+  isTypingTarget,
   pulse,
   waitForElement,
 } from "@/components/onboarding/spotlight";
@@ -85,6 +86,51 @@ export function OnboardingTour() {
   const openOffer = useOnboardingStore((state) => state.openOffer);
   const detailTargets = useDetailTargets(isOpen);
   const driverRef = useRef<Driver | null>(null);
+  // Whether a transition is in flight. driver.js greys its own Next and Back for
+  // one (`LOCKED_BUTTONS`); the arrow keys below are not its buttons, so they read
+  // this instead — without it a held arrow would step past the control being
+  // revealed and desync the walk from the page it is meant to be on.
+  const lockedRef = useRef(false);
+
+  const closeWalk = useCallback(() => {
+    dismiss();
+    if (mode === "tour") {
+      toast.info(t("helpReminder"));
+      router.push(ROUTES.DASHBOARD);
+    }
+  }, [dismiss, mode, router, t]);
+
+  const completeWalk = useCallback(() => {
+    closeWalk();
+    if (mode === "tour") {
+      openOffer("create-agent");
+    } else if (mode === "page") {
+      const flow = flowForPage(pageKey(stripLocale(pathname)));
+      if (flow) openOffer(flow);
+    }
+  }, [closeWalk, mode, openOffer, pathname]);
+
+  // The arrows walk the tour, which is what a reader who has already read the
+  // caption reaches for rather than moving a mouse to a pinned button. Capture
+  // phase, and only where the page is not taking the key for itself
+  // (`isTypingTarget`). Left on the first step is deliberately nothing rather than
+  // a close: the tour is a sequence, and backing out of one is what the X is for.
+  useEffect(() => {
+    if (!isOpen || !step || mode === "flow") return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+      if (lockedRef.current || isTypingTarget(event.target)) return;
+      event.preventDefault();
+      if (event.key === "ArrowLeft") {
+        if (!isFirst) back();
+        return;
+      }
+      if (isLast) completeWalk();
+      else next();
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [isOpen, step, mode, isFirst, isLast, back, next, completeWalk]);
 
   useEffect(() => {
     driverRef.current ??= createTourDriver();
@@ -100,45 +146,9 @@ export function OnboardingTour() {
     const here = stripLocale(pathname);
     const detail = step.page ? detailTargets[step.page] : undefined;
 
-    // Close the walk, then land on the dashboard — but only the first-run tour,
-    // which walks the whole product and would otherwise strand a new user on its
-    // last page (mcp-servers) rather than the home they started on. A "?" replay
-    // is help on one page, so closing it leaves the reader exactly where it was
-    // opened. This is the early exit — the X, or Escape — and it makes no offer.
-    // Either way out of the first run — skipped here or finished through
-    // completeWalk below — leaves one reminder behind: the tour never returns
-    // (completion is recorded server-side), so the toast is where the reader
-    // learns the "?" replays any page's tips whenever they want them.
-    const closeWalk = () => {
-      dismiss();
-      if (mode === "tour") {
-        toast.info(t("helpReminder"));
-        router.push(ROUTES.DASHBOARD);
-      }
-    };
-
-    // Reaching the end — Next on the last step. Everything closeWalk does, and
-    // then the offer: a "?" walk that ran to its end asks whether to create the
-    // thing its section is for (the interactive Phase-2 flow). Only a completed
-    // walk asks; someone who left early was not finishing, and a section with
-    // nothing to create — or one whose create the caller may not perform — makes
-    // no offer, because `flowForPage` returns null and `CreationOffer` re-checks
-    // the permission.
-    const completeWalk = () => {
-      closeWalk();
-      if (mode === "tour") {
-        // The first-run tour finished — offer to build the first agent together.
-        // Declining guides nobody; the reader can still start it later from the
-        // Agents "?" walk, whose end offers the same flow.
-        openOffer("create-agent");
-      } else if (mode === "page") {
-        const flow = flowForPage(pageKey(here));
-        if (flow) openOffer(flow);
-      }
-    };
-
     const buttons: AllowedButtons[] = isFirst ? ["next", "close"] : ["previous", "next", "close"];
     const show = (element: Element | undefined, locked = false) => {
+      lockedRef.current = locked;
       const driveStep: DriveStep = {
         element,
         popover: {
@@ -244,11 +254,11 @@ export function OnboardingTour() {
     router,
     next,
     back,
-    dismiss,
     mode,
-    openOffer,
     t,
     detailTargets,
+    closeWalk,
+    completeWalk,
   ]);
 
   useEffect(() => () => driverRef.current?.destroy(), []);

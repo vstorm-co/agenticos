@@ -74,8 +74,33 @@ interface OnboardingState {
   answer: (questionId: string, value: ChoiceValue) => void;
   /** Remember the agent the flow just created, for the return leg of a detour. */
   setFlowAgentId: (agentId: string) => void;
+  /** Put a running flow back exactly where it was — see `RunningFlow`. */
+  resume: (flow: RunningFlow) => void;
   close: () => void;
   setIndex: (index: number) => void;
+}
+
+/**
+ * A running flow, small enough to hand across a full-page navigation.
+ *
+ * Connecting an MCP server over OAuth leaves the app entirely — `window.location`
+ * is assigned the provider's consent URL, and the callback returns through another
+ * full load — so a walk that reached the connect form was simply gone by the time
+ * the connection it created came back, taking the rest of a half-built agent with
+ * it. This is what `onboarding-flows.tsx` stows in `sessionStorage` on the way out
+ * and puts back on the way in.
+ *
+ * `sessionStorage`, and only for the length of one redirect: it is scoped to the
+ * one browser tab and read once, so it carries a walk across a navigation without
+ * making any of this store durable. What must never persist is whether onboarding
+ * is *finished* — that is server truth on the user row, for the reasons the
+ * docstring above gives — and none of these fields say anything about it.
+ */
+export interface RunningFlow {
+  flowId: FlowId;
+  index: number;
+  choices: Record<string, ChoiceValue>;
+  flowAgentId: string | null;
 }
 
 export const useOnboardingStore = create<OnboardingState>((set) => ({
@@ -111,6 +136,8 @@ export const useOnboardingStore = create<OnboardingState>((set) => ({
       index: state.index + 1,
     })),
   setFlowAgentId: (agentId) => set({ flowAgentId: agentId }),
+  resume: ({ flowId, index, choices, flowAgentId }) =>
+    set({ isOpen: true, mode: "flow", flowId, index, choices, flowAgentId, offer: null }),
   close: () => set({ isOpen: false }),
   setIndex: (index) => set({ index }),
 }));

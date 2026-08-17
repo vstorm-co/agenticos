@@ -123,6 +123,7 @@ describe("FLOWS", () => {
       "flow-mcp-field-pick",
       "flow-mcp-field-form",
       "flow-mcp-field-connect",
+      "flow-agent-mcp-attach",
       "flow-agent-limits",
       "flow-agent-publish",
       "flow-agent-run-pick",
@@ -237,6 +238,21 @@ describe("explore-chat", () => {
     expect(fork?.permission).toBe(Perm.agentsEdit);
     expect(fork?.include?.({ ...EMPTY, hasPublishedAgent: true }, allow)).toBe(false);
     expect(fork?.include?.({ ...EMPTY, hasPublishedAgent: false }, allow)).toBe(true);
+  });
+
+  it("does not hand off to create-agent a reader who could not publish one", () => {
+    // The built-in Member role holds `agents:edit` and not `agents:publish`. Taking
+    // the hand-off, create-agent's publish step and the whole chat tail after it are
+    // permission-filtered away, so the walk ends on an unpublished draft and never
+    // returns to the chat run this fork exists to unblock. Without publish the fork
+    // drops and the descriptive tour runs instead, which works for them.
+    const member = (permission: Permission) => permission !== Perm.agentsPublish;
+    const fork = FLOWS["explore-chat"].steps[0];
+    expect(fork?.include?.({ ...EMPTY, hasPublishedAgent: false }, member)).toBe(false);
+
+    const ids = stepsForFlow(FLOWS["explore-chat"], EMPTY, member, NO_CHOICES).map((s) => s.id);
+    expect(ids).not.toContain("flow-chat-needs-agent");
+    expect(ids[0]).toBe("flow-chat-start");
   });
 
   it("drops the build-an-agent fork for a reader who cannot create one", () => {
@@ -409,6 +425,25 @@ describe("stepsForFlow", () => {
     );
     expect(stocked).toContain("flow-agent-mcp");
     expect(stocked).not.toContain("flow-agent-mcp-ask");
+  });
+
+  it("ends the MCP detour back at the picker, so the connection reaches the agent", () => {
+    // Connecting a server does not bind it: the builder writes `spec.mcp_server_ids`
+    // only when the picker is toggled. Without this step the walk published an agent
+    // that could not reach the server it had just been told to connect for it.
+    const yes = stepsForFlow(FLOWS["create-agent"], EMPTY, allow, {
+      "flow-agent-mcp-ask": "yes",
+    }).map((s) => s.id);
+    expect(yes).toContain("flow-agent-mcp-attach");
+    expect(yes.indexOf("flow-agent-mcp-attach")).toBeGreaterThan(
+      yes.indexOf("flow-mcp-field-connect"),
+    );
+    expect(yes.indexOf("flow-agent-mcp-attach")).toBeLessThan(yes.indexOf("flow-agent-publish"));
+
+    // It is the detour's, so skipping the fork leaves it out.
+    expect(
+      stepsForFlow(FLOWS["create-agent"], EMPTY, allow, NO_CHOICES).map((s) => s.id),
+    ).not.toContain("flow-agent-mcp-attach");
   });
 
   it("hides the MCP fork from a caller who cannot manage connections", () => {

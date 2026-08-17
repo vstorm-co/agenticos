@@ -1,9 +1,16 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import { HelpCircle } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { IconButton } from "@/components/ui";
+import {
+  hasUsedPageHelp,
+  hasUsedPageHelpOnServer,
+  markPageHelpUsed,
+  subscribeToPageHelp,
+} from "@/lib/onboarding/help-hint";
 // The specific module, not the `@/stores` barrel: PageHeader renders this on
 // every dashboard page, and importing through the barrel would make every test
 // that mocks `@/stores` (many do, partially) also have to stub this store.
@@ -26,9 +33,22 @@ import { useOnboardingStore } from "@/stores/onboarding-store";
 export function RestartTourButton() {
   const t = useTranslations("onboarding");
   const openPage = useOnboardingStore((state) => state.openPage);
+  // The flag lives in `localStorage`, which the server has no copy of, so it is
+  // read through the hook built for exactly that: the server renders "used" (no
+  // pulse in the HTML) and the browser corrects it as it hydrates. `markPageHelpUsed`
+  // notifies, so every header on screen stops at the first press, not just this one.
+  const used = useSyncExternalStore(subscribeToPageHelp, hasUsedPageHelp, hasUsedPageHelpOnServer);
 
   return (
-    <IconButton aria-label={t("pageHelp")} title={t("pageHelp")} onClick={openPage}>
+    <IconButton
+      aria-label={t("pageHelp")}
+      title={t("pageHelp")}
+      className={used ? undefined : "onboarding-help-hint"}
+      onClick={() => {
+        markPageHelpUsed();
+        openPage();
+      }}
+    >
       <HelpCircle />
     </IconButton>
   );
