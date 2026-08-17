@@ -23,8 +23,17 @@ import type { Permission } from "@/types/permissions";
  * visible from anywhere else.
  */
 
+const MODEL_PROFILE = {
+  id: "p-1",
+  label: "openai default",
+  provider: "openai",
+  model: "gpt-5",
+  secret_id: "s-1",
+};
+
 const state = {
   permissions: [] as Permission[],
+  profiles: [MODEL_PROFILE] as (typeof MODEL_PROFILE)[],
 };
 
 vi.mock("@/hooks", () => ({
@@ -72,15 +81,8 @@ vi.mock("@/hooks", () => ({
   useKnowledgeBases: () => ({ kbs: [] }),
   useMcpCatalog: () => ({ servers: [] }),
   useModelProviders: () => ({
-    profiles: [
-      {
-        id: "p-1",
-        label: "openai default",
-        provider: "openai",
-        model: "gpt-5",
-        secret_id: "s-1",
-      },
-    ],
+    profiles: state.profiles,
+    isLoading: false,
     deleteProfile: { mutate: vi.fn() },
     createProfile: { mutateAsync: vi.fn(), isPending: false },
     catalog: [],
@@ -132,6 +134,7 @@ async function mount() {
 
 beforeEach(() => {
   state.permissions = [Perm.agentsEdit];
+  state.profiles = [MODEL_PROFILE];
 });
 
 describe("the Builder's model panel", () => {
@@ -158,5 +161,35 @@ describe("the Builder's model panel", () => {
 
     expect(await screen.findByRole("radio", { name: "openai default" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Remove openai/ })).toBeNull();
+  });
+
+  it("says up front that the org has no model and adding one needs a permission it lacks", async () => {
+    // The dead end #591 fixes: a builder with agents:edit but not
+    // connections:manage, in an organization with no model, can create a draft
+    // that publish alone will refuse. The panel says so where the control would
+    // have been, not at publish.
+    state.profiles = [];
+    await mount();
+
+    expect(await screen.findByText(/no model yet/)).toBeInTheDocument();
+  });
+
+  it("stays quiet when a builder who cannot add a model still has one to choose", async () => {
+    // A model exists; there is no dead end, so the notice would only be noise.
+    await mount();
+
+    expect(await screen.findByRole("radio", { name: "openai default" })).toBeInTheDocument();
+    expect(screen.queryByText(/no model yet/)).toBeNull();
+  });
+
+  it("stays quiet when the builder can add a model themselves", async () => {
+    // No model, but connections:manage - the add control is theirs, so the
+    // notice pointing them at an admin would be wrong.
+    state.permissions = [Perm.agentsEdit, Perm.connectionsManage];
+    state.profiles = [];
+    await mount();
+
+    expect(await screen.findByRole("button", { name: "Add model" })).toBeInTheDocument();
+    expect(screen.queryByText(/no model yet/)).toBeNull();
   });
 });

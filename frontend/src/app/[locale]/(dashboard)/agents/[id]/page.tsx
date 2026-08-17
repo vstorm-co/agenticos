@@ -123,7 +123,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const { environments, promote } = useAgentEnvironments(id);
   const { agents, clone, archive, unarchive, remove } = useAgents();
   const { capabilities } = useCapabilityCatalog();
-  const { profiles } = useModelProviders();
+  const { profiles, isLoading: modelsLoading } = useModelProviders();
   // The Builder holds the set rather than paging it: the gallery has to know
   // which selected skills still exist, and it can only tell that from what it
   // has. 100 is the endpoint's ceiling; `total` says when that is not all.
@@ -818,6 +818,14 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   onChange={(model_profile_id) => update({ model_profile_id })}
                   disabled={!canEdit}
                 />
+                {/* Said up front, not at publish: a builder who cannot add a
+                    model, in an organization that has none, can create a draft
+                    they can never make work - the picker is empty and its add
+                    control is gated away. Publish would be the first thing to
+                    say so, which is too late. */}
+                {!modelsLoading && profiles.length === 0 && !can(Perm.connectionsManage) && (
+                  <p className="text-muted-foreground text-xs">{t("noModelNeedsConnections")}</p>
+                )}
               </div>
             </CardContent>
           </Card>
