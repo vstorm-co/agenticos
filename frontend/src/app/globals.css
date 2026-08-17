@@ -1360,39 +1360,32 @@
  * reader who asked for less motion.
  */
 @keyframes onboarding-help-hint {
-  /* A ring that leaves the button and fades, twice, then a long rest — a
-     heartbeat rather than a metronome, which is what makes it noticeable at the
-     edge of vision without being something you have to look away from. */
-  0% {
-    box-shadow:
-      0 0 0 0 color-mix(in oklab, var(--color-brand) 55%, transparent),
-      0 0 0 0 color-mix(in oklab, var(--color-brand) 30%, transparent);
-  }
-  18% {
-    box-shadow:
-      0 0 0 7px transparent,
-      0 0 0 0 color-mix(in oklab, var(--color-brand) 30%, transparent);
-  }
-  36% {
-    box-shadow:
-      0 0 0 7px transparent,
-      0 0 0 7px transparent;
-  }
+  0%,
   100% {
-    box-shadow:
-      0 0 0 7px transparent,
-      0 0 0 7px transparent;
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
   }
 }
 
 .onboarding-help-hint {
-  /* The brand colour is half the cue: an icon that is the only coloured thing in
-     a header of grey ones is noticed before anything moves. `!important` because
-     `IconButton` sets its own foreground on hover and this must survive it. */
-  color: var(--color-brand) !important;
-  background-color: color-mix(in oklab, var(--color-brand) 10%, transparent);
-  border-radius: 9999px;
-  animation: onboarding-help-hint 3.2s ease-out infinite;
+  /* Opacity, slowly, and nothing else — no colour, no tint, no ring. This one
+     never stops, and a permanent cue has to be quiet or it becomes something the
+     reader has to actively ignore on twenty screens. A brand-coloured pill that
+     pulsed a ripple was right for a hint that ended at the first press and far too
+     loud for one that does not: it read as an unread badge. Fading the icon in and
+     out over four seconds is noticed in peripheral vision and invisible the moment
+     you look straight at it, which is the whole job. */
+  animation: onboarding-help-hint 4s ease-in-out infinite;
+}
+
+/* Settled the moment the reader goes for it — nothing should be moving under a
+   cursor that is about to click it. */
+.onboarding-help-hint:hover,
+.onboarding-help-hint:focus-visible {
+  animation: none;
+  opacity: 1;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1400,9 +1393,12 @@
   .onboarding-coach-card-in-flow {
     animation: none;
   }
-  /* The colour stays — it is the affordance, not the motion — but the swell goes. */
+  /* Full strength rather than mid-breath: the animation is the only thing setting
+     this element's opacity, so stopping it without saying so would freeze the icon
+     at whatever the browser had painted. */
   .onboarding-help-hint {
     animation: none;
+    opacity: 1;
   }
 }
 
