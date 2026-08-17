@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
-import { BackendApiError, backendFetch, bffRefusal } from "@/lib/server-api";
+import { NextRequest } from "next/server";
+import { BackendApiError, backendFetch, bffJson, bffRefusal } from "@/lib/server-api";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -13,10 +13,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const data = await backendFetch(`/api/v1/orgs/${id}/invitations`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
-    return NextResponse.json(data);
+    return bffJson(data);
   } catch (error) {
     if (error instanceof BackendApiError)
-      return NextResponse.json({ detail: error.message }, { status: error.status });
+      return bffJson({ detail: error.message }, { status: error.status });
     return bffRefusal("INTERNAL_SERVER_ERROR", 500);
   }
 }
@@ -32,10 +32,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    return NextResponse.json(data, { status: 201 });
+    return bffJson(data, { status: 201 });
   } catch (error) {
     if (error instanceof BackendApiError)
-      return NextResponse.json({ detail: error.message }, { status: error.status });
+      return bffJson({ detail: error.message }, { status: error.status });
     return bffRefusal("INTERNAL_SERVER_ERROR", 500);
   }
 }

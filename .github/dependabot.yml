@@ -40,9 +40,10 @@ updates:
       # runtime this platform is built on rode in `backend-everything-else`
       # for months, majors included.
       #
-      # `fastapi` stays exact for the opposite reason: `fastapi*` also captures
-      # `fastapi-cache2`, which is a cache library and has nothing to do with
-      # the frameworks this group exists to isolate.
+      # `fastapi` stays exact because it needs no wildcard: it is declared
+      # without extras. It used to need to *avoid* one - `fastapi*` also caught
+      # `fastapi-cache2` - but that dependency was removed in #155, so the
+      # exactness is now only what the rule above already requires.
       agent-frameworks:
         applies-to: version-updates
         patterns:

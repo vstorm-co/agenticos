@@ -14,7 +14,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // Forward ?disposition=attachment so the explicit Download button can
     // force a save dialog. Default (inline) lets the preview iframe render.
     const qs = request.nextUrl.searchParams.toString();
-    const url = `${BACKEND_URL}/api/v1/files/${id}${qs ? `?${qs}` : ""}`;
+    const url = `${BACKEND_URL}/api/v1/files/${encodeURIComponent(id)}${qs ? `?${qs}` : ""}`;
     const response = await fetch(url, {
       headers: {
         Authorization: `Bearer ${accessToken}`,

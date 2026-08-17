@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
-import { BackendApiError, backendFetch, bffRefusal } from "@/lib/server-api";
+import { NextRequest } from "next/server";
+import { BackendApiError, backendFetch, bffJson, bffRefusal } from "@/lib/server-api";
 import type { LoginResponse } from "@/types";
 
 export async function POST(request: NextRequest) {
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
 
     // Set HTTP-only cookies for tokens. Also return the access_token in the
     // body so the client can use it for cross-origin WebSocket auth.
-    const response = NextResponse.json({
+    const response = bffJson({
       user,
       access_token: data.access_token,
     });
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof BackendApiError) {
       const detail = (error.data as { detail?: string })?.detail;
       if (!detail) return bffRefusal("LOGIN_FAILED", error.status);
-      return NextResponse.json({ detail }, { status: error.status });
+      return bffJson({ detail }, { status: error.status });
     }
     return bffRefusal("INTERNAL_SERVER_ERROR", 500);
   }

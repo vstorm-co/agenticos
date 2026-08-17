@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { BackendApiError, backendFetch, bffRefusal } from "@/lib/server-api";
+import { BackendApiError, backendFetch, bffJson, bffRefusal } from "@/lib/server-api";
 
 /**
  * The chat account a link URL is about, and the confirmation that claims it.
@@ -21,10 +21,10 @@ export async function GET(request: NextRequest, context: { params: Promise<{ tok
       `/api/v1/me/channel-link/${encodeURIComponent(token)}`,
       { headers: { Authorization: `Bearer ${accessToken}` } },
     );
-    return NextResponse.json(data);
+    return bffJson(data);
   } catch (error) {
     if (error instanceof BackendApiError) {
-      return NextResponse.json({ detail: error.message }, { status: error.status });
+      return bffJson({ detail: error.message }, { status: error.status });
     }
     return bffRefusal("INTERNAL_SERVER_ERROR", 500);
   }
@@ -41,10 +41,10 @@ export async function POST(request: NextRequest, context: { params: Promise<{ to
       `/api/v1/me/channel-link/${encodeURIComponent(token)}`,
       { method: "POST", headers: { Authorization: `Bearer ${accessToken}` } },
     );
-    return NextResponse.json(data);
+    return bffJson(data);
   } catch (error) {
     if (error instanceof BackendApiError) {
-      return NextResponse.json({ detail: error.message }, { status: error.status });
+      return bffJson({ detail: error.message }, { status: error.status });
     }
     return bffRefusal("INTERNAL_SERVER_ERROR", 500);
   }
@@ -74,7 +74,7 @@ export async function DELETE(
     return new NextResponse(null, { status: 204 });
   } catch (error) {
     if (error instanceof BackendApiError) {
-      return NextResponse.json({ detail: error.message }, { status: error.status });
+      return bffJson({ detail: error.message }, { status: error.status });
     }
     return bffRefusal("INTERNAL_SERVER_ERROR", 500);
   }

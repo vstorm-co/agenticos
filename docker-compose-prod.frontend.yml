@@ -32,6 +32,14 @@ services:
     environment:
       - NODE_ENV=production
       - BACKEND_URL=http://app:8000
+      # `instrumentation.ts` registers an OpenTelemetry SDK on every boot, and
+      # `@vercel/otel` off Vercel takes its exporter from these two - so without
+      # them the frontend's server-side spans are built and dropped in-process.
+      # Passed through empty by default rather than omitted: an operator who
+      # points them at Logfire (the same project the backend writes to) then gets
+      # traces without editing a compose file. `frontend/README.md` has the pair.
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      - OTEL_EXPORTER_OTLP_HEADERS=${OTEL_EXPORTER_OTLP_HEADERS:-}
     ports:
       - "3000:3000"
     networks:

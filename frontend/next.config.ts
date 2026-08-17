@@ -1,13 +1,7 @@
-import withBundleAnalyzer from "@next/bundle-analyzer";
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
 
 const withNextIntl = createNextIntlPlugin("./src/i18n.ts");
-
-// Bundle analyzer — only active when ANALYZE=true (e.g. `bun run analyze`).
-const withAnalyzer = withBundleAnalyzer({
-  enabled: process.env.ANALYZE === "true",
-});
 
 // Content Security Policy directives
 const _frameAncestors = "frame-ancestors 'none';";
@@ -125,4 +119,4 @@ const nextConfig: NextConfig = {
     ];
   },
 };
-export default withAnalyzer(withNextIntl(nextConfig));
+export default withNextIntl(nextConfig);
