@@ -2338,6 +2338,7 @@
     "customServer": "Custom server",
     "disconnect": "Disconnect",
     "disconnectOrgWarning": "Disconnect \"{name}\"? Agents bound to it keep running, without its tools.",
+    "disconnectServerTitle": "Disconnect server?",
     "disconnectWarning": "Disconnect \"{name}\"?",
     "documentation": "Documentation",
     "editNamed": "Edit \"{name}\"",
