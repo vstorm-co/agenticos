@@ -205,7 +205,10 @@ describe("the list of knowledge bases", () => {
     expect(toast.success).toHaveBeenCalledWith("Knowledge base created");
   });
 
-  it("renames a collection, and reports a refusal rather than raising it", async () => {
+  it("renames a collection, and raises a refusal for the dialog to place", async () => {
+    // A rename is driven from a dialog that owns the name field, so a refusal is
+    // rethrown rather than toasted here - a name already taken belongs beside
+    // that field, like createKB and updateIngestion.
     const { result } = renderHook(() => useKnowledgeBases(), { wrapper });
 
     await act(async () => {
@@ -214,11 +217,11 @@ describe("the list of knowledge bases", () => {
     expect(apiClient.patch).toHaveBeenCalledWith("/kb/kb-1", { name: "Handbook v2" });
     expect(toast.success).toHaveBeenCalledWith("Knowledge base updated");
 
-    vi.mocked(apiClient.patch).mockRejectedValue(new Error("nope"));
-    await act(async () => {
-      await result.current.patchKB("kb-1", { name: "x" });
-    });
-    expect(toast.error).toHaveBeenCalledWith("Failed to update knowledge base");
+    vi.mocked(apiClient.patch).mockRejectedValue(new Error("That name is taken"));
+    await expect(result.current.patchKB("kb-1", { name: "x" })).rejects.toThrow(
+      "That name is taken",
+    );
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it("puts the renamed collection back in the list, not just a toast", async () => {

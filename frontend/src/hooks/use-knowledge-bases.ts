@@ -90,18 +90,20 @@ export function useKnowledgeBases() {
     [writeCache, listOrgId, t],
   );
 
+  /**
+   * Rename a collection, letting the caller decide how a refusal is shown.
+   *
+   * The refusal is rethrown, like `createKB` and `updateIngestion`: a rename is
+   * driven from a dialog that owns the name field, and a name already taken
+   * belongs beside that field, not in a generic toast the dialog cannot read.
+   */
   const patchKB = useCallback(
     async (id: string, patch: Partial<Pick<KnowledgeBase, "name" | "description">>) => {
       const startedIn = listOrgId;
-      try {
-        const updated = await apiClient.patch<KnowledgeBase>(`/kb/${id}`, patch);
-        writeCache((prev) => prev.map((k) => (k.id === id ? updated : k)), startedIn);
-        toast.success(t("updated"));
-        return updated;
-      } catch {
-        toast.error(t("failedUpdate"));
-        return null;
-      }
+      const updated = await apiClient.patch<KnowledgeBase>(`/kb/${id}`, patch);
+      writeCache((prev) => prev.map((k) => (k.id === id ? updated : k)), startedIn);
+      toast.success(t("updated"));
+      return updated;
     },
     [writeCache, listOrgId, t],
   );

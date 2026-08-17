@@ -214,7 +214,6 @@ export const qk = {
      */
     list: (params?: string) =>
       params ? (["conversations", "list", params] as const) : (["conversations", "list"] as const),
-    count: () => ["conversations", "count"] as const,
     /**
      * The newest few, for the dashboard. Its own key because `list()` is owned
      * by the chat sidebar, which caches a different page under a different
@@ -329,8 +328,12 @@ export const qk = {
     // is keyed once and never invalidated.
     runtimes: () => ["sandbox-connections", "runtimes"] as const,
     // Live state on a host, keyed per connection for the same reason the policy
-    // is: two hosts must not share a cache entry one of them cannot fill.
-    sessions: (id: string) => ["sandbox-connections", "sessions", id] as const,
+    // is: two hosts must not share a cache entry one of them cannot fill. `usage`
+    // is part of the key rather than appended at the call site: a listing the
+    // service sampled for per-sandbox usage is a different, more expensive
+    // request than one without, so the two must not share a cache entry.
+    sessions: (id: string, usage = false) =>
+      ["sandbox-connections", "sessions", id, usage] as const,
     events: (id: string, sessionId: string) =>
       ["sandbox-connections", "events", id, sessionId] as const,
   },

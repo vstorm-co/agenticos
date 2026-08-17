@@ -255,82 +255,13 @@ export function MessageItem({
             );
           })()}
 
-        {(() => {
-          const parts = message.parts ?? [];
-          const useParts = !isUser && parts.length > 0;
-          const legacyCalls = message.toolCalls ?? [];
-
-          // "Thinking…" placeholder - shown until anything streams in.
-          const showPlaceholder =
-            !isUser &&
-            message.isStreaming &&
-            !message.content &&
-            parts.length === 0 &&
-            legacyCalls.length === 0;
-
-          return (
-            <>
-              {showPlaceholder && (
-                <div className="flex items-center gap-2 py-1" role="status" aria-live="polite">
-                  <div className="flex gap-1" aria-hidden="true">
-                    <span className="bg-muted-foreground/40 h-1.5 w-1.5 animate-bounce rounded-full [animation-delay:0ms]" />
-                    <span className="bg-muted-foreground/40 h-1.5 w-1.5 animate-bounce rounded-full [animation-delay:150ms]" />
-                    <span className="bg-muted-foreground/40 h-1.5 w-1.5 animate-bounce rounded-full [animation-delay:300ms]" />
-                  </div>
-                  <span className="text-muted-foreground text-xs">{t("thinking")}</span>
-                </div>
-              )}
-
-              {useParts ? (
-                /* Ordered timeline: each part in arrival order, with runs of tool
-                   calls on one rail. The same component the hosted page renders. */
-                <TurnParts
-                  parts={parts}
-                  isStreaming={Boolean(message.isStreaming)}
-                  isUser={isUser}
-                  mcpServers={mcpServers}
-                  openLastStep={openLastStep}
-                  conversationId={message.conversationId}
-                  onCiteClick={onCiteClick}
-                />
-              ) : (
-                /* Legacy fallback: user / pre-parts messages. */
-                <>
-                  {!isUser && message.thinking && (
-                    <ThinkingBlock
-                      text={message.thinking}
-                      open={Boolean(message.isStreaming)}
-                      isStreaming={Boolean(message.isStreaming)}
-                    />
-                  )}
-                  {message.content && (
-                    <TextBubble
-                      text={message.content}
-                      showCursor={!isUser && Boolean(message.isStreaming)}
-                      isUser={isUser}
-                      onCiteClick={onCiteClick}
-                    />
-                  )}
-                  {legacyCalls.length > 0 && (
-                    <div className="w-full">
-                      <AgentSteps>
-                        {legacyCalls.map((toolCall, step) => (
-                          <ToolCallCard
-                            key={toolCall.id}
-                            toolCall={toolCall}
-                            conversationId={message.conversationId}
-                            mcpServers={mcpServers}
-                            startOpen={openLastStep && step === legacyCalls.length - 1}
-                          />
-                        ))}
-                      </AgentSteps>
-                    </div>
-                  )}
-                </>
-              )}
-            </>
-          );
-        })()}
+        <MessageBody
+          message={message}
+          isUser={isUser}
+          mcpServers={mcpServers}
+          openLastStep={openLastStep}
+          onCiteClick={onCiteClick}
+        />
 
         {hasSources && !isUser && (
           <div className="mt-1">
@@ -398,6 +329,104 @@ export function MessageItem({
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * One turn's content: the "Thinking…" placeholder, then either the ordered
+ * part timeline or the legacy thinking / text / tool-call fallback.
+ *
+ * Extracted from `MessageItem` because it was a ~75-line render IIFE inside an
+ * already long component - the same body the hosted page renders through
+ * `TurnParts`, which is the reason it is a component rather than a branch.
+ */
+function MessageBody({
+  message,
+  isUser,
+  mcpServers,
+  openLastStep,
+  onCiteClick,
+}: {
+  message: ChatMessage;
+  isUser: boolean;
+  mcpServers: ReturnType<typeof useMcpToolServers>;
+  openLastStep: boolean;
+  onCiteClick?: (index: number) => void;
+}) {
+  const t = useTranslations("chat");
+  const parts = message.parts ?? [];
+  const useParts = !isUser && parts.length > 0;
+  const legacyCalls = message.toolCalls ?? [];
+
+  // "Thinking…" placeholder - shown until anything streams in.
+  const showPlaceholder =
+    !isUser &&
+    message.isStreaming &&
+    !message.content &&
+    parts.length === 0 &&
+    legacyCalls.length === 0;
+
+  return (
+    <>
+      {showPlaceholder && (
+        <div className="flex items-center gap-2 py-1" role="status" aria-live="polite">
+          <div className="flex gap-1" aria-hidden="true">
+            <span className="bg-muted-foreground/40 h-1.5 w-1.5 animate-bounce rounded-full [animation-delay:0ms]" />
+            <span className="bg-muted-foreground/40 h-1.5 w-1.5 animate-bounce rounded-full [animation-delay:150ms]" />
+            <span className="bg-muted-foreground/40 h-1.5 w-1.5 animate-bounce rounded-full [animation-delay:300ms]" />
+          </div>
+          <span className="text-muted-foreground text-xs">{t("thinking")}</span>
+        </div>
+      )}
+
+      {useParts ? (
+        /* Ordered timeline: each part in arrival order, with runs of tool
+           calls on one rail. The same component the hosted page renders. */
+        <TurnParts
+          parts={parts}
+          isStreaming={Boolean(message.isStreaming)}
+          isUser={isUser}
+          mcpServers={mcpServers}
+          openLastStep={openLastStep}
+          conversationId={message.conversationId}
+          onCiteClick={onCiteClick}
+        />
+      ) : (
+        /* Legacy fallback: user / pre-parts messages. */
+        <>
+          {!isUser && message.thinking && (
+            <ThinkingBlock
+              text={message.thinking}
+              open={Boolean(message.isStreaming)}
+              isStreaming={Boolean(message.isStreaming)}
+            />
+          )}
+          {message.content && (
+            <TextBubble
+              text={message.content}
+              showCursor={!isUser && Boolean(message.isStreaming)}
+              isUser={isUser}
+              onCiteClick={onCiteClick}
+            />
+          )}
+          {legacyCalls.length > 0 && (
+            <div className="w-full">
+              <AgentSteps>
+                {legacyCalls.map((toolCall, step) => (
+                  <ToolCallCard
+                    key={toolCall.id}
+                    toolCall={toolCall}
+                    conversationId={message.conversationId}
+                    mcpServers={mcpServers}
+                    startOpen={openLastStep && step === legacyCalls.length - 1}
+                  />
+                ))}
+              </AgentSteps>
+            </div>
+          )}
+        </>
+      )}
+    </>
   );
 }
 
