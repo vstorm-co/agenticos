@@ -692,11 +692,15 @@ class AgentTriggerService:
         once take disjoint work and neither leaves a due row behind for the other.
         The worker calls this with no auth context - it is a system sweep, and the
         organization each fired run belongs to is read off its own row.
+
+        Only `next_fire_at` moves here, not `last_fired_at`: claiming is not
+        firing, and the dispatched run may still be refused (a creator who lost
+        access). The actual fire stamps `last_fired_at` in `fire`, so it means the
+        same thing - a run was created - on every entry path, scheduled or event.
         """
         triggers = await agent_trigger_repo.claim_due(self.db, now=now, limit=limit)
         for trigger in triggers:
             trigger.next_fire_at = _next_fire_from(trigger, now=now)
-            trigger.last_fired_at = now
         await self.db.flush()
         return triggers
 
@@ -769,6 +773,10 @@ class AgentTriggerService:
             return
 
         trigger.last_run_id = run.id
+        # Stamp the fire on every path, not just the scheduled heartbeat: without
+        # this an event trigger or a Run now reported "never fired" however many
+        # runs it made, because only `claim_and_advance` used to set it.
+        trigger.last_fired_at = datetime.now(UTC)
         await self.db.flush()
         logger.info(
             "trigger_fired",

@@ -719,7 +719,8 @@ class TestClaiming:
             repo.claim_due = AsyncMock(return_value=[trigger])
             claimed = await service.claim_and_advance(now=now)
         assert trigger.next_fire_at == now + timedelta(seconds=300)
-        assert trigger.last_fired_at == now
+        # Claiming is not firing: `last_fired_at` is stamped by `fire`, not here.
+        assert trigger.last_fired_at is None
         service.db.flush.assert_awaited()
         assert claimed == [trigger]
 
@@ -832,6 +833,9 @@ class TestFiring:
         assert runner.execute.call_args.kwargs["surface"] is RunSurface.SCHEDULE
         assert runner.execute.call_args.kwargs["conversation_id"] == conversation.id
         assert trigger.last_run_id == run.id
+        # The fire stamps last_fired_at on every path, so an event trigger and a
+        # Run now no longer report "never fired" (only the heartbeat used to).
+        assert trigger.last_fired_at is not None
 
     async def test_the_run_log_conversation_is_opened_once_and_reused(self):
         agent = _agent()
