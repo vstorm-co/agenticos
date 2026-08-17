@@ -17,6 +17,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.180] - 2026-08-18
+
+### Fixed
+
+- **Every `backendFetch` route says `no-store`.** The 44 route files under
+  `orgs/**`, `me/**`, `admin/**`, `sessions/**` and `auth/**` answered with no
+  `Cache-Control` at all, so the members, invitations and integrations lists
+  refetched right after a create, invite or revoke could be served from cache —
+  the same staleness class as #230, on the one surface the shared proxy does not
+  cover. `platformProxy` already stamps the header on anything the backend left
+  unmarked; a hand-rolled route owes the same, and now cannot forget it: every
+  `NextResponse.json` goes through `bffJson`, which stamps `no-store` and leaves
+  an explicit policy alone. The binary routes that set their own `max-age` keep
+  it. (#553)
+
 ## [0.0.179] - 2026-08-18
 
 ### Changed
