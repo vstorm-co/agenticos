@@ -532,6 +532,59 @@ class TestChangingASchedule:
         assert next_fire < datetime.now(UTC) + timedelta(seconds=360)
 
 
+class TestManagingAnotherMembersTrigger:
+    """A trigger runs its stored prompt with its creator's identity and sandbox,
+    so editing, deleting or firing one you did not create needs `agents:edit` -
+    not the `agents:run` that only lets you fire the agent as yourself. Without
+    this a member who could merely run the agent would edit another member's
+    trigger prompt (a writable field) into exfiltrating that member's per-user
+    files on the next fire (Codex security P2, #537)."""
+
+    async def test_a_non_creator_without_agents_edit_cannot_reach_it(self):
+        agent = _agent()
+        service = _service(agent)
+        trigger = _trigger(agent_id=agent.id, created_by_user_id=uuid.uuid4())
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.resolve_access", new=AsyncMock(return_value=False)),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.delete = AsyncMock()
+            with pytest.raises(NotFoundError):
+                await service.delete(_ctx(), agent.id, trigger.id)
+            repo.delete.assert_not_called()
+
+    async def test_a_non_creator_with_agents_edit_may_manage_it(self):
+        agent = _agent()
+        service = _service(agent)
+        trigger = _trigger(agent_id=agent.id, created_by_user_id=uuid.uuid4())
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.resolve_access", new=AsyncMock(return_value=True)),
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.delete = AsyncMock()
+            await service.delete(_ctx(), agent.id, trigger.id)
+        repo.delete.assert_awaited_once_with(service.db, trigger)
+
+    async def test_the_creator_manages_their_own_without_the_edit_gate(self):
+        """The creator built the trigger on `agents:run`; the `agents:edit` gate
+        is only reached for someone else's row, so it is never consulted here."""
+        agent = _agent()
+        service = _service(agent)
+        trigger = _trigger(agent_id=agent.id, created_by_user_id=_CALLER)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.resolve_access", new=AsyncMock()) as resolve,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.delete = AsyncMock()
+            await service.delete(_ctx(), agent.id, trigger.id)
+        resolve.assert_not_awaited()
+
+
 @pytest.fixture
 def fired(monkeypatch: pytest.MonkeyPatch) -> list[uuid.UUID]:
     """The trigger ids the dispatched background fire was handed, in order.
@@ -660,18 +713,18 @@ class TestFiring:
         repo_p, member_p, *_ = self._patches()
         with repo_p as repo, member_p as members:
             repo.get_by_id = AsyncMock(return_value=None)
-            members.get = AsyncMock()
+            members.get_active = AsyncMock()
             await service.fire(uuid.uuid4())
-        members.get.assert_not_called()
+        members.get_active.assert_not_called()
 
     async def test_a_disabled_trigger_does_nothing(self):
         service = _service()
         repo_p, member_p, *_ = self._patches()
         with repo_p as repo, member_p as members:
             repo.get_by_id = AsyncMock(return_value=_trigger(is_active=False))
-            members.get = AsyncMock()
+            members.get_active = AsyncMock()
             await service.fire(uuid.uuid4())
-        members.get.assert_not_called()
+        members.get_active.assert_not_called()
 
     async def test_a_trigger_whose_creator_left_the_org_is_disabled_not_run(self):
         service = _service()
@@ -679,7 +732,7 @@ class TestFiring:
         repo_p, member_p, conv_p, _audit, runner_p = self._patches()
         with repo_p as repo, member_p as members, conv_p, runner_p as runner_cls:
             repo.get_by_id = AsyncMock(return_value=trigger)
-            members.get = AsyncMock(return_value=None)
+            members.get_active = AsyncMock(return_value=None)
             await service.fire(trigger.id)
         assert trigger.is_active is False
         runner_cls.assert_not_called()
@@ -691,10 +744,10 @@ class TestFiring:
         repo_p, member_p, conv_p, _audit, runner_p = self._patches()
         with repo_p as repo, member_p as members, conv_p, runner_p as runner_cls:
             repo.get_by_id = AsyncMock(return_value=trigger)
-            members.get = AsyncMock(return_value=None)
+            members.get_active = AsyncMock(return_value=None)
             await service.fire(trigger.id)
         assert trigger.is_active is False
-        members.get.assert_not_called()
+        members.get_active.assert_not_called()
         runner_cls.assert_not_called()
 
     async def test_a_trigger_whose_grant_on_this_agent_was_revoked_is_disabled_not_retried(self):
@@ -713,7 +766,7 @@ class TestFiring:
             patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
-            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.MEMBER))
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.MEMBER))
             await service.fire(trigger.id)
         assert trigger.is_active is False
         assert audit.call_args.kwargs["action"] == "agent.trigger_disabled"
@@ -735,7 +788,7 @@ class TestFiring:
             patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
-            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
             conversations.create_conversation = AsyncMock(return_value=conversation)
             runner = runner_cls.return_value
             runner.execute = AsyncMock(return_value=("done", run))
@@ -761,7 +814,7 @@ class TestFiring:
             patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
-            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
             conversations.create_conversation = AsyncMock()
             runner = runner_cls.return_value
             runner.execute = AsyncMock(return_value=("done", run))
@@ -785,7 +838,7 @@ class TestFiring:
             patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
-            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
             runner = runner_cls.return_value
             runner.execute = AsyncMock(return_value=("", run))
             await service.fire(trigger.id)  # must not raise
@@ -804,7 +857,7 @@ class TestFiring:
             patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
-            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
             runner = runner_cls.return_value
             runner.execute = AsyncMock(side_effect=AuthorizationError(message="withdrawn"))
             await service.fire(trigger.id)  # must not raise
@@ -1140,7 +1193,7 @@ class TestFiringAnEvent:
             patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
-            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
             runner = runner_cls.return_value
             runner.execute = AsyncMock(return_value=("done", run))
             await service.fire(trigger.id, event_context="A GitHub issue #7 was opened")

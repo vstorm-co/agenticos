@@ -7,11 +7,18 @@ because a fired run goes through the same
 does. This service owns the two halves the runner does not: deciding a trigger is
 due without two heartbeats firing it twice, and deciding whom a fired run runs as.
 
-Who may manage a trigger is `agents:run` **on that agent**, resolved per-resource
+Who may *create* a trigger is `agents:run` **on that agent**, resolved per-resource
 through :class:`app.services.agent_registry.AgentRegistryService` - the same grant
 -aware check the run path itself makes, not a role gate. Creating a schedule is
 asserting "run this agent, repeatedly, as me", so the floor is exactly the
 permission to run it once.
+
+Managing an *existing* trigger is stricter, because a trigger runs its stored
+prompt with its creator's identity and sandbox. The creator manages their own with
+that same `agents:run`; managing someone else's - editing its prompt, deleting it,
+firing it now - needs `agents:edit` on the agent, so a member who could merely run
+the agent cannot edit another member's trigger into exfiltrating that member's
+files. See :meth:`AgentTriggerService._owned`.
 
 Whom a fired run runs *as* is the trigger's creator, re-resolved every fire, the
 way a channel mention runs as its sender and an embed widget as its owner. There
@@ -59,7 +66,7 @@ from app.schemas.agent_trigger import (
     TriggerUpdate,
 )
 from app.services import portal_catalog, portals, trigger_events
-from app.services.access import AGENT, visible_resource_ids
+from app.services.access import AGENT, resolve_access, visible_resource_ids
 from app.services.agent_registry import AgentRegistryService
 from app.services.mcp_connection import McpConnectionService
 from app.services.portal_catalog import DeliveryMode
@@ -719,10 +726,11 @@ class AgentTriggerService:
 
         ctx = await self._creator_context(trigger)
         if ctx is None:
-            # No membership to take a role from - the creator left the
-            # organization, or the user row itself is gone and SET NULL cleared
-            # the column. Either way the schedule is no longer attributable.
-            await self._disable(trigger, reason="creator_not_a_member")
+            # No *active* membership to take a role from - the creator left the
+            # organization, was deactivated, or the user row itself is gone and
+            # SET NULL cleared the column. Either way the schedule is no longer
+            # attributable to an account that could run it, so it stops.
+            await self._disable(trigger, reason="creator_not_active")
             return
 
         try:
@@ -771,12 +779,19 @@ class AgentTriggerService:
 
         Re-resolved every fire, never cached on the row: authority is whatever the
         creator's membership says *now*, so a role changed yesterday takes effect
-        today. None means there is no membership to take a role from - the creator
-        left the organization - and the caller disables the trigger.
+        today. None means there is no membership to take a role from, and the
+        caller disables the trigger.
+
+        `get_active`, not `get`: deactivating a user leaves the membership row in
+        place, so a plain `get` would rebuild the disabled account's old role and
+        keep firing on the schedule (or on a signed delivery the deactivated
+        creator still holds the secret for) even though that account is refused
+        everywhere a person signs in. Only an account that can still sign in may
+        run an agent with nobody at the keyboard.
         """
         if trigger.created_by_user_id is None:
             return None
-        membership = await member_repo.get(
+        membership = await member_repo.get_active(
             self.db,
             organization_id=trigger.organization_id,
             user_id=trigger.created_by_user_id,
@@ -859,21 +874,42 @@ class AgentTriggerService:
             )
 
     async def _owned(self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID) -> AgentTrigger:
-        """The trigger, if it is this agent's and this caller may run it.
+        """The trigger, if it is this agent's and this caller may manage it.
 
-        Both halves are checked: the organization scope alone would let a caller
-        pass another agent's trigger id to an agent they *can* run and edit it,
-        which is a cross-resource escalation inside one tenant.
+        Three halves, and the third is a privilege boundary, not a lookup. The
+        organization scope and the agent match rule out cross-tenant and
+        cross-resource reads: without them a caller could pass another agent's
+        trigger id to an agent they can run and act on it.
+
+        The third: a trigger runs its stored prompt with its *creator's* identity
+        and sandbox, so editing, deleting or firing a trigger you did not create
+        is an administrative act over someone else's authority, not the
+        `agents:run` that merely lets you fire the agent as yourself. A member who
+        could only run the agent would otherwise edit another member's trigger
+        prompt - `prompt` is a writable field - and have it exfiltrate the
+        creator's per-user files on the next delivery, or press *Run now* to do so
+        at once. So managing a trigger the caller did not create needs
+        `agents:edit` on the agent (an org admin, or the holder of an explicit edit
+        grant); the creator manages their own with the `agents:run` they built it
+        on. A refusal is reported as "not found", the same unprobeable answer the
+        other two halves give.
 
         Raises:
-            NotFoundError: If the trigger is missing, in another organization, or
-                on a different agent than the one in the path.
+            NotFoundError: If the trigger is missing, in another organization, on a
+                different agent than the one in the path, or created by someone else
+                and the caller lacks `agents:edit`.
         """
         agent = await self.agents.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
         trigger = await agent_trigger_repo.get(
             self.db, trigger_id, organization_id=ctx.organization_id
         )
         if trigger is None or trigger.agent_id != agent.id:
+            raise NotFoundError(
+                message="Trigger not found", details={"trigger_id": str(trigger_id)}
+            )
+        if trigger.created_by_user_id != ctx.subject_id and not await resolve_access(
+            self.db, ctx, agent, Perm.AGENTS_EDIT, resource_type=AGENT
+        ):
             raise NotFoundError(
                 message="Trigger not found", details={"trigger_id": str(trigger_id)}
             )

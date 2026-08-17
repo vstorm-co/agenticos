@@ -307,10 +307,14 @@ class TestATriggerRunLogReadsThroughItsAgent:
         return ConversationService(AsyncMock())
 
     @pytest.mark.anyio
-    async def test_a_viewer_of_the_agent_may_open_its_run_log(self, service: ConversationService):
+    async def test_a_runs_viewer_of_the_agent_may_open_its_run_log(
+        self, service: ConversationService
+    ):
         conv_id = uuid4()
         conv = MockConversation(id=conv_id, user_id=None)
         trigger = MagicMock(agent_id=uuid4())
+        ctx = MagicMock()
+        ctx.has.return_value = True
         with (
             patch("app.services.conversation.conversation_repo") as repo,
             patch("app.services.conversation.conversation_share_repo") as share,
@@ -327,11 +331,38 @@ class TestATriggerRunLogReadsThroughItsAgent:
             resolve.return_value = True
 
             result = await service.get_conversation(
-                conv_id, user_id=uuid4(), organization_id=TEST_ORG_ID, ctx=MagicMock()
+                conv_id, user_id=uuid4(), organization_id=TEST_ORG_ID, ctx=ctx
             )
 
             assert result.id == conv_id
             agents.get.assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_without_runs_view_the_run_log_is_refused(self, service: ConversationService):
+        """A trigger's run-log is run output made under the creator's authority,
+        so `agents:view` (or a per-agent READ grant) that only lets a Viewer see
+        the agent is not enough - `runs:view` is the floor, exactly as on the
+        ordinary run-transcript path. The refusal short-circuits before the agent
+        is even resolved (Codex security P2, #537)."""
+        conv = MockConversation(user_id=None)
+        ctx = MagicMock()
+        ctx.has.return_value = False
+        with (
+            patch("app.services.conversation.conversation_repo") as repo,
+            patch("app.services.conversation.conversation_share_repo") as share,
+            patch("app.services.conversation.channel_membership") as membership,
+            patch("app.services.conversation.agent_trigger_repo") as triggers,
+        ):
+            repo.get_conversation_by_id = AsyncMock(return_value=conv)
+            share.get_share = AsyncMock(return_value=None)
+            membership.confirms_participation = AsyncMock(return_value=False)
+            triggers.get_by_conversation_id = AsyncMock()
+
+            with pytest.raises(NotFoundError):
+                await service.get_conversation(
+                    conv.id, user_id=uuid4(), organization_id=TEST_ORG_ID, ctx=ctx
+                )
+            triggers.get_by_conversation_id.assert_not_called()
 
     @pytest.mark.anyio
     async def test_a_caller_without_agent_access_is_refused(self, service: ConversationService):

@@ -283,14 +283,22 @@ class ConversationService:
     ) -> bool:
         """Whether this conversation is a trigger's run-log the caller may see.
 
-        Readable by whoever may *view* the trigger's agent, resolved through the
-        same grant-aware `resolve_access` the run path uses - so a private agent's
-        log stays with the people who can see the agent, and an org-visible one is
-        open to the organization. The agent is loaded tenant-scoped to the
-        conversation's own organization, so a run-log never resolves against an
-        agent in another tenant.
+        A trigger's run-log is the transcript of runs the agent made under its
+        creator's authority, so it is gated exactly as a run transcript is: the
+        caller must hold `runs:view` *and* be able to view the trigger's agent.
+        Without the `runs:view` floor a Viewer holding only `agents:view` (or a
+        per-agent READ grant) could pull a trigger's `conversation_id` off the
+        listing and read the whole run-log of an agent they may see but not use -
+        messages and tool calls produced with the creator's run authority - which
+        the ordinary run path (`agent_runner`, `runs:view`) refuses.
+
+        The per-agent `resolve_access` stays on top of that floor, so a private
+        agent's log is still confined to the people who can see the agent and an
+        org-visible one is open to the organization. The agent is loaded
+        tenant-scoped to the conversation's own organization, so a run-log never
+        resolves against an agent in another tenant.
         """
-        if ctx is None:
+        if ctx is None or not ctx.has(Perm.RUNS_VIEW):
             return False
         trigger = await agent_trigger_repo.get_by_conversation_id(self.db, conversation.id)
         if trigger is None:
