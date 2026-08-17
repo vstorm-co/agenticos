@@ -17,6 +17,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.177] - 2026-08-18
+
+### Changed
+
+- **Thirteen backend dependencies move up** — the backend-everything-else group,
+  at the versions the lockfile now holds: `uvicorn` 0.52.3, `pydantic-settings`
+  2.15.0, `sqlalchemy` 2.0.52, `alembic` 1.19.1, `greenlet` 3.5.5, `prefect`
+  3.8.3, `llama-cloud` 2.14.0, `liteparse` 2.13.0, `boto3` 1.43.73,
+  `pydantic-monty` 0.0.21, and `ruff` 0.16.3, `ty` 0.0.72 and `pre-commit` 4.6.2
+  among the dev tools. Three of those resolve above the floor the group asked
+  for, which is why they are quoted from the lock. The lockfile was resolved
+  against the merged manifest rather than the group's own base, so Pydantic AI
+  stays where 0.0.176 put it instead of being rolled back a release for the
+  second time. (#838)
+
 ## [0.0.176] - 2026-08-17
 
 ### Changed
