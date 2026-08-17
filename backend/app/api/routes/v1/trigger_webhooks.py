@@ -15,7 +15,7 @@ from uuid import UUID
 from fastapi import APIRouter, Request, Response, status
 
 from app.api.deps import AgentTriggerSvc
-from app.worker.background.trigger_event import process_trigger_event
+from app.worker.background.trigger_fire import fire_trigger
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +57,9 @@ async def ingest_trigger_event(
     if decision is None:
         return Response(status_code=status.HTTP_202_ACCEPTED)
 
-    task = asyncio.create_task(process_trigger_event(decision.trigger_id, decision.event_context))
+    task = asyncio.create_task(
+        fire_trigger(decision.trigger_id, event_context=decision.event_context)
+    )
     _background_tasks.add(task)
     task.add_done_callback(_background_tasks.discard)
     return Response(status_code=status.HTTP_202_ACCEPTED)
