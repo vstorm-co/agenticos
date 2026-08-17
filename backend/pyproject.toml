@@ -91,8 +91,12 @@ dependencies = [
     # delegate needs to reach the person waiting on its parent
     # (subagents-pydantic-ai#76); 0.2.18 also fixes the general-purpose delegate
     # (#78). 0.2.19 adds `TaskHandle.exception`, which is what keeps a provider's
-    # own text off a delegated run's row (#699), so the floor is 0.2.19.
-    "subagents-pydantic-ai>=0.2.19",
+    # own text off a delegated run's row (#699). 0.2.20 reads that field in
+    # `check_task` and `wait_tasks` themselves, so a status answer names the
+    # exception's class rather than embedding the provider's message - the one
+    # surface `tool_retry_notice` cannot reach, because a `ToolReturnPart` is
+    # stored whole (#819). The floor is 0.2.20.
+    "subagents-pydantic-ai>=0.2.20",
     "cryptography>=50.0.0",
     "aiogram>=3.17,<4.0",
     "slack-sdk>=3.35.0",
