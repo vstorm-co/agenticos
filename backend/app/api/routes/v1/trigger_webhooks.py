@@ -3,11 +3,11 @@
 Authentication is the trigger's own HMAC secret, not a session, so these routes
 carry no auth dependency - exactly like the channel webhooks. The decision to fire
 is the service's; this layer only reads the raw body (the bytes the signature
-covers), hands them over, and dispatches the fire to a background task so the
-provider gets a fast 202 while the agent run happens out of the request.
+covers), hands them over, and submits the fire as its own capped Prefect flow so
+the provider gets a fast 202 while the agent run happens in the worker, out of the
+API process.
 """
 
-import asyncio
 import logging
 from typing import Any
 from uuid import UUID
@@ -15,16 +15,11 @@ from uuid import UUID
 from fastapi import APIRouter, Request, Response, status
 
 from app.api.deps import AgentTriggerSvc
-from app.worker.background.trigger_fire import fire_trigger
+from app.worker.tasks.trigger_tasks import dispatch_trigger_fire
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-# Holds a strong reference to each in-flight fire so the event loop cannot garbage
-# -collect the task mid-run, discarded when it finishes. The same guard the Slack
-# webhook keeps.
-_background_tasks: set[asyncio.Task[None]] = set()
 
 
 @router.post(
@@ -49,6 +44,13 @@ async def ingest_trigger_event(
     whose provider surfaces that failure so a mistyped secret is fixable; the
     trigger ids are unguessable UUIDs, so the 403 is not a practical oracle. Both
     come from the service.
+
+    A matched delivery is submitted as its own `run-scheduled-trigger` flow -
+    the same capped, isolated door the scheduled heartbeat uses - rather than run
+    in this process. A burst of deliveries therefore starts capped worker runs
+    instead of that many concurrent agent runs competing with request handling on
+    the API's event loop. The submit is one fast Prefect call, well inside a
+    provider's delivery timeout.
     """
     body = await request.body()
     decision = await service.prepare_event_fire(
@@ -57,9 +59,5 @@ async def ingest_trigger_event(
     if decision is None:
         return Response(status_code=status.HTTP_202_ACCEPTED)
 
-    task = asyncio.create_task(
-        fire_trigger(decision.trigger_id, event_context=decision.event_context)
-    )
-    _background_tasks.add(task)
-    task.add_done_callback(_background_tasks.discard)
+    await dispatch_trigger_fire(str(decision.trigger_id), event_context=decision.event_context)
     return Response(status_code=status.HTTP_202_ACCEPTED)

@@ -10,7 +10,6 @@ role gate, is proven through the real app in `tests/api/test_platform_routes.py`
 
 from __future__ import annotations
 
-import asyncio
 import uuid
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -133,25 +132,25 @@ async def test_a_webhook_hands_the_raw_body_and_headers_to_the_service():
 
 async def test_a_webhook_with_nothing_to_do_accepts_without_firing():
     service = MagicMock(prepare_event_fire=AsyncMock(return_value=None))
-    with patch("app.api.routes.v1.trigger_webhooks.fire_trigger") as fired:
+    with patch("app.api.routes.v1.trigger_webhooks.dispatch_trigger_fire") as fired:
         response = await ingest_trigger_event("github", uuid.uuid4(), _request(b"{}", {}), service)
     assert response.status_code == 202
     fired.assert_not_called()
 
 
-async def test_a_webhook_that_matches_dispatches_the_fire_in_the_background():
-    """The fire runs after the 202 goes back, so a provider's timeout never
-    catches an agent run - the same shape the channel webhooks use."""
+async def test_a_webhook_that_matches_submits_the_fire_as_a_capped_flow():
+    """The fire is submitted as its own `run-scheduled-trigger` flow, not run in
+    this process, so a burst of deliveries cannot start concurrent agent runs on
+    the API's event loop. The rendered context rides along to the flow."""
     decision = EventFireDecision(trigger_id=uuid.uuid4(), event_context="ISSUE #7")
     service = MagicMock(prepare_event_fire=AsyncMock(return_value=decision))
     fired = AsyncMock()
-    with patch("app.api.routes.v1.trigger_webhooks.fire_trigger", fired):
+    with patch("app.api.routes.v1.trigger_webhooks.dispatch_trigger_fire", fired):
         response = await ingest_trigger_event(
             "github", decision.trigger_id, _request(b'{"action": "opened"}', {}), service
         )
-        await asyncio.sleep(0)  # let the created task run
     assert response.status_code == 202
-    fired.assert_awaited_once_with(decision.trigger_id, event_context="ISSUE #7")
+    fired.assert_awaited_once_with(str(decision.trigger_id), event_context="ISSUE #7")
 
 
 async def test_portal_targets_maps_the_adapters_answer():

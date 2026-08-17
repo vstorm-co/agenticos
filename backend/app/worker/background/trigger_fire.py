@@ -1,11 +1,15 @@
-"""In-process handler for a trigger fire that must not happen inside a request.
+"""In-process handler for a `run_now` fire that must not happen inside a request.
 
-Two doors reach it, for one reason: neither caller can afford to wait for a run.
-The webhook route dispatches a verified event delivery here because a GitHub
-delivery times out after about ten seconds, and `run_now` because a run held open
-inside its own HTTP request is a 504 from any ordinary proxy (#658). Both arrive
-with the fire already decided and authorized; this only runs it, on a session of
-its own.
+`run_now` reaches it because a run held open inside its own HTTP request is a 504
+from any ordinary proxy (#658), so the fire is queued for after the request's
+commit and runs here, on a session of its own. The fire arrives already decided
+and authorized; this only runs it.
+
+The event-delivery path used to share this door, but a webhook burst starting
+concurrent agent runs in the API process is what `run-scheduled-trigger` (the
+capped Prefect flow) exists to prevent, so it is dispatched there instead - see
+:func:`app.worker.tasks.trigger_tasks.dispatch_trigger_fire`. A single deliberate
+`run_now` press carries no such burst, so it stays in-process.
 """
 
 import logging

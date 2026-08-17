@@ -34,21 +34,28 @@ logger = logging.getLogger(__name__)
 _RUN_TRIGGER_DEPLOYMENT = "run-scheduled-trigger/run-scheduled-trigger"
 
 
-async def _dispatch(trigger_id: str) -> None:
-    """Submit one due trigger's run as its own flow run, and return.
+async def dispatch_trigger_fire(trigger_id: str, *, event_context: str | None = None) -> None:
+    """Submit one trigger's run as its own flow run, and return.
 
     `timeout=0` is what makes this submit-and-return: `run_deployment` enqueues
-    the run and does not wait for it, so a tick's cost is one API call per due
-    trigger rather than the sum of the runs it starts. A separate flow run is also
-    what keeps each fired agent run capped by `PREFECT_RUNNER_LIMIT` and isolated
-    from the heartbeat.
+    the run and does not wait for it, so a caller's cost is one API call rather
+    than the run it starts. A separate flow run is also what keeps each fired
+    agent run capped by `PREFECT_RUNNER_LIMIT` and isolated from whatever
+    dispatched it.
+
+    Both doors reach the fire through here: the scheduled heartbeat below (with no
+    `event_context`) and an inbound event delivery (`trigger_webhooks`, carrying
+    the rendered context). Routing the event path through the same capped flow is
+    why a burst of deliveries - five issues opened in a minute - starts capped
+    worker flow runs rather than that many concurrent agent runs inside the API
+    process, competing with request handling for its event loop.
     """
     # `run_deployment` is sync-compatible: its stub unions the coroutine it
     # returns in an async context with the `FlowRun` a sync caller gets, and ty
     # cannot tell which applies. Awaiting it is correct here.
     await run_deployment(  # ty: ignore[invalid-await]
         name=_RUN_TRIGGER_DEPLOYMENT,
-        parameters={"trigger_id": trigger_id},
+        parameters={"trigger_id": trigger_id, "event_context": event_context},
         timeout=0,
     )
 
@@ -64,14 +71,20 @@ async def check_agent_triggers_flow() -> None:
     # sees the advanced `next_fire_at` and the tick's own work is durable before
     # any of it is handed on.
     for trigger in triggers:
-        await _dispatch(str(trigger.id))
+        await dispatch_trigger_fire(str(trigger.id))
     logger.info("agent_triggers_check", extra={"dispatched": len(triggers)})
 
 
 @flow(name="run-scheduled-trigger", log_prints=True)
-async def run_scheduled_trigger_flow(trigger_id: str) -> None:
-    """One fired run: run the agent this trigger schedules, as its creator."""
+async def run_scheduled_trigger_flow(trigger_id: str, event_context: str | None = None) -> None:
+    """One fired run: run the agent this trigger fires, as its creator.
+
+    Reached by the heartbeat with no `event_context` (a scheduled fire) and by an
+    inbound event delivery with the rendered context (an event fire), so both
+    kinds run in this one capped, isolated flow rather than the event kind running
+    in the API process.
+    """
     from app.services.agent_trigger import AgentTriggerService
 
     async with get_worker_db_context() as db:
-        await AgentTriggerService(db).fire(UUID(trigger_id))
+        await AgentTriggerService(db).fire(UUID(trigger_id), event_context=event_context)
