@@ -9,6 +9,7 @@ import {
   Button,
   Card,
   CardContent,
+  ConfirmDialog,
   Dialog,
   DialogContent,
   DialogFooter,
@@ -189,6 +190,15 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
     tools: McpToolInfo[];
     checked: Set<string>;
   } | null>(null);
+  // The connection a disconnect has been asked for and not yet granted, and
+  // whether a granted one is still in flight. `confirmBusy` is what makes a
+  // second click a no-op: `window.confirm` blocked the thread, so a double
+  // DELETE was impossible; a `ConfirmDialog` does not, so the guard has to.
+  const [disconnecting, setDisconnecting] = useState<{
+    scope: Scope;
+    connection: McpConnectionRecord;
+  } | null>(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
 
   const api = (scope: Scope) => (scope === "organization" ? organization : personal);
 
@@ -321,17 +331,22 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
     }
   };
 
-  const handleDisconnect = async (scope: Scope, connection: McpConnectionRecord) => {
-    const warning =
-      scope === "organization"
-        ? t("disconnectOrgWarning", { name: connection.name })
-        : t("disconnectWarning", { name: connection.name });
-    if (!confirm(warning)) return;
+  const handleDisconnect = (scope: Scope, connection: McpConnectionRecord) => {
+    setDisconnecting({ scope, connection });
+  };
+
+  const confirmDisconnect = async () => {
+    if (!disconnecting) return;
+    const { scope, connection } = disconnecting;
+    setConfirmBusy(true);
     try {
       await api(scope).remove(connection.id);
       toast.success(t("serverDisconnected", { name: connection.name }));
     } catch (caught) {
       toast.error(getErrorMessage(caught, tErrors, t("couldNotDisconnect")));
+    } finally {
+      setConfirmBusy(false);
+      setDisconnecting(null);
     }
   };
 
@@ -808,6 +823,23 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {disconnecting && (
+        <ConfirmDialog
+          open
+          onOpenChange={(open) => !open && !confirmBusy && setDisconnecting(null)}
+          title={t("disconnectServerTitle")}
+          description={
+            disconnecting.scope === "organization"
+              ? t("disconnectOrgWarning", { name: disconnecting.connection.name })
+              : t("disconnectWarning", { name: disconnecting.connection.name })
+          }
+          confirmLabel={t("disconnect")}
+          destructive
+          loading={confirmBusy}
+          onConfirm={confirmDisconnect}
+        />
+      )}
     </>
   );
 }
