@@ -1279,6 +1279,26 @@ class TestMcpConnectionService:
         assert payload.code_verifier is None
 
     @pytest.mark.anyio
+    async def test_oauth_callback_records_the_granted_scopes(self, service, repo, monkeypatch):
+        """The scopes the provider granted are mirrored to a plain column so the
+        trigger-portal webhook path can read them without unwrapping the token."""
+        pending = _connection(auth_type="oauth", url="https://srv/mcp", oauth_state="state-scoped")
+        pending.oauth_pending_payload = _seal_into(
+            pending, _base_payload(code_verifier="verifier").model_dump_json()
+        )
+        repo.get_by_oauth_state = AsyncMock(return_value=pending)
+        repo.update.return_value = pending
+        token = OAuthToken(
+            access_token="AT", refresh_token="RT", expires_in=3600, scope="repo admin:repo_hook"
+        )
+        monkeypatch.setattr(mcp_oauth, "exchange_code", AsyncMock(return_value=token))
+
+        await service.oauth_callback(state="state-scoped", code="the-code")
+
+        update_data = repo.update.call_args.kwargs["update_data"]
+        assert update_data["granted_scopes"] == ["repo", "admin:repo_hook"]
+
+    @pytest.mark.anyio
     async def test_oauth_callback_unknown_state_is_not_found(self, service, repo):
         repo.get_by_oauth_state = AsyncMock(return_value=None)
         with pytest.raises(NotFoundError):

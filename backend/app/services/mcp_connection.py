@@ -567,6 +567,11 @@ class McpConnectionService:
                 "oauth_payload": _seal_for(connection, payload.model_dump_json()).ciphertext,
                 "oauth_pending_payload": None,
                 "oauth_state": None,
+                # The scopes the provider actually granted, mirrored out of the
+                # sealed payload into a plain column so the trigger-portal webhook
+                # path can read them without unwrapping the token. Only that path
+                # reads it; tool-calling is unaffected.
+                "granted_scopes": payload.scope.split() if payload.scope else None,
                 "last_status": "ok",
                 "last_error": None,
                 "last_checked_at": datetime.now(UTC),
