@@ -54,13 +54,31 @@ def validate_webhook_url(
     url: str,
     allowed_schemes: frozenset[str] | None = None,
 ) -> str:
-    """Validate a webhook URL to prevent SSRF attacks.
+    """Refuse an operator-supplied URL that points inside the deployment's network.
 
     Checks that the URL:
     - Uses an allowed scheme (http/https only by default)
     - Does not contain userinfo (credentials in the URL)
     - Does not point to private, reserved, loopback, or link-local IP addresses
-    - Resolves via DNS to a public IP (prevents DNS rebinding attacks)
+    - Resolves, *at the moment of this call*, only to public addresses
+
+    **This is not DNS-rebinding protection, and it cannot be.** The validated URL
+    is returned as the string it came in as, so every caller resolves the
+    hostname a second time when it connects - the MCP client through
+    :func:`app.agents.mcp.validate_mcp_url`, and the browser through
+    :func:`app.agents.capabilities.browser_use.validate_cdp_url`, where the
+    attach happens however long after publish the agent is first run. A name
+    answering a public address here and a private one there passes this check
+    and reaches the private address. Closing that means pinning the resolved
+    address into the request - dial the IP, send the original host in the `Host`
+    header, the way `pydantic_ai._ssrf` does - and this function has no way to
+    express that to its callers (#840).
+
+    That is a bearable gap only because the URLs reaching both callers come from
+    an operator: rebinding needs the person typing the URL to be the attacker. A
+    URL that came from a *model*, or from anyone unprivileged, does not belong
+    here - fetch it through Pydantic AI's `safe_download`, which pins the
+    address it checked.
 
     Args:
         url: The webhook URL to validate.
@@ -122,8 +140,6 @@ def validate_webhook_url(
     default_port = 443 if parsed.scheme == "https" else 80
     port = parsed.port or default_port
 
-    # TODO: socket.getaddrinfo() is blocking I/O - in async code paths
-    # (PostgreSQL, MongoDB) consider using loop.getaddrinfo() or run_in_executor.
     try:
         addr_infos = socket.getaddrinfo(hostname, port, proto=socket.IPPROTO_TCP)
     except socket.gaierror as err:

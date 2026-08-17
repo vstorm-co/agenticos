@@ -80,7 +80,10 @@ metadata, and the flow runs from there:
 
 Every URL reached in that flow is SSRF-checked, not just the one somebody typed:
 discovery means the *remote server* chooses most of the addresses we call, and
-those deserve the same policy as a webhook.
+those deserve the same policy as a webhook. The check resolves the name and
+refuses a private answer at that moment; the client then resolves it again to
+connect, so a name that changes its answer in between is not covered. That is
+bearable here because an MCP endpoint is an address an operator types.
 
 A step that fails says **which step gave up and what class of thing raised**,
 never what the upstream client wrote. `httpx` puts the failing request in its
