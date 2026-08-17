@@ -1,6 +1,6 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 
-import { BackendApiError, backendFetch, bffRefusal } from "@/lib/server-api";
+import { BackendApiError, backendFetch, bffJson, bffRefusal } from "@/lib/server-api";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -17,10 +17,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         "X-Organization-Id": id,
       },
     });
-    return NextResponse.json(data);
+    return bffJson(data);
   } catch (error) {
     if (error instanceof BackendApiError)
-      return NextResponse.json({ detail: error.message }, { status: error.status });
+      return bffJson({ detail: error.message }, { status: error.status });
     return bffRefusal("INTERNAL_SERVER_ERROR", 500);
   }
 }
@@ -40,10 +40,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       },
       body: JSON.stringify(body),
     });
-    return NextResponse.json(data, { status: 201 });
+    return bffJson(data, { status: 201 });
   } catch (error) {
     if (error instanceof BackendApiError)
-      return NextResponse.json({ detail: error.message }, { status: error.status });
+      return bffJson({ detail: error.message }, { status: error.status });
     return bffRefusal("INTERNAL_SERVER_ERROR", 500);
   }
 }

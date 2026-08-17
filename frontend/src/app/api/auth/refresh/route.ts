@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
-import { BackendApiError, backendFetch, bffRefusal } from "@/lib/server-api";
+import { NextRequest } from "next/server";
+import { BackendApiError, backendFetch, bffJson, bffRefusal } from "@/lib/server-api";
 import type { RefreshTokenResponse } from "@/types";
 
 export async function POST(request: NextRequest) {
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({ refresh_token: refreshToken }),
     });
 
-    const response = NextResponse.json({
+    const response = bffJson({
       access_token: data.access_token,
     });
 
