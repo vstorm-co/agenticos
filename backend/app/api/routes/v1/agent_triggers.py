@@ -21,7 +21,13 @@ from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.api.deps import AgentTriggerSvc, Auth, require
 from app.core.permissions import Perm
-from app.schemas.agent_trigger import TriggerCreate, TriggerList, TriggerRead, TriggerUpdate
+from app.schemas.agent_trigger import (
+    TriggerCreate,
+    TriggerCreateRead,
+    TriggerList,
+    TriggerRead,
+    TriggerUpdate,
+)
 from app.schemas.portal import (
     PortalCatalog,
     PortalPresetRead,
@@ -126,12 +132,19 @@ async def list_triggers(agent_id: UUID, ctx: Auth, service: AgentTriggerSvc) -> 
 
 
 @router.post(
-    "/{agent_id}/triggers", response_model=TriggerRead, status_code=status.HTTP_201_CREATED
+    "/{agent_id}/triggers",
+    response_model=TriggerCreateRead,
+    status_code=status.HTTP_201_CREATED,
 )
 async def create_trigger(
     agent_id: UUID, data: TriggerCreate, ctx: Auth, service: AgentTriggerSvc
 ) -> Any:
-    """Schedule this agent to run itself."""
+    """Schedule this agent to run itself.
+
+    Answers with `TriggerCreateRead` - a `TriggerRead` that carries the minted
+    signing secret once, only for a manual-delivery preset the caller must wire
+    a relay for. Every other read uses `TriggerRead`, which has no such field.
+    """
     return await service.create(ctx, agent_id, data)
 
 

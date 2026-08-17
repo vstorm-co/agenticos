@@ -421,6 +421,18 @@ class AgentTriggerService:
         # be a `MissingGreenlet` 500 - the exact failure a mocked service test
         # cannot see, since it never serializes a live row.
         await self.db.refresh(trigger)
+        # Reveal the minted secret exactly once - only for a preset the platform
+        # could not register itself (manual delivery), where the person wiring the
+        # relay needs it to sign deliveries. A transient attribute, never a column:
+        # `TriggerCreateRead` reads it on the create response, and `TriggerRead`
+        # (every read and the listing) has no such field, so a sealed secret is
+        # never re-exposed. A raw trigger's secret is the caller's own and is not
+        # echoed back.
+        reveal = portal is not None and trigger.delivery_mode == "manual"
+        # `setattr`, not `trigger.reveal_secret = …`: it is not a mapped column, so
+        # a direct assignment fails the type checker. B010 prefers the assignment,
+        # which is exactly what does not type here.
+        setattr(trigger, "reveal_secret", plaintext_secret if reveal else None)  # noqa: B010
         return trigger
 
     async def _auto_register_webhook(

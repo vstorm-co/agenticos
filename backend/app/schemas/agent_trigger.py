@@ -321,6 +321,22 @@ class TriggerRead(BaseSchema, TimestampSchema):
         return f"{base}/api/v1/webhooks/triggers/{self.event_source}/{self.id}"
 
 
+class TriggerCreateRead(TriggerRead):
+    """The create response - a `TriggerRead` that may carry the secret once.
+
+    A preset mints the signing secret server-side, and for a `manual`-delivery
+    portal (the platform did not register the webhook itself) the person setting
+    it up needs that secret to sign their relay's deliveries. It is returned here
+    exactly once, on create, and never again: `TriggerRead` - what every read and
+    the listing serialize - has no such field, so a secret sealed in the vault is
+    never re-exposed. Null on a schedule, on an auto-registered trigger (the
+    platform holds the secret), and on a raw trigger (the caller chose it and
+    already knows it).
+    """
+
+    reveal_secret: str | None = None
+
+
 class TriggerList(BaseSchema):
     items: list[TriggerRead]
     total: int

@@ -1291,6 +1291,8 @@ class TestCreatingFromAPortalPreset:
         assert result.delivery_mode == "auto_webhook"
         assert result.provider_webhook_id == "hook-1"
         assert result.provider_target == "acme/api"
+        # The platform registered the hook, so it holds the secret - nothing to reveal.
+        assert result.reveal_secret is None
         # The minted plaintext secret is what the provider signs with, not the sealed one.
         assert adapter.register_webhook.await_args.kwargs["secret"]
         # The preset's normalized config and the connection reached the repo.
@@ -1315,6 +1317,8 @@ class TestCreatingFromAPortalPreset:
             result = await service.create(_ctx(), agent.id, _preset_create())
         assert result.delivery_mode == "manual"
         adapter.register_webhook.assert_not_awaited()
+        # Manual fallback: the minted secret is revealed once so the relay can sign.
+        assert result.reveal_secret and len(result.reveal_secret) >= 16
 
     async def test_a_provider_refusal_falls_back_to_manual(self):
         agent = _agent()
