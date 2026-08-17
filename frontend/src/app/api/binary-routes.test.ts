@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { POST as uploadFile } from "./files/upload/route";
 import { GET as readFile } from "./files/[id]/route";
+import { GET as readGeneratedImage } from "./generated/[filename]/route";
 import { GET as callback } from "./me/mcp-connections/oauth/callback/route";
 import { GET as orgAvatar, POST as setOrgAvatar } from "./orgs/[id]/avatar/route";
 import { GET as hostedLogo } from "./embed/[publicKey]/logo/route";
@@ -217,6 +218,71 @@ describe("reading a file back", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const response = await readFile(request("http://localhost:3000/api/files/f-1"), params);
+
+    expect(response.status).toBe(500);
+  });
+});
+
+describe("reading a generated image back", () => {
+  const params = { params: Promise.resolve({ filename: "abc123_image.png" }) };
+
+  it("serves the bytes and the type inline, and lets the chat embed them", async () => {
+    serve("\x89PNG", {
+      headers: { "content-type": "image/png", "content-disposition": "inline" },
+    });
+
+    const response = await readGeneratedImage(
+      request("http://localhost:3000/api/generated/abc123_image.png"),
+      params,
+    );
+
+    expect(fetchMock.mock.calls[0]![0]).toBe(
+      "http://localhost:8000/api/v1/generated/abc123_image.png",
+    );
+    expect(response.headers.get("content-type")).toBe("image/png");
+    expect(response.headers.get("x-frame-options")).toBe("SAMEORIGIN");
+    await expect(response.text()).resolves.toBe("\x89PNG");
+  });
+
+  it("forwards the download flag and falls back to a generic type", async () => {
+    serve("bytes", { headers: { "content-type": "" } });
+
+    const response = await readGeneratedImage(
+      request("http://localhost:3000/api/generated/abc123_image.png?download=true"),
+      params,
+    );
+
+    expect(fetchMock.mock.calls[0]![0]).toBe(
+      "http://localhost:8000/api/v1/generated/abc123_image.png?download=true",
+    );
+    expect(response.headers.get("content-type")).toBe("application/octet-stream");
+    expect(response.headers.get("content-disposition")).toBe("");
+  });
+
+  it("refuses without a session and reports what the backend refused", async () => {
+    const anonymous = await readGeneratedImage(
+      request("http://localhost:3000/api/generated/abc123_image.png", { signedIn: false }),
+      params,
+    );
+    expect(anonymous.status).toBe(401);
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    serve(null, { status: 404 });
+    const missing = await readGeneratedImage(
+      request("http://localhost:3000/api/generated/abc123_image.png"),
+      params,
+    );
+    expect(missing.status).toBe(404);
+  });
+
+  it("answers 500 when the backend could not be reached", async () => {
+    fetchMock = vi.fn().mockRejectedValue(new Error("ECONNREFUSED"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await readGeneratedImage(
+      request("http://localhost:3000/api/generated/abc123_image.png"),
+      params,
+    );
 
     expect(response.status).toBe(500);
   });

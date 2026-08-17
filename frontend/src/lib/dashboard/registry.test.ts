@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import { SPAN_CLASS } from "./layouts";
-import { WIDGET_IDS, WIDGETS, type WidgetId } from "./registry";
+import { ROW_CLASS, SPAN_CLASS } from "./layouts";
+import {
+  WIDGETS,
+  WIDGET_IDS,
+  accentDecoration,
+  isAccentColour,
+  isPresetAccent,
+  normaliseAccent,
+  optionSpec,
+  resolveStyle,
+  type WidgetId,
+} from "./registry";
 import { ROUTES } from "@/lib/constants";
 import { Perm, type Permission } from "@/types/permissions";
 
@@ -14,6 +24,10 @@ const NOBODY = () => false;
 
 /** Which single permission opens each widget - the truth table of the page. */
 const GATE_TABLE: Record<WidgetId, Permission | "app_admin"> = {
+  summary: Perm.runsView,
+  "activity-rhythm": Perm.runsView,
+  channels: Perm.channelsManage,
+  knowledge: Perm.collectionsView,
   platform: "app_admin",
   health: "app_admin",
   "top-orgs": "app_admin",
@@ -47,8 +61,8 @@ const GATE_TABLE: Record<WidgetId, Permission | "app_admin"> = {
 };
 
 describe("the widget catalog", () => {
-  it("holds all thirty widgets", () => {
-    expect(WIDGET_IDS).toHaveLength(30);
+  it("holds all thirty-four widgets", () => {
+    expect(WIDGET_IDS).toHaveLength(34);
   });
 
   it.each(WIDGET_IDS)("%s opens on exactly its own permission", (id) => {
@@ -80,6 +94,12 @@ describe("the widget catalog", () => {
     }
   });
 
+  it("every widget's default height is a class the grid knows", () => {
+    for (const id of WIDGET_IDS) {
+      expect(ROW_CLASS[WIDGETS[id].defaultRows], id).toBeTruthy();
+    }
+  });
+
   it("every see-all destination is a route that exists", () => {
     const known = new Set<string>(
       Object.values<unknown>(ROUTES).filter((value) => typeof value === "string") as string[],
@@ -90,5 +110,68 @@ describe("the widget catalog", () => {
         expect(known.has(destination), `${id} points at ${destination}`).toBe(true);
       }
     }
+  });
+});
+
+describe("section accents", () => {
+  it("recognises a named preset and nothing else as a preset", () => {
+    expect(isPresetAccent("violet")).toBe(true);
+    expect(isPresetAccent("#ff0000")).toBe(false);
+    expect(isPresetAccent("neutral")).toBe(false);
+  });
+
+  it("treats only a preset or a valid hex as a colour that paints", () => {
+    expect(isAccentColour("blue")).toBe(true);
+    expect(isAccentColour("#A1B2C3")).toBe(true);
+    expect(isAccentColour("neutral")).toBe(false);
+    expect(isAccentColour(null)).toBe(false);
+    expect(isAccentColour("not-a-colour")).toBe(false);
+  });
+
+  it("canonicalises a stored accent, lower-casing a hex and dropping the unknown", () => {
+    expect(normaliseAccent(null)).toBe("neutral");
+    expect(normaliseAccent("neutral")).toBe("neutral");
+    expect(normaliseAccent("green")).toBe("green");
+    expect(normaliseAccent("#AABBCC")).toBe("#aabbcc");
+    expect(normaliseAccent("chartreuse")).toBe("neutral");
+  });
+
+  it("decorates a preset with its class, a hex inline, and neutral with nothing", () => {
+    expect(accentDecoration("amber")).toEqual({ className: "dash-accent-amber" });
+    expect(accentDecoration("#AABBCC")).toEqual({
+      className: "",
+      style: { "--dash-solid": "#aabbcc" },
+    });
+    expect(accentDecoration("neutral")).toEqual({ className: "" });
+  });
+});
+
+describe("what a card lets a person change", () => {
+  it("offers nothing for a widget that declared nothing", () => {
+    // The honest answer for a card whose data has no window and no subject -
+    // the health probes, the sandbox host. The editor draws no button at all.
+    expect(optionSpec("mcp-health")).toEqual({});
+  });
+
+  it("draws a widget in the style it was asked for, when it offers it", () => {
+    expect(resolveStyle("runs", "bars")).toBe("bars");
+  });
+
+  it("falls back to the widget's own default rather than rendering nothing", () => {
+    // A stored option outlives the release that wrote it: a style this widget
+    // never offered, or one a later build renamed, still has to draw a card.
+    expect(resolveStyle("runs", "donut")).toBe("area");
+    expect(resolveStyle("runs", undefined)).toBe("area");
+  });
+
+  it("answers null for a widget with one presentation, so nothing branches on it", () => {
+    expect(resolveStyle("mcp-health", "bars")).toBeNull();
+  });
+
+  it("only offers a narrowing the endpoint behind the card can honour", () => {
+    // `/stats/usage` takes an agent and a person; the ratings summary takes
+    // neither, so the quality cards offer a window and nothing else.
+    expect(optionSpec("org-ratings")).toEqual({ period: true });
+    expect(optionSpec("runs").agent).toBe(true);
   });
 });

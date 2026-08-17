@@ -8,6 +8,8 @@ export interface User {
   is_app_admin?: boolean;
   created_at: string;
   avatar_url?: string | null;
+  /** Chosen default-avatar colour slot (1..10); null/absent is auto from the id. */
+  avatar_color?: number | null;
   /** ISO timestamp when the user finished the onboarding wizard. `null` means
    *  the wizard hasn't been completed yet - middleware/banner uses this. */
   onboarding_completed_at?: string | null;

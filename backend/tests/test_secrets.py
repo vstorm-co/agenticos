@@ -8,6 +8,7 @@ worth testing here is that constraint holding.
 
 import json
 import uuid
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -29,6 +30,7 @@ from app.core.secret_kinds import (
     unseal_secret,
 )
 from app.core.vault import VaultScope
+from app.repositories import member_repo
 from app.services.organization_secret import OrganizationSecretService
 from tests.test_model_profiles import service_account_json
 
@@ -227,6 +229,51 @@ class TestStoringASecret:
             await OrganizationSecretService(_db()).list_secrets(ctx)
 
         assert listed.call_args.kwargs["organization_id"] == ctx.organization_id
+
+    @pytest.mark.anyio
+    async def test_the_listing_carries_the_authors_id_for_a_stable_avatar_colour(self):
+        """The "Added by" column draws a fallback avatar, and its colour is seeded
+        on the author's id - so it must be on the row, not just their email. Seeding
+        on the email instead gave the same person a different hue here than in
+        member lists, which all seed on the id (#799)."""
+        ctx = _ctx()
+        author_id = uuid.uuid4()
+        secret = _row(ctx, ApiKeySecret(api_key="wx-live-4242"))
+        secret.description = None
+        secret.purpose = "custom"
+        secret.visibility = "org"
+        secret.owner_user_id = None
+        secret.created_by_user_id = author_id
+        secret.created_at = datetime.now(UTC)
+        secret.updated_at = None
+
+        identity = member_repo.MemberIdentity(email="ada@acme.test", avatar_url=None)
+        with (
+            patch(
+                "app.services.organization_secret.visible_resource_ids",
+                new=AsyncMock(return_value=None),
+            ),
+            patch(
+                "app.services.organization_secret.organization_secret_repo.list_secrets",
+                new=AsyncMock(return_value=[secret]),
+            ),
+            patch(
+                "app.services.organization_secret.member_repo.get_identities_for_users",
+                new=AsyncMock(return_value={author_id: identity}),
+            ),
+            patch(
+                "app.services.organization_secret.resource_grant_repo.count_for_resources",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                "app.services.organization_secret.organization_secret_repo.agents_using",
+                new=AsyncMock(return_value=[]),
+            ),
+        ):
+            rows = await OrganizationSecretService(_db()).list_secrets(ctx)
+
+        assert rows[0].created_by_user_id == author_id
+        assert rows[0].created_by_email == "ada@acme.test"
 
 
 class TestRotatingASecret:

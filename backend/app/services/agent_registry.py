@@ -14,19 +14,22 @@ moving a pointer backwards - would make run history lie about what was live.
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import logging
 import re
 from collections import Counter
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from uuid import UUID
 
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
+from pydantic_ai_harness.compaction import resolve_context_window
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities import TOOL_NAME_PATTERN, CapabilityDef, all_capabilities
 from app.agents.capabilities import get as get_capability
+from app.agents.capabilities.browser_use import BrowserUseConfig, validate_cdp_url
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
 from app.agents.spec import AgentSpec, CapabilityBindingSpec, SpecialistSpec, SubagentRef
@@ -39,10 +42,12 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
+from app.db.models.credential import ModelProfile
 from app.repositories import (
     agent_environment_repo,
     agent_exposure_repo,
     agent_repo,
+    context_repo,
     credential_repo,
     knowledge_base_repo,
     mcp_connection_repo,
@@ -52,10 +57,11 @@ from app.repositories import (
     sandbox_connection_repo,
     skill_repo,
 )
-from app.schemas.agent import AgentRead, AgentVersionRead
+from app.schemas.agent import AgentRead, AgentVersionRead, DelegationTree, DelegationTreeNode
 from app.services.access import (
     AGENT,
     COLLECTION,
+    CONTEXT,
     SECRET,
     SKILL,
     resolve_access,
@@ -82,7 +88,14 @@ _SLUG_TRIM = re.compile(r"-{2,}")
 # what an operator who does not want fan-out billing or nested runs needs, and
 # every spec that delegates then says so at publish instead of at 3am.
 DEFAULT_GRANTED_SCOPES = frozenset(
-    {"knowledge:read", "web:read", "code:execute", "sandbox:execute", "agents:delegate"}
+    {
+        "knowledge:read",
+        "web:read",
+        "web:browse",
+        "code:execute",
+        "sandbox:execute",
+        "agents:delegate",
+    }
 )
 
 # The registry id of the delegation capability. Held here rather than imported
@@ -173,6 +186,29 @@ async def _sandbox_problems(db: AsyncSession, ctx: AuthContext, spec: AgentSpec)
     return problems
 
 
+async def _browser_use_problems(config: BaseModel | None) -> list[str]:
+    """A remote `cdp_url` this deployment must not connect to.
+
+    The `browser_use` capability's remote mode attaches to a browser over a CDP
+    endpoint, which this deployment reaches server-side - so it is SSRF-checked,
+    here at publish rather than at build. The check resolves DNS (`getaddrinfo`),
+    which blocks, and the build path runs on the event loop inside a tool call; run
+    off the loop in a thread it is refused once, when the spec is published, rather
+    than on every run (agenticos#33). Every binding passes through here - a spec's
+    own and each inline specialist's - so a specialist cannot smuggle one past.
+    """
+    if not isinstance(config, BrowserUseConfig):
+        return []
+    try:
+        await asyncio.to_thread(validate_cdp_url, config)
+    except ValueError as exc:
+        return [
+            f"Browser automation's remote endpoint cannot be reached from here: {exc} "
+            "Point it at a public browser service, not a loopback or internal address."
+        ]
+    return []
+
+
 def _tool_override_problems(binding: CapabilityBindingSpec, definition: CapabilityDef) -> list[str]:
     """Everything wrong with how a binding renames its capability's tools.
 
@@ -225,7 +261,24 @@ class _PinnedDelegate:
 
     agent_id: UUID
     version_id: UUID
+    version: int
     spec: AgentSpec
+
+
+@dataclass
+class _TreeWalk:
+    """Shared state for one delegation-tree walk.
+
+    The caches are what make a diamond cheap - a delegate two parents pin is
+    read and access-checked once - and `capped` is how the walk tells the
+    response it stopped at :data:`_MAX_DELEGATION_NODES` rather than at the
+    bottom of the graph.
+    """
+
+    rows: dict[UUID, Agent | None] = field(default_factory=dict)
+    pins: dict[tuple[UUID, UUID], _PinnedDelegate | None] = field(default_factory=dict)
+    count: int = 0
+    capped: bool = False
 
 
 @dataclass(frozen=True)
@@ -299,6 +352,23 @@ def delegation_binding(spec: AgentSpec) -> CapabilityBindingSpec | None:
         if binding.id == DELEGATION_CAPABILITY_ID and binding.enabled:
             return binding
     return None
+
+
+def _subagents_config(spec: AgentSpec) -> SubagentsConfig | None:
+    """The delegation policy this spec runs under, or None when it cannot delegate.
+
+    None covers both a binding that is absent or switched off and one whose
+    config does not parse: a policy nobody can read delegates nothing, and the
+    parse failure itself is `_binding_problems`' report to make, not this
+    reader's to repeat.
+    """
+    binding = delegation_binding(spec)
+    if binding is None:
+        return None
+    try:
+        return SubagentsConfig.model_validate(binding.config)
+    except ValidationError:
+        return None
 
 
 def _share_problems(spec: AgentSpec, config: SubagentsConfig) -> list[str]:
@@ -390,6 +460,26 @@ def slugify(name: str) -> str:
     return f"{slug}-agent" if slug in ROOM_HANDLES else slug
 
 
+def _window_of(profile: ModelProfile | None) -> int | None:
+    """The context window this profile's model accepts, or `None`.
+
+    The profile's recorded number first: it is what the provider's own listing
+    published when somebody added the model, and it beats the pricing registry -
+    which records 1,000,000 for `anthropic:claude-sonnet-4-5` against a real
+    200,000, wrong in the direction that lets a run reach the ceiling.
+
+    The registry is the fallback for a profile older than that column. Nothing is
+    invented past it: a conservative default here would be drawn as a percentage,
+    and a share against a window nobody could resolve is a guess presented as a
+    measurement.
+    """
+    if profile is None:
+        return None
+    if profile.context_length is not None:
+        return profile.context_length
+    return resolve_context_window(f"{profile.provider}:{profile.model}")
+
+
 class AgentRegistryService:
     """Manage an organization's agents."""
 
@@ -469,10 +559,9 @@ class AgentRegistryService:
         surfaces = await agent_exposure_repo.active_surfaces_for_agents(
             self.db, organization_id=ctx.organization_id, agent_ids=agent_ids
         )
-        budget_caps = await agent_repo.published_budget_caps(
-            self.db,
-            version_ids=[agent.current_version_id for agent in agents if agent.current_version_id],
-        )
+        version_ids = [agent.current_version_id for agent in agents if agent.current_version_id]
+        budget_caps = await agent_repo.published_budget_caps(self.db, version_ids=version_ids)
+        windows = await self._context_windows(ctx, version_ids)
         rows = [
             AgentRead(
                 id=agent.id,
@@ -484,10 +573,14 @@ class AgentRegistryService:
                 owner_user_id=agent.owner_user_id,
                 current_version_id=agent.current_version_id,
                 has_avatar=agent.has_avatar,
+                avatar_color=agent.avatar_color,
                 shared_user_count=shared_counts.get(agent.id, 0),
                 channels=surfaces.get(agent.id, []),
                 budget_monthly_usd=(
                     budget_caps.get(agent.current_version_id) if agent.current_version_id else None
+                ),
+                context_window_tokens=(
+                    windows.get(agent.current_version_id) if agent.current_version_id else None
                 ),
                 created_at=agent.created_at,
                 updated_at=agent.updated_at,
@@ -495,6 +588,47 @@ class AgentRegistryService:
             for agent in agents
         ]
         return rows, total
+
+    async def _context_windows(
+        self, ctx: AuthContext, version_ids: list[UUID]
+    ) -> dict[UUID, int | None]:
+        """How many tokens each published version's model accepts, by version id.
+
+        Resolved for the listing rather than per run, because the *share* of a
+        window is drawn where the model is known: the chat lets somebody switch
+        model between turns, and a share carried forward from another model reads
+        "50%" for a history that is really at 390% of the new one.
+
+        Three sources, in this order. The `compaction` binding's own
+        `context_window` first: an author sets it precisely because the resolved
+        number is wrong for them, and it is what the compaction *trigger* already
+        uses - a gauge dividing by something else would describe a different
+        ceiling than the one the agent acts on. Then the profile's
+        `context_length`, which is what its provider published when the model was
+        added, and which beats the pricing registry - that records 1,000,000 for
+        `anthropic:claude-sonnet-4-5` against a real 200,000. The registry is the
+        fallback for a profile older than that column.
+
+        `None` where neither can say, and a surface then draws no share at all
+        rather than one against a conservative guess.
+        """
+        overrides = await agent_repo.published_compaction_windows(self.db, version_ids=version_ids)
+        profile_ids = await agent_repo.published_model_profiles(self.db, version_ids=version_ids)
+        profiles = (
+            await credential_repo.get_profiles_by_ids(
+                self.db, list(set(profile_ids.values())), organization_id=ctx.organization_id
+            )
+            if profile_ids
+            else {}
+        )
+        return {
+            version_id: overrides.get(version_id) or _window_of(profiles.get(profile_id))
+            for version_id, profile_id in profile_ids.items()
+        } | {
+            version_id: window
+            for version_id, window in overrides.items()
+            if version_id not in profile_ids
+        }
 
     async def create(self, ctx: AuthContext, spec: AgentSpec) -> Agent:
         """Create an agent in draft.
@@ -713,6 +847,7 @@ class AgentRegistryService:
 
         problems.extend(await self._collection_problems(ctx, spec.collection_ids))
         problems.extend(await self._skill_problems(ctx, spec.skill_ids))
+        problems.extend(await self._context_problems(ctx, spec.context_ids))
 
         for connection_id in spec.mcp_server_ids:
             connection = await mcp_connection_repo.get_org_scoped_by_id(
@@ -763,9 +898,11 @@ class AgentRegistryService:
                 f"{', '.join(sorted(missing_scopes))}"
             )
         try:
-            definition.validate_config(binding.config)
+            config = definition.validate_config(binding.config)
         except BadRequestError as exc:
             problems.append(f"Capability '{binding.id}': {exc.message}")
+        else:
+            problems.extend(await _browser_use_problems(config))
         # A tool_approval key that matches nothing is the dangerous kind of
         # typo: it is not an error at run time, it is silence - the tool the
         # author meant to gate runs unapproved and nobody is told.
@@ -842,6 +979,37 @@ class AgentRegistryService:
             )
             if not reachable:
                 problems.append(f"Skill not found: {skill_id}")
+        return problems
+
+    async def _context_problems(self, ctx: AuthContext, context_ids: Sequence[UUID]) -> list[str]:
+        """Context files the publisher cannot lend out.
+
+        The same rule as a skill, for the same reason: a bound context file
+        reaches every run of the agent - injected into its instructions or read
+        through the capability's tool - so binding one shares its body. The
+        publisher has to be able to reach it themselves. `CONTEXT_VIEW` through
+        :func:`resolve_access`, so an explicit grant counts.
+
+        "Not found" covers a missing id, another organization's id, and a row this
+        publisher may not read, deliberately indistinguishably: files are bound by
+        UUID from the API and from a hand-edited draft, so a refusal that read
+        differently would map the organization's private context one guess at a
+        time. One query for the whole list, because a run resolves them the same
+        way and publish holds a transaction open.
+        """
+        if not context_ids:
+            return []
+        found = await context_repo.get_many(
+            self.db, list(context_ids), organization_id=ctx.organization_id
+        )
+        problems: list[str] = []
+        for context_id in context_ids:
+            file = found.get(context_id)
+            reachable = file is not None and await resolve_access(
+                self.db, ctx, file, Perm.CONTEXT_VIEW, resource_type=CONTEXT
+            )
+            if not reachable:
+                problems.append(f"Context file not found: {context_id}")
         return problems
 
     async def _secret_problems(
@@ -987,6 +1155,7 @@ class AgentRegistryService:
             problems.extend(await self._binding_problems(ctx, binding))
         problems.extend(await self._collection_problems(ctx, specialist.collection_ids))
         problems.extend(await self._skill_problems(ctx, specialist.skill_ids))
+        problems.extend(await self._context_problems(ctx, specialist.context_ids))
         # A specialist naming no profile runs on the parent's, which publish has
         # already checked - so only a profile it *did* name is a reference that
         # can be broken, or borrowed from another organization.
@@ -1063,6 +1232,7 @@ class AgentRegistryService:
         return _PinnedDelegate(
             agent_id=ref.agent_id,
             version_id=version.id,
+            version=version.version,
             spec=AgentSpec.model_validate(version.spec),
         )
 
@@ -1363,6 +1533,17 @@ class AgentRegistryService:
         path = await storage.save(f"avatars/agents/{agent.id}", filename, file_data)
         return await agent_repo.update(self.db, agent=agent, update_data={"avatar_url": path})
 
+    async def set_avatar_color(
+        self, ctx: AuthContext, agent_id: UUID, *, color: int | None
+    ) -> Agent:
+        """Choose the agent's default-avatar colour, or null to reset to auto.
+
+        A column like the picture, not the spec: editing it takes the same
+        access check (`AGENTS_EDIT` on this agent) but does not touch a version.
+        """
+        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
+        return await agent_repo.update(self.db, agent=agent, update_data={"avatar_color": color})
+
     async def avatar_path(self, ctx: AuthContext, agent_id: UUID) -> str:
         """Where the agent's picture is on disk, for the route that streams it.
 
@@ -1453,6 +1634,182 @@ class AgentRegistryService:
             )
             for version in versions
         ]
+
+    async def delegation_tree(self, ctx: AuthContext, agent_id: UUID) -> DelegationTree:
+        """The delegation tree under this agent's draft, in one response (#276).
+
+        The map used to walk this one hop at a time - a delegate's page, then its
+        delegate's page - so the whole tree was N requests and N permission
+        checks spread over N clicks. This is the server-side answer: one walk,
+        the same pin resolution publish uses, bounded the same two ways the
+        cycle check is (nothing past :data:`_MAX_DELEGATION_NODES` reads, and a
+        pin that returns to its own branch is named as a cycle rather than
+        followed).
+
+        Depth is the *runtime* bound, not the roster's. A delegate gets the
+        lower of its own `max_depth` and what this branch has left, exactly as
+        `subagent_runtime` hands it down, so the tree shows what a run from this
+        root can actually reach and marks the rest `truncated` rather than
+        drawing levels that would never execute.
+
+        Each delegate is access-checked against the *caller*, not the publisher:
+        a pin to an agent this caller may not see comes back `restricted`, with
+        no name and no children, indistinguishable from a pin to an agent that
+        does not exist - the same no-probing rule `_resolve_pins` applies at
+        publish. A delegate somebody has since archived comes back `archived`
+        and unexpanded, because a run that reaches that hop is refused.
+        """
+        agent = await self.get(ctx, agent_id)
+        spec = AgentSpec.model_validate(agent.draft_spec)
+        config = _subagents_config(spec)
+        walk = _TreeWalk()
+        nodes = await self._tree_level(
+            ctx,
+            spec,
+            budget=config.max_depth if config else 0,
+            ancestors=frozenset({agent.id}),
+            walk=walk,
+        )
+        return DelegationTree(truncated=walk.capped, nodes=nodes)
+
+    async def _tree_level(
+        self,
+        ctx: AuthContext,
+        spec: AgentSpec,
+        *,
+        budget: int,
+        ancestors: frozenset[UUID],
+        walk: _TreeWalk,
+    ) -> list[DelegationTreeNode]:
+        """One spec's roster as tree nodes: its pins, then its inline specialists."""
+        nodes: list[DelegationTreeNode] = []
+        for index, ref in enumerate(spec.subagents):
+            if walk.count >= _MAX_DELEGATION_NODES:
+                walk.capped = True
+                break
+            nodes.append(
+                await self._tree_delegate(
+                    ctx, ref, index=index, budget=budget, ancestors=ancestors, walk=walk
+                )
+            )
+        config = _subagents_config(spec)
+        for index, specialist in enumerate(config.inline if config else []):
+            nodes.append(
+                DelegationTreeNode(
+                    key=f"specialist:{index}",
+                    kind="specialist",
+                    status="ok",
+                    name=specialist.name,
+                    mode=specialist.preferred_mode,
+                )
+            )
+        return nodes
+
+    async def _tree_delegate(
+        self,
+        ctx: AuthContext,
+        ref: SubagentRef,
+        *,
+        index: int,
+        budget: int,
+        ancestors: frozenset[UUID],
+        walk: _TreeWalk,
+    ) -> DelegationTreeNode:
+        """One pin as a tree node, expanded only as far as a run could follow it."""
+        walk.count += 1
+        key = f"delegate:{ref.agent_id}:{index}"
+        row = await self._tree_row(ctx, ref.agent_id, walk)
+        if row is None:
+            return DelegationTreeNode(
+                key=key,
+                kind="delegate",
+                status="restricted",
+                agent_id=ref.agent_id,
+                mode=ref.preferred_mode,
+            )
+        if ref.agent_id in ancestors:
+            return DelegationTreeNode(
+                key=key,
+                kind="delegate",
+                status="cycle",
+                agent_id=ref.agent_id,
+                name=row.name,
+                mode=ref.preferred_mode,
+            )
+        # Ordered as `_resolve_delegate` orders its refusals: a run refuses the
+        # loop before it has looked at the delegate at all, so a pin that is both
+        # a cycle and archived reads as the cycle here too.
+        if row.status == AgentStatus.ARCHIVED.value:
+            return DelegationTreeNode(
+                key=key,
+                kind="delegate",
+                status="archived",
+                agent_id=ref.agent_id,
+                name=row.name,
+                mode=ref.preferred_mode,
+            )
+        pinned = await self._tree_pin(ctx, ref, walk)
+        if pinned is None:
+            return DelegationTreeNode(
+                key=key,
+                kind="delegate",
+                status="unpinned",
+                agent_id=ref.agent_id,
+                name=row.name,
+                mode=ref.preferred_mode,
+            )
+        config = _subagents_config(pinned.spec)
+        roster = len(pinned.spec.subagents) + len(config.inline if config else [])
+        remaining = min(budget - 1, config.max_depth) if config else 0
+        children: list[DelegationTreeNode] = []
+        truncated = False
+        if roster:
+            if remaining >= 1:
+                children = await self._tree_level(
+                    ctx,
+                    pinned.spec,
+                    budget=remaining,
+                    ancestors=ancestors | {ref.agent_id},
+                    walk=walk,
+                )
+            else:
+                truncated = True
+        return DelegationTreeNode(
+            key=key,
+            kind="delegate",
+            status="ok",
+            agent_id=ref.agent_id,
+            name=row.name,
+            mode=ref.preferred_mode,
+            pinned_version=pinned.version,
+            stale=row.current_version_id != pinned.version_id,
+            truncated=truncated,
+            children=children,
+        )
+
+    async def _tree_row(self, ctx: AuthContext, agent_id: UUID, walk: _TreeWalk) -> Agent | None:
+        """The delegate's row, when this caller may see it - cached per walk.
+
+        A row the caller may not view is answered as absent, so the two are
+        indistinguishable downstream by construction, not by discipline.
+        """
+        if agent_id not in walk.rows:
+            row = await agent_repo.get(self.db, agent_id, organization_id=ctx.organization_id)
+            if row is not None and not await resolve_access(
+                self.db, ctx, row, Perm.AGENTS_VIEW, resource_type=AGENT
+            ):
+                row = None
+            walk.rows[agent_id] = row
+        return walk.rows[agent_id]
+
+    async def _tree_pin(
+        self, ctx: AuthContext, ref: SubagentRef, walk: _TreeWalk
+    ) -> _PinnedDelegate | None:
+        """`_resolve_pin`, cached per walk so a diamond costs one version read."""
+        cache_key = (ref.agent_id, ref.agent_version_id)
+        if cache_key not in walk.pins:
+            walk.pins[cache_key] = await self._resolve_pin(ctx, ref)
+        return walk.pins[cache_key]
 
     async def get_runnable_spec(
         self, ctx: AuthContext, agent_id: UUID, *, environment_id: UUID | None = None

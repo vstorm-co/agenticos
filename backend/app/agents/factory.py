@@ -21,7 +21,7 @@ from typing import Any
 from uuid import UUID
 
 from pydantic_ai import Agent as PydanticAgent
-from pydantic_ai.capabilities import ReinjectSystemPrompt
+from pydantic_ai.capabilities import AbstractCapability, ReinjectSystemPrompt, ToolSearch
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.toolsets import AbstractToolset
@@ -36,6 +36,13 @@ from app.agents.capabilities.budget import (
     SpendLedger,
     SpendLimit,
 )
+from app.agents.capabilities.compaction import (
+    CONTEXT_GAUGE_RESOURCE,
+    MODEL_CONTEXT_WINDOW_RESOURCE,
+    ContextGauge,
+    build_gauge,
+)
+from app.agents.capabilities.system_reminders import REMINDER_STATE_RESOURCE, ReminderState
 from app.agents.deps import AgentDeps, ApprovalCallback
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.observability import instrument_agent
@@ -71,6 +78,17 @@ class BuiltAgent:
     # needs the limits to explain a stopped run, and reaching into another
     # library's internals to find them would break on its next release.
     budget: BudgetGuard
+    # How full the context was before the last model request of this run. Read
+    # after the run, beside the ledger, and for the same reason: the surface that
+    # reports what a turn cost is the one that reports how close it came to the
+    # ceiling.
+    context: ContextGauge
+    # How far this conversation's system-reminders cadence has advanced. Seeded
+    # from the conversation before the run and read after it, beside the gauge and
+    # for the same reason: the surface that persists the turn is the one that
+    # writes the cadence back, so a reminder set to fire every N requests keeps
+    # counting across turns instead of resetting each one.
+    reminder_state: ReminderState
     # The capabilities the spec asked for, without the two every agent gets.
     # Callers introspect what an agent can actually do without knowing which
     # entries the factory adds unconditionally.
@@ -106,6 +124,8 @@ def build_agent(
     org_monthly_budget_usd: Decimal | None = None,
     request_approval: ApprovalCallback | None = None,
     shared_budget: BudgetGuard | None = None,
+    recorded_overhead: int | None = None,
+    recorded_reminder_state: dict[str, Any] | None = None,
 ) -> BuiltAgent:
     """Instantiate an agent from its spec.
 
@@ -156,10 +176,37 @@ def build_agent(
             the organization no longer has.
     """
     bindings = spec.bindings()
+    # Built before the capabilities, not after: compaction reads it to decide
+    # whether this window has room for a summary at all, and the reading is
+    # filled by the capability appended at the end of the list below.
+    #
+    # Seeded with what an earlier turn of this conversation measured, because
+    # otherwise it is only filled by a *response* - so on a one-request chat
+    # turn, which is most of them, it is `None` for the whole turn and the
+    # refusal it guards never fires. The overhead is a property of the agent's
+    # instructions and tool schemas rather than of one run, so last turn's
+    # measurement is this turn's starting estimate, and the first response of
+    # this run replaces it (#49).
+    gauge = ContextGauge(overhead=recorded_overhead)
+    # Seeded from what an earlier turn of this conversation recorded, for the same
+    # reason the gauge is: the system-reminders cadence counts model requests, and
+    # a counter that reset each turn would never reach a reminder set to fire every
+    # N requests in a chat of one-request turns. The reminders capability mutates
+    # this during the run; the runner writes it back after.
+    reminder_state = ReminderState.seed(recorded_reminder_state)
     configured = build_capabilities(
         bindings,
         granted_scopes=granted_scopes,
-        resources=resources or {},
+        # Added here rather than by every caller: the model is resolved before an
+        # agent is built and nowhere above this knows the window it accepts, so a
+        # capability needing it would otherwise have to reach for the model - which
+        # is exactly what `resources` exists to stop.
+        resources={
+            **(resources or {}),
+            MODEL_CONTEXT_WINDOW_RESOURCE: model_spec.context_length,
+            CONTEXT_GAUGE_RESOURCE: gauge,
+            REMINDER_STATE_RESOURCE: reminder_state,
+        },
         secrets=secrets,
     )
 
@@ -214,6 +261,10 @@ def build_agent(
         budget,
         ApprovalGate(required_tool_names=approval_required),
         *configured,
+        # Every agent, not only one that compacts. The warning is most useful to
+        # exactly the agent that will not: it is the one that reaches the ceiling
+        # and gets refused by the provider.
+        build_gauge(gauge),
     ]
 
     # Profile settings first, agent overrides second - the agent is the more
@@ -235,7 +286,7 @@ def build_agent(
         # the approval gate parks a call.
         output_type=[str, DeferredToolRequests],
         capabilities=capabilities,
-        toolsets=extra_toolsets or [],
+        toolsets=_defer_for_tool_search(configured, extra_toolsets or []),
     )
 
     _instrument(agent, spec, secrets or {}, agent_id=agent_id)
@@ -245,11 +296,42 @@ def build_agent(
         deps=deps,
         ledger=ledger,
         budget=budget,
+        context=gauge,
+        reminder_state=reminder_state,
         capabilities=configured,
         model_label=model_spec.label,
         approval_required_tools=approval_required,
         usage_limits=UsageLimits(request_limit=spec.max_steps or DEFAULT_MAX_STEPS),
     )
+
+
+def _defer_for_tool_search(
+    configured: list[AbstractCapability[Any]],
+    extra_toolsets: list[AbstractToolset[Any]],
+) -> list[AbstractToolset[Any]]:
+    """Hide the MCP toolsets behind tool search when the agent enabled it.
+
+    The two are paired here or not at all. `ToolSearch` is inert with nothing
+    deferred, and a deferred tool with no `ToolSearch` to find it is a tool the
+    model can never call - so deferring a toolset without the capability, or
+    binding the capability without deferring anything, is each half of a broken
+    agent. Binding `tool_search` is what asks for both.
+
+    MCP is the target the capability exists for. An agent may bind an arbitrary
+    number of servers, and every tool's schema is context the model pays for on
+    every request until it searches for one instead; `extra_toolsets` is exactly
+    those servers. The registry's own tools stay visible - they are few, chosen
+    per agent, and cheap to carry.
+
+    Deferring changes what the model *sees*, never a tool's identity: a
+    discovered MCP tool arrives under its real prefixed name, so the approval
+    gate still pairs on it and a binding's rename still reaches it. `ToolSearch`
+    also sits outermost, so it reads the names a rename already applied rather
+    than the ones underneath.
+    """
+    if not any(isinstance(capability, ToolSearch) for capability in configured):
+        return extra_toolsets
+    return [toolset.defer_loading() for toolset in extra_toolsets]
 
 
 def _as_decimal(value: float) -> Decimal:

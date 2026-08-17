@@ -11,7 +11,6 @@
     "search": "Szukaj",
     "back": "Wstecz",
     "next": "Dalej",
-    "previous": "Wstecz",
     "submit": "Wyślij",
     "close": "Zamknij",
     "confirm": "Potwierdź",
@@ -29,10 +28,10 @@
     "editNamed": "Edytuj {name}",
     "language": "Język",
     "openNamed": "Otwórz {name}",
-    "perPage": "{count} / stronę",
     "rangeOfTotal": "{start, number}–{end, number} z {total, number}",
     "removeNamed": "Usuń {name}",
-    "removeNamedConfirm": "Usunąć {name}?"
+    "removeNamedConfirm": "Usunąć {name}?",
+    "renameNamed": "Zmień nazwę {name}"
   },
   "navigation": {
     "home": "Strona główna",
@@ -55,7 +54,6 @@
     "overview": "Przegląd",
     "users": "Użytkownicy",
     "conversations": "Rozmowy",
-    "ratings": "Oceny",
     "systemHealth": "Stan systemu",
     "system": "System",
     "account": "Konto",
@@ -71,7 +69,6 @@
     "toggleMenu": "Przełącz menu",
     "navigate": "Nawigacja",
     "apiDocs": "Dokumentacja API",
-    "responseRatings": "Oceny odpowiedzi",
     "settingsSection": "Ustawienia",
     "agents": "Agenci",
     "skills": "Skille",
@@ -94,7 +91,8 @@
     "quickActions": "Szybkie akcje",
     "searchJump": "Szukaj lub przejdź do…",
     "startNewChat": "Zacznij nowy czat",
-    "untitledConversation": "Rozmowa bez tytułu"
+    "untitledConversation": "Rozmowa bez tytułu",
+    "allOrganizations": "Wszystkie organizacje"
   },
   "auth": {
     "login": "Zaloguj się",
@@ -253,17 +251,9 @@
     "name": "Imię",
     "joined": "Dołączył",
     "total": "{count} łącznie",
-    "allRatings": "Wszystkie oceny",
-    "likesOnly": "Tylko polubienia",
-    "dislikesOnly": "Tylko nieprzydatne",
-    "withCommentsOnly": "Tylko z komentarzem",
-    "export": "Eksportuj",
-    "totalRatings": "Łączna liczba ocen",
     "likes": "Polubienia",
     "dislikes": "Nieprzydatne",
     "date": "Data",
-    "rating": "Ocena",
-    "comment": "Komentarz",
     "message": "Wiadomość",
     "user": "Użytkownik",
     "actions": "Akcje"
@@ -443,6 +433,7 @@
   },
   "dashboard": {
     "title": "Panel",
+    "whatThisShows": "Co pokazuje {title}",
     "seeAll": "Zobacz wszystko",
     "subtitles": {
       "app_admin": "Najpierw cała instalacja, potem Twoja organizacja - ta sama strona, więcej odpowiedzi.",
@@ -472,9 +463,6 @@
       "usage": "Użycie i koszty",
       "people": "Ludzie i jakość",
       "workspace": "Twoja przestrzeń",
-      "build": "Twoi agenci",
-      "adoption": "Jak zachowują się Twoje wdrożenia",
-      "health": "Zdrowie",
       "sandboxes": "Gdzie agenci uruchamiają kod"
     },
     "actions": {
@@ -496,6 +484,21 @@
       "retry": "Ponów"
     },
     "widgets": {
+      "summary": {
+        "title": "Ten okres w skrócie",
+        "description": "Runy, jak się zakończyły, ile kosztowały i ile osób z nich korzystało.",
+        "runs": "Runy",
+        "completed": "Ukończone",
+        "completedOf": "{total, plural, =1 {z 1 runu} few {z # runów} many {z # runów} other {z # runów}}",
+        "spend": "Koszt",
+        "people": "Aktywne osoby",
+        "ofMembers": "{total, plural, =1 {z 1 osoby} few {z # osób} many {z # osób} other {z # osób}}",
+        "delta": "wzgl. poprzedniego okresu",
+        "empty": {
+          "title": "Nic nie uruchomiono w tym okresie",
+          "description": "Wybierz szerszy zakres albo daj agentowi powierzchnię - liczby pojawią się tutaj."
+        }
+      },
       "platform": {
         "title": "Platforma w skrócie",
         "organizations": "Organizacje",
@@ -506,7 +509,8 @@
         "empty": {
           "title": "Jeszcze nic tu nie ma",
           "description": "Świeża instalacja: brak organizacji poza startową, brak uruchomień."
-        }
+        },
+        "description": "Liczby dla całej instalacji: organizacje, ludzie, agenci, rozmowy."
       },
       "health": {
         "title": "Zdrowie usług",
@@ -519,6 +523,13 @@
         "empty": {
           "title": "Brak raportu usług",
           "description": "Sonda zdrowia jeszcze nie odpowiedziała."
+        },
+        "description": "Czy baza danych, kolejka i magazyn wektorów odpowiadają.",
+        "services": {
+          "database": "Baza danych",
+          "redis": "Redis",
+          "vector_store": "Vector store",
+          "model_access": "Dostęp do modeli"
         }
       },
       "top-orgs": {
@@ -529,7 +540,10 @@
         "empty": {
           "title": "Brak organizacji",
           "description": "Istnieje tylko organizacja startowa."
-        }
+        },
+        "description": "Najbardziej zajęte organizacje w tej instalacji.",
+        "owner": "Właściciel",
+        "noOwner": "Brak właściciela"
       },
       "platform-ratings": {
         "title": "Jakość odpowiedzi w całej instalacji",
@@ -537,7 +551,8 @@
         "empty": {
           "title": "Brak ocen",
           "description": "Nikt jeszcze nie ocenił żadnej odpowiedzi w tej instalacji."
-        }
+        },
+        "description": "Jak oceniane są odpowiedzi w całej instalacji."
       },
       "runs": {
         "title": "Uruchomienia w czasie",
@@ -546,7 +561,8 @@
         "empty": {
           "title": "Brak uruchomień w tym okresie",
           "description": "Opublikuj agenta i daj mu kanał - adopcja pojawi się tutaj."
-        }
+        },
+        "description": "Ile uruchomień odbyło się w danym okresie, dzień po dniu."
       },
       "outcomes": {
         "title": "Wyniki",
@@ -562,7 +578,8 @@
         "empty": {
           "title": "Brak uruchomień w tym okresie",
           "description": "Podział wyników pojawi się z pierwszym uruchomieniem."
-        }
+        },
+        "description": "Jak kończyły się uruchomienia — ukończone, nieudane, po przekroczeniu budżetu, oczekujące."
       },
       "surfaces": {
         "title": "Skąd pochodzą uruchomienia",
@@ -579,7 +596,9 @@
         "empty": {
           "title": "Brak uruchomień w tym okresie",
           "description": "Playground, czat web, API, Slack, Telegram, Mattermost i widget lądują tutaj."
-        }
+        },
+        "description": "Skąd pochodzą uruchomienia — czat web, API, kanały.",
+        "unit": "uruchomień"
       },
       "agents": {
         "title": "Agenci: używani i zapomniani",
@@ -587,27 +606,32 @@
         "empty": {
           "title": "Brak opublikowanych agentów",
           "description": "W tej organizacji nic jeszcze nie opublikowano."
-        }
+        },
+        "description": "Którzy agenci są używani, a o których zapomniano."
       },
       "latency": {
         "title": "Opóźnienie",
         "p50": "Mediana (p50)",
         "p95": "Najwolniejsze 5% (p95)",
-        "subline": "Od startu do końca, dla każdego uruchomienia w okresie.",
         "empty": {
           "title": "Brak ukończonych uruchomień",
           "description": "Opóźnienie wymaga co najmniej jednego zakończonego uruchomienia."
         },
-        "viewSlowest": "Otwórz te runy, od najwolniejszego"
+        "viewSlowest": "Otwórz te runy, od najwolniejszego",
+        "description": "Ile trwają uruchomienia — mediana i ogon rozkładu.",
+        "tail": "Najwolniejsze 5% trwa {ratio}× dłużej niż mediana"
       },
       "active-users": {
         "title": "Aktywne osoby",
-        "headline": "{active} z {total} członków",
-        "subline": "uruchomiło agenta w tym okresie - to nagłówek; nazwiska są w tabeli poniżej",
+        "subline": "uruchomiło agenta w tym okresie",
         "empty": {
           "title": "Nikt nic nie uruchomił",
           "description": "Adopcja zaczyna się od pierwszego uruchomienia pierwszej osoby."
-        }
+        },
+        "description": "Ilu członków zespołu uruchomiło agenta w tym okresie.",
+        "ofMembers": "{total, plural, =1 {z 1 osoby} few {z # osób} many {z # osób} other {z # osób}}",
+        "ran": "Uruchomili agenta",
+        "didNot": "Nie uruchomili"
       },
       "top-people": {
         "title": "Kto z tego korzysta",
@@ -618,31 +642,35 @@
           "lastRun": "Ostatnie"
         },
         "others": "{count, plural, =1 {1 kolejna osoba uruchomiła co najmniej jednego agenta} few {# kolejne osoby uruchomiły co najmniej jednego agenta} many {# kolejnych osób uruchomiło co najmniej jednego agenta} other {# kolejnych osób uruchomiło co najmniej jednego agenta}}",
-        "disclosure": "Widzi to każdy z uprawnieniem runs:view - także budowniczowie i operatorzy, nie tylko właściciele i administratorzy.",
         "empty": {
           "title": "Nikt nic nie uruchomił",
           "description": "Pierwsze uruchomienie pierwszej osoby wpisze tu nazwisko."
-        }
+        },
+        "description": "Osoby korzystające najczęściej, według runów, z kosztem obok.",
+        "disclosure": "Widzi to każdy z runs:view - builderzy i operatorzy tak samo jak właściciele i admini."
       },
       "spend": {
         "title": "Wydatki",
         "unit": "w tym okresie",
         "delta": "vs poprzedni okres",
         "notRecorded": "nie zarejestrowano",
-        "monthToDate": "W tym miesiącu do dziś: {amount} - miesiąc kalendarzowy, zgadza się z fakturą; celowo poza filtrem okresu.",
+        "monthToDate": "W tym miesiącu do teraz: {amount}",
         "empty": {
           "title": "Jeszcze nic nie wydano",
           "description": "Koszt modeli ląduje tutaj uruchomienie po uruchomieniu."
-        }
+        },
+        "description": "Ile kosztował okres i ile miesiąc kalendarzowy do dziś. Kwota miesięczna zgadza się z fakturą, więc celowo nie reaguje na filtr okresu.",
+        "split": "{models} na modele · {ingestion} na indeksowanie"
       },
       "model-mix": {
         "title": "Modele za uruchomieniami",
         "notRecorded": "nie zarejestrowano",
-        "subline": "Tak, jak zapisano na każdym uruchomieniu (model_label).",
         "empty": {
           "title": "Brak uruchomień w tym okresie",
           "description": "Podział modeli pojawi się z pierwszym uruchomieniem."
-        }
+        },
+        "description": "Które modele stoją za runami - tak, jak zapisał to każdy run.",
+        "unit": "uruchomień"
       },
       "version-compare": {
         "title": "Wersja do wersji",
@@ -657,7 +685,8 @@
         "empty": {
           "title": "Działała tylko jedna wersja",
           "description": "Opublikuj nową wersję - porównanie pojawi się, gdy obie będą miały uruchomienia w okresie."
-        }
+        },
+        "description": "Czy nowa wersja agenta zachowuje się lepiej niż poprzednia."
       },
       "approvals": {
         "title": "Czeka na decyzję",
@@ -668,7 +697,8 @@
         "empty": {
           "title": "Nic nie czeka",
           "description": "Każde zatwierdzenie zostało rozstrzygnięte. Ta karta zasługuje na miejsce, będąc pustą."
-        }
+        },
+        "description": "Uruchomienia wstrzymane na wywołaniu narzędzia, czekające na decyzję."
       },
       "recent-failures": {
         "title": "Ostatnie niepowodzenia",
@@ -679,16 +709,17 @@
         "empty": {
           "title": "Brak niepowodzeń",
           "description": "Każde uruchomienie w tym okresie zakończyło się czysto."
-        }
+        },
+        "description": "Uruchomienia, które zawiodły lub wyczerpały budżet, od najnowszych."
       },
       "budget-headroom": {
         "title": "Zapas budżetu",
         "headline": "miesięcznego limitu {cap} - zostało {left}",
-        "cause": "Agenci z własnymi limitami - budget_exceeded na wykresie to objaw; to jest przyczyna.",
         "empty": {
           "title": "Brak miesięcznego limitu",
           "description": "Ustaw limit organizacji - zapas pokaże się tu, zanim pojawi się budget_exceeded."
-        }
+        },
+        "description": "Ile zostało z miesięcznego budżetu - organizacji i każdego agenta z własnym limitem. budget_exceeded na pierścieniu to objaw; tutaj jest przyczyna."
       },
       "mcp-health": {
         "title": "Integracje",
@@ -696,11 +727,11 @@
         "down": "nie działa",
         "checked": "sprawdzono {ago}",
         "unchecked": "jeszcze nie sprawdzono",
-        "subline": "Serwer, który po cichu przestaje odpowiadać, zabiera narzędzia każdemu agentowi, który z niego korzysta.",
         "empty": {
           "title": "Brak podłączonych serwerów MCP",
           "description": "Podłącz serwer z katalogu - jego zdrowie wyląduje tutaj."
-        }
+        },
+        "description": "Czy podłączone serwery MCP nadal odpowiadają. Taki, który przestanie, po cichu zabiera swoje narzędzia każdemu agentowi, który z niego korzysta."
       },
       "knowledge-freshness": {
         "title": "Synchronizacja wiedzy",
@@ -711,11 +742,11 @@
         "empty": {
           "title": "Brak źródeł synchronizacji",
           "description": "Kolekcje synchronizowane z Drive lub S3 raportują tu swoją świeżość."
-        }
+        },
+        "description": "Które kolekcje wiedzy przestały się synchronizować."
       },
       "members": {
         "title": "Członkowie",
-        "view": "Zobacz członków",
         "roles": {
           "owner": "Właściciel",
           "admin": "Administrator",
@@ -727,7 +758,9 @@
         "empty": {
           "title": "Tylko Ty",
           "description": "Zaproś kogoś - adopcja potrzebuje ludzi."
-        }
+        },
+        "description": "Kto jest w organizacji, według roli.",
+        "unit": "{count, plural, one {członek} few {członkowie} many {członków} other {członków}}"
       },
       "org-ratings": {
         "title": "Jakość odpowiedzi",
@@ -735,7 +768,8 @@
         "empty": {
           "title": "Brak ocen",
           "description": "Kciuki przy odpowiedziach lądują tutaj."
-        }
+        },
+        "description": "Jak oceniane są odpowiedzi w całej organizacji."
       },
       "my-agents": {
         "title": "Twoi agenci",
@@ -747,7 +781,8 @@
         "empty": {
           "title": "Brak agentów",
           "description": "Nic Ci jeszcze nie udostępniono - poproś buildera albo stwórz własnego."
-        }
+        },
+        "description": "Agenci, których budujesz, i ci udostępnieni Tobie."
       },
       "conversations": {
         "title": "Kontynuuj, gdzie skończyłeś",
@@ -756,7 +791,8 @@
         "empty": {
           "title": "Brak rozmów",
           "description": "Zacznij rozmowę z karty agenta - będzie tu na Ciebie czekać."
-        }
+        },
+        "description": "Wróć do niedawnej rozmowy w miejscu, w którym ją przerwano."
       },
       "my-activity": {
         "title": "Twoja aktywność",
@@ -765,7 +801,8 @@
         "empty": {
           "title": "Brak Twoich uruchomień",
           "description": "Uruchom dowolnego agenta - Twoja historia pokaże się tutaj, tylko Tobie."
-        }
+        },
+        "description": "Twoje własne uruchomienia i to, co czeka na decyzję."
       },
       "my-top-agents": {
         "title": "Agenci, których używasz najczęściej",
@@ -773,7 +810,8 @@
         "empty": {
           "title": "Brak Twoich uruchomień",
           "description": "Uruchom dowolnego agenta - Twoi ulubieńcy pojawią się tutaj."
-        }
+        },
+        "description": "Agenci, których używasz najczęściej."
       },
       "my-quality": {
         "title": "Jakość odpowiedzi w Twoich czatach",
@@ -781,34 +819,34 @@
         "empty": {
           "title": "Brak ocenionych odpowiedzi",
           "description": "Oceniaj odpowiedzi kciukiem w górę lub w dół - Twój trend wyląduje tutaj."
-        }
+        },
+        "description": "Jak oceniane są odpowiedzi w Twoich rozmowach."
       },
       "shared-with-you": {
         "title": "Udostępnione Tobie",
         "agents": "Agenci",
         "collections": "Kolekcje",
         "skills": "Skille",
-        "subline": "Wszystko, co ktoś Ci udostępnił - przeglądaj z paska bocznego.",
         "empty": {
           "title": "Jeszcze nic nie udostępniono",
           "description": "Gdy ktoś udostępni agenta, kolekcję albo skilla, policzy się tutaj."
-        }
+        },
+        "description": "Agenci, wiedza i umiejętności udostępnione Tobie."
       },
       "sandbox-capacity": {
         "title": "Pojemność sandboxów",
-        "subline": "Otwarte sandboxy wobec limitu, który obowiązuje tę organizację — liczby, z której bierze się 429.",
         "openOfTenantLimit": "{used} z {limit}",
         "openUncapped": "{count, plural, one {1 otwarty} few {# otwarte} many {# otwartych} other {# otwartego}}",
-        "hostUncounted": "Tego, jak pełny jest sam host, nie da się tutaj pokazać. Jego własne dwa limity są dzielone z każdą organizacją na nim i nikt ich nie publikuje, więc to jedyna liczba, która się dzieli. Odmowa sandboxa, gdy ta organizacja jest poniżej swojego limitu, oznacza, że host zapełnił ktoś inny.",
+        "hostUncounted": "Nie da się tu pokazać, jak pełny jest sam host - odmowa przy karcie z zapasem oznacza, że host zapełnił ktoś inny.",
         "elsewhere": "Działa na Daytonie — tamte sandboxy liczą się na tamtym koncie, nie tutaj.",
         "empty": {
           "title": "Nie zarejestrowano hosta sandboxów",
           "description": "Zarejestruj hosta, a miejsce dla agentów na uruchamianie kodu wyląduje tutaj."
-        }
+        },
+        "description": "Ile pojemności sandbox jest zajęte: otwarte sandboxy wobec sufitu tej organizacji, czyli liczby, z której bierze się 429."
       },
       "sandbox-policy": {
         "title": "Runtime'y sandboxów",
-        "subline": "Limity, nie liczniki. Te dwa na całym hoście są dzielone z każdą organizacją na nim i nic nie publikuje, ile jest w użyciu, więc tylko liczbę dla organizacji da się narysować jako ułamek. Wszystko to jest własnym środowiskiem usługi, ustawianym tam, gdzie ona startuje.",
         "ceilings": {
           "hostOpen": "Otwarte, na całym hoście",
           "hostResident": "Rezydentne, na całym hoście",
@@ -824,7 +862,8 @@
         "empty": {
           "title": "Nie zarejestrowano hosta sandboxów",
           "description": "Zarejestruj hosta, a runtime'y, na które pozwala, wylądują tutaj."
-        }
+        },
+        "description": "Co host sandbox pozwala uruchamiać agentom. To sufity ustawione przy starcie usługi, nie liczba w użyciu - tylko ten per organizacja da się pokazać jako ułamek."
       },
       "sandbox-sessions": {
         "title": "Otwarte sandboxy",
@@ -859,6 +898,54 @@
         "empty": {
           "title": "Nie zarejestrowano hosta sandboxów",
           "description": "Zarejestruj hosta, a sandboxy otwierane przez Twoich agentów wylądują tutaj."
+        },
+        "description": "Sesje sandboxów działające w tej chwili."
+      },
+      "channels": {
+        "title": "Kanały",
+        "description": "Na których kanałach można dosięgnąć agentów i czy drzwi są otwarte.",
+        "platforms": {
+          "telegram": "Telegram",
+          "slack": "Slack",
+          "mattermost": "Mattermost"
+        },
+        "webhook": "nasłuchuje",
+        "polling": "odpytuje",
+        "switchedOff": "wyłączony",
+        "empty": {
+          "title": "Brak kanałów",
+          "description": "Zarejestruj bota, a jego agenci staną się dostępni ze Slacka, Telegrama albo Mattermosta."
+        }
+      },
+      "knowledge": {
+        "title": "Wiedza",
+        "description": "Ile z tego, co wgrano, jest naprawdę zaindeksowane i możliwe do wyszukania.",
+        "collections": "Kolekcje",
+        "documents": "Dokumenty",
+        "chunks": "Fragmenty",
+        "notIndexed": "{count, plural, =1 {1 niezaindeksowany} few {# niezaindeksowane} many {# niezaindeksowanych} other {# niezaindeksowanych}}",
+        "empty": {
+          "title": "Brak kolekcji",
+          "description": "Załóż jedną i wgraj dokument - to, co agent może czytać, pojawi się tutaj."
+        }
+      },
+      "activity-rhythm": {
+        "title": "Kiedy dzieje się praca",
+        "description": "Runy według dnia tygodnia i godziny, w UTC - gdzie są ciche okna.",
+        "weekdays": {
+          "0": "Nd",
+          "1": "Pn",
+          "2": "Wt",
+          "3": "Śr",
+          "4": "Cz",
+          "5": "Pt",
+          "6": "So"
+        },
+        "cell": "{day} {hour}:00 UTC · {count, plural, =1 {1 run} few {# runy} many {# runów} other {# runów}}",
+        "hourTick": "{hour}h",
+        "empty": {
+          "title": "Nic nie uruchomiono w tym okresie",
+          "description": "Rytm pojawi się, gdy będą runy do rozłożenia."
         }
       }
     },
@@ -882,7 +969,115 @@
     "revokeSession": "Unieważnij sesję",
     "revokeSession2": "Unieważnij sesję",
     "sessionRevoked": "Sesja unieważniona",
-    "unknownDevice": "Nieznane urządzenie"
+    "unknownDevice": "Nieznane urządzenie",
+    "edit": {
+      "customize": "Dostosuj",
+      "subtitle": "Ułóż swój dashboard — przeciągaj karty, aby zmieniać ich kolejność między sekcjami, zmieniaj im rozmiar, koloruj i zwijaj sekcje albo dodaj kolejne.",
+      "banner": "Przeciągaj, zmieniaj rozmiar i układaj karty, a potem Zapisz, aby zachować, lub Anuluj, aby odrzucić.",
+      "addWidget": "Dodaj widget",
+      "saveAsPreset": "Zapisz jako…",
+      "addTitle": "Dodaj widget",
+      "addDescription": "Wybierz kartę, a wskoczy na dashboard, gotowa do przeciągnięcia na miejsce. Najedź na wiersz, aby zobaczyć podgląd z danymi na żywo — tę samą kartę możesz dodać więcej niż raz.",
+      "searchPlaceholder": "Szukaj widgetów…",
+      "searchLabel": "Szukaj widgetów",
+      "noResults": "Żaden widget nie pasuje do „{query}”.",
+      "groups": {
+        "platform": "Platforma",
+        "attention": "Wymaga uwagi",
+        "usage": "Użycie i analityka",
+        "people": "Ludzie",
+        "sandboxes": "Sandboxy",
+        "workspace": "Twoja przestrzeń"
+      },
+      "sizeBadge": "{cols} × {rows}",
+      "preview": "Podgląd na żywo",
+      "previewHint": "Najedź na kartę, aby zobaczyć jej podgląd tutaj.",
+      "reset": "Przywróć domyślny",
+      "cancel": "Anuluj",
+      "save": "Zapisz",
+      "addSection": "Dodaj sekcję",
+      "addToSection": "Dodaj do sekcji",
+      "topSection": "Góra",
+      "newSection": "Nowa sekcja",
+      "untitledSection": "Sekcja bez nazwy",
+      "sectionLabel": "Nazwa sekcji",
+      "sectionPlaceholder": "Nazwa sekcji",
+      "removeSection": "Usuń sekcję",
+      "collapse": "Zwiń {title}",
+      "expand": "Rozwiń {title}",
+      "accents": {
+        "neutral": "Bez koloru",
+        "violet": "Fioletowy",
+        "blue": "Niebieski",
+        "green": "Zielony",
+        "amber": "Bursztynowy",
+        "rose": "Różowy"
+      },
+      "customColour": "Własny kolor",
+      "hide": "Ukryj {title}",
+      "moveUp": "Przesuń {title} w górę",
+      "moveDown": "Przesuń {title} w dół",
+      "moveSectionUp": "Przesuń sekcję {title} w górę",
+      "moveSectionDown": "Przesuń sekcję {title} w dół",
+      "narrower": "Zwęź {title}",
+      "wider": "Poszerz {title}",
+      "shorter": "Zmniejsz wysokość {title}",
+      "taller": "Zwiększ wysokość {title}",
+      "emptySection": "Upuść tu kartę albo dodaj kartę do tej sekcji.",
+      "emptyDraft": "Jeszcze żadnych kart — dodaj jakąś albo anuluj, aby zachować obecny dashboard.",
+      "emptyTitle": "Twój dashboard jest pusty",
+      "emptyDescription": "Wszystkie karty są ukryte. Dodaj kilka z powrotem albo przywróć domyślny układ.",
+      "saveFailed": "Nie udało się zapisać dashboardu. Spróbuj ponownie.",
+      "resetFailed": "Nie udało się przywrócić dashboardu. Spróbuj ponownie.",
+      "tempSaveTitle": "Zachować ten układ na stałe?",
+      "tempSaveDescription": "Zapis ustawia ten układ jako Twój aktywny dashboard, ale to nie jest zapisany szablon. Przywrócenie domyślnego lub zastosowanie innego układu go zastąpi i ten układ przepadnie. Zapisz go jako stały szablon, aby go zachować i wracać do niego w dowolnej chwili.",
+      "tempSaveAsTemplate": "Zapisz jako szablon",
+      "tempSaveKeep": "Zastosuj tylko na teraz",
+      "alreadyPlaced": "{count, plural, =1 {Na stronie} other {Na stronie ×#}}",
+      "optionsFor": "Ustawienia karty {title}"
+    },
+    "presets": {
+      "menu": "Układy",
+      "heading": "Zapisane dashboardy",
+      "default": "Układ domyślny",
+      "newBlank": "Nowy pusty układ",
+      "empty": "Nie masz jeszcze zapisanych dashboardów. Ułóż jeden, a potem Zapisz jako…, aby go tu zachować.",
+      "saveTitle": "Zapisz ten dashboard",
+      "saveDescription": "Zachowaj bieżący układ pod nazwą, do której możesz wrócić.",
+      "nameLabel": "Nazwa",
+      "namePlaceholder": "Poniedziałkowy przegląd",
+      "saved": "Zapisano „{name}”.",
+      "saveFailed": "Nie udało się zapisać tego dashboardu. Ta nazwa może być już zajęta.",
+      "applyFailed": "Nie udało się przełączyć na ten dashboard. Spróbuj ponownie.",
+      "delete": "Usuń {name}",
+      "deleted": "Usunięto „{name}”.",
+      "deleteFailed": "Nie udało się usunąć tego dashboardu. Spróbuj ponownie."
+    },
+    "ratings": {
+      "likes": "Pomocne",
+      "dislikes": "Niepomocne"
+    },
+    "styles": {
+      "area": "Obszar",
+      "bars": "Słupki",
+      "donut": "Pierścień",
+      "list": "Lista",
+      "meter": "Pasek",
+      "table": "Tabela",
+      "tiles": "Kafelki"
+    },
+    "options": {
+      "window": "Okno",
+      "style": "Styl",
+      "agent": "Agent",
+      "person": "Osoba",
+      "followPage": "Filtr strony",
+      "allAgents": "Wszystkie agenty",
+      "everyone": "Wszyscy",
+      "oneAgent": "Jeden agent",
+      "onePerson": "Jedna osoba",
+      "reset": "Wróć do filtra strony"
+    }
   },
   "ui": {
     "nextMonths": "Następne miesiące",
@@ -1270,8 +1465,6 @@
     "hide": "Ukryj",
     "howModelRefersSkill": "Tak model odwołuje się do tego skilla. Później nie da się tego zmienić.",
     "howRefundsTheirExceptions": "Jak obsługiwane są zwroty i ich wyjątki.",
-    "install": "Zainstaluj",
-    "installed": "{name} zainstalowany — od teraz jest Twój do edycji",
     "loading": "Wczytywanie…",
     "markdownLoadedOnlyAfter": "Markdown. Wczytywany dopiero wtedy, gdy opis przekona model, żeby po niego sięgnął, więc długość nic nie kosztuje, dopóki nie jest potrzebna.",
     "markdownYouCanFill": "Markdown. Możesz uzupełnić to później — jest wczytywany dopiero wtedy, gdy opis przekona model, żeby po niego sięgnął.",
@@ -1291,21 +1484,17 @@
     "path": "Ścieżka",
     "preview": "Podgląd",
     "readConversationCameFrom": "Przeczytaj rozmowę, z której to pochodzi",
-    "readyMadeSkillCount": "{count, plural, one {1 gotowy skill} few {# gotowe skille} many {# gotowych skilli} other {# gotowego skilla}}",
-    "readyMadeSkills": "Gotowe skille",
     "remove": "Usuń",
     "review": "Przejrzyj",
     "save": "Zapisz",
     "saveFile": "Zapisz plik",
     "savedAgentsCurrent": "Zapisano. Każdy agent używający tego skilla jest teraz aktualny.",
     "savingReachesEveryAgent": "Zapis dosięga każdego związanego z tym skillem agenta przy jego następnym runie. Nie ma wersji roboczej ani kroku publikacji.",
-    "searchLibrary": "Szukaj w bibliotece…",
     "showWhatChangedIn": "Pokaż, co zmieniło się w {name}",
     "sizeUploadsWhenCreated": "{size} · zostanie przesłany przy tworzeniu skilla",
     "source": "Źródło",
     "support": "support",
-    "whatSoModelCan": "Co w nim jest, żeby model mógł zdecydować bez wczytywania go",
-    "writtenPlatformCopiedInto": "Napisane dla tej platformy i skopiowane do Twojej organizacji — od chwili instalacji są Twoje do edycji."
+    "whatSoModelCan": "Co w nim jest, żeby model mógł zdecydować bez wczytywania go"
   },
   "settings": {
     "builtCommands": "Wbudowane polecenia",

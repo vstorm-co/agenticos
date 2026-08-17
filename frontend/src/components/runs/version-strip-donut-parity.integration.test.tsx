@@ -61,6 +61,7 @@ const USAGE = {
   agent_id: null,
   by_version: null,
   by_user: null,
+  by_hour: null,
 } satisfies UsageStats;
 
 const VERSION: VersionUsageRow = {
@@ -79,6 +80,7 @@ beforeEach(() => {
   vi.mocked(useUsageStats).mockReturnValue({
     usage: USAGE,
     isLoading: false,
+    isStale: false,
     error: null,
     refetch: vi.fn(),
   } as ReturnType<typeof useUsageStats>);
@@ -95,8 +97,8 @@ describe("the version strip and the Outcomes donut, rendered from the same rows"
   it("print the same completed share, with cancelled in both denominators", () => {
     render(
       <>
-        <OutcomesWidget title="Outcomes" period={PERIOD} />
-        <VersionStrip agentId="a1" />
+        <OutcomesWidget title="Outcomes" hint="" period={PERIOD} />
+        <VersionStrip agentId="a1" period={PERIOD} />
       </>,
     );
 

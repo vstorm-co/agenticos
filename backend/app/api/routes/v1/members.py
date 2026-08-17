@@ -35,9 +35,10 @@ async def list_members(
             email=email,
             full_name=full_name,
             avatar_url=avatar_url,
+            avatar_color=avatar_color,
             joined_at=m.joined_at,
         )
-        for m, email, full_name, avatar_url in rows
+        for m, email, full_name, avatar_url, avatar_color in rows
     ]
     return OrganizationMemberList(items=items, total=total)
 
@@ -51,7 +52,7 @@ async def update_member_role(
     user: CurrentUser,
 ) -> Any:
     """Change a member's role. Requires Owner or Admin."""
-    member, email, full_name, avatar_url = await service.change_role(
+    member, email, full_name, avatar_url, avatar_color = await service.change_role(
         org_id, target_user_id, data.role, requester_id=user.id
     )
     return OrganizationMemberRead(
@@ -62,6 +63,7 @@ async def update_member_role(
         email=email,
         full_name=full_name,
         avatar_url=avatar_url,
+        avatar_color=avatar_color,
         joined_at=member.joined_at,
     )
 

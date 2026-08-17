@@ -1,22 +1,22 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import { Lock, RotateCw, Trash2, Users } from "lucide-react";
 
 import { ProviderIcon } from "@/components/vault/provider-icon";
 import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
   Badge,
   Button,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  DataTable,
+  EntityAvatar,
+  ListCardControlsRow,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  type Column,
 } from "@/components/ui";
-import { cn } from "@/lib/utils";
 import type { Secret, SecretPurpose } from "@/types/secrets";
 import { useTranslations } from "next-intl";
 
@@ -39,6 +39,11 @@ function purposeLabel(
   return purposes.find((entry) => entry.id === purpose)?.label ?? purpose;
 }
 
+/** The stored purpose as one filterable id, `custom` for a missing one. */
+function purposeId(secret: Secret): string {
+  return secret.purpose && secret.purpose !== "custom" ? secret.purpose : "custom";
+}
+
 /**
  * How far one key reaches, in the words the sharing panel uses.
  *
@@ -59,11 +64,6 @@ function reach(
   return { label: t("visibilityOrg"), detail: null };
 }
 
-/** Two letters for a face nobody uploaded, and nothing at all for nobody. */
-function initials(email: string | null | undefined): string {
-  return (email ?? "?").slice(0, 2).toUpperCase();
-}
-
 /**
  * The organization's keys, one row each.
  *
@@ -81,125 +81,178 @@ export function SecretsTable({
 }: SecretsTableProps) {
   const t = useTranslations("vault");
   const tc = useTranslations("common");
-  return (
-    <Table
-      className={cn(
-        // The card's own gutter on the outer columns: `Table` pads cells by 2
-        // units, which inside a card leaves the first column starting left of
-        // the header above it and the action buttons touching the border.
-        "[&_td:first-child]:pl-5 [&_td:last-child]:pr-5 [&_th:first-child]:pl-5 [&_th:last-child]:pr-5",
-        // Rows tall enough for the avatar and the two-line key cell.
-        "[&_td]:py-3",
-        // The card already draws the bottom edge; a second line under the last
-        // row reads as an empty row.
-        "[&_tr:last-child]:border-0",
-      )}
-    >
-      <TableHeader>
-        <TableRow>
-          <TableHead>{t("key")}</TableHead>
-          <TableHead>{t("for")}</TableHead>
-          <TableHead>{t("access")}</TableHead>
-          <TableHead>{t("addedBy")}</TableHead>
-          <TableHead>{t("usedBy")}</TableHead>
-          {canManage && <TableHead className="w-32 text-right">{t("actions")}</TableHead>}
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {secrets.map((secret) => {
+
+  // The service narrowing, in the controls strip like every list's filters -
+  // never a second header row under the columns (the rejected pattern).
+  const [purpose, setPurpose] = useState("all");
+  const rows = useMemo(
+    () =>
+      purpose === "all" ? [...secrets] : secrets.filter((secret) => purposeId(secret) === purpose),
+    [secrets, purpose],
+  );
+
+  const purposeOptions = useMemo(() => {
+    const present = new Map<string, string>();
+    for (const secret of secrets) {
+      const id = purposeId(secret);
+      if (!present.has(id)) present.set(id, purposeLabel(purposes, secret.purpose, t));
+    }
+    return [...present]
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [secrets, purposes, t]);
+
+  const columns = useMemo<Column<Secret>[]>(() => {
+    const cols: Column<Secret>[] = [
+      {
+        key: "key",
+        header: t("key"),
+        className: "pl-5",
+        sortable: true,
+        sortValue: (secret) => secret.name,
+        cell: (secret) => (
+          <div className="flex items-center gap-3">
+            {/* The service's own mark. A vault is scanned, not read:
+                fifty rows of identical text is a list nobody finds
+                anything in, and the logo is what the eye lands on. */}
+            <ProviderIcon provider={secret.purpose ?? "custom"} />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">{secret.name}</p>
+              <p className="text-muted-foreground font-mono text-xs">····{secret.hint}</p>
+            </div>
+          </div>
+        ),
+      },
+      {
+        key: "for",
+        header: t("for"),
+        cell: (secret) => (
+          <span className="text-muted-foreground text-sm">
+            {purposeLabel(purposes, secret.purpose, t)}
+          </span>
+        ),
+      },
+      {
+        key: "access",
+        header: t("access"),
+        cell: (secret) => {
           const access = reach(secret, t);
+          return (
+            <div className="flex flex-col items-start gap-1">
+              <Badge variant={secret.visibility === "private" ? "outline" : "secondary"}>
+                {secret.visibility === "private" && <Lock className="mr-1 h-3 w-3" />}
+                {access.label}
+              </Badge>
+              {access.detail && (
+                <span className="text-muted-foreground text-xs">{access.detail}</span>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        key: "addedBy",
+        header: t("addedBy"),
+        sortable: true,
+        sortValue: (secret) => secret.created_by_email ?? null,
+        cell: (secret) =>
+          secret.created_by_email ? (
+            <div className="flex items-center gap-2">
+              <EntityAvatar
+                seed={secret.created_by_user_id ?? secret.created_by_email}
+                name={secret.created_by_email}
+                imageSrc={secret.created_by_avatar_url ?? undefined}
+                className="h-6 w-6 text-[10px]"
+                ariaHidden
+              />
+              <span className="text-muted-foreground truncate text-xs">
+                {secret.created_by_email}
+              </span>
+            </div>
+          ) : (
+            // The key outlives the person, which is itself worth seeing:
+            // it is the one nobody is going to rotate.
+            <span className="text-muted-foreground text-xs">{t("noLongerHere")}</span>
+          ),
+      },
+      {
+        key: "usedBy",
+        header: t("usedBy"),
+        className: canManage ? undefined : "pr-5",
+        cell: (secret) => {
           const used = secret.used_by ?? [];
           return (
-            <TableRow key={secret.id}>
-              <TableCell>
-                <div className="flex items-center gap-3">
-                  {/* The service's own mark. A vault is scanned, not read:
-                      fifty rows of identical text is a list nobody finds
-                      anything in, and the logo is what the eye lands on. */}
-                  <ProviderIcon provider={secret.purpose ?? "custom"} />
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{secret.name}</p>
-                    <p className="text-muted-foreground font-mono text-xs">····{secret.hint}</p>
-                  </div>
-                </div>
-              </TableCell>
-
-              <TableCell className="text-muted-foreground text-sm">
-                {purposeLabel(purposes, secret.purpose, t)}
-              </TableCell>
-
-              <TableCell>
-                <div className="flex flex-col items-start gap-1">
-                  <Badge variant={secret.visibility === "private" ? "outline" : "secondary"}>
-                    {secret.visibility === "private" && <Lock className="mr-1 h-3 w-3" />}
-                    {access.label}
-                  </Badge>
-                  {access.detail && (
-                    <span className="text-muted-foreground text-xs">{access.detail}</span>
-                  )}
-                </div>
-              </TableCell>
-
-              <TableCell>
-                {secret.created_by_email ? (
-                  <div className="flex items-center gap-2">
-                    <Avatar className="h-6 w-6">
-                      {secret.created_by_avatar_url && (
-                        <AvatarImage src={secret.created_by_avatar_url} alt="" />
-                      )}
-                      <AvatarFallback className="text-[10px]">
-                        {initials(secret.created_by_email)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="text-muted-foreground truncate text-xs">
-                      {secret.created_by_email}
-                    </span>
-                  </div>
-                ) : (
-                  // The key outlives the person, which is itself worth seeing:
-                  // it is the one nobody is going to rotate.
-                  <span className="text-muted-foreground text-xs">{t("noLongerHere")}</span>
-                )}
-              </TableCell>
-
-              <TableCell className="text-muted-foreground text-xs">
-                {used.length === 0 ? t("notUsedYet") : used.map((usage) => usage.name).join(", ")}
-              </TableCell>
-
-              {canManage && (
-                <TableCell>
-                  <div className="flex justify-end gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label={t("manageAccessTo", { name: secret.name })}
-                      onClick={() => onShare(secret)}
-                    >
-                      <Users className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label={t("rotateNamed", { name: secret.name })}
-                      onClick={() => onRotate(secret)}
-                    >
-                      <RotateCw className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label={tc("deleteNamed", { name: secret.name })}
-                      onClick={() => onDelete(secret)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </TableCell>
-              )}
-            </TableRow>
+            <span className="text-muted-foreground text-xs">
+              {used.length === 0 ? t("notUsedYet") : used.map((usage) => usage.name).join(", ")}
+            </span>
           );
-        })}
-      </TableBody>
-    </Table>
+        },
+      },
+    ];
+
+    if (canManage) {
+      cols.push({
+        key: "actions",
+        header: t("actions"),
+        align: "right",
+        className: "w-32 pr-5",
+        cell: (secret) => (
+          <div className="flex justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={t("manageAccessTo", { name: secret.name })}
+              onClick={() => onShare(secret)}
+            >
+              <Users className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={t("rotateNamed", { name: secret.name })}
+              onClick={() => onRotate(secret)}
+            >
+              <RotateCw className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={tc("deleteNamed", { name: secret.name })}
+              onClick={() => onDelete(secret)}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        ),
+      });
+    }
+
+    return cols;
+  }, [purposes, canManage, onShare, onRotate, onDelete, t, tc]);
+
+  return (
+    <>
+      <ListCardControlsRow>
+        <Select value={purpose} onValueChange={setPurpose}>
+          <SelectTrigger className="h-8 w-[200px]" aria-label={t("filterByService")}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{t("anyService")}</SelectItem>
+            {purposeOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </ListCardControlsRow>
+      <DataTable
+        columns={columns}
+        rows={rows}
+        getRowKey={(secret) => secret.id}
+        className="rounded-none border-0 bg-transparent"
+      />
+    </>
   );
 }

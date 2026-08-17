@@ -67,6 +67,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import WebSocket
+from pydantic_ai.messages import ModelMessage
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AppException
@@ -77,8 +78,8 @@ from app.db.models.chat_file import ChatFile
 from app.repositories import chat_file_repo, conversation_repo, embed_visitor_repo
 from app.schemas.agent_embed import EmbedVariable, PageConfig
 from app.services.access import publisher_context
-from app.services.agent import build_message_history
 from app.services.agent_runner import AgentRunnerService
+from app.services.conversation import ConversationService
 from app.services.run_stream import RunFrames
 
 logger = logging.getLogger(__name__)
@@ -356,14 +357,10 @@ class EmbedSession:
         self.conversation_id = visitor.conversation_id
         if self.conversation_id is None:
             return []
-        # The window the model is reminded of, so what the visitor reads back and
-        # what the agent remembers are the same conversation.
-        total = await conversation_repo.count_messages(db, self.conversation_id)
-        messages = await conversation_repo.get_messages_by_conversation(
-            db,
-            conversation_id=self.conversation_id,
-            skip=max(0, total - HISTORY_MESSAGES),
-            limit=HISTORY_MESSAGES,
+        # The same window the model is reminded of, so what the visitor reads back
+        # and what the agent remembers are the same conversation.
+        messages = await conversation_repo.get_recent_messages(
+            db, self.conversation_id, limit=HISTORY_MESSAGES
         )
         # `at` as well as the words: the page prints a time under each turn the way
         # web chat does, and a reloaded thread whose turns had none would lose it on
@@ -539,10 +536,10 @@ class EmbedSession:
 
         Two conditions, and between them they are what stops a frame from
         attaching a file that is not this visitor's to attach. The row must belong
-        to the member who published this embed - which is who
-        `accept_upload` attributes an upload to - and it must not already hang off
-        a message, so a file cannot be replayed into a second turn or into somebody
-        else's thread.
+        to the member who published this embed - which is who `accept_upload`
+        attributes an upload to, and is the owner the repository read is scoped
+        by (#706) - and it must not already hang off a message, so a file cannot
+        be replayed into a second turn or into somebody else's thread.
 
         That is proportionate rather than complete, and the reason it is enough is
         the id: `uuid4` is 122 random bits, so "an id from another visitor" is a
@@ -551,16 +548,18 @@ class EmbedSession:
         that exists to re-state what the message it ends up on already says.
 
         A dropped id is logged and the turn goes ahead. The alternative is refusing
-        somebody their answer over a stale id in a composer.
+        somebody their answer over a stale id in a composer. A page whose
+        publisher's account is gone owns no rows at all - `accept_upload` already
+        refuses new files on one - so every id it names drops the same way.
         """
         if not attached:
             return []
-        rows = await chat_file_repo.get_many(db, attached)
-        usable = [
-            row
-            for row in rows
-            if row.user_id == self.embed.owner_user_id and row.message_id is None
-        ]
+        rows = (
+            []
+            if self.embed.owner_user_id is None
+            else await chat_file_repo.get_many(db, attached, user_id=self.embed.owner_user_id)
+        )
+        usable = [row for row in rows if row.message_id is None]
         if len(usable) != len(attached):
             logger.info(
                 "embed_attachment_refused",
@@ -568,7 +567,7 @@ class EmbedSession:
             )
         return usable
 
-    async def _history(self, db: AsyncSession) -> list[Any]:
+    async def _history(self, db: AsyncSession) -> list[ModelMessage]:
         """What this visitor and the agent have already said to each other.
 
         The embed was the one surface that passed none, so a widget forgot the
@@ -576,21 +575,15 @@ class EmbedSession:
         the turns for whoever read it afterwards, and the model saw a stranger
         every time. Web chat, the API and all three channels carry theirs (#39).
 
-        The most recent window rather than the first page of one. The repository
-        orders oldest-first, so `limit` alone would hand a long thread its opening
-        exchanges and drop what was just said - which is the failure this is
-        supposed to prevent, arriving later and harder to see.
+        Where a summary has run, that is where the thread starts - a bookmarked
+        hosted page is long-lived, and rebuilding it from the transcript buys the
+        same summary again on every visit (#49).
         """
         if self.conversation_id is None:
             return []
-        total = await conversation_repo.count_messages(db, self.conversation_id)
-        messages = await conversation_repo.get_messages_by_conversation(
-            db,
-            conversation_id=self.conversation_id,
-            skip=max(0, total - HISTORY_MESSAGES),
-            limit=HISTORY_MESSAGES,
+        return await ConversationService(db).model_history(
+            self.conversation_id, limit=HISTORY_MESSAGES
         )
-        return build_message_history([{"role": m.role, "content": m.content} for m in messages])
 
     def _supplied_block(self) -> str:
         """What the page told us about this visitor, as data the model may read.

@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 import type { DelegationMode } from "@/types/agents";
 import { useTranslations } from "next-intl";
 
+import type { MapSide } from "./agent-map-view";
+
 /** One capability box on the map. `items` empty means "nothing configured", said out loud. */
 export interface MapNode {
   key: string;
@@ -16,7 +18,7 @@ export interface MapNode {
   /** What to say when there is nothing - the reason to open the map at all. */
   empty: string;
   /** Which side of the agent it hangs off. */
-  side: "in" | "out";
+  side: MapSide;
 }
 
 /**
@@ -34,6 +36,14 @@ export interface MapDelegate {
   mode: DelegationMode | null;
   /** The delegate's own page, when it is a published agent this caller can reach. */
   href?: string;
+  /** Why a run would not follow this pin - absent means it would. */
+  problem?: "restricted" | "unpinned" | "cycle" | "archived";
+  /** The delegate has published past the pinned version. */
+  stale?: boolean;
+  /** Has a roster of its own that a run from this map's root can never reach. */
+  truncated?: boolean;
+  /** What it delegates to in turn - the recursive half of the tree (#276). */
+  children?: MapDelegate[];
 }
 
 /** Catalog keys, translated at the point of use - a module table cannot call `t`. */
@@ -45,6 +55,18 @@ export const MODE_LABEL: Record<DelegationMode, string> = {
   sync: "modeSync",
   async: "modeAsync",
   auto: "modeAuto",
+};
+export const PROBLEM_LABEL: Record<NonNullable<MapDelegate["problem"]>, string> = {
+  restricted: "mapNoAccessBadge",
+  unpinned: "pinGone",
+  cycle: "mapCycleBadge",
+  archived: "mapArchivedBadge",
+};
+export const PROBLEM_DETAIL: Record<NonNullable<MapDelegate["problem"]>, string> = {
+  restricted: "delegateUnreachableDetail",
+  unpinned: "delegatePinGoneDetail",
+  cycle: "mapCycleDetail",
+  archived: "mapArchivedDetail",
 };
 
 interface CapabilityNodeProps {
@@ -119,7 +141,9 @@ interface DelegateNodeProps {
   focused: boolean;
   dimmed: boolean;
   onFocus: () => void;
-  registerRef: (element: HTMLElement | null) => void;
+  /** Only the first level measures an edge to the hub; deeper nodes hang off
+   * their parent with a drawn connector instead. */
+  registerRef?: (element: HTMLElement | null) => void;
 }
 
 /**
@@ -162,16 +186,69 @@ export function DelegateNode({
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium">{delegate.name}</span>
-        <span className="text-muted-foreground flex items-center gap-1.5 text-[11px] tracking-wide uppercase">
+        <span className="text-muted-foreground flex flex-wrap items-center gap-1.5 text-[11px] tracking-wide uppercase">
           <span>{t(KIND_LABEL[delegate.kind])}</span>
           {delegate.mode && (
             <span className="bg-muted rounded px-1 py-0.5 normal-case">
               {t(MODE_LABEL[delegate.mode])}
             </span>
           )}
+          {delegate.problem && (
+            <span className="bg-destructive/10 text-destructive rounded px-1 py-0.5 normal-case">
+              {t(PROBLEM_LABEL[delegate.problem])}
+            </span>
+          )}
+          {delegate.stale && (
+            <span className="bg-muted rounded px-1 py-0.5 normal-case">{t("mapPinBehind")}</span>
+          )}
+          {delegate.truncated && (
+            <span className="bg-muted rounded px-1 py-0.5 normal-case">{t("mapDepthCap")}</span>
+          )}
         </span>
       </span>
       {delegate.href && <ArrowUpRight className="text-muted-foreground h-3.5 w-3.5 shrink-0" />}
     </button>
+  );
+}
+
+interface DelegateBranchProps {
+  nodes: MapDelegate[];
+  icons: Record<MapDelegate["kind"], LucideIcon>;
+  focused: string | null;
+  onFocus: (key: string) => void;
+}
+
+/**
+ * The recursive half of the delegation tree: a delegate's own delegates,
+ * indented under it with a drawn connector instead of a measured edge.
+ *
+ * The hub's edges are measured because its nodes sit anywhere on a grid; a
+ * subtree is a list whose parent is always directly above, so a border is the
+ * honest connector and it cannot break however deep or wide the tree gets -
+ * which is what an arbitrary-depth graph needs from a layout (#276).
+ */
+export function DelegateBranch({ nodes, icons, focused, onFocus }: DelegateBranchProps) {
+  return (
+    <ul className="border-brand/30 mt-1 ml-4 space-y-1 border-l pl-3">
+      {nodes.map((node) => (
+        <li key={node.key}>
+          <DelegateNode
+            delegate={node}
+            icon={icons[node.kind]}
+            focused={focused === node.key}
+            dimmed={focused !== null && focused !== node.key}
+            onFocus={() => onFocus(node.key)}
+          />
+          {node.children && node.children.length > 0 && (
+            <DelegateBranch
+              nodes={node.children}
+              icons={icons}
+              focused={focused}
+              onFocus={onFocus}
+            />
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }

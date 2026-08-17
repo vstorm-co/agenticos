@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Any, Literal, cast
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, and_, func, or_, select
+from sqlalchemy import ColumnElement, and_, case, func, or_, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -179,6 +179,61 @@ async def get_run(db: AsyncSession, run_id: UUID, *, organization_id: UUID) -> A
     return result.scalar_one_or_none()
 
 
+async def neighbor_run_ids(db: AsyncSession, run: AgentRun) -> tuple[UUID | None, UUID | None]:
+    """The runs either side of this one in its own conversation, by start time.
+
+    How a run detail walks to its neighbours without going back to the list.
+    Same conversation, not the agent's whole history: the detail view shows the
+    run inside its thread, so stepping forward must stay in that thread - it
+    used to jump to whatever the agent did next in some other conversation,
+    which read as the timeline silently changing subject under the arrows. The
+    order is `(started_at, id)`, the id breaking ties the same way `list_runs`
+    pages: a fan-out starts several runs in the same instant, and without the
+    tiebreak two of them would each claim the other as both neighbours.
+
+    And the walk is level-locked. A delegated run shares its parent's
+    `conversation_id`, so a thread-wide walk from a top-level run would step
+    through the parent's own children - rows the default listing (which
+    excludes delegations) never showed, making "next" land on a run the arrows'
+    own list denies exists. A top-level run's neighbours are the other
+    top-level runs of the thread; a delegated run's are its siblings under the
+    same parent.
+
+    A run that never started sits outside every timeline, and one with no
+    conversation has no thread to walk - both answer no neighbours at all.
+    """
+    if run.started_at is None or run.conversation_id is None:
+        return None, None
+    position = tuple_(AgentRun.started_at, AgentRun.id)
+    anchor = tuple_(run.started_at, run.id)
+    same_level = (
+        AgentRun.parent_run_id.is_(None)
+        if run.parent_run_id is None
+        else AgentRun.parent_run_id == run.parent_run_id
+    )
+    base = select(AgentRun.id).where(
+        AgentRun.organization_id == run.organization_id,
+        AgentRun.conversation_id == run.conversation_id,
+        same_level,
+        AgentRun.started_at.is_not(None),
+    )
+    prev_id = (
+        await db.execute(
+            base.where(position < anchor)
+            .order_by(AgentRun.started_at.desc(), AgentRun.id.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    next_id = (
+        await db.execute(
+            base.where(position > anchor)
+            .order_by(AgentRun.started_at.asc(), AgentRun.id.asc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    return prev_id, next_id
+
+
 async def claim_parked_run(
     db: AsyncSession, run_id: UUID, *, organization_id: UUID
 ) -> AgentRun | None:
@@ -242,11 +297,18 @@ class RunFilters:
             queue this platform has - the answers real people said were wrong -
             and until `messages.run_id` existed there was no way to ask a run
             whether it earned one.
+        model_label: The model as the run itself recorded it. Compared as the
+            stored string rather than resolved through the catalog: the column
+            is what a run answered with, a profile it came from may since have
+            been renamed or deleted, and the dashboard's model card counts these
+            same strings - so "the runs behind this bar" is the same set on both
+            screens.
     """
 
     statuses: Sequence[str] | None = None
     surface: str | None = None
     user_id: UUID | None = None
+    model_label: str | None = None
     started_from: datetime | None = None
     started_to: datetime | None = None
     environment_id: UUID | None = None
@@ -268,6 +330,8 @@ class RunFilters:
             clauses.append(AgentRun.surface == self.surface)
         if self.user_id is not None:
             clauses.append(AgentRun.user_id == self.user_id)
+        if self.model_label is not None:
+            clauses.append(AgentRun.model_label == self.model_label)
         if self.started_from is not None:
             clauses.append(AgentRun.started_at >= self.started_from)
         if self.started_to is not None:
@@ -379,10 +443,13 @@ async def list_runs(
     wrongly.
 
     `order_by` sorts in SQL, over the whole narrowed set rather than over a page.
-    Both orders put nulls last in both directions, which is a decision rather
-    than a default: a run with no `ended_at` has no duration and a run with no
-    `started_at` has no place on a timeline, and either of them sorting as zero
-    would put unfinished work at the top of "the slowest runs".
+    All four orders put nulls last in both directions, which is a decision
+    rather than a default: a run with no `ended_at` has no duration and a run
+    with no `started_at` has no place on a timeline, and either of them sorting
+    as zero would put unfinished work at the top of "the slowest runs". Cost and
+    tokens need the null made rather than found - those columns default to 0 and
+    are written at finish, so without the `CASE` an ascending sort would crown a
+    run still going as the cheapest and lightest in the organization.
     """
     query = select(AgentRun).where(AgentRun.organization_id == organization_id)
     count_query = select(func.count(AgentRun.id)).where(AgentRun.organization_id == organization_id)
@@ -399,7 +466,17 @@ async def list_runs(
         query = query.where(clause)
         count_query = count_query.where(clause)
 
-    column = _duration_ms() if order_by is RunOrder.DURATION else AgentRun.started_at
+    if order_by is RunOrder.DURATION:
+        column = _duration_ms()
+    elif order_by is RunOrder.COST:
+        column = case((AgentRun.ended_at.is_(None), None), else_=AgentRun.cost_usd)
+    elif order_by is RunOrder.TOKENS:
+        column = case(
+            (AgentRun.ended_at.is_(None), None),
+            else_=AgentRun.input_tokens + AgentRun.output_tokens,
+        )
+    else:
+        column = AgentRun.started_at
     ordering = column.desc() if descending else column.asc()
     # `id` breaks ties, because neither sort column is unique: a fan-out starts
     # several runs in the same instant and `started_at` alone lets two rows swap
@@ -795,12 +872,30 @@ async def spend_by_key(
 # scope=own.
 
 
+@dataclass(frozen=True, slots=True)
+class RunFilter:
+    """Which runs a dashboard aggregate counts, beyond the window itself.
+
+    One object rather than a parameter per column, because the cards asking
+    these questions are growing their own filters: a person may pin a card to
+    one agent or to one colleague while the page's own filter stays where it
+    is. Every aggregate below took `user_id` alone; adding the second beside it
+    would have been eight signatures, and the third would be eight more.
+
+    An empty filter is the organization's whole window, which is what the
+    dashboard asks for by default.
+    """
+
+    user_id: UUID | None = None
+    agent_id: UUID | None = None
+
+
 def _window_conditions(
     *,
     organization_id: UUID,
     start: datetime,
     end: datetime,
-    user_id: UUID | None,
+    where: RunFilter | None,
     include_delegations: bool = False,
 ) -> list[ColumnElement[bool]]:
     """The window every dashboard aggregate shares, delegations out by default.
@@ -817,13 +912,16 @@ def _window_conditions(
     :func:`usage_by_version`, where a delegate's rows are the only record of
     what the delegate itself did.
     """
+    filters = where or RunFilter()
     conditions: list[ColumnElement[bool]] = [
         AgentRun.organization_id == organization_id,
         AgentRun.started_at >= start,
         AgentRun.started_at < end,
     ]
-    if user_id is not None:
-        conditions.append(AgentRun.user_id == user_id)
+    if filters.user_id is not None:
+        conditions.append(AgentRun.user_id == filters.user_id)
+    if filters.agent_id is not None:
+        conditions.append(AgentRun.agent_id == filters.agent_id)
     if not include_delegations:
         conditions.append(AgentRun.parent_run_id.is_(None))
     return conditions
@@ -835,11 +933,11 @@ async def count_runs(
     organization_id: UUID,
     start: datetime,
     end: datetime,
-    user_id: UUID | None = None,
+    where: RunFilter | None = None,
 ) -> int:
     """How many runs started in the window."""
     conditions = _window_conditions(
-        organization_id=organization_id, start=start, end=end, user_id=user_id
+        organization_id=organization_id, start=start, end=end, where=where
     )
     result = await db.scalar(select(func.count(AgentRun.id)).where(*conditions))
     return int(result or 0)
@@ -851,14 +949,18 @@ async def count_distinct_users(
     organization_id: UUID,
     start: datetime,
     end: datetime,
+    where: RunFilter | None = None,
 ) -> int:
     """How many distinct people started a run in the window.
 
     COUNT(DISTINCT) ignores NULL, so runs with no subject - an embedded
     widget's anonymous visitors - do not count as a person.
+
+    Filterable like the rest, which is what makes "how many people used *this
+    agent*" answerable; a `user_id` filter answers 1 or 0, and honestly.
     """
     conditions = _window_conditions(
-        organization_id=organization_id, start=start, end=end, user_id=None
+        organization_id=organization_id, start=start, end=end, where=where
     )
     result = await db.scalar(select(func.count(func.distinct(AgentRun.user_id))).where(*conditions))
     return int(result or 0)
@@ -870,7 +972,7 @@ async def latency_percentiles_ms(
     organization_id: UUID,
     start: datetime,
     end: datetime,
-    user_id: UUID | None = None,
+    where: RunFilter | None = None,
 ) -> tuple[float | None, float | None]:
     """p50 and p95 of started-to-finished, in milliseconds.
 
@@ -881,7 +983,7 @@ async def latency_percentiles_ms(
     """
     duration_ms = func.extract("epoch", AgentRun.ended_at - AgentRun.started_at) * 1000
     conditions = _window_conditions(
-        organization_id=organization_id, start=start, end=end, user_id=user_id
+        organization_id=organization_id, start=start, end=end, where=where
     )
     result = await db.execute(
         select(
@@ -903,21 +1005,67 @@ async def runs_by_day(
     organization_id: UUID,
     start: datetime,
     end: datetime,
-    user_id: UUID | None = None,
-) -> list[tuple[date, int]]:
-    """Sparse (day, count) buckets; the caller zero-fills the window.
+    where: RunFilter | None = None,
+) -> list[tuple[date, int, int, Decimal]]:
+    """Sparse (day, runs, completed, cost) buckets; the caller zero-fills.
+
+    Three measures from the one scan rather than three scans: a day's runs, how
+    many of them completed, and what they cost. They are what the dashboard's
+    figures draw their sparklines from, and asking separately would be three
+    round trips for one set of rows.
 
     Bucketed in UTC explicitly rather than in the session's timezone, so the
     same row lands on the same day whatever the connection is configured to.
     """
     day = func.date(func.timezone("UTC", AgentRun.started_at))
     conditions = _window_conditions(
-        organization_id=organization_id, start=start, end=end, user_id=user_id
+        organization_id=organization_id, start=start, end=end, where=where
     )
     result = await db.execute(
-        select(day, func.count(AgentRun.id)).where(*conditions).group_by(day).order_by(day)
+        select(
+            day,
+            func.count(AgentRun.id),
+            func.count(AgentRun.id).filter(AgentRun.status == RunStatus.COMPLETED.value),
+            func.coalesce(func.sum(AgentRun.cost_usd), 0),
+        )
+        .where(*conditions)
+        .group_by(day)
+        .order_by(day)
     )
-    return [(row[0], row[1]) for row in result.all()]
+    return [(row[0], row[1], row[2], row[3]) for row in result.all()]
+
+
+async def runs_by_hour(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    start: datetime,
+    end: datetime,
+    where: RunFilter | None = None,
+) -> list[tuple[int, int, int]]:
+    """Sparse (weekday, hour, runs) buckets - when the organization works.
+
+    Weekday is Postgres' `dow`: 0 is Sunday. The caller maps it to whatever its
+    locale calls the first day; storing the database's own answer keeps the
+    arithmetic in one place and out of the service.
+
+    In UTC for the same reason the daily buckets are, with the same
+    consequence: an organization spread across timezones reads its own rhythm
+    shifted, which is the honest answer until a run records where it came from.
+    """
+    stamp = func.timezone("UTC", AgentRun.started_at)
+    weekday = func.extract("dow", stamp)
+    hour = func.extract("hour", stamp)
+    conditions = _window_conditions(
+        organization_id=organization_id, start=start, end=end, where=where
+    )
+    result = await db.execute(
+        select(weekday, hour, func.count(AgentRun.id))
+        .where(*conditions)
+        .group_by(weekday, hour)
+        .order_by(weekday, hour)
+    )
+    return [(int(row[0]), int(row[1]), row[2]) for row in result.all()]
 
 
 async def runs_by_dimension(
@@ -927,7 +1075,7 @@ async def runs_by_dimension(
     start: datetime,
     end: datetime,
     dimension: Literal["surface", "status", "model"],
-    user_id: UUID | None = None,
+    where: RunFilter | None = None,
 ) -> list[tuple[str | None, int]]:
     """Run counts grouped by one whitelisted column, largest group first."""
     column = {
@@ -936,7 +1084,7 @@ async def runs_by_dimension(
         "model": AgentRun.model_label,
     }[dimension]
     conditions = _window_conditions(
-        organization_id=organization_id, start=start, end=end, user_id=user_id
+        organization_id=organization_id, start=start, end=end, where=where
     )
     result = await db.execute(
         select(column, func.count(AgentRun.id))
@@ -953,7 +1101,7 @@ async def runs_by_agent(
     organization_id: UUID,
     start: datetime,
     end: datetime,
-    user_id: UUID | None = None,
+    where: RunFilter | None = None,
 ) -> list[tuple[UUID, str, int]]:
     """Run counts per agent, with the agent's name, most-used first.
 
@@ -974,7 +1122,7 @@ async def runs_by_agent(
         organization_id=organization_id,
         start=start,
         end=end,
-        user_id=user_id,
+        where=where,
         include_delegations=True,
     )
     result = await db.execute(
@@ -993,7 +1141,7 @@ async def sum_cost_window(
     organization_id: UUID,
     start: datetime,
     end: datetime,
-    user_id: UUID | None = None,
+    where: RunFilter | None = None,
 ) -> Decimal:
     """Model spend inside the window - the period half of the spend card.
 
@@ -1002,7 +1150,7 @@ async def sum_cost_window(
     period against whatever window its filter chose.
     """
     conditions = _window_conditions(
-        organization_id=organization_id, start=start, end=end, user_id=user_id
+        organization_id=organization_id, start=start, end=end, where=where
     )
     result = await db.scalar(
         select(func.coalesce(func.sum(AgentRun.cost_usd), 0)).where(*conditions)
@@ -1016,11 +1164,11 @@ async def cost_by_provider_window(
     organization_id: UUID,
     start: datetime,
     end: datetime,
-    user_id: UUID | None = None,
+    where: RunFilter | None = None,
 ) -> list[tuple[str | None, Decimal]]:
     """Window spend per provider, as recorded on each run, biggest bill first."""
     conditions = _window_conditions(
-        organization_id=organization_id, start=start, end=end, user_id=user_id
+        organization_id=organization_id, start=start, end=end, where=where
     )
     result = await db.execute(
         select(AgentRun.provider, func.coalesce(func.sum(AgentRun.cost_usd), 0))
@@ -1038,7 +1186,7 @@ async def usage_by_version(
     agent_id: UUID,
     start: datetime,
     end: datetime,
-    user_id: UUID | None = None,
+    where: RunFilter | None = None,
 ) -> list[tuple[UUID | None, int | None, int, int, float | None, Decimal | None]]:
     """Per-version aggregates for one agent's runs in the window.
 
@@ -1060,7 +1208,7 @@ async def usage_by_version(
         organization_id=organization_id,
         start=start,
         end=end,
-        user_id=user_id,
+        where=where,
         include_delegations=True,
     )
     result = await db.execute(
@@ -1098,7 +1246,7 @@ async def usage_by_user(
     organization_id: UUID,
     start: datetime,
     end: datetime,
-    user_id: UUID | None = None,
+    where: RunFilter | None = None,
     limit: int,
 ) -> list[tuple[UUID, str, str | None, int, Decimal, datetime]]:
     """Per-person aggregates for the window, busiest first.
@@ -1113,7 +1261,7 @@ async def usage_by_user(
     two requests for the same window.
     """
     conditions = _window_conditions(
-        organization_id=organization_id, start=start, end=end, user_id=user_id
+        organization_id=organization_id, start=start, end=end, where=where
     )
     runs = func.count(AgentRun.id)
     result = await db.execute(

@@ -71,14 +71,26 @@ describe("useAdminUsers", () => {
     expect(result.current.total).toBe(120);
   });
 
-  it("stops loading whether the read succeeded or not", async () => {
+  it("stops loading and surfaces a failed read inline, not as a toast", async () => {
     vi.mocked(apiClient.get).mockRejectedValue(new Error("403"));
     const { result } = renderHook(() => useAdminUsers());
 
     await act(() => result.current.fetchUsers());
 
     expect(result.current.isLoading).toBe(false);
-    expect(toast.error).toHaveBeenCalledWith("Failed to load users");
+    expect(result.current.error).toBe("Failed to load users");
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("forgets a failure once a later read succeeds", async () => {
+    vi.mocked(apiClient.get).mockRejectedValueOnce(new Error("502"));
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    const { result } = renderHook(() => useAdminUsers());
+
+    await act(() => result.current.fetchUsers());
+    await act(() => result.current.fetchUsers());
+
+    expect(result.current.error).toBeNull();
   });
 
   it("patches an edited user into the page it is showing", async () => {

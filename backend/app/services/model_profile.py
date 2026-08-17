@@ -30,6 +30,8 @@ from app.core.secret_kinds import (
 from app.core.vault import VaultScope
 from app.db.models.credential import ModelProfile
 from app.repositories import credential_repo, organization_secret_repo
+from app.services.model_catalog import models_for
+from app.services.organization_secret import OrganizationSecretService
 
 logger = logging.getLogger(__name__)
 
@@ -227,6 +229,7 @@ class ModelProfileService:
             params=params,
             allow_byo=allow_byo,
             fallback_profile_ids=[str(pid) for pid in (fallback_profile_ids or [])],
+            context_length=await self._context_length(ctx, provider, model),
         )
         await record_audit(
             self.db,
@@ -238,6 +241,28 @@ class ModelProfileService:
             details={"label": label, "provider": provider, "model": model},
         )
         return profile
+
+    async def _context_length(self, ctx: AuthContext, provider: str, model: str) -> int | None:
+        """How many tokens this model accepts, as the provider's own listing says.
+
+        Read once here rather than per run, because the request path must not
+        call a provider - and stored, because the alternative source is wrong in
+        the direction that breaks a run. The `compaction` capability triggers on
+        a fraction of the context window; `genai-prices` records 1,000,000 for
+        `anthropic:claude-sonnet-4-5` against a real 200,000, so a trigger at 90%
+        lands above the ceiling and compaction never fires before the provider
+        refuses the request (#773).
+
+        The picker asked the same question moments ago and the listing is cached
+        for an hour, so this is usually free. `models_for` never raises and
+        answers its curated list when a provider cannot be reached; a model the
+        answer does not mention - a bespoke deployment, one shipped this morning,
+        or anything under a curated list that carries no lengths - records
+        nothing, and nothing means the capability resolves the window itself.
+        """
+        api_key = await OrganizationSecretService(self.db).listing_key(ctx, provider)
+        models, _ = await models_for(provider, api_key=api_key)
+        return next((entry.context_length for entry in models if entry.id == model), None)
 
     async def delete_profile(self, ctx: AuthContext, profile_id: UUID) -> None:
         deleted = await credential_repo.delete_profile(
@@ -399,4 +424,8 @@ class ModelProfileService:
             credential=credential,
             secret_id=profile.secret_id,
             fallbacks=fallbacks,
+            # The primary's window, even when the chain has fallbacks: a
+            # `FallbackModel` has no window of its own to resolve, and the model
+            # a run actually reaches is not known until one has refused.
+            context_length=profile.context_length,
         )

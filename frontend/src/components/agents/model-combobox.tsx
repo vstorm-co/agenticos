@@ -125,7 +125,7 @@ export function ModelCombobox({
             />
           </div>
 
-          <Command.List id={listId} className="max-h-72 overflow-y-auto p-1">
+          <Command.List id={listId} className="max-h-72 scrollbar-thin overflow-y-auto p-1">
             {/* Not `Command.Empty`: when something has been typed there *is* an
                 option - itself - and an "no matches" line above an offer to use
                 what you typed contradicts it. */}

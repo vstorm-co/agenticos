@@ -9,7 +9,7 @@ import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-stat
 import type { DashboardWidgetProps } from "./types";
 
 /** The caller's own favourites - their runs in the window, nobody else's. */
-export function MyTopAgentsWidget({ title, period, seeAll }: DashboardWidgetProps) {
+export function MyTopAgentsWidget({ title, hint, period, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.my-top-agents");
   const { usage, isLoading, error, refetch } = useUsageStats(
     { from: period.from, to: period.to },
@@ -17,7 +17,7 @@ export function MyTopAgentsWidget({ title, period, seeAll }: DashboardWidgetProp
   );
 
   return (
-    <WidgetFrame title={title} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {isLoading ? (
         <WidgetSkeleton />
       ) : error ? (

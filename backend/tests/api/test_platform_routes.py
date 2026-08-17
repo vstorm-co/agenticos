@@ -130,6 +130,7 @@ _SERVICE_DEPS = (
     deps.get_agent_runner_service,
     deps.get_approval_service,
     deps.get_skill_service,
+    deps.get_context_service,
     deps.get_model_profile_service,
     deps.get_sharing_service,
     deps.get_mcp_connection_service,
@@ -264,13 +265,18 @@ CALLS: tuple[Call, ...] = (
         query="?from=2020-01-01T00:00:00&to=2020-01-02T00:00:00",
     ),
     Call("GET", "/skills", Perm.SKILLS_VIEW),
-    Call("GET", "/skills/library", Perm.SKILLS_VIEW),
-    Call("POST", "/skills/library/{key}/install", Perm.SKILLS_EDIT),
     Call(
         "POST",
         "/skills",
         Perm.SKILLS_EDIT,
         body={"name": "refunds", "description": "How refunds work"},
+    ),
+    Call("GET", "/context", Perm.CONTEXT_VIEW),
+    Call(
+        "POST",
+        "/context",
+        Perm.CONTEXT_EDIT,
+        body={"name": "glossary", "description": "What the words mean"},
     ),
     # Which providers exist and what shape of credential each takes is read by
     # the Builder's model picker, so it is gated on seeing agents rather than on
@@ -624,6 +630,9 @@ _PLATFORM_PREFIXES = (
     "/stats",
     "/ratings",
     "/skills",
+    # Context files, shaped exactly like skills: the collection routes gate on
+    # context:view/edit, the per-file routes resolve grants in the service.
+    "/context",
     "/providers",
     "/audit",
     # The organization's MCP servers. `/me/mcp-connections` is a different
@@ -745,6 +754,10 @@ RESOURCE_AWARE_SERVICES = (
     deps.get_agent_embed_service,
     deps.get_agent_runner_service,
     deps.get_skill_service,
+    # A context file is a shared resource shaped like a skill: who may read, edit
+    # or delete one is its grants' answer, resolved inside the service. Every
+    # per-file route (`GET/PATCH/DELETE /context/{id}`) depends on it.
+    deps.get_context_service,
     # A knowledge base is a shared resource like the rest: reads resolve
     # through `readable_kb`, writes through `get_for_write`, both of which end
     # at `resolve_access` for org rows. Every per-KB route depends on it.
@@ -1099,6 +1112,13 @@ class TestStatsScopeIsDecidedInTheService:
             )
         monkeypatch.setattr(
             "app.services.stats.member_repo.count_for_org", AsyncMock(return_value=0)
+        )
+        # The window's cost is runs plus ingestion, so the second ledger is
+        # stubbed alongside the first - otherwise a 500 from an unmocked query
+        # would read as the gate refusing.
+        monkeypatch.setattr(
+            "app.services.stats.ingestion_spend_repo.sum_cost_window",
+            AsyncMock(return_value=Decimal(0)),
         )
         monkeypatch.setattr(
             "app.services.stats.message_rating_repo.get_rating_summary_scoped",

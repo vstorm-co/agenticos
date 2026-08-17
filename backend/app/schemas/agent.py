@@ -2,13 +2,13 @@
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import Field
 
 from app.agents.capabilities import CapabilityToolInfo
-from app.agents.spec import AgentSpec, SpecialistSpec
+from app.agents.spec import AgentSpec, DelegationMode, SpecialistSpec
 from app.core.secret_kinds import SecretRequirement
 from app.schemas.base import BaseSchema
 
@@ -30,6 +30,13 @@ class AgentRead(BaseSchema):
             "Whether GET /agents/{id}/avatar will answer with an image. The storage path "
             "itself is never sent: it is a server-side location, and a client that had it "
             "would be holding a second, unchecked way to name the file."
+        ),
+    )
+    avatar_color: int | None = Field(
+        default=None,
+        description=(
+            "Chosen default-avatar colour, slot 1-10; null is auto (derived from the id). "
+            "Only shown when the agent has no picture. A display choice, not the spec."
         ),
     )
     shared_user_count: int = Field(
@@ -57,6 +64,18 @@ class AgentRead(BaseSchema):
             "listing, same bargain as shared_user_count."
         ),
     )
+    context_window_tokens: int | None = Field(
+        default=None,
+        description=(
+            "How many tokens the model this agent publishes on accepts. What a chat "
+            "draws its context gauge against - the share is resolved where the model is "
+            "known, because the window belongs to the model answering next and that can "
+            "be switched between turns. Read off the profile the frozen spec names, "
+            "falling back to the pricing registry; null when neither can say, and a "
+            "surface then draws no share rather than one against a guess. Filled by the "
+            "listing, same bargain as shared_user_count."
+        ),
+    )
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
@@ -80,6 +99,21 @@ class AgentCreate(BaseSchema):
 
 class AgentDraftUpdate(BaseSchema):
     spec: AgentSpec
+
+
+class AgentAvatarColorRequest(BaseSchema):
+    """The chosen default-avatar colour for an agent, or null to reset to auto.
+
+    A command body, not a partial `*Update`: its one field is always meant, and
+    a null is the reset rather than "unspecified".
+    """
+
+    color: int | None = Field(
+        default=None,
+        ge=1,
+        le=10,
+        description="Default-avatar colour, slot 1-10; null resets to auto.",
+    )
 
 
 class AgentPublish(BaseSchema):
@@ -154,6 +188,84 @@ class AgentVersionDetail(AgentVersionRead):
     """
 
     spec: AgentSpec
+
+
+class DelegationTreeNode(BaseSchema):
+    """One hop of the delegation tree, as the agent map draws it.
+
+    A node is what the walk could honestly say about a pin, and the `status`
+    says how far it got. `ok` resolved: the caller may see the delegate and the
+    pinned version exists, so `children` holds what *it* delegates to - to the
+    depth the policy lets a run actually reach. `restricted` is a delegate the
+    caller may not see: deliberately indistinguishable from one that does not
+    exist, carrying no name and no children, so a parent's map cannot be used to
+    probe the organization's private agents one pin at a time. `unpinned` is a
+    pin whose version is gone - the delegate is named, because the caller can
+    see the row, but there is no frozen spec left to walk. `cycle` is a pin that
+    returns to an agent already on this branch; it is named and never expanded,
+    which is what keeps an already-stored loop from hanging the walk. `archived`
+    is a delegate somebody has since retired: the pin was valid when it was
+    published, the row and the frozen spec are both still there, and every run
+    that reaches this hop is refused - so it is named and not expanded, the same
+    lifecycle check `_resolve_pins` makes at publish and `_resolve_delegate`
+    makes at run time.
+
+    `truncated` marks a delegate that has a roster of its own which no run
+    starting here would ever reach - the depth budget ran out, or its own
+    delegation binding is switched off - so the map can say "more below" without
+    pretending the levels beyond the cap would run.
+    """
+
+    key: str = Field(description="Stable within one response - what the map focuses by.")
+    kind: Literal["delegate", "specialist"]
+    status: Literal["ok", "restricted", "unpinned", "cycle", "archived"]
+    agent_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The delegate's agent row - present on every delegate, including a "
+            "restricted one, because the id already sits in a spec the caller "
+            "may read. A specialist has no row and no id."
+        ),
+    )
+    name: str | None = Field(
+        default=None,
+        description="Absent exactly when the caller may not see the delegate.",
+    )
+    mode: DelegationMode | None = None
+    pinned_version: int | None = Field(
+        default=None,
+        description="The version number the pin froze, when it still exists.",
+    )
+    stale: bool = Field(
+        default=False,
+        description="The delegate has published past the pinned version.",
+    )
+    truncated: bool = Field(
+        default=False,
+        description="Has delegates of its own that a run from this root cannot reach.",
+    )
+    children: list["DelegationTreeNode"] = Field(default_factory=list)
+
+
+class DelegationTree(BaseSchema):
+    """The whole delegation tree under one agent's draft, in one response.
+
+    The map used to walk this a page at a time - one hop per click-through -
+    which is also N+1 requests if a client scripts it. One response, bounded the
+    same way publish's cycle walk is, replaces that (#276).
+
+    The root's own `max_depth` and `max_fanout` are deliberately absent. They
+    are on the draft the caller is editing, so the Builder already has them and
+    already renders them beside the hub; answering with a second copy read out
+    of the *stored* draft is two numbers for one setting, and the one that
+    disagrees is the one nobody is looking at.
+    """
+
+    truncated: bool = Field(
+        default=False,
+        description="The walk stopped at its node bound rather than at the bottom.",
+    )
+    nodes: list[DelegationTreeNode]
 
 
 class AgentVersionList(BaseSchema):
@@ -323,6 +435,15 @@ class AgentRunResult(BaseSchema):
     output: str
     status: str
     cost_usd: Decimal
+    cost_is_partial: bool = Field(
+        default=False,
+        description=(
+            "Whether `cost_usd` is a floor - true when the run reached a model with no "
+            "price entry, whose request the ledger books at zero. The chat draws the "
+            "resumed turn's cost from here, so without it a continuation reports a "
+            "figure that lies where the parked half did not."
+        ),
+    )
     input_tokens: int
     output_tokens: int
     steps: list[RunStep] = Field(

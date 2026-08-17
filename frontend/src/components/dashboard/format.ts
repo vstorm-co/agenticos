@@ -13,6 +13,13 @@ export function formatMs(ms: number | null): string {
   return `${(ms / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })} s`;
 }
 
+/** A fraction in [0, 1] as a locale-formatted whole-number percent. */
+export function formatShare(share: number, locale?: string): string {
+  return new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 0 }).format(
+    share,
+  );
+}
+
 /** Percent change vs a previous value; null when there is nothing to compare. */
 export function deltaPercent(current: number, previous: number): number | null {
   if (previous <= 0) return null;

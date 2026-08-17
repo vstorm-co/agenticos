@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { RunTable } from "./run-table";
+import { useAuthStore } from "@/stores";
 import type { AgentRun } from "@/types/runs";
 
 /**
@@ -32,6 +33,8 @@ function run(overrides: Partial<AgentRun> = {}): AgentRun {
     logfire_trace_id: null,
     error: null,
     down_rated: false,
+    conversation_id: null,
+    provider: null,
     started_at: "2026-08-04T09:00:00Z",
     ended_at: "2026-08-04T09:00:30Z",
     parent_run_id: null,
@@ -77,6 +80,20 @@ describe("a run history row", () => {
     expect(within(row()).getByText("1100")).toBeVisible();
   });
 
+  it("draws the vendor's mark beside the model it ran", () => {
+    // The same presentation the Builder's current-model row uses: the brand
+    // mark keyed on `provider`, never parsed out of the display label.
+    render(<RunTable runs={[run({ provider: "openai" })]} />);
+
+    expect(within(row()).getByText("openai · gpt-5").querySelector("svg")).not.toBeNull();
+  });
+
+  it("draws no vendor mark for a run recorded before the vendor was tracked", () => {
+    render(<RunTable runs={[run({ provider: null })]} />);
+
+    expect(within(row()).getByText("openai · gpt-5").querySelector("svg")).toBeNull();
+  });
+
   it("marks a cost that is only a floor rather than presenting it as the price", () => {
     // A model with no entry in the price table contributed nothing to the total,
     // so the number is a lower bound and a reader deciding on a budget needs to
@@ -115,25 +132,40 @@ describe("a sortable run table", () => {
     expect(screen.queryByRole("button")).toBeNull();
   });
 
-  it("sorts by duration when the Took header is used", async () => {
+  it("sorts by duration when the Took header is used, slowest first", async () => {
     const onSort = vi.fn();
-    // Sorted by start time, so the Took header is the inactive one - it reads
-    // "sort by", where the active Started header reads "sorted descending".
     render(<RunTable runs={[run()]} sort={{ by: "started_at", dir: "desc" }} onSort={onSort} />);
 
-    await userEvent.click(screen.getByRole("button", { name: /sort by/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Took" }));
 
-    expect(onSort).toHaveBeenCalledWith("duration");
+    expect(onSort).toHaveBeenCalledWith({ by: "duration", dir: "desc" });
   });
 
   it("sorts by start time when the Started header is used", async () => {
     const onSort = vi.fn();
     render(<RunTable runs={[run()]} sort={{ by: "duration", dir: "desc" }} onSort={onSort} />);
 
-    // The Started header is the one not currently active, so it reads "sort by".
-    await userEvent.click(screen.getByRole("button", { name: /sort by/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Started" }));
 
-    expect(onSort).toHaveBeenCalledWith("started_at");
+    expect(onSort).toHaveBeenCalledWith({ by: "started_at", dir: "desc" });
+  });
+
+  it("flips the direction when the sorted header is pressed again", async () => {
+    const onSort = vi.fn();
+    render(<RunTable runs={[run()]} sort={{ by: "duration", dir: "desc" }} onSort={onSort} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Took" }));
+
+    expect(onSort).toHaveBeenCalledWith({ by: "duration", dir: "asc" });
+  });
+
+  it("sorts by token weight when the Tokens header is used, heaviest first", async () => {
+    const onSort = vi.fn();
+    render(<RunTable runs={[run()]} sort={{ by: "started_at", dir: "desc" }} onSort={onSort} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Tokens" }));
+
+    expect(onSort).toHaveBeenCalledWith({ by: "tokens", dir: "desc" });
   });
 
   it("marks a run somebody rated down, and says nothing on one nobody did", () => {
@@ -148,5 +180,117 @@ describe("a sortable run table", () => {
     render(<RunTable runs={[run({ down_rated: false })]} />);
 
     expect(within(row()).queryByRole("img", { name: "Rated down" })).toBeNull();
+  });
+});
+
+describe("opening a run from its row", () => {
+  it("hands the clicked run to the caller", async () => {
+    const onOpen = vi.fn();
+    render(<RunTable runs={[run()]} onOpen={onOpen} />);
+
+    await userEvent.click(within(row()).getByText("openai · gpt-5"));
+
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(onOpen.mock.calls[0]?.[0]).toMatchObject({ id: "run-1" });
+  });
+
+  it("does not open the run under the chat link's navigation", async () => {
+    // The chat link leaves the page; a row click firing beneath it would open
+    // the run detail under the navigation.
+    useAuthStore.setState({ user: { id: "user-1" } as never });
+    const onOpen = vi.fn();
+    render(<RunTable runs={[run({ conversation_id: "conv-9" })]} onOpen={onOpen} />);
+
+    await userEvent.click(
+      within(row()).getByRole("link", { name: "Open the chat this run happened in" }),
+    );
+
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+});
+
+describe("when a run started", () => {
+  it("reads relative on the row with the absolute instant on hover", () => {
+    // Recent, so the relative branch renders rather than the past-a-week date
+    // fallback - the test must not age into a different branch.
+    const startedAt = new Date(Date.now() - 2 * 3600 * 1000).toISOString();
+    render(<RunTable runs={[run({ started_at: startedAt })]} />);
+
+    const cell = within(row()).getByText("2h ago");
+    expect(cell).toHaveAttribute(
+      "title",
+      expect.stringContaining(String(new Date().getFullYear())),
+    );
+  });
+});
+
+describe("the chat behind a run", () => {
+  const CHAT_LINK = "Open the chat this run happened in";
+
+  it("links the reader's own run to its conversation", () => {
+    useAuthStore.setState({ user: { id: "user-1" } as never });
+    render(<RunTable runs={[run({ conversation_id: "conv-9" })]} />);
+
+    expect(within(row()).getByRole("link", { name: CHAT_LINK })).toHaveAttribute(
+      "href",
+      "/chat?id=conv-9",
+    );
+  });
+
+  it("offers nothing for a run with no conversation behind it", () => {
+    // An API call has a run and no thread - a link would land on nothing.
+    useAuthStore.setState({ user: { id: "user-1" } as never });
+    render(<RunTable runs={[run({ conversation_id: null })]} />);
+
+    expect(within(row()).queryByRole("link", { name: CHAT_LINK })).toBeNull();
+  });
+
+  it("offers nothing on somebody else's run", () => {
+    // The chat page lists its owner's threads: anybody else's link would land
+    // on an empty sidebar dressed as the conversation.
+    useAuthStore.setState({ user: { id: "user-2" } as never });
+    render(<RunTable runs={[run({ conversation_id: "conv-9" })]} />);
+
+    expect(within(row()).queryByRole("link", { name: CHAT_LINK })).toBeNull();
+  });
+});
+
+describe("who ran it, and which agent", () => {
+  it("names the agent and the person when the lookups are given", () => {
+    render(
+      <RunTable
+        runs={[run()]}
+        agentsById={new Map([["agent-1", { name: "Support agent" }]])}
+        membersById={
+          new Map([["user-1", { user_id: "user-1", email: "kim@acme.test", full_name: "Kim" }]])
+        }
+      />,
+    );
+
+    expect(within(row()).getByText("Support agent")).toBeVisible();
+    expect(within(row()).getByText("Kim")).toBeVisible();
+  });
+
+  it("admits an id the lookups cannot name", () => {
+    // A deleted agent or a member no longer in the organization reads "-",
+    // never a guess.
+    render(
+      <RunTable
+        runs={[run({ agent_id: "agent-gone", user_id: "user-gone" })]}
+        agentsById={new Map()}
+        membersById={new Map()}
+      />,
+    );
+
+    expect(within(row()).getAllByText("-").length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("withholds the Agent column entirely when the names cannot be resolved", () => {
+    // No agents:view means no agent list - a column of dashes would read as
+    // data missing rather than a permission withheld.
+    render(<RunTable runs={[run()]} />);
+
+    expect(screen.queryByText("Support agent")).toBeNull();
+    expect(screen.queryByRole("columnheader", { name: "Agent" })).toBeNull();
   });
 });

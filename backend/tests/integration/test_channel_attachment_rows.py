@@ -145,6 +145,7 @@ class TestAFileThatArrivedWithATurn:
 
         The row is what the file hangs off, so skipping it because there were no
         words would lose the file - which is the original defect with an extra step.
+        The body names what arrived rather than staying blank (#704).
         """
         conversation = await _conversation(db)
         run = await _run(db, conversation)
@@ -156,5 +157,5 @@ class TestAFileThatArrivedWithATurn:
 
         written = await conversation_repo.get_messages_by_conversation(db, conversation.id)
         asked = written[0]
-        assert (asked.role, asked.content) == ("user", "")
+        assert (asked.role, asked.content) == ("user", "Attached image: report.png")
         assert [file.filename for file in asked.files] == ["report.png"]

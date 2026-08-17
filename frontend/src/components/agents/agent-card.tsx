@@ -100,7 +100,13 @@ export function AgentCard({
       />
 
       <div className="pointer-events-none relative flex items-start gap-3">
-        <AgentAvatar agentId={agent.id} name={agent.name} hasAvatar={agent.has_avatar} size="lg" />
+        <AgentAvatar
+          agentId={agent.id}
+          name={agent.name}
+          hasAvatar={agent.has_avatar}
+          colorSlot={agent.avatar_color}
+          size="lg"
+        />
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">

@@ -113,7 +113,9 @@ and a cost.
 
 A run that fails still records what it spent. A run that stops on its budget is
 recorded as `budget_exceeded` rather than `failed`, so an operator filtering for
-problems does not wade through the platform working correctly. A run somebody
+problems does not wade through the platform working correctly. A run a
+[guardrail](reference/capabilities.md#guardrails) blocked is `guardrail_blocked`
+for the same reason - a refusal is the platform working, not a malfunction. A run somebody
 stopped - the composer's stop button, a socket that went away, a delegation
 cancelled from above - is `cancelled` for the same reason, on every surface and
 not only the streaming one. A run that parks on an approval is
@@ -139,9 +141,18 @@ holding `runs:view` reads a run somebody else started, because a run is the
 organization's rather than its starter's. Another tenant's run reads as absent,
 the same 404 an unknown id answers with, and a run that ran with no conversation
 says so with a null `conversation_id` rather than an empty list. It is a route of
-its own and not a filter on the conversation endpoint precisely so that widening
-who reads a run does not widen who reads the private thread it sits in - see
+its own and not a filter on the conversation endpoint, so the conversation
+endpoint itself stays owner-scoped - see
 [Governance](governance.md#what-run-history-shows).
+
+`?scope=conversation` widens the same read to the whole thread the run sits in,
+for a detail view that shows the run in context and scrolls to it. That is a
+convenience rather than a reach: every turn a run writes carries its `run_id` -
+the user's question included - so a holder of `runs:view` could already assemble
+the thread by iterating its runs' transcripts, and the scope answers the same
+rows in one read, each turn still naming its run. The detail read also carries
+`prev_run_id`/`next_run_id` - the runs either side *in the same conversation* -
+so stepping through a thread is two arrows rather than trips back to the list.
 
 The link is a column rather than a time window on purpose. Two runs started in
 one conversation interleave, so windowing messages between `started_at` and

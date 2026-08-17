@@ -86,6 +86,7 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
         capabilities: [],
         collection_ids: [],
         skill_ids: [],
+        context_ids: [],
         mcp_server_ids: [],
         budget: null,
       });

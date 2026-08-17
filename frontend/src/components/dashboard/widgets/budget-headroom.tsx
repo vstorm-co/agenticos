@@ -2,9 +2,12 @@
 
 import { useTranslations } from "next-intl";
 
+import { Figure } from "@/components/ui";
+
 import { useAgents, useOrganizationList, useSpend } from "@/hooks";
 import { useOrgStore } from "@/stores";
 import { ROUTES } from "@/lib/constants";
+import { MARK_CLASS, QUIET_SURFACE } from "@/lib/dashboard/system";
 import { cn } from "@/lib/utils";
 import { formatUsd } from "../format";
 import { WidgetFrame } from "../widget-frame";
@@ -22,7 +25,7 @@ import type { DashboardWidgetProps } from "./types";
  * carries the organization's id. Raising the cap is still somewhere else -
  * this is navigation, not a budget-request flow.
  */
-export function BudgetHeadroomWidget({ title }: DashboardWidgetProps) {
+export function BudgetHeadroomWidget({ title, hint, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.budget-headroom");
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const organizations = useOrganizationList();
@@ -47,7 +50,9 @@ export function BudgetHeadroomWidget({ title }: DashboardWidgetProps) {
   return (
     <WidgetFrame
       title={title}
+      hint={hint}
       seeAll={organization ? ROUTES.ORG_SETTINGS(organization.id) : undefined}
+      options={options}
     >
       {isLoading || organizations.isLoading ? (
         <WidgetSkeleton />
@@ -58,13 +63,14 @@ export function BudgetHeadroomWidget({ title }: DashboardWidgetProps) {
       ) : (
         <div className="flex h-full flex-col justify-between gap-3">
           <div>
-            <p className="text-foreground text-2xl font-semibold tabular-nums">
-              {Math.round((used / cap) * 100)}%
-            </p>
-            <p className="text-muted-foreground text-xs">
-              {t("headline", { cap: formatUsd(cap), left: formatUsd(Math.max(cap - used, 0)) })}
-            </p>
-            <HeadroomBar used={used} cap={cap} className="mt-2" />
+            <Figure
+              value={`${Math.round((used / cap) * 100)}%`}
+              caption={t("headline", {
+                cap: formatUsd(cap),
+                left: formatUsd(Math.max(cap - used, 0)),
+              })}
+            />
+            <HeadroomBar used={used} cap={cap} className="mt-3" />
           </div>
           {capped.length > 0 ? (
             <div className="space-y-2">
@@ -83,7 +89,6 @@ export function BudgetHeadroomWidget({ title }: DashboardWidgetProps) {
                   </div>
                 );
               })}
-              <p className="text-muted-foreground text-xs">{t("cause")}</p>
             </div>
           ) : null}
         </div>
@@ -92,14 +97,19 @@ export function BudgetHeadroomWidget({ title }: DashboardWidgetProps) {
   );
 }
 
+/**
+ * A meter, not a bar in a list: its fill changes hue as the month fills up, so
+ * the track stays the neutral quiet surface. A track in the fill's own hue is
+ * the rule where the fill has one hue - it would fight a red fill here.
+ */
 function HeadroomBar({ used, cap, className }: { used: number; cap: number; className?: string }) {
   const share = cap > 0 ? Math.min(used / cap, 1) : 0;
   return (
-    <div className={cn("bg-foreground/5 h-2 overflow-hidden rounded-full", className)}>
+    <div className={cn("h-2 overflow-hidden rounded-r-sm", QUIET_SURFACE, className)}>
       <div
         className={cn(
-          "h-full rounded-full",
-          share >= 0.9 ? "bg-destructive" : share >= 0.7 ? "bg-warning" : "bg-chart",
+          "h-full rounded-r-sm",
+          share >= 0.9 ? "bg-destructive" : share >= 0.7 ? "bg-warning" : MARK_CLASS,
         )}
         style={{ width: `${share * 100}%` }}
       />

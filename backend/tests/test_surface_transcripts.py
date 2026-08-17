@@ -47,6 +47,8 @@ from pydantic_ai.messages import ModelRequest, ModelResponse, ToolCallPart, Tool
 from pydantic_ai.usage import RequestUsage
 
 from app.agents.capabilities.budget import SpendLedger, record_ambient_usage
+from app.agents.capabilities.compaction import ContextGauge
+from app.agents.capabilities.system_reminders import ReminderState
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.services.agent_runner import AgentRunnerService, PreparedRun
@@ -148,6 +150,8 @@ def _run_yielding(agent_run: AsyncMock) -> Iterator[tuple[dict[str, PreparedRun]
         built = MagicMock()
         built.ledger = SpendLedger()
         built.model_label = "gpt-4.1"
+        built.context = ContextGauge()
+        built.reminder_state = ReminderState()
         built.agent.run = agent_run
         # The streaming half, for a surface that shows an answer arriving. The
         # widget is one since #634, so its turns reach `iterate` rather than `run`.
@@ -173,6 +177,9 @@ def _run_yielding(agent_run: AsyncMock) -> Iterator[tuple[dict[str, PreparedRun]
         patch("app.services.transcript.conversation_repo") as conversations,
     ):
         conversations.create_message = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
+        # What this run's earlier turns already claim of its cost, subtracted so a
+        # resumed run does not count its parked half twice.
+        conversations.attributed_to_run = AsyncMock(return_value=(0, 0, Decimal(0)))
         conversations.create_tool_call = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
         conversations.complete_tool_call = AsyncMock()
         conversations.get_open_tool_call_in_run = AsyncMock(return_value=None)
@@ -238,11 +245,15 @@ def _the_widgets_rows() -> Iterator[None]:
             "app.services.embed_session.conversation_repo.get_messages_by_conversation",
             new=AsyncMock(return_value=[]),
         ),
+        # The thread the model is told. Read through the service since #49,
+        # because where a summary has run that is where the history starts.
+        patch("app.services.embed_session.ConversationService") as reader,
         patch(
             "app.services.access.member_repo.get_active",
             new=AsyncMock(return_value=MagicMock(role="builder")),
         ),
     ):
+        reader.return_value.model_history = AsyncMock(return_value=[])
         yield
 
 
@@ -517,6 +528,7 @@ class TestTheDefaultAgentRecordsItsTranscript:
             ),
         ):
             conversations.create_message = AsyncMock(side_effect=[user_message, assistant_message])
+            conversations.attributed_to_run = AsyncMock(return_value=(0, 0, Decimal(0)))
             chat_files.link_to_message = AsyncMock()
             await ChannelAgentRouter(_db()).answer_default(
                 "which row is the outlier",
@@ -532,3 +544,169 @@ class TestTheDefaultAgentRecordsItsTranscript:
         linked = chat_files.link_to_message.await_args.kwargs
         assert linked["file_ids"] == [attachment.id]
         assert linked["message_id"] == user_message.id
+
+    async def test_a_captionless_image_on_a_workspaceless_agent_leaves_a_named_user_turn(
+        self,
+    ) -> None:
+        """A photo with no words under it, on an agent with no workspace, yields
+        no prompt text at all: the image reaches the model as bytes beside an
+        empty string. The turn still happened and was billed, so the transcript
+        holds a user message naming what arrived - not a blank one - and the
+        file hangs off it (#704).
+        """
+        exposure, agent = MagicMock(is_active=True), MagicMock(id=uuid.uuid4(), slug="support")
+        run = AsyncMock(return_value=_searched_then_answered("A dashboard."))
+        attachment = MagicMock(
+            id=uuid.uuid4(),
+            filename="photo.jpg",
+            file_type="image",
+            size=1024,
+            mime_type="image/jpeg",
+            storage_path=f"uploads/{uuid.uuid4().hex}.jpg",
+        )
+        user_message, assistant_message = MagicMock(id=uuid.uuid4()), MagicMock(id=uuid.uuid4())
+
+        with (
+            _run_yielding(run) as (_captured, conversations),
+            patch("app.services.transcript.chat_file_repo") as chat_files,
+            patch("app.services.attachments.get_file_storage") as storage,
+            patch(
+                "app.services.channels.mentions.agent_exposure_repo.list_active_for_bot",
+                new=AsyncMock(return_value=[(exposure, agent)]),
+            ),
+            patch(
+                "app.services.channels.mentions.member_repo.get",
+                new=AsyncMock(return_value=MagicMock(role="builder")),
+            ),
+            patch.object(
+                ChannelAgentRouter,
+                "_with_usage",
+                new=AsyncMock(side_effect=lambda _ctx, answer, _run, **_kw: answer),
+            ),
+        ):
+            storage.return_value.load = AsyncMock(return_value=b"\x89PNG")
+            conversations.create_message = AsyncMock(side_effect=[user_message, assistant_message])
+            conversations.attributed_to_run = AsyncMock(return_value=(0, 0, Decimal(0)))
+            chat_files.link_to_message = AsyncMock()
+            await ChannelAgentRouter(_db()).answer_default(
+                "",
+                platform="telegram",
+                organization_id=uuid.uuid4(),
+                bot_id=uuid.uuid4(),
+                user_id=uuid.uuid4(),
+                conversation_id=uuid.uuid4(),
+                platform_chat_id="123",
+                attachments=[attachment],
+            )
+
+        asked = conversations.create_message.await_args_list[0].kwargs
+        assert (asked["role"], asked["content"]) == ("user", "Attached image: photo.jpg")
+        assert chat_files.link_to_message.await_args.kwargs["message_id"] == user_message.id
+
+
+class TestKeepingASummaryOnASurfaceThatIsNotTheChat:
+    """A channel thread is long-lived and never rolls over, so it is the surface
+    a per-turn summary costs the most on: every message past the window bought
+    one, over a history one turn longer each time (#49)."""
+
+    async def test_a_summary_is_written_to_the_conversation_it_summarised(self) -> None:
+        session = _widget_session(_db())
+        run = AsyncMock(return_value=_searched_then_answered("The refund window is 30 days."))
+
+        with (
+            _run_yielding(run) as (captured, _conversations),
+            _the_widgets_rows(),
+            patch("app.services.agent_runner.ConversationService") as service,
+        ):
+            service.return_value.keep_summary = AsyncMock()
+            service.return_value.keep_overhead = AsyncMock()
+
+            def summarise(*_args: Any, **_kwargs: Any) -> Any:
+                captured["prepared"].built.context.summarized = True
+                return _searched_then_answered("The refund window is 30 days.")
+
+            run.side_effect = summarise
+            await session._answer("What's your refund window?")
+
+        kept = service.return_value.keep_summary
+        assert kept.await_args.args[0] == captured["prepared"].run.conversation_id
+
+    async def test_a_turn_that_summarised_nothing_writes_nothing(self) -> None:
+        session = _widget_session(_db())
+        run = AsyncMock(return_value=_searched_then_answered("The refund window is 30 days."))
+
+        with (
+            _run_yielding(run) as (_captured, _conversations),
+            _the_widgets_rows(),
+            patch("app.services.agent_runner.ConversationService") as service,
+        ):
+            service.return_value.keep_summary = AsyncMock()
+            service.return_value.keep_overhead = AsyncMock()
+            await session._answer("What's your refund window?")
+
+        service.return_value.keep_summary.assert_not_awaited()
+
+    async def test_what_a_request_carries_is_recorded_on_every_turn(self) -> None:
+        """Not only a summarising one: it is what the next turn needs before it
+        has a response of its own to measure (#49)."""
+        session = _widget_session(_db())
+        run = AsyncMock(return_value=_searched_then_answered("The refund window is 30 days."))
+
+        with (
+            _run_yielding(run) as (captured, _conversations),
+            _the_widgets_rows(),
+            patch("app.services.agent_runner.ConversationService") as service,
+        ):
+            service.return_value.keep_summary = AsyncMock()
+            service.return_value.keep_overhead = AsyncMock()
+
+            def measure(*_args: Any, **_kwargs: Any) -> Any:
+                captured["prepared"].built.context.overhead = 3_865
+                return _searched_then_answered("The refund window is 30 days.")
+
+            run.side_effect = measure
+            await session._answer("What's your refund window?")
+
+        assert service.return_value.keep_overhead.await_args.args[1] == 3_865
+
+    async def test_the_reminder_cadence_is_written_back_when_it_advanced(self) -> None:
+        """So a reminder set to fire every N requests resumes next turn (#787)."""
+        session = _widget_session(_db())
+        run = AsyncMock(return_value=_searched_then_answered("The refund window is 30 days."))
+
+        with (
+            _run_yielding(run) as (captured, _conversations),
+            _the_widgets_rows(),
+            patch("app.services.agent_runner.ConversationService") as service,
+        ):
+            service.return_value.keep_summary = AsyncMock()
+            service.return_value.keep_overhead = AsyncMock()
+            service.return_value.keep_reminder_state = AsyncMock()
+
+            def advance(*_args: Any, **_kwargs: Any) -> Any:
+                captured["prepared"].built.reminder_state.request_count = 2
+                captured["prepared"].built.reminder_state.fire_counts["0"] = 1
+                return _searched_then_answered("The refund window is 30 days.")
+
+            run.side_effect = advance
+            await session._answer("What's your refund window?")
+
+        kept = service.return_value.keep_reminder_state
+        assert kept.await_args.args[1] == {"request_count": 2, "fire_counts": {"0": 1}}
+
+    async def test_a_turn_whose_cadence_did_not_advance_writes_nothing(self) -> None:
+        """An agent with no reminders never writes an empty cadence blob."""
+        session = _widget_session(_db())
+        run = AsyncMock(return_value=_searched_then_answered("The refund window is 30 days."))
+
+        with (
+            _run_yielding(run) as (_captured, _conversations),
+            _the_widgets_rows(),
+            patch("app.services.agent_runner.ConversationService") as service,
+        ):
+            service.return_value.keep_summary = AsyncMock()
+            service.return_value.keep_overhead = AsyncMock()
+            service.return_value.keep_reminder_state = AsyncMock()
+            await session._answer("What's your refund window?")
+
+        service.return_value.keep_reminder_state.assert_not_awaited()

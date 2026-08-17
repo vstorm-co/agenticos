@@ -8,6 +8,8 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from pydantic_ai.messages import ModelMessage
+
 from app.core.config import settings
 from app.core.exceptions import AppException, AuthorizationError, BadRequestError
 from app.db.models.agent_run import RunStatus
@@ -17,21 +19,25 @@ from app.repositories import (
     channel_session_repo,
     conversation_repo,
 )
-from app.services.agent import build_message_history
 from app.services.channel_bot import unseal_bot_token
 from app.services.channel_link import ChannelLinkService
 from app.services.channels import get_adapter
 from app.services.channels.attachments import ChannelAttachmentService
-from app.services.channels.base import IncomingMessage, OutgoingAttachment, OutgoingMessage
+from app.services.channels.base import (
+    IncomingMessage,
+    OutgoingAttachment,
+    OutgoingMessage,
+    channel_key,
+)
 from app.services.channels.dedupe import claim_delivery, release_delivery
 from app.services.channels.directory import BoundChannelDirectory
 from app.services.channels.live_reply import WORKING, LiveReply, channel_stream
 from app.services.channels.mentions import (
     ChannelAgentRouter,
     UnaddressedMessage,
-    channel_key,
     parse_mention,
 )
+from app.services.conversation import ConversationService
 
 logger = logging.getLogger(__name__)
 
@@ -291,7 +297,7 @@ class ChannelMessageRouter:
                 # binding's, and the binding is resolved a layer down.
                 turn=session.turn_count,
                 attachments=files,
-                message_history=build_message_history(history),
+                message_history=history,
                 stream=None if live is None else channel_stream(live),
             )
         except AppException as exc:
@@ -958,27 +964,17 @@ class ChannelMessageRouter:
             )
 
     @staticmethod
-    async def _load_history(db: Any, conversation_id: Any) -> list[dict[str, str]]:
+    async def _load_history(db: Any, conversation_id: Any) -> list[ModelMessage]:
         """The most recent turns of the channel thread, oldest first.
 
-        **The most recent, which took a `count` to get right.** The repository orders
-        oldest-first, so `limit` with no offset is the *first* `HISTORY_MESSAGES`
-        turns - and a support channel passes that in days, because
+        **The most recent, which took a `count` to get right** - and the count
+        lives in `ConversationService.model_history` now, with the two bugs that
+        paid for it. A support channel passes 200 turns in days, because
         `channel_sessions` keys the conversation to the chat and the thread never
-        rolls over. Past it the model was reminded of how the conversation opened
-        and told nothing said since, including the question before the one it was
-        answering. Nothing errored: the bot answered plausibly, from a version of
-        the conversation that had stopped hundreds of turns ago (#638).
+        rolls over; past that the bot answered plausibly from a version of the
+        conversation that had stopped hundreds of turns ago (#638).
 
-        One `COUNT(*)` per turn on an indexed column is the price, and it is the
-        price the widget has paid since #39 fixed the same window from the other
-        direction - see `embed_session.HISTORY_MESSAGES`.
+        Where a summary has run it starts from that instead, which is what stops
+        a long-lived channel thread buying one on every message (#49).
         """
-        total = await conversation_repo.count_messages(db, conversation_id)
-        messages = await conversation_repo.get_messages_by_conversation(
-            db,
-            conversation_id=conversation_id,
-            skip=max(0, total - HISTORY_MESSAGES),
-            limit=HISTORY_MESSAGES,
-        )
-        return [{"role": m.role, "content": m.content} for m in messages]
+        return await ConversationService(db).model_history(conversation_id, limit=HISTORY_MESSAGES)

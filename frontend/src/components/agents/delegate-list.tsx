@@ -140,7 +140,7 @@ function AddDelegate({
           {t("addDelegate")}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="max-h-72 overflow-y-auto">
+      <DropdownMenuContent align="end" className="max-h-72 scrollbar-thin overflow-y-auto">
         {eligible.map((agent) => (
           <DropdownMenuItem key={agent.id} onSelect={() => onAdd(agent)}>
             <span className="truncate">{agent.name}</span>

@@ -471,6 +471,16 @@ def get_skill_service(db: DBSession) -> SkillService:
 
 SkillSvc = Annotated[SkillService, Depends(get_skill_service)]
 
+from app.services.context import ContextService
+
+
+def get_context_service(db: DBSession) -> ContextService:
+    """Create ContextService instance with database session."""
+    return ContextService(db)
+
+
+ContextSvc = Annotated[ContextService, Depends(get_context_service)]
+
 
 def get_skill_proposal_service(db: DBSession) -> SkillProposalService:
     return SkillProposalService(db)
@@ -918,6 +928,22 @@ def get_user_slash_command_service(db: DBSession) -> UserSlashCommandService:
 
 
 UserSlashCommandSvc = Annotated[UserSlashCommandService, Depends(get_user_slash_command_service)]
+from app.services.dashboard_layout import DashboardLayoutService
+
+
+def get_dashboard_layout_service(db: DBSession) -> DashboardLayoutService:
+    return DashboardLayoutService(db)
+
+
+DashboardLayoutSvc = Annotated[DashboardLayoutService, Depends(get_dashboard_layout_service)]
+from app.services.dashboard_preset import DashboardPresetService
+
+
+def get_dashboard_preset_service(db: DBSession) -> DashboardPresetService:
+    return DashboardPresetService(db)
+
+
+DashboardPresetSvc = Annotated[DashboardPresetService, Depends(get_dashboard_preset_service)]
 from app.services.admin import AdminService
 
 

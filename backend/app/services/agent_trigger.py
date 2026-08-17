@@ -42,6 +42,7 @@ from app.core.permissions import AuthContext, Perm
 from app.core.vault import VaultScope, seal, unseal
 from app.db.models.agent_run import RunSurface
 from app.db.models.agent_trigger import AgentTrigger, ScheduleKind, TriggerType
+from app.db.updates import writable
 from app.repositories import (
     agent_environment_repo,
     agent_trigger_repo,
@@ -350,7 +351,7 @@ class AgentTriggerService:
         cannot silently move it back to the default environment.
         """
         trigger = await self._owned(ctx, agent_id, trigger_id)
-        changes = data.model_dump(exclude_unset=True)
+        changes = writable(data, over=AgentTrigger)
 
         # Cadence edits: a schedule may be retimed in place - a new interval, a new
         # cron, or a switch between the two - rather than deleted and recreated. An

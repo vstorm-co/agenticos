@@ -3,6 +3,7 @@
 import { Bot } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui";
+import { avatarPalette } from "@/lib/avatar-color";
 import { cn } from "@/lib/utils";
 
 const SIZES = {
@@ -24,6 +25,8 @@ export interface AgentAvatarProps {
   name: string;
   /** False skips the request entirely and renders the fallback. */
   hasAvatar?: boolean;
+  /** The chosen colour slot (1..10); null or absent derives it from the id. */
+  colorSlot?: number | null;
   size?: keyof typeof SIZES;
   /**
    * Bumped to defeat the browser cache after an upload. Without it a replaced
@@ -49,11 +52,13 @@ export function AgentAvatar({
   agentId,
   name,
   hasAvatar = false,
+  colorSlot,
   size = "md",
   version,
   className,
 }: AgentAvatarProps) {
   const initials = agentInitials(name);
+  const { bg, fg } = avatarPalette(agentId, colorSlot);
   return (
     <Avatar className={cn(SIZES[size], "border-border shrink-0 border", className)}>
       {hasAvatar && (
@@ -62,7 +67,7 @@ export function AgentAvatar({
           alt=""
         />
       )}
-      <AvatarFallback className="font-semibold">
+      <AvatarFallback className={cn(bg, fg, "font-semibold")}>
         {initials || <Bot className={ICON_SIZES[size]} aria-hidden />}
       </AvatarFallback>
     </Avatar>

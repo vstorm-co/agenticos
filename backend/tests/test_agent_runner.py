@@ -20,10 +20,13 @@ from pydantic_ai.exceptions import ModelHTTPError
 from pydantic_ai.messages import ModelRequest, ModelResponse, ToolCallPart, ToolReturnPart
 from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.usage import RequestUsage
+from pydantic_ai_harness.planning import PlanItem
 
 from app.agents.capabilities.approval import ApprovalGranted, ApprovalRejected
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, SpendLedger
 from app.agents.capabilities.channel_tools import CHANNEL_DIRECTORY_RESOURCE
+from app.agents.capabilities.compaction import ContextGauge
+from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.spec import AgentSpec, CapabilityBindingSpec, ObservabilitySpec
 from app.agents.subagent_runtime import DelegationSpend, DelegationStash, ParkedDelegation
 from app.core.exceptions import BadRequestError, NotFoundError, RunExecutionError
@@ -80,6 +83,9 @@ def _prepared(
     built = MagicMock()
     built.ledger = ledger or SpendLedger()
     built.model_label = "gpt-4.1"
+    # A real gauge: what a turn records against its conversation is read off
+    # this, and a `MagicMock` answers "yes, summarised" to every turn.
+    built.context = ContextGauge()
     return PreparedRun(
         run=MagicMock(
             id=uuid.uuid4(),
@@ -559,6 +565,50 @@ class TestSpendReporting:
         ingested.assert_not_called()
 
 
+class TestRecordedConversationState:
+    """The overhead and the reminder cadence a build seeds from - both off one
+    read of the conversation, so a thread with neither still costs one SELECT."""
+
+    @pytest.mark.anyio
+    async def test_no_conversation_id_reads_nothing(self):
+        """A run with no thread has nothing to seed and does not touch the row."""
+        with patch(
+            "app.services.agent_runner.conversation_repo.get_conversation_by_id",
+            new=AsyncMock(),
+        ) as fetch:
+            result = await AgentRunnerService(_db())._recorded_conversation_state(None)
+
+        assert result == (None, None)
+        fetch.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_a_missing_conversation_seeds_nothing(self):
+        """A conversation_id that resolves to no row seeds a fresh build."""
+        with patch(
+            "app.services.agent_runner.conversation_repo.get_conversation_by_id",
+            new=AsyncMock(return_value=None),
+        ):
+            result = await AgentRunnerService(_db())._recorded_conversation_state(uuid.uuid4())
+
+        assert result == (None, None)
+
+    @pytest.mark.anyio
+    async def test_both_recorded_values_come_from_one_read(self):
+        """Overhead and cadence are returned together from a single fetch."""
+        conversation = MagicMock(overhead_tokens=3_865, reminder_state={"request_count": 4})
+        with patch(
+            "app.services.agent_runner.conversation_repo.get_conversation_by_id",
+            new=AsyncMock(return_value=conversation),
+        ) as fetch:
+            overhead, reminder_state = await AgentRunnerService(_db())._recorded_conversation_state(
+                uuid.uuid4()
+            )
+
+        assert overhead == 3_865
+        assert reminder_state == {"request_count": 4}
+        assert fetch.await_count == 1
+
+
 class TestReadingRunHistory:
     """The two reads behind the run-history surface, scoped in the service so
     the route never touches the repository - and so the tenant boundary has one
@@ -941,6 +991,33 @@ class TestRunAccounting:
         # ends silently otherwise, and the first anybody hears of the limit is
         # somebody asking why the agent went quiet.
         assert notify.call_args.kwargs["status"] is RunStatus.BUDGET_EXCEEDED
+
+    @pytest.mark.anyio
+    async def test_a_guardrail_block_is_its_own_outcome_not_a_failure(self):
+        """A refusal, recorded like `BUDGET_EXCEEDED` rather than `FAILED`.
+
+        The clause does not re-raise, so `execute` returns the empty answer, and
+        the stored `error` is the guardrail's safe message - the edge and the
+        refusal, never the content that tripped it.
+        """
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.built.agent.run = AsyncMock(
+            side_effect=GuardrailBlocked(
+                edge="input", message="This request was blocked by an input guardrail."
+            )
+        )
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()) as finish,
+            patch.object(service, "_notify", new=AsyncMock()),
+        ):
+            output, _ = await service.execute(_ctx(), uuid.uuid4(), "hello")
+
+        assert output == ""
+        assert finish.call_args.kwargs["status"] == RunStatus.GUARDRAIL_BLOCKED.value
+        assert finish.call_args.kwargs["error"] == "This request was blocked by an input guardrail."
 
     @pytest.mark.anyio
     async def test_a_successful_run_returns_its_answer(self):
@@ -1388,7 +1465,32 @@ class TestParking:
             # And no kept specialists, which is a run that invented none - or, as
             # here, one whose agent binds no delegation at all (agenticos#175).
             "dynamic_specialists": [],
+            # And an empty checklist, which is a run that bound no planning
+            # capability: the store the runner always opens held nothing to snapshot.
+            "plan": [],
         }
+
+    @pytest.mark.anyio
+    async def test_a_parked_run_snapshots_its_plan(self):
+        """A run that parks mid-plan resumes with the checklist it had, not an empty
+        one: `finish` reads the run's store and folds it into the parked state, which
+        `resume` re-seeds. Without this the plan is lost the moment an approval lands."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        await prepared.plan_store.set_items([PlanItem(content="Write the fix")])
+        prepared.approvals.parked = {"approval-1": "call-1"}
+        result = MagicMock(output=DeferredToolRequests())
+        result.all_messages = MagicMock(return_value=[])
+        prepared.built.agent.run = AsyncMock(return_value=result)
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()) as finish,
+        ):
+            await service.execute(_ctx(), uuid.uuid4(), "email the customer")
+
+        stored = finish.call_args.kwargs["paused_state"]["plan"]
+        assert [item["content"] for item in stored] == ["Write the fix"]
 
     @pytest.mark.anyio
     async def test_a_parked_runs_transcript_marks_the_call_that_is_waiting(self):
@@ -1504,6 +1606,9 @@ class TestResume:
     def _built(self, output: str = "sent"):
         built = MagicMock()
         built.ledger = SpendLedger()
+        # A real gauge: what a turn records against its conversation is read off
+        # this, and a `MagicMock` answers "yes, summarised" to every turn.
+        built.context = ContextGauge()
         built.agent.run = AsyncMock(return_value=MagicMock(output=output))
         return built
 

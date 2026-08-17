@@ -180,6 +180,33 @@ small — the five or six somebody would actually pick, not a mirror of a catalo
 
 Neither source is authoritative, which is why the field stays free text.
 
+### The window a model accepts is read once and kept
+
+A listing usually carries how many tokens the model accepts, and the profile
+records it as `context_length` when it is created. That number is what
+[context management](reference/capabilities.md#context-management) triggers on:
+compacting at a fraction of the window is the only setting that stays right when
+an agent moves to another model.
+
+It is stored rather than resolved per run, because the request path must not call
+a provider and the only thing it could otherwise consult is the bundled price
+snapshot — which is wrong here in the direction that breaks a run. That snapshot
+records 1,000,000 for `anthropic:claude-sonnet-4-5` against a real 200,000, so a
+trigger at 90% lands above the real ceiling and compaction never fires before the
+provider refuses the request. A profile with fallbacks is worse: it builds a
+`FallbackModel` whose composite id resolves to nothing at all.
+
+Null means **not recorded**, not zero: a profile older than the column, a provider
+that publishes no length, a curated list, or a listing that could not be reached.
+The capability then resolves the window itself, exactly as it did before. An
+author who knows better than both sets `context_window` on the binding — a
+provider publishes the maximum a model *can* be made to accept, and a beta- or
+tier-gated deployment gets less.
+
+A chain of fallbacks carries the **primary's** number. A `FallbackModel` has no
+window of its own, and which model a run reaches is not known until one has
+refused.
+
 ## What a run costs
 
 Prices come from a bundled [`genai-prices`](https://github.com/pydantic/genai-prices)

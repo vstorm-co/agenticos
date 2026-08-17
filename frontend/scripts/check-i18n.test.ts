@@ -496,6 +496,34 @@ describe("a .ts file", () => {
     expect(saidTs(source)).toEqual(["string 'Your profile'"]);
   });
 
+  it("refuses prose that opens with an acronym (#678)", () => {
+    expect(saidTs('const copy = "API keys are stored in the vault";\n')).toEqual([
+      "string 'API keys are stored in the vault'",
+    ]);
+    expect(saidTs('const copy = "MCP servers appear here once connected";\n')).toEqual([
+      "string 'MCP servers appear here once connected'",
+    ]);
+  });
+
+  it("keeps a short acronym label out of the report (#678)", () => {
+    expect(saidTs('const labels = ["API", "MCP server", "AI agents"];\n')).toEqual([]);
+    // One lower-case word, not a phrase: the `$` is the whole of the narrowing.
+    expect(saidTs('const label = "MCP server URL";\n')).toEqual(["string 'MCP server URL'"]);
+  });
+
+  it("keeps a separator label whose first token is an acronym (#678)", () => {
+    expect(
+      saidTs('const labels = ["Model / Provider", "URL / Endpoint", "API - Settings"];\n'),
+    ).toEqual([]);
+  });
+
+  it("still reports prose the two anchors were added for (#656, #678)", () => {
+    expect(saidTs('const copy = "Sign-in failed";\n')).toEqual(["string 'Sign-in failed'"]);
+    expect(saidTs('const copy = "API-key rotation failed";\n')).toEqual([
+      "string 'API-key rotation failed'",
+    ]);
+  });
+
   it("refuses a label on an export const, which the keyword skip used to hide", () => {
     expect(saidTs('export const LABEL = "Provider default";\n')).toEqual([
       "string 'Provider default'",

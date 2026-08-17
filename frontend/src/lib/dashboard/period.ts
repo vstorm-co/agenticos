@@ -90,3 +90,18 @@ export function formatPeriodParam(period: Period): string {
     ? `${period.from}${RANGE_SEPARATOR}${period.to}`
     : period.preset;
 }
+
+/**
+ * The window as instants, for endpoints that take datetimes rather than dates.
+ *
+ * A period is inclusive whole days, so the start is the first day's midnight
+ * and the end is the last instant of the last day - cutting the end at its
+ * midnight would silently drop the day the reader just picked.
+ */
+export function periodStart(period: Period): string {
+  return `${period.from}T00:00:00.000Z`;
+}
+
+export function periodEnd(period: Period): string {
+  return `${period.to}T23:59:59.999Z`;
+}

@@ -107,3 +107,31 @@ class TestSumming:
         )
 
         assert total == Decimal(0)
+
+    async def test_a_closed_window_carries_both_of_its_edges(self):
+        # The dashboard asks about a range, not about everything since a date:
+        # a `sum_cost_since` here would bill July's card for August as well.
+        organization_id = uuid.uuid4()
+        start = datetime(2026, 7, 1, tzinfo=UTC)
+        end = datetime(2026, 8, 1, tzinfo=UTC)
+        session = _RecordingSession(scalar_result=Decimal("0.42"))
+
+        total = await ingestion_spend_repo.sum_cost_window(
+            session, organization_id=organization_id, start=start, end=end
+        )
+
+        assert total == Decimal("0.42")
+        params = session.statements[-1].compile(dialect=postgresql.dialect()).params
+        assert set(params.values()) >= {organization_id, start, end}
+
+    async def test_a_window_with_no_ingestion_sums_to_zero_not_none(self):
+        session = _RecordingSession(scalar_result=None)
+
+        total = await ingestion_spend_repo.sum_cost_window(
+            session,
+            organization_id=uuid.uuid4(),
+            start=datetime(2026, 7, 1, tzinfo=UTC),
+            end=datetime(2026, 8, 1, tzinfo=UTC),
+        )
+
+        assert total == Decimal(0)

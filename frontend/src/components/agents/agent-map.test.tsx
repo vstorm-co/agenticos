@@ -11,7 +11,7 @@ function node(overrides: Partial<MapNode> = {}): MapNode {
     icon: MAP_ICONS.skills,
     items: ["refund-policy"],
     empty: "No skills attached",
-    side: "out",
+    side: "right",
     ...overrides,
   };
 }
@@ -52,24 +52,28 @@ describe("AgentMap", () => {
     expect(screen.getByText("No instructions written")).toBeInTheDocument();
   });
 
-  it("draws an edge for each attached box, on the side it was given", () => {
-    // Inputs feed the agent from the left and outputs hang off the right; the
-    // edges are measured, so a box that renders with no path means the map
-    // silently lost its anchor.
+  it("draws an edge for each attached box, on any of the four sides", () => {
+    // Surfaces reach in from the left, the model sits on top, tools hang off
+    // the right and delegation grows downward; the edges are measured, so a
+    // box that renders with no path means the map silently lost its anchor.
     const { container } = render(
       <AgentMap
         agentName="Support"
         instructions="Be brief."
         nodes={[
-          node({ key: "channels", title: "Channels", side: "in", items: ["slack"] }),
-          node({ key: "skills", title: "Skills", side: "out" }),
+          node({ key: "surfaces", title: "Surfaces", side: "left", items: ["chat"] }),
+          node({ key: "skills", title: "Skills", side: "right" }),
+          node({ key: "model", title: "Model", side: "top", items: ["gpt-5"] }),
+          node({ key: "delegation", title: "Delegation", side: "bottom", items: ["Sync"] }),
         ]}
       />,
     );
 
-    expect(screen.getByRole("button", { name: "Channels" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Surfaces" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Skills" })).toBeInTheDocument();
-    expect(container.querySelectorAll("path.map-flow")).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Model" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delegation" })).toBeInTheDocument();
+    expect(container.querySelectorAll("path.map-flow")).toHaveLength(4);
   });
 
   it("counts the items in a box that has any", () => {
@@ -173,20 +177,39 @@ describe("AgentMap focus", () => {
     expect(screen.getByRole("region", { name: "Details for Skills" })).toBeInTheDocument();
   });
 
-  it("focuses an input-side node as readily as an output one", async () => {
-    // Both columns are focusable; an input node is wired through the same path
-    // as an output, and only clicking one proves the left column is not inert.
+  it("focuses a left-side node as readily as a right one", async () => {
+    // Every side is focusable; a left node is wired through the same path as a
+    // right one, and only clicking one proves that column is not inert.
     render(
       <AgentMap
         agentName="Support"
         instructions="Be brief."
-        nodes={[node({ key: "channels", title: "Channels", side: "in", items: ["slack"] })]}
+        nodes={[node({ key: "surfaces", title: "Surfaces", side: "left", items: ["chat"] })]}
       />,
     );
 
-    await userEvent.click(screen.getByRole("button", { name: "Channels" }));
+    await userEvent.click(screen.getByRole("button", { name: "Surfaces" }));
 
-    expect(screen.getByRole("region", { name: "Details for Channels" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Details for Surfaces" })).toBeInTheDocument();
+  });
+
+  it("focuses a top and a bottom node through the same path", async () => {
+    render(
+      <AgentMap
+        agentName="Support"
+        instructions="Be brief."
+        nodes={[
+          node({ key: "model", title: "Model", side: "top", items: ["gpt-5"] }),
+          node({ key: "delegation", title: "Delegation", side: "bottom", items: ["Sync"] }),
+        ]}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Model" }));
+    expect(screen.getByRole("region", { name: "Details for Model" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Delegation" }));
+    expect(screen.getByRole("region", { name: "Details for Delegation" })).toBeInTheDocument();
   });
 
   it("dims the nodes that are not focused", async () => {
@@ -518,5 +541,231 @@ describe("AgentMap pan and zoom", () => {
     });
 
     expect(content.style.transform).not.toContain("scale(1)");
+  });
+});
+
+/**
+ * The recursive tree (#276): a delegate's own delegates render beneath it,
+ * inline, to whatever depth the server walked - and the nodes the walk could
+ * not resolve say why instead of disappearing.
+ */
+describe("AgentMap recursive tree", () => {
+  const tree = () =>
+    delegate({
+      children: [
+        delegate({
+          key: "delegate:a1/delegate:a2:0",
+          name: "Editor",
+          href: "/agents/a2",
+          children: [
+            delegate({
+              key: "delegate:a1/delegate:a2:0/specialist:0",
+              name: "summariser",
+              kind: "specialist",
+              href: undefined,
+            }),
+          ],
+        }),
+      ],
+    });
+
+  it("renders the delegates of a delegate beneath it, to any depth", () => {
+    render(
+      <AgentMap agentName="Support" instructions="Be brief." nodes={[]} delegates={[tree()]} />,
+    );
+
+    const group = screen.getByRole("region", { name: "Delegation" });
+    expect(within(group).getByRole("button", { name: "Researcher" })).toBeInTheDocument();
+    expect(within(group).getByRole("button", { name: "Editor" })).toBeInTheDocument();
+    expect(within(group).getByRole("button", { name: "summariser" })).toBeInTheDocument();
+  });
+
+  it("measures an edge for the first level only - deeper nodes hang off their parent", () => {
+    // The measured layout is what #276 said would not extend to an arbitrary
+    // depth; a subtree's parent is always directly above it, so the connector
+    // is drawn, not measured, and cannot break however deep the tree gets.
+    const { container } = render(
+      <AgentMap agentName="Support" instructions="Be brief." nodes={[]} delegates={[tree()]} />,
+    );
+
+    expect(container.querySelectorAll("path.map-flow")).toHaveLength(1);
+  });
+
+  it("focuses a nested node and walks through to its page from the panel", async () => {
+    render(
+      <AgentMap agentName="Support" instructions="Be brief." nodes={[]} delegates={[tree()]} />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Editor" }));
+
+    expect(screen.getByRole("region", { name: "Details for Editor" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open Editor" })).toHaveAttribute("href", "/agents/a2");
+  });
+
+  it("names a cycle instead of following it", async () => {
+    render(
+      <AgentMap
+        agentName="Support"
+        instructions="Be brief."
+        nodes={[]}
+        delegates={[
+          delegate({
+            children: [
+              delegate({
+                key: "delegate:a1/delegate:root:0",
+                name: "Support",
+                href: undefined,
+                problem: "cycle",
+              }),
+            ],
+          }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("Loops back")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Support" }));
+    expect(
+      screen.getByText(
+        "Delegation returns to an agent already above it on this branch. A run refuses the loop rather than following it.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("marks a restricted node without doubling the explanation", async () => {
+    render(
+      <AgentMap
+        agentName="Support"
+        instructions="Be brief."
+        nodes={[]}
+        delegates={[
+          delegate({
+            children: [
+              delegate({
+                key: "delegate:a1/delegate:a9:0",
+                name: "An agent you cannot see",
+                href: undefined,
+                problem: "restricted",
+              }),
+            ],
+          }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("No access")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "An agent you cannot see" }));
+    // One sentence: the problem's own detail, not that plus the generic
+    // unreachable fallthrough saying the same thing twice.
+    expect(
+      screen.getAllByText(
+        "This organization no longer has it, or you may not see it. Publishing will refuse it either way - remove it, or ask for access to it.",
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("says a delegate has been archived since it was pinned", async () => {
+    render(
+      <AgentMap
+        agentName="Support"
+        instructions="Be brief."
+        nodes={[]}
+        delegates={[
+          delegate({
+            children: [
+              delegate({
+                key: "delegate:a1/delegate:a7:0",
+                name: "Retired",
+                href: undefined,
+                problem: "archived",
+              }),
+            ],
+          }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("Archived")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Retired" }));
+    expect(
+      screen.getByText(
+        "This delegate has been archived since it was pinned, so every run that reaches it is refused. Unarchive it, or repin this agent without it.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("says a pin's version is gone", async () => {
+    render(
+      <AgentMap
+        agentName="Support"
+        instructions="Be brief."
+        nodes={[]}
+        delegates={[
+          delegate({
+            children: [
+              delegate({
+                key: "delegate:a1/delegate:a3:0",
+                name: "Archivist",
+                href: undefined,
+                problem: "unpinned",
+              }),
+            ],
+          }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("Version gone")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Archivist" }));
+    expect(
+      screen.getByText(
+        "This version no longer exists, so a run that reaches this delegate fails and names it. There is deliberately no fall back to the current version.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("calls out a stale pin and a roster beyond the depth cap", async () => {
+    render(
+      <AgentMap
+        agentName="Support"
+        instructions="Be brief."
+        nodes={[]}
+        delegates={[delegate({ stale: true, truncated: true })]}
+      />,
+    );
+
+    expect(screen.getByText("Pin behind")).toBeInTheDocument();
+    expect(screen.getByText("More below")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Researcher" }));
+
+    expect(
+      screen.getByText(
+        "This delegate has published past the pinned version. Nothing changes here until somebody repins it.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Has delegates of its own that a run starting from this agent can never reach - the delegation depth cap stops here, or its delegation is switched off.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("admits a partial tree under the delegation heading", () => {
+    render(
+      <AgentMap
+        agentName="Support"
+        instructions="Be brief."
+        nodes={[]}
+        delegates={[delegate()]}
+        delegationNotice="The full delegation tree could not be loaded, so only direct delegates are shown."
+      />,
+    );
+
+    expect(
+      within(screen.getByRole("region", { name: "Delegation" })).getByText(
+        "The full delegation tree could not be loaded, so only direct delegates are shown.",
+      ),
+    ).toBeInTheDocument();
   });
 });

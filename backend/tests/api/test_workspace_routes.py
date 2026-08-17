@@ -87,6 +87,37 @@ class TestListing:
         assert workspaces.listing.await_args.args[0].organization_id is not None
         assert set(workspaces.listing.await_args.kwargs) == {"conversation_id"}
 
+    async def test_a_files_modified_time_reaches_the_listing(self, client: AsyncClient):
+        """The viewer's header shows `modified …` only when the row carries a time,
+        and a stored workspace records one on every write (#500). A row without one
+        serializes null rather than a guess."""
+        conversation = MagicMock(get_conversation=AsyncMock())
+        workspaces = MagicMock(
+            listing=AsyncMock(
+                return_value=(
+                    _row(),
+                    WorkspaceContents(
+                        entries=[
+                            {
+                                "path": "/report.md",
+                                "size": 3,
+                                "is_dir": False,
+                                "modified_at": "2026-08-16T12:00:00+00:00",
+                            },
+                            {"path": "/legacy.md", "size": 2, "is_dir": False},
+                        ]
+                    ),
+                )
+            )
+        )
+        _override(conversation=conversation, workspaces=workspaces)
+
+        response = await client.get(f"/api/v1/conversations/{CONVERSATION_ID}/workspace")
+
+        items = {item["path"]: item for item in response.json()["items"]}
+        assert items["/report.md"]["modified_at"] == "2026-08-16T12:00:00+00:00"
+        assert items["/legacy.md"]["modified_at"] is None
+
     async def test_a_conversation_with_no_workspace_is_empty_rather_than_an_error(
         self, client: AsyncClient
     ):

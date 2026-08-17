@@ -14,7 +14,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     <div className="space-y-6 pb-8">
       <PageHeader
         title={t("workspaceAdministration")}
-        description={t("usersConversationsRatingsSystem")}
+        description={t("usersConversationsOrgsSystem")}
       />
       <PageTabs tabs={ADMIN_TABS} />
       <div className="min-w-0">{children}</div>

@@ -12,6 +12,7 @@ from sqlalchemy import (
     Index,
     Integer,
     Numeric,
+    SmallInteger,
     String,
     UniqueConstraint,
 )
@@ -45,6 +46,8 @@ class Organization(Base, TimestampMixin):
     slug: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
     is_personal: Mapped[bool] = mapped_column(nullable=False, default=False, index=True)
     avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # Default-avatar colour slot 1..10 (`--avatar-*` ramp); null = auto from the id.
+    avatar_color: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     created_by_user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="RESTRICT"),
@@ -52,9 +55,11 @@ class Organization(Base, TimestampMixin):
         index=True,
     )
     # The ceiling on everything this organization's agents spend in a calendar
-    # month. `None` is no ceiling, which is what an organization that has never
-    # opened the setting has - the cap is opt-in, because a default number
-    # nobody chose would stop somebody's agents on a date they did not pick.
+    # month. `None` is no ceiling. A new organization starts at the deployment's
+    # `DEFAULT_ORG_MONTHLY_BUDGET_USD` ($100 unless configured otherwise), so it
+    # is not one runaway agent away from a surprise bill; a deployment that would
+    # rather start uncapped sets that default to nothing, and any organization
+    # can be cleared back to `None` afterwards.
     #
     # Numeric to the same scale as `agent_runs.cost_usd`: the cap is compared
     # against a sum of those, and a float would drift against the total the

@@ -46,6 +46,8 @@ export const Perm = {
   collectionsEdit: "collections:edit",
   skillsView: "skills:view",
   skillsEdit: "skills:edit",
+  contextView: "context:view",
+  contextEdit: "context:edit",
   approvalsDecide: "approvals:decide",
   connectionsView: "connections:view",
   connectionsManage: "connections:manage",

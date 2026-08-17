@@ -40,8 +40,11 @@ import app.schemas as schemas_package
 from app.db.models.agent_embed import AgentEmbed
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.agent_exposure import AgentExposure
+from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.channel_bot import ChannelBot
+from app.db.models.context import ContextFile
 from app.db.models.conversation import Conversation
+from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization import Organization, OrganizationMember
@@ -56,8 +59,11 @@ from app.schemas.agent import AgentDraftUpdate
 from app.schemas.agent_embed import EmbedUpdate
 from app.schemas.agent_environment import EnvironmentUpdate
 from app.schemas.agent_exposure import ExposureUpdate
+from app.schemas.agent_trigger import TriggerUpdate
 from app.schemas.channel_bot import ChannelBotUpdate
+from app.schemas.context import ContextFileUpdate
 from app.schemas.conversation import ConversationUpdate
+from app.schemas.dashboard_layout import DashboardLayoutUpdate
 from app.schemas.knowledge_base import KnowledgeBaseUpdate
 from app.schemas.mcp_connection import McpConnectionUpdate, OrgMcpConnectionUpdate
 from app.schemas.organization import OrganizationMemberUpdate, OrganizationUpdate
@@ -78,7 +84,9 @@ from app.schemas.user_slash_command import UserSlashCommandUpdate
 UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     AgentDraftUpdate: None,
     ChannelBotUpdate: ChannelBot,
+    ContextFileUpdate: ContextFile,
     ConversationUpdate: Conversation,
+    DashboardLayoutUpdate: DashboardLayout,
     EmbedUpdate: AgentEmbed,
     EnvironmentUpdate: AgentEnvironment,
     ExposureUpdate: AgentExposure,
@@ -92,6 +100,7 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     SkillResourceUpdate: SkillResource,
     SkillUpdate: Skill,
     SyncSourceUpdate: SyncSource,
+    TriggerUpdate: AgentTrigger,
     UserSlashCommandUpdate: UserSlashCommand,
     UserUpdate: User,
     VisibilityUpdate: None,

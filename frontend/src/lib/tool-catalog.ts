@@ -32,6 +32,7 @@ export type StepKind =
   | "search"
   | "shell"
   | "chart"
+  | "image"
   | "knowledge"
   | "web"
   | "skill"
@@ -51,7 +52,15 @@ export type StepKind =
  * what it got back is a prompt fragment rather than something a person reads.
  */
 export type ToolRenderer =
-  "chart" | "web-search" | "rag" | "run-python" | "load-skill" | "workspace" | "generic" | "none";
+  | "chart"
+  | "generated-image"
+  | "web-search"
+  | "rag"
+  | "run-python"
+  | "load-skill"
+  | "workspace"
+  | "generic"
+  | "none";
 
 /**
  * The tense pair for a step that names its own subject: *Writing test1.md*.
@@ -118,6 +127,15 @@ export interface ToolEntry {
  * there.
  */
 export const TOOL_CATALOG: Record<string, ToolEntry> = {
+  // browser_use - one autonomous browsing step; what comes back is a text result, so
+  // the generic renderer, not a browser view.
+  browse_web: {
+    kind: "web",
+    render: "generic",
+    captionKey: "browsingWeb",
+    displayNameKey: "browseWeb",
+  },
+
   // channel_tools - only ever called on a Slack, Telegram or Mattermost run, so these
   // steps are read back in the run timeline rather than watched live in the dashboard.
   get_channel_info: {
@@ -155,6 +173,16 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     opensOnSight: true,
   },
 
+  // image_generation - the picture is the answer, so it opens wherever it lands.
+  generate_image: {
+    kind: "image",
+    render: "generated-image",
+    captionKey: "generatingImage",
+    displayNameKey: "generateImage",
+    opensWhenDone: true,
+    opensOnSight: true,
+  },
+
   // sandbox - the workspace toolset, whose steps name the file they are about
   ls: { kind: "list", render: "workspace", verbs: { now: "listing", done: "listed" } },
   read_file: { kind: "read", render: "workspace", verbs: { now: "reading", done: "read" } },
@@ -185,6 +213,21 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     captionKey: "runningCalculations",
     displayNameKey: "runPython",
     opensWhenDone: true,
+  },
+
+  // context - the link-mode half of the context capability; injected files never
+  // reach the model as a tool call, so there is nothing to render for them here.
+  list_context: {
+    kind: "list",
+    render: "none",
+    captionKey: "lookingThroughContext",
+    displayNameKey: "availableContext",
+  },
+  read_context: {
+    kind: "read",
+    render: "generic",
+    captionKey: "readingContext",
+    displayNameKey: "contextFile",
   },
 
   // knowledge
@@ -258,12 +301,74 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
   },
   delegate: { kind: "delegate", render: "generic", captionKey: "delegating" },
 
+  // planning - the model's own checklist. The tool result is the rendered plan or a
+  // one-line confirmation, so nothing opens underneath these steps.
+  write_plan: {
+    kind: "write",
+    render: "generic",
+    captionKey: "writingPlan",
+    displayNameKey: "plan",
+  },
+  read_plan: { kind: "read", render: "generic", captionKey: "readingPlan", displayNameKey: "plan" },
+  add_task: {
+    kind: "write",
+    render: "generic",
+    captionKey: "addingStep",
+    displayNameKey: "addStep",
+  },
+  update_task_status: {
+    kind: "edit",
+    render: "generic",
+    captionKey: "updatingStep",
+    displayNameKey: "updateStep",
+  },
+  update_task_statuses: {
+    kind: "edit",
+    render: "generic",
+    captionKey: "updatingSteps",
+    displayNameKey: "updateSteps",
+  },
+  remove_task: {
+    kind: "edit",
+    render: "generic",
+    captionKey: "removingStep",
+    displayNameKey: "removeStep",
+  },
+  add_subtask: {
+    kind: "write",
+    render: "generic",
+    captionKey: "addingSubtask",
+    displayNameKey: "addSubtask",
+  },
+  set_dependency: {
+    kind: "edit",
+    render: "generic",
+    captionKey: "settingDependency",
+    displayNameKey: "setDependency",
+  },
+  get_available_tasks: {
+    kind: "list",
+    render: "generic",
+    captionKey: "checkingAvailableSteps",
+    displayNameKey: "availableSteps",
+  },
+
   // web_research
   web_search: {
     kind: "web",
     render: "web-search",
     captionKey: "searchingWeb",
     displayNameKey: "webSearch",
+  },
+
+  // tool_output_limits - reads a slice of a tool result that was spilled to the
+  // backend because it was too large to keep in the window. The slice is text the
+  // model pages through, so the generic renderer shows it.
+  read_tool_result: {
+    kind: "read",
+    render: "generic",
+    captionKey: "readingToolResult",
+    displayNameKey: "toolResult",
   },
 };
 

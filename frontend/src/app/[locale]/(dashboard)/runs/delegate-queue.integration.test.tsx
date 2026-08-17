@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import userEvent from "@testing-library/user-event";
 import { render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -70,7 +71,11 @@ function approval(overrides: Partial<ToolApproval>): ToolApproval {
  * arrays, so a blanket `{items, total}` makes the whole page throw.
  */
 function serve(approvals: ToolApproval[], permissions: Permission[]) {
-  vi.mocked(apiClient.get).mockImplementation((path: string) => {
+  vi.mocked(apiClient.get).mockImplementation((path: string, options?: unknown) => {
+    // The decided record asks /approvals with params; the queue asks bare.
+    if (path === "/approvals" && (options as { params?: unknown } | undefined)?.params) {
+      return Promise.resolve({ items: [], total: 0 });
+    }
     if (path === "/spend") return Promise.resolve(EMPTY_SPEND);
     if (path === "/approvals")
       return Promise.resolve({ items: approvals, total: approvals.length });
@@ -85,17 +90,22 @@ function serve(approvals: ToolApproval[], permissions: Permission[]) {
   });
 }
 
-/** The card for one queued call, found by the row's own actor. */
+/** The table row for one queued call, found by the row's own actor. */
 function row(name: string): HTMLElement {
-  const card = screen.getByText(name).closest<HTMLElement>("div.rounded-md");
-  if (card === null) throw new Error(`no queue row for ${name}`);
-  return card;
+  const tableRow = screen.getByText(name).closest<HTMLElement>("tr");
+  if (tableRow === null) throw new Error(`no queue row for ${name}`);
+  return tableRow;
 }
 
 beforeEach(() => {
   params.delete("agent");
   vi.mocked(apiClient.get).mockReset();
 });
+
+/** The page opens on Runs now; the queue is one tab over. */
+async function openApprovals() {
+  await userEvent.click(await screen.findByRole("tab", { name: /^Approvals/ }));
+}
 
 describe("the approvals queue, under delegation", () => {
   it("tells two calls to the same tool apart by who is asking", async () => {
@@ -108,6 +118,7 @@ describe("the approvals queue, under delegation", () => {
     );
 
     render(<RunsPage />, { wrapper });
+    await openApprovals();
 
     // Same tool, twice. What separates them is the actor, and each row carries
     // exactly one.
@@ -129,9 +140,10 @@ describe("the approvals queue, under delegation", () => {
     serve([approval({ subagent_name: null })], ["agents:view", "approvals:decide"]);
 
     render(<RunsPage />, { wrapper });
+    await openApprovals();
 
     expect(await screen.findByText("send_email")).toBeVisible();
-    expect(screen.queryByText(/Asked by/)).toBeNull();
+    expect(screen.queryByText(/Asked by \w/)).toBeNull();
     expect(screen.queryByText("Inline specialist")).toBeNull();
   });
 
@@ -145,6 +157,7 @@ describe("the approvals queue, under delegation", () => {
     );
 
     render(<RunsPage />, { wrapper });
+    await openApprovals();
 
     // Waited on rather than assumed: `Approve` appears only once
     // `/me/permissions` has answered, so a missing link below is a decision this

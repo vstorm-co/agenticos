@@ -15,6 +15,8 @@ import type {
   AskUserAnswer,
   AskUserQuestion,
   ChatMessageFile,
+  Compaction,
+  ConversationCost,
   Decision,
   Delegation,
   PendingApproval,
@@ -61,8 +63,11 @@ export function useChat(options: UseChatOptions = {}) {
   // no catalog message holds it, so it belongs to the copy the guard has never
   // looked at rather than to this defect.
   const t = useTranslations("chat");
-  const { setCurrentConversationId, currentConversationId: currentConversationIdFromStore } =
-    useConversationStore();
+  const {
+    setCurrentConversationId,
+    setCurrentCost,
+    currentConversationId: currentConversationIdFromStore,
+  } = useConversationStore();
   const {
     messages,
     addMessage,
@@ -138,6 +143,45 @@ export function useChat(options: UseChatOptions = {}) {
   // started to handle. Here the panels simply outlive `complete`, and each closes
   // on its own `subagent_complete`.
   const [delegations, setDelegations] = useState<Delegation[]>([]);
+  // The summary in flight, or `null`. Cleared by the finishing frame and by the
+  // end of the turn: a `complete` that arrived without one - a run that failed
+  // between the two - would otherwise leave the notice up until the next message.
+  const [compacting, setCompacting] = useState<Compaction | null>(null);
+  // The window that cannot work, or `null`. Held apart from `compacting` because
+  // it outlives a turn: it describes what is configured, and clearing it when the
+  // turn ends would flash the one message that explains why nothing happened.
+  const [compactionImpossible, setCompactionImpossible] = useState<Compaction | null>(null);
+
+  /**
+   * Re-read what the whole thread has cost, after a turn has added to it.
+   *
+   * Re-read rather than accumulated. Money is the one number a client must not
+   * compute a second way — and the obvious arithmetic is wrong here anyway: a run
+   * that parked reports its cost so far, and the resume reports the run's total,
+   * so adding both counts the approved half twice.
+   *
+   * `limit=1` because only `cost` is wanted; it is a sum over the whole
+   * conversation regardless of the page asked for. Never raises: a total that
+   * could not be refreshed goes on showing the one from the transcript load,
+   * which is stale rather than wrong, and losing an answer to a failed
+   * accounting read would be the worse trade.
+   */
+  const refreshConversationCost = useCallback(async () => {
+    // From the store rather than the render closure, for the same reason the
+    // usage above is: a turn that created the conversation learns its id in this
+    // same handler, and the closure still holds `null`.
+    const id = useConversationStore.getState().currentConversationId ?? activeConversationId;
+    if (id === null) return;
+    try {
+      const page = await apiClient.get<{ cost: ConversationCost | null }>(
+        `/conversations/${id}/messages?skip=0&limit=1`,
+      );
+      // Only if the reader is still looking at the thread it was asked about.
+      if (useConversationStore.getState().currentConversationId === id) setCurrentCost(page.cost);
+    } catch {
+      // Deliberately silent: see above.
+    }
+  }, [activeConversationId, setCurrentCost]);
 
   const handleWebSocketMessage = useCallback(
     (event: MessageEvent) => {
@@ -331,6 +375,30 @@ export function useChat(options: UseChatOptions = {}) {
           break;
         }
 
+        case "compaction_impossible": {
+          // Not a state - a setting. The fixed overhead is already past the
+          // trigger, so no summary can get under it and the platform refuses to
+          // buy one on every request for ever. It does nothing, which on screen
+          // is indistinguishable from a setting that works, so it says so.
+          setCompactionImpossible(wsEvent.data as Compaction);
+          break;
+        }
+
+        case "compaction_started":
+        case "compaction_finished": {
+          // Between two of the turn's own model requests, where nothing else
+          // streams: summarising a long history is a whole request of its own, and
+          // without this the chat stops dead for the length of it. Only the
+          // summarising strategy sends these - the ones that edit a list and
+          // return would be a spinner that appeared and vanished within a frame.
+          setCompacting(
+            wsEvent.type === "compaction_started" ? (wsEvent.data as Compaction) : null,
+          );
+          // A summary that ran is the answer to the warning above it.
+          setCompactionImpossible(null);
+          break;
+        }
+
         case "error": {
           if (currentMessageIdRef.current) {
             const id = currentMessageIdRef.current;
@@ -422,6 +490,8 @@ export function useChat(options: UseChatOptions = {}) {
             // a run that was cancelled, so whatever was open is closed here. Until
             // now the frontend never read this field at all.
             if (stopped) setDelegations(closeOpenDelegations);
+            // Whatever else this turn did, it is not summarising any more.
+            setCompacting(null);
             if (usage) {
               setLiveUsage({
                 // From the store rather than the render closure: a turn that created
@@ -438,6 +508,10 @@ export function useChat(options: UseChatOptions = {}) {
               // watching a budget is asking.
               if (currentMessageIdRef.current)
                 updateMessage(currentMessageIdRef.current, (msg) => ({ ...msg, usage }));
+              // And the thread's running total, which was read when the
+              // transcript loaded and is a conversation out of date by the
+              // second message.
+              void refreshConversationCost();
             }
           }
           // Clear currentMessageId after complete (message_saved should have handled ID mapping)
@@ -464,6 +538,7 @@ export function useChat(options: UseChatOptions = {}) {
       setCurrentMessageId,
       onConversationCreated,
       activeConversationId,
+      refreshConversationCost,
       t,
     ],
   );
@@ -678,6 +753,8 @@ export function useChat(options: UseChatOptions = {}) {
     setDelegations([]);
     setPendingApproval(null);
     setPendingQuestions(null);
+    setCompacting(null);
+    setCompactionImpossible(null);
     approvalOfferedForRef.current = new Set();
   }, [activeConversationId]);
 
@@ -891,11 +968,13 @@ export function useChat(options: UseChatOptions = {}) {
               input_tokens: resumed.input_tokens,
               output_tokens: resumed.output_tokens,
               cost_usd: Number(resumed.cost_usd),
+              cost_is_partial: resumed.cost_is_partial,
               // A resume is not told where the run stands against its budget, and
               // an invented percentage is worse than a bar that is not drawn.
               budget_percent: null,
               agent_budget_percent: null,
               sandbox: null,
+              context: null,
             },
             // The agent that was answering when the run parked. Without it the
             // continuation rendered under the generic robot with no name beside it,
@@ -924,6 +1003,10 @@ export function useChat(options: UseChatOptions = {}) {
             messageId: continuation,
           });
         }
+        // The continuation spent money too, and it reports the run's total rather
+        // than its own share - which is exactly why this re-reads the sum instead
+        // of adding to it. See `refreshConversationCost`.
+        void refreshConversationCost();
       } catch (error) {
         const terminalStatus = resumeFailureStatus(error);
         if (terminalStatus !== null) {
@@ -952,6 +1035,7 @@ export function useChat(options: UseChatOptions = {}) {
       resumeRun,
       addMessage,
       conversationId,
+      refreshConversationCost,
       tErrors,
     ],
   );
@@ -1006,6 +1090,8 @@ export function useChat(options: UseChatOptions = {}) {
     messages,
     isConnected,
     isProcessing,
+    compacting,
+    compactionImpossible,
     lastUsage: onThisConversation ? liveUsage.usage : null,
     /** The turn's delegations, in the order they started. See `DelegationPanels`. */
     delegations,

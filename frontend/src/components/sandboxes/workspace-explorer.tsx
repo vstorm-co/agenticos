@@ -209,6 +209,7 @@ export function WorkspaceExplorer({ workspaceId }: WorkspaceExplorerProps) {
             name: opened.path.split("/").filter(Boolean).pop() ?? opened.path,
             path: opened.path,
             size: opened.size,
+            modifiedAt: opened.modified_at,
           }}
           access={workspaceFileAccess(source, opened.path)}
           onClose={() => setOpened(null)}

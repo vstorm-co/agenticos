@@ -155,6 +155,12 @@ def _channel(agent_router: Any, rows: list[Any]) -> Iterator[None]:
         patch(
             f"{router}.conversation_repo.get_messages_by_conversation", AsyncMock(return_value=[])
         ),
+        # The thread the model is told. Read through the service since #49,
+        # because where a summary has run that is where the history starts.
+        patch(
+            f"{router}.ConversationService",
+            return_value=MagicMock(model_history=AsyncMock(return_value=[])),
+        ),
         patch(
             f"{router}.get_adapter",
             return_value=MagicMock(begin_reply=AsyncMock(return_value=None)),
@@ -462,6 +468,16 @@ class TestChoosingWhatToSendBack:
 
         assert (await files_written(backend, before)).attachments == []
 
+    async def test_a_spilled_tool_return_is_not_the_agents_work(self):
+        """A `tool_output_limits` spill is parked for the model to page through,
+        not produced for the user - posting it would hand a channel the raw
+        oversized return the reduction existed to keep out of sight (#803)."""
+        backend = StateBackend()
+        before = await workspace_snapshot(backend)
+        backend.write("/tool_output/run-1/call-1.0", "y" * 5_000)
+
+        assert (await files_written(backend, before)).attachments == []
+
     async def test_a_file_too_large_for_a_reply_is_named_rather_than_dropped(self):
         """An agent told its file was delivered will tell the user the same."""
         backend = StateBackend()
@@ -618,6 +634,10 @@ async def _route_one_file(text: str) -> tuple[MagicMock, MagicMock, AsyncMock]:
         # The window is sized off a `COUNT`, and the session here is a mock. What
         # this helper is about is which files reach the run.
         patch(f"{router}.conversation_repo.count_messages", AsyncMock(return_value=0)),
+        patch(
+            f"{router}.ConversationService",
+            return_value=MagicMock(model_history=AsyncMock(return_value=[])),
+        ),
         patch(f"{router}.ChannelAgentRouter", return_value=agents),
         patch.object(FileUploadService, "upload", upload),
     ):

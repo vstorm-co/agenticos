@@ -169,13 +169,16 @@ describe("CapabilitySettings", () => {
     render(
       <CapabilitySettings
         catalog={[KNOWLEDGE]}
-        selected={[binding("knowledge")]}
+        selected={[binding("knowledge", { config: { default_top_k: 1 } })]}
         onChange={onChange}
       />,
     );
+    // Typed onto a stored value: a field with a default is never empty, and
+    // this component is controlled by a spy, so what is on screen does not move
+    // between keystrokes.
     await userEvent.type(screen.getByLabelText(/Default top k/), "9");
     expect(onChange).toHaveBeenLastCalledWith(
-      expect.objectContaining({ id: "knowledge", config: { default_top_k: 9 } }),
+      expect.objectContaining({ id: "knowledge", config: { default_top_k: 19 } }),
     );
   });
 

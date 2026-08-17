@@ -83,7 +83,7 @@ describe("Activity, arriving from the Builder", () => {
     // Including what the agent did as somebody's delegate: narrowed to one
     // agent, that is the only record of what it itself cost.
     expect(runsCalls().map((call) => call[1])).toContainEqual({
-      params: { agent_id: "agent-42", include_delegations: "true" },
+      params: expect.objectContaining({ agent_id: "agent-42", include_delegations: "true" }),
     });
   });
 
@@ -97,36 +97,65 @@ describe("Activity, arriving from the Builder", () => {
 
     await waitFor(() => expect(runsCalls()).not.toHaveLength(0));
     // No `agent_id`, so it is still the organization's count - and windowed to
-    // the calendar month, which is what makes it comparable to the money beside
+    // the page's period, which is what makes it comparable to the money beside
     // it rather than a total since the organization was created (#198).
     const organizationCall = runsCalls()
       .map((call) => call[1])
-      .find((options) => options?.params?.agent_id === undefined);
-    expect(organizationCall?.params?.started_from).toBeDefined();
+      .find(
+        (options) =>
+          (options?.params as Record<string, string> | undefined)?.agent_id === undefined,
+      );
+    expect(
+      (organizationCall?.params as Record<string, string> | undefined)?.started_from,
+    ).toBeDefined();
   });
 
   it("asks for the whole organization when the URL names nobody", async () => {
     render(<RunsPage />, { wrapper });
     await openRunHistory();
 
-    // Unnarrowed and unwindowed: run history is every top-level run, where the
-    // count above it is one calendar month. Found rather than taken as the first
-    // call - the figures ask for their own windowed count, and which of the two
-    // lands first is not this test's subject.
-    await waitFor(() => expect(runsCalls().map((call) => call[1])).toContainEqual(undefined));
+    // Unnarrowed to any agent, but always windowed: every request this page
+    // makes carries the period control's instants, table included (#760).
+    await waitFor(() => {
+      const unnarrowed = runsCalls()
+        .map((call) => call[1])
+        .filter(
+          (options) =>
+            (options?.params as Record<string, string> | undefined)?.agent_id === undefined,
+        );
+      expect(unnarrowed.length).toBeGreaterThan(0);
+      for (const options of unnarrowed) {
+        expect((options?.params as Record<string, string> | undefined)?.started_from).toBeDefined();
+        expect((options?.params as Record<string, string> | undefined)?.started_to).toBeDefined();
+      }
+    });
   });
 
   it("says the table is narrowed, and offers the way out", async () => {
     // A filtered table that does not mention the filter is one somebody reads as
     // the whole history, and then wonders where the rest of the runs went.
-    // The notice lives with the table, and the page opens on Approvals.
+    // The notice lives with the table, and the page opens on Approvals. The way
+    // out is an action, not a link: it clears the state the filter bar shares,
+    // where a navigation to /runs would rewrite the URL and leave the narrowing.
     params.set("agent", "agent-42");
 
     render(<RunsPage />, { wrapper });
     await openRunHistory();
 
     expect(await screen.findByText(/Narrowed to one agent/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Show every agent" })).toHaveAttribute("href", "/runs");
+
+    await userEvent.click(screen.getByRole("button", { name: "Show every agent" }));
+
+    expect(screen.queryByText(/Narrowed to one agent/)).toBeNull();
+    await waitFor(() => {
+      const widened = runsCalls()
+        .map((call) => call[1])
+        .filter(
+          (options) =>
+            (options?.params as Record<string, string> | undefined)?.agent_id === undefined,
+        );
+      expect(widened.length).toBeGreaterThan(0);
+    });
   });
 
   it("says nothing about narrowing when nothing is narrowed", async () => {

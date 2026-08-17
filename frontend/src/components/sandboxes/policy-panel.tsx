@@ -1,24 +1,21 @@
 "use client";
 
+import { useMemo } from "react";
 import { AlertTriangle } from "lucide-react";
 
 import {
   Badge,
+  DataTable,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
   Skeleton,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  type Column,
 } from "@/components/ui";
 import { useSandboxPolicy } from "@/hooks";
-import type { SandboxConnectionRecord } from "@/lib/sandbox-connections-api";
+import type { SandboxConnectionRecord, SandboxRuntime } from "@/lib/sandbox-connections-api";
 import { useTranslations } from "next-intl";
 
 interface PolicyPanelProps {
@@ -48,6 +45,53 @@ function timeout(seconds: number | null): string {
 export function PolicyPanel({ connection, onOpenChange }: PolicyPanelProps) {
   const t = useTranslations("sandboxes.policy");
   const { policy, isLoading, error } = useSandboxPolicy(connection?.id ?? null);
+
+  const defaultRuntime = policy?.default_runtime ?? null;
+  const columns = useMemo<Column<SandboxRuntime>[]>(
+    () => [
+      {
+        key: "alias",
+        header: t("alias"),
+        cell: (runtime) => (
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-xs">{runtime.alias}</span>
+            {runtime.alias === defaultRuntime && <Badge variant="secondary">{t("default")}</Badge>}
+          </div>
+        ),
+      },
+      {
+        key: "image",
+        header: t("image"),
+        cell: (runtime) => (
+          <span className="text-muted-foreground font-mono text-xs">
+            {runtime.image ?? (runtime.builds ? t("builtHost") : "—")}
+          </span>
+        ),
+      },
+      {
+        key: "memory",
+        header: t("memory"),
+        cell: (runtime) => (
+          <span className="text-muted-foreground text-xs">{runtime.mem_limit ?? "—"}</span>
+        ),
+      },
+      {
+        key: "cpus",
+        header: t("cpus"),
+        cell: (runtime) => (
+          <span className="text-muted-foreground text-xs">{runtime.cpus ?? "—"}</span>
+        ),
+      },
+      {
+        key: "network",
+        header: t("network"),
+        cell: (runtime) => (
+          <span className="text-muted-foreground text-xs">{runtime.network_mode ?? "—"}</span>
+        ),
+      },
+    ],
+    [t, defaultRuntime],
+  );
 
   return (
     <Dialog open={connection !== null} onOpenChange={onOpenChange}>
@@ -105,45 +149,11 @@ export function PolicyPanel({ connection, onOpenChange }: PolicyPanelProps) {
             {policy.runtimes.length === 0 ? (
               <p className="text-destructive text-sm">{t("serviceAllowsNoRuntime")}</p>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>{t("alias")}</TableHead>
-                      <TableHead>{t("image")}</TableHead>
-                      <TableHead>{t("memory")}</TableHead>
-                      <TableHead>{t("cpus")}</TableHead>
-                      <TableHead>{t("network")}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {policy.runtimes.map((runtime) => (
-                      <TableRow key={runtime.alias}>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-xs">{runtime.alias}</span>
-                            {runtime.alias === policy.default_runtime && (
-                              <Badge variant="secondary">{t("default")}</Badge>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground font-mono text-xs">
-                          {runtime.image ?? (runtime.builds ? t("builtHost") : "—")}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground text-xs">
-                          {runtime.mem_limit ?? "—"}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground text-xs">
-                          {runtime.cpus ?? "—"}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground text-xs">
-                          {runtime.network_mode ?? "—"}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+              <DataTable<SandboxRuntime>
+                columns={columns}
+                rows={policy.runtimes}
+                getRowKey={(runtime) => runtime.alias}
+              />
             )}
           </div>
         )}

@@ -18,7 +18,11 @@ export interface WorkspaceSummary {
   agent_id: string;
   /** Resolved server-side, so a row names something readable rather than a UUID. */
   agent_name: string;
+  /** Resolved server-side too - this reader may not hold agents:view. */
+  agent_has_avatar: boolean;
   conversation_id: string | null;
+  /** The chat page lists its owner's threads, so the link is only the owner's. */
+  conversation_is_mine: boolean;
   /** The chat these files belong to, named. Null when no single conversation owns it. */
   conversation_title: string | null;
   /** How many conversations reach these files. Zero for a run-scoped workspace. */
@@ -44,6 +48,8 @@ export interface WorkspaceFile {
   path: string;
   size: number | null;
   is_dir: boolean;
+  /** ISO 8601, or null where the backend records no per-file time. */
+  modified_at: string | null;
 }
 
 export interface WorkspaceFiles {

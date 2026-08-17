@@ -154,6 +154,41 @@ async def test_update_current_user_notification_preferences_reach_the_service(
 
 
 @pytest.mark.anyio
+async def test_choosing_an_avatar_colour_reaches_the_service(
+    auth_client: AsyncClient, mock_user_service: MagicMock
+):
+    """The profile page saves the picked colour through PATCH /users/me; an
+    explicit null is the reset to auto and must survive as a null, not vanish."""
+    response = await auth_client.patch(
+        f"{settings.API_V1_STR}/users/me",
+        json={"avatar_color": 4},
+    )
+    assert response.status_code == 200
+    assert mock_user_service.update.call_args.args[1].avatar_color == 4
+
+    reset = await auth_client.patch(
+        f"{settings.API_V1_STR}/users/me",
+        json={"avatar_color": None},
+    )
+    assert reset.status_code == 200
+    user_in = mock_user_service.update.call_args.args[1]
+    assert user_in.avatar_color is None
+    assert "avatar_color" in user_in.model_fields_set
+
+
+@pytest.mark.anyio
+async def test_an_avatar_colour_out_of_range_is_refused(auth_client: AsyncClient):
+    """Slot 0 and 11 are not colours; the schema turns them into a 422 that names
+    the field rather than a row the frontend cannot render."""
+    for bad in (0, 11):
+        response = await auth_client.patch(
+            f"{settings.API_V1_STR}/users/me",
+            json={"avatar_color": bad},
+        )
+        assert response.status_code == 422
+
+
+@pytest.mark.anyio
 async def test_read_current_user_reports_notification_preferences(
     auth_client: AsyncClient,
 ):

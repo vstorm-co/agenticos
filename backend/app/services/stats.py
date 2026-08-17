@@ -20,16 +20,24 @@ from __future__ import annotations
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
+from decimal import Decimal
 from typing import TYPE_CHECKING, Literal
 
 from app.core.exceptions import AuthorizationError, ValidationError
 from app.core.permissions import Perm
-from app.repositories import agent_run_repo, member_repo, message_rating_repo
+from app.repositories import (
+    agent_run_repo,
+    ingestion_spend_repo,
+    member_repo,
+    message_rating_repo,
+)
+from app.repositories.agent_run import RunFilter
 from app.schemas.stats import (
     ActiveUsers,
     AgentCount,
     CostBlock,
     DayCount,
+    HourCount,
     LatencyMs,
     ModelCount,
     PersonUsageRow,
@@ -131,6 +139,35 @@ class StatsService:
             )
         return None
 
+    def _narrow(
+        self,
+        ctx: AuthContext,
+        scope: UsageScope,
+        *,
+        agent_id: UUID | None,
+        user_id: UUID | None,
+    ) -> RunFilter:
+        """The scope decision and the caller's own narrowing, as one filter.
+
+        A dashboard card may be pinned to one agent or to one colleague while
+        the page's filter stays where it is, so these are the same question as
+        `scope` and answered in the same place. Narrowing to a colleague reads
+        somebody else's rows, which is `scope=org` and therefore already behind
+        `runs:view`; `scope=own` needs no such gate and cannot be pointed at
+        anybody else.
+
+        Raises:
+            ValidationError: `scope=own` with a `user_id` - it can only ever be
+                the caller's own, and a request saying otherwise is a mistake
+                worth answering rather than silently reinterpreting.
+        """
+        if scope == "own" and user_id is not None:
+            raise ValidationError(
+                message="scope=own is already the caller; drop user_id",
+                details={"scope": scope},
+            )
+        return RunFilter(user_id=self._scope_filter(ctx, scope) or user_id, agent_id=agent_id)
+
     async def usage(
         self,
         ctx: AuthContext,
@@ -138,27 +175,35 @@ class StatsService:
         scope: UsageScope = "org",
         from_date: date | None = None,
         to_date: date | None = None,
+        agent_id: UUID | None = None,
+        user_id: UUID | None = None,
     ) -> UsageStats:
         """The composed answer: totals, slices, latency and cost of one window."""
-        user_id = self._scope_filter(ctx, scope)
+        where = self._narrow(ctx, scope, agent_id=agent_id, user_id=user_id)
         window = resolve_window(from_date, to_date)
         prev_start, prev_end = window.previous
         org = ctx.organization_id
 
         total = await agent_run_repo.count_runs(
-            self.db, organization_id=org, start=window.start, end=window.end, user_id=user_id
+            self.db, organization_id=org, start=window.start, end=window.end, where=where
         )
         previous_total = await agent_run_repo.count_runs(
-            self.db, organization_id=org, start=prev_start, end=prev_end, user_id=user_id
+            self.db, organization_id=org, start=prev_start, end=prev_end, where=where
         )
 
-        day_counts = dict(
-            await agent_run_repo.runs_by_day(
-                self.db, organization_id=org, start=window.start, end=window.end, user_id=user_id
+        day_rows = {
+            row[0]: row
+            for row in await agent_run_repo.runs_by_day(
+                self.db, organization_id=org, start=window.start, end=window.end, where=where
             )
-        )
+        }
         by_day = [
-            DayCount(date=day, runs=day_counts.get(day, 0))
+            DayCount(
+                date=day,
+                runs=day_rows[day][1] if day in day_rows else 0,
+                completed=day_rows[day][2] if day in day_rows else 0,
+                cost_usd=day_rows[day][3] if day in day_rows else Decimal(0),
+            )
             for day in _each_day(window.from_date, window.to_date)
         ]
 
@@ -170,7 +215,7 @@ class StatsService:
                 start=window.start,
                 end=window.end,
                 dimension="surface",
-                user_id=user_id,
+                where=where,
             )
         ]
         by_status = [
@@ -181,7 +226,7 @@ class StatsService:
                 start=window.start,
                 end=window.end,
                 dimension="status",
-                user_id=user_id,
+                where=where,
             )
         ]
         by_model = [
@@ -192,31 +237,55 @@ class StatsService:
                 start=window.start,
                 end=window.end,
                 dimension="model",
-                user_id=user_id,
+                where=where,
             )
         ]
         by_agent = [
             AgentCount(agent_id=agent_id, name=name, runs=runs)
             for agent_id, name, runs in await agent_run_repo.runs_by_agent(
-                self.db, organization_id=org, start=window.start, end=window.end, user_id=user_id
+                self.db, organization_id=org, start=window.start, end=window.end, where=where
             )
         ]
 
         p50, p95 = await agent_run_repo.latency_percentiles_ms(
-            self.db, organization_id=org, start=window.start, end=window.end, user_id=user_id
+            self.db, organization_id=org, start=window.start, end=window.end, where=where
         )
         latency = LatencyMs(
             p50=round(p50) if p50 is not None else None,
             p95=round(p95) if p95 is not None else None,
         )
 
+        # The whole bill, not the model half of it. `organization_spend_since`
+        # has always measured a monthly cap on runs *plus* ingestion, so a
+        # dashboard reporting runs alone put two definitions of cost on one
+        # card - the headline and the month-to-date line under it - with
+        # nothing saying which was which.
+        #
+        # Ingestion is the organization's, never one person's and never one
+        # agent's: a document is indexed by a worker, and `ingestion_spend`
+        # records neither. So any narrowed window - `scope=own`, a person, an
+        # agent - reports model spend alone rather than billing a card for a
+        # collection somebody else synced.
+        model_usd = await agent_run_repo.sum_cost_window(
+            self.db, organization_id=org, start=window.start, end=window.end, where=where
+        )
+        previous_model_usd = await agent_run_repo.sum_cost_window(
+            self.db, organization_id=org, start=prev_start, end=prev_end, where=where
+        )
+        ingestion_usd = Decimal(0)
+        previous_ingestion_usd = Decimal(0)
+        if where == RunFilter():
+            ingestion_usd = await ingestion_spend_repo.sum_cost_window(
+                self.db, organization_id=org, start=window.start, end=window.end
+            )
+            previous_ingestion_usd = await ingestion_spend_repo.sum_cost_window(
+                self.db, organization_id=org, start=prev_start, end=prev_end
+            )
         cost = CostBlock(
-            period_usd=await agent_run_repo.sum_cost_window(
-                self.db, organization_id=org, start=window.start, end=window.end, user_id=user_id
-            ),
-            previous_period_usd=await agent_run_repo.sum_cost_window(
-                self.db, organization_id=org, start=prev_start, end=prev_end, user_id=user_id
-            ),
+            period_usd=model_usd + ingestion_usd,
+            previous_period_usd=previous_model_usd + previous_ingestion_usd,
+            model_usd=model_usd,
+            ingestion_usd=ingestion_usd,
             by_provider=[
                 ProviderCost(provider=provider, cost_usd=cost_usd)
                 for provider, cost_usd in await agent_run_repo.cost_by_provider_window(
@@ -224,23 +293,26 @@ class StatsService:
                     organization_id=org,
                     start=window.start,
                     end=window.end,
-                    user_id=user_id,
+                    where=where,
                 )
             ],
         )
 
+        # Keyed on the *person*, not on the filter as a whole: an agent-narrowed
+        # window is still everybody's, and "how many people used this one" is
+        # the adoption question worth asking of an agent.
         active_users = None
         pending_approvals = None
-        if user_id is None:
+        if where.user_id is None:
             active_users = ActiveUsers(
                 active=await agent_run_repo.count_distinct_users(
-                    self.db, organization_id=org, start=window.start, end=window.end
+                    self.db, organization_id=org, start=window.start, end=window.end, where=where
                 ),
                 total_members=await member_repo.count_for_org(self.db, org),
             )
         else:
             pending_approvals = await agent_run_repo.count_pending_approval_runs(
-                self.db, organization_id=org, user_id=user_id
+                self.db, organization_id=org, user_id=where.user_id
             )
 
         return UsageStats(
@@ -260,6 +332,45 @@ class StatsService:
             pending_approvals=pending_approvals,
         )
 
+    async def usage_by_hour(
+        self,
+        ctx: AuthContext,
+        *,
+        scope: UsageScope = "org",
+        from_date: date | None = None,
+        to_date: date | None = None,
+        agent_id: UUID | None = None,
+        user_id: UUID | None = None,
+    ) -> UsageStats:
+        """When the window's runs happened, by weekday and hour.
+
+        Fills only the envelope and `by_hour`, for the same reason
+        :meth:`usage_by_version` fills only its own block: it is a different
+        question about the same window, and a hundred and sixty-eight cells do
+        not belong in every dashboard load.
+
+        Sparse, and deliberately so - a slot nobody ever ran in is absent, and
+        the client draws an empty cell for it.
+        """
+        where = self._narrow(ctx, scope, agent_id=agent_id, user_id=user_id)
+        window = resolve_window(from_date, to_date)
+
+        rows = await agent_run_repo.runs_by_hour(
+            self.db,
+            organization_id=ctx.organization_id,
+            start=window.start,
+            end=window.end,
+            where=where,
+        )
+        return UsageStats(
+            from_date=window.from_date,
+            to_date=window.to_date,
+            scope=scope,
+            by_hour=[
+                HourCount(weekday=weekday, hour=hour, runs=runs) for weekday, hour, runs in rows
+            ],
+        )
+
     async def usage_by_version(
         self,
         ctx: AuthContext,
@@ -277,16 +388,18 @@ class StatsService:
         rows - the window filter carries the tenant - so the answer is empty
         rather than a probe.
         """
-        user_id = self._scope_filter(ctx, scope)
+        where = self._narrow(ctx, scope, agent_id=None, user_id=None)
         window = resolve_window(from_date, to_date)
 
         rows = await agent_run_repo.usage_by_version(
             self.db,
             organization_id=ctx.organization_id,
+            # The subject, not a filter: this aggregate groups one agent's runs
+            # by the version that answered them, so the id is its own parameter.
             agent_id=agent_id,
             start=window.start,
             end=window.end,
-            user_id=user_id,
+            where=where,
         )
         version_ids = [version_id for version_id, *_ in rows if version_id is not None]
         ratings: dict[UUID, tuple[int, int]] = {}
@@ -326,6 +439,7 @@ class StatsService:
         scope: UsageScope = "org",
         from_date: date | None = None,
         to_date: date | None = None,
+        agent_id: UUID | None = None,
         limit: int,
     ) -> UsageStats:
         """Per-person rows for the window - the who-is-using-it card's answer.
@@ -339,7 +453,7 @@ class StatsService:
         usage_by_version() does: the card asking this question already holds
         the composed response, and the count it sits under comes from there.
         """
-        user_id = self._scope_filter(ctx, scope)
+        where = self._narrow(ctx, scope, agent_id=agent_id, user_id=None)
         window = resolve_window(from_date, to_date)
 
         rows = await agent_run_repo.usage_by_user(
@@ -347,7 +461,7 @@ class StatsService:
             organization_id=ctx.organization_id,
             start=window.start,
             end=window.end,
-            user_id=user_id,
+            where=where,
             limit=limit,
         )
         return UsageStats(

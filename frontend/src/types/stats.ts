@@ -14,6 +14,9 @@ export type UsageScope = "org" | "own";
 export interface DayCount {
   date: string;
   runs: number;
+  completed: number;
+  /** A serialised Decimal. Display only - never arithmetic. */
+  cost_usd: string;
 }
 
 export interface SurfaceCount {
@@ -56,9 +59,16 @@ export interface ProviderCost {
 }
 
 export interface CostBlock {
-  /** Serialised Decimals; the calendar month-to-date figure lives on GET /spend. */
+  /**
+   * Serialised Decimals. `period_usd` is the whole bill - models plus
+   * ingestion - and the two halves below sum to it; the calendar
+   * month-to-date figure still lives on GET /spend.
+   */
   period_usd: string;
   previous_period_usd: string;
+  model_usd: string;
+  /** Zero at scope=own: a document is indexed by a worker, for nobody. */
+  ingestion_usd: string;
   by_provider: ProviderCost[];
 }
 
@@ -106,6 +116,15 @@ export interface UsageStats {
   by_version: VersionUsageRow[] | null;
   /** group_by=user only, capped by the request's limit. */
   by_user: PersonUsageRow[] | null;
+  /** group_by=hour only. Sparse: a slot nobody ran in is absent. */
+  by_hour: HourCount[] | null;
+}
+
+export interface HourCount {
+  /** Postgres' `dow`, so 0 is Sunday. */
+  weekday: number;
+  hour: number;
+  runs: number;
 }
 
 export interface RatingsByDay {

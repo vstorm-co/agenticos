@@ -24,7 +24,7 @@ import type { DashboardWidgetProps } from "./types";
  * put against them; naming them host-wide is the honest rendering, and the
  * capacity card draws the one fraction that does divide cleanly.
  */
-export function SandboxPolicyWidget({ title, seeAll }: DashboardWidgetProps) {
+export function SandboxPolicyWidget({ title, hint, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.sandbox-policy");
   const { connections, isLoading, error, refresh } = useSandboxConnections();
   const host = primaryConnection(connections);
@@ -34,7 +34,7 @@ export function SandboxPolicyWidget({ title, seeAll }: DashboardWidgetProps) {
   const policy = useSandboxPolicy(asked);
 
   return (
-    <WidgetFrame title={title} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {isLoading ? (
         <WidgetSkeleton />
       ) : error !== null ? (
@@ -106,7 +106,6 @@ function PolicyBody({ policy }: { policy: SandboxPolicy }) {
           ))}
         </ul>
       )}
-      <p className="text-muted-foreground text-xs">{t("subline")}</p>
     </div>
   );
 }

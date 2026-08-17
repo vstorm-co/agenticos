@@ -1,8 +1,9 @@
 """Conversation repository."""
 
+from collections.abc import Collection
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, NamedTuple
 from uuid import UUID
 
 from sqlalchemy import ColumnElement, distinct, func, or_, select
@@ -13,6 +14,7 @@ from sqlalchemy.orm import selectinload
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
 from app.db.models.channel_identity import ChannelIdentity
+from app.db.models.channel_session import ChannelSession
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.user import User
 from app.repositories._search import contains_ci
@@ -96,24 +98,35 @@ async def agents_in_conversations(
     }
 
 
+class ConversationHead(NamedTuple):
+    """What a listing needs of a conversation it references: its name, and whose it is."""
+
+    title: str
+    user_id: UUID | None
+
+
 async def titles_for(
     db: AsyncSession, conversation_ids: list[UUID], *, organization_id: UUID
-) -> dict[UUID, str]:
-    """The title of each of these conversations, inside one organization.
+) -> dict[UUID, ConversationHead]:
+    """The title and owner of each of these conversations, inside one organization.
 
     One query for a whole page, and scoped: an id from somewhere else answers
     with nothing rather than with a title, which is what stops a listing from
     confirming that a conversation exists in an organization the caller is not in.
+
+    The owner travels with the title because the chat page lists its owner's
+    threads: a link offered to anybody else lands on an empty sidebar dressed
+    as the conversation, so a listing has to know whose thread it is naming.
     """
     if not conversation_ids:
         return {}
     result = await db.execute(
-        select(Conversation.id, Conversation.title).where(
+        select(Conversation.id, Conversation.title, Conversation.user_id).where(
             Conversation.id.in_(conversation_ids),
             Conversation.organization_id == organization_id,
         )
     )
-    return {row.id: row.title for row in result.all()}
+    return {row.id: ConversationHead(row.title, row.user_id) for row in result.all()}
 
 
 async def count_by_agent(
@@ -241,56 +254,83 @@ async def authors_of(db: AsyncSession, identity_ids: list[UUID]) -> dict[UUID, C
     return {identity.id: identity for identity in result.scalars().all()}
 
 
-def _reachable_by(user_id: UUID) -> ColumnElement[bool]:
+def _reachable_by(user_id: UUID, participant_ids: Collection[UUID]) -> ColumnElement[bool]:
     """Whose conversation list a thread appears in.
 
-    Theirs if they own it, and theirs if a chat account of theirs has spoken in
-    it - which is what puts a channel thread in front of everybody who was in the
-    room rather than only whoever happened to speak first. A channel thread has no
-    owner at all when the first speaker had linked no account, so ownership alone
-    left it invisible to everybody (#639).
+    Theirs if they own it, and theirs if they are a *confirmed* participant of
+    the room it came from. Participation used to be a correlated `EXISTS` over
+    `messages.channel_identity_id` - who spoke - and speaking once kept the
+    thread readable after the platform removed them from the channel (#641). So
+    the ids arrive vetted instead: the caller runs :func:`participation_claims`
+    through `app.services.channels.membership`, which asks the platform, and
+    hands over only the threads whose membership held up.
 
-    **This is who spoke, not who may read.** Participation is never re-checked
-    against the platform, so somebody removed from the channel keeps the thread in
-    their list - deliberately, and #641 is what it would take to change. Nothing
-    may use this as an authorization check without asking the platform first.
-
-    The same correlation care as :func:`_list_filters`: only `conversations` may be
-    correlated, or the subquery loses its FROM clause and raises.
+    The default is therefore the narrow one. A caller that passes nothing gets
+    owner-only, which fails safe - forgetting the participation step hides a
+    thread rather than showing it to somebody who was removed.
     """
-    spoke_in_it = (
-        select(Message.id)
-        .select_from(Message)
-        .join(ChannelIdentity, ChannelIdentity.id == Message.channel_identity_id)
-        .where(
-            Message.conversation_id == Conversation.id,
-            ChannelIdentity.user_id == user_id,
-        )
-        .correlate(Conversation)
-        .exists()
-    )
-    return or_(Conversation.user_id == user_id, spoke_in_it)
+    if not participant_ids:
+        return Conversation.user_id == user_id
+    return or_(Conversation.user_id == user_id, Conversation.id.in_(participant_ids))
 
 
-async def spoke_in(db: AsyncSession, conversation_id: UUID, user_id: UUID) -> bool:
-    """Whether a chat account of this user's has spoken in this conversation.
+class ParticipationClaim(NamedTuple):
+    """One "I spoke there" fact, addressed well enough to check it.
 
-    The read-side counterpart of `_reachable_by`'s `spoke_in_it`: a channel
-    thread appears in the list of everyone who was in the room, so opening it has
-    to be allowed for the same set - otherwise a participant sees the thread and
-    gets a 404 opening it. The same #641 caveat carries over: this is who spoke,
-    not a live check against the platform's current membership.
+    The conversation a chat account of the user's wrote in, and the bot and
+    platform chat the thread belongs to - which is what
+    `app.services.channels.membership` needs to ask the platform whether the
+    account is *still* in that channel. A claim is who spoke, never who may
+    read (#641); nothing may treat one as access without that check.
     """
-    result = await db.execute(
-        select(Message.id)
-        .join(ChannelIdentity, ChannelIdentity.id == Message.channel_identity_id)
-        .where(
-            Message.conversation_id == conversation_id,
-            ChannelIdentity.user_id == user_id,
+
+    conversation_id: UUID
+    platform_user_id: str
+    bot_id: UUID
+    platform_chat_id: str
+
+
+async def participation_claims(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    organization_id: UUID | None = None,
+    conversation_id: UUID | None = None,
+) -> list[ParticipationClaim]:
+    """Every channel this user's chat accounts have spoken in, by conversation.
+
+    One query for the whole listing: messages joined to the identity that wrote
+    them, to the session that names the room, distinct over the four scalars -
+    scalars because `channel_bots` carries `json` columns, which have no
+    equality operator, so a `DISTINCT` over the row itself is a 500 on a real
+    database (see :func:`app.repositories.channel_session.bots_by_identity`).
+
+    The join to `channel_sessions` is inner on purpose. A thread the session no
+    longer points at - `/new` re-points `conversation_id` at a fresh row - has
+    no channel anybody can ask about, and a claim that cannot be checked is
+    refused rather than trusted (#641). The owner and an explicit share still
+    reach such a thread; participation alone does not.
+    """
+    query = (
+        select(
+            Message.conversation_id,
+            ChannelIdentity.platform_user_id,
+            ChannelSession.bot_id,
+            ChannelSession.platform_chat_id,
         )
-        .limit(1)
+        .join(ChannelIdentity, ChannelIdentity.id == Message.channel_identity_id)
+        .join(ChannelSession, ChannelSession.conversation_id == Message.conversation_id)
+        .where(ChannelIdentity.user_id == user_id)
+        .distinct()
     )
-    return result.first() is not None
+    if organization_id is not None:
+        query = query.join(Conversation, Conversation.id == Message.conversation_id).where(
+            Conversation.organization_id == organization_id
+        )
+    if conversation_id is not None:
+        query = query.where(Message.conversation_id == conversation_id)
+    result = await db.execute(query)
+    return [ParticipationClaim(*row) for row in result.all()]
 
 
 def _sort_columns() -> dict[str, Any]:
@@ -333,6 +373,7 @@ async def get_conversations_by_user(
     archived_only: bool = False,
     sort_by: str = "updated_at",
     sort_dir: str = "desc",
+    participant_conversation_ids: Collection[UUID] = frozenset(),
 ) -> list[Conversation]:
     """Get one organization's conversations, optionally narrowed to one user.
 
@@ -340,10 +381,14 @@ async def get_conversations_by_user(
     the tenant would return every tenant's rows, and that mistake must not look
     like an ordinary call. The narrowing arguments after it are shared with the
     admin listing - see :func:`_list_filters` for what each one means.
+
+    `participant_conversation_ids` widens a user's list to channel threads whose
+    membership the caller has already confirmed against the platform - see
+    :func:`_reachable_by` for why they arrive vetted rather than derived here.
     """
     query = select(Conversation).where(Conversation.organization_id == organization_id)
     if user_id:
-        query = query.where(_reachable_by(user_id))
+        query = query.where(_reachable_by(user_id, participant_conversation_ids))
     for condition in _list_filters(
         search=search,
         agent_id=agent_id,
@@ -421,18 +466,20 @@ async def count_conversations(
     agent_id: UUID | None = None,
     include_archived: bool = False,
     archived_only: bool = False,
+    participant_conversation_ids: Collection[UUID] = frozenset(),
 ) -> int:
     """Count one organization's conversations, optionally narrowed to one user.
 
     Takes the same narrowing as :func:`get_conversations_by_user` because it
     answers a question about that page: a total counted without the filters the
-    page was fetched with is a number that contradicts the rows under it.
+    page was fetched with is a number that contradicts the rows under it -
+    which includes the vetted participation set.
     """
     query = select(func.count(Conversation.id)).where(
         Conversation.organization_id == organization_id
     )
     if user_id:
-        query = query.where(_reachable_by(user_id))
+        query = query.where(_reachable_by(user_id, participant_conversation_ids))
     for condition in _list_filters(
         search=search,
         agent_id=agent_id,
@@ -539,6 +586,174 @@ async def count_messages(db: AsyncSession, conversation_id: UUID) -> int:
     return result.scalar() or 0
 
 
+async def conversation_cost(
+    db: AsyncSession, conversation_id: UUID
+) -> tuple[int, int, Decimal, bool | None] | None:
+    """Input tokens, output tokens, money and whether the money is a floor.
+
+    Aggregated here rather than summed by a client, because a client only holds
+    the page it asked for: the transcript endpoint pages at 100, so adding up
+    what is on screen answers "the first hundred turns" while reading as "this
+    conversation".
+
+    `None` when nothing in the thread was ever measured - a conversation older
+    than the columns, or one whose every turn failed before a cost was read.
+    Zeroes would be a claim, and this has none to make.
+
+    The partial flag is `bool_or`: one unpriced turn makes the whole total a
+    floor. It stays `None` where no turn recorded the flag at all, which is the
+    honest "nobody knows" rather than "exact".
+    """
+    result = await db.execute(
+        select(
+            func.coalesce(func.sum(Message.input_tokens), 0),
+            func.coalesce(func.sum(Message.output_tokens), 0),
+            func.coalesce(func.sum(Message.cost_usd), 0),
+            func.bool_or(Message.cost_is_partial),
+            func.count(Message.input_tokens),
+        ).where(Message.conversation_id == conversation_id)
+    )
+    input_tokens, output_tokens, cost_usd, partial, measured = result.one()
+    if not measured:
+        return None
+    return int(input_tokens), int(output_tokens), Decimal(cost_usd), partial
+
+
+async def attributed_to_run(db: AsyncSession, run_id: UUID) -> tuple[int, int, Decimal]:
+    """What this run's messages already claim of what the run spent.
+
+    A run row carries *cumulative* totals, and one run can write more than one
+    assistant turn: a run that parks and is resumed writes the parked half and the
+    continuation, and the resume's row says what the whole run has cost by then.
+    Stamping each with the row's figure would count the parked half twice, so each
+    turn is written with the difference - and the messages of a run then sum to
+    exactly what the run says it spent.
+
+    Zero for a run that has written nothing yet, which is every ordinary turn.
+    """
+    result = await db.execute(
+        select(
+            func.coalesce(func.sum(Message.input_tokens), 0),
+            func.coalesce(func.sum(Message.output_tokens), 0),
+            func.coalesce(func.sum(Message.cost_usd), 0),
+        ).where(Message.run_id == run_id)
+    )
+    input_tokens, output_tokens, cost_usd = result.one()
+    return int(input_tokens), int(output_tokens), Decimal(cost_usd)
+
+
+async def run_statuses(db: AsyncSession, run_ids: Collection[UUID]) -> dict[UUID, str]:
+    """How each of these runs ended, for the turns they produced.
+
+    One query for a page of messages, the same bargain the rating counts make. A
+    transcript needs it to say that a turn was *stopped*: a cancelled run leaves a
+    half-written answer that reads exactly like a complete one, and the reader is
+    left believing the agent said all it had to say.
+    """
+    if not run_ids:
+        return {}
+    result = await db.execute(
+        select(AgentRun.id, AgentRun.status).where(AgentRun.id.in_(list(run_ids)))
+    )
+    return dict(result.all())
+
+
+async def get_recent_messages(
+    db: AsyncSession, conversation_id: UUID, *, limit: int
+) -> list[Message]:
+    """The last `limit` messages of a conversation, still oldest first.
+
+    The window every surface reminds a model of, in one place because the offset
+    has been got wrong from both ends already. `get_messages_by_conversation`
+    orders oldest-first, so a bare `limit` returns a thread's *opening*
+    exchanges and drops what was just said: that is how the widget forgot the
+    question before the one it was answering (#39), and how a channel bot past
+    200 messages came to answer plausibly from a conversation that had stopped
+    hundreds of turns ago (#638). Neither errored.
+
+    One `COUNT(*)` on an indexed column is what the right offset costs.
+    """
+    total = await count_messages(db, conversation_id)
+    return await get_messages_by_conversation(
+        db, conversation_id, skip=max(0, total - limit), limit=limit
+    )
+
+
+async def get_messages_after(
+    db: AsyncSession, conversation_id: UUID, *, ordinal: int, limit: int
+) -> list[Message]:
+    """The last `limit` messages written after `ordinal`, still oldest first.
+
+    What a conversation has said since its summary was taken, which is the half
+    of the history the summary does not account for. Bounded like
+    `get_recent_messages` is, and for the same reason: a thread nobody compacts
+    again must not grow into an unbounded prompt.
+    """
+    total = await db.scalar(
+        select(func.count(Message.id)).where(
+            Message.conversation_id == conversation_id, Message.ordinal > ordinal
+        )
+    )
+    query = (
+        select(Message)
+        .where(Message.conversation_id == conversation_id, Message.ordinal > ordinal)
+        .options(selectinload(Message.files))
+        .order_by(Message.ordinal.asc())
+        .offset(max(0, (total or 0) - limit))
+        .limit(limit)
+    )
+    result = await db.execute(query)
+    return list(result.scalars().all())
+
+
+async def set_summary(
+    db: AsyncSession,
+    *,
+    db_conversation: Conversation,
+    messages: list[dict[str, Any]],
+    ordinal: int,
+) -> Conversation:
+    """Record the history a summary reduced this conversation to.
+
+    One row per conversation rather than a log of them: the newest summary is
+    written over the last, because it was produced *from* it and the older one
+    describes a thread that no longer exists.
+    """
+    db_conversation.summary_messages = messages
+    db_conversation.summary_ordinal = ordinal
+    await db.flush()
+    await db.refresh(db_conversation)
+    return db_conversation
+
+
+async def set_overhead(
+    db: AsyncSession, *, db_conversation: Conversation, tokens: int
+) -> Conversation:
+    """Record what a request here carries before a single message."""
+    db_conversation.overhead_tokens = tokens
+    await db.flush()
+    await db.refresh(db_conversation)
+    return db_conversation
+
+
+async def set_reminder_state(
+    db: AsyncSession, *, db_conversation: Conversation, state: dict[str, Any]
+) -> Conversation:
+    """Record how far this conversation's system-reminders cadence has advanced."""
+    db_conversation.reminder_state = state
+    await db.flush()
+    await db.refresh(db_conversation)
+    return db_conversation
+
+
+async def last_ordinal(db: AsyncSession, conversation_id: UUID) -> int:
+    """The ordinal of the newest message, or 0 for a conversation with none."""
+    highest = await db.scalar(
+        select(func.max(Message.ordinal)).where(Message.conversation_id == conversation_id)
+    )
+    return highest or 0
+
+
 async def get_messages_by_run(
     db: AsyncSession,
     run_id: UUID,
@@ -583,6 +798,8 @@ async def create_message(
     input_tokens: int | None = None,
     output_tokens: int | None = None,
     cost_usd: Decimal | None = None,
+    cost_is_partial: bool | None = None,
+    context_used_tokens: int | None = None,
     agent_id: UUID | None = None,
     agent_version_id: UUID | None = None,
     run_id: UUID | None = None,
@@ -601,6 +818,8 @@ async def create_message(
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         cost_usd=cost_usd,
+        cost_is_partial=cost_is_partial,
+        context_used_tokens=context_used_tokens,
         agent_id=agent_id,
         agent_version_id=agent_version_id,
         run_id=run_id,

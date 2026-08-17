@@ -26,12 +26,15 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from app.agents.capabilities.compaction import ContextGauge
 from app.core.permissions import AuthContext, OrgRoleName
 from app.repositories import agent_workspace_repo
 from app.services.usage_report import (
+    ContextFill,
     SandboxUsage,
     UsageReport,
     UsageReportService,
+    context_fill,
     format_footer,
     needs_sandbox_sample,
     should_report,
@@ -388,3 +391,51 @@ class TestTheFrameAChatReads:
         assert frame is not None
         assert frame["sandbox"]["kind"] == "service"
         assert frame["sandbox"]["percent"] == 25
+
+
+class TestHowFullTheContextWas:
+    """The ceiling nobody sees coming.
+
+    A budget refuses with a message somebody can act on and a workspace refuses a
+    write; a context window is refused by the *provider*, mid-answer. The number
+    is free - the compaction capability's estimator has already computed it for
+    its own trigger - so the only work is carrying it honestly.
+    """
+
+    def test_it_carries_the_count_and_no_share_of_anything(self):
+        """The window is not a fact about the turn.
+
+        How much history there is survives a model change; what share of a window
+        that is does not, and the chat lets somebody switch model between turns. A
+        share computed here and carried forward would read "50%" for a
+        500,000-token history after a switch from a 1M-context model to a 128K
+        one, where it is really 390% and the next request is refused outright.
+        """
+        assert ContextFill(used_tokens=150_000).used_tokens == 150_000
+        assert not hasattr(ContextFill(used_tokens=1), "window_tokens")
+
+    def test_a_run_that_made_no_request_reports_no_reading(self):
+        """Refused before it started, or stopped by a budget on the first check.
+        A gauge with nothing in it is not a context that was empty."""
+        assert context_fill(ContextGauge()) is None
+
+    def test_the_gauges_newest_reading_is_the_one_reported(self):
+        fill = context_fill(ContextGauge(latest=40))
+
+        assert fill is not None
+        assert fill.used_tokens == 40
+
+    def test_the_frame_carries_the_count_a_surface_divides(self):
+        """The denominator is resolved on the surface, from the model selected
+        there - so what crosses the wire is the numerator and nothing else."""
+        frame = usage_frame(_report(context=ContextFill(used_tokens=90)))
+
+        assert frame is not None
+        assert frame["context"] == {"used_tokens": 90}
+
+    def test_a_frame_with_no_reading_says_so_rather_than_omitting_the_key(self):
+        """A client switching on the key must not have to tell absent from null."""
+        frame = usage_frame(_report())
+
+        assert frame is not None
+        assert frame["context"] is None

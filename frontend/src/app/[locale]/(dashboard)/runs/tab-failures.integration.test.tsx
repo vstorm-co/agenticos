@@ -40,9 +40,21 @@ const params = new URLSearchParams();
 vi.mock("next/navigation", () => ({ useSearchParams: () => params }));
 
 const SPEND = {
-  period_days: 30,
+  period_days: null,
   month_to_date_usd: "12.40",
-  by_agent: [],
+  // The window figure sums these rows, so the $12.40 the test reads back is
+  // the window's spend, not the calendar month's.
+  by_agent: [
+    {
+      agent_id: "agent-1",
+      agent_name: "Agent",
+      cost_usd: "12.40",
+      run_count: 3,
+      partial_run_count: 0,
+      month_to_date_usd: "12.40",
+      monthly_cap_usd: null,
+    },
+  ],
   by_provider: [],
   by_key: [],
 };
@@ -65,8 +77,11 @@ function backend(failing: "/approvals" | "/runs" | "/spend") {
   });
 }
 
-async function open(tab: "Runs" | "Spend") {
-  await userEvent.click(await screen.findByRole("tab", { name: tab }));
+async function open(tab: "Runs" | "Spend" | "Approvals") {
+  // The Approvals trigger can carry a count badge, so it is matched by prefix.
+  await userEvent.click(
+    await screen.findByRole("tab", { name: tab === "Approvals" ? /^Approvals/ : tab }),
+  );
 }
 
 beforeEach(() => {
@@ -80,6 +95,7 @@ describe("a tab whose request failed", () => {
     backend("/approvals");
 
     render(<RunsPage />, { wrapper });
+    await open("Approvals");
 
     expect(await screen.findByText("The approvals queue could not be read")).toBeVisible();
     // The sentence a parked run must never be reported as. Somebody reading it
@@ -111,14 +127,18 @@ describe("a tab whose request failed", () => {
   // works: React Query holds the rejected query and would serve it back. So the
   // assertion is on the request count, per tab, because each tab wires its own.
   it.each([
-    { failing: "/approvals" as const, tab: null, title: "The approvals queue could not be read" },
+    {
+      failing: "/approvals" as const,
+      tab: "Approvals" as const,
+      title: "The approvals queue could not be read",
+    },
     { failing: "/runs" as const, tab: "Runs" as const, title: "Run history could not be read" },
     { failing: "/spend" as const, tab: "Spend" as const, title: "Spend could not be read" },
   ])("offers a way to ask $failing again, and asking reaches the server", async (tabCase) => {
     backend(tabCase.failing);
 
     render(<RunsPage />, { wrapper });
-    if (tabCase.tab !== null) await open(tabCase.tab);
+    await open(tabCase.tab);
     expect(await screen.findByText(tabCase.title)).toBeVisible();
 
     const asked = () =>
@@ -135,6 +155,7 @@ describe("a tab whose request failed", () => {
     backend("/approvals");
 
     render(<RunsPage />, { wrapper });
+    await open("Approvals");
     expect(await screen.findByText("The approvals queue could not be read")).toBeVisible();
 
     await open("Spend");
@@ -144,8 +165,8 @@ describe("a tab whose request failed", () => {
   });
 
   it("still prints the figures above it, which come from their own requests", async () => {
-    // The month-to-date figure is `/spend`'s too, so a failed queue must not
-    // blank it - the tabs and the figures are separate answers.
+    // The spend figure is `/spend`'s too, so a failed queue must not blank
+    // it - the tabs and the figures are separate answers.
     backend("/approvals");
 
     render(<RunsPage />, { wrapper });

@@ -205,6 +205,26 @@ registry, the Builder's picker renders from it, and `schema-form.tsx` generates
 the configuration form from `config_json_schema()`. A capability added here is
 in the product on the next restart.
 
+Two things the generated form reads that are worth knowing while writing the
+schema:
+
+- **A field's default is drawn as its value**, not as placeholder grey. Nothing
+  is stored until somebody edits it, so the field keeps tracking a default that
+  later changes in code — but what a person sees is what will happen if they
+  leave it alone. Give every optional field a sensible default and the form is
+  filled in on arrival.
+- **A `Literal` renders its raw values** unless the schema says otherwise, and
+  raw values are spec format: `clear_tool_results` in a dropdown is a choice
+  somebody makes by guessing. Say what each one does with
+  `json_schema_extra={"x-enum-labels": {value: "what it does"}}` on the field —
+  an extension keyword, because JSON Schema has none, kept beside the definition
+  for the same reason `description` is.
+- **A string is a one-line box** unless the schema says otherwise, and a prompt in
+  one is a field nobody can read what they are editing in.
+  `json_schema_extra={"x-multiline": True}` gets it the Markdown editor the
+  agent's own instructions get — source or preview, and a refusal wired to the
+  field. Same extension shape, same reason.
+
 ## Adding a tool to an existing capability
 
 Usually the right move when the new behaviour belongs to a decision somebody has

@@ -273,12 +273,15 @@ describe("the policy", () => {
   });
 
   it("writes a policy field into the binding's config", async () => {
-    const { onChange } = mount();
+    // Typed onto a stored value: a field with a default is never empty, and this
+    // component is controlled by a spy, so what is on screen does not move
+    // between keystrokes.
+    const { onChange } = mount({ bound: binding({ config: { max_fanout: 1 } }) });
 
     await userEvent.type(screen.getByLabelText("Max fanout"), "5");
 
     expect(onChange).toHaveBeenCalledWith(
-      expect.objectContaining({ config: expect.objectContaining({ max_fanout: 5 }) }),
+      expect.objectContaining({ config: expect.objectContaining({ max_fanout: 15 }) }),
     );
   });
 

@@ -6,13 +6,14 @@ import { Camera } from "lucide-react";
 import { toast } from "sonner";
 
 import { ApiError, getErrorMessage, parseErrorMessage } from "@/lib/api-error";
-import { Button, FormField, Input } from "@/components/ui";
+import { AvatarColorPicker, Button, FormField, Input } from "@/components/ui";
+import { avatarInitials, avatarPalette } from "@/lib/avatar-color";
 import { ActiveSessions } from "@/components/dashboard/active-sessions";
 import { ChatAccounts } from "@/components/settings/chat-accounts";
 import { SectionCard } from "@/components/settings/settings-section";
 import { useAuth } from "@/hooks";
 import { apiClient } from "@/lib/api-client";
-import { formatDate, isAppAdmin, MAX_AVATAR_SIZE_BYTES } from "@/lib/utils";
+import { cn, formatDate, isAppAdmin, MAX_AVATAR_SIZE_BYTES } from "@/lib/utils";
 import { useAuthStore } from "@/stores";
 import type { User } from "@/types";
 import { useChanged } from "@/hooks/use-changed";
@@ -90,9 +91,23 @@ export default function ProfileSettingsPage() {
     }
   };
 
+  const handleColorChange = async (slot: number | null) => {
+    if (!user || slot === (user.avatar_color ?? null)) return;
+    try {
+      const updated = await apiClient.patch<User>("/users/me", { avatar_color: slot });
+      setUser(updated);
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? getErrorMessage(err, tErrors) : t("failedUpdateProfile"),
+      );
+    }
+  };
+
   if (!user) {
     return null;
   }
+
+  const fallback = avatarPalette(user.id, user.avatar_color);
 
   return (
     <div className="space-y-6">
@@ -103,7 +118,10 @@ export default function ProfileSettingsPage() {
             onClick={() => avatarInputRef.current?.click()}
             disabled={avatarUploading}
             aria-label={user.avatar_url ? t("replaceAvatar3") : t("uploadAvatar3")}
-            className="border-border bg-muted hover:bg-accent group relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border transition-colors"
+            className={cn(
+              "border-border hover:bg-accent group relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border transition-colors",
+              user.avatar_url ? "bg-muted" : fallback.bg,
+            )}
           >
             {user.avatar_url ? (
               <Image
@@ -115,8 +133,8 @@ export default function ProfileSettingsPage() {
                 unoptimized
               />
             ) : (
-              <span className="text-foreground text-lg font-semibold">
-                {(user.full_name || user.email).slice(0, 2).toUpperCase()}
+              <span className={cn(fallback.fg, "text-lg font-semibold")}>
+                {avatarInitials(user.full_name || user.email)}
               </span>
             )}
             <span className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
@@ -149,6 +167,11 @@ export default function ProfileSettingsPage() {
               {t("memberSince", { date: formatDate(user.created_at, locale) })}
             </p>
           </div>
+        </div>
+        <div className="mt-5">
+          <p className="text-foreground mb-2 text-sm font-medium">{t("avatarColour")}</p>
+          <p className="text-muted-foreground mb-3 text-xs">{t("avatarColourHint")}</p>
+          <AvatarColorPicker value={user.avatar_color ?? null} onChange={handleColorChange} />
         </div>
       </SectionCard>
 
