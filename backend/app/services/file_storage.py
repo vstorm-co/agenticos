@@ -127,8 +127,11 @@ class LocalFileStorage(BaseFileStorage):
         read as an unguarded path expression (CodeQL `py/path-injection`).
         """
         base = os.path.realpath(self.base_dir)
+        # A filesystem root already ends in the separator, and `/` + `/` is a prefix
+        # no descendant of it has.
+        prefix = base if base.endswith(os.sep) else base + os.sep
         candidate = os.path.realpath(Path(base) / storage_path)
-        if candidate != base and not candidate.startswith(base + os.sep):
+        if candidate != base and not candidate.startswith(prefix):
             raise ValueError(f"Path escapes storage root: {storage_path}")
         return Path(candidate)
 

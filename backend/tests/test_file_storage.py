@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -39,6 +40,18 @@ async def test_a_path_leaving_the_storage_root_is_refused(
     with pytest.raises(ValueError, match="escapes storage root"):
         await storage.delete(storage_path)
     assert storage.get_full_path(storage_path) is None
+
+
+async def test_a_filesystem_root_as_the_storage_root_still_reaches_its_files(tmp_path: Path):
+    """`/` already ends in the separator, and `//` is a prefix no descendant of it has."""
+    target = (tmp_path / "note.txt").resolve()
+    target.write_bytes(b"month,total")
+    rooted = LocalFileStorage(base_dir=os.sep)
+
+    stored = str(target.relative_to(os.sep))
+
+    assert await rooted.load(stored) == b"month,total"
+    assert rooted.get_full_path(stored) == target
 
 
 async def test_a_sibling_of_the_root_sharing_its_prefix_is_refused(storage: LocalFileStorage):
