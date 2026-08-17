@@ -435,6 +435,7 @@
     "secretMissingFromVault": "The secret selected here is not in this organization's vault - it was deleted, or the spec was written against another organization. Publishing refuses it.",
     "secretOfWrongKind": "\"{name}\" is of kind {kind}; this capability needs {needed}. Publishing refuses it.",
     "seeEveryRunActivity": "See every run in Activity",
+    "separateWithCommas": "Separate with commas",
     "separatesStagingTrafficFrom": "Separates staging traffic from the real thing in the same project.",
     "serverCount": "{count, plural, =1 {1 server} other {# servers}}",
     "servesVersion": "serves v{version}{isDefault, select, true { - what publish repoints} other {}}",

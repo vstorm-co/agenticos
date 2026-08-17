@@ -559,3 +559,102 @@ describe("SchemaForm · reading back what was pasted", () => {
     expect(screen.queryByRole("button", { name: /Aws Access Key Id/ })).toBeNull();
   });
 });
+
+const LIST_SCHEMA: JsonSchema = {
+  type: "object",
+  properties: {
+    allowed_domains: {
+      // How Pydantic renders `list[str] | None`: the `items` sit on the branch,
+      // not on the property.
+      anyOf: [{ type: "array", items: { type: "string" } }, { type: "null" }],
+      title: "Allowed domains",
+      description: "Bare hostnames the agent may fetch",
+    },
+    tags: { type: "array", items: { type: "string" }, title: "Tags" },
+    rules: { type: "array", items: { type: "object" }, title: "Rules" },
+  },
+};
+
+describe("SchemaForm · a list of strings", () => {
+  it("stores what was typed as a list, not as the string it was typed in", async () => {
+    // The whole of the bug: before this, `resolveKind` fell through to a text
+    // box and typing a hostname stored a scalar the server then refused - so
+    // leaving the field blank was the only publishable path through the form.
+    const onChange = vi.fn();
+    render(<SchemaForm schema={LIST_SCHEMA} value={{}} onChange={onChange} idPrefix="fetch" />);
+
+    await userEvent.type(screen.getByLabelText(/Allowed domains/), "docs.example.com");
+
+    expect(onChange).toHaveBeenLastCalledWith({ allowed_domains: ["docs.example.com"] });
+  });
+
+  it("keeps the separator while a second entry is being typed", async () => {
+    // The field holds its own text: rendering the array back would swallow the
+    // comma the moment it was typed, leaving a list nobody can add to.
+    render(<SchemaForm schema={LIST_SCHEMA} value={{}} onChange={vi.fn()} idPrefix="fetch" />);
+
+    const field = screen.getByLabelText(/Allowed domains/);
+    await userEvent.type(field, "a.example.com, b.example.com");
+
+    expect(field).toHaveValue("a.example.com, b.example.com");
+  });
+
+  it("splits on commas and whitespace, which is how a host list gets pasted", async () => {
+    const onChange = vi.fn();
+    render(<SchemaForm schema={LIST_SCHEMA} value={{}} onChange={onChange} idPrefix="fetch" />);
+
+    await userEvent.type(screen.getByLabelText(/Allowed domains/), "a.example.com, b.example.com");
+
+    expect(onChange).toHaveBeenLastCalledWith({
+      allowed_domains: ["a.example.com", "b.example.com"],
+    });
+  });
+
+  it("shows a stored list back", () => {
+    render(
+      <SchemaForm
+        schema={LIST_SCHEMA}
+        value={{ allowed_domains: ["a.example.com", "b.example.com"] }}
+        onChange={vi.fn()}
+        idPrefix="fetch"
+      />,
+    );
+
+    expect(screen.getByLabelText(/Allowed domains/)).toHaveValue("a.example.com, b.example.com");
+  });
+
+  it("clearing it unsets the field rather than storing an empty list", async () => {
+    // `null` and `[]` are not the same answer to the server: an absent allowlist
+    // allows everything, an empty one allows nothing.
+    const onChange = vi.fn();
+    render(
+      <SchemaForm
+        schema={LIST_SCHEMA}
+        value={{ allowed_domains: ["a.example.com"] }}
+        onChange={onChange}
+        idPrefix="fetch"
+      />,
+    );
+
+    await userEvent.clear(screen.getByLabelText(/Allowed domains/));
+
+    expect(onChange).toHaveBeenLastCalledWith({ allowed_domains: undefined });
+  });
+
+  it("renders a required list the same way, with no null branch to read past", async () => {
+    const onChange = vi.fn();
+    render(<SchemaForm schema={LIST_SCHEMA} value={{}} onChange={onChange} idPrefix="fetch" />);
+
+    await userEvent.type(screen.getByLabelText(/Tags/), "urgent");
+
+    expect(onChange).toHaveBeenLastCalledWith({ tags: ["urgent"] });
+  });
+
+  it("leaves a list of anything else alone", () => {
+    // A list of objects is the richer editor a capability should ship itself,
+    // and claiming it here would be worse than the text box it falls back to.
+    render(<SchemaForm schema={LIST_SCHEMA} value={{}} onChange={vi.fn()} idPrefix="fetch" />);
+
+    expect(screen.getByLabelText(/Rules/)).not.toHaveAttribute("placeholder");
+  });
+});
