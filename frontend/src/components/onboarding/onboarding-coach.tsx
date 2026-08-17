@@ -10,6 +10,7 @@ import {
   activateTab,
   isTypingTarget,
   onlyHiddenMatches,
+  revealDisclosures,
   spotlightPath,
   waitForElement,
 } from "@/components/onboarding/spotlight";
@@ -353,6 +354,10 @@ export function OnboardingCoach() {
       const target = await waitForElement(selector, signal, null);
       if (signal.aborted || !(target instanceof HTMLElement)) return;
 
+      // A `<details>` hides its content without taking it out of the document, so
+      // the wait above happily returns a control nobody can see and the ring frames
+      // a zero-height box. Opened before measuring, never after.
+      revealDisclosures(target);
       target.scrollIntoView({ block: "center", inline: "center" });
       // Keep the ring and cut-out matched to the control every frame. Observers
       // catch a resize or a scroll, but not a plain layout shift that repositions

@@ -14,11 +14,18 @@ vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({ can: rig.can, isLoading: false, error: null }),
 }));
 
-// The offer reads the MCP catalog from the query cache to know whether a connect
-// is worth offering, so every render needs a client — and a `catalog` seeds it.
-function renderOffer(node: ReactElement, catalog?: { items: unknown[] }) {
+// The offer reads the query cache to know whether a create is worth offering at
+// all — the MCP catalog, and how many agents the organization has — so every
+// render needs a client, and `seed` fills whichever of those a test is about.
+function renderOffer(
+  node: ReactElement,
+  seed: { catalog?: { items: unknown[] }; agents?: number } = {},
+) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  if (catalog) client.setQueryData(qk.mcpServers.catalog(), catalog);
+  if (seed.catalog) client.setQueryData(qk.mcpServers.catalog(), seed.catalog);
+  if (seed.agents !== undefined) {
+    client.setQueryData(qk.agents.list(), { items: [], total: seed.agents });
+  }
   return render(<QueryClientProvider client={client}>{node}</QueryClientProvider>);
 }
 
@@ -69,14 +76,29 @@ describe("CreationOffer", () => {
 
   it("suppresses the create-mcp offer when the catalog is empty — nothing to connect", () => {
     useOnboardingStore.setState({ offer: "create-mcp" });
-    renderOffer(<CreationOffer />, { items: [] });
+    renderOffer(<CreationOffer />, { catalog: { items: [] } });
     expect(screen.queryByText("Connect an MCP server?")).toBeNull();
   });
 
   it("offers create-mcp when the catalog has servers to connect", () => {
     useOnboardingStore.setState({ offer: "create-mcp" });
-    renderOffer(<CreationOffer />, { items: [{ key: "github" }] });
+    renderOffer(<CreationOffer />, { catalog: { items: [{ key: "github" }] } });
     expect(screen.getByText("Connect an MCP server?")).toBeInTheDocument();
+  });
+
+  it("does not offer a first agent to an organization that already has one", () => {
+    // This is what the first-run tour ends with, having just walked the reader
+    // through an existing agent's builder in detail — so to an organization with
+    // six agents it answers a question nobody asked.
+    useOnboardingStore.setState({ offer: "create-agent" });
+    renderOffer(<CreationOffer />, { agents: 6 });
+    expect(screen.queryByText("Create your first agent?")).toBeNull();
+  });
+
+  it("offers it where the organization has none", () => {
+    useOnboardingStore.setState({ offer: "create-agent" });
+    renderOffer(<CreationOffer />, { agents: 0 });
+    expect(screen.getByText("Create your first agent?")).toBeInTheDocument();
   });
 
   it("renders nothing when there is no offer", () => {

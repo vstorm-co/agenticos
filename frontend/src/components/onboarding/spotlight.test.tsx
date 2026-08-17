@@ -6,6 +6,7 @@ import {
   isTypingTarget,
   onlyHiddenMatches,
   pulse,
+  revealDisclosures,
   spotlightPath,
   waitForElement,
 } from "./spotlight";
@@ -142,6 +143,27 @@ describe("waitForElement", () => {
 
     expect(await pending).toBe(link);
     host.remove();
+  });
+
+  it("opens the disclosure a control is hiding inside", () => {
+    // A `<details>` keeps its content in the document while hiding it, so the wait
+    // returns a control nobody can see. The builder's model picker is exactly that:
+    // the saved models a step points at sit behind "use a saved model", and the
+    // walk stopped dead on "choose its model" with nothing on screen to choose.
+    const outer = document.createElement("details");
+    const inner = document.createElement("details");
+    const target = document.createElement("div");
+    inner.appendChild(target);
+    outer.appendChild(inner);
+    document.body.appendChild(outer);
+    expect(outer.open).toBe(false);
+
+    revealDisclosures(target);
+
+    // Every one between the control and the document, not just the nearest.
+    expect(inner.open).toBe(true);
+    expect(outer.open).toBe(true);
+    outer.remove();
   });
 
   it("reads where a key landed, so the arrows never eat a keystroke", () => {

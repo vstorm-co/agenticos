@@ -14,6 +14,7 @@ import {
   createTourDriver,
   isTypingTarget,
   pulse,
+  revealDisclosures,
   waitForElement,
 } from "@/components/onboarding/spotlight";
 import { useOnboardingTour } from "@/hooks";
@@ -240,6 +241,10 @@ export function OnboardingTour() {
         else next();
         return;
       }
+      // A `<details>` keeps its content in the document while hiding it, so the
+      // wait above returns a control the reader cannot see and driver.js
+      // spotlights a zero-height box.
+      if (element) revealDisclosures(element);
       show(element ?? undefined);
     })();
     return () => controller.abort();

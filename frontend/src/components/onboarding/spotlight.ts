@@ -105,6 +105,23 @@ export function isTypingTarget(target: EventTarget | null): boolean {
   );
 }
 
+/**
+ * Open every collapsed disclosure between `element` and the document, so a
+ * control inside one can actually be seen.
+ *
+ * A `<details>` keeps its content in the document while hiding it, so the wait
+ * above finds the control, the ring frames a zero-height box, and the reader is
+ * told to pick from a list that is not on screen. The builder's model picker is
+ * exactly that: with permission to add a model it shows the add form, and the
+ * saved models the step points at sit behind a "use a saved model" disclosure —
+ * so the walk stopped dead on "choose its model" with nothing to choose from.
+ */
+export function revealDisclosures(element: Element): void {
+  for (let node: Element | null = element; node !== null; node = node.parentElement) {
+    if (node instanceof HTMLDetailsElement) node.open = true;
+  }
+}
+
 /** The class that drives the "clicked" flourish; see `globals.css`. */
 const CLICK_PULSE_CLASS = "tour-click-pulse";
 

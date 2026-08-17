@@ -41,6 +41,8 @@ vi.mock("@/components/onboarding/spotlight", () => ({
   waitForElement: vi.fn(async () => ({}) as Element),
   activateTab: vi.fn(),
   pulse: vi.fn(async () => {}),
+  isTypingTarget: vi.fn(() => false),
+  revealDisclosures: vi.fn(),
 }));
 
 vi.mock("@/lib/api-client", async () => {
