@@ -1172,21 +1172,61 @@
   bottom: auto !important;
 }
 
-.driver-popover.tour-popover .driver-popover-title,
-.driver-popover.tour-popover .driver-popover-description {
-  color: var(--color-popover-foreground);
-}
-
 .driver-popover.tour-popover .driver-popover-progress-text,
 .driver-popover.tour-popover .driver-popover-close-btn {
   color: var(--color-muted-foreground);
 }
 
+/*
+ * Back and Next arrived as two identical bordered grey boxes, which says nothing
+ * about which one continues the walk. They are the app's own button pair instead:
+ * Next carries the brand, Back is quiet beside it. driver.js renders them as bare
+ * `<button>`s it owns, so this is written out rather than composed from the
+ * `Button` component the rest of the product uses.
+ */
 .driver-popover.tour-popover .driver-popover-footer button {
-  background-color: var(--color-secondary);
-  color: var(--color-secondary-foreground);
-  border: 1px solid var(--color-border);
+  border-radius: 9999px;
+  padding: 0.3rem 0.85rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
   text-shadow: none;
+  border: 1px solid transparent;
+  background-color: transparent;
+  color: var(--color-muted-foreground);
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.driver-popover.tour-popover .driver-popover-footer button:hover:not(:disabled) {
+  background-color: var(--color-accent);
+  color: var(--color-foreground);
+}
+
+.driver-popover.tour-popover .driver-popover-footer .driver-popover-next-btn {
+  background-color: var(--color-brand);
+  color: var(--color-brand-foreground);
+}
+
+.driver-popover.tour-popover .driver-popover-footer .driver-popover-next-btn:hover:not(:disabled) {
+  background-color: var(--color-brand-hover);
+  color: var(--color-brand-foreground);
+}
+
+.driver-popover.tour-popover .driver-popover-footer button:disabled {
+  opacity: 0.45;
+}
+
+.driver-popover.tour-popover .driver-popover-title {
+  color: var(--color-popover-foreground);
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.driver-popover.tour-popover .driver-popover-description {
+  color: var(--color-muted-foreground);
+  font-size: 0.875rem;
+  line-height: 1.5;
 }
 
 .driver-popover.tour-popover .driver-popover-arrow {
@@ -1219,43 +1259,50 @@
   position: fixed;
   z-index: 1000000001;
   pointer-events: none;
-  /* Sized to the target's exact box, with its corner radius copied in inline
-     (from the control). The frame is a spread `box-shadow`, not an `outline` or
-     `border`: a spread shadow paints immediately outside the border-box, hugging
-     the control on every side with no gap and following its radius exactly — the
-     same on a pill as on a card, where `outline-offset` left a bright gap that
-     read differently in each place (#624). The second shadow is the glow. */
-  border-radius: 10px;
+  /* Three spread shadows rather than one, which is the whole difference between a
+     frame and an outline. A single 3px band of solid brand, sat on the control's
+     own box, is exactly what a form draws around an invalid field — and on a plain
+     `div` it drew square corners too, so it read as an error box rather than as
+     guidance (#624). So: a hairline edge at not-quite-full strength, a wide soft
+     band just outside it giving that edge depth, and a coloured drop that lifts the
+     framed control off the dimmed page. The box itself stands off the control and
+     keeps a soft corner — see `RING_OFFSET` in `onboarding-coach.tsx`. Spread
+     shadows rather than `outline`, still, because they follow the radius exactly
+     where `outline-offset` left a gap that read differently on a pill and a card. */
+  border-radius: 12px;
   box-shadow:
-    0 0 0 3px var(--color-brand),
-    0 0 16px 2px var(--color-brand);
+    0 0 0 1.5px color-mix(in oklab, var(--color-brand) 90%, transparent),
+    0 0 0 7px color-mix(in oklab, var(--color-brand) 15%, transparent),
+    0 10px 34px -8px color-mix(in oklab, var(--color-brand) 55%, transparent);
   transition:
-    top 0.45s ease,
-    left 0.45s ease,
-    width 0.45s ease,
-    height 0.45s ease;
-  animation: onboarding-coach-pulse 1.6s ease-in-out infinite;
+    top 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    left 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    width 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    height 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: onboarding-coach-pulse 2.8s ease-in-out infinite;
 }
 
 /*
  * The ring breathes rather than blinks. It used to animate opacity 1 → 0, so the
  * whole highlight flickered out for half of every cycle — which read as the ring
- * malfunctioning rather than as "look here". Now the ring stays fully visible and
- * its glow swells and settles: the attention cue is a steady frame around the
- * control whose halo pulses, never the control's own border (which would look
- * like a validation error on a real control).
+ * malfunctioning rather than as "look here". The hairline now holds perfectly
+ * still and only the soft band around it swells and settles, slowly: the frame is
+ * the thing that says *where*, and something that keeps redrawing its own edge
+ * cannot be read as a border on the control it is framing.
  */
 @keyframes onboarding-coach-pulse {
   0%,
   100% {
     box-shadow:
-      0 0 0 3px var(--color-brand),
-      0 0 14px 0 var(--color-brand);
+      0 0 0 1.5px color-mix(in oklab, var(--color-brand) 90%, transparent),
+      0 0 0 6px color-mix(in oklab, var(--color-brand) 16%, transparent),
+      0 10px 30px -10px color-mix(in oklab, var(--color-brand) 45%, transparent);
   }
   50% {
     box-shadow:
-      0 0 0 3px var(--color-brand),
-      0 0 24px 6px var(--color-brand);
+      0 0 0 1.5px color-mix(in oklab, var(--color-brand) 90%, transparent),
+      0 0 0 11px color-mix(in oklab, var(--color-brand) 7%, transparent),
+      0 12px 40px -8px color-mix(in oklab, var(--color-brand) 65%, transparent);
   }
 }
 
@@ -1313,19 +1360,39 @@
  * reader who asked for less motion.
  */
 @keyframes onboarding-help-hint {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-brand) 45%, transparent);
+  /* A ring that leaves the button and fades, twice, then a long rest — a
+     heartbeat rather than a metronome, which is what makes it noticeable at the
+     edge of vision without being something you have to look away from. */
+  0% {
+    box-shadow:
+      0 0 0 0 color-mix(in oklab, var(--color-brand) 55%, transparent),
+      0 0 0 0 color-mix(in oklab, var(--color-brand) 30%, transparent);
   }
-  50% {
-    box-shadow: 0 0 0 5px color-mix(in oklab, var(--color-brand) 0%, transparent);
+  18% {
+    box-shadow:
+      0 0 0 7px transparent,
+      0 0 0 0 color-mix(in oklab, var(--color-brand) 30%, transparent);
+  }
+  36% {
+    box-shadow:
+      0 0 0 7px transparent,
+      0 0 0 7px transparent;
+  }
+  100% {
+    box-shadow:
+      0 0 0 7px transparent,
+      0 0 0 7px transparent;
   }
 }
 
 .onboarding-help-hint {
-  color: var(--color-brand);
-  border-radius: 0.5rem;
-  animation: onboarding-help-hint 2.4s ease-out infinite;
+  /* The brand colour is half the cue: an icon that is the only coloured thing in
+     a header of grey ones is noticed before anything moves. `!important` because
+     `IconButton` sets its own foreground on hover and this must survive it. */
+  color: var(--color-brand) !important;
+  background-color: color-mix(in oklab, var(--color-brand) 10%, transparent);
+  border-radius: 9999px;
+  animation: onboarding-help-hint 3.2s ease-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -24,12 +24,26 @@ import { useConversationStore } from "@/stores/conversation-store";
 import { useSidebarStore } from "@/stores/sidebar-store";
 
 /**
- * Space between the control and the freeze layer's cut-out. Matched to the ring's
- * 3px spread (`globals.css`), so the un-dimmed hole ends exactly at the ring's
- * outer edge — no strip of bright page peeking between the ring and the dim (#624).
+ * How far the ring stands off the control it frames, and the smallest corner it
+ * will draw.
+ *
+ * It used to sit on the control's own box with its own radius, which drew a hard
+ * 3px rectangle tight around whatever it pointed at — square corners on a plain
+ * `div`, and on a bordered field group indistinguishable from the outline a form
+ * puts on an invalid input. A frame reads as guidance when it is *around* the
+ * thing with air between, so it stands off and keeps a soft corner even where the
+ * control has none.
  */
-const HOLE_PADDING = 3;
-const HOLE_RADIUS = 12;
+const RING_OFFSET = 6;
+const RING_MIN_RADIUS = 12;
+
+/**
+ * Space between the control and the freeze layer's cut-out — the same offset the
+ * ring stands off by, so the un-dimmed hole ends exactly where the ring's inner
+ * edge begins and no strip of bright page peeks between them (#624).
+ */
+const HOLE_PADDING = RING_OFFSET;
+const HOLE_RADIUS = RING_MIN_RADIUS;
 
 /** The side of the dot the ring starts as, before it grows onto the first control. */
 const DOT = 12;
@@ -359,8 +373,20 @@ export function OnboardingCoach() {
           lastKey = key;
           const box = { top: b.top, left: b.left, width: b.width, height: b.height };
           setRect({ stepId: sid, ...box });
-          setRingRect(box);
-          setRingRadius(getComputedStyle(target).borderTopLeftRadius || "10px");
+          // The ring stands off the control rather than sitting on it, so its own
+          // box is the control's grown by the offset on every side — and its corner
+          // grows to match, never tighter than `RING_MIN_RADIUS`, so a square-cornered
+          // `div` is framed by a soft rectangle instead of a hard box.
+          setRingRect({
+            top: box.top - RING_OFFSET,
+            left: box.left - RING_OFFSET,
+            width: box.width + RING_OFFSET * 2,
+            height: box.height + RING_OFFSET * 2,
+          });
+          const radius = Number.parseFloat(getComputedStyle(target).borderTopLeftRadius);
+          setRingRadius(
+            `${Math.max((Number.isNaN(radius) ? 0 : radius) + RING_OFFSET, RING_MIN_RADIUS)}px`,
+          );
           if (placed) setRingInstant(true);
           placed = true;
         }

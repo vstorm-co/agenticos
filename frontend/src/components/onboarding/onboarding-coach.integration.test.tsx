@@ -284,6 +284,41 @@ describe("OnboardingCoach", () => {
     expect(useSidebarStore.getState().isOpen).toBe(false);
   });
 
+  it("frames the control with air around it, and never with a square corner", async () => {
+    // Sat on the control's own box with its own radius, the ring drew a hard
+    // rectangle tight around whatever it pointed at — on a plain `div`, square
+    // corners, and on a bordered field group indistinguishable from the outline a
+    // form puts on an invalid input.
+    const target = document.createElement("div");
+    target.setAttribute("data-tour", "skills-new");
+    document.body.appendChild(target);
+    target.getBoundingClientRect = () =>
+      ({ top: 100, left: 200, width: 300, height: 40 }) as DOMRect;
+    vi.mocked(waitForElement).mockImplementation(async () => target);
+
+    render(<OnboardingCoach />);
+    // Waits past the centre dot the ring starts every flow as, onto the control.
+    const ring = await waitFor(() => {
+      const found = document.querySelector("[data-coach-ring]");
+      if (!(found instanceof HTMLElement) || found.style.top !== "94px") {
+        throw new Error("not placed yet");
+      }
+      return found;
+    });
+
+    // Six pixels of air on every side — so twelve more across, and the origin back
+    // by six in both directions.
+    expect(ring.style.top).toBe("94px");
+    expect(ring.style.left).toBe("194px");
+    expect(ring.style.width).toBe("312px");
+    expect(ring.style.height).toBe("52px");
+    // The element has no radius of its own, so the frame keeps the floor rather
+    // than inheriting a 0.
+    expect(ring.style.borderRadius).toBe("12px");
+
+    target.remove();
+  });
+
   it("advances on the right arrow where the card carries a Next", async () => {
     const next = vi.fn();
     const descriptive = step({ signal: undefined });
