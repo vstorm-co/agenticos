@@ -241,6 +241,35 @@ describe("OnboardingTour", () => {
     // And no "?" reminder either — this walk was opened from the "?" itself.
     expect(toast.info).not.toHaveBeenCalled();
   });
+
+  it("asks for the detail lists only when the walk has somewhere to open", async () => {
+    // Three list queries stand behind the detail stops. The vault section has no
+    // detail view, so a "?" there used to fetch agents, collections and
+    // organizations to answer a question none of its steps asks.
+    servePermissions(OWNER);
+    nav.pathname = ROUTES.VAULT;
+    useOnboardingStore.setState({ isOpen: true, index: 0, mode: "page" });
+    render(<OnboardingTour />, { wrapper });
+    await waitFor(() => expect(spotlight.highlight).toHaveBeenCalled());
+
+    const asked = vi.mocked(apiClient.get).mock.calls.map(([path]) => path);
+    expect(asked).not.toContain("/agents");
+    expect(asked).not.toContain("/kb");
+    expect(asked).not.toContain("/orgs");
+  });
+
+  it("asks for them on a walk that does step into a detail view", async () => {
+    // The Agents walk continues into the builder, which has no route of its own —
+    // so the example to open has to be resolved from the list.
+    servePermissions(OWNER);
+    nav.pathname = ROUTES.AGENTS;
+    useOnboardingStore.setState({ isOpen: true, index: 0, mode: "page" });
+    render(<OnboardingTour />, { wrapper });
+
+    await waitFor(() =>
+      expect(vi.mocked(apiClient.get).mock.calls.map(([path]) => path)).toContain("/agents"),
+    );
+  });
 });
 
 describe("RestartTourButton", () => {

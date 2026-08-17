@@ -461,3 +461,20 @@ export function stepsForPage(
       (!step.permission || can(step.permission)),
   );
 }
+
+/**
+ * Whether this registry holds any stop for `path` at all — the question the "?"
+ * button asks before offering itself.
+ *
+ * Deliberately blind to permissions, and that is the whole reason it is separate
+ * from `stepsForPage`: the button lives in a header twenty surfaces render, and
+ * making it wait on the permission query would drag react-query into every one of
+ * them for an answer that only ever differs on a page which *has* stops. A page
+ * with none in the registry — the deployment-admin section, the component
+ * playground — can never grow them from a permission, so this is the whole of it;
+ * a page whose stops a permission happens to filter to zero is caught later, by
+ * `useOnboardingTour` closing a walk that opened empty.
+ */
+export function pageHasSteps(path: string): boolean {
+  return stepsForPage(path, () => true).length > 0;
+}

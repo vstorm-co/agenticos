@@ -179,7 +179,7 @@ export function useOnboardingFlow(): OnboardingFlowState {
   const setIndex = useOnboardingStore((state) => state.setIndex);
   const close = useOnboardingStore((state) => state.close);
   const choices = useOnboardingStore((state) => state.choices);
-  const answer = useOnboardingStore((state) => state.answer);
+  const recordAnswer = useOnboardingStore((state) => state.answer);
   const openFlow = useOnboardingStore((state) => state.openFlow);
   const flowAgentId = useOnboardingStore((state) => state.flowAgentId);
   const setFlowAgentId = useOnboardingStore((state) => state.setFlowAgentId);
@@ -284,6 +284,30 @@ export function useOnboardingFlow(): OnboardingFlowState {
   }, [clamped, steps.length, setIndex, close]);
 
   const finish = useCallback(() => close(), [close]);
+
+  // Recording a fork's answer advances in the same update (`onboarding-store.ts`),
+  // which rests on a fork never being a flow's last surviving step. It can be:
+  // create-agent's tail — limits, publish, the first chat run — is gated on
+  // `agents:publish`, so a role holding `agents:edit` and `collections:edit` and
+  // nothing else walks a flow that ends on the "add a knowledge base?" fork. Skip
+  // there recorded the choice, widened nothing, and stepped one past the end, where
+  // `clamped` put the reader back on the fork they had just answered and Skip
+  // re-answered it forever — the close button the only way out.
+  //
+  // So the answer is resolved against the list it produces rather than trusted to
+  // land on something: if nothing follows the fork once the choice is in, the walk
+  // is over. Computed here rather than clamped afterwards, so there is no frame in
+  // which the answered question is on screen again.
+  const answer = useCallback(
+    (questionId: string, value: ChoiceValue) => {
+      const widened = flow
+        ? stepsForFlow(flow, orgState, can, { ...choices, [questionId]: value })
+        : [];
+      if (clamped >= widened.length - 1) close();
+      else recordAnswer(questionId, value);
+    },
+    [flow, orgState, can, choices, clamped, close, recordAnswer],
+  );
 
   return {
     isActive: isOpen && flow !== null && stateReady && steps.length > 0,

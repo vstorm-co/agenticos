@@ -5,6 +5,7 @@ import {
   KB_DETAIL,
   ORG_MEMBERS,
   ORG_ROLES,
+  pageHasSteps,
   pageKey,
   SETTINGS_DETAIL,
   stepsForPage,
@@ -286,5 +287,29 @@ describe("stepsForPage", () => {
 
   it("is empty for a page the tour does not cover", () => {
     expect(stepsForPage(ROUTES.PROFILE, () => true)).toEqual([]);
+  });
+});
+
+describe("pageHasSteps", () => {
+  // What the header "?" asks before rendering itself, and why it is separate from
+  // `stepsForPage`: it answers without a permission set, so the button stays free
+  // of the permission query in the twenty headers that render it.
+  it("is false for the surfaces that render a header but are never walked", () => {
+    // Both render `PageHeader`, and neither is in the registry.
+    expect(pageHasSteps("/admin/users")).toBe(false);
+    expect(pageHasSteps("/dev/components")).toBe(false);
+  });
+
+  it("is true for a covered page, including a detail route", () => {
+    expect(pageHasSteps(ROUTES.AGENTS)).toBe(true);
+    expect(pageHasSteps("/agents/some-id")).toBe(true);
+    expect(pageHasSteps("/rag/some-id")).toBe(true);
+  });
+
+  it("ignores permissions, so a page whose stops are all gated still offers help", () => {
+    // `/skills` carries an edit-gated stop and a view-gated one. A Viewer sees a
+    // shorter walk, not no button — and a walk that a permission does empty is
+    // closed by `useOnboardingTour`, not prejudged here.
+    expect(pageHasSteps(ROUTES.SKILLS)).toBe(true);
   });
 });

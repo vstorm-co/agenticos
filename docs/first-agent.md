@@ -12,9 +12,12 @@ The steps below are the manual path, and worth reading once. But a new user does
 not start here: the first time anyone signs in, a walkthrough opens on the
 dashboard and points out each section in turn. It shows **once** - finishing,
 skipping or closing it is remembered against the account, not the browser, so it
-does not return on the next device - and the **?** in any page header replays that
-page's tips whenever they are wanted. Leaving the walkthrough, finished or
-skipped, says exactly that, so nobody discovers the "?" by accident or not at all.
+does not return on the next device - and the **?** in the header of any walked page
+replays that page's tips whenever they are wanted. It is offered only where there
+is something to replay, so a section with no stops in the walkthrough - the
+deployment-admin pages - simply has no **?** rather than one that does nothing.
+Leaving the walkthrough, finished or skipped, says exactly that, so nobody
+discovers the "?" by accident or not at all.
 
 Finishing the walkthrough offers to build the first agent *together*. That is an
 interactive flow, not a spotlight: it points at the real controls, the reader

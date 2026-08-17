@@ -485,6 +485,34 @@ describe("stepsForFlow", () => {
   });
 });
 
+describe("a fork that is the flow's last step", () => {
+  it("is reachable: agents:edit plus collections:edit ends create-agent on a question", () => {
+    // The store advances a fork with a blind `index + 1`, on the claim that a
+    // question is never a flow's last step. It can be. create-agent's tail — the
+    // limits, the publish and the first chat run — is gated on `agents:publish`,
+    // and the roles catalog is a per-organization matrix rather than a fixed set,
+    // so a role holding `agents:edit` and `collections:edit` and nothing else is
+    // one an owner can build. Its walk ends on the knowledge fork, and Skip there
+    // used to step past the end, clamp back onto the answered question, and offer
+    // the same Skip again until the reader closed the coach.
+    //
+    // Pinned here rather than asserted away, because the fix belongs to the hook:
+    // `useOnboardingFlow` resolves an answer against the list it produces and ends
+    // the walk when nothing follows. If a future flow edit gives this caller a step
+    // after the fork, this test is the place that says the shape changed.
+    const can = (permission: Permission) =>
+      permission === Perm.agentsEdit || permission === Perm.collectionsEdit;
+    const steps = stepsForFlow(FLOWS["create-agent"], EMPTY, can, NO_CHOICES);
+
+    expect(steps[steps.length - 1]?.id).toBe("flow-agent-knowledge-ask");
+    expect(steps[steps.length - 1]?.question).toBe(true);
+    // And skipping it widens nothing, so there is genuinely nowhere to step.
+    expect(
+      stepsForFlow(FLOWS["create-agent"], EMPTY, can, { "flow-agent-knowledge-ask": "skip" }),
+    ).toHaveLength(steps.length);
+  });
+});
+
 describe("canOfferFlow", () => {
   it("offers a permissioned flow only to a caller who holds it", () => {
     expect(canOfferFlow(FLOWS["create-skill"], allow)).toBe(true);

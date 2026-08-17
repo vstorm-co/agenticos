@@ -293,11 +293,16 @@ Trigger map — what changed → which page:
 ### A new surface owes the walkthrough a stop (required)
 
 The product teaches itself: `frontend/src/lib/onboarding/tour.ts` is the passive
-walk every page's "?" replays, and `flows.ts` is the guided creation the walk
+walk a walked page's "?" replays, and `flows.ts` is the guided creation the walk
 offers at its end. Both are **registries**, so a page, tab, section or control
 added anywhere else is simply absent from them — nothing fails, nothing warns,
 and the feature ships invisible to everyone who learns the product through the
 tour. That is the whole failure mode: it is silent.
+
+The one place it is now audible: a page with no stop in `tour.ts` renders **no
+"?" at all** (`pageHasSteps`), rather than one that opens a walk with nothing in
+it and closes again. So a new page whose header carries no help button has not
+been added to the registry.
 
 So a change that adds a surface adds its stop in the same change.
 

@@ -470,6 +470,35 @@ export function OnboardingCoach() {
     if (frozen) cardRef.current?.focus();
   }, [isActive, step, overlayOpen]);
 
+  // Moving focus onto the card is not enough to keep it there: the freeze paints
+  // over pointer events and the tab order is untouched, so Tab walked straight into
+  // the dimmed page behind and Enter on whatever it reached acted — a sidebar link,
+  // another tab, the very wandering mid-step the freeze exists to prevent, and the
+  // keyboard half of the same hole the submit guard had. So while the page is frozen
+  // Tab cycles the card's own buttons and nothing else. Reversing the list for Shift
+  // is what keeps both directions one expression: focus resting on the card itself
+  // reads as -1 either way, which lands on the first control going forward and the
+  // last going back. `roam`, `inOverlay` and any open dialog are excluded — the
+  // reader is meant to work the page or Radix owns the trap.
+  useEffect(() => {
+    if (!isActive || !step) return;
+    if (step.roam || step.inOverlay || overlayOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      const card = cardRef.current;
+      if (card === null) return;
+      const stops = Array.from(card.querySelectorAll<HTMLElement>("button:not([disabled])"));
+      if (stops.length === 0) return;
+      event.preventDefault();
+      const order = event.shiftKey ? [...stops].reverse() : stops;
+      const here = order.indexOf(document.activeElement as HTMLElement);
+      // In range by construction: a modulo of a non-empty array's own length.
+      order.at((here + 1) % order.length)!.focus();
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [isActive, step, overlayOpen]);
+
   // The right arrow does what the card's Next does, and only when the card is
   // showing one: a step that waits for the reader to create something has no Next
   // for a reason, and a key that skipped it would walk them past the thing the step

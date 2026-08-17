@@ -6,7 +6,7 @@ import { useOnboardingStore } from "@/stores";
 import { useAgentSelectionStore } from "@/stores/agent-selection-store";
 import { useChatStore } from "@/stores/chat-store";
 import { useConversationStore } from "@/stores/conversation-store";
-import type { Permission } from "@/types/permissions";
+import { Perm, type Permission } from "@/types/permissions";
 
 // The pathname the arrived-signal reads; a test moves it to fake a navigation.
 const nav = vi.hoisted(() => ({ pathname: "/dashboard" }));
@@ -451,6 +451,30 @@ describe("useOnboardingFlow", () => {
     act(() => useChatStore.getState().addMessage({ id: "sent" } as never));
     rerender();
     expect(result.current.signalMet).toBe(true);
+  });
+
+  it("ends the walk when the fork it answers is the last step, rather than re-asking it", () => {
+    // `answer` in the store records the choice and advances in one update, on the
+    // claim that a question is never a flow's last step. It can be: create-agent's
+    // tail is gated on `agents:publish`, and roles are a per-organization matrix,
+    // so `agents:edit` plus `collections:edit` and nothing else walks a flow that
+    // ends on the knowledge fork. Skipping there stepped one past the end, the
+    // clamp put the reader back on the question they had just answered, and Skip
+    // offered it again — forever, the close button the only way out.
+    rig.can = (permission) => permission === Perm.agentsEdit || permission === Perm.collectionsEdit;
+    rig.kbs = [];
+    nav.pathname = "/rag";
+    const { result } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-agent"));
+
+    const last = result.current.steps.length - 1;
+    expect(result.current.steps[last]?.id).toBe("flow-agent-knowledge-ask");
+    act(() => useOnboardingStore.getState().setIndex(last));
+    expect(result.current.step?.id).toBe("flow-agent-knowledge-ask");
+
+    act(() => result.current.answer("flow-agent-knowledge-ask", "skip"));
+    expect(result.current.isActive).toBe(false);
+    expect(useOnboardingStore.getState().isOpen).toBe(false);
   });
 
   it("opens the knowledge detour on yes and meets its arrived signals by page", () => {

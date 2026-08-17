@@ -31,6 +31,8 @@ const params = new URLSearchParams();
 vi.mock("next/navigation", () => ({
   useSearchParams: () => params,
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  // The header's "?" reads the path to decide whether this page has tips.
+  usePathname: () => "/runs",
 }));
 
 function renderPage() {

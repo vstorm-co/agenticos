@@ -30,6 +30,22 @@ function orgIdFromPath(path: string): string | null {
   return segments[0] === "orgs" && segments.length > 1 ? (segments[1] ?? null) : null;
 }
 
+/**
+ * The detail pseudo-pages whose example is found by asking the server.
+ *
+ * `SETTINGS_DETAIL` and `WORKSPACE_DETAIL` are deliberately absent: one resolves
+ * to a fixed route and the other to nothing at all, so neither costs a request.
+ * A caller passes `enabled` false when the walk it is about to run names none of
+ * these — a "?" on the vault has no detail stop, and fetching three lists to
+ * answer a question nobody asks is three requests per press.
+ */
+export const FETCHED_DETAIL_PAGES: ReadonlySet<string> = new Set([
+  AGENT_BUILDER,
+  KB_DETAIL,
+  ORG_MEMBERS,
+  ORG_ROLES,
+]);
+
 /** Where a detail pseudo-page resolves to, and whether we are still finding out. */
 export interface ResolvedDetail {
   /** True while the list this route is picked from is still loading. */

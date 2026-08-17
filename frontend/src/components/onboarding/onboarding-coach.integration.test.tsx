@@ -75,8 +75,13 @@ beforeEach(() => {
   // `clearAllMocks` wipes the default implementation a test may have replaced.
   vi.mocked(waitForElement).mockImplementation(async () => document.createElement("div"));
   vi.mocked(onlyHiddenMatches).mockReturnValue(false);
-  // A dialog a prior test appended to simulate an open modal would leak forward.
-  document.querySelectorAll('[role="dialog"][data-state]').forEach((node) => node.remove());
+  // A floating layer a prior test appended to simulate one would leak forward, and
+  // the coach reads the *document* for them — so an un-removed Radix popper leaves
+  // `overlayOpen` true for every test after it, silently disabling the freeze and
+  // everything that hangs off it. Both shapes go, not just the dialog.
+  document
+    .querySelectorAll('[role="dialog"][data-state], [data-radix-popper-content-wrapper]')
+    .forEach((node) => node.remove());
   nav.pathname = "/skills";
   flow.state = makeState();
   useSidebarStore.setState({ isOpen: false });
@@ -428,6 +433,68 @@ describe("OnboardingCoach", () => {
     document.body.appendChild(input);
     input.focus();
     expect(fireEvent.keyDown(input, { key: " " })).toBe(true);
+  });
+
+  it("keeps Tab inside the card while the page is frozen", async () => {
+    // The freeze paints over pointers and leaves the tab order alone, so Tab
+    // walked into the dimmed page behind the card and Enter on whatever it found
+    // acted — a sidebar link, another tab, the wandering the freeze exists to
+    // prevent. It is the keyboard half of the submit guard's hole.
+    const roaming = step({ signal: undefined });
+    flow.state = makeState({ step: roaming, steps: [roaming] });
+    render(<OnboardingCoach />);
+    await screen.findByText("Add your skill");
+
+    // A control on the frozen page behind, where focus can be stranded.
+    const outside = document.createElement("button");
+    document.body.appendChild(outside);
+    const card = document.querySelector<HTMLElement>("[data-coach-card]");
+    expect(card).not.toBeNull();
+    const close = screen.getByRole("button", { name: "Close" });
+    const nextButton = screen.getByRole("button", { name: "Finish" });
+
+    // Where focus lands is the assertion, not that the key was cancelled: jsdom
+    // moves focus for nobody, so in this environment the only thing that can put
+    // it anywhere is the trap itself. In a browser the `preventDefault` beside it
+    // is what stops the native move landing on top.
+    const tab = (target: HTMLElement, shiftKey = false) =>
+      fireEvent.keyDown(target, { key: "Tab", shiftKey });
+
+    outside.focus();
+    tab(outside);
+    expect(document.activeElement).toBe(close);
+
+    // Forward reaches the last control, and once more wraps rather than escaping.
+    tab(close);
+    expect(document.activeElement).toBe(nextButton);
+    tab(nextButton);
+    expect(document.activeElement).toBe(close);
+
+    // Shift walks the other way, wrapping at the front for the same reason.
+    tab(close, true);
+    expect(document.activeElement).toBe(nextButton);
+
+    // And Shift from the page behind lands on the card's last control, not out.
+    outside.focus();
+    tab(outside, true);
+    expect(document.activeElement).toBe(nextButton);
+  });
+
+  it("leaves Tab alone on a roam step, where the reader is meant to work the page", async () => {
+    // A roam step draws no freeze at all — the reader is choosing among many
+    // controls — so trapping the keyboard there would lock them out of the very
+    // choice the step asks for.
+    const roaming = step({ roam: true, signal: undefined });
+    flow.state = makeState({ step: roaming, steps: [roaming] });
+    render(<OnboardingCoach />);
+    await screen.findByText("Add your skill");
+
+    const outside = document.createElement("button");
+    document.body.appendChild(outside);
+    outside.focus();
+    fireEvent.keyDown(outside, { key: "Tab" });
+    // Nothing pulled focus back, so the tab order is the page's own.
+    expect(document.activeElement).toBe(outside);
   });
 
   it("hands a fork's Yes off to another flow when it opensFlow", async () => {

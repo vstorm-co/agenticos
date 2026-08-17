@@ -2,13 +2,13 @@
 
 import "driver.js/dist/driver.css";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import type { AllowedButtons, DriveStep, Driver } from "driver.js";
 
-import { useDetailTargets } from "@/components/onboarding/detail-targets";
+import { FETCHED_DETAIL_PAGES, useDetailTargets } from "@/components/onboarding/detail-targets";
 import {
   activateTab,
   createTourDriver,
@@ -85,7 +85,15 @@ export function OnboardingTour() {
   const { isOpen, steps, step, index, isFirst, isLast, next, back, dismiss } = useOnboardingTour();
   const mode = useOnboardingStore((state) => state.mode);
   const openOffer = useOnboardingStore((state) => state.openOffer);
-  const detailTargets = useDetailTargets(isOpen);
+  // Three list queries stand behind the detail stops, and most walks name none:
+  // the vault, runs and channels sections have no detail view at all, so asking
+  // for agents, collections and organizations there is three requests per press
+  // of "?". Enabled only for a walk that actually has somewhere to open.
+  const needsDetail = useMemo(
+    () => steps.some((s) => s.page !== undefined && FETCHED_DETAIL_PAGES.has(s.page)),
+    [steps],
+  );
+  const detailTargets = useDetailTargets(isOpen && needsDetail);
   const driverRef = useRef<Driver | null>(null);
   // Whether a transition is in flight. driver.js greys its own Next and Back for
   // one (`LOCKED_BUTTONS`); the arrow keys below are not its buttons, so they read
