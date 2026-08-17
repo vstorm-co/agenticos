@@ -17,6 +17,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.179] - 2026-08-18
+
+### Changed
+
+- **Disconnecting an MCP server asks in the product, not in the browser.**
+  `window.confirm` was the lone holdout after rag, agents, skills and embeds
+  moved to `ConfirmDialog`; the confirmation is now keyed on the pending
+  connection, and a second click while the DELETE is in flight is a no-op rather
+  than a second request. (#554)
+- **The two MCP dialogs left the list component.** The connect/edit dialog and
+  the tool picker move into their own modules, taking `mcp-server-list.tsx` from
+  about 985 lines to 765. A pure move — the JSX is unchanged and the parent
+  keeps its state and both handlers — with the shapes all three share extracted
+  to a leaf module so a dialog never imports the component that renders it.
+  (#569)
+
 ## [0.0.178] - 2026-08-18
 
 The collection page is server state again, not seven `useState` slots.
