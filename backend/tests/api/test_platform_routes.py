@@ -239,6 +239,7 @@ CALLS: tuple[Call, ...] = (
     # same coarse door as `GET /agents`. Per-agent trigger routes stay ungated and
     # let the service resolve `agents:run` per row.
     Call("GET", "/triggers", Perm.AGENTS_VIEW),
+    Call("GET", "/trigger-portals", Perm.AGENTS_VIEW),
     Call("GET", "/runs", Perm.RUNS_VIEW),
     Call(
         "GET",
@@ -658,6 +659,9 @@ _PLATFORM_PREFIXES = (
     # over `GET /triggers` and its "gated or resource-aware" claim would not
     # actually cover it. (Per-agent triggers live under `/agents`.)
     "/triggers",
+    # The trigger-portals catalog, gated on `agents:view` like `/mcp-catalog` -
+    # a distinct path, not a `/triggers` prefix, so it needs its own entry.
+    "/trigger-portals",
 )
 
 

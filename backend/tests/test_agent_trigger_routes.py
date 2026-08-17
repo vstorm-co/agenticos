@@ -21,6 +21,7 @@ from app.api.routes.v1.agent_triggers import (
     create_trigger,
     delete_trigger,
     list_org_triggers,
+    list_trigger_portals,
     list_triggers,
     run_trigger_now,
     update_trigger,
@@ -53,6 +54,17 @@ async def test_a_listing_reports_its_own_total():
     service = MagicMock(list_for_agent=AsyncMock(return_value=[_read(), _read()]))
     result = await list_triggers(uuid.uuid4(), _CTX, service)
     assert result.total == 2
+
+
+async def test_the_portal_catalog_maps_every_portal_and_its_presets():
+    result = await list_trigger_portals()
+    assert result.total == len(result.items) > 0
+    github = next(portal for portal in result.items if portal.key == "github")
+    assert github.delivery == "auto_webhook"
+    assert github.connection_catalog_key == "github"
+    assert github.target_kind == "repo"
+    opened = next(preset for preset in github.presets if preset.key == "issue_opened")
+    assert opened.target_required is True
 
 
 async def test_the_org_listing_reports_its_own_total():

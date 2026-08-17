@@ -22,6 +22,8 @@ from fastapi import APIRouter, Depends, Query, Response, status
 from app.api.deps import AgentTriggerSvc, Auth, require
 from app.core.permissions import Perm
 from app.schemas.agent_trigger import TriggerCreate, TriggerList, TriggerRead, TriggerUpdate
+from app.schemas.portal import PortalCatalog, PortalPresetRead, PortalRead
+from app.services import portal_catalog
 
 router = APIRouter()
 
@@ -31,6 +33,44 @@ router = APIRouter()
 # by `/agents/{agent_id}` from the registry, which is registered first - so it is
 # its own top-level `/triggers`, the same shape as the org-wide `/runs` listing.
 org_router = APIRouter()
+
+
+@org_router.get(
+    "/trigger-portals",
+    response_model=PortalCatalog,
+    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+)
+async def list_trigger_portals() -> Any:
+    """The services a trigger can be built on, each with its ready-made presets.
+
+    Hand-curated data, gated like `GET /triggers` and `GET /mcp-catalog` on the
+    coarse `agents:view` first door - browsing what can be set up, not acting on
+    one agent. The scopes a portal registers with are deliberately not exposed.
+    """
+    items = [
+        PortalRead(
+            key=portal.key,
+            name=portal.name,
+            description=portal.description,
+            category=portal.category,
+            icon=portal.icon or None,
+            event_source=portal.event_source,
+            delivery=portal.delivery.value,
+            target_kind=portal.target_kind,
+            connection_catalog_key=portal.mcp_catalog_key,
+            presets=[
+                PortalPresetRead(
+                    key=preset.key,
+                    label=preset.label,
+                    description=preset.description,
+                    target_required=preset.target_required,
+                )
+                for preset in portal.presets
+            ],
+        )
+        for portal in portal_catalog.CATALOG
+    ]
+    return PortalCatalog(items=items, total=len(items))
 
 
 @org_router.get(
