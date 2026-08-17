@@ -361,6 +361,16 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     displayNameKey: "webSearch",
   },
 
+  // web_fetch - one page as Markdown, which is text the model reads rather than a
+  // payload with a shape of its own, so the generic renderer shows it the way
+  // `read_tool_result` is shown.
+  web_fetch: {
+    kind: "web",
+    render: "generic",
+    captionKey: "fetchingPage",
+    displayNameKey: "webFetch",
+  },
+
   // tool_output_limits - reads a slice of a tool result that was spilled to the
   // backend because it was too large to keep in the window. The slice is text the
   // model pages through, so the generic renderer shows it.

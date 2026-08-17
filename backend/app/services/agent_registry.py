@@ -91,6 +91,7 @@ DEFAULT_GRANTED_SCOPES = frozenset(
     {
         "knowledge:read",
         "web:read",
+        "web:fetch",
         "web:browse",
         "code:execute",
         "sandbox:execute",

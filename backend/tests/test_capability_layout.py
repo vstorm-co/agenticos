@@ -68,6 +68,11 @@ EXTERNAL_TOOLSET = {
     # the nine tool descriptions are declared in `_capability.py` and handed to the
     # library through `descriptions=`, so the text a reader edits still lives here.
     "planning",
+    # `pydantic_ai.common_tools.web_fetch.web_fetch_tool`, whose whole value is the
+    # SSRF-guarded download underneath it - see the capability's README. Same
+    # bargain as `sandbox`: the description the model reads is declared in
+    # `_capability.py` and handed to the library, so the prompt still lives here.
+    "web_fetch",
     # `pydantic_ai_harness.tool_output_limits.ToolOutputLimits` registers its own
     # `read_tool_result` read-back tool from its `get_toolset()`; the capability
     # here wraps that harness object rather than owning a toolset of its own.
