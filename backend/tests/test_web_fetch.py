@@ -180,6 +180,33 @@ class TestWhatReachesTheFetch:
         assert capability.native.allowed_domains == ["docs.example.com"]
         assert _local_tool(capability).function.__self__.allowed_domains == ["docs.example.com"]
 
+    def test_a_filter_covers_the_unicode_spelling_of_the_host_it_names(self):
+        """The alias a denylist would otherwise have a hole for.
+
+        `urlparse` hands the comparison whatever the URL spelled, and a URL may
+        spell a host in Unicode - so `https://exämple.com/` reaches an exact
+        match against `xn--exmple-cua.com` and misses. `getaddrinfo` resolves the
+        two identically, so the miss is a fetch, not a failure. Both spellings
+        are handed to both paths for that reason.
+        """
+        capability = _built(method="auto", blocked_domains=["exämple.com"])
+        assert isinstance(capability.native, WebFetchTool)
+        aliases = ["xn--exmple-cua.com", "exämple.com"]
+        assert capability.native.blocked_domains == aliases
+        assert _local_tool(capability).function.__self__.blocked_domains == aliases
+
+    def test_an_ascii_host_is_passed_once(self):
+        """Nothing to alias, so nothing added - the common list stays itself."""
+        capability = _built(blocked_domains=["docs.example.com"])
+        assert _local_tool(capability).function.__self__.blocked_domains == ["docs.example.com"]
+
+    def test_a_host_that_only_looks_like_an_a_label_is_still_built(self):
+        """`xn--a.com` is a hostname somebody may write and punycode cannot
+        decode. It has no Unicode alias to add, and refusing to build an agent
+        that published cleanly is a worse answer than passing it through."""
+        capability = _built(blocked_domains=["xn--a.com"])
+        assert _local_tool(capability).function.__self__.blocked_domains == ["xn--a.com"]
+
     async def test_a_host_outside_the_allowlist_is_refused(self):
         capability = _built(allowed_domains=["docs.example.com"])
         with pytest.raises(ModelRetry):
@@ -214,11 +241,43 @@ class TestTheDomainFilterConfiguration:
         with pytest.raises(ValidationError, match="empty list allows nothing"):
             WebFetchConfig(allowed_domains=[])
 
+    def test_an_empty_denylist_denies_nothing_and_is_read_as_no_denylist(self):
+        """The two fields do not mean the same thing by `[]`.
+
+        An empty allowlist allows nothing; an empty denylist blocks nothing,
+        which is what `null` already says - so a spec imported from YAML or
+        posted by an API client that spells "no denied hosts" as `[]` is saying
+        something true and must publish, not be refused with the allowlist's
+        error.
+        """
+        assert WebFetchConfig(blocked_domains=[]).blocked_domains is None
+
     def test_a_hostname_is_lower_cased_so_it_can_match_at_all(self):
         """The comparison is against what `urlparse` read, which is lower case."""
         assert WebFetchConfig(allowed_domains=[" Docs.Example.COM "]).allowed_domains == [
             "docs.example.com"
         ]
+
+    def test_a_root_label_is_stripped_so_the_entry_can_match(self):
+        """`example.com.` and `example.com` are one DNS name.
+
+        The library strips the root label off the requested URL before it
+        compares, so an entry that kept one would match nothing at all - and
+        being refused outright left an author who copied a name out of a zone
+        file with no way to write it.
+        """
+        assert WebFetchConfig(blocked_domains=["example.com."]).blocked_domains == ["example.com"]
+
+    def test_a_unicode_hostname_is_stored_as_the_name_dns_would_be_asked_for(self):
+        """One spelling in the spec, so a stored filter reads the same everywhere."""
+        assert WebFetchConfig(blocked_domains=["Exämple.com"]).blocked_domains == [
+            "xn--exmple-cua.com"
+        ]
+
+    def test_a_hostname_with_no_a_label_is_refused_like_any_other_non_match(self):
+        """An empty label has no IDNA encoding, so nothing could ever match it."""
+        with pytest.raises(ValidationError, match="bare hostnames"):
+            WebFetchConfig(allowed_domains=[".example.com"])
 
     def test_no_filter_means_no_restriction(self):
         assert WebFetchConfig().allowed_domains is None

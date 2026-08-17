@@ -189,8 +189,28 @@ The domain filters are **not** the security boundary — `safe_download` is. The
 match the hostname exactly, with no wildcards and no implicit subdomains, so they
 answer "which sites may this agent read" and not "can this agent reach our
 network". An entry that could never match is refused at publish: a wildcard, a
-scheme, a path, a port, or an empty list, each of which would otherwise leave a
-denylist quietly not denying or an allowlist quietly denying everything.
+scheme, a path, a port, or an empty **allowlist**, each of which would otherwise
+leave a denylist quietly not denying or an allowlist quietly denying everything.
+An empty *denylist* denies nothing, which is what leaving it unset already means,
+so it is read as unset rather than refused — an imported spec that spells "no
+denied hosts" as `[]` is saying something true.
+
+An entry that *can* match is stored in the single spelling DNS would be asked for:
+lower case, no trailing root label, IDNA-encoded. A name has more than one
+spelling, and an exact match against one of them is a filter with a hole in it —
+`https://exämple.com/` reaches the comparison as typed, so a denylist holding only
+`xn--exmple-cua.com` would let it through while `getaddrinfo` resolves the two
+identically. Every equivalent spelling is handed to the filter at build time; the
+spec stores one.
+
+Approval and `native` do not combine. The [approval](../governance.md) gate wraps
+*tool execution*, which is the only place a call can be held, so a fetch the model
+provider runs on its own side never reaches it. A binding that requires approval
+for `web_fetch` and sets `method` to `native` — or to `auto`, where which of the
+two runs is a property of the model profile and changes without republishing — is
+refused at publish rather than given a gate that silently never fires. Set `method`
+to `local`, or drop the approval requirement; both are legitimate agents, and which
+one is wanted is not a decision to make on the author's behalf.
 
 A page arrives as Markdown, truncated at `max_content_chars`; a PDF or an image
 arrives as binary content the model reads natively. Nothing summarises it — what

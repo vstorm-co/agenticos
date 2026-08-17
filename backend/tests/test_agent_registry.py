@@ -2434,6 +2434,64 @@ class TestBrowserUseRefusedAtPublish:
             await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
 
 
+class TestAFetchTheApprovalGateCouldNotHold:
+    """Approval on a `web_fetch` binding that hands the fetch to the provider.
+
+    `ApprovalGate` wraps tool execution, and a native fetch is executed by the
+    model provider - so the gate never sees it, the queue stays empty, and the
+    agent reads pages nobody approved. That is silent at run time, which is why
+    it is refused here.
+    """
+
+    @staticmethod
+    def _spec_with(config: dict, **approval: object):
+        return _spec(
+            capabilities=[{"id": "web_fetch", "config": config, **approval}],
+            model_profile_id=uuid.uuid4(),
+        )
+
+    async def _refusal(self, spec) -> list[str]:
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+        return refused.value.details["problems"]
+
+    async def _publishes(self, spec) -> None:
+        with patch(
+            f"{REGISTRY_PATH}.credential_repo.get_profile",
+            new=AsyncMock(return_value=MagicMock(id=spec.model_profile_id)),
+        ):
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+    @pytest.mark.anyio
+    async def test_native_fetch_with_approval_required_is_refused(self):
+        problems = await self._refusal(self._spec_with({"method": "native"}, approval="required"))
+        assert any("no call to hold" in problem for problem in problems)
+
+    @pytest.mark.anyio
+    async def test_auto_is_refused_too_because_the_model_decides_which_it_gets(self):
+        """Which of the two an `auto` binding runs is a property of the model
+        profile, and that changes without republishing the agent."""
+        problems = await self._refusal(
+            self._spec_with({"method": "auto"}, tool_approval={"web_fetch": "required"})
+        )
+        assert any("no call to hold" in problem for problem in problems)
+
+    @pytest.mark.anyio
+    async def test_a_local_fetch_can_be_approved_and_publishes(self):
+        await self._publishes(self._spec_with({"method": "local"}, approval="required"))
+
+    @pytest.mark.anyio
+    async def test_native_fetch_nobody_asked_to_approve_publishes(self):
+        """The refusal is about approval, not about the provider doing the work."""
+        await self._publishes(self._spec_with({"method": "native"}))
+
+
 class TestASharedWorkspaceIsAnswerableAfterwards:
     """`session_scope="agent"` ships without a permission of its own.
 

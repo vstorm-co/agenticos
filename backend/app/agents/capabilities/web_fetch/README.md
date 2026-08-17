@@ -29,7 +29,17 @@ invents.
 
 **The domain filters are not the security boundary.** `safe_download` is. They
 are matched on the hostname only - exactly, with no wildcards - so they answer
-"which sites may this agent read", not "can this agent reach our network".
+"which sites may this agent read", not "can this agent reach our network". They
+do settle the spelling first, because an exact match on one of a name's several
+spellings is a filter with a hole in it: `a_label` in `_capability.py` has that.
+
+**It does not make a native fetch approvable.** `ApprovalGate` wraps tool
+execution, so a fetch the model provider runs never passes through it. A binding
+that requires approval and sets `method` to `native` or `auto` is refused at
+publish - in `agent_registry._ungateable_fetch_problems` - rather than quietly
+switched to `local` to make the gate work. Which of the two an author wanted is
+not something this can guess, and guessing wrong in the other direction is an
+agent reading pages nobody approved.
 
 **It does not summarise.** The page arrives as Markdown, truncated at
 `max_content_chars`, and what to do with it is the model's problem. A summarising
