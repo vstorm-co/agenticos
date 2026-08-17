@@ -1,224 +1,42 @@
 import type { SVGProps } from "react";
-import type { IconType } from "react-icons";
-import { FaAws, FaMicrosoft, FaSlack } from "react-icons/fa6";
-import {
-  SiAirtable,
-  SiAsana,
-  SiAtlassian,
-  SiBox,
-  SiCalendly,
-  SiClickup,
-  SiCloudflare,
-  SiDatabricks,
-  SiDeepl,
-  SiElastic,
-  SiElevenlabs,
-  SiExcalidraw,
-  SiGitbook,
-  SiGitlab,
-  SiGooglebigquery,
-  SiGrafana,
-  SiHubspot,
-  SiHuggingface,
-  SiLucid,
-  SiMailchimp,
-  SiMake,
-  SiMiro,
-  SiMixpanel,
-  SiN8N,
-  SiNetlify,
-  SiPagerduty,
-  SiPaypal,
-  SiPosthog,
-  SiPostman,
-  SiRailway,
-  SiReplit,
-  SiResend,
-  SiSemrush,
-  SiShopify,
-  SiSimilarweb,
-  SiSnowflake,
-  SiSupabase,
-  SiSurveymonkey,
-  SiTodoist,
-  SiTrello,
-  SiTypeform,
-  SiWebflow,
-  SiWix,
-  SiWordpress,
-  SiXero,
-  SiZapier,
-  SiZoom,
-  SiDropbox,
-  SiFigma,
-  SiGithub,
-  SiGmail,
-  SiGoogle,
-  SiGoogledrive,
-  SiIntercom,
-  SiLinear,
-  SiLoom,
-  SiModelcontextprotocol,
-  SiNotion,
-  SiPostgresql,
-  SiSentry,
-  SiStripe,
-  SiVercel,
-} from "react-icons/si";
 
-/** Brand glyphs sourced from a maintained icon set (Simple Icons via
- *  react-icons, Font Awesome for Microsoft) - never hand-authored SVG paths,
- *  so the marks stay correct and recognizable. Monochrome (currentColor) so
- *  they inherit the surrounding text color. */
+import { GlyphIcon } from "@/components/icons/glyph";
+import { BRAND_GLYPHS, type BrandName } from "@/lib/brand-glyphs.generated";
 
-export type BrandName =
-  | "gdrive"
-  | "slack"
-  | "notion"
-  | "github"
-  | "dropbox"
-  | "gmail"
-  | "google"
-  | "microsoft"
-  | "stripe"
-  | "linear"
-  | "vercel"
-  | "figma"
-  | "loom"
-  | "intercom"
-  | "s3"
-  | "aws"
-  | "sentry"
-  | "postgres"
-  | "asana"
-  | "airtable"
-  | "zapier"
-  | "make"
-  | "n8n"
-  | "clickup"
-  | "trello"
-  | "todoist"
-  | "calendly"
-  | "zoom"
-  | "miro"
-  | "lucid"
-  | "excalidraw"
-  | "box"
-  | "shopify"
-  | "mailchimp"
-  | "resend"
-  | "posthog"
-  | "mixpanel"
-  | "snowflake"
-  | "databricks"
-  | "bigquery"
-  | "pagerduty"
-  | "postman"
-  | "netlify"
-  | "railway"
-  | "replit"
-  | "huggingface"
-  | "gitbook"
-  | "webflow"
-  | "wix"
-  | "wordpress"
-  | "semrush"
-  | "similarweb"
-  | "typeform"
-  | "surveymonkey"
-  | "deepl"
-  | "elevenlabs"
-  | "xero"
-  | "hubspot"
-  | "paypal"
-  | "atlassian"
-  | "gitlab"
-  | "supabase"
-  | "grafana"
-  | "elastic"
-  | "cloudflare"
-  /** The Model Context Protocol mark, for a server that is only "an MCP server". */
-  | "mcp";
+/** Brand glyphs from the maintained icon sets, checked in by
+ *  `scripts/gen-brand-icons.ts` - never hand-authored SVG paths, so the marks
+ *  stay correct and recognizable. Monochrome (currentColor) so they inherit the
+ *  surrounding text color. A mark this set lacks is added to the generator's
+ *  table and fetched, not written out here. */
 
-const ICONS: Record<BrandName, IconType> = {
-  gdrive: SiGoogledrive,
-  slack: FaSlack,
-  notion: SiNotion,
-  github: SiGithub,
-  dropbox: SiDropbox,
-  gmail: SiGmail,
-  google: SiGoogle,
-  microsoft: FaMicrosoft,
-  stripe: SiStripe,
-  linear: SiLinear,
-  vercel: SiVercel,
-  figma: SiFigma,
-  loom: SiLoom,
-  intercom: SiIntercom,
-  s3: FaAws,
-  aws: FaAws,
-  sentry: SiSentry,
-  postgres: SiPostgresql,
-  asana: SiAsana,
-  airtable: SiAirtable,
-  zapier: SiZapier,
-  make: SiMake,
-  n8n: SiN8N,
-  clickup: SiClickup,
-  trello: SiTrello,
-  todoist: SiTodoist,
-  calendly: SiCalendly,
-  zoom: SiZoom,
-  miro: SiMiro,
-  lucid: SiLucid,
-  excalidraw: SiExcalidraw,
-  box: SiBox,
-  shopify: SiShopify,
-  mailchimp: SiMailchimp,
-  resend: SiResend,
-  posthog: SiPosthog,
-  mixpanel: SiMixpanel,
-  snowflake: SiSnowflake,
-  databricks: SiDatabricks,
-  bigquery: SiGooglebigquery,
-  pagerduty: SiPagerduty,
-  postman: SiPostman,
-  netlify: SiNetlify,
-  railway: SiRailway,
-  replit: SiReplit,
-  huggingface: SiHuggingface,
-  gitbook: SiGitbook,
-  webflow: SiWebflow,
-  wix: SiWix,
-  wordpress: SiWordpress,
-  semrush: SiSemrush,
-  similarweb: SiSimilarweb,
-  typeform: SiTypeform,
-  surveymonkey: SiSurveymonkey,
-  deepl: SiDeepl,
-  elevenlabs: SiElevenlabs,
-  xero: SiXero,
-  hubspot: SiHubspot,
-  paypal: SiPaypal,
-  atlassian: SiAtlassian,
-  gitlab: SiGitlab,
-  supabase: SiSupabase,
-  grafana: SiGrafana,
-  elastic: SiElastic,
-  cloudflare: SiCloudflare,
-  mcp: SiModelcontextprotocol,
-};
+export type { BrandName };
 
 interface BrandIconProps extends SVGProps<SVGSVGElement> {
   name: BrandName;
 }
 
 export function BrandIcon({ name, "aria-label": ariaLabel, ...props }: BrandIconProps) {
-  const Icon = ICONS[name];
   // Decorative by default - paired with a text label in our layouts. Pass
   // `aria-label` explicitly to make it semantic (e.g. icon-only buttons).
   const a11y = ariaLabel ? { role: "img", "aria-label": ariaLabel } : { "aria-hidden": true };
-  return <Icon {...a11y} {...props} />;
+  return <GlyphIcon glyph={BRAND_GLYPHS[name]} {...a11y} {...props} />;
+}
+
+/**
+ * A `BrandIcon` bound to one mark, so a lookup table can hold brand marks and
+ * lucide icons side by side and every entry is called the same way.
+ *
+ * Both channel and surface tables mix the two - Slack's mark next to a lucide
+ * speech bubble for the dashboard - and a table of two shapes is a table with a
+ * `typeof` in the middle of its renderer.
+ */
+export function brandMark(name: BrandName) {
+  // `name` is omitted rather than shadowed: SVG elements carry one too, so a
+  // caller spreading generic svg props could otherwise replace the mark with a
+  // string and silently render nothing.
+  return function Mark(props: Omit<SVGProps<SVGSVGElement>, "name">) {
+    return <BrandIcon name={name} {...props} />;
+  };
 }
 
 /**
@@ -249,5 +67,5 @@ export function connectorBrand(connectorType: string): BrandName | undefined {
 
 /** Whether a catalog's icon name is one this set actually draws. */
 export function isBrandName(value: string): value is BrandName {
-  return value in ICONS;
+  return value in BRAND_GLYPHS;
 }

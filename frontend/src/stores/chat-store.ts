@@ -1,14 +1,8 @@
 "use client";
 
 import { create } from "zustand";
+import { clientId } from "@/lib/ids";
 import type { ChatMessage, MessagePart, ToolCall } from "@/types";
-
-function newPartId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  return `part-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
 
 interface ChatState {
   messages: ChatMessage[];
@@ -84,7 +78,7 @@ export const useChatStore = create<ChatState>((set) => ({
         if (last && last.type === "text") {
           parts[parts.length - 1] = { ...last, content: (last.content ?? "") + text };
         } else {
-          parts.push({ id: newPartId(), type: "text", content: text });
+          parts.push({ id: clientId(), type: "text", content: text });
         }
         return { ...msg, parts, content: msg.content + text };
       }),
@@ -99,7 +93,7 @@ export const useChatStore = create<ChatState>((set) => ({
         if (last && last.type === "thinking") {
           parts[parts.length - 1] = { ...last, content: (last.content ?? "") + text };
         } else {
-          parts.push({ id: newPartId(), type: "thinking", content: text });
+          parts.push({ id: clientId(), type: "thinking", content: text });
         }
         return { ...msg, parts, thinking: (msg.thinking ?? "") + text };
       }),
@@ -111,7 +105,7 @@ export const useChatStore = create<ChatState>((set) => ({
         msg.id === messageId
           ? {
               ...msg,
-              parts: [...(msg.parts ?? []), { id: newPartId(), type: "tool", toolCall }],
+              parts: [...(msg.parts ?? []), { id: clientId(), type: "tool", toolCall }],
               toolCalls: [...(msg.toolCalls || []), toolCall],
             }
           : msg,
