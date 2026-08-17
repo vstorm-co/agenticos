@@ -61,7 +61,7 @@ export interface ChatMessage {
    * has no answer on screen to mark.
    */
   wasStopped?: boolean;
-  /** True if message ID is a temporary nanoid, not yet replaced by server ID */
+  /** True if message ID is a temporary client-minted id, not yet replaced by server ID */
   isTemporaryId?: boolean;
   /** Current user's rating */
   user_rating?: UserRating;
