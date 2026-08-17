@@ -6,12 +6,40 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from croniter import croniter
+from croniter import CroniterBadDateError, croniter
 from pydantic import ConfigDict, Field, computed_field, model_validator
 
 from app.core.config import settings
 from app.db.models.agent_trigger import MIN_INTERVAL_SECONDS, EventSource
 from app.schemas.base import BaseSchema, TimestampSchema
+
+# The interval floor is a database CHECK (`ck_trigger_interval_floor`); this
+# ceiling is input-only, and its job is a 422 rather than a 500. `interval_seconds`
+# is stored in a PostgreSQL `integer`, so a larger value overflows the column, and
+# on the way there `_next_fire` feeds it to `timedelta`, which raises `OverflowError`
+# past its own limit. Capping at the column's own ceiling refuses both before a row
+# is touched; a cadence longer than 68 years is a cron expression's job anyway.
+MAX_INTERVAL_SECONDS = 2_147_483_647
+
+
+def _cron_has_next(expression: str) -> bool:
+    """Whether a cron expression is valid *and* ever actually fires.
+
+    `croniter.is_valid` checks only syntax, so `0 0 31 2 *` - the 31st of a
+    February that never has one - passes it, and then `_cron_next` exhausts its
+    forward search and raises `CroniterBadDateError`, turning a user's cadence
+    into a 500 at create or retime time. Resolving one occurrence here proves the
+    expression has a future, so an unschedulable one is refused as a 422 naming
+    the field instead.
+    """
+    if not croniter.is_valid(expression):
+        return False
+    try:
+        croniter(expression).get_next()
+    except CroniterBadDateError:
+        return False
+    return True
+
 
 # GitHub's `issues` webhook actions, so a typo like `opnened` is a 422 rather
 # than a filter stored to match nothing. From GitHub's webhook-events reference.
@@ -123,7 +151,9 @@ class TriggerCreate(BaseSchema):
 
     # Schedule fields.
     schedule_kind: Literal["interval", "cron"] = "interval"
-    interval_seconds: int | None = Field(default=None, ge=MIN_INTERVAL_SECONDS)
+    interval_seconds: int | None = Field(
+        default=None, ge=MIN_INTERVAL_SECONDS, le=MAX_INTERVAL_SECONDS
+    )
     cron_expression: str | None = Field(default=None, max_length=255)
 
     # Event fields.
@@ -172,8 +202,10 @@ class TriggerCreate(BaseSchema):
                 raise ValueError("cron_expression is required for a cron schedule")
             if self.interval_seconds is not None:
                 raise ValueError("interval_seconds is not valid for a cron schedule")
-            if not croniter.is_valid(self.cron_expression):
-                raise ValueError("cron_expression is not a valid crontab expression")
+            if not _cron_has_next(self.cron_expression):
+                raise ValueError(
+                    "cron_expression is not a valid crontab expression that ever fires"
+                )
 
     def _validate_event(self) -> None:
         # The preset path carries none of the event_* fields - the service fills
@@ -245,7 +277,9 @@ class TriggerUpdate(BaseSchema):
     prompt: str | None = Field(default=None, min_length=1, max_length=10000)
     name: str | None = Field(default=None, max_length=120)
     schedule_kind: Literal["interval", "cron"] | None = None
-    interval_seconds: int | None = Field(default=None, ge=MIN_INTERVAL_SECONDS)
+    interval_seconds: int | None = Field(
+        default=None, ge=MIN_INTERVAL_SECONDS, le=MAX_INTERVAL_SECONDS
+    )
     cron_expression: str | None = Field(default=None, max_length=255)
     is_active: bool | None = None
     environment_id: UUID | None = None

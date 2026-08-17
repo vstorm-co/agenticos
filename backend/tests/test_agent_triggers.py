@@ -211,6 +211,20 @@ class TestCreate:
         with pytest.raises(PydanticValidationError, match="valid crontab"):
             TriggerCreate(prompt="run", schedule_kind="cron", cron_expression="not a cron")
 
+    def test_a_syntactically_valid_cron_that_never_fires_is_a_422(self):
+        """`0 0 31 2 *` - the 31st of February - passes croniter's syntax check
+        and then makes `_cron_next` exhaust its search and raise. The schema
+        resolves one occurrence, so it is a 422 here rather than a 500 at create."""
+        with pytest.raises(PydanticValidationError, match="ever fires"):
+            TriggerCreate(prompt="run", schedule_kind="cron", cron_expression="0 0 31 2 *")
+
+    def test_an_interval_beyond_the_column_ceiling_is_a_422(self):
+        """Without an upper bound the value overflows the `integer` column, and
+        `_next_fire` overflows `timedelta` on the way there - both 500s. The ceiling
+        refuses it as a 422 before a row is touched."""
+        with pytest.raises(PydanticValidationError):
+            TriggerCreate(prompt="run", interval_seconds=2_147_483_648)
+
     def test_a_preset_create_carries_no_event_fields(self):
         """The preset path names a portal and preset instead of a source and
         secret; the service fills the event_* fields from the catalog."""
@@ -478,6 +492,25 @@ class TestChangingASchedule:
         # Resuming a schedule advances its next fire from now; pausing leaves it.
         assert ("next_fire_at" in changes) is is_active
         assert audit.call_args.kwargs["action"] == action
+
+    async def test_retiming_to_a_cron_that_never_fires_is_refused_not_a_500(self):
+        """A retime reaches `_resolve_cadence`, not the create schema, so the same
+        never-fires expression is caught there too - a 422, before `_next_fire`
+        would exhaust its search and 500."""
+        agent = _agent()
+        service = _service(agent)
+        trigger = _trigger(agent_id=agent.id)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock()
+            with pytest.raises(BadRequestError, match="ever fires"):
+                await service.update(
+                    _ctx(), agent.id, trigger.id, TriggerUpdate(cron_expression="0 0 31 2 *")
+                )
+            repo.update.assert_not_called()
 
     async def test_retiming_validates_a_named_environment(self):
         agent = _agent()

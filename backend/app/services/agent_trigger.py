@@ -64,6 +64,7 @@ from app.schemas.agent_trigger import (
     TriggerCreate,
     TriggerRead,
     TriggerUpdate,
+    _cron_has_next,
 )
 from app.services import portal_catalog, portals, trigger_events
 from app.services.access import AGENT, resolve_access, visible_resource_ids
@@ -161,9 +162,9 @@ def _resolve_cadence(trigger: AgentTrigger, changes: dict[str, Any]) -> None:
         changes["cron_expression"] = None
     else:
         cron = changes.get("cron_expression", trigger.cron_expression)
-        if not cron or not croniter.is_valid(cron):
+        if not cron or not _cron_has_next(cron):
             raise BadRequestError(
-                message="a cron schedule needs a valid crontab expression",
+                message="a cron schedule needs a valid crontab expression that ever fires",
                 details={"trigger_id": str(trigger.id)},
             )
         changes["schedule_kind"] = ScheduleKind.CRON.value
