@@ -64,11 +64,20 @@ async def create_trigger(
     return await service.create(ctx, agent_id, data)
 
 
-@router.post("/{agent_id}/triggers/{trigger_id}/run", response_model=TriggerRead)
+@router.post(
+    "/{agent_id}/triggers/{trigger_id}/run",
+    response_model=TriggerRead,
+    status_code=status.HTTP_202_ACCEPTED,
+)
 async def run_trigger_now(
     agent_id: UUID, trigger_id: UUID, ctx: Auth, service: AgentTriggerSvc
 ) -> Any:
-    """Fire this schedule now, as its creator, without disturbing its cadence."""
+    """Accept one extra fire of this schedule, as its creator, cadence untouched.
+
+    202, not 200: the fire is dispatched once this request commits rather than run
+    inside it, so the trigger comes back as it stands and its `last_run_id` still
+    names the previous run (#658).
+    """
     return await service.run_now(ctx, agent_id, trigger_id)
 
 
