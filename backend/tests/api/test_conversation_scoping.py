@@ -51,6 +51,10 @@ async def _client(
     app.dependency_overrides[deps.get_active_organization] = lambda: organization
     app.dependency_overrides[deps.get_conversation_service] = lambda: service
     app.dependency_overrides[deps.get_db_session] = lambda: MagicMock()
+    # The read routes now carry the caller's context too, so a trigger's run-log
+    # can resolve against its agent. Stubbed: these tests assert on what the
+    # service is asked for, and the context is passed straight through to it.
+    app.dependency_overrides[deps.get_auth_context] = lambda: MagicMock()
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             yield client

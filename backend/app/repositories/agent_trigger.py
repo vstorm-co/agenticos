@@ -40,6 +40,20 @@ async def get_by_id(db: AsyncSession, trigger_id: UUID) -> AgentTrigger | None:
     return result.scalar_one_or_none()
 
 
+async def get_by_conversation_id(db: AsyncSession, conversation_id: UUID) -> AgentTrigger | None:
+    """The trigger whose run-log is this conversation, or None if it is not one.
+
+    How a conversation read decides whether the thread is a trigger's run-log and
+    whose agent's access governs it. One trigger opens and owns one log, so this
+    is at most one row; the caller scopes the agent it points at to the
+    conversation's own organization rather than trusting this to cross tenants.
+    """
+    result = await db.execute(
+        select(AgentTrigger).where(AgentTrigger.conversation_id == conversation_id)
+    )
+    return result.scalars().first()
+
+
 async def list_for_agent(
     db: AsyncSession, *, agent_id: UUID, organization_id: UUID
 ) -> list[AgentTrigger]:

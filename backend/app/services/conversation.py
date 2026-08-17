@@ -17,9 +17,12 @@ from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.permissions import AuthContext, Perm
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.updates import writable
 from app.repositories import (
+    agent_repo,
+    agent_trigger_repo,
     chat_file_repo,
     conversation_repo,
     conversation_share_repo,
@@ -36,6 +39,7 @@ from app.schemas.conversation import (
     ToolCallCreate,
 )
 from app.schemas.conversation_share import AdminConversationList, AdminConversationRead
+from app.services.access import AGENT, resolve_access
 from app.services.channels import membership as channel_membership
 from app.services.message_history import HistoryMessage, build_message_history
 
@@ -187,6 +191,7 @@ class ConversationService:
         include_messages: bool = False,
         user_id: UUID | None = None,
         for_write: bool = False,
+        ctx: AuthContext | None = None,
     ) -> Conversation:
         """One conversation, checked against the tenant first and the reader second.
 
@@ -217,7 +222,7 @@ class ConversationService:
             allowed = (
                 await self._may_write(conversation, user_id)
                 if for_write
-                else await self._may_read(conversation, user_id)
+                else await self._may_read(conversation, user_id, ctx=ctx)
             )
             if not allowed:
                 raise NotFoundError(
@@ -239,26 +244,63 @@ class ConversationService:
             await self._attach_authors(conversation.messages)
         return conversation
 
-    async def _may_read(self, conversation: Conversation, user_id: UUID) -> bool:
+    async def _may_read(
+        self, conversation: Conversation, user_id: UUID, *, ctx: AuthContext | None = None
+    ) -> bool:
         """Whether this reader may open this conversation.
 
-        Three ways in, and a channel thread needs all three: the owner, whoever
-        it was explicitly shared with, and - for a thread that came out of a room
-        - a participant the platform confirms is *still in the channel*, the same
-        set `_reachable_by` puts the thread in front of in the list. Having
-        spoken is not enough on its own: participation that stopped at the
-        `messages` table outlived the access the platform grants, so somebody
-        removed from the channel kept reading everything said after they left
-        (#641). `channels.membership` is the check, and it fails closed.
+        Four ways in. The owner, whoever it was explicitly shared with, and - for
+        a thread that came out of a room - a participant the platform confirms is
+        *still in the channel*, the same set `_reachable_by` puts the thread in
+        front of in the list. Having spoken is not enough on its own: participation
+        that stopped at the `messages` table outlived the access the platform
+        grants, so somebody removed from the channel kept reading everything said
+        after they left (#641). `channels.membership` is the check, and it fails
+        closed.
+
+        The fourth is a trigger's run-log: it has no owner (a schedule runs with
+        nobody at the keyboard) and is never shared, so the three above all refuse
+        it and clicking a schedule in the sidebar opened nothing. Its access
+        defers to the trigger's agent instead, which is where a trigger's
+        private/org visibility already lives - a trigger is operational state on
+        the agent, not a resource shared on its own. That way in needs the caller's
+        `ctx` to resolve the grant, so a read with none (a channel or an export)
+        does not get it.
         """
         owner = getattr(conversation, "user_id", None)
         if owner is not None and str(owner) == str(user_id):
             return True
         if await conversation_share_repo.get_share(self.db, conversation.id, user_id):
             return True
-        return await channel_membership.confirms_participation(
+        if await channel_membership.confirms_participation(
             self.db, conversation_id=conversation.id, user_id=user_id
+        ):
+            return True
+        return await self._may_read_trigger_log(conversation, ctx)
+
+    async def _may_read_trigger_log(
+        self, conversation: Conversation, ctx: AuthContext | None
+    ) -> bool:
+        """Whether this conversation is a trigger's run-log the caller may see.
+
+        Readable by whoever may *view* the trigger's agent, resolved through the
+        same grant-aware `resolve_access` the run path uses - so a private agent's
+        log stays with the people who can see the agent, and an org-visible one is
+        open to the organization. The agent is loaded tenant-scoped to the
+        conversation's own organization, so a run-log never resolves against an
+        agent in another tenant.
+        """
+        if ctx is None:
+            return False
+        trigger = await agent_trigger_repo.get_by_conversation_id(self.db, conversation.id)
+        if trigger is None:
+            return False
+        agent = await agent_repo.get(
+            self.db, trigger.agent_id, organization_id=conversation.organization_id
         )
+        if agent is None:
+            return False
+        return await resolve_access(self.db, ctx, agent, Perm.AGENTS_VIEW, resource_type=AGENT)
 
     async def _may_write(self, conversation: Conversation, user_id: UUID) -> bool:
         """Whether this reader may change or delete this conversation.
@@ -535,6 +577,7 @@ class ConversationService:
         include_messages: bool = False,
         user_id: UUID | None = None,
         for_write: bool = False,
+        ctx: AuthContext | None = None,
     ) -> Conversation:
         """Load one conversation, skipping the tenant check only for `UNSCOPED`."""
         if organization_id != UNSCOPED:
@@ -544,6 +587,7 @@ class ConversationService:
                 include_messages=include_messages,
                 user_id=user_id,
                 for_write=for_write,
+                ctx=ctx,
             )
         conversation = await conversation_repo.get_conversation_by_id(
             self.db, conversation_id, include_messages=include_messages
@@ -573,6 +617,7 @@ class ConversationService:
         organization_id: OrgScope,
         include_tool_calls: bool = False,
         user_id: UUID | None = None,
+        ctx: AuthContext | None = None,
     ) -> tuple[list[Message | MessageRead], int]:
         """One conversation's messages, for a reader who is allowed to see them.
 
@@ -586,7 +631,9 @@ class ConversationService:
         reader's rating - a second job for one argument, and the reason its
         authorizing half was missed for so long.
         """
-        await self._resolve(conversation_id, organization_id=organization_id, user_id=user_id)
+        await self._resolve(
+            conversation_id, organization_id=organization_id, user_id=user_id, ctx=ctx
+        )
         items = await conversation_repo.get_messages_by_conversation(
             self.db,
             conversation_id,
@@ -626,6 +673,7 @@ class ConversationService:
         *,
         organization_id: OrgScope,
         user_id: UUID | None = None,
+        ctx: AuthContext | None = None,
     ) -> ConversationCost | None:
         """What this whole thread has cost, or `None` where nothing was measured.
 
@@ -637,7 +685,9 @@ class ConversationService:
         client adding up what it was handed would answer "the first hundred
         turns" while the label says "this conversation".
         """
-        await self._resolve(conversation_id, organization_id=organization_id, user_id=user_id)
+        await self._resolve(
+            conversation_id, organization_id=organization_id, user_id=user_id, ctx=ctx
+        )
         totals = await conversation_repo.conversation_cost(self.db, conversation_id)
         if totals is None:
             return None

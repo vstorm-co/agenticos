@@ -66,6 +66,10 @@ def _scalars(values: list[object]):
     return MagicMock(scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=values))))
 
 
+def _scalars_first(value: object):
+    return MagicMock(scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=value))))
+
+
 def _count(total: int):
     return MagicMock(scalar_one=MagicMock(return_value=total))
 
@@ -87,6 +91,15 @@ class TestReading:
         session = _RecordingSession(_scalar(None))
         await agent_trigger_repo.get_by_id(session, trigger_id)
         assert set(_filters(session).values()) == {trigger_id}
+
+    async def test_a_run_log_conversation_maps_back_to_its_trigger(self):
+        """How a conversation read learns the thread is a trigger's run-log. Filtered
+        on the conversation alone; the caller scopes the agent it points at to the
+        conversation's own organization rather than trusting this across tenants."""
+        conversation_id = uuid.uuid4()
+        session = _RecordingSession(_scalars_first(None))
+        await agent_trigger_repo.get_by_conversation_id(session, conversation_id)
+        assert set(_filters(session).values()) == {conversation_id}
 
     async def test_a_listing_is_scoped_to_the_agent_and_its_organization(self):
         agent_id, organization_id = uuid.uuid4(), uuid.uuid4()

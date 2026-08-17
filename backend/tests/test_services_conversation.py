@@ -294,6 +294,134 @@ class TestConversationServiceGetConversation:
             assert result.id == conv_id
 
 
+class TestATriggerRunLogReadsThroughItsAgent:
+    """A trigger's run-log has no user owner (a schedule runs with nobody at the
+    keyboard) and is never shared, so the owner, share and participation checks
+    all refuse it - and clicking a schedule in the sidebar opened nothing. The
+    fourth way in defers to the trigger's agent, which is where a trigger's
+    private/org visibility already lives.
+    """
+
+    @pytest.fixture
+    def service(self) -> ConversationService:
+        return ConversationService(AsyncMock())
+
+    @pytest.mark.anyio
+    async def test_a_viewer_of_the_agent_may_open_its_run_log(self, service: ConversationService):
+        conv_id = uuid4()
+        conv = MockConversation(id=conv_id, user_id=None)
+        trigger = MagicMock(agent_id=uuid4())
+        with (
+            patch("app.services.conversation.conversation_repo") as repo,
+            patch("app.services.conversation.conversation_share_repo") as share,
+            patch("app.services.conversation.channel_membership") as membership,
+            patch("app.services.conversation.agent_trigger_repo") as triggers,
+            patch("app.services.conversation.agent_repo") as agents,
+            patch("app.services.conversation.resolve_access") as resolve,
+        ):
+            repo.get_conversation_by_id = AsyncMock(return_value=conv)
+            share.get_share = AsyncMock(return_value=None)
+            membership.confirms_participation = AsyncMock(return_value=False)
+            triggers.get_by_conversation_id = AsyncMock(return_value=trigger)
+            agents.get = AsyncMock(return_value=MagicMock())
+            resolve.return_value = True
+
+            result = await service.get_conversation(
+                conv_id, user_id=uuid4(), organization_id=TEST_ORG_ID, ctx=MagicMock()
+            )
+
+            assert result.id == conv_id
+            agents.get.assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_a_caller_without_agent_access_is_refused(self, service: ConversationService):
+        conv = MockConversation(user_id=None)
+        with (
+            patch("app.services.conversation.conversation_repo") as repo,
+            patch("app.services.conversation.conversation_share_repo") as share,
+            patch("app.services.conversation.channel_membership") as membership,
+            patch("app.services.conversation.agent_trigger_repo") as triggers,
+            patch("app.services.conversation.agent_repo") as agents,
+            patch("app.services.conversation.resolve_access") as resolve,
+        ):
+            repo.get_conversation_by_id = AsyncMock(return_value=conv)
+            share.get_share = AsyncMock(return_value=None)
+            membership.confirms_participation = AsyncMock(return_value=False)
+            triggers.get_by_conversation_id = AsyncMock(return_value=MagicMock(agent_id=uuid4()))
+            agents.get = AsyncMock(return_value=MagicMock())
+            resolve.return_value = False
+
+            with pytest.raises(NotFoundError):
+                await service.get_conversation(
+                    conv.id, user_id=uuid4(), organization_id=TEST_ORG_ID, ctx=MagicMock()
+                )
+
+    @pytest.mark.anyio
+    async def test_an_ownerless_thread_that_is_no_trigger_log_stays_closed(
+        self, service: ConversationService
+    ):
+        conv = MockConversation(user_id=None)
+        with (
+            patch("app.services.conversation.conversation_repo") as repo,
+            patch("app.services.conversation.conversation_share_repo") as share,
+            patch("app.services.conversation.channel_membership") as membership,
+            patch("app.services.conversation.agent_trigger_repo") as triggers,
+        ):
+            repo.get_conversation_by_id = AsyncMock(return_value=conv)
+            share.get_share = AsyncMock(return_value=None)
+            membership.confirms_participation = AsyncMock(return_value=False)
+            triggers.get_by_conversation_id = AsyncMock(return_value=None)
+
+            with pytest.raises(NotFoundError):
+                await service.get_conversation(
+                    conv.id, user_id=uuid4(), organization_id=TEST_ORG_ID, ctx=MagicMock()
+                )
+
+    @pytest.mark.anyio
+    async def test_without_a_ctx_the_agent_way_in_is_not_taken(self, service: ConversationService):
+        """A read with no caller context - a channel read, an export - cannot
+        resolve an agent grant, so the run-log way in is simply absent."""
+        conv = MockConversation(user_id=None)
+        with (
+            patch("app.services.conversation.conversation_repo") as repo,
+            patch("app.services.conversation.conversation_share_repo") as share,
+            patch("app.services.conversation.channel_membership") as membership,
+            patch("app.services.conversation.agent_trigger_repo") as triggers,
+        ):
+            repo.get_conversation_by_id = AsyncMock(return_value=conv)
+            share.get_share = AsyncMock(return_value=None)
+            membership.confirms_participation = AsyncMock(return_value=False)
+            triggers.get_by_conversation_id = AsyncMock()
+
+            with pytest.raises(NotFoundError):
+                await service.get_conversation(
+                    conv.id, user_id=uuid4(), organization_id=TEST_ORG_ID
+                )
+
+            triggers.get_by_conversation_id.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_run_log_whose_agent_has_gone_is_refused(self, service: ConversationService):
+        conv = MockConversation(user_id=None)
+        with (
+            patch("app.services.conversation.conversation_repo") as repo,
+            patch("app.services.conversation.conversation_share_repo") as share,
+            patch("app.services.conversation.channel_membership") as membership,
+            patch("app.services.conversation.agent_trigger_repo") as triggers,
+            patch("app.services.conversation.agent_repo") as agents,
+        ):
+            repo.get_conversation_by_id = AsyncMock(return_value=conv)
+            share.get_share = AsyncMock(return_value=None)
+            membership.confirms_participation = AsyncMock(return_value=False)
+            triggers.get_by_conversation_id = AsyncMock(return_value=MagicMock(agent_id=uuid4()))
+            agents.get = AsyncMock(return_value=None)
+
+            with pytest.raises(NotFoundError):
+                await service.get_conversation(
+                    conv.id, user_id=uuid4(), organization_id=TEST_ORG_ID, ctx=MagicMock()
+                )
+
+
 class TestParticipationDoesNotCarryTheWrite:
     """Speaking in a room is a claim on being shown the thread, not on a row
     somebody owns; only an ownerless thread is its participants' to change (#701).
