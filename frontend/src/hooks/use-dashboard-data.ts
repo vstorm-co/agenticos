@@ -135,7 +135,7 @@ export function useAdminOrganizations(limit = 5, options?: { enabled?: boolean }
  */
 export function useAdminRatingsSummary(period: UsagePeriod, options?: { enabled?: boolean }) {
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: qk.admin.ratings({ summary: true, from: period.from, to: period.to }),
+    queryKey: qk.admin.ratings({ from: period.from, to: period.to }),
     queryFn: () =>
       apiClient.get<RatingSummary>("/admin/ratings/summary", {
         params: { from: period.from, to: period.to },

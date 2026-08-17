@@ -19,7 +19,29 @@ const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
  * resolves the code against the `errors` namespace via `getErrorMessage`.
  */
 export function bffRefusal(code: BffErrorCode, status: number): NextResponse {
-  return NextResponse.json({ code }, { status });
+  return withNoStore(NextResponse.json({ code }, { status }));
+}
+
+/**
+ * A BFF route's JSON answer, stamped `no-store`.
+ *
+ * Every answer on this surface depends on the caller's cookie, permission set
+ * and organization header, so a list refetched right after a write - members
+ * after an invite, integrations after a revoke - must reach the server rather
+ * than be served from cache. `platformProxy` stamps this on any unmarked
+ * response (the #230 fix); a hand-rolled `backendFetch` route owes the same
+ * header, and this is the one place it is applied so no route can forget it.
+ */
+export function bffJson<T>(data: T, init?: ResponseInit): NextResponse {
+  return withNoStore(NextResponse.json(data, init));
+}
+
+/** Stamp `Cache-Control: no-store`, unless the caller already set a policy. */
+function withNoStore(response: NextResponse): NextResponse {
+  if (!response.headers.has("cache-control")) {
+    response.headers.set("Cache-Control", "no-store");
+  }
+  return response;
 }
 
 export class BackendApiError extends Error {

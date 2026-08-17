@@ -1708,6 +1708,35 @@ class TestTaskLifecycle:
         assert "Status: completed" in reported
         assert "Result: found it" in reported
 
+    async def test_a_status_answer_about_a_crash_carries_no_provider_text(self):
+        """The sixth surface in the cluster, and the one a scrubber cannot reach (#819).
+
+        `_result_text` stores a `ToolReturnPart` whole - deliberately, because a
+        return is the tool's own answer - so #695's `tool_retry_notice` never sees
+        it. What `check_task` and `wait_tasks` answer is exactly that part: the
+        string asserted here is the one written to the transcript row and streamed
+        as `tool_result`, in front of every member who can read the run.
+
+        The delegate crashes on the same model client its parent runs on, whose
+        message carries the failing request URL with the key still in its query
+        string on a custom `base_url` - #699's payload, arriving by another route.
+        """
+        vendor_text = "connect to https://llm.acme.internal/v1?api_key=sk-live-9f2c failed"
+        capability = a_capability(
+            a_runtime(a_delegate(model=crashing(vendor_text))), {"mode": "async"}
+        )
+        ctx = a_context()
+
+        task_id = task_id_in(await delegate_to(capability, ctx))
+        waited = await call_tool(capability, ctx, "wait_tasks", {"task_ids": [task_id]})
+        checked = await call_tool(capability, ctx, "check_task", {"task_id": task_id})
+
+        assert "FAILED - RuntimeError" in waited
+        assert "Error: RuntimeError" in checked
+        for answer in (waited, checked):
+            assert "sk-live-9f2c" not in answer
+            assert "llm.acme.internal" not in answer
+
     async def test_check_task_on_an_id_this_run_did_not_start_is_not_found(self):
         """Task ids are short and appear in tool output, so admitting another
         run's id would let one run read - and cancel - another's work."""
