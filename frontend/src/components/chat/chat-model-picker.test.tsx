@@ -8,6 +8,7 @@ import { Perm } from "@/types/permissions";
 import type { Permission } from "@/types/permissions";
 import type { SecretPurpose } from "@/types/secrets";
 import type { ModelProfile } from "@/types/providers";
+import { providerMarkIn } from "@/test-utils/brand-marks";
 
 const listedProfiles = vi.fn<() => ModelProfile[]>(() => []);
 const listedSecrets = vi.fn<() => { id: string; purpose: string }[]>(() => []);
@@ -99,7 +100,7 @@ describe("the chat's two-step model picker", () => {
     await pickProvider("OpenRouter");
 
     const trigger = screen.getByRole("combobox", { name: "Provider" });
-    expect(trigger.querySelector("svg > title")?.textContent).toBe("OpenRouter");
+    expect(providerMarkIn(trigger)).toBe("openrouter");
     // The tick means "this provider already has a key". Mirrored into the
     // trigger it would read as "selected", so it is not part of the row.
     expect(trigger.querySelector(".lucide-check")).toBeNull();

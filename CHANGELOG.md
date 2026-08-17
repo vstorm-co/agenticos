@@ -17,6 +17,188 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.177] - 2026-08-18
+
+### Changed
+
+- **Thirteen backend dependencies move up** — the backend-everything-else group,
+  at the versions the lockfile now holds: `uvicorn` 0.52.3, `pydantic-settings`
+  2.15.0, `sqlalchemy` 2.0.52, `alembic` 1.19.1, `greenlet` 3.5.5, `prefect`
+  3.8.3, `llama-cloud` 2.14.0, `liteparse` 2.13.0, `boto3` 1.43.73,
+  `pydantic-monty` 0.0.21, and `ruff` 0.16.3, `ty` 0.0.72 and `pre-commit` 4.6.2
+  among the dev tools. Three of those resolve above the floor the group asked
+  for, which is why they are quoted from the lock. The lockfile was resolved
+  against the merged manifest rather than the group's own base, so Pydantic AI
+  stays where 0.0.176 put it instead of being rolled back a release for the
+  second time. (#838)
+
+## [0.0.176] - 2026-08-17
+
+### Changed
+
+- **Pydantic AI's floor moves to 2.30.0**, with `genai-prices` at 0.1.2 — the
+  agent-frameworks dependency group.
+- **A group bump no longer rolls the lock backwards.** The bump resolved
+  `pydantic-ai-slim` and `pydantic-graph` to 2.30.0 while `main` already held
+  2.31.0, and `backend/Dockerfile` installs the lockfile verbatim
+  (`uv sync --frozen`), so the "upgrade" would have shipped an image with an
+  older Pydantic AI than the one before it. Re-resolved to 2.31.0, with
+  `genai-prices` at 0.1.3, and the note above the floor now names that failure
+  rather than a version it had already outlived. (#837)
+
+## [0.0.175] - 2026-08-17
+
+One mechanism draws every third-party mark, and 471 MB leaves the install.
+
+### Changed
+
+- **Every brand and provider mark comes from one generated glyph set.**
+  `frontend/scripts/gen-brand-icons.ts` fetches each mark from the set that owns
+  it and writes 89 of them as raw path data; `components/icons/glyph.tsx` is the
+  one thing that turns that data into an `<svg>`, so `BrandIcon` and
+  `ProviderIcon` draw identically rather than agreeing by accident. Adding a mark
+  is a row in the generator's table and a re-run — never an import, never a
+  hand-authored `d`. Three mechanisms answered this question before, and
+  `@lobehub/icons` dragged in a second copy of `lucide-react` besides. Each of
+  the 89 marks was rendered from the removed packages and diffed against its
+  glyph: 89 identical, 0 differ. (#156, #836)
+- **`bun run analyze` produces a report again.** `@next/bundle-analyzer` is a
+  webpack plugin and Next 16 builds with Turbopack, so every run printed "no
+  report will be generated" and exited 0. It is `next experimental-analyze` now.
+  (#156)
+
+### Added
+
+- **`make lint` fails on a frontend dependency nothing imports.** knip, narrowed
+  to the one question it is never wrong about, moves from `bunx knip@5` to a
+  pinned devDependency with its ignores in `knip.jsonc`, each carrying its reason
+  on the line above. `date-fns` sat unused for months *and* was listed in knip's
+  own ignores, so the report that would have found it had been told not to look.
+  (#156)
+- **The frontend's OpenTelemetry spans can leave the process.** The SDK
+  registered on every boot, but no compose file, Dockerfile or CI job passed
+  `OTEL_EXPORTER_OTLP_ENDPOINT` through, so the spans were built and dropped
+  in-process. The variable is passed through now, and the code says plainly what
+  leaving it unset means. (#156)
+
+### Removed
+
+- **Four frontend dependencies — 471 MB and 290 packages off every install.**
+  `react-icons` and `@lobehub/icons` (replaced by the generated set),
+  `@next/bundle-analyzer` (see above), and `date-fns`, which nothing imported.
+  `nanoid`'s four call sites all wanted a client-side id, which `chat-store.ts`
+  already had; both now call `clientId()` in `src/lib/ids.ts`, keeping the
+  non-secure-context fallback that an embedded widget on a plain-HTTP internal
+  host depends on. `node_modules` goes from 1.2 GB / 1012 packages to 729 MB /
+  722. (#156, #836)
+
+## [0.0.174] - 2026-08-17
+
+A delegate's provider text no longer reaches the parent's transcript through a
+status answer.
+
+### Fixed
+
+- **`check_task` and `wait_tasks` name the exception's class, not the provider's
+  message.** Both composed their `Error:`, `Retry N:` and `Outcome:` lines from
+  `handle.error`, which embeds the exception's own text — and a model client's
+  message carries the failing request URL with the key still in its query string
+  on a custom `base_url`. What those tools return becomes a `ToolReturnPart`, and
+  a return is stored *whole* on purpose, so `tool_retry_notice` (#695) could
+  never reach it: the key landed on a stored tool-call row, rendered in the
+  conversation and in run history to every member who can read the run, and
+  streamed live as `tool_result`. Fixed upstream in
+  `subagents-pydantic-ai` 0.2.20, which composes all four lines from
+  `TaskHandle.exception`; the floor here moves with it. (#819)
+- **The retry line leaked for delegations that eventually succeed.**
+  `TaskHandle.finish` clears `error` on completion, so the handle ends clean —
+  but a model that polled `check_task` mid-retry already has the answer on a
+  transcript row, and nothing goes back to remove it. (#819)
+
+## [0.0.173] - 2026-08-17
+
+A dependency nothing imports is now a failing build, not a thing somebody
+notices by reading all 46 lines.
+
+### Added
+
+- **`deptry` runs in `make lint`, over `app`, `cli` and `alembic`.** vulture
+  reads the code and finds what is written but unused; deptry reads the manifest
+  and finds what is declared but unimported. The scope is the point rather than a
+  detail: scanning `app` alone called `tabulate` dead when `cli/commands.py`
+  imports it, and removing it took the e2e seed down before a single product spec
+  ran. A tree that ships and is not scanned is a tree whose imports do not count.
+  (#155)
+
+### Removed
+
+- **Three distributions nothing imports.** `fastapi-cache2` and the eleven-line
+  `app/core/cache.py` that called `FastAPICache.init()` on every boot — there is
+  no `@cache` decorator on any route; `jinja2`, whose email templates are
+  compiled ahead of time and read off disk; and the duplicate, weaker-floored
+  `python-multipart` and `httpx` declarations. (#155)
+- **The `try/except ImportError` around `rank-bm25`.** It guarded a case that
+  cannot happen — hybrid retrieval fuses BM25 with the vector search and a
+  deployment cannot choose otherwise — so the import moved to module scope. The
+  24 MB of `numpy` behind it is the price of that, taken deliberately and now
+  recorded in the manifest. (#155)
+
+### Fixed
+
+- **`anyio` was imported and undeclared.** `app/services/rag_document.py` imports
+  it at module scope while the manifest declared it only in the `dev` group, so
+  the image — built with `uv sync --no-dev` — was relying on Starlette to pull it
+  in. Found by the new gate on its first run. (#155)
+- **The manifest says why the ones that read as dead are alive.** `psycopg2-binary`
+  (alembic builds a *sync* engine from a bare `postgresql://` URL, so removing it
+  breaks every migration), `itsdangerous` (Starlette signs our `SessionMiddleware`
+  cookies with it), `tabulate` and `pillow` — the last two listed as zero-import
+  in the audit and both wrong, with call sites in `cli/commands.py` and
+  `app/services/channels/chart_png.py`. (#155)
+
+## [0.0.172] - 2026-08-17
+
+All files answers "what is that file", not only "who is holding a copy of it".
+
+### Added
+
+- **Search and sort on the All files grid.** The same `useListControls` +
+  `SearchInput` pair the five galleries use, filtering on path, agent name and
+  extension — `.csv` matches the suffix rather than the string — and ordering by
+  name, size, modified or agent. Size and modified descend, because "what is
+  biggest" and "what changed" are the questions those orders answer. The bound
+  stays on screen while a filter is applied, with a line saying the filter
+  searched only what was read: a client-side filter over a truncated listing
+  searched a sample, and "3 results" with no caveat would claim the search was
+  exhaustive. (#138)
+- **A tile is the file card every other surface draws.** The three-line row is
+  gone; the grid now uses `components/files`' `FileCard`, so a CSV looks like the
+  same thing in the composer, the transcript and here — including the suffix and
+  size band (`CSV · 2.0 KB`) that was the extension-legibility half of the issue.
+  The line under each card carries what only this view knows: the agent holding
+  the file, who else can see it, and the download. (#138)
+- **A stored text file previews its first lines, and a stored image draws
+  itself.** Both come out of the JSONB document the listing already reads, so a
+  grid of thirty tiles is still one request: eight lines capped at 200 characters
+  for text, and a 160×128 `data:` URI for a raster image. A container-backed
+  workspace answers `null` for both — its bytes are on a host, and one round trip
+  per file is exactly what this listing refuses. (#827)
+
+### Fixed
+
+- **A thumbnail's decode is bounded by pixels, not by bytes.** A PNG under a
+  kilobyte can declare 8000×8000, and scaling it allocates all 64 megapixels on a
+  request somebody made by opening a page. Pillow's own ceiling does not catch
+  it — it refuses at 89 megapixels — so the declared size is checked against a
+  16 Mpx limit in the header, before any pixel is read. (#827)
+- **A thumbnail is drawn as the image is.** Transparency survives (converting to
+  `RGB` does not remove what the alpha channel hid, it paints it — usually
+  black), and a camera's EXIF orientation is applied before the scale, so a
+  portrait photograph is no longer sideways on its tile. (#827)
+- **A file's React key joins its workspace and path with a separator.** Without
+  one, `{workspace: "ab", path: "c"}` and `{workspace: "a", path: "bc"}`
+  collided into a single key. (#138)
+
 ## [0.0.171] - 2026-08-16
 
 Tool search's scale guarantee is pinned by a fixture, not a claim.

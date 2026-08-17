@@ -103,6 +103,11 @@ comments is what makes real code hard to find.
 - False positives that are genuinely reachable (a dynamic dispatch vulture cannot
   follow) go in `ignore_names` under `[tool.vulture]` in `backend/pyproject.toml`,
   each with a comment saying what uses it.
+- The same question about the manifest: `make lint` runs `deptry`, which fails on a
+  distribution declared in `backend/pyproject.toml` that nothing under `app/` imports.
+  A dependency that is genuinely required and genuinely unimported — a driver a URL
+  scheme selects, a server run as a process — goes in `per_rule_ignores.DEP002` under
+  `[tool.deptry]`, each with a comment saying who needs it.
 
 ## Other Conventions
 

@@ -8,6 +8,7 @@ import { CreateKBDialog } from "./create-kb-dialog";
 import { apiClient } from "@/lib/api-client";
 import { Perm } from "@/types/permissions";
 import type { Permission } from "@/types/permissions";
+import { providerMarkIn } from "@/test-utils/brand-marks";
 
 /**
  * The Embeddings section of Create knowledge base, as somebody reading it sees it.
@@ -47,11 +48,6 @@ function wrapper({ children }: { children: ReactNode }) {
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
-}
-
-/** The brand mark actually drawn, by the name lobehub titles its SVG with. */
-function markIn(element: HTMLElement): string | null {
-  return element.querySelector("svg > title")?.textContent ?? null;
 }
 
 /** Open the disclosure the embedding model and its key live behind. */
@@ -141,7 +137,7 @@ describe("the embedding key picker", () => {
     await userEvent.click(screen.getByLabelText("Key"));
 
     const key = await screen.findByRole("option", { name: /OpenRouter prod/ });
-    expect(markIn(key)).toBe("OpenRouter");
+    expect(providerMarkIn(key)).toBe("openrouter");
     expect(key).toHaveTextContent("····3123");
   });
 
@@ -153,8 +149,8 @@ describe("the embedding key picker", () => {
     await openEmbeddings();
     await userEvent.click(screen.getByLabelText("Key"));
 
-    expect(markIn(await screen.findByRole("option", { name: "Deployment key" }))).toBe(
-      "OpenRouter",
+    expect(providerMarkIn(await screen.findByRole("option", { name: "Deployment key" }))).toBe(
+      "openrouter",
     );
   });
 
@@ -170,7 +166,7 @@ describe("the embedding key picker", () => {
     show();
     await openEmbeddings();
 
-    expect(markIn(screen.getByLabelText("Key"))).toBe("OpenRouter");
+    expect(providerMarkIn(screen.getByLabelText("Key"))).toBe("openrouter");
   });
 });
 
@@ -204,9 +200,9 @@ describe("the embedding model picker", () => {
     await openEmbeddings();
     await userEvent.click(screen.getByLabelText("Model"));
 
-    expect(markIn(await screen.findByRole("option", { name: /text-embedding-3-small/ }))).toBe(
-      "OpenRouter",
-    );
+    expect(
+      providerMarkIn(await screen.findByRole("option", { name: /text-embedding-3-small/ })),
+    ).toBe("openrouter");
   });
 
   it("says which model an untouched deployment would use, in the list", async () => {
