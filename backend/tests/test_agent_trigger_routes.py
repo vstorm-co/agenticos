@@ -21,6 +21,7 @@ from app.api.routes.v1.agent_triggers import (
     create_trigger,
     delete_trigger,
     list_org_triggers,
+    list_portal_targets,
     list_trigger_portals,
     list_triggers,
     run_trigger_now,
@@ -150,3 +151,14 @@ async def test_a_webhook_that_matches_dispatches_the_fire_in_the_background():
         await asyncio.sleep(0)  # let the created task run
     assert response.status_code == 202
     fired.assert_awaited_once_with(decision.trigger_id, event_context="ISSUE #7")
+
+
+async def test_portal_targets_maps_the_adapters_answer():
+    from app.services.portals import PortalTarget
+
+    service = MagicMock(
+        list_portal_targets=AsyncMock(return_value=[PortalTarget(id="acme/api", label="acme/api")])
+    )
+    result = await list_portal_targets("github", _CTX, service, connection_id=uuid.uuid4())
+    assert result.total == 1
+    assert result.items[0].id == "acme/api"

@@ -48,3 +48,15 @@ class PortalRead(BaseSchema):
 class PortalCatalog(BaseSchema):
     items: list[PortalRead]
     total: int
+
+
+class PortalTargetRead(BaseSchema):
+    """One place a preset can point at - a repository, a channel."""
+
+    id: str
+    label: str
+
+
+class PortalTargetList(BaseSchema):
+    items: list[PortalTargetRead]
+    total: int

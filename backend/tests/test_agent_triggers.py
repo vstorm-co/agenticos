@@ -29,7 +29,7 @@ from app.services.agent_trigger import (
     _next_fire_from,
     _update_action,
 )
-from app.services.portals import RegisteredWebhook, WebhookRegistrationForbidden
+from app.services.portals import PortalTarget, RegisteredWebhook, WebhookRegistrationForbidden
 
 _SIGNING_SECRET = "a-signing-secret-16-plus"
 
@@ -1474,3 +1474,33 @@ class TestDeletingDeregistersItsWebhook:
             repo.delete = AsyncMock()
             await service.delete(_ctx(), agent.id, trigger.id)
         repo.delete.assert_awaited_once()
+
+
+class TestListingPortalTargets:
+    async def test_an_unknown_portal_is_not_found(self):
+        service = _service()
+        with pytest.raises(NotFoundError):
+            await service.list_portal_targets(_ctx(), "no-such-portal", uuid.uuid4())
+
+    async def test_a_portal_with_no_adapter_has_no_targets(self):
+        # A manual portal (email) registers no webhooks and enumerates nothing.
+        service = _service()
+        assert await service.list_portal_targets(_ctx(), "email", uuid.uuid4()) == []
+
+    async def test_no_scoped_token_lists_nothing(self):
+        service = _service()
+        service.connections.webhook_access_token = AsyncMock(return_value=None)
+        adapter = MagicMock(list_preset_targets=AsyncMock())
+        with patch("app.services.agent_trigger.portals.get_adapter", return_value=adapter):
+            targets = await service.list_portal_targets(_ctx(), "github", uuid.uuid4())
+        assert targets == []
+        adapter.list_preset_targets.assert_not_awaited()
+
+    async def test_the_accounts_targets_are_returned(self):
+        service = _service()
+        service.connections.webhook_access_token = AsyncMock(return_value="tok")
+        target = PortalTarget(id="acme/api", label="acme/api")
+        adapter = MagicMock(list_preset_targets=AsyncMock(return_value=[target]))
+        with patch("app.services.agent_trigger.portals.get_adapter", return_value=adapter):
+            targets = await service.list_portal_targets(_ctx(), "github", uuid.uuid4())
+        assert targets == [target]

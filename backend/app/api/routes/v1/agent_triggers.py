@@ -22,7 +22,13 @@ from fastapi import APIRouter, Depends, Query, Response, status
 from app.api.deps import AgentTriggerSvc, Auth, require
 from app.core.permissions import Perm
 from app.schemas.agent_trigger import TriggerCreate, TriggerList, TriggerRead, TriggerUpdate
-from app.schemas.portal import PortalCatalog, PortalPresetRead, PortalRead
+from app.schemas.portal import (
+    PortalCatalog,
+    PortalPresetRead,
+    PortalRead,
+    PortalTargetList,
+    PortalTargetRead,
+)
 from app.services import portal_catalog
 
 router = APIRouter()
@@ -71,6 +77,30 @@ async def list_trigger_portals() -> Any:
         for portal in portal_catalog.CATALOG
     ]
     return PortalCatalog(items=items, total=len(items))
+
+
+@org_router.get(
+    "/trigger-portals/{portal_key}/targets",
+    response_model=PortalTargetList,
+    dependencies=[Depends(require(Perm.AGENTS_RUN))],
+)
+async def list_portal_targets(
+    portal_key: str,
+    ctx: Auth,
+    service: AgentTriggerSvc,
+    connection_id: UUID = Query(..., description="The connected account to enumerate targets from"),
+) -> Any:
+    """The repositories (or channels) a portal's preset can point at.
+
+    Gated on `agents:run`, not the catalog's `agents:view`: enumerating an
+    account's repositories through its token is part of building a trigger, not
+    browsing what exists. An empty list is a legitimate answer - a portal that
+    registers no webhooks, or a connection that cannot be read - and the picker
+    falls back to a free-text target.
+    """
+    targets = await service.list_portal_targets(ctx, portal_key, connection_id)
+    items = [PortalTargetRead(id=target.id, label=target.label) for target in targets]
+    return PortalTargetList(items=items, total=len(items))
 
 
 @org_router.get(

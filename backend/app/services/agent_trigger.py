@@ -262,6 +262,29 @@ class AgentTriggerService:
             triggers.append(read)
         return triggers, total
 
+    async def list_portal_targets(
+        self, ctx: AuthContext, portal_key: str, connection_id: UUID
+    ) -> list[portals.PortalTarget]:
+        """The targets a portal's preset can point at, from the connected account.
+
+        Empty rather than an error when the portal registers no webhooks, or the
+        account cannot be read for the scope - the picker falls back to a free-text
+        target, so a listing that cannot answer must not block building a trigger.
+        A portal key that names nothing is a 404, because a bad key is a mistake.
+        """
+        portal = portal_catalog.get_portal(portal_key)
+        if portal is None:
+            raise NotFoundError(message="Portal not found", details={"portal_key": portal_key})
+        adapter = portals.get_adapter(portal_key)
+        if adapter is None:
+            return []
+        token = await self.connections.webhook_access_token(
+            ctx, connection_id, required_scopes=portal.read_scopes
+        )
+        if token is None:
+            return []
+        return await adapter.list_preset_targets(access_token=token)
+
     async def create(self, ctx: AuthContext, agent_id: UUID, data: TriggerCreate) -> AgentTrigger:
         """Schedule the agent to run itself, or fire it on an incoming event.
 

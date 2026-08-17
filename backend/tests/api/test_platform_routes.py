@@ -240,6 +240,12 @@ CALLS: tuple[Call, ...] = (
     # let the service resolve `agents:run` per row.
     Call("GET", "/triggers", Perm.AGENTS_VIEW),
     Call("GET", "/trigger-portals", Perm.AGENTS_VIEW),
+    Call(
+        "GET",
+        "/trigger-portals/{portal_key}/targets",
+        Perm.AGENTS_RUN,
+        query="?connection_id=00000000-0000-0000-0000-000000000000",
+    ),
     Call("GET", "/runs", Perm.RUNS_VIEW),
     Call(
         "GET",
