@@ -64,6 +64,7 @@ async def list_trigger_portals() -> Any:
             delivery=portal.delivery.value,
             target_kind=portal.target_kind,
             connection_catalog_key=portal.mcp_catalog_key,
+            webhook_admin_scopes=list(portal.webhook_admin_scopes),
             presets=[
                 PortalPresetRead(
                     key=preset.key,

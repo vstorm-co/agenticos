@@ -64,6 +64,7 @@ async def test_the_portal_catalog_maps_every_portal_and_its_presets():
     assert github.delivery == "auto_webhook"
     assert github.connection_catalog_key == "github"
     assert github.target_kind == "repo"
+    assert "admin:repo_hook" in github.webhook_admin_scopes
     opened = next(preset for preset in github.presets if preset.key == "issue_opened")
     assert opened.target_required is True
 

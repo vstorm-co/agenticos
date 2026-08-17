@@ -297,6 +297,10 @@ class TriggerRead(BaseSchema, TimestampSchema):
     portal_key: str | None = None
     delivery_mode: Literal["auto_webhook", "manual"] | None = None
     connection_id: UUID | None = None
+    # The target the webhook was registered against (a `owner/repo`), so a listing
+    # can read "New issue in acme/repo" rather than just the source. Null on a
+    # schedule, a manual trigger, or an auto one with no target chosen.
+    provider_target: str | None = None
 
     @computed_field  # type: ignore[prop-decorator]  - pydantic reads the property
     @property

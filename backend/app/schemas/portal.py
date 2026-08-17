@@ -42,6 +42,10 @@ class PortalRead(BaseSchema):
         default=None,
         description="The mcp_servers.json key this portal shares a connection with, for joining connection state",
     )
+    webhook_admin_scopes: list[str] = Field(
+        default_factory=list,
+        description="OAuth scopes the account must carry to auto-register the webhook; the picker checks these against a connection's granted_scopes to decide whether to offer re-authorization",
+    )
     presets: list[PortalPresetRead]
 
 
