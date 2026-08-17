@@ -41,6 +41,7 @@ const PORTALS = {
       icon: "github",
       event_source: "github",
       delivery: "auto_webhook",
+      webhook_admin_scopes: ["admin:repo_hook"],
       target_kind: "repo",
       connection_catalog_key: "github",
       presets: [
@@ -55,6 +56,7 @@ const PORTALS = {
       icon: "gmail",
       event_source: "email",
       delivery: "manual",
+      webhook_admin_scopes: [],
       target_kind: null,
       connection_catalog_key: null,
       presets: [
@@ -96,6 +98,7 @@ function orgConnection(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpC
     last_error: null,
     last_checked_at: null,
     catalog_key: "github",
+    granted_scopes: ["repo", "admin:repo_hook"],
     created_at: "2026-07-01T00:00:00Z",
     updated_at: null,
     ...overrides,
@@ -144,10 +147,18 @@ describe("PortalCatalog", () => {
     expect(githubRow().queryByRole("button", { name: "Create trigger" })).toBeNull();
   });
 
-  it("offers Create trigger once the shared account is connected and authorized", async () => {
+  it("offers Create trigger once connected and the grant covers the webhook scope", async () => {
     await mount({ org: [orgConnection()] });
     expect(githubRow().getByRole("button", { name: "Create trigger" })).toBeInTheDocument();
     expect(githubRow().queryByRole("button", { name: "Connect account" })).toBeNull();
+  });
+
+  it("offers Re-authorize when connected but the grant lacks the webhook scope", async () => {
+    // The distinct state: the account is connected, but its consent never included
+    // admin:repo_hook, so it must be re-authorized before it can auto-register.
+    await mount({ org: [orgConnection({ granted_scopes: ["repo"] })] });
+    expect(githubRow().getByRole("button", { name: "Re-authorize" })).toBeInTheDocument();
+    expect(githubRow().queryByRole("button", { name: "Create trigger" })).toBeNull();
   });
 
   it("offers Re-authorize when the connection has not finished consent", async () => {

@@ -34,6 +34,7 @@ const GITHUB: PortalCatalogEntry = {
   icon: "github",
   event_source: "github",
   delivery: "auto_webhook",
+  webhook_admin_scopes: ["admin:repo_hook"],
   target_kind: "repo",
   connection_catalog_key: "github",
   presets: [
@@ -49,6 +50,7 @@ const EMAIL: PortalCatalogEntry = {
   icon: "gmail",
   event_source: "email",
   delivery: "manual",
+  webhook_admin_scopes: [],
   target_kind: null,
   connection_catalog_key: null,
   presets: [

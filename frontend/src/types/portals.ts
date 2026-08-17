@@ -38,6 +38,13 @@ export interface PortalCatalogEntry {
   /** The `EventSource` every preset here fires through. */
   event_source: string;
   delivery: PortalDelivery;
+  /**
+   * The OAuth scope(s) a connected account must hold to auto-register this
+   * portal's webhook (e.g. `["admin:repo_hook"]`). Empty for a manual or polling
+   * portal that registers nothing. Checked against a connection's `granted_scopes`
+   * to tell "connected" apart from "connected but missing the webhook scope".
+   */
+  webhook_admin_scopes: string[];
   /** What a preset's target names - "repo", "channel" - or null when none is needed. */
   target_kind: string | null;
   /** The `mcp_servers.json` key this portal shares a connection with, for joining state. */

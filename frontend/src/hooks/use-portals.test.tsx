@@ -30,6 +30,7 @@ const PORTALS = {
       icon: "github",
       event_source: "github",
       delivery: "auto_webhook",
+      webhook_admin_scopes: ["admin:repo_hook"],
       target_kind: "repo",
       connection_catalog_key: "github",
       presets: [
@@ -44,6 +45,7 @@ const PORTALS = {
       icon: "gmail",
       event_source: "email",
       delivery: "manual",
+      webhook_admin_scopes: [],
       target_kind: null,
       connection_catalog_key: null,
       presets: [{ key: "any_email", label: "Any email", description: "…", target_required: false }],
@@ -83,6 +85,7 @@ function orgConnection(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpC
     last_error: null,
     last_checked_at: null,
     catalog_key: "github",
+    granted_scopes: ["repo", "admin:repo_hook"],
     created_at: "2026-07-01T00:00:00Z",
     updated_at: null,
     ...overrides,
@@ -116,20 +119,37 @@ describe("usePortals", () => {
     expect(github?.connection).toBeNull();
   });
 
-  it("joins the portal to its shared MCP connection by connection_catalog_key", async () => {
+  it("joins the portal to its shared connection and creates when the grant covers the scope", async () => {
     const result = await run([orgConnection()]);
     const github = result.current.items.find((item) => item.portal.key === "github");
-    // Connected and authorized → ready to create, carrying the joined connection
-    // and the shared server's URL for a later re-authorization.
+    // Connected, and the grant includes admin:repo_hook → ready to create,
+    // carrying the joined connection and the shared server's URL.
     expect(github?.action).toBe("create");
     expect(github?.connection?.id).toBe("o1");
     expect(github?.serverUrl).toBe("https://api.githubcopilot.com/mcp/");
   });
 
+  it("asks to re-authorize when connected but the grant lacks the webhook scope", async () => {
+    // The distinct state the earlier contract could not express: the account
+    // works, but its consent never included admin:repo_hook, so auto-registration
+    // would fail at the provider.
+    const result = await run([orgConnection({ granted_scopes: ["repo"] })]);
+    const github = result.current.items.find((item) => item.portal.key === "github");
+    expect(github?.action).toBe("reauthorize");
+  });
+
   it("asks to re-authorize when the connection has not finished consent", async () => {
-    // An OAuth connection awaiting consent is the closest signal the API exposes
-    // to "the webhook scope is missing" - the same re-consent repairs both.
     const result = await run([orgConnection({ oauth_authorized: false })]);
+    const github = result.current.items.find((item) => item.portal.key === "github");
+    expect(github?.action).toBe("reauthorize");
+  });
+
+  it("asks to re-authorize a token connection that holds no grant at all", async () => {
+    // A bearer connection is "connected" but carries no consented scopes, so it
+    // cannot auto-register the webhook either.
+    const result = await run([
+      orgConnection({ auth_type: "bearer", oauth_authorized: false, granted_scopes: null }),
+    ]);
     const github = result.current.items.find((item) => item.portal.key === "github");
     expect(github?.action).toBe("reauthorize");
   });

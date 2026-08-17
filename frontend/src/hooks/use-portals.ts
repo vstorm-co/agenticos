@@ -28,17 +28,17 @@ export function usePortalCatalog() {
 /**
  * Which action a portal card offers, derived from its delivery and connection.
  *
- * `create` needs no account (a manual/polling portal) or a working one; `connect`
- * is the first step for an auto-webhook portal nobody has connected; `reauthorize`
- * covers every state where a connection exists but cannot register a webhook yet -
- * an OAuth grant still awaiting consent, a disabled or unreachable connection -
- * all of which the same re-consent repairs.
+ * `create` needs no account (a manual/polling portal) or a working one whose grant
+ * covers the webhook scope; `connect` is the first step for an auto-webhook portal
+ * nobody has connected; `reauthorize` covers every state where a connection exists
+ * but cannot register a webhook yet - a grant still awaiting consent, a disabled or
+ * unreachable connection, or a connection whose `granted_scopes` do not include the
+ * portal's `webhook_admin_scopes` - all of which the same re-consent repairs.
  *
- * The scope-level question the design imagined - "connected, but is the
- * webhook-admin scope granted?" - is not answerable from the frontend: neither the
- * connection's `granted_scopes` nor a portal's required scopes are exposed by the
- * API. The OAuth authorization state (`needs-authorization`) is the closest signal
- * the contract offers and stands in for it here.
+ * That last case is the "connected but missing the webhook scope" state: the
+ * account works, but its grant never included the scope the auto-registration
+ * needs, so a create would fail at the provider. It is caught here rather than
+ * discovered at trigger-create time.
  */
 export type PortalAction = "create" | "connect" | "reauthorize";
 
@@ -52,14 +52,24 @@ export interface PortalWithState {
   serverName: string | null;
 }
 
+/** Whether a grant covers every scope a portal's auto-registration requires. */
+function coversScopes(granted: string[] | null, required: string[]): boolean {
+  const have = new Set(granted ?? []);
+  return required.every((scope) => have.has(scope));
+}
+
 function portalAction(
   portal: PortalCatalogEntry,
   connection: McpConnectionRecord | null,
+  grantedScopes: string[] | null,
 ): PortalAction {
   // Manual and polling portals wire their own delivery, so no account is needed.
   if (portal.delivery !== "auto_webhook") return "create";
   if (connection === null) return "connect";
-  return connectionState(connection) === "connected" ? "create" : "reauthorize";
+  // A grant still awaiting consent, disabled, or unreachable is not usable yet.
+  if (connectionState(connection) !== "connected") return "reauthorize";
+  // Connected, but the webhook scope decides create-vs-reauthorize.
+  return coversScopes(grantedScopes, portal.webhook_admin_scopes) ? "create" : "reauthorize";
 }
 
 /**
@@ -82,10 +92,14 @@ export function usePortals() {
         const row = portal.connection_catalog_key
           ? (rows.find((entry) => entry.entry?.key === portal.connection_catalog_key) ?? null)
           : null;
-        const connection = row?.organization ?? row?.personal ?? null;
+        // The organization connection is what a trigger binds and where the OAuth
+        // grant (and its `granted_scopes`) lives; a personal one is only a
+        // fallback for reading state, never the account a webhook registers under.
+        const orgConnection = row?.organization ?? null;
+        const connection = orgConnection ?? row?.personal ?? null;
         return {
           portal,
-          action: portalAction(portal, connection),
+          action: portalAction(portal, connection, orgConnection?.granted_scopes ?? null),
           connection,
           serverUrl: row?.url ?? null,
           serverName: row?.entry?.name ?? row?.name ?? null,
