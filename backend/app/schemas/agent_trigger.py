@@ -131,6 +131,16 @@ class TriggerCreate(BaseSchema):
     event_config: dict[str, Any] | None = None
     event_secret: str | None = Field(default=None, min_length=16, max_length=255)
 
+    # Portal preset path. When `portal_key`/`preset_key` are given, the service
+    # resolves the preset for its `event_source` and filter and mints the signing
+    # secret, so the caller sends none of the event_* fields above - only which
+    # portal and preset, the connected account whose token registers the webhook,
+    # and the target (which repository) it points at.
+    portal_key: str | None = Field(default=None, max_length=64)
+    preset_key: str | None = Field(default=None, max_length=64)
+    connection_id: UUID | None = None
+    target: str | None = Field(default=None, max_length=255)
+
     @model_validator(mode="after")
     def _shape(self) -> TriggerCreate:
         """Exactly the fields the chosen kind needs, and nothing from the other.
@@ -166,6 +176,19 @@ class TriggerCreate(BaseSchema):
                 raise ValueError("cron_expression is not a valid crontab expression")
 
     def _validate_event(self) -> None:
+        # The preset path carries none of the event_* fields - the service fills
+        # them from the preset and mints the secret - so its shape is checked here
+        # and the rest is left to the service, which owns the catalog.
+        if self.portal_key is not None or self.preset_key is not None:
+            if self.portal_key is None or self.preset_key is None:
+                raise ValueError("portal_key and preset_key must be given together")
+            if (
+                self.event_source is not None
+                or self.event_secret is not None
+                or self.event_config is not None
+            ):
+                raise ValueError("event_source, event_secret and event_config come from the preset")
+            return
         if self.event_source is None:
             raise ValueError("event_source is required for an event trigger")
         if self.event_secret is None:
@@ -183,6 +206,12 @@ class TriggerCreate(BaseSchema):
             raise ValueError("event_secret is not valid for a schedule")
         if self.event_config is not None:
             raise ValueError("event_config is not valid for a schedule")
+        if self.portal_key is not None or self.preset_key is not None:
+            raise ValueError("a portal preset is not valid for a schedule")
+        if self.connection_id is not None:
+            raise ValueError("connection_id is not valid for a schedule")
+        if self.target is not None:
+            raise ValueError("target is not valid for a schedule")
 
     def _reject_schedule_fields(self) -> None:
         if self.interval_seconds is not None:
@@ -262,6 +291,12 @@ class TriggerRead(BaseSchema, TimestampSchema):
     last_fired_at: datetime | None = None
     last_run_id: UUID | None = None
     conversation_id: UUID | None = None
+    # The portal lineage, when this trigger came from a preset. `delivery_mode` is
+    # `auto_webhook` when the platform registered the hook and `manual` when the
+    # user pastes the URL below; null on a schedule and on a raw event trigger.
+    portal_key: str | None = None
+    delivery_mode: Literal["auto_webhook", "manual"] | None = None
+    connection_id: UUID | None = None
 
     @computed_field  # type: ignore[prop-decorator]  - pydantic reads the property
     @property

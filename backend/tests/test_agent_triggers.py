@@ -204,6 +204,38 @@ class TestCreate:
         with pytest.raises(PydanticValidationError, match="valid crontab"):
             TriggerCreate(prompt="run", schedule_kind="cron", cron_expression="not a cron")
 
+    def test_a_preset_create_carries_no_event_fields(self):
+        """The preset path names a portal and preset instead of a source and
+        secret; the service fills the event_* fields from the catalog."""
+        create = TriggerCreate(
+            prompt="triage",
+            trigger_type="event",
+            portal_key="github",
+            preset_key="issue_opened",
+            connection_id=uuid.uuid4(),
+            target="acme/api",
+        )
+        assert create.portal_key == "github"
+        assert create.event_source is None
+
+    def test_a_portal_without_a_preset_is_refused(self):
+        with pytest.raises(PydanticValidationError, match="given together"):
+            TriggerCreate(prompt="x", trigger_type="event", portal_key="github")
+
+    def test_a_preset_alongside_a_hand_set_source_is_refused(self):
+        with pytest.raises(PydanticValidationError, match="come from the preset"):
+            TriggerCreate(
+                prompt="x",
+                trigger_type="event",
+                portal_key="github",
+                preset_key="issue_opened",
+                event_source="github",
+            )
+
+    def test_a_preset_on_a_schedule_is_refused(self):
+        with pytest.raises(PydanticValidationError, match="not valid for a schedule"):
+            TriggerCreate(prompt="x", portal_key="github", preset_key="issue_opened")
+
     async def test_a_new_schedule_is_persisted_and_audited(self):
         agent = _agent()
         service = _service(agent)
