@@ -17,6 +17,54 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.178] - 2026-08-18
+
+The collection page is server state again, not seven `useState` slots.
+
+### Changed
+
+- **`useKBDetail` moved onto React Query.** Seven pieces of local state became
+  `qk.kb.detail(id)`, `qk.kb.documents(id)` (paged with `useInfiniteQuery`) and
+  three keyed section queries, so an external mutation can invalidate the page
+  and the two keys that were dead are live. The bespoke tenant-clearing block is
+  gone — `useTenantCacheReset`'s `removeQueries()` already covered it. A cold
+  first-load failure stays distinct from a failed refresh: one is the page's
+  error, the other is the last good answer under a stale banner. (#557)
+- **The admin query-key factories are typed to their real parameters**, the dead
+  `admin.users` factory is gone, and the `{ summary: true }` discriminator went
+  with the ratings page it distinguished against. (#558)
+- **The sandbox `usage` discriminator lives in the key**, not at the call site:
+  a listing the service sampled for per-sandbox usage is a more expensive
+  request than one without, and the two must not share a cache entry. (#569)
+
+### Fixed
+
+- **The members table waits for the permission answer before drawing its action
+  column**, rather than drawing it and then discovering the caller may not use
+  it. (#569)
+- **`api/files/[id]` encodes its path segment**, and `patchKB` rethrows the way
+  its siblings do. (#569)
+- **A sync source written into an unread cache now shows up.** The three
+  sections sit behind `connections:manage`, so a refused read leaves nothing
+  cached while the write is still allowed — the write's second arm covers that,
+  and now has the test to say so, along with the tenant guard on the two writes
+  that add a row. (#569)
+
+## [0.0.177] - 2026-08-18
+
+### Changed
+
+- **Thirteen backend dependencies move up** — the backend-everything-else group,
+  at the versions the lockfile now holds: `uvicorn` 0.52.3, `pydantic-settings`
+  2.15.0, `sqlalchemy` 2.0.52, `alembic` 1.19.1, `greenlet` 3.5.5, `prefect`
+  3.8.3, `llama-cloud` 2.14.0, `liteparse` 2.13.0, `boto3` 1.43.73,
+  `pydantic-monty` 0.0.21, and `ruff` 0.16.3, `ty` 0.0.72 and `pre-commit` 4.6.2
+  among the dev tools. Three of those resolve above the floor the group asked
+  for, which is why they are quoted from the lock. The lockfile was resolved
+  against the merged manifest rather than the group's own base, so Pydantic AI
+  stays where 0.0.176 put it instead of being rolled back a release for the
+  second time. (#838)
+
 ## [0.0.176] - 2026-08-17
 
 ### Changed
