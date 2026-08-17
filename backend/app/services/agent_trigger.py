@@ -697,12 +697,23 @@ class AgentTriggerService:
         firing, and the dispatched run may still be refused (a creator who lost
         access). The actual fire stamps `last_fired_at` in `fire`, so it means the
         same thing - a run was created - on every entry path, scheduled or event.
+
+        An orphaned schedule - one whose creator's user row was hard-deleted, so
+        `created_by_user_id` is null - is claimed now (the query no longer filters
+        it out) and disabled here rather than dispatched: it can never run, and
+        `fire` would only disable it after a wasted flow run. Dispatching is left to
+        the schedules that can still fire.
         """
         triggers = await agent_trigger_repo.claim_due(self.db, now=now, limit=limit)
+        live: list[AgentTrigger] = []
         for trigger in triggers:
+            if trigger.created_by_user_id is None:
+                await self._disable(trigger, reason="creator_not_active")
+                continue
             trigger.next_fire_at = _next_fire_from(trigger, now=now)
+            live.append(trigger)
         await self.db.flush()
-        return triggers
+        return live
 
     async def fire(self, trigger_id: UUID, *, event_context: str | None = None) -> None:
         """Run the agent this trigger fires, as the member who created it.
@@ -770,6 +781,14 @@ class AgentTriggerService:
             # Access was withdrawn between the pre-check and the run. Same verdict:
             # disable, do not raise into a retry.
             await self._disable(trigger, reason="creator_cannot_run_agent")
+            return
+        except BadRequestError:
+            # The agent is no longer runnable - unpublished back to a draft,
+            # archived, or its version withdrawn - so `get_runnable_spec` refuses
+            # inside execute. Left active, every cadence would dispatch another run
+            # that fails exactly here; disable it instead of retrying a certainty,
+            # the same verdict the authz refusal gets for the same reason.
+            await self._disable(trigger, reason="agent_not_runnable")
             return
 
         trigger.last_run_id = run.id

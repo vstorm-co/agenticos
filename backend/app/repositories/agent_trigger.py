@@ -197,8 +197,13 @@ async def claim_due(db: AsyncSession, *, now: datetime, limit: int = 100) -> lis
 
     Two filters decide "due":
 
-    * `is_active`, a non-null creator, and `next_fire_at <= now` - the schedule
-      says so and it is still attributable to someone.
+    * `is_active` and `next_fire_at <= now` - the schedule says so. A null creator
+      is deliberately *not* filtered out here: an orphaned schedule (its creator's
+      user row hard-deleted, SET NULL clearing the column) can never fire, but
+      excluding it from the claim was what left it sitting active-but-dead forever,
+      never reaching the one place that disables it. `claim_and_advance` now claims
+      it and disables it instead, so the cleanup happens rather than being filtered
+      away.
     * the previous run, reached through `last_run_id`, has reached a terminal
       status (or there is none). This is the no-overlap guard: a run that outlives
       its own interval must finish before the next fire, or a slow agent would be
@@ -210,7 +215,6 @@ async def claim_due(db: AsyncSession, *, now: datetime, limit: int = 100) -> lis
         .outerjoin(AgentRun, AgentRun.id == AgentTrigger.last_run_id)
         .where(
             AgentTrigger.is_active.is_(True),
-            AgentTrigger.created_by_user_id.is_not(None),
             AgentTrigger.next_fire_at <= now,
             (AgentTrigger.last_run_id.is_(None)) | (AgentRun.status.not_in(_NON_TERMINAL_STATUSES)),
         )

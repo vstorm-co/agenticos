@@ -731,6 +731,23 @@ class TestClaiming:
             claimed = await service.claim_and_advance(now=datetime(2026, 6, 1, tzinfo=UTC))
         assert claimed == []
 
+    async def test_an_orphaned_schedule_is_disabled_at_claim_not_dispatched(self):
+        """A creator hard-deleted (SET NULL) leaves a schedule that can never fire.
+        The claim now returns it so it can be disabled here rather than filtered
+        out forever; it is disabled and left out of the dispatch list."""
+        service = _service()
+        orphan = _trigger(created_by_user_id=None)
+        audit = AsyncMock()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=audit),
+        ):
+            repo.claim_due = AsyncMock(return_value=[orphan])
+            claimed = await service.claim_and_advance(now=datetime(2026, 6, 1, tzinfo=UTC))
+        assert orphan.is_active is False
+        assert claimed == []
+        assert audit.call_args.kwargs["details"]["reason"] == "creator_not_active"
+
 
 class TestFiring:
     def _patches(self):
@@ -807,6 +824,31 @@ class TestFiring:
         assert audit.call_args.kwargs["actor_user_id"] is None
         assert audit.call_args.kwargs["details"]["reason"] == "creator_cannot_run_agent"
         runner_cls.assert_not_called()
+
+    async def test_a_trigger_on_a_non_runnable_agent_is_disabled_not_retried(self):
+        """A draft, archived or version-withdrawn agent makes `execute` raise
+        `BadRequestError` from `get_runnable_spec`. Left active, every cadence would
+        dispatch another run that fails there; it disables instead, the same verdict
+        an access refusal gets, so a certainty is not retried for ever."""
+        agent = _agent()
+        service = _service(agent)
+        trigger = _trigger(agent_id=agent.id, conversation_id=None)
+        audit = AsyncMock()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.member_repo") as members,
+            patch("app.services.agent_trigger.conversation_repo") as conversations,
+            patch("app.services.agent_trigger.record_audit", new=audit),
+            patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            conversations.create_conversation = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
+            runner = runner_cls.return_value
+            runner.execute = AsyncMock(side_effect=BadRequestError(message="not runnable"))
+            await service.fire(trigger.id)
+        assert trigger.is_active is False
+        assert audit.call_args.kwargs["details"]["reason"] == "agent_not_runnable"
 
     async def test_a_fired_run_runs_as_the_creator_and_is_stamped_schedule(self):
         agent = _agent()

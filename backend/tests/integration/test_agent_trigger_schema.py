@@ -2,9 +2,9 @@
 
 The unit tests read the statements back; these run them. Three things a mock
 cannot tell you: that the CHECK constraints reject a bad row, that the claim
-returns exactly the due-active-attributable triggers, and - the one the whole
-no-double-fire design rests on - that a second heartbeat claiming at the same
-instant takes none of the rows the first one locked.
+returns the due, active triggers - orphans included, so they can be disabled -
+and - the one the whole no-double-fire design rests on - that a second heartbeat
+claiming at the same instant takes none of the rows the first one locked.
 """
 
 from __future__ import annotations
@@ -194,7 +194,11 @@ class TestTheEventShapeRejectsABadRow:
 
 
 class TestTheClaimReturnsTheRightRows:
-    async def test_only_the_due_active_attributable_triggers_are_claimed(self, db):
+    async def test_the_due_active_triggers_are_claimed_orphans_included(self, db):
+        """Due, active, and past its next fire is claimed; not-yet and paused are
+        not. An orphaned schedule (null creator) *is* claimed now - not because it
+        can fire, but so `claim_and_advance` can disable it rather than leave it
+        filtered out of the sweep for ever."""
         org = await _org(db)
         agent = await _agent(db, org)
         due = _trigger(org, agent)
@@ -206,7 +210,7 @@ class TestTheClaimReturnsTheRightRows:
 
         claimed = await agent_trigger_repo.claim_due(db, now=datetime.now(UTC))
 
-        assert [t.id for t in claimed] == [due.id]
+        assert {t.id for t in claimed} == {due.id, orphaned.id}
 
     async def test_a_trigger_whose_last_run_is_unfinished_is_skipped(self, db):
         org = await _org(db)

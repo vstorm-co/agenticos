@@ -225,7 +225,7 @@ class TestWriting:
 
 
 class TestClaiming:
-    async def test_the_claim_is_due_active_attributable_and_locked(self):
+    async def test_the_claim_is_due_active_and_locked(self):
         """The whole no-double-fire and no-overlap guard lives in this statement."""
         now = datetime(2026, 6, 1, tzinfo=UTC)
         session = _RecordingSession(_scalars([]))
