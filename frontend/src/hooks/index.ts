@@ -31,6 +31,13 @@ export {
 } from "./use-agents";
 export { useMcpCatalog, useMcpServers, type McpServerRow } from "./use-mcp-servers";
 export { useMcpOAuthOutcome } from "./use-mcp-oauth-outcome";
+export {
+  usePortalCatalog,
+  usePortals,
+  type PortalAction,
+  type PortalWithState,
+} from "./use-portals";
+export { usePortalTargets } from "./use-portal-targets";
 export { useUrlSort, type UrlSort } from "./use-url-sort";
 export { useModelProviders, useProviderModels } from "./use-model-providers";
 export {

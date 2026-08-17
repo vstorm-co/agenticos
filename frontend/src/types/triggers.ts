@@ -48,6 +48,22 @@ export interface Trigger {
    * authenticates a delivery is never part of it.
    */
   webhook_url: string | null;
+  /**
+   * The portal lineage, when this trigger came from a preset. `delivery_mode` is
+   * `auto_webhook` when the platform registered the hook and `manual` when the
+   * user pastes the URL; null on a schedule and on a raw event trigger. Optional
+   * so a partial fixture need not carry them - the live `TriggerRead` always does.
+   */
+  portal_key?: string | null;
+  delivery_mode?: "auto_webhook" | "manual" | null;
+  connection_id?: string | null;
+  /**
+   * Where a preset points - a repository, a channel. Not currently returned by
+   * `TriggerRead` (the backend holds it as `provider_target` but does not
+   * serialize it), so the preset summary reads without a target until it is
+   * exposed; present here so that summary needs no further change when it is.
+   */
+  provider_target?: string | null;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -75,6 +91,17 @@ export interface TriggerCreate {
   event_source?: EventSource | null;
   event_config?: Record<string, unknown> | null;
   event_secret?: string | null;
+  /**
+   * The portal preset path. `portal_key` and `preset_key` name a ready-made event;
+   * the server fills the source, filter and signing secret from the catalog, so
+   * none of the `event_*` fields above are sent with them. `connection_id` is the
+   * connected account whose token registers the webhook (auto-delivery portals),
+   * and `target` which repository it points at.
+   */
+  portal_key?: string | null;
+  preset_key?: string | null;
+  connection_id?: string | null;
+  target?: string | null;
 }
 
 /**

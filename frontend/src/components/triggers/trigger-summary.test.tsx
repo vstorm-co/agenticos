@@ -91,6 +91,35 @@ describe("TriggerSummary", () => {
     expect(screen.getByText("On new LinkedIn posts")).toBeInTheDocument();
   });
 
+  it("reads a portal preset in plain language with its target", () => {
+    render(
+      <TriggerSummary
+        trigger={trigger({
+          trigger_type: "event",
+          event_source: "github",
+          interval_seconds: null,
+          portal_key: "github",
+          provider_target: "acme/repo",
+        })}
+      />,
+    );
+    expect(screen.getByText("New issue in acme/repo")).toBeInTheDocument();
+  });
+
+  it("falls back to the generic source label for a preset with no target", () => {
+    render(
+      <TriggerSummary
+        trigger={trigger({
+          trigger_type: "event",
+          event_source: "github",
+          interval_seconds: null,
+          portal_key: "github",
+        })}
+      />,
+    );
+    expect(screen.getByText("On new GitHub issues")).toBeInTheDocument();
+  });
+
   it("names a generic webhook event trigger", () => {
     render(
       <TriggerSummary

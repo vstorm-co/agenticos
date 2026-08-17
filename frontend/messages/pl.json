@@ -364,7 +364,8 @@
       "connectorsFailedDescription": "Żądanie listy konektorów nie powiodło się, więc nie wiadomo, czy któryś jest włączony."
     },
     "runs": {
-      "scheduled": "Zaplanowane"
+      "scheduled": "Zaplanowane",
+      "portals": "Portale"
     },
     "mcp-servers": {
       "catalogCompiledIntoBackend": "Katalog jest wkompilowany w backend, a nikt nie dodał własnego serwera. Pusta lista oznacza tutaj, że ten deployment nie dostarcza żadnego.",
@@ -1132,7 +1133,12 @@
       "github": "Przy nowym zgłoszeniu GitHub",
       "email": "Przy przychodzącym e-mailu",
       "linkedin": "Przy nowym poście LinkedIn",
-      "webhook": "Przy żądaniu webhooka"
+      "webhook": "Przy żądaniu webhooka",
+      "presetSummary": "{event} w {target}",
+      "presetGithub": "Nowe zgłoszenie",
+      "presetEmail": "Nowy e-mail",
+      "presetLinkedin": "Nowy post",
+      "presetGeneric": "Nowe zdarzenie"
     },
     "panelTitle": "Harmonogramy i wyzwalacze",
     "panelDescription": "Kiedy ten agent uruchamia się sam - według harmonogramu lub gdy nadejdzie zdarzenie.",
@@ -1235,6 +1241,34 @@
     "done": "Gotowe",
     "deleteTitle": "Usunąć ten wyzwalacz?",
     "deleteConfirm": "Agent przestanie uruchamiać się sam. Tej operacji nie można cofnąć."
+  },
+  "portals": {
+    "title": "Portale",
+    "searchPlaceholder": "Szukaj portali…",
+    "category": "Kategoria",
+    "allCategories": "Wszystkie kategorie",
+    "portalCount": "{count, plural, =1 {1 portal} few {# portale} many {# portali} other {# portalu}}",
+    "createAction": "Utwórz wyzwalacz",
+    "connectAction": "Połącz konto",
+    "reauthorizeAction": "Autoryzuj ponownie",
+    "redirecting": "Przekierowanie…",
+    "advancedWebhook": "Zaawansowane: własny webhook",
+    "emptyTitle": "Brak portali",
+    "emptyDescription": "Gdy portal zostanie dodany, pojawi się tutaj.",
+    "loadError": "Nie udało się wczytać portali.",
+    "couldNotConnect": "Nie udało się rozpocząć łączenia.",
+    "dialogTitle": "Nowy wyzwalacz: {portal}",
+    "presetTab": "Zdarzenie",
+    "configureTab": "Konfiguracja",
+    "targetRepo": "Repozytorium",
+    "targetChannel": "Kanał",
+    "targetGeneric": "Cel",
+    "targetPlaceholder": "Wybierz jeden",
+    "targetFreeText": "np. właściciel/repozytorium",
+    "registeredTitle": "Wyzwalacz gotowy",
+    "registeredDescription": "Webhook został zarejestrowany. Agent uruchomi się, gdy nadejdzie zdarzenie.",
+    "manualResultDescription": "Dodaj ten adres webhooka u swojego dostawcy. Nic się nie uruchomi, dopóki nie nadejdzie zdarzenie.",
+    "secretSetNote": "Sekret podpisujący został wygenerowany i ustawiony automatycznie."
   },
   "errors": {
     "authorizationFailed": "Autoryzacja nie powiodła się",

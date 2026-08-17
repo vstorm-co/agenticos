@@ -11,6 +11,7 @@ import { FocusedRun } from "@/components/runs/focused-run";
 import { RunHistoryTab } from "@/components/runs/run-history-tab";
 import { ScheduledTab } from "@/components/runs/scheduled-tab";
 import { SpendTab } from "@/components/runs/spend-tab";
+import { PortalsTab } from "@/components/triggers/portals-tab";
 import { LoadingState } from "@/components/states";
 import {
   Badge,
@@ -136,6 +137,7 @@ export default function RunsPage() {
                 </TabsTrigger>
               )}
               <TabsTrigger value="scheduled">{t("scheduled")}</TabsTrigger>
+              <TabsTrigger value="portals">{t("portals")}</TabsTrigger>
               <TabsTrigger value="spend">{t("spend")}</TabsTrigger>
             </TabsList>
 
@@ -161,6 +163,10 @@ export default function RunsPage() {
 
             <TabsContent value="scheduled">
               <ScheduledTab />
+            </TabsContent>
+
+            <TabsContent value="portals">
+              <PortalsTab />
             </TabsContent>
 
             <TabsContent value="spend">

@@ -4,11 +4,20 @@ import { useState } from "react";
 import { Pause, Pencil, Play, Trash2, Zap } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { BrandIcon, isBrandName, type BrandName } from "@/components/icons/brand-icon";
 import { TriggerFormDialog } from "@/components/triggers/trigger-form-dialog";
 import { TriggerSummary } from "@/components/triggers/trigger-summary";
 import { Badge, Button, ConfirmDialog } from "@/components/ui";
 import { useTriggers } from "@/hooks/use-triggers";
 import type { Trigger } from "@/types/triggers";
+
+/** The brand mark for a portal trigger, from its portal key or event source. */
+function portalMark(trigger: Trigger): BrandName | null {
+  const key = trigger.portal_key ?? trigger.event_source;
+  if (key === "email") return "gmail";
+  if (key !== null && key !== undefined && isBrandName(key)) return key;
+  return null;
+}
 
 interface TriggerRowProps {
   trigger: Trigger;
@@ -36,8 +45,13 @@ export function TriggerRow({ trigger, canManage, showAgent = false }: TriggerRow
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
+  const mark = trigger.trigger_type === "event" ? portalMark(trigger) : null;
+
   return (
     <div className="flex items-center gap-3 rounded-md border p-3">
+      {mark && (
+        <BrandIcon name={mark} aria-hidden className="text-muted-foreground h-5 w-5 shrink-0" />
+      )}
       <div className="min-w-0 flex-1">
         {(trigger.name || (showAgent && trigger.agent_name)) && (
           <p className="truncate text-xs font-medium">{trigger.name ?? trigger.agent_name}</p>

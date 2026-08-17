@@ -17,6 +17,7 @@ export type IntervalUnit = "minutes" | "hours" | "days";
 export type TriggerSummary =
   | { kind: "interval"; unit: IntervalUnit; count: number }
   | { kind: "cron"; expression: string }
+  | { kind: "preset"; portalKey: string; target: string }
   | { kind: "event"; source: EventSource };
 
 /**
@@ -40,6 +41,13 @@ export function unitToSeconds(unit: IntervalUnit, count: number): number {
 /** What makes this trigger fire, reduced for display. */
 export function triggerSummary(trigger: Trigger): TriggerSummary {
   if (trigger.trigger_type === "event") {
+    // A preset reads in plain language - "New issue in acme/repo" - when the
+    // portal and its target are both known. The target comes from the backend's
+    // `provider_target`, so until `TriggerRead` exposes it a preset trigger falls
+    // back to the generic per-source label rather than showing half a sentence.
+    if (trigger.portal_key && trigger.provider_target) {
+      return { kind: "preset", portalKey: trigger.portal_key, target: trigger.provider_target };
+    }
     return { kind: "event", source: trigger.event_source ?? "github" };
   }
   if (trigger.schedule_kind === "cron") {

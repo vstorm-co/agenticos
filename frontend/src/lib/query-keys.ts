@@ -55,6 +55,17 @@ export const qk = {
     // shared `all()` prefix.
     orgList: () => ["triggers", "org"] as const,
   },
+  portals: {
+    all: () => ["portals"] as const,
+    // The trigger-portals catalog. Curated and compiled into the deployment, so
+    // it changes on redeploy and never on a mutation - cached like the MCP one.
+    catalog: () => ["portals", "catalog"] as const,
+    // The repositories one connected account can point a preset at. Keyed per
+    // (portal, connection) because that is what is fetched - two accounts see two
+    // different lists, and a shared key would serve one for the other.
+    targets: (portalKey: string, connectionId: string) =>
+      ["portals", "targets", portalKey, connectionId] as const,
+  },
   embeds: {
     all: () => ["embeds"] as const,
     list: (agentId: string) => ["embeds", agentId] as const,

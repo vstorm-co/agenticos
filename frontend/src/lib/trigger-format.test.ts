@@ -70,6 +70,29 @@ describe("triggerSummary", () => {
     ).toEqual({ kind: "cron", expression: "0 9 * * *" });
   });
 
+  it("reads a portal preset as its portal and target when both are known", () => {
+    expect(
+      triggerSummary(
+        trigger({
+          trigger_type: "event",
+          event_source: "github",
+          portal_key: "github",
+          provider_target: "acme/repo",
+        }),
+      ),
+    ).toEqual({ kind: "preset", portalKey: "github", target: "acme/repo" });
+  });
+
+  it("falls back to the generic event label when a preset has no target yet", () => {
+    // `TriggerRead` does not expose the target today, so a preset with only its
+    // portal key reads as the plain source rather than half a sentence.
+    expect(
+      triggerSummary(
+        trigger({ trigger_type: "event", event_source: "github", portal_key: "github" }),
+      ),
+    ).toEqual({ kind: "event", source: "github" });
+  });
+
   it("names an event trigger by its source", () => {
     expect(
       triggerSummary(

@@ -5,6 +5,20 @@ import { useTranslations } from "next-intl";
 import { triggerSummary } from "@/lib/trigger-format";
 import type { Trigger } from "@/types/triggers";
 
+/** The event phrase for a portal preset, as a fixed key under `triggers.event`. */
+function presetEventKey(portalKey: string): string {
+  switch (portalKey) {
+    case "github":
+      return "event.presetGithub";
+    case "email":
+      return "event.presetEmail";
+    case "linkedin":
+      return "event.presetLinkedin";
+    default:
+      return "event.presetGeneric";
+  }
+}
+
 /**
  * What makes a trigger fire, in one line - "Every 15 minutes", "Daily at 09:00
  * UTC" via its cron, "On new GitHub issues".
@@ -25,6 +39,17 @@ export function TriggerSummary({ trigger }: { trigger: Trigger }) {
       return <>{t("cadence.everyMinutes", { count: summary.count })}</>;
     case "cron":
       return <>{t("cadence.cron", { expression: summary.expression })}</>;
+    case "preset":
+      // One static ICU key, "{event} in {target}", with the event phrase chosen
+      // per portal by a fixed key so the catalog check can see it.
+      return (
+        <>
+          {t("event.presetSummary", {
+            event: t(presetEventKey(summary.portalKey)),
+            target: summary.target,
+          })}
+        </>
+      );
     case "event":
       switch (summary.source) {
         case "github":
