@@ -186,6 +186,29 @@ function attr(attribute: string, tag: string): string | undefined {
 }
 
 /**
+ * `pattern` removed from `text`, repeatedly, until removing it changes nothing.
+ *
+ * One pass is not enough for a pattern whose own opener can survive it:
+ * `<!--<!-- -->` loses the inner comment and leaves a bare `<!--` behind, which
+ * the leftover check would then read as unsupported markup for a file that has
+ * none. Removing to a fixed point is also what makes this not the incomplete
+ * multi-character sanitization CodeQL flags - the input here is fetched, not
+ * typed, but "the source is trusted" is the assumption every one of those
+ * findings was written under.
+ */
+function stripAll(text: string, pattern: RegExp): string {
+  let current = text;
+  for (
+    let next = current.replace(pattern, "");
+    next !== current;
+    next = current.replace(pattern, "")
+  ) {
+    current = next;
+  }
+  return current;
+}
+
+/**
  * The drawable part of one source SVG.
  *
  * Deliberately narrow: a `viewBox`, an optional `fill-rule`, and paths. Anything
@@ -198,7 +221,7 @@ function parseGlyph(name: string, svg: string): Glyph {
   // `role="img"` and a label where a caller wants it announced. The comment is
   // Font Awesome's licence banner, which is not dropped: it moves to the
   // generated file's header, where one copy covers all three sources.
-  const withoutTitle = svg.replace(/<title>[\s\S]*?<\/title>/g, "").replace(/<!--[\s\S]*?-->/g, "");
+  const withoutTitle = stripAll(stripAll(svg, /<title>[\s\S]*?<\/title>/g), /<!--[\s\S]*?-->/g);
   const open = SVG_OPEN.exec(withoutTitle);
   if (open === null) throw new GlyphError(`${name}: no <svg> element`);
 
