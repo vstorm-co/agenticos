@@ -1194,14 +1194,16 @@
   position: fixed;
   z-index: 1000000001;
   pointer-events: none;
-  /* Sized to the target's exact box; the frame is an `outline`, which draws
-     outside that box and is unaffected by the box model, so it hugs the control
-     at a uniform `outline-offset` on every side rather than the uneven gap a
-     padded, box-sized border left. `border-radius` still rounds the outline. */
+  /* Sized to the target's exact box, with its corner radius copied in inline
+     (from the control). The frame is a spread `box-shadow`, not an `outline` or
+     `border`: a spread shadow paints immediately outside the border-box, hugging
+     the control on every side with no gap and following its radius exactly — the
+     same on a pill as on a card, where `outline-offset` left a bright gap that
+     read differently in each place (#624). The second shadow is the glow. */
   border-radius: 10px;
-  outline: 2.5px solid var(--color-brand);
-  outline-offset: 2px;
-  box-shadow: 0 0 16px 1px var(--color-brand);
+  box-shadow:
+    0 0 0 3px var(--color-brand),
+    0 0 16px 2px var(--color-brand);
   transition:
     top 0.45s ease,
     left 0.45s ease,
@@ -1221,10 +1223,14 @@
 @keyframes onboarding-coach-pulse {
   0%,
   100% {
-    box-shadow: 0 0 14px 0 var(--color-brand);
+    box-shadow:
+      0 0 0 3px var(--color-brand),
+      0 0 14px 0 var(--color-brand);
   }
   50% {
-    box-shadow: 0 0 24px 5px var(--color-brand);
+    box-shadow:
+      0 0 0 3px var(--color-brand),
+      0 0 24px 6px var(--color-brand);
   }
 }
 

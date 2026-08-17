@@ -12,8 +12,12 @@ import { stripLocale } from "@/lib/active-route";
 import { ROUTES } from "@/lib/constants";
 import { AGENT_BUILDER, pageKey } from "@/lib/onboarding/tour";
 
-/** Space between the control and the freeze layer's cut-out, so the ring plays inside it. */
-const HOLE_PADDING = 6;
+/**
+ * Space between the control and the freeze layer's cut-out. Matched to the ring's
+ * 3px spread (`globals.css`), so the un-dimmed hole ends exactly at the ring's
+ * outer edge — no strip of bright page peeking between the ring and the dim (#624).
+ */
+const HOLE_PADDING = 3;
 const HOLE_RADIUS = 12;
 
 /** The side of the dot the ring starts as, before it grows onto the first control. */
@@ -290,38 +294,34 @@ export function OnboardingCoach() {
       if (signal.aborted || !(target instanceof HTMLElement)) return;
 
       target.scrollIntoView({ block: "center", inline: "center" });
-      const place = () => {
+      // Keep the ring and cut-out matched to the control every frame. Observers
+      // catch a resize or a scroll, but not a plain layout shift that repositions
+      // the control without resizing it or the body — which left the ring a few px
+      // off on some pages and not others (#624). A rAF loop catches every cause of
+      // movement; it sets state only when the box actually changes, so it
+      // re-renders on a move, not on every frame. The first match glides (the
+      // travel from the centre dot onto the control); every correction after is
+      // instant, so the ring never visibly lags the control as the page settles or
+      // scrolls.
+      let placed = false;
+      let lastKey = "";
+      let raf = 0;
+      const tick = () => {
         const b = target.getBoundingClientRect();
-        const box = { top: b.top, left: b.left, width: b.width, height: b.height };
-        setRect({ stepId: sid, ...box });
-        setRingRect(box);
-        setRingRadius(getComputedStyle(target).borderTopLeftRadius || "10px");
+        const key = `${b.top}:${b.left}:${b.width}:${b.height}`;
+        if (key !== lastKey) {
+          lastKey = key;
+          const box = { top: b.top, left: b.left, width: b.width, height: b.height };
+          setRect({ stepId: sid, ...box });
+          setRingRect(box);
+          setRingRadius(getComputedStyle(target).borderTopLeftRadius || "10px");
+          if (placed) setRingInstant(true);
+          placed = true;
+        }
+        raf = requestAnimationFrame(tick);
       };
-      place();
-      // Measure again once layout has settled. A control measured a frame too
-      // early — or before its webfont swaps in and changes its width, which moves
-      // the left edge of a right-aligned button — leaves the ring and cut-out
-      // off-centre. A frame later catches the first; a size observer on the
-      // control and on the body catches the font swap and any reflow that shifts
-      // it. The CSS transition on the ring makes each correction a glide, not a jump.
-      const raf = requestAnimationFrame(place);
-      const observer = new ResizeObserver(place);
-      observer.observe(target);
-      observer.observe(document.body);
-      // Scroll and resize are continuous, so the ring must follow them frame for
-      // frame rather than glide behind — switch its transition off before moving it.
-      const track = () => {
-        setRingInstant(true);
-        place();
-      };
-      window.addEventListener("scroll", track, true);
-      window.addEventListener("resize", track);
-      signal.addEventListener("abort", () => {
-        cancelAnimationFrame(raf);
-        observer.disconnect();
-        window.removeEventListener("scroll", track, true);
-        window.removeEventListener("resize", track);
-      });
+      raf = requestAnimationFrame(tick);
+      signal.addEventListener("abort", () => cancelAnimationFrame(raf));
     })();
 
     return () => controller.abort();
