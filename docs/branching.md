@@ -27,6 +27,7 @@ cost a second place for every change to sit, so it was removed.
 | No commit made while standing on `main` | `no-commit-to-branch` in `.pre-commit-config.yaml` |
 | Spelling, across every tracked file | codespell — as a hook on the files a commit touches, and as `make lint-spelling` in CI's `lint` job over the whole tree |
 | Routes hold only routers, no banner comments, no dead code | `check_routes.py`, `check_comments.py` and `vulture` — hooks in `.pre-commit-config.yaml` (each scans the whole tree, `pass_filenames: false`) and steps of `make lint-backend` in CI's `lint` job |
+| No dependency declared that nothing imports | `deptry` — a step of `make lint-backend` in CI's `lint` job, gating on DEP002 and DEP004. Not a pre-commit hook: it reads the whole manifest against the whole tree, so there is no per-file version of the question |
 
 A hook only ever reads what a commit touches, which makes it a poor gate on its
 own: a misspelling that merges with its file sits there until somebody edits that
@@ -202,8 +203,10 @@ understood:
   extras.** `pydantic-ai-slim[openrouter,…]` is not matched by
   `pydantic-ai-slim`. That silence cost months: the `agent-frameworks` group
   never opened a single pull request, and the runtime rode in
-  `backend-everything-else` with its majors. Equally, `fastapi` stays exact —
-  `fastapi*` would drag in `fastapi-cache2`.
+  `backend-everything-else` with its majors. Conversely `fastapi` stays exact
+  because it is declared without extras and needs no wildcard; it used to need
+  to avoid one, since `fastapi*` also caught `fastapi-cache2`, until that
+  dependency was removed in #155.
 - **Dependabot cannot update `frontend/bun.lock`.** Its npm ecosystem knows
   `package-lock.json`, `yarn.lock` and `pnpm-lock.yaml`, and not bun's. So a
   frontend bump arrives as `package.json` alone and `bun install

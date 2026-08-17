@@ -310,6 +310,13 @@ provider's own text goes to the server log. A delegate stopped by its usage limi
 or by a budget ceiling keeps the limit's message whole: that is a ceiling doing
 its job, not a failure to diagnose.
 
+The rule reaches the *parent's* transcript too. When an agent delegates in the
+background it polls `check_task` and `wait_tasks` for the outcome, and what those
+answer becomes a tool-call row in the conversation — stored whole, because a tool
+return is the tool's own answer rather than something this platform composed. So
+they name the exception's class rather than repeating the provider's message,
+which is `subagents-pydantic-ai` 0.2.20 and the reason the floor is there.
+
 **The dashboard's windowed figure carries it too.** `GET /stats/usage` answers a
 `cost` block for whatever period the filter chose, and that block is runs *plus*
 ingestion — the same arithmetic the monthly cap is measured with — with

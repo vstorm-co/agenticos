@@ -11,7 +11,6 @@ from app.core.exceptions import (
     ValidationError,
 )
 from app.core.middleware import RequestIDMiddleware
-from app.core.cache import setup_cache
 from unittest.mock import patch
 
 from fastapi import FastAPI
@@ -78,15 +77,6 @@ class TestExceptions:
         error = ValidationError(message="Invalid input")
         assert error.status_code == 422
         assert error.code == "VALIDATION_ERROR"
-
-
-class TestCacheSetup:
-    """Tests for cache setup."""
-
-    def test_setup_cache_function_exists(self):
-        """Test setup_cache function exists."""
-        assert setup_cache is not None
-        assert callable(setup_cache)
 
 
 class TestMiddleware:

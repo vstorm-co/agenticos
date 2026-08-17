@@ -5,17 +5,13 @@ import { describe, expect, it } from "vitest";
 
 import { ProviderRow } from "./provider-row";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui";
-
-/** The brand mark actually drawn, by the name lobehub titles its SVG with. */
-function markIn(element: HTMLElement): string | null {
-  return element.querySelector("svg > title")?.textContent ?? null;
-}
+import { providerMarkIn } from "@/test-utils/brand-marks";
 
 describe("ProviderRow", () => {
   it("draws the brand mark for the id it is given", () => {
     const { container } = render(<ProviderRow provider="openrouter" name="Embeddings key" />);
 
-    expect(markIn(container)).toBe("OpenRouter");
+    expect(providerMarkIn(container)).toBe("openrouter");
     expect(screen.getByText("Embeddings key")).toBeInTheDocument();
   });
 
@@ -70,7 +66,7 @@ describe("what a select trigger inherits from the row", () => {
   it("draws the selected row's mark in the closed trigger", () => {
     pickerWith(null);
 
-    expect(markIn(screen.getByLabelText("Provider"))).toBe("OpenRouter");
+    expect(providerMarkIn(screen.getByLabelText("Provider"))).toBe("openrouter");
   });
 
   it("needs `textValue`, because the mark's own title is part of the item's text", async () => {

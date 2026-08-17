@@ -25,7 +25,6 @@ from app.core.logging import setup_logging
 from app.core.body_limit import BodySizeLimitMiddleware
 from app.core.middleware import RequestIDMiddleware
 from app.core.watchdog import EventLoopWatchdog
-from app.core.cache import setup_cache
 from app.clients.redis import RedisClient
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.vectorstore import PgVectorStore
@@ -93,7 +92,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     redis_client = RedisClient()
     await redis_client.connect()
     state["redis"] = redis_client
-    setup_cache(redis_client)
     # The channel router runs outside any request - webhook background tasks
     # and the polling loops alike - so the dedupe claim cannot reach Redis
     # through request.state; it is handed the shared client here instead.

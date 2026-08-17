@@ -292,6 +292,7 @@ lint-backend:
 	uv run --directory backend ruff format . ../scripts --check
 	uv run --directory backend ty check
 	uv run --directory backend vulture
+	uv run --directory backend deptry app cli alembic
 	python3 scripts/check_backticks.py
 	python3 scripts/check_routes.py
 	python3 scripts/check_comments.py
@@ -304,24 +305,32 @@ lint-backend:
 # deleting. The same role dependency-freshness plays for dependencies. See
 # [tool.vulture] in backend/pyproject.toml.
 #
-# The frontend half is knip, also a report rather than a gate: on a
+# The frontend half is knip's *full* report, and stays a report: on a
 # design-system codebase it flags the whole UI-primitive barrel and every
-# exported type it cannot trace a use for, so `frontend/knip.json` narrows it to
-# what is worth reading and the rest is read by eye. `bunx` fetches knip on
-# demand - it is not a project dependency, because nothing gating runs it.
+# exported type it cannot trace a use for, so `frontend/knip.jsonc` narrows it to
+# what is worth reading and the rest is read by eye. Its one unambiguous half -
+# a declared dependency nothing imports - is a gate instead, in `lint-frontend`.
 dead-code:
 	uv run --directory backend vulture --min-confidence 60
-	cd frontend && bunx knip@5 --no-progress
+	cd frontend && bunx knip --no-progress
 
 # The i18n guard is the fourth step and belongs here rather than beside the Python
 # ones: since #395 it *is* TypeScript, reading `frontend/src` through
 # `ts.createSourceFile` instead of ten regexes over source text. It runs last because
 # it is the slowest of the four and the other three answer faster on a typo.
+#
+# `lint:deps` is knip narrowed to the one thing it is never wrong about: a
+# package declared in `package.json` that nothing imports, and the reverse.
+# It gates because the alternative was measured - `date-fns` was declared,
+# imported nowhere, and *listed in knip's own ignores*, so the report that
+# would have found it had been told not to (#156). The rest of knip's output
+# needs a human and stays in `make dead-code`.
 lint-frontend:
 	cd frontend && bun run lint
 	cd frontend && bunx prettier --check "scripts/**/*.ts" "src/**/*.{ts,tsx}" "e2e/**/*.ts"
 	cd frontend && bun run type-check
 	cd frontend && bun run check:i18n
+	cd frontend && bun run lint:deps
 
 # Spelling, over every tracked file rather than the ones a commit happens to
 # touch. The hook alone only ever reads changed files, so a misspelling that

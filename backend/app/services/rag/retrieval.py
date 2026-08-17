@@ -5,6 +5,8 @@ import logging
 import time
 from abc import ABC, abstractmethod
 
+from rank_bm25 import BM25Okapi
+
 from app.services.rag.config import RAGSettings
 from app.services.rag.models import SearchResult
 from app.services.rag.vectorstore import BaseVectorStore
@@ -76,12 +78,6 @@ class RetrievalService(BaseRetrievalService):
     async def _bm25_search(
         self, query: str, collection_name: str, limit: int
     ) -> list[SearchResult]:
-        try:
-            from rank_bm25 import BM25Okapi
-        except ImportError:
-            logger.warning("rank-bm25 not installed, skipping BM25 search")
-            return []
-
         docs = await self.store.get_documents(collection_name)
         if not docs:
             return []
