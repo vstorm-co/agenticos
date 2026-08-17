@@ -7,7 +7,13 @@ import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { getErrorMessage } from "@/lib/api-error";
-import type { Trigger, TriggerCreate, TriggerList, TriggerUpdate } from "@/types/triggers";
+import type {
+  Trigger,
+  TriggerCreate,
+  TriggerCreated,
+  TriggerList,
+  TriggerUpdate,
+} from "@/types/triggers";
 
 /**
  * One agent's schedules and event triggers, and the writes that change them.
@@ -37,7 +43,9 @@ export function useTriggers(agentId: string | null) {
   );
 
   const create = useMutation({
-    mutationFn: (payload: TriggerCreate) => apiClient.post<Trigger>(base, payload),
+    // `TriggerCreated` rather than `Trigger`: the create response carries the
+    // reveal-once `reveal_secret` for a manual preset, which no read ever returns.
+    mutationFn: (payload: TriggerCreate) => apiClient.post<TriggerCreated>(base, payload),
     onSuccess: async () => {
       await invalidate();
       toast.success(t("created"));

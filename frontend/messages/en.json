@@ -4085,7 +4085,8 @@
     "registeredTitle": "Trigger ready",
     "registeredDescription": "The webhook was registered for you. The agent runs when the event arrives.",
     "manualResultDescription": "Add this webhook URL to your provider. Nothing fires until it delivers.",
-    "secretSetNote": "A signing secret was generated and set for you."
+    "secretLabel": "Signing secret",
+    "secretRevealNote": "Copy it now - it won't be shown again. Configure your relay to sign each delivery with it."
   },
   "context": {
     "created": "Created {name}",

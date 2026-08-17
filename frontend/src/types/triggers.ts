@@ -105,6 +105,20 @@ export interface TriggerCreate {
 }
 
 /**
+ * The create endpoint's response: a trigger, plus a reveal-once secret.
+ *
+ * Mirrors the backend's `TriggerCreateRead` - a `TriggerRead` with `reveal_secret`.
+ * The secret is populated exactly once, and only for a **manual**-delivery preset:
+ * the platform could not auto-register the webhook, so the user must wire a relay
+ * and needs the secret to sign each delivery. It is null for an auto-registered
+ * preset, a schedule and a raw trigger, and never appears on any GET or list -
+ * which is why it lives on this create-only type and not on `Trigger`.
+ */
+export interface TriggerCreated extends Trigger {
+  reveal_secret?: string | null;
+}
+
+/**
  * A partial edit. A schedule's cadence can change in place - a new interval, a new
  * cron, or a switch between the two (`schedule_kind` with its field) - and its
  * title. What cannot change is a trigger's *type* (a schedule never becomes an

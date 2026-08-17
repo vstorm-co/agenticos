@@ -33,7 +33,7 @@ import { useAgentSelectionStore } from "@/stores";
 import { cn } from "@/lib/utils";
 import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
 import type { PortalCatalogEntry } from "@/types/portals";
-import type { Trigger, TriggerCreate } from "@/types/triggers";
+import type { TriggerCreate, TriggerCreated } from "@/types/triggers";
 
 /** Sentinel for "the default environment" - a Select item may not be empty. */
 const DEFAULT_ENV = "__default__";
@@ -98,7 +98,7 @@ export function PortalTriggerDialog({
   const [name, setName] = useState("");
   const [environmentId, setEnvironmentId] = useState(DEFAULT_ENV);
   const [target, setTarget] = useState("");
-  const [created, setCreated] = useState<Trigger | null>(null);
+  const [created, setCreated] = useState<TriggerCreated | null>(null);
 
   const preset = portal.presets.find((entry) => entry.key === presetKey) ?? null;
   const needsTarget = portal.target_kind !== null && (preset?.target_required ?? false);
@@ -152,6 +152,7 @@ export function PortalTriggerDialog({
             </DialogDescription>
           </DialogHeader>
           {manual && created.webhook_url && <WebhookField url={created.webhook_url} />}
+          {manual && created.reveal_secret && <SecretField secret={created.reveal_secret} />}
           <DialogFooter>
             <Button onClick={() => onOpenChange(false)}>{tt("done")}</Button>
           </DialogFooter>
@@ -310,7 +311,6 @@ export function PortalTriggerDialog({
 /** The webhook URL to paste into the provider, with a copy button. */
 function WebhookField({ url }: { url: string }) {
   const t = useTranslations("triggers");
-  const tp = useTranslations("portals");
   const [copied, setCopied] = useState(false);
 
   async function copy() {
@@ -327,7 +327,39 @@ function WebhookField({ url }: { url: string }) {
           {copied ? t("copied") : t("copy")}
         </Button>
       </div>
-      <p className="text-muted-foreground text-xs">{tp("secretSetNote")}</p>
+      <p className="text-muted-foreground text-xs">{t("webhookHelp")}</p>
+    </div>
+  );
+}
+
+/**
+ * The reveal-once signing secret, shown only on a manual-delivery create.
+ *
+ * The platform could not register the webhook, so the user wires their own relay
+ * and this secret is what signs each delivery. It is returned exactly once - never
+ * on a read - so the copy is offered here with a warning that it will not be shown
+ * again.
+ */
+function SecretField({ secret }: { secret: string }) {
+  const t = useTranslations("triggers");
+  const tp = useTranslations("portals");
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    await navigator.clipboard.writeText(secret);
+    setCopied(true);
+  }
+
+  return (
+    <div className="space-y-1">
+      <Label htmlFor="portal-secret">{tp("secretLabel")}</Label>
+      <div className="flex gap-2">
+        <Input id="portal-secret" value={secret} readOnly className="flex-1 font-mono text-xs" />
+        <Button type="button" variant="outline" onClick={copy}>
+          {copied ? t("copied") : t("copy")}
+        </Button>
+      </div>
+      <p className="text-muted-foreground text-xs">{tp("secretRevealNote")}</p>
     </div>
   );
 }

@@ -1268,7 +1268,8 @@
     "registeredTitle": "Wyzwalacz gotowy",
     "registeredDescription": "Webhook został zarejestrowany. Agent uruchomi się, gdy nadejdzie zdarzenie.",
     "manualResultDescription": "Dodaj ten adres webhooka u swojego dostawcy. Nic się nie uruchomi, dopóki nie nadejdzie zdarzenie.",
-    "secretSetNote": "Sekret podpisujący został wygenerowany i ustawiony automatycznie."
+    "secretLabel": "Sekret podpisujący",
+    "secretRevealNote": "Skopiuj go teraz - nie zostanie pokazany ponownie. Skonfiguruj przekaźnik, aby podpisywał nim każde dostarczenie."
   },
   "errors": {
     "authorizationFailed": "Autoryzacja nie powiodła się",

@@ -149,23 +149,28 @@ describe("PortalTriggerDialog", () => {
     expect(within(dialog).getByPlaceholderText("e.g. owner/repository")).toBeInTheDocument();
   });
 
-  it("reveals the webhook URL when the result is a manual delivery", async () => {
+  async function createManual(response: Record<string, unknown>) {
     const user = userEvent.setup();
     serve();
-    vi.mocked(apiClient.post).mockResolvedValue({
-      id: "t1",
-      trigger_type: "event",
-      delivery_mode: "manual",
-      webhook_url: "https://api.example.com/api/v1/webhooks/triggers/email/t1",
-    });
+    vi.mocked(apiClient.post).mockResolvedValue(response);
     render(<PortalTriggerDialog portal={EMAIL} connection={null} open onOpenChange={vi.fn()} />, {
       wrapper,
     });
-
     const dialog = await screen.findByRole("dialog");
     await user.click(within(dialog).getByRole("button", { name: /Any incoming email/ }));
     await user.type(within(dialog).getByLabelText("Message"), "Read it");
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
+    return user;
+  }
+
+  it("reveals the webhook URL when the result is a manual delivery", async () => {
+    await createManual({
+      id: "t1",
+      trigger_type: "event",
+      delivery_mode: "manual",
+      webhook_url: "https://api.example.com/api/v1/webhooks/triggers/email/t1",
+      reveal_secret: null,
+    });
 
     expect(
       await screen.findByDisplayValue("https://api.example.com/api/v1/webhooks/triggers/email/t1"),
@@ -176,5 +181,42 @@ describe("PortalTriggerDialog", () => {
       Record<string, unknown>,
     ];
     expect(payload).not.toHaveProperty("connection_id");
+  });
+
+  it("reveals the reveal-once signing secret with a copy button when one is returned", async () => {
+    const user = await createManual({
+      id: "t1",
+      trigger_type: "event",
+      delivery_mode: "manual",
+      webhook_url: "https://api.example.com/api/v1/webhooks/triggers/email/t1",
+      reveal_secret: "s3cr3t-sign-me",
+    });
+
+    // The secret is shown so the user can wire their relay to sign deliveries.
+    expect(await screen.findByLabelText("Signing secret")).toHaveValue("s3cr3t-sign-me");
+    expect(screen.getByText(/won't be shown again/)).toBeInTheDocument();
+
+    const copy = vi.fn();
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText: copy },
+      configurable: true,
+    });
+    // Two copy buttons now (URL and secret); the secret's is the last.
+    const copyButtons = screen.getAllByRole("button", { name: "Copy" });
+    await user.click(copyButtons[copyButtons.length - 1] as HTMLElement);
+    expect(copy).toHaveBeenCalledWith("s3cr3t-sign-me");
+  });
+
+  it("shows no secret field when the manual result carries none", async () => {
+    await createManual({
+      id: "t1",
+      trigger_type: "event",
+      delivery_mode: "manual",
+      webhook_url: "https://api.example.com/api/v1/webhooks/triggers/email/t1",
+      reveal_secret: null,
+    });
+
+    await screen.findByDisplayValue("https://api.example.com/api/v1/webhooks/triggers/email/t1");
+    expect(screen.queryByLabelText("Signing secret")).toBeNull();
   });
 });
