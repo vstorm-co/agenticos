@@ -17,6 +17,47 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.173] - 2026-08-17
+
+A dependency nothing imports is now a failing build, not a thing somebody
+notices by reading all 46 lines.
+
+### Added
+
+- **`deptry` runs in `make lint`, over `app`, `cli` and `alembic`.** vulture
+  reads the code and finds what is written but unused; deptry reads the manifest
+  and finds what is declared but unimported. The scope is the point rather than a
+  detail: scanning `app` alone called `tabulate` dead when `cli/commands.py`
+  imports it, and removing it took the e2e seed down before a single product spec
+  ran. A tree that ships and is not scanned is a tree whose imports do not count.
+  (#155)
+
+### Removed
+
+- **Three distributions nothing imports.** `fastapi-cache2` and the eleven-line
+  `app/core/cache.py` that called `FastAPICache.init()` on every boot — there is
+  no `@cache` decorator on any route; `jinja2`, whose email templates are
+  compiled ahead of time and read off disk; and the duplicate, weaker-floored
+  `python-multipart` and `httpx` declarations. (#155)
+- **The `try/except ImportError` around `rank-bm25`.** It guarded a case that
+  cannot happen — hybrid retrieval fuses BM25 with the vector search and a
+  deployment cannot choose otherwise — so the import moved to module scope. The
+  24 MB of `numpy` behind it is the price of that, taken deliberately and now
+  recorded in the manifest. (#155)
+
+### Fixed
+
+- **`anyio` was imported and undeclared.** `app/services/rag_document.py` imports
+  it at module scope while the manifest declared it only in the `dev` group, so
+  the image — built with `uv sync --no-dev` — was relying on Starlette to pull it
+  in. Found by the new gate on its first run. (#155)
+- **The manifest says why the ones that read as dead are alive.** `psycopg2-binary`
+  (alembic builds a *sync* engine from a bare `postgresql://` URL, so removing it
+  breaks every migration), `itsdangerous` (Starlette signs our `SessionMiddleware`
+  cookies with it), `tabulate` and `pillow` — the last two listed as zero-import
+  in the audit and both wrong, with call sites in `cli/commands.py` and
+  `app/services/channels/chart_png.py`. (#155)
+
 ## [0.0.172] - 2026-08-17
 
 All files answers "what is that file", not only "who is holding a copy of it".
