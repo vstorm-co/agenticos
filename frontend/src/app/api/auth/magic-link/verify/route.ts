@@ -1,6 +1,6 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 
-import { BackendApiError, backendFetch, bffRefusal } from "@/lib/server-api";
+import { BackendApiError, backendFetch, bffJson, bffRefusal } from "@/lib/server-api";
 
 interface TokenResponse {
   access_token: string;
@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
       headers: { Authorization: `Bearer ${data.access_token}` },
     });
 
-    const response = NextResponse.json({
+    const response = bffJson({
       user,
       access_token: data.access_token,
     });
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     return response;
   } catch (error) {
     if (error instanceof BackendApiError) {
-      return NextResponse.json({ detail: error.message }, { status: error.status });
+      return bffJson({ detail: error.message }, { status: error.status });
     }
     return bffRefusal("INTERNAL_SERVER_ERROR", 500);
   }
