@@ -16,7 +16,6 @@ import type {
   ImageDescriptionConfig,
   IngestionConfig,
   IngestionOverride,
-  KnowledgeBase,
   LiteParseOutputFormat,
   LlamaParseTier,
   PdfParser,
@@ -374,12 +373,4 @@ export function labelOf<T extends string>(
 ): string {
   const key = choices.find((choice) => choice.value === value)?.labelKey;
   return key === undefined ? value : t(key);
-}
-
-/**
- * How a collection's embeddings are stated: what it was indexed with, not what
- * it is set to.
- */
-export function summarizeEmbedding(kb: KnowledgeBase): string {
-  return `${kb.embedding_model} · ${kb.embedding_dim.toLocaleString()} dimensions`;
 }

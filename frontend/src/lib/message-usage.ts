@@ -5,6 +5,8 @@ interface Measured {
   input_tokens?: number | null;
   output_tokens?: number | null;
   cost_usd?: string | null;
+  cost_is_partial?: boolean | null;
+  context_used_tokens?: number | null;
 }
 
 /**
@@ -28,9 +30,20 @@ export function storedUsage(message: Measured): TurnUsage | null {
     output_tokens: message.output_tokens,
     // A string from the API, because money is `Numeric` on the wire.
     cost_usd: message.cost_usd == null ? 0 : Number(message.cost_usd),
+    // Null is "not recorded", which is every message written before the column
+    // existed. Drawn like an exact figure, because that is what it was drawn as
+    // before and nobody can say otherwise about it now - the caveat is a claim
+    // too, and `true` is the only one this knows to be right.
+    cost_is_partial: message.cost_is_partial === true,
     budget_percent: null,
     agent_budget_percent: null,
     sandbox: null,
+    // The token count survives a reload; the window it is a share of does not
+    // belong to the answer at all - it belongs to whichever model runs next, and
+    // that can be switched between turns. So the count is read back and the
+    // denominator is resolved where the selection is known.
+    context:
+      message.context_used_tokens == null ? null : { used_tokens: message.context_used_tokens },
   };
 }
 

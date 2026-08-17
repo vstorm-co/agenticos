@@ -1,6 +1,7 @@
 """Application configuration using Pydantic BaseSettings."""
 # ruff: noqa: I001 - Imports structured for Jinja2 template conditionals
 
+from decimal import Decimal
 from pathlib import Path
 from typing import Literal
 
@@ -37,8 +38,36 @@ class Settings(BaseSettings):
     TIMEZONE: str = "UTC"  # IANA timezone (e.g. "UTC", "Europe/Warsaw", "America/New_York")
     MODELS_CACHE_DIR: Path = Path("./models_cache")
     MEDIA_DIR: Path = Path("./media")
+    # The knowledge-base document cap. Chat and embed uploads are bounded by the
+    # hardcoded `MAX_UPLOAD_SIZE` in `file_storage.py` (10 MiB), not by this.
     MAX_UPLOAD_SIZE_MB: int = 50
+    # What a *stranger* may upload to a hosted page, in megabytes. Its own
+    # setting and much smaller, because the two callers are not comparable: a
+    # member uploading a fifty-megabyte export is somebody the organization
+    # employs, and the same allowance on a public link is a way to fill a disk
+    # from an address nobody knows. It is a ceiling on top of the allowlist and
+    # the chat path's `MAX_UPLOAD_SIZE`, never a way past either.
+    EMBED_MAX_UPLOAD_SIZE_MB: int = 5
     STORAGE_SOFT_LIMIT_BYTES: int = 5 * 1024 * 1024 * 1024
+
+    # The monthly spend ceiling a brand-new organization starts with, in USD. A
+    # new org one runaway agent away from a surprise bill is the posture this
+    # avoids: a budget is only enforced if it exists, so a sensible default is
+    # the safer first-run stance. `None` restores the older opt-in behaviour -
+    # no ceiling until somebody sets one - and is how a deployment that would
+    # rather choose its own turns the default off. Existing orgs are untouched;
+    # this applies at creation only. Enforced exactly like a hand-set cap, so it
+    # must be positive - `0` is an org whose agents can never answer, which the
+    # `ck_organization_budget_positive` constraint already refuses.
+    DEFAULT_ORG_MONTHLY_BUDGET_USD: Decimal | None = Decimal("100")
+
+    @field_validator("DEFAULT_ORG_MONTHLY_BUDGET_USD")
+    @classmethod
+    def validate_default_org_budget(cls, v: Decimal | None) -> Decimal | None:
+        """A default cap of zero or below would refuse every org's first run."""
+        if v is not None and v <= 0:
+            raise ValueError("DEFAULT_ORG_MONTHLY_BUDGET_USD must be positive, or unset for no cap")
+        return v
 
     # Seconds the event loop may stop turning before the worker kills itself so
     # its supervisor replaces it; `0` or below switches the check off, which is
@@ -154,8 +183,34 @@ class Settings(BaseSettings):
             return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
         return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
 
-    RATE_LIMIT_REQUESTS: int = 100
-    RATE_LIMIT_PERIOD: int = 60
+    # What one caller may ask the public run API for, per minute. Keyed on the
+    # caller rather than on their address: the endpoint is authenticated, and an
+    # office behind one NAT is not one caller.
+    RATE_LIMIT_RUN_PER_MINUTE: int = 30
+    # How often one address may ask to be admitted to a widget or a hosted page,
+    # per minute. Admission only - what a visitor may say once admitted is the
+    # embed's own `rate_limit_per_minute`, counted per visitor.
+    RATE_LIMIT_EMBED_PER_MINUTE: int = 20
+    # How many files one visitor may upload to one page, per minute. Counted per
+    # address first and then per (page, visitor), in the shared Redis, because
+    # this is the first thing on this surface that *stores* something: a limit on
+    # how fast a stranger may write bytes to the deployment's disk. Address first
+    # because the continuity key is minted by the browser, so counting only that
+    # bounds nothing - a script varies it per file.
+    RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE: int = 5
+    # How often one hosted page may be configured, per minute. Per page and not
+    # per address, because that config is fetched server-side by the frontend: on
+    # that one route every visitor arrives as the same caller, so an address
+    # counts nobody. Wide, because it bounds a page rather than rationing
+    # visitors - what rations spend is the socket, counted per address.
+    RATE_LIMIT_HOSTED_PAGE_PER_MINUTE: int = 240
+    # Whether `X-Forwarded-For` names the caller. Off by default because the
+    # header is set by whoever is calling, so trusting it unconditionally is a
+    # per-IP limit anybody bypasses by varying one string. On costs the mirror
+    # image: behind a proxy every visitor arrives as the proxy and shares one
+    # bucket. Turn it on when a proxy is the only thing that can reach this
+    # deployment - see `docs/configuration.md`.
+    RATE_LIMIT_TRUST_FORWARDED_FOR: bool = False
 
     PREFECT_API_URL: str = "http://localhost:4200/api"
     PREFECT_API_KEY: str | None = None

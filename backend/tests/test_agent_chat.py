@@ -14,6 +14,7 @@ the organization's and never none at all.
 from __future__ import annotations
 
 import asyncio
+import logging
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -23,6 +24,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic_ai.messages import ModelMessage, ModelRequest, SystemPromptPart
 from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.usage import RequestUsage
 
@@ -32,6 +34,8 @@ from app.agents.capabilities.budget import (
     SpendLedger,
     record_ambient_usage,
 )
+from app.agents.capabilities.compaction import ContextGauge
+from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.deps import AgentDeps
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import OrgRoleName
@@ -174,9 +178,9 @@ def _db() -> MagicMock:
     return db
 
 
-def _agent_run(output: object) -> MagicMock:
+def _agent_run(output: object, *, messages: list[ModelMessage] | None = None) -> MagicMock:
     agent_run = MagicMock()
-    agent_run.result = MagicMock(output=output, all_messages=MagicMock(return_value=[]))
+    agent_run.result = MagicMock(output=output, all_messages=MagicMock(return_value=messages or []))
     return agent_run
 
 
@@ -190,6 +194,7 @@ def _prepared(output: object = "the refund window is 30 days") -> PreparedRun:
     built = MagicMock()
     built.model_label = "gpt-4.1"
     built.ledger = SpendLedger()
+    built.context = ContextGauge()
     built.deps = AgentDeps()
     built.agent.iter = MagicMock(return_value=_Iteration(_agent_run(output)))
     return PreparedRun(
@@ -256,6 +261,62 @@ async def _run(
         stream=stream,
         subagent_events=subagent_events,
     )
+
+
+class TestKeepingASummary:
+    """A summary is a model request over a history that is by definition long.
+    Bought once, it has to leave the run it was bought in, or the next turn buys
+    another over a history one turn longer (#49).
+    """
+
+    async def test_a_turn_that_summarised_carries_the_history_it_came_to(self):
+        prepared = _prepared()
+        prepared.built.context.summarized = True
+        prepared.built.agent.iter = MagicMock(
+            return_value=_Iteration(
+                _agent_run(
+                    "the refund window is 30 days",
+                    messages=[ModelRequest(parts=[SystemPromptPart(content="Summary: …")])],
+                )
+            )
+        )
+
+        with _runner(prepared):
+            turn = await _run(_db())
+
+        assert turn.summarized_history is not None
+        assert turn.summarized_history[0]["parts"][0]["content"] == "Summary: …"
+
+    async def test_the_overhead_the_turn_measured_leaves_with_it(self):
+        """A one-request turn never measures one of its own before it decides, so
+        this turn's reading is what the next turn starts from (#49)."""
+        prepared = _prepared()
+        prepared.built.context.overhead = 3_865
+
+        with _runner(prepared):
+            turn = await _run(_db())
+
+        assert turn.overhead_tokens == 3_865
+
+    async def test_a_turn_that_measured_nothing_carries_nothing(self):
+        """A run that reached no model. A zero would read as an agent with no
+        instructions and no tools, which is a window with room for anything."""
+        prepared = _prepared()
+
+        with _runner(prepared):
+            turn = await _run(_db())
+
+        assert turn.overhead_tokens is None
+
+    async def test_a_turn_that_did_not_carries_nothing(self):
+        """Most turns. Writing one per turn would pin the thread to whatever the
+        last request happened to hold."""
+        prepared = _prepared()
+
+        with _runner(prepared):
+            turn = await _run(_db())
+
+        assert turn.summarized_history is None
 
 
 class TestAddressingAnAgent:
@@ -329,11 +390,13 @@ class TestWhatTheClientIsShown:
     def test_an_answer_is_shown_as_the_model_wrote_it(self):
         assert display_output("42 days") == "42 days"
 
-    def test_a_parked_run_says_so_instead_of_showing_nothing(self):
-        """A blank turn reads as the agent ignoring you; it is waiting on a person."""
-        shown = display_output(DeferredToolRequests())
-
-        assert "approval" in shown.lower()
+    def test_a_parked_run_produces_no_text_of_its_own(self):
+        """This value is stored as the assistant message's `content`, so a notice
+        about the queue put here is stored as the agent's words - and stays there,
+        false, once somebody approves and the run goes on (#509). Parked is state:
+        the step it stopped on and the approval panel carry it, and stop carrying
+        it when the decision is made."""
+        assert display_output(DeferredToolRequests()) == ""
 
 
 class TestWhoTheRunBelongsTo:
@@ -488,8 +551,28 @@ class TestRecordingTheRun:
 
         finished = runner.finish.call_args.kwargs
         assert finished["status"] is RunStatus.FAILED
-        assert finished["error"] == "the model went away"
         db.commit.assert_awaited_once()
+
+    async def test_a_failed_chat_run_records_the_refusal_and_not_the_provider(self, caplog):
+        """The same rule the chat frame took in #659, on the row rather than the
+        socket: `agent_runs.error` is rendered in run history to every member who
+        can read it, and a model client puts the failing request in its message -
+        a tenant's own endpoint with the key still in its query string (#676)."""
+        db = _db()
+        vendor_text = "401 from https://llm.acme.internal/v1/chat?api_key=sk-live-9f2c"
+
+        with (
+            _runner(_prepared()) as runner,
+            caplog.at_level(logging.ERROR, logger="app.services.agent_chat"),
+            pytest.raises(RuntimeError),
+        ):
+            await _run(db, stream=AsyncMock(side_effect=RuntimeError(vendor_text)))
+
+        assert runner.finish.call_args.kwargs["error"] == (
+            "The run did not finish (RuntimeError) - retry it, and check the agent's "
+            "model profile if it keeps failing. The server log has the full error."
+        )
+        assert vendor_text in caplog.text
 
     async def test_a_stopped_turn_is_recorded_as_cancelled_and_committed(self):
         """Cancellation never reaches the session's rollback-on-error, so the row
@@ -514,6 +597,19 @@ class TestRecordingTheRun:
         finished = runner.finish.call_args.kwargs
         assert finished["status"] is RunStatus.BUDGET_EXCEEDED
         assert "budget exhausted" in finished["error"]
+
+    async def test_a_guardrail_block_is_recorded_as_blocked_not_a_failure(self):
+        """The streaming surface does not go through the runner's `_run`, so a
+        block here would have been logged like a crash and recorded as FAILED
+        without its own clause - the visitor owed the guard's safe refusal."""
+        blocked = GuardrailBlocked(edge="input", message="This request was blocked.")
+
+        with _runner(_prepared()) as runner, pytest.raises(GuardrailBlocked):
+            await _run(_db(), stream=AsyncMock(side_effect=blocked))
+
+        finished = runner.finish.call_args.kwargs
+        assert finished["status"] is RunStatus.GUARDRAIL_BLOCKED
+        assert finished["error"] == "This request was blocked."
 
     async def test_a_run_that_ends_with_nothing_at_all_fails_loudly(self):
         """An empty answer persisted as the agent's reply would be a lie about it."""
@@ -727,7 +823,9 @@ class TestPausingMidRun:
         finished = runner.finish.call_args.kwargs
         assert finished["status"] is RunStatus.AWAITING_APPROVAL
         assert finished["paused_state"].tool_call_ids == {"approval-1": "call-1"}
-        assert "approval" in turn.output.lower()
+        # And no answer, because it produced none. What it is waiting on is on the
+        # row and in `parked`, not in a sentence stored as the agent's words.
+        assert turn.output == ""
 
 
 class TestAttachmentsAreRoutedHereAndNotBySurfaces:

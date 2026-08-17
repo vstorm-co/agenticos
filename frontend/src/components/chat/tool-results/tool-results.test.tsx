@@ -7,6 +7,7 @@ import { RunPythonResult } from "./run-python";
 import { LoadSkillResult, formatSkillName, parseLoadSkillResult } from "./skills";
 import { RAGSearchResults, parseRAGResults } from "./rag";
 import { WebSearchResults, parseWebSearch } from "./web-search";
+import { GeneratedImageResult, parseGeneratedImage } from "./generated-image";
 import type { ToolCall } from "@/types";
 
 // The Markdown renderer is loaded dynamically and highlights code; what these
@@ -267,6 +268,51 @@ describe("the web search", () => {
     render(<WebSearchResults data={{ query: "x", results: [] }} />);
 
     expect(screen.getByText("No web results found")).toBeInTheDocument();
+  });
+});
+
+describe("the generated image", () => {
+  const PAYLOAD = JSON.stringify({
+    kind: "generated_image",
+    filename: "abc123_image.png",
+    url: "/api/v1/generated/abc123_image.png",
+    media_type: "image/png",
+    prompt: "a red bicycle",
+  });
+
+  it("addresses the image through the same-origin proxy, not the backend URL", () => {
+    const parsed = parseGeneratedImage(PAYLOAD);
+
+    expect(parsed?.prompt).toBe("a red bicycle");
+    expect(parsed?.url).toBe("/api/generated/abc123_image.png");
+  });
+
+  it("has no URL when the image was generated but not stored", () => {
+    const parsed = parseGeneratedImage(
+      JSON.stringify({ kind: "generated_image", filename: null, prompt: "x" }),
+    );
+
+    expect(parsed).toEqual({ prompt: "x", url: null });
+  });
+
+  it("refuses anything that is not that payload", () => {
+    expect(parseGeneratedImage("upstream refused")).toBeNull();
+    expect(parseGeneratedImage(JSON.stringify({ kind: "web_search" }))).toBeNull();
+    expect(parseGeneratedImage("null")).toBeNull();
+  });
+
+  it("shows the image with the prompt as its caption and alt text", () => {
+    render(<GeneratedImageResult data={parseGeneratedImage(PAYLOAD)!} />);
+
+    const image = screen.getByRole("img", { name: "a red bicycle" });
+    expect(image).toHaveAttribute("src", "/api/generated/abc123_image.png");
+    expect(screen.getByText("a red bicycle")).toBeInTheDocument();
+  });
+
+  it("says so when there is nothing to show", () => {
+    render(<GeneratedImageResult data={{ prompt: "", url: null }} />);
+
+    expect(screen.getByText("The image was generated but not saved.")).toBeInTheDocument();
   });
 });
 

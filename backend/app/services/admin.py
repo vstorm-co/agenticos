@@ -15,7 +15,7 @@ from sqlalchemy import func, select
 
 from app.db.models.agent import Agent
 from app.db.models.conversation import Conversation, Message
-from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.organization import Organization, OrganizationMember, OrgRole
 from app.db.models.session import Session as UserSession
 from app.db.models.user import User
 
@@ -86,14 +86,36 @@ class AdminService:
             .group_by(Agent.organization_id)
             .subquery()
         )
+        # Who answers for a tenant, which is the question the admin's list was
+        # missing: a row of counts says how big an organization is and nothing
+        # about who to ask about it. The earliest owner, because an organization
+        # can hold several and the founder is the one a deployment admin means;
+        # `DISTINCT ON` picks it in the same pass rather than in a query per row.
+        owners = (
+            select(
+                OrganizationMember.organization_id,
+                User.id.label("owner_user_id"),
+                User.email.label("owner_email"),
+                User.full_name.label("owner_name"),
+            )
+            .join(User, User.id == OrganizationMember.user_id)
+            .where(OrganizationMember.role == OrgRole.OWNER.value)
+            .distinct(OrganizationMember.organization_id)
+            .order_by(OrganizationMember.organization_id, OrganizationMember.joined_at)
+            .subquery()
+        )
         rows = await self.db.execute(
             select(
                 Organization,
                 func.coalesce(member_counts.c.member_count, 0),
                 func.coalesce(agent_counts.c.agent_count, 0),
+                owners.c.owner_user_id,
+                owners.c.owner_email,
+                owners.c.owner_name,
             )
             .outerjoin(member_counts, member_counts.c.organization_id == Organization.id)
             .outerjoin(agent_counts, agent_counts.c.organization_id == Organization.id)
+            .outerjoin(owners, owners.c.organization_id == Organization.id)
             .order_by(Organization.created_at.desc())
             .offset(skip)
             .limit(limit)
@@ -107,8 +129,13 @@ class AdminService:
                 "is_personal": org.is_personal,
                 "member_count": int(member_count),
                 "agent_count": int(agent_count),
+                # Null when an organization has no owner at all - possible after
+                # the last one leaves, and the reason the admin needs to see it.
+                "owner_user_id": owner_user_id,
+                "owner_email": owner_email,
+                "owner_name": owner_name,
                 "created_at": org.created_at,
             }
-            for org, member_count, agent_count in rows.all()
+            for org, member_count, agent_count, owner_user_id, owner_email, owner_name in rows.all()
         ]
         return {"items": items, "total": int(total)}

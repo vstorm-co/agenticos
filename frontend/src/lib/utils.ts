@@ -1,18 +1,13 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 
+import type { Translate } from "@/lib/agent-step-captions";
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-// A module function cannot translate, and 51 callers pass no fallback - every one of
-// them is this sentence in English under `pl`. #603 is that migration.
-// i18n-exempt: see above.
-export function getErrorMessage(err: unknown, fallback = "An unexpected error occurred"): string {
-  return err instanceof Error ? err.message : fallback;
-}
 
 export function isAppAdmin(user: { is_app_admin?: boolean } | null | undefined): boolean {
   // The one flag the backend gates /admin on. There used to be a
@@ -69,44 +64,52 @@ export function formatBytes(bytes: number): string {
   return `${bytes} B`;
 }
 
-export function timeAgo(dateStr: string): string {
+/**
+ * How long ago, in the coarsest unit that fits.
+ *
+ * Takes the caller's translator, bound to `time`, because what it returns is a
+ * sentence: `30m ago` abbreviates the unit but `ago` is a word, and Polish neither
+ * keeps the order nor spells the unit the same way. Each unit is an ICU `plural` so a
+ * locale that declines its nouns has somewhere to say so.
+ *
+ * Past a week it falls back to a date, which a translator cannot format - month
+ * names and day-month order come from the runtime - so it also takes the active
+ * locale, from the caller's `useLocale()`.
+ */
+export function timeAgo(dateStr: string, t: Translate, locale: string): string {
   const then = new Date(dateStr).getTime();
   if (Number.isNaN(then)) return "";
   const diff = Math.round((Date.now() - then) / 1000);
   if (diff < 0) return "";
-  if (diff < 60) return "just now";
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  if (diff < 86400 * 7) return `${Math.floor(diff / 86400)}d ago`;
-  return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  if (diff < 60) return t("justNow");
+  if (diff < 3600) return t("minutesAgo", { count: Math.floor(diff / 60) });
+  if (diff < 86400) return t("hoursAgo", { count: Math.floor(diff / 3600) });
+  if (diff < 86400 * 7) return t("daysAgo", { count: Math.floor(diff / 86400) });
+  return new Date(dateStr).toLocaleDateString(locale, { month: "short", day: "numeric" });
 }
 
-export function formatCurrency(
-  amountCents: number,
-  currency = "USD",
-  minimumFractionDigits = 0,
-): string {
-  return (amountCents / 100).toLocaleString("en-US", {
-    style: "currency",
-    currency: currency.toUpperCase(),
-    minimumFractionDigits,
-  });
-}
-
-export function formatDate(date: Date | string | null | undefined): string {
+/**
+ * An absolute date, in the active locale.
+ *
+ * Month names and day-month order come from the runtime, not a translator, so it
+ * takes the locale from the caller's `useLocale()` - hardcoding `en-US` here put
+ * "Jul 31, 2026" on every locale's screen (#649).
+ */
+export function formatDate(date: Date | string | null | undefined, locale: string): string {
   if (!date) return "-";
   const d = typeof date === "string" ? new Date(date) : date;
   if (Number.isNaN(d.getTime())) return "-";
-  return d.toLocaleDateString("en-US", {
+  return d.toLocaleDateString(locale, {
     year: "numeric",
     month: "short",
     day: "numeric",
   });
 }
 
-export function formatDateTime(date: Date | string): string {
+/** `formatDate` down to the minute; takes the locale for the same reason (#649). */
+export function formatDateTime(date: Date | string, locale: string): string {
   const d = typeof date === "string" ? new Date(date) : date;
-  return d.toLocaleString("en-US", {
+  return d.toLocaleString(locale, {
     year: "numeric",
     month: "short",
     day: "numeric",

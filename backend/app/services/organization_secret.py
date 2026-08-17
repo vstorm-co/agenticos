@@ -137,6 +137,7 @@ class OrganizationSecretService:
                     visibility=as_visibility(secret.visibility),
                     owner_user_id=secret.owner_user_id,
                     owner_email=owner.email,
+                    created_by_user_id=secret.created_by_user_id,
                     created_by_email=author.email,
                     created_by_avatar_url=author.avatar_url,
                     shared_with=shared_counts.get(secret.id, 0),

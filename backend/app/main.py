@@ -22,6 +22,7 @@ from app.core.logfire_setup import instrument_redis
 from app.core.logfire_setup import instrument_httpx
 from app.core.logfire_setup import instrument_pydantic_ai
 from app.core.logging import setup_logging
+from app.core.body_limit import BodySizeLimitMiddleware
 from app.core.middleware import RequestIDMiddleware
 from app.core.watchdog import EventLoopWatchdog
 from app.core.cache import setup_cache
@@ -33,8 +34,10 @@ from app.services.rag.vectorstore import BaseVectorStore
 from app.repositories.channel_bot import get_active_polling_bots
 from app.services.channel_bot import unseal_bot_token, unseal_slack_app_token
 from app.services.channels import register_adapter
+from app.services import rate_limit
+from app.services.channels import dedupe as channel_dedupe
+from app.services.channels import membership as channel_membership
 from app.services.channels.supervisor import open_inbound_stream
-from app.core.rate_limit import limiter
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +94,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     await redis_client.connect()
     state["redis"] = redis_client
     setup_cache(redis_client)
+    # The channel router runs outside any request - webhook background tasks
+    # and the polling loops alike - so the dedupe claim cannot reach Redis
+    # through request.state; it is handed the shared client here instead.
+    channel_dedupe.configure(redis_client)
+    # And the rate limits, for the same reason: the widget's socket is admitted
+    # outside any request the limiter could read `request.state` from, and a
+    # count kept in this process would be off by the worker count (#39).
+    rate_limit.configure(redis_client)
+    # And the membership check behind the participant model, which the
+    # conversation service consults from inside a request but caches in the
+    # Redis every worker shares (#641).
+    channel_membership.configure(redis_client)
     embedder: EmbeddingService | None = None
     try:
         embedder = EmbeddingService(settings=settings.rag)
@@ -156,6 +171,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
         await _slack_adapter.stop_polling(_sbid)
     for _mbid in list(_mattermost_adapter._socket_tasks.keys()):
         await _mattermost_adapter.stop_polling(_mbid)
+    channel_dedupe.configure(None)
+    rate_limit.configure(None)
+    channel_membership.configure(None)
     if "redis" in state:
         await state["redis"].close()
 
@@ -256,6 +274,11 @@ OS for your agents.
     setup_logfire()
     instrument_app(app)
 
+    # Outermost of the three, because it exists to answer before anything reads the
+    # body - a middleware under CORS or the session would run after the request had
+    # already been received.
+    app.add_middleware(BodySizeLimitMiddleware)
+
     app.add_middleware(RequestIDMiddleware)
 
     register_exception_handlers(app)
@@ -267,13 +290,6 @@ OS for your agents.
         allow_methods=settings.CORS_ALLOW_METHODS,
         allow_headers=settings.CORS_ALLOW_HEADERS,
     )
-
-    # slowapi requires app.state.limiter, not lifespan state (library constraint)
-    from slowapi import _rate_limit_exceeded_handler
-    from slowapi.errors import RateLimitExceeded
-
-    app.state.limiter = limiter
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
     app.add_middleware(SessionMiddleware, secret_key=settings.SECRET_KEY)
 

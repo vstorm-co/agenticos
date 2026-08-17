@@ -4,14 +4,19 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { nanoid } from "nanoid";
 import { useTranslations } from "next-intl";
 import { useWebSocket } from "./use-websocket";
+import { usePermissions } from "./use-permissions";
+import { getErrorMessage } from "@/lib/api-error";
 import { useChatStore, useAuthStore, useOrgStore } from "@/stores";
 import { useTenantId } from "@/hooks/use-organizations";
 import { useAgentSelectionStore } from "@/stores";
+import { Perm } from "@/types/permissions";
 import type {
   ActionRequest,
   AskUserAnswer,
   AskUserQuestion,
   ChatMessageFile,
+  Compaction,
+  ConversationCost,
   Decision,
   Delegation,
   PendingApproval,
@@ -21,7 +26,7 @@ import type {
   TurnUsage,
   WSEvent,
 } from "@/types";
-import type { ResumedRun } from "@/types/runs";
+import type { ParkedCall, ResumedRun } from "@/types/runs";
 import {
   applyDelegationFrame,
   closeOpenDelegations,
@@ -33,7 +38,6 @@ import { WS_URL } from "@/lib/constants";
 import { toast } from "sonner";
 
 import { apiClient } from "@/lib/api-client";
-import { getErrorMessage } from "@/lib/utils";
 import { setUrlParam } from "@/lib/utils";
 import { useConversationStore } from "@/stores";
 /** A message the user typed while the agent was busy / socket offline.
@@ -51,14 +55,19 @@ interface UseChatOptions {
 }
 
 export function useChat(options: UseChatOptions = {}) {
+  const tErrors = useTranslations("errors");
+
   const { conversationId, onConversationCreated } = options;
   // `chat.unknownError` was in the catalog and read by nothing, while this hook
   // wrote the words out (#425). The `❌ Error:` in front of it is still English:
   // no catalog message holds it, so it belongs to the copy the guard has never
   // looked at rather than to this defect.
   const t = useTranslations("chat");
-  const { setCurrentConversationId, currentConversationId: currentConversationIdFromStore } =
-    useConversationStore();
+  const {
+    setCurrentConversationId,
+    setCurrentCost,
+    currentConversationId: currentConversationIdFromStore,
+  } = useConversationStore();
   const {
     messages,
     addMessage,
@@ -117,6 +126,12 @@ export function useChat(options: UseChatOptions = {}) {
   const activeConversationId = currentConversationIdFromStore || conversationId || null;
 
   const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
+  // Runs this hook has already put an approval panel up for, live or restored.
+  // What keeps the restore effect below from re-opening a panel somebody is in
+  // the middle of deciding: `sendResumeDecisions` clears the panel before the
+  // steps stop reading `awaiting_approval`, which is exactly the state the
+  // effect reads as "a reloaded parked run".
+  const approvalOfferedForRef = useRef<Set<string>>(new Set());
   const [pendingQuestions, setPendingQuestions] = useState<AskUserQuestion[] | null>(null);
   // The delegations of the turn on screen, keyed by their own `task_id` and held
   // *outside* the assistant message on purpose.
@@ -128,6 +143,45 @@ export function useChat(options: UseChatOptions = {}) {
   // started to handle. Here the panels simply outlive `complete`, and each closes
   // on its own `subagent_complete`.
   const [delegations, setDelegations] = useState<Delegation[]>([]);
+  // The summary in flight, or `null`. Cleared by the finishing frame and by the
+  // end of the turn: a `complete` that arrived without one - a run that failed
+  // between the two - would otherwise leave the notice up until the next message.
+  const [compacting, setCompacting] = useState<Compaction | null>(null);
+  // The window that cannot work, or `null`. Held apart from `compacting` because
+  // it outlives a turn: it describes what is configured, and clearing it when the
+  // turn ends would flash the one message that explains why nothing happened.
+  const [compactionImpossible, setCompactionImpossible] = useState<Compaction | null>(null);
+
+  /**
+   * Re-read what the whole thread has cost, after a turn has added to it.
+   *
+   * Re-read rather than accumulated. Money is the one number a client must not
+   * compute a second way — and the obvious arithmetic is wrong here anyway: a run
+   * that parked reports its cost so far, and the resume reports the run's total,
+   * so adding both counts the approved half twice.
+   *
+   * `limit=1` because only `cost` is wanted; it is a sum over the whole
+   * conversation regardless of the page asked for. Never raises: a total that
+   * could not be refreshed goes on showing the one from the transcript load,
+   * which is stale rather than wrong, and losing an answer to a failed
+   * accounting read would be the worse trade.
+   */
+  const refreshConversationCost = useCallback(async () => {
+    // From the store rather than the render closure, for the same reason the
+    // usage above is: a turn that created the conversation learns its id in this
+    // same handler, and the closure still holds `null`.
+    const id = useConversationStore.getState().currentConversationId ?? activeConversationId;
+    if (id === null) return;
+    try {
+      const page = await apiClient.get<{ cost: ConversationCost | null }>(
+        `/conversations/${id}/messages?skip=0&limit=1`,
+      );
+      // Only if the reader is still looking at the thread it was asked about.
+      if (useConversationStore.getState().currentConversationId === id) setCurrentCost(page.cost);
+    } catch {
+      // Deliberately silent: see above.
+    }
+  }, [activeConversationId, setCurrentCost]);
 
   const handleWebSocketMessage = useCallback(
     (event: MessageEvent) => {
@@ -321,6 +375,30 @@ export function useChat(options: UseChatOptions = {}) {
           break;
         }
 
+        case "compaction_impossible": {
+          // Not a state - a setting. The fixed overhead is already past the
+          // trigger, so no summary can get under it and the platform refuses to
+          // buy one on every request for ever. It does nothing, which on screen
+          // is indistinguishable from a setting that works, so it says so.
+          setCompactionImpossible(wsEvent.data as Compaction);
+          break;
+        }
+
+        case "compaction_started":
+        case "compaction_finished": {
+          // Between two of the turn's own model requests, where nothing else
+          // streams: summarising a long history is a whole request of its own, and
+          // without this the chat stops dead for the length of it. Only the
+          // summarising strategy sends these - the ones that edit a list and
+          // return would be a spinner that appeared and vanished within a frame.
+          setCompacting(
+            wsEvent.type === "compaction_started" ? (wsEvent.data as Compaction) : null,
+          );
+          // A summary that ran is the answer to the warning above it.
+          setCompactionImpossible(null);
+          break;
+        }
+
         case "error": {
           if (currentMessageIdRef.current) {
             const id = currentMessageIdRef.current;
@@ -328,7 +406,10 @@ export function useChat(options: UseChatOptions = {}) {
             // Into the timeline rather than onto `content` directly: the store's
             // append keeps the two in step, and it starts a parts list for a
             // message that has none - which is what a replayed turn looks like.
-            appendTextDelta(id, `\n\n❌ Error: ${message || t("unknownError")}`);
+            appendTextDelta(
+              id,
+              `\n\n${t("streamError", { message: message || t("unknownError") })}`,
+            );
             updateMessage(id, (msg) => ({ ...msg, isStreaming: false }));
           }
           setIsProcessing(false);
@@ -348,6 +429,7 @@ export function useChat(options: UseChatOptions = {}) {
             review_configs: ReviewConfig[];
             run_id: string;
           };
+          approvalOfferedForRef.current.add(run_id);
           setPendingApproval({
             actionRequests: action_requests,
             reviewConfigs: review_configs,
@@ -408,6 +490,8 @@ export function useChat(options: UseChatOptions = {}) {
             // a run that was cancelled, so whatever was open is closed here. Until
             // now the frontend never read this field at all.
             if (stopped) setDelegations(closeOpenDelegations);
+            // Whatever else this turn did, it is not summarising any more.
+            setCompacting(null);
             if (usage) {
               setLiveUsage({
                 // From the store rather than the render closure: a turn that created
@@ -424,6 +508,10 @@ export function useChat(options: UseChatOptions = {}) {
               // watching a budget is asking.
               if (currentMessageIdRef.current)
                 updateMessage(currentMessageIdRef.current, (msg) => ({ ...msg, usage }));
+              // And the thread's running total, which was read when the
+              // transcript loaded and is a conversation out of date by the
+              // second message.
+              void refreshConversationCost();
             }
           }
           // Clear currentMessageId after complete (message_saved should have handled ID mapping)
@@ -450,6 +538,7 @@ export function useChat(options: UseChatOptions = {}) {
       setCurrentMessageId,
       onConversationCreated,
       activeConversationId,
+      refreshConversationCost,
       t,
     ],
   );
@@ -613,6 +702,7 @@ export function useChat(options: UseChatOptions = {}) {
     clearQueued();
     setPendingApproval(null);
     setPendingQuestions(null);
+    approvalOfferedForRef.current = new Set();
     // A delegation belongs to a run in one organization, and to one conversation
     // inside it - the effect below is the other half of that sentence. Left on
     // screen it would show the previous tenant's specialist names and prompts to
@@ -643,8 +733,11 @@ export function useChat(options: UseChatOptions = {}) {
   // panels that are already open and `applyDelegationFrame` would drop every frame
   // after it as naming a task it holds no panel for - a silent loss of the last thing
   // a specialist said, which is the failure this whole design exists to avoid. The
-  // panels are live state that no reload restores, so keeping them for a conversation
-  // somebody may return to would also disagree with what that reload shows.
+  // delegation and question panels are live state that no reload restores, so keeping
+  // them for a conversation somebody may return to would also disagree with what that
+  // reload shows; the approval panel is the one the restore effect below rebuilds
+  // from the rows, which is why its guard is reset here - coming back to a still
+  // parked conversation must offer the decision again.
   //
   // A layout effect for the reason the one above is one: before the paint, so no
   // frame of the previous conversation's panels is shown under this one's transcript.
@@ -660,7 +753,73 @@ export function useChat(options: UseChatOptions = {}) {
     setDelegations([]);
     setPendingApproval(null);
     setPendingQuestions(null);
+    setCompacting(null);
+    setCompactionImpossible(null);
+    approvalOfferedForRef.current = new Set();
   }, [activeConversationId]);
+
+  // The caller's permissions, for the restore effect below: rebuilding the
+  // approval panel reads an endpoint gated on `approvals:decide`, so a caller
+  // without it is not asked to 403 on every reopened conversation.
+  const { can } = usePermissions();
+  const canDecide = can(Perm.approvalsDecide);
+
+  // The other direction of `tool_approval_required`: that frame exists only for
+  // whoever was watching when the run parked. A reloaded conversation carries
+  // the parked state on its steps - the transcript stores them
+  // `awaiting_approval` - but the panel with the decision was gone, so the only
+  // way to finish the run was the approvals queue on another page (#601). This
+  // asks the backend what the run is still waiting on and puts the panel back.
+  //
+  // Guarded per run so it never reopens a panel mid-decision:
+  // `sendResumeDecisions` clears the panel before the steps stop reading
+  // `awaiting_approval`, which is exactly the state this effect would otherwise
+  // read as a reloaded parked run. Empty rows are left alone - a run decided
+  // elsewhere but not yet resumed has nothing left to offer - and a fetch that
+  // failed is left alone too: the approvals queue holds the same rows, and an
+  // error toast over a transcript somebody is reading buys nothing.
+  useEffect(() => {
+    if (pendingApproval !== null || isProcessing || !canDecide) return;
+    const parkedMessage = [...messages]
+      .reverse()
+      .find(
+        (message) =>
+          message.role === "assistant" &&
+          (message.toolCalls ?? []).some((call) => call.status === "awaiting_approval"),
+      );
+    // No `runId` is a turn stored before runs were stamped on messages: its
+    // step still says it is waiting, but there is no run to ask about.
+    if (parkedMessage === undefined || parkedMessage.runId === undefined) return;
+    const runId = parkedMessage.runId;
+    if (approvalOfferedForRef.current.has(runId)) return;
+    approvalOfferedForRef.current.add(runId);
+    const conversation = activeConversationId;
+    void (async () => {
+      try {
+        const parked = await apiClient.get<ParkedCall[]>(`/runs/${runId}/parked`);
+        // An answer that lands after the reader has moved on is dropped: a
+        // panel drawn under another conversation's transcript is the stale,
+        // actionable state the conversation-switch effect above exists to
+        // prevent, and this fetch can resolve on the far side of that switch.
+        if (parked.length === 0 || panelsBelongTo.current !== conversation) return;
+        setPendingApproval({
+          actionRequests: parked.map((call) => ({
+            id: call.id,
+            tool_call_id: call.tool_call_id ?? "",
+            tool_name: call.tool_name,
+            args: call.tool_args,
+          })),
+          // The same shape the live frame carries: editing a parked call is not
+          // offered, because the arguments were recorded on the row being decided.
+          reviewConfigs: parked.map((call) => ({ tool_name: call.tool_name, allow_edit: false })),
+          runId,
+          messageId: parkedMessage.id,
+        });
+      } catch {
+        // Deliberately quiet - see above.
+      }
+    })();
+  }, [messages, pendingApproval, isProcessing, canDecide, activeConversationId]);
 
   /** Record one decision on the `approvals` row it belongs to. */
   const decideApproval = useCallback(
@@ -809,11 +968,13 @@ export function useChat(options: UseChatOptions = {}) {
               input_tokens: resumed.input_tokens,
               output_tokens: resumed.output_tokens,
               cost_usd: Number(resumed.cost_usd),
+              cost_is_partial: resumed.cost_is_partial,
               // A resume is not told where the run stands against its budget, and
               // an invented percentage is worse than a bar that is not drawn.
               budget_percent: null,
               agent_budget_percent: null,
               sandbox: null,
+              context: null,
             },
             // The agent that was answering when the run parked. Without it the
             // continuation rendered under the generic robot with no name beside it,
@@ -842,6 +1003,10 @@ export function useChat(options: UseChatOptions = {}) {
             messageId: continuation,
           });
         }
+        // The continuation spent money too, and it reports the run's total rather
+        // than its own share - which is exactly why this re-reads the sum instead
+        // of adding to it. See `refreshConversationCost`.
+        void refreshConversationCost();
       } catch (error) {
         const terminalStatus = resumeFailureStatus(error);
         if (terminalStatus !== null) {
@@ -852,7 +1017,7 @@ export function useChat(options: UseChatOptions = {}) {
           // the closing the resume answer would have carried had it returned, and
           // still surface the failure (agenticos#262).
           setDelegations((current) => resolveAwaitingOnResume(current, terminalStatus));
-          toast.error(getErrorMessage(error));
+          toast.error(getErrorMessage(error, tErrors));
           return;
         }
         // The decision failed to record, or the resume could not be built (a secret
@@ -860,10 +1025,19 @@ export function useChat(options: UseChatOptions = {}) {
         // rather than swallowing it - a panel that vanished is a person believing
         // they unblocked it, and the retry can now succeed.
         setPendingApproval(parked);
-        toast.error(getErrorMessage(error));
+        toast.error(getErrorMessage(error, tErrors));
       }
     },
-    [pendingApproval, updateToolCallPart, decideApproval, resumeRun, addMessage, conversationId],
+    [
+      pendingApproval,
+      updateToolCallPart,
+      decideApproval,
+      resumeRun,
+      addMessage,
+      conversationId,
+      refreshConversationCost,
+      tErrors,
+    ],
   );
 
   const sendAskUserResponses = useCallback(
@@ -916,6 +1090,8 @@ export function useChat(options: UseChatOptions = {}) {
     messages,
     isConnected,
     isProcessing,
+    compacting,
+    compactionImpossible,
     lastUsage: onThisConversation ? liveUsage.usage : null,
     /** The turn's delegations, in the order they started. See `DelegationPanels`. */
     delegations,

@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 
 import pytest
 from sqlalchemy import select
@@ -363,6 +364,220 @@ class TestSortingByHowLongItTook:
         assert slowest_first == [str(slow.id), str(running.id)]
         # Last in *both* directions - not "the fastest run" either.
         assert quickest_first == [str(slow.id), str(running.id)]
+
+    async def test_the_most_expensive_run_comes_first_under_the_cost_order(self, db) -> None:
+        """Same arrangement as duration, for money: SQL over the whole narrowed
+        set, so the priciest run of a month is found even when the newest-first
+        page would never have shown it."""
+        org, user = await _org(db)
+        agent = await _agent(db, org)
+        ended = _NOW + timedelta(seconds=1)
+        cheap = await _run(db, org, agent, cost_usd=Decimal("0.01"), ended_at=ended)
+        pricey = await _run(db, org, agent, cost_usd=Decimal("4.20"), ended_at=ended)
+        middling = await _run(db, org, agent, cost_usd=Decimal("0.90"), ended_at=ended)
+
+        priciest_first, _ = await _listed(db, org, user, order_by=RunOrder.COST)
+        cheapest_first, _ = await _listed(db, org, user, order_by=RunOrder.COST, descending=False)
+
+        assert priciest_first == [str(pricey.id), str(middling.id), str(cheap.id)]
+        assert cheapest_first == [str(cheap.id), str(middling.id), str(pricey.id)]
+
+    async def test_the_heaviest_run_comes_first_under_the_tokens_order(self, db) -> None:
+        """Input and output together: a run that read a huge context and answered
+        in one line is heavier than one that chatted both ways, and an operator
+        hunting context bloat needs the sum, not either half."""
+        org, user = await _org(db)
+        agent = await _agent(db, org)
+        ended = _NOW + timedelta(seconds=1)
+        light = await _run(db, org, agent, input_tokens=100, output_tokens=50, ended_at=ended)
+        heavy = await _run(db, org, agent, input_tokens=90_000, output_tokens=200, ended_at=ended)
+        chatty = await _run(db, org, agent, input_tokens=1_000, output_tokens=4_000, ended_at=ended)
+
+        heaviest_first, _ = await _listed(db, org, user, order_by=RunOrder.TOKENS)
+        lightest_first, _ = await _listed(db, org, user, order_by=RunOrder.TOKENS, descending=False)
+
+        assert heaviest_first == [str(heavy.id), str(chatty.id), str(light.id)]
+        assert lightest_first == [str(light.id), str(chatty.id), str(heavy.id)]
+
+    async def test_a_run_still_going_is_never_the_cheapest_or_the_lightest(self, db) -> None:
+        """`cost_usd` and the token columns default to 0 and are written at
+        finish, so sorted as stored a run still going would top every ascending
+        cost or tokens sort - the same wrong answer duration already refuses.
+        The figures on the unfinished row here are deliberately the largest in
+        the set: it must sort last because it is unfinished, not because its
+        numbers happen to be small."""
+        org, user = await _org(db)
+        agent = await _agent(db, org)
+        cheap = await _run(
+            db,
+            org,
+            agent,
+            started_at=_NOW,
+            ended_at=_NOW + timedelta(seconds=1),
+            cost_usd=Decimal("0.01"),
+            input_tokens=100,
+            output_tokens=50,
+        )
+        pricey = await _run(
+            db,
+            org,
+            agent,
+            started_at=_NOW,
+            ended_at=_NOW + timedelta(seconds=2),
+            cost_usd=Decimal("4.20"),
+            input_tokens=9_000,
+            output_tokens=200,
+        )
+        running = await _run(
+            db,
+            org,
+            agent,
+            status=RunStatus.RUNNING.value,
+            started_at=_NOW,
+            ended_at=None,
+            cost_usd=Decimal("9.99"),
+            input_tokens=999_999,
+            output_tokens=999,
+        )
+
+        for order in (RunOrder.COST, RunOrder.TOKENS):
+            biggest_first, _ = await _listed(db, org, user, order_by=order)
+            smallest_first, _ = await _listed(db, org, user, order_by=order, descending=False)
+
+            assert biggest_first == [str(pricey.id), str(cheap.id), str(running.id)]
+            assert smallest_first == [str(cheap.id), str(pricey.id), str(running.id)]
+
+    async def test_a_runs_neighbours_stay_inside_its_own_conversation(self, db) -> None:
+        """The detail view shows the run inside its thread, so the arrows must
+        walk that thread - not jump to whatever the agent did next in some other
+        conversation. A run in another thread between the timestamps is not a
+        neighbour, and the edges answer null on their open side."""
+        org, user = await _org(db)
+        agent = await _agent(db, org)
+        thread = Conversation(id=uuid.uuid4(), organization_id=org.id, user_id=user.id)
+        other_thread = Conversation(id=uuid.uuid4(), organization_id=org.id, user_id=user.id)
+        db.add_all([thread, other_thread])
+        await db.flush()
+        first = await _run(
+            db, org, agent, conversation_id=thread.id, started_at=_NOW - timedelta(hours=2)
+        )
+        await _run(
+            db, org, agent, conversation_id=other_thread.id, started_at=_NOW - timedelta(hours=1)
+        )
+        middle = await _run(
+            db, org, agent, conversation_id=thread.id, started_at=_NOW - timedelta(minutes=30)
+        )
+        last = await _run(db, org, agent, conversation_id=thread.id, started_at=_NOW)
+
+        service = AgentRunnerService(db)
+        ctx = _ctx(org, user)
+
+        assert await service.neighbor_run_ids(ctx, middle) == (first.id, last.id)
+        assert await service.neighbor_run_ids(ctx, first) == (None, middle.id)
+        assert await service.neighbor_run_ids(ctx, last) == (middle.id, None)
+
+    async def test_a_run_outside_any_timeline_has_no_neighbours(self, db) -> None:
+        """Never started, or never conversational - neither has a thread to walk."""
+        org, user = await _org(db)
+        agent = await _agent(db, org)
+        thread = Conversation(id=uuid.uuid4(), organization_id=org.id, user_id=user.id)
+        db.add(thread)
+        await db.flush()
+        await _run(db, org, agent, conversation_id=thread.id, started_at=_NOW)
+        unstarted = await _run(db, org, agent, conversation_id=thread.id, started_at=None)
+        no_thread = await _run(db, org, agent, started_at=_NOW)
+
+        service = AgentRunnerService(db)
+        ctx = _ctx(org, user)
+
+        assert await service.neighbor_run_ids(ctx, unstarted) == (None, None)
+        assert await service.neighbor_run_ids(ctx, no_thread) == (None, None)
+
+    async def test_next_from_a_top_level_run_skips_the_delegations_between_them(self, db) -> None:
+        """A delegated run shares its parent's `conversation_id`, so an unpinned
+        walk would step from a parent into its own children - rows the default
+        listing hides, making "next" land on a run the arrows' own list denies
+        exists. The walk is level-locked: a top-level run's neighbours are the
+        thread's other top-level runs."""
+        org, user = await _org(db)
+        agent = await _agent(db, org)
+        thread = Conversation(id=uuid.uuid4(), organization_id=org.id, user_id=user.id)
+        db.add(thread)
+        await db.flush()
+        first = await _run(
+            db, org, agent, conversation_id=thread.id, started_at=_NOW - timedelta(hours=1)
+        )
+        await _run(
+            db,
+            org,
+            agent,
+            conversation_id=thread.id,
+            parent_run_id=first.id,
+            started_at=_NOW - timedelta(minutes=30),
+        )
+        second = await _run(db, org, agent, conversation_id=thread.id, started_at=_NOW)
+
+        service = AgentRunnerService(db)
+        ctx = _ctx(org, user)
+
+        assert await service.neighbor_run_ids(ctx, first) == (None, second.id)
+        assert await service.neighbor_run_ids(ctx, second) == (first.id, None)
+
+    async def test_a_delegated_runs_neighbours_are_its_siblings(self, db) -> None:
+        """From inside a delegation the timeline is the fan-out it belongs to:
+        the siblings under the same parent, not the top-level run that happened
+        to start between them."""
+        org, user = await _org(db)
+        agent = await _agent(db, org)
+        thread = Conversation(id=uuid.uuid4(), organization_id=org.id, user_id=user.id)
+        db.add(thread)
+        await db.flush()
+        parent = await _run(
+            db, org, agent, conversation_id=thread.id, started_at=_NOW - timedelta(hours=2)
+        )
+        older_sibling = await _run(
+            db,
+            org,
+            agent,
+            conversation_id=thread.id,
+            parent_run_id=parent.id,
+            started_at=_NOW - timedelta(hours=1),
+        )
+        await _run(
+            db, org, agent, conversation_id=thread.id, started_at=_NOW - timedelta(minutes=45)
+        )
+        younger_sibling = await _run(
+            db,
+            org,
+            agent,
+            conversation_id=thread.id,
+            parent_run_id=parent.id,
+            started_at=_NOW - timedelta(minutes=30),
+        )
+
+        service = AgentRunnerService(db)
+        ctx = _ctx(org, user)
+
+        assert await service.neighbor_run_ids(ctx, older_sibling) == (None, younger_sibling.id)
+        assert await service.neighbor_run_ids(ctx, younger_sibling) == (older_sibling.id, None)
+
+    async def test_fan_out_twins_starting_in_the_same_instant_are_ordered_by_id(self, db) -> None:
+        """Several delegations start in one instant; without the id tiebreak two
+        of them would each claim the other as both neighbours."""
+        org, user = await _org(db)
+        agent = await _agent(db, org)
+        thread = Conversation(id=uuid.uuid4(), organization_id=org.id, user_id=user.id)
+        db.add(thread)
+        await db.flush()
+        twin_a = await _run(db, org, agent, conversation_id=thread.id, started_at=_NOW)
+        twin_b = await _run(db, org, agent, conversation_id=thread.id, started_at=_NOW)
+        low, high = sorted([twin_a, twin_b], key=lambda run: run.id)
+
+        service = AgentRunnerService(db)
+        ctx = _ctx(org, user)
+
+        assert await service.neighbor_run_ids(ctx, low) == (None, high.id)
+        assert await service.neighbor_run_ids(ctx, high) == (low.id, None)
 
     async def test_the_default_order_is_still_the_feed(self, db) -> None:
         org, user = await _org(db)

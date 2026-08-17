@@ -13,6 +13,7 @@ from typing import Any
 from sqlalchemy import (
     Boolean,
     ForeignKey,
+    Integer,
     String,
     UniqueConstraint,
 )
@@ -66,6 +67,18 @@ class ModelProfile(Base, TimestampMixin):
     # (`ProviderSpec.base_url_param`); the service refuses one for the rest
     # rather than accepting a value it would silently drop.
     base_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    # How many tokens this model accepts, as the provider's own listing said when
+    # the profile was created. Recorded rather than resolved at run time because
+    # the request path may not call a provider, and the alternative source is
+    # wrong in the direction that breaks a run: `genai-prices` records 1M for
+    # `anthropic:claude-sonnet-4-5` against a real 200K, and a `FallbackModel`'s
+    # composite id resolves to nothing at all (#773).
+    #
+    # Null for a profile created before this existed, for a provider that
+    # publishes no length, and for one whose listing could not be reached - all
+    # three mean "not recorded", and the compaction capability falls back to
+    # resolving the window itself.
+    context_length: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Model settings (temperature, max_tokens...) applied on every run.
     params: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default="{}")
     # Whether a user may substitute their own key when running with this profile.

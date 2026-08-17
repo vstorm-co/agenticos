@@ -5,11 +5,12 @@ import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, CheckCircle2, Cpu, Database, HardDrive, RefreshCw, Zap } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import { LoadingState } from "@/components/states";
-import { Button } from "@/components/ui";
+import { getErrorMessage } from "@/lib/api-error";
+import { ErrorState, LoadingState } from "@/components/states";
+import { Button, ListCard } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
-import { cn, getErrorMessage } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import type { CheckStatus, SystemHealth } from "@/types/admin";
 import { useTranslations } from "next-intl";
 
@@ -46,7 +47,9 @@ const STATUS_TEXT: Record<CheckStatus, string> = {
 };
 
 export default function SystemHealthPage() {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("pages.admin");
+  const tc = useTranslations("common");
   const [auto, setAuto] = useState(true);
 
   // Through the query layer, where server data belongs. `refetchInterval` is
@@ -145,19 +148,13 @@ export default function SystemHealthPage() {
       {loading && !health ? (
         <LoadingState variant="stats" rows={4} />
       ) : error ? (
-        <div className="border-border bg-card rounded-xl border p-8 text-center">
-          <AlertCircle className="text-destructive mx-auto h-6 w-6" />
-          <p className="text-foreground mt-3 text-sm font-medium">{t("couldnAposTFetch")}</p>
-          <p className="text-muted-foreground mt-1 text-xs">
-            {getErrorMessage(error, t("failedFetchHealth"))}
-          </p>
-        </div>
+        <ErrorState
+          title={t("couldnAposTFetch")}
+          description={getErrorMessage(error, tErrors, t("failedFetchHealth"))}
+          cta={{ label: tc("retry"), onClick: load }}
+        />
       ) : (
-        <section className="border-border bg-card rounded-xl border">
-          <div className="border-border border-b px-5 py-4">
-            <h2 className="text-foreground text-sm font-semibold">{t("services")}</h2>
-            <p className="text-muted-foreground text-xs">{t("eachRowSaysWhat")}</p>
-          </div>
+        <ListCard title={t("services")} counted={t("eachRowSaysWhat")} contentClassName="p-0">
           <ul className="divide-border divide-y">
             {checks.map((check) => {
               const meta = META[check.key];
@@ -204,7 +201,7 @@ export default function SystemHealthPage() {
               );
             })}
           </ul>
-        </section>
+        </ListCard>
       )}
 
       <p className="text-muted-foreground text-xs">{t("everyStatusHereComes")}</p>

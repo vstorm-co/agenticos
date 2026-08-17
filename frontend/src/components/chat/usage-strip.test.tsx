@@ -3,16 +3,18 @@ import { describe, expect, it } from "vitest";
 
 import { UsageStrip } from "./usage-strip";
 import type { ConversationWorkspace } from "@/lib/conversation-workspace-api";
-import type { TurnUsage } from "@/types";
+import type { ConversationCost, TurnUsage } from "@/types";
 
 function usage(overrides: Partial<TurnUsage> = {}): TurnUsage {
   return {
     input_tokens: 1200,
     output_tokens: 300,
     cost_usd: 0.0125,
+    cost_is_partial: false,
     budget_percent: null,
     agent_budget_percent: null,
     sandbox: null,
+    context: null,
     ...overrides,
   };
 }
@@ -31,7 +33,121 @@ function workspace(overrides: Partial<ConversationWorkspace> = {}): Conversation
   };
 }
 
+function total(overrides: Partial<ConversationCost> = {}): ConversationCost {
+  return {
+    input_tokens: 40_000,
+    output_tokens: 2_000,
+    cost_usd: "0.9100",
+    cost_is_partial: false,
+    ...overrides,
+  };
+}
+
 describe("UsageStrip", () => {
+  it("draws money, and leaves the tokens to the tooltip", () => {
+    // Two counts of tokens on one line can never agree: the input is re-sent and
+    // re-paid for every turn, so a conversation whose context peaked at 3,868 has
+    // been billed 7,747. Side by side, one of them looks broken - so the strip
+    // carries one figure per unit and nothing invites the comparison.
+    render(<UsageStrip usage={usage()} total={total()} />);
+
+    expect(screen.getByText("$0.9100")).toBeInTheDocument();
+    expect(screen.queryByText(/42,000 tokens/)).toBeNull();
+    expect(
+      screen.getByTitle(/40,000 in · 2,000 out billed across this conversation/),
+    ).toBeVisible();
+  });
+
+  it("marks a thread total that is only a floor", () => {
+    // One unpriced request makes the whole total short, and a figure that omits
+    // part of the bill without saying so is worse than one that admits it.
+    render(<UsageStrip usage={usage()} total={total({ cost_is_partial: true })} />);
+
+    expect(screen.getByText("≥ $0.9100")).toBeInTheDocument();
+  });
+
+  it("draws how full the context window is", () => {
+    // The ceiling nobody sees coming: a budget refuses with a message, a
+    // workspace refuses a write, and a context window is refused by the provider
+    // mid-answer. It measures what the request *sent*, so it falls when
+    // compaction works.
+    render(
+      <UsageStrip usage={usage({ context: { used_tokens: 150_000 } })} contextWindow={200_000} />,
+    );
+
+    expect(screen.getByText("Context 75%")).toBeInTheDocument();
+    expect(
+      screen.getByTitle("150,000 of 200,000 tokens in the model's context window"),
+    ).toBeVisible();
+  });
+
+  it("divides by the model selected now, not by the one that produced the reading", () => {
+    // The whole reason the window is not stored with the count. A history of
+    // 150,000 tokens is 15% of a 1M-context model and 117% of a 128K one, and
+    // the second is a request the provider refuses outright - so switching model
+    // has to move this figure before the next message, not after it.
+    const wide = render(
+      <UsageStrip usage={usage({ context: { used_tokens: 150_000 } })} contextWindow={1_000_000} />,
+    );
+    expect(wide.getByText("Context 15%")).toBeInTheDocument();
+
+    const narrow = render(
+      <UsageStrip usage={usage({ context: { used_tokens: 150_000 } })} contextWindow={128_000} />,
+    );
+    expect(narrow.getByText("Context 117%")).toBeInTheDocument();
+  });
+
+  it("draws no share at all when no window can be resolved", () => {
+    // A share against an assumed window is a guess presented as a measurement,
+    // and the guess errs in the direction that lets a run reach the ceiling.
+    render(
+      <UsageStrip usage={usage({ context: { used_tokens: 150_000 } })} contextWindow={null} />,
+    );
+
+    expect(screen.queryByText(/Context/)).toBeNull();
+  });
+
+  it("keeps the digits that carry the reading when the window is barely touched", () => {
+    // A first turn is a few hundred tokens against hundreds of thousands.
+    // Rounded to a whole percent it reads `0`, which says "nothing was measured"
+    // rather than "barely touched" - and the reader cannot tell the two apart.
+    render(<UsageStrip usage={usage({ context: { used_tokens: 812 } })} contextWindow={200_000} />);
+
+    expect(screen.getByText("Context 0.41%")).toBeInTheDocument();
+  });
+
+  it("drops the digits once they are noise beside the ceiling", () => {
+    // A tenth of a percent means nothing at 75%, and the extra characters are
+    // read every turn.
+    render(
+      <UsageStrip usage={usage({ context: { used_tokens: 150_400 } })} contextWindow={200_000} />,
+    );
+
+    expect(screen.getByText("Context 75%")).toBeInTheDocument();
+  });
+
+  it("keeps one digit in the middle of the range", () => {
+    render(
+      <UsageStrip usage={usage({ context: { used_tokens: 8_400 } })} contextWindow={200_000} />,
+    );
+
+    expect(screen.getByText("Context 4.2%")).toBeInTheDocument();
+  });
+
+  it("draws nothing about the context when no model request was made", () => {
+    render(<UsageStrip usage={usage()} />);
+
+    expect(screen.queryByText(/Context/)).toBeNull();
+  });
+
+  it("draws no thread total for a conversation in which nothing was measured", () => {
+    // Zeroes would be a claim. Null is what the server answers for a thread older
+    // than the columns, or one whose every turn failed before a cost was read.
+    render(<UsageStrip usage={usage()} total={null} />);
+
+    expect(screen.queryByText(/thread/)).toBeNull();
+  });
+
   it("says nothing before a turn has been measured, and still holds its line", () => {
     // "0 tokens" under a conversation that has not run anything is a claim, and
     // this has none to make yet. The *row* is not optional though: the strip sits
@@ -48,15 +164,16 @@ describe("UsageStrip", () => {
     expect(measured.container.firstElementChild?.className).toBe(emptyRow?.className);
   });
 
-  it("reports the tokens and the cost of the last turn", () => {
-    render(<UsageStrip usage={usage()} />);
+  it("says nothing about money for a conversation nobody measured", () => {
+    // Zeroes would be a claim. Null is what the server answers for a thread older
+    // than the columns, or one whose every turn failed before a cost was read.
+    render(<UsageStrip usage={usage()} total={null} />);
 
-    expect(screen.getByText(/1,500 tokens/)).toBeVisible();
-    expect(screen.getByText(/\$0\.0125/)).toBeVisible();
+    expect(screen.queryByText(/\$/)).toBeNull();
   });
 
   it("names the agent's own share, because that is the cap an author can raise", () => {
-    render(<UsageStrip usage={usage({ agent_budget_percent: 40 })} />);
+    render(<UsageStrip usage={usage({ agent_budget_percent: 40 })} total={total()} />);
 
     expect(screen.getByText(/40% of this agent's month/)).toBeVisible();
   });
@@ -64,7 +181,7 @@ describe("UsageStrip", () => {
   it("colours the agent's share once it is close to the cap", () => {
     // The number is the warning; grey is not. A budget breach refuses the next turn
     // outright, so the last few percent have to look different from the first forty.
-    render(<UsageStrip usage={usage({ agent_budget_percent: 88 })} />);
+    render(<UsageStrip usage={usage({ agent_budget_percent: 88 })} total={total()} />);
 
     expect(screen.getByText(/88% of this agent's month/).className).toContain("text-amber-600");
   });
@@ -72,25 +189,35 @@ describe("UsageStrip", () => {
   it("keeps the organization's cap out of the way until it is close", () => {
     // It stops every agent at once and is somebody else's to change, so it is not
     // worth the space in a line this small until it matters.
-    render(<UsageStrip usage={usage({ budget_percent: 40 })} />);
+    render(<UsageStrip usage={usage({ budget_percent: 40 })} total={total()} />);
     expect(screen.queryByText(/organization/)).toBeNull();
 
-    render(<UsageStrip usage={usage({ budget_percent: 92 })} />);
+    render(<UsageStrip usage={usage({ budget_percent: 92 })} total={total()} />);
     expect(screen.getByText(/92% of the organization's/)).toBeVisible();
   });
 
   it("says nothing about a budget nobody set", () => {
-    render(<UsageStrip usage={usage()} />);
+    render(<UsageStrip usage={usage()} total={total()} />);
 
     expect(screen.queryByText(/month/)).toBeNull();
   });
 
+  it("shows the thread's total on a conversation with no live turn", () => {
+    // A reopened thread has no report to read a budget share off, and the total
+    // is exactly what somebody opening it wants.
+    render(<UsageStrip usage={null} total={total()} />);
+
+    expect(screen.getByText("$0.9100")).toBeVisible();
+  });
+
   it("splits input from output where somebody can look for it", () => {
     // They price differently by an order of magnitude, so one total hides whether
-    // a turn was expensive because of a long context or a long answer.
-    render(<UsageStrip usage={usage({ input_tokens: 1200, output_tokens: 300 })} />);
+    // a conversation was expensive because of long contexts or long answers.
+    render(
+      <UsageStrip usage={usage()} total={total({ input_tokens: 1200, output_tokens: 300 })} />,
+    );
 
-    expect(screen.getByTitle("1,200 in · 300 out")).toBeVisible();
+    expect(screen.getByTitle(/1,200 in · 300 out billed across this conversation/)).toBeVisible();
   });
 
   it("draws a bar as well as the number, because 84% and 8% read alike in grey", () => {

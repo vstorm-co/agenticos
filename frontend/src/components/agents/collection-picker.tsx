@@ -177,10 +177,13 @@ export function CollectionPicker({
       )}
 
       <p className="text-muted-foreground text-xs">
-        The model chooses what to look for; it can never widen where it looks.{" "}
-        <Link href={ROUTES.RAG} className="underline underline-offset-4">
-          {t("manageCollections")}
-        </Link>
+        {t.rich("collectionScopeHint", {
+          link: (chunks) => (
+            <Link href={ROUTES.RAG} className="underline underline-offset-4">
+              {chunks}
+            </Link>
+          ),
+        })}
       </p>
     </div>
   );

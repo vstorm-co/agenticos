@@ -216,7 +216,7 @@ describe("the sandbox capacity card", () => {
       listing: { sessions: [session(), session(), session()], tenant_limit: 8 },
     });
 
-    render(<SandboxCapacityWidget title="Sandbox capacity" period={PERIOD} />);
+    render(<SandboxCapacityWidget title="Sandbox capacity" hint="" period={PERIOD} />);
 
     expect(await screen.findByText("3 of 8")).toBeInTheDocument();
     expect(screen.getByText("sandboxd-eu")).toBeInTheDocument();
@@ -232,7 +232,7 @@ describe("the sandbox capacity card", () => {
     });
 
     const { container } = render(
-      <SandboxCapacityWidget title="Sandbox capacity" period={PERIOD} />,
+      <SandboxCapacityWidget title="Sandbox capacity" hint="" period={PERIOD} />,
     );
 
     expect(await screen.findByText("2 open")).toBeInTheDocument();
@@ -257,7 +257,7 @@ describe("the sandbox capacity card", () => {
       listing: { sessions: [session()], tenant_limit: 8 },
     });
 
-    render(<SandboxCapacityWidget title="Sandbox capacity" period={PERIOD} />);
+    render(<SandboxCapacityWidget title="Sandbox capacity" hint="" period={PERIOD} />);
 
     expect(await screen.findByText(/How full a host itself is cannot be shown here/)).toBeVisible();
     expect(screen.getByText(/somebody else filled the host/)).toBeVisible();
@@ -266,7 +266,7 @@ describe("the sandbox capacity card", () => {
   it("says one sandbox is open rather than building the plural from English", async () => {
     deployment({ connection: connection(), listing: { sessions: [session()] } });
 
-    render(<SandboxCapacityWidget title="Sandbox capacity" period={PERIOD} />);
+    render(<SandboxCapacityWidget title="Sandbox capacity" hint="" period={PERIOD} />);
 
     expect(await screen.findByText("1 open")).toBeInTheDocument();
   });
@@ -288,7 +288,7 @@ describe("the sandbox capacity card", () => {
     );
 
     const { container } = render(
-      <SandboxCapacityWidget title="Sandbox capacity" period={PERIOD} />,
+      <SandboxCapacityWidget title="Sandbox capacity" hint="" period={PERIOD} />,
     );
 
     await screen.findByText("1 of 8");
@@ -305,7 +305,7 @@ describe("the sandbox capacity card", () => {
       fails: "The sandbox service did not answer: connection refused",
     });
 
-    render(<SandboxCapacityWidget title="Sandbox capacity" period={PERIOD} />);
+    render(<SandboxCapacityWidget title="Sandbox capacity" hint="" period={PERIOD} />);
 
     expect(await screen.findByText(/connection refused/)).toBeInTheDocument();
     // The failure that #129 calls an empty view and a dead host being the same
@@ -316,7 +316,7 @@ describe("the sandbox capacity card", () => {
   it("tells a Daytona connection apart from an idle host, and asks it nothing", async () => {
     deployment({ connection: connection({ kind: "daytona", base_url: null }) });
 
-    render(<SandboxCapacityWidget title="Sandbox capacity" period={PERIOD} />);
+    render(<SandboxCapacityWidget title="Sandbox capacity" hint="" period={PERIOD} />);
 
     expect(await screen.findByText(/counted in that account/)).toBeInTheDocument();
     expect(sessionsAskedFor()).toEqual([]);
@@ -328,7 +328,7 @@ describe("the sandbox capacity card", () => {
       { connection: connection({ id: "gone", name: "Retired", is_active: false }) },
     );
 
-    render(<SandboxCapacityWidget title="Sandbox capacity" period={PERIOD} />);
+    render(<SandboxCapacityWidget title="Sandbox capacity" hint="" period={PERIOD} />);
 
     await screen.findByText("Live");
     expect(screen.queryByText("Retired")).not.toBeInTheDocument();
@@ -338,7 +338,7 @@ describe("the sandbox capacity card", () => {
   it("says no host is registered rather than showing an empty list", async () => {
     deployment();
 
-    render(<SandboxCapacityWidget title="Sandbox capacity" period={PERIOD} />);
+    render(<SandboxCapacityWidget title="Sandbox capacity" hint="" period={PERIOD} />);
 
     expect(await screen.findByText("No sandbox host registered")).toBeInTheDocument();
   });
@@ -346,7 +346,7 @@ describe("the sandbox capacity card", () => {
   it("says the listing failed, and asks again when told to", async () => {
     vi.mocked(apiClient.get).mockRejectedValue(new ApiError(502, "Bad Gateway"));
 
-    render(<SandboxCapacityWidget title="Sandbox capacity" period={PERIOD} />);
+    render(<SandboxCapacityWidget title="Sandbox capacity" hint="" period={PERIOD} />);
 
     expect(await screen.findByText("Couldn't load this")).toBeInTheDocument();
     expect(screen.queryByText("No sandbox host registered")).not.toBeInTheDocument();
@@ -360,7 +360,7 @@ describe("the sandbox capacity card", () => {
 
 describe("the open-sandboxes card", () => {
   function card() {
-    return <SandboxSessionsWidget title="Open sandboxes" period={PERIOD} />;
+    return <SandboxSessionsWidget title="Open sandboxes" hint="" period={PERIOD} />;
   }
 
   it("names the agent, what shares the sandbox, its runtime, state and idle time", async () => {
@@ -596,7 +596,7 @@ describe("the open-sandboxes card", () => {
 
 describe("the sandbox runtimes card", () => {
   function card() {
-    return <SandboxPolicyWidget title="Sandbox runtimes" period={PERIOD} />;
+    return <SandboxPolicyWidget title="Sandbox runtimes" hint="" period={PERIOD} />;
   }
 
   it("names the host's ceilings as ceilings, never as a fraction", async () => {

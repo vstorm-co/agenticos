@@ -8,7 +8,7 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
 import { usePermissions } from "@/hooks";
 import { useOrgTriggers } from "@/hooks/use-org-triggers";
-import { getErrorMessage } from "@/lib/utils";
+import { getErrorMessage } from "@/lib/api-error";
 import { Perm } from "@/types/permissions";
 
 /**
@@ -22,6 +22,7 @@ import { Perm } from "@/types/permissions";
  */
 export function ScheduledTab() {
   const t = useTranslations("triggers");
+  const tErrors = useTranslations("errors");
   const { can } = usePermissions();
   const { triggers, isLoading, isError, error } = useOrgTriggers();
   const canManage = can(Perm.agentsRun);
@@ -36,7 +37,7 @@ export function ScheduledTab() {
         {isLoading ? (
           <LoadingState variant="skeleton-table" columns={1} rows={4} />
         ) : isError ? (
-          <ErrorState description={getErrorMessage(error)} />
+          <ErrorState description={getErrorMessage(error, tErrors)} />
         ) : triggers.length === 0 ? (
           <EmptyState
             icon={CalendarClock}

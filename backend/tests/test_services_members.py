@@ -4,6 +4,7 @@ import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic import ValidationError
 
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -11,6 +12,7 @@ from app.core.exceptions import (
     BadRequestError,
     NotFoundError,
 )
+from app.schemas.organization import OrganizationMemberUpdate
 from app.services.invitation import InvitationService
 from app.services.member import MemberService
 
@@ -123,6 +125,96 @@ class TestMemberService:
             )
 
     @pytest.mark.anyio
+    @pytest.mark.parametrize("requester_role", ["owner", "admin"])
+    async def test_change_role_cannot_mint_an_owner(self, service, requester_role):
+        """Nobody promotes to Owner through this route (#672).
+
+        `transfer_ownership` demotes the outgoing Owner in the same breath, so
+        a PATCH that only promotes leaves the organization with two - and an
+        audit trail that says `member.role_changed` rather than that ownership
+        moved.
+        """
+        requester = MagicMock(role=requester_role)
+        target = MagicMock(role="member")
+        update_role = AsyncMock()
+
+        with (
+            patch(
+                "app.services.member.member_repo.get",
+                new=AsyncMock(side_effect=[requester, target]),
+            ),
+            patch("app.services.member.member_repo.update_role", new=update_role),
+            pytest.raises(AuthorizationError),
+        ):
+            await service.change_role(
+                uuid.uuid4(), uuid.uuid4(), "owner", requester_id=uuid.uuid4()
+            )
+
+        update_role.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_custom_role_holding_roles_manage_cannot_mint_an_owner(
+        self, service, monkeypatch
+    ):
+        """The ceiling is what the requester holds, not whether they are `admin`.
+
+        Keyed on the literal role name, the check that stops an Admin promoting
+        someone could not see a custom role (Phase 2) at all - and `roles:manage`
+        is deliberately written to admit one.
+        """
+        from app.core.permissions import ROLE_PERMS, Perm, Scope
+
+        monkeypatch.setitem(ROLE_PERMS, "test:role-admin", {Perm.ROLES_MANAGE: Scope.ALL})
+        requester = MagicMock(role="test:role-admin")
+        target = MagicMock(role="member")
+        update_role = AsyncMock()
+
+        with (
+            patch(
+                "app.services.member.member_repo.get",
+                new=AsyncMock(side_effect=[requester, target]),
+            ),
+            patch("app.services.member.member_repo.update_role", new=update_role),
+            pytest.raises(AuthorizationError),
+        ):
+            await service.change_role(
+                uuid.uuid4(), uuid.uuid4(), "owner", requester_id=uuid.uuid4()
+            )
+
+        update_role.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_an_owner_still_promotes_a_member_to_admin(self, service):
+        """The ceiling bounds the assignment; it does not remove it."""
+        requester = MagicMock(role="owner")
+        target = MagicMock(role="member")
+        promoted = MagicMock(role="admin", user_id=uuid.uuid4())
+
+        with (
+            patch(
+                "app.services.member.member_repo.get",
+                new=AsyncMock(side_effect=[requester, target]),
+            ),
+            patch(
+                "app.services.member.member_repo.update_role",
+                new=AsyncMock(return_value=promoted),
+            ),
+            patch("app.services.member.record_audit", new=AsyncMock()),
+            patch(
+                "app.services.member.user_repo.get_by_id",
+                new=AsyncMock(return_value=MagicMock(email="a@example.com", avatar_color=7)),
+            ),
+        ):
+            member, _, _, _, avatar_color = await service.change_role(
+                uuid.uuid4(), uuid.uuid4(), "admin", requester_id=uuid.uuid4()
+            )
+
+        assert member.role == "admin"
+        # The row a listing redraws after a role change carries the member's
+        # chosen colour, so their avatar does not flip to the auto one.
+        assert avatar_color == 7
+
+    @pytest.mark.anyio
     async def test_remove_raises_if_not_authorized(self, service):
         mock_member = MagicMock()
         mock_member.role = "viewer"
@@ -193,6 +285,25 @@ class TestMemberService:
             pytest.raises(BadRequestError),
         ):
             await service.transfer_ownership(uuid.uuid4(), uid, requester_id=uid)
+
+
+class TestRoleAssigned:
+    """The request schema refuses a role a role change may not grant (#672).
+
+    The membership half of what `InvitationCreate` holds for invitations - and
+    of what `InviteLinkCreate` is still missing on this base, which is #551.
+    The service's ceiling depends on who is asking, so the schema is where "no
+    owner by PATCH, no made-up roles" holds for every requester alike.
+    """
+
+    @pytest.mark.parametrize("role", ["owner", "ceo"])
+    def test_an_ungrantable_role_is_refused(self, role):
+        with pytest.raises(ValidationError):
+            OrganizationMemberUpdate(role=role)
+
+    @pytest.mark.parametrize("role", ["admin", "builder", "operator", "member", "viewer"])
+    def test_a_grantable_role_passes(self, role):
+        assert OrganizationMemberUpdate(role=role).role == role
 
 
 class TestInvitationService:

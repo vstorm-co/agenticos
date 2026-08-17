@@ -213,8 +213,8 @@ describe("the other two confirmations on the page", () => {
   });
 
   it("asks before removing a document, in words a translator can reach", async () => {
-    // This was `confirm("Remove \"…\" from this knowledge base?")` - copy no
-    // locale and no `check_i18n.py` sweep can see, because it is an argument.
+    // This was `confirm("Remove \"…\" from this knowledge base?")` - copy no locale
+    // could reach, and one no guard reported until #395 read a call's arguments.
     await mount();
 
     await userEvent.click(await screen.findByRole("button", { name: "Remove document" }));

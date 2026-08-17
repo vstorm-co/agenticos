@@ -5,7 +5,7 @@ what happened (runs), what needs a person (approvals), and what it cost (spend).
 """
 
 from datetime import UTC, datetime, timedelta
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
@@ -21,7 +21,7 @@ from app.db.models.agent_run import (
     RunSurface,
 )
 from app.repositories.agent_run import ApprovalFilters, RunFilters
-from app.schemas.agent import AgentRunResult, RunStep, SettledCall
+from app.schemas.agent import AgentRunResult, ParkedCall, RunStep, SettledCall
 from app.schemas.agent_run import (
     AgentRunList,
     AgentRunRead,
@@ -55,6 +55,11 @@ async def list_runs(
     ),
     surface: RunSurface | None = Query(None, description="Where the run came from"),
     user_id: UUID | None = Query(None, description="Who the run ran as"),
+    model_label: str | None = Query(
+        None,
+        max_length=255,
+        description="The model as the run recorded it, matched exactly",
+    ),
     started_from: datetime | None = Query(
         None, description="Runs started at or after this instant"
     ),
@@ -68,8 +73,10 @@ async def list_runs(
         None, ge=0, description="Only runs slower than this. A run still going has no duration"
     ),
     rated: RunRating | None = Query(None, description="Only runs somebody rated this way"),
-    order_by: RunOrder = Query(RunOrder.STARTED_AT, description="Sort by start time or duration"),
-    descending: bool = Query(True, description="Newest or slowest first"),
+    order_by: RunOrder = Query(
+        RunOrder.STARTED_AT, description="Sort by start time, duration, cost or tokens"
+    ),
+    descending: bool = Query(True, description="Newest, slowest, most expensive or heaviest first"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
@@ -92,8 +99,11 @@ async def list_runs(
     `order_by=duration` sorts on `ended_at - started_at`, computed in SQL over
     the whole narrowed set - which is what gets from "p95 is 14.8s" on the
     dashboard to *those runs*. Sorting a page of twenty-five would sort the wrong
-    set. Unfinished runs have no duration and sort last in both directions rather
-    than as zero.
+    set. `order_by=cost` is the same arrangement for money - the most expensive
+    runs of the whole narrowed set, not of one page - and `order_by=tokens` for
+    context weight, on input and output together. Under all three, a run still
+    going sorts last in both directions rather than as zero: it has no duration,
+    and its cost and token figures are written only when it finishes.
 
     `rated=down` is the highest-signal queue here: the answers real people said
     were wrong. A run matches if *anybody* rated a message it produced that way,
@@ -112,6 +122,7 @@ async def list_runs(
             statuses=RunStatus.parse_csv(status),
             surface=None if surface is None else surface.value,
             user_id=user_id,
+            model_label=model_label,
             started_from=started_from,
             started_to=started_to,
             environment_id=environment_id,
@@ -153,6 +164,7 @@ async def export_runs(
     include_delegations: bool = Query(False),
     surface: RunSurface | None = Query(None),
     user_id: UUID | None = Query(None),
+    model_label: str | None = Query(None, max_length=255),
     environment_id: UUID | None = Query(None),
     exposure_id: UUID | None = Query(None),
     agent_version_id: UUID | None = Query(None),
@@ -177,6 +189,7 @@ async def export_runs(
             statuses=RunStatus.parse_csv(status),
             surface=None if surface is None else surface.value,
             user_id=user_id,
+            model_label=model_label,
             started_from=started_from,
             started_to=started_to,
             environment_id=environment_id,
@@ -193,18 +206,23 @@ async def export_runs(
     "/runs/{run_id}", response_model=AgentRunRead, dependencies=[Depends(require(Perm.RUNS_VIEW))]
 )
 async def get_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
-    """One run, and where its trace can be read if anywhere can.
+    """One run, its trace link, and its neighbours in its conversation.
 
     `logfire_url` is on this read and not on the list: resolving it needs the
     version's stored spec, because an agent may redirect its traces to a client's
     own Logfire project, and fifty rows have no use for fifty trace links.
+    `prev_run_id`/`next_run_id` ride here for the same reason - a detail view
+    walks to its neighbours, a list already is the neighbours.
     """
     run = await service.get_run(ctx, run_id)
     down_rated = await service.down_rated_run_ids(ctx, [run.id])
+    prev_run_id, next_run_id = await service.neighbor_run_ids(ctx, run)
     return AgentRunRead.model_validate(run).model_copy(
         update={
             "logfire_url": await service.trace_url(ctx, run),
             "down_rated": run.id in down_rated,
+            "prev_run_id": prev_run_id,
+            "next_run_id": next_run_id,
         }
     )
 
@@ -216,8 +234,23 @@ async def get_run_transcript(
     ctx: Auth,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
+    scope: Literal["run", "conversation"] = Query(
+        "run",
+        description=(
+            "`run` answers the run's own turns; `conversation` answers the whole "
+            "thread it sits in, each turn carrying its `run_id` so a client can "
+            "still tell which ones are this run's"
+        ),
+    ),
 ) -> Any:
     """The turns one run produced, for a run detail view to render as steps.
+
+    `scope=conversation` is the detail view showing the run in context: the whole
+    thread, scrolled to the run - including turns no run wrote, such as a message
+    a member appended by hand through `POST /conversations/{id}/messages`, which
+    carries `run_id: null`. That reach is deliberate: the run's model read those
+    turns as its context, so a reviewer of the run must be able to read them too,
+    and `runs:view` is the wider lens that authorizes it.
 
     No `require(...)` gate, on purpose: reading a run is authorized rather than
     owned, so the decision belongs to the service, which resolves the run against
@@ -230,7 +263,9 @@ async def get_run_transcript(
     the response says "there is no transcript" rather than answering an empty list
     that reads as "the run did nothing".
     """
-    run, messages, total = await service.get_run_transcript(ctx, run_id, skip=skip, limit=limit)
+    run, messages, total = await service.get_run_transcript(
+        ctx, run_id, skip=skip, limit=limit, whole_conversation=scope == "conversation"
+    )
     ratings = await service.transcript_ratings(ctx, [m.id for m in messages])
     return RunTranscript(
         run_id=run.id,
@@ -241,6 +276,29 @@ async def get_run_transcript(
         ],
         total=total,
     )
+
+
+@router.get(
+    "/runs/{run_id}/parked",
+    response_model=list[ParkedCall],
+    dependencies=[Depends(require(Perm.APPROVALS_DECIDE))],
+)
+async def get_parked_calls(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
+    """What this run is waiting on a decision for, right now.
+
+    The same rows `POST /runs/{run_id}/resume` returns in `parked`, readable
+    without resuming anything. A live surface is handed them as a
+    `tool_approval_required` frame the moment the run parks, but that frame
+    exists only for whoever was watching: reloading the conversation lost the
+    panel, and the only way to finish the run was the approvals queue on another
+    page (#601). Empty for a run that is not parked - including one whose calls
+    were all decided and which is now waiting to be resumed.
+
+    Gated on `approvals:decide` like the resume and the queue, because the rows
+    are offered here to be decided.
+    """
+    run = await service.get_run(ctx, run_id)
+    return await service.parked_calls(ctx, run)
 
 
 @router.post(
@@ -263,6 +321,7 @@ async def resume_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
         output=segment.output,
         status=run.status,
         cost_usd=run.cost_usd,
+        cost_is_partial=run.cost_is_partial,
         input_tokens=run.input_tokens,
         output_tokens=run.output_tokens,
         # What the continuation actually did. Nothing else carries it: the run
@@ -418,8 +477,10 @@ async def get_spend(
         to_date=to_date,
         month_to_date_usd=await service.monthly_spend(ctx),
         # How much of everything below is a fact. Summed from the per-agent rows
-        # rather than queried again, so the figure and its breakdown cannot
-        # disagree about which runs could not be priced.
+        # rather than queried again, so this figure and `by_agent` cannot
+        # disagree about which runs could not be priced - they count the same
+        # rows. It marks the two breakdowns below without measuring them; see
+        # `CostSummary.partial_run_count`.
         partial_run_count=sum(row.partial_run_count for row in agents),
         by_agent=[
             CostByAgent(

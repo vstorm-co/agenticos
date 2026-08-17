@@ -6,20 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
-from app.core.permissions import OrgRoleName, Perm, role_has
+from app.core.permissions import Perm, assignable_roles, role_has
 from app.db.models.organization import OrganizationMember, OrgRole
 from app.repositories import member_repo, user_repo
 
 logger = logging.getLogger(__name__)
-
-# Roles an admin may hand out. Deliberately excludes owner and admin: promoting
-# a peer to your own level is an ownership decision, not a management one.
-_ADMIN_ASSIGNABLE_ROLES = {
-    OrgRoleName.BUILDER.value,
-    OrgRoleName.OPERATOR.value,
-    OrgRoleName.MEMBER.value,
-    OrgRoleName.VIEWER.value,
-}
 
 
 class MemberService:
@@ -33,7 +24,7 @@ class MemberService:
         *,
         skip: int = 0,
         limit: int = 100,
-    ) -> tuple[list[tuple[OrganizationMember, str, str | None, str | None]], int]:
+    ) -> tuple[list[tuple[OrganizationMember, str, str | None, str | None, int | None]], int]:
         """List members with their joined user info. Any org member may list."""
         membership = await member_repo.get(
             self.db, organization_id=organization_id, user_id=requester_id
@@ -53,12 +44,14 @@ class MemberService:
         target_user_id: UUID,
         new_role: str,
         requester_id: UUID,
-    ) -> tuple[OrganizationMember, str, str | None, str | None]:
+    ) -> tuple[OrganizationMember, str, str | None, str | None, int | None]:
         """Change a member's role.
 
         Rules:
-        - Only OWNER or ADMIN may change roles.
-        - ADMIN can only assign/change to MEMBER or VIEWER (cannot promote to ADMIN/OWNER).
+        - The requester needs `roles:manage`.
+        - They may only assign a role their own strictly outranks, which is
+          :func:`app.core.permissions.assignable_roles` - so no requester can
+          hand out `owner`, and none can promote a peer to their own level.
         - OWNER cannot be demoted via this method (use transfer_ownership).
         """
         requester = await member_repo.get(
@@ -83,8 +76,11 @@ class MemberService:
         if target.role == OrgRole.OWNER.value:
             raise BadRequestError(message="Use transfer-ownership to change the Owner role")
 
-        if requester.role == OrgRole.ADMIN.value and new_role not in _ADMIN_ASSIGNABLE_ROLES:
-            raise AuthorizationError(message="Admin can only assign Member or Viewer roles")
+        if new_role not in assignable_roles(requester.role):
+            raise AuthorizationError(
+                message="You cannot assign a role your own does not outrank",
+                details={"role": new_role},
+            )
 
         previous_role = target.role
         updated = await member_repo.update_role(self.db, target, role=new_role)
@@ -101,7 +97,8 @@ class MemberService:
         email = user.email if user else ""
         full_name = user.full_name if user else None
         avatar_url = user.avatar_url if user else None
-        return updated, email, full_name, avatar_url
+        avatar_color = user.avatar_color if user else None
+        return updated, email, full_name, avatar_url, avatar_color
 
     async def remove(
         self,

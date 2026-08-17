@@ -3,7 +3,7 @@
 import { Plus, X } from "lucide-react";
 
 import { Button, Checkbox, Input, Label } from "@/components/ui";
-import type { EmbedVariable } from "@/types/embeds";
+import type { EmbedKind, EmbedVariable } from "@/types/embeds";
 import { useTranslations } from "next-intl";
 
 /** What the backend accepts, so an over-long value is refused before it is sent. */
@@ -26,17 +26,28 @@ const MAX_VARIABLES = 20;
  * server-side - the page is something a visitor can edit, and without a
  * declaration any key they invented would become a line in the agent's
  * instructions.
+ *
+ * A page grows a fourth control per row, because it changes what a declaration
+ * can mean: the only place a value can come from there is the visitor's own URL,
+ * so `url_safe` is what says a variable may be filled from `?var_<name>=`. It is
+ * off by default and the backend refuses a page whose *required* variable is not
+ * marked, because a promise the surface cannot keep is worse than a variable
+ * nobody declared.
  */
 export function EmbedVariables({
   variables,
   disabled,
+  kind,
   onChange,
 }: {
   variables: EmbedVariable[];
   disabled: boolean;
+  /** The surface, because `url_safe` only means anything on a page. */
+  kind: EmbedKind;
   onChange: (variables: EmbedVariable[]) => void;
 }) {
   const t = useTranslations("agents");
+  const hosted = kind === "page";
 
   function edit(index: number, patch: Partial<EmbedVariable>) {
     onChange(variables.map((row, at) => (at === index ? { ...row, ...patch } : row)));
@@ -45,6 +56,8 @@ export function EmbedVariables({
   return (
     <div className="space-y-2">
       <Label>{t("whatThePageSupplies")}</Label>
+      <p className="text-muted-foreground text-xs">{t("whatThePageSuppliesHint")}</p>
+      {hosted && <p className="text-muted-foreground text-xs">{t("urlSafeHint")}</p>}
       {variables.map((variable, index) => (
         <div key={index} className="flex items-start gap-2">
           <Input
@@ -79,6 +92,16 @@ export function EmbedVariables({
             />
             {t("variableRequired")}
           </Label>
+          {hosted && (
+            <Label className="flex shrink-0 items-center gap-1.5 py-2 text-xs font-normal">
+              <Checkbox
+                checked={variable.url_safe}
+                disabled={disabled}
+                onCheckedChange={(checked) => edit(index, { url_safe: checked === true })}
+              />
+              {t("variableUrlSafe")}
+            </Label>
+          )}
           <Button
             type="button"
             variant="ghost"
@@ -94,16 +117,20 @@ export function EmbedVariables({
       {variables.length < MAX_VARIABLES && (
         <Button
           type="button"
-          variant="outline"
-          size="sm"
+          variant="ghost"
           disabled={disabled}
-          onClick={() => onChange([...variables, { name: "", required: false, description: "" }])}
+          className="text-muted-foreground hover:text-foreground border-border h-9 w-full justify-center border border-dashed"
+          onClick={() =>
+            onChange([
+              ...variables,
+              { name: "", required: false, description: "", url_safe: false },
+            ])
+          }
         >
           <Plus className="h-3.5 w-3.5" />
           {t("addVariable")}
         </Button>
       )}
-      <p className="text-muted-foreground text-xs">{t("whatThePageSuppliesHint")}</p>
     </div>
   );
 }

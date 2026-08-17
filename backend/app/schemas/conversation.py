@@ -84,7 +84,7 @@ class ToolCallRead(ToolCallBase):
     id: UUID
     message_id: UUID
     result: str | None = None
-    status: Literal["pending", "running", "completed", "failed"] = "pending"
+    status: Literal["pending", "running", "completed", "failed", "awaiting_approval"] = "pending"
     started_at: datetime
     completed_at: datetime | None = None
     duration_ms: int | None = None
@@ -128,6 +128,23 @@ class MessageCreate(MessageBase):
     cost_usd: Decimal | None = Field(
         default=None, ge=0, description="What this turn cost, at the same scale as a run's"
     )
+    cost_is_partial: bool | None = Field(
+        default=None,
+        description=(
+            "Whether `cost_usd` is a floor. True when the turn reached a model with no "
+            "price entry, whose request the ledger books at zero. Null means not "
+            "recorded, not exact."
+        ),
+    )
+    context_used_tokens: int | None = Field(
+        default=None,
+        ge=0,
+        description=(
+            "Tokens the history sent with this turn occupied. Only the count: the window "
+            "it is a share of belongs to whichever model answers next, and that can be "
+            "switched between turns."
+        ),
+    )
     agent_id: UUID | None = Field(
         default=None, description="The configured agent that answered, when one did"
     )
@@ -143,6 +160,25 @@ class MessageFileRead(BaseSchema):
     filename: str
     mime_type: str
     file_type: str
+
+
+class MessageAuthor(BaseSchema):
+    """The chat account a message came from.
+
+    Enough to put a name against a turn in a thread several people spoke in, and
+    nothing more: the platform's own id for them is not here, because a reader
+    rendering a name has no use for it and it is the half that identifies them on
+    somebody else's system.
+
+    `user_id` is present so a client can tell its own turns from everybody else's
+    without a second request. It is null until that chat account is linked, which
+    is most of them.
+    """
+
+    platform: str
+    display_name: str | None = Field(default=None, validation_alias="platform_display_name")
+    username: str | None = Field(default=None, validation_alias="platform_username")
+    user_id: UUID | None = None
 
 
 class MessageRead(MessageBase, TimestampSchema):
@@ -180,11 +216,38 @@ class MessageRead(MessageBase, TimestampSchema):
     )
     output_tokens: int | None = None
     cost_usd: Decimal | None = None
+    cost_is_partial: bool | None = Field(
+        default=None,
+        description=(
+            "Whether `cost_usd` is a floor rather than the whole of it - true when this "
+            "turn reached a model with no price entry. Null means not recorded, which is "
+            "what every message written before this was carried says, and is not the "
+            "same claim as `false`."
+        ),
+    )
+    context_used_tokens: int | None = Field(
+        default=None,
+        description=(
+            "Tokens the history sent with this turn occupied, after any compaction. The "
+            "share of a context window is not stored with it: the window belongs to the "
+            "model answering next, and a share measured against a model somebody has "
+            "since switched away from is wrong in the direction that costs a run."
+        ),
+    )
     agent_id: UUID | None = None
     agent_version_id: UUID | None = None
     agent_version: int | None = Field(
         default=None,
         description="The version number behind agent_version_id - a UUID names nothing to a reader",
+    )
+    run_status: str | None = Field(
+        default=None,
+        description=(
+            "How the run that produced this turn ended. Null for a turn written "
+            "outside a run, and for a run that has not finished. It is here so a "
+            "transcript can say a turn was *stopped*: a cancelled run leaves a "
+            "half-written answer that reads exactly like a complete one."
+        ),
     )
     tool_calls: list[ToolCallRead] = Field(default_factory=list)
     files: list[MessageFileRead] = Field(default_factory=list)
@@ -195,6 +258,15 @@ class MessageRead(MessageBase, TimestampSchema):
     rating_count: dict[str, int] | None = Field(
         default=None,
         description="Aggregate counts {likes: N, dislikes: N}",
+    )
+    author: MessageAuthor | None = Field(
+        default=None,
+        description=(
+            "Who wrote this turn, when it arrived from a chat account rather than "
+            "from somebody signed in. Null on every assistant turn and on anything "
+            "typed into the dashboard - a thread with no authors anywhere is a "
+            "one-person thread, which is what a client should render as today."
+        ),
     )
 
 
@@ -259,8 +331,37 @@ class ConversationList(BaseSchema):
     total: int
 
 
+class ConversationCost(BaseSchema):
+    """What a whole thread has cost, added up across every turn in it.
+
+    Beside the page of messages rather than computed from it: the transcript is
+    paged, so a client adding up what it was handed answers "the first hundred
+    turns" under a label that says "this conversation".
+    """
+
+    input_tokens: int
+    output_tokens: int
+    cost_usd: Decimal
+    cost_is_partial: bool | None = Field(
+        default=None,
+        description=(
+            "Whether the total is a floor - true when any turn reached a model with no "
+            "price entry. Null where no turn recorded the flag at all, which is 'nobody "
+            "knows' rather than 'exact'."
+        ),
+    )
+
+
 class MessageList(BaseSchema):
     """Schema for listing messages."""
 
     items: list[MessageRead]
     total: int
+    cost: ConversationCost | None = Field(
+        default=None,
+        description=(
+            "What the whole conversation has cost. Null when nothing in it was ever "
+            "measured - a thread older than the columns, or one whose every turn failed "
+            "before a cost could be read. Zeroes would be a claim this has none to make."
+        ),
+    )

@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { VersionStrip } from "./version-strip";
+import type { Period } from "@/lib/dashboard/period";
 import { useAgent, useVersionUsage } from "@/hooks";
 import type { VersionUsageRow } from "@/types/stats";
 
@@ -48,10 +49,12 @@ beforeEach(() => {
   mockAgent(null);
 });
 
+const PERIOD: Period = { preset: "30d", from: "2026-07-16", to: "2026-08-14" };
+
 describe("VersionStrip", () => {
   it("keeps the card's title and caption over a skeleton while loading", () => {
     mockVersions({ isLoading: true });
-    const { container } = render(<VersionStrip agentId="a1" />);
+    const { container } = render(<VersionStrip agentId="a1" period={PERIOD} />);
     expect(container.querySelector(".animate-pulse")).not.toBeNull();
     // The shell stays put as the summary resolves, so the block does not jump shape.
     expect(screen.getByText("By version")).toBeInTheDocument();
@@ -59,7 +62,7 @@ describe("VersionStrip", () => {
 
   it("says the summary could not be read inside the card, and retries", async () => {
     mockVersions({ error: new Error("boom") });
-    render(<VersionStrip agentId="a1" />);
+    render(<VersionStrip agentId="a1" period={PERIOD} />);
     expect(screen.getByText("By version")).toBeInTheDocument();
     expect(screen.getByText("The per-version summary could not be read")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Try again" }));
@@ -68,7 +71,7 @@ describe("VersionStrip", () => {
 
   it("renders nothing when no version ran in the window", () => {
     mockVersions({ byVersion: [] });
-    const { container } = render(<VersionStrip agentId="a1" />);
+    const { container } = render(<VersionStrip agentId="a1" period={PERIOD} />);
     expect(container).toBeEmptyDOMElement();
   });
 
@@ -87,7 +90,7 @@ describe("VersionStrip", () => {
       ],
     });
     mockAgent("v3");
-    render(<VersionStrip agentId="a1" />);
+    render(<VersionStrip agentId="a1" period={PERIOD} />);
 
     expect(screen.getByText("v2")).toBeInTheDocument();
     expect(screen.getByText("3 runs")).toBeInTheDocument();
@@ -107,7 +110,7 @@ describe("VersionStrip", () => {
       ],
     });
     mockAgent("v3");
-    render(<VersionStrip agentId="a1" />);
+    render(<VersionStrip agentId="a1" period={PERIOD} />);
 
     const current = screen.getByText("Current");
     expect(within(screen.getByText("v3").parentElement!).getByText("Current")).toBe(current);
@@ -117,7 +120,7 @@ describe("VersionStrip", () => {
   it("marks nothing when the current version is unknown", () => {
     mockVersions({ byVersion: [row({ agent_version_id: "v2", version: 2 })] });
     mockAgent(null);
-    render(<VersionStrip agentId="a1" />);
+    render(<VersionStrip agentId="a1" period={PERIOD} />);
     expect(screen.queryByText("Current")).toBeNull();
   });
 
@@ -134,7 +137,7 @@ describe("VersionStrip", () => {
         }),
       ],
     });
-    render(<VersionStrip agentId="a1" />);
+    render(<VersionStrip agentId="a1" period={PERIOD} />);
 
     expect(screen.getByText("Deleted version")).toBeInTheDocument();
     expect(screen.getByText("0%")).toBeInTheDocument();

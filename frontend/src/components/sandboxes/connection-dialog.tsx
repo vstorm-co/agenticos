@@ -19,10 +19,10 @@ import {
   SelectValue,
   Switch,
 } from "@/components/ui";
+import { getErrorMessage } from "@/lib/api-error";
 import { InlineSecret } from "@/components/vault/inline-secret";
 import { ProviderRow } from "@/components/vault/provider-row";
 import { useLocalSandboxService, useSecrets } from "@/hooks";
-import { getErrorMessage } from "@/lib/utils";
 import type {
   SandboxConnectionInput,
   SandboxConnectionKind,
@@ -110,6 +110,7 @@ function isComplete(form: FormState, baseUrl: string): boolean {
  * this component's props.
  */
 export function ConnectionDialog({ editing, onOpenChange, onSubmit }: ConnectionDialogProps) {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("sandboxes.connection");
   const { secrets } = useSecrets();
   // Only asked for a new connection. An operator editing an existing row has
@@ -151,7 +152,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
       // Shown here rather than rethrown. The server refuses a duplicate name and
       // a shape it cannot use; both are about a field on this form, and a
       // rejection that escaped an onClick reached nobody at all.
-      setRefusal(getErrorMessage(error));
+      setRefusal(getErrorMessage(error, tErrors));
     } finally {
       setSaving(false);
     }
@@ -254,9 +255,11 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
             {form.kind === "docker" && local?.token_available === true && (
               <div className="bg-muted/40 space-y-2 rounded-md p-3">
                 <p className="text-xs">
-                  This deployment already holds the token its sandbox service was started with — the
-                  one <span className="font-mono">{t("makeSandboxToken")}</span> wrote to{" "}
-                  <span className="font-mono">backend/.env</span>.
+                  {t.rich("deploymentHoldsToken", {
+                    command: t("makeSandboxToken"),
+                    file: "backend/.env",
+                    mono: (chunks) => <span className="font-mono">{chunks}</span>,
+                  })}
                 </p>
                 <Button
                   variant="outline"
@@ -269,7 +272,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
                       const secretId = await storeCredential();
                       setForm((current) => ({ ...current, secretId }));
                     } catch (error) {
-                      setRefusal(getErrorMessage(error));
+                      setRefusal(getErrorMessage(error, tErrors));
                     } finally {
                       setStoring(false);
                     }
@@ -305,7 +308,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
                         const policy = await probe(baseUrl.trim(), form.secretId);
                         setAllowed(policy.runtimes);
                       } catch (error) {
-                        setRefusal(getErrorMessage(error));
+                        setRefusal(getErrorMessage(error, tErrors));
                       } finally {
                         setTesting(false);
                       }

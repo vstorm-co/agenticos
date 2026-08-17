@@ -20,6 +20,7 @@ import click
 
 from app.agents.spec import AgentSpec
 from app.commands import command, info, success, warning
+from app.core.config import settings
 from app.core.permissions import AuthContext, OrgRoleName
 from app.core.secret_kinds import ApiKeySecret
 from app.db.models.resource_grant import Visibility
@@ -138,7 +139,11 @@ async def _resolve_organization(db, owner_id: uuid.UUID, name: str):
         return personal
 
     org = await organization_repo.create(
-        db, name=name, slug=slugify(name), created_by_user_id=owner_id
+        db,
+        name=name,
+        slug=slugify(name),
+        created_by_user_id=owner_id,
+        monthly_budget_usd=settings.DEFAULT_ORG_MONTHLY_BUDGET_USD,
     )
     await member_repo.create(
         db, organization_id=org.id, user_id=owner_id, role=OrgRoleName.OWNER.value

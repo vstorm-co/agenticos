@@ -592,15 +592,24 @@ def load_builtins() -> None:
         return
 
     from app.agents.capabilities import (  # noqa: F401 - imported for side effects
+        browser_use,
         channel_tools,
         charts,
         clock,
         code_execution,
+        compaction,
+        context,
+        guardrails,
+        image_generation,
         knowledge,
+        planning,
         sandbox,
         skills,
         subagents,
+        system_reminders,
         thinking,
+        tool_output_limits,
+        tool_search,
         web_research,
     )
 

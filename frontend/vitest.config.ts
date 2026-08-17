@@ -10,6 +10,16 @@ export default defineConfig({
     setupFiles: ["./vitest.setup.ts"],
     include: ["**/*.{test,spec}.{ts,tsx}"],
     exclude: ["node_modules", ".next", "e2e"],
+    server: {
+      deps: {
+        // `next-intl/middleware` imports `next/server` bare, which Node's ESM
+        // resolver cannot answer for an externalized dependency ("did you mean
+        // next/server.js"). Transformed by Vite instead, the import resolves and
+        // `src/middleware.test.ts` can drive the real middleware rather than a
+        // stand-in for it.
+        inline: ["next-intl"],
+      },
+    },
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],
@@ -65,6 +75,7 @@ export default defineConfig({
         "src/components/chat/workspace-files.tsx",
         "src/components/sharing/**/*.tsx",
         "src/components/skills/**/*.tsx",
+        "src/components/context/**/*.tsx",
       ],
       exclude: [
         "node_modules",

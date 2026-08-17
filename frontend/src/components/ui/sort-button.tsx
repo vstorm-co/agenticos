@@ -28,8 +28,9 @@ interface SortButtonProps {
  * Three states rather than two: `ArrowUpDown` when the table is sorted by
  * something else, so a reader can tell "sortable" from "sorted ascending" at a
  * glance. `aria-sort` carries the same thing for a screen reader, on the `th`
- * this renders into - which is why the attribute is set by the caller's column
- * definition and not here.
+ * `DataTable` renders this into - which is why the accessible name here is the
+ * column's own label, not the state: an `aria-label` naming the state made
+ * every sort control on a table answer to the same name.
  */
 export function SortButton({ active, direction, onClick, children }: SortButtonProps) {
   const t = useTranslations("ui");
@@ -45,7 +46,6 @@ export function SortButton({ active, direction, onClick, children }: SortButtonP
       type="button"
       onClick={onClick}
       title={label}
-      aria-label={label}
       className={cn(
         "hover:text-foreground inline-flex items-center gap-1 text-left uppercase transition-colors",
         active && "text-foreground",

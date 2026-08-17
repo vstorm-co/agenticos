@@ -86,6 +86,7 @@ export function AddSecretDialog({
   onSubmit,
   isPending,
 }: AddSecretDialogProps) {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("vault");
   const { purposes } = useSecretPurposes();
   const [category, setCategory] = useState<PurposeCategory>("model_provider");
@@ -163,10 +164,14 @@ export function AddSecretDialog({
       onOpenChange(false);
       reset();
     } catch (error) {
-      const failure = submitFailure(error, {
-        fields: ["name", "description", ...secretFieldNames(info.json_schema)],
-        identifiedBy: "name",
-      });
+      const failure = submitFailure(
+        error,
+        {
+          fields: ["name", "description", ...secretFieldNames(info.json_schema)],
+          identifiedBy: "name",
+        },
+        tErrors,
+      );
       setErrors(failure.fields);
       if (failure.toast) toast.error(failure.toast);
     }
@@ -189,7 +194,7 @@ export function AddSecretDialog({
           <DialogDescription>{t("encryptedBoundOrganizationAgent")}</DialogDescription>
         </DialogHeader>
 
-        <div className="max-h-[65vh] space-y-5 overflow-y-auto px-1">
+        <div className="max-h-[65vh] scrollbar-thin space-y-5 overflow-y-auto px-1">
           {/* First, because it decides everything below it: which shape the
               form asks for, what the key unlocks, and where it can be picked. */}
           {/* Two steps rather than one list of thirty-one. The first question
@@ -400,6 +405,7 @@ export function RotateSecretDialog({
   onSubmit,
   isPending,
 }: RotateSecretDialogProps) {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("vault");
   const [value, setValue] = useState<Record<string, unknown>>({});
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
@@ -415,7 +421,7 @@ export function RotateSecretDialog({
       setValue({});
       setErrors({});
     } catch (error) {
-      const failure = submitFailure(error, { fields: secretFieldNames(info.json_schema) });
+      const failure = submitFailure(error, { fields: secretFieldNames(info.json_schema) }, tErrors);
       setErrors(failure.fields);
       if (failure.toast) toast.error(failure.toast);
     }
@@ -439,7 +445,7 @@ export function RotateSecretDialog({
         </DialogHeader>
 
         {secret && info && (
-          <div className="max-h-[60vh] space-y-4 overflow-y-auto px-1">
+          <div className="max-h-[60vh] scrollbar-thin space-y-4 overflow-y-auto px-1">
             <p className="text-muted-foreground text-xs">
               {t("nameCurrentlyEnds", { name: info.name })}{" "}
               <span className="font-mono">····{secret.hint}</span>

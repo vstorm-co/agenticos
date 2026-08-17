@@ -1,5 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+
+import { TooltipProvider } from "@/components/ui";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -20,13 +22,14 @@ vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
   return {
     ...actual,
-    apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
+    apiClient: { get: vi.fn(), post: vi.fn(), put: vi.fn(), patch: vi.fn(), delete: vi.fn() },
   };
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 // Full-key echo, so "dashboard.errors.title" is assertable and unambiguous.
 vi.mock("next-intl", () => ({
+  useLocale: () => "en",
   useTranslations: (namespace?: string) => (key: string) =>
     namespace ? `${namespace}.${key}` : key,
 }));
@@ -51,7 +54,14 @@ function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  // The same two providers `app/providers.tsx` mounts around the real page.
+  // Every widget header carries a tooltip for its explanation, and Radix throws
+  // rather than degrading when one is rendered outside a provider.
+  return (
+    <QueryClientProvider client={client}>
+      <TooltipProvider>{children}</TooltipProvider>
+    </QueryClientProvider>
+  );
 }
 
 function holds(...held: Permission[]) {
@@ -118,7 +128,20 @@ const RATINGS = {
   ratings_by_day: [{ date: "2026-08-01", likes: 11, dislikes: 1 }],
 };
 
+// The caller's saved arrangement, as GET /me/dashboard-layout would answer.
+// `null` is the common case - no saved layout, so the audience default stands.
+// A test sets it to a StoredLayout to exercise the personalization layer.
+let savedLayout: { entries: { widget: string; span: string; rows?: string }[] } | null = null;
+
+// The caller's named presets, as GET /me/dashboard-layout/presets would answer.
+let presets: { items: { id: string; name: string; entries: unknown[] }[]; total: number } = {
+  items: [],
+  total: 0,
+};
+
 function respond(path: string, options?: { params?: Record<string, string> }): unknown {
+  if (path === "/me/dashboard-layout") return savedLayout;
+  if (path === "/me/dashboard-layout/presets") return presets;
   // The sandbox cards carry their query in the path rather than in params, so
   // they are matched before the switch. What they answer is exercised properly in
   // `widgets/sandbox.integration.test.tsx`; here it only has to be well-shaped.
@@ -276,10 +299,20 @@ function callsTo(path: string) {
 beforeEach(() => {
   params.delete("period");
   params.delete("sections");
+  savedLayout = null;
+  presets = { items: [], total: 0 };
   vi.mocked(apiClient.get).mockReset();
+  vi.mocked(apiClient.post).mockReset();
+  vi.mocked(apiClient.put).mockReset();
+  vi.mocked(apiClient.delete).mockReset();
   vi.mocked(apiClient.get).mockImplementation((path: string, options?: unknown) =>
     Promise.resolve(respond(path, options as { params?: Record<string, string> })),
   );
+  vi.mocked(apiClient.post).mockResolvedValue({ id: "p1", name: "Monday review", entries: [] });
+  vi.mocked(apiClient.put).mockImplementation((_path: string, body?: unknown) =>
+    Promise.resolve(body as { entries: unknown[] }),
+  );
+  vi.mocked(apiClient.delete).mockResolvedValue(undefined);
   useOrgStore.setState({ activeOrgId: "org1" });
   useAuthStore.setState({ user: { id: "u1" } as never });
   auth.can = () => true;
@@ -314,8 +347,12 @@ describe("the steward's dashboard", () => {
     render(<DashboardPage />, { wrapper });
 
     expect(await screen.findByText("Katarzyna Nowak")).toBeInTheDocument();
-    // No display name stored - the email identifies the person instead.
-    expect(screen.getByText("j.wisniewski@example.com")).toBeInTheDocument();
+    // No display name stored, so the row is the address - drawn by the shared
+    // `MemberIdentity`, which is why it reads as the local part with the face
+    // beside it rather than as a bare mailbox. The whole product identifies a
+    // person that way; this card used to print a name and nothing else, which
+    // cannot tell two colleagues called Bob apart.
+    expect(screen.getByText("j.wisniewski")).toBeInTheDocument();
     // The one card that answers with names carries its own audience note.
     expect(screen.getByText("dashboard.widgets.top-people.disclosure")).toBeInTheDocument();
 
@@ -471,5 +508,243 @@ describe("the member's dashboard", () => {
       ([, options]) => (options as { params: Record<string, string> }).params.group_by === "user",
     );
     expect(named).toHaveLength(0);
+  });
+});
+
+describe("the arrangeable dashboard", () => {
+  it("drops a widget a stored layout names but the caller may no longer see", async () => {
+    // The test the feature rests on: a person arranged their page as an admin,
+    // was demoted to member, and their saved layout still names the approvals
+    // queue. The gate runs last, so it is dropped at render - and never fetched.
+    savedLayout = {
+      entries: [
+        { widget: "approvals", span: "s7" },
+        { widget: "my-agents", span: "s6" },
+      ],
+    };
+    auth.role = "member";
+    auth.can = holds("agents:view", "agents:run");
+
+    render(<DashboardPage />, { wrapper });
+
+    // The saved arrangement settles in: the member default's other cards give
+    // way to the two the person saved (of which only one survives the gate).
+    await waitFor(() => expect(screen.queryByText("Q3 pipeline summary")).not.toBeInTheDocument());
+    // The forbidden widget is not merely unrendered - its query was never issued,
+    // even though the stored layout asked for it.
+    expect(callsTo("/approvals")).toHaveLength(0);
+    // The permitted one did render.
+    expect(callsTo("/agents").length).toBeGreaterThan(0);
+  });
+
+  it("renders a saved arrangement as one flat page, without section headings", async () => {
+    savedLayout = {
+      entries: [
+        { widget: "spend", span: "s6" },
+        { widget: "runs", span: "s8" },
+      ],
+    };
+    auth.role = "owner";
+
+    render(<DashboardPage />, { wrapper });
+
+    // The steward default's section spine gives way to the person's own flat
+    // arrangement - the cards render, the headings do not.
+    await waitFor(() =>
+      expect(screen.queryByText("dashboard.sections.usage")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText("dashboard.widgets.runs.title")).toBeInTheDocument();
+  });
+
+  it("drops a widget id the registry no longer knows and renders the rest", async () => {
+    savedLayout = {
+      entries: [
+        { widget: "a-widget-that-was-removed", span: "s6" },
+        { widget: "runs", span: "s8" },
+      ],
+    };
+    auth.role = "owner";
+
+    render(<DashboardPage />, { wrapper });
+
+    // The unknown id is dropped rather than rendered as a blank card; the known
+    // one still renders.
+    expect(await screen.findByText("dashboard.widgets.runs.title")).toBeInTheDocument();
+  });
+
+  it("offers reset, not a blank page, when a person has hidden everything", async () => {
+    savedLayout = { entries: [] };
+    auth.role = "owner";
+
+    render(<DashboardPage />, { wrapper });
+
+    expect(await screen.findByText("dashboard.edit.emptyTitle")).toBeInTheDocument();
+    expect(screen.getByText("dashboard.edit.reset")).toBeInTheDocument();
+  });
+
+  it("does not offer a widget the caller cannot see in the add catalog", async () => {
+    // The catalog is a second surface with the same secrets: a member must not
+    // be offered the deployment strip they could never render.
+    auth.role = "member";
+    auth.can = holds("agents:view", "agents:run");
+
+    render(<DashboardPage />, { wrapper });
+    await screen.findByText("dashboard.widgets.my-agents.title");
+
+    await userEvent.click(screen.getByText("dashboard.edit.customize"));
+    await userEvent.click(screen.getByText("dashboard.edit.addWidget"));
+
+    // Scope to the catalog list: opening the dialog focuses the first row, which
+    // previews that widget alongside - so the widget's own title also appears in
+    // the preview pane, and the guarantee under test is about the *offer* list.
+    const dialog = await screen.findByRole("dialog");
+    const catalog = within(dialog).getByRole("group", { name: "dashboard.edit.addTitle" });
+    expect(within(catalog).queryByText("dashboard.widgets.platform.title")).not.toBeInTheDocument();
+    expect(within(catalog).getByText("dashboard.widgets.my-agents.title")).toBeInTheDocument();
+  });
+
+  it("renders a saved arrangement at the heights the person chose", async () => {
+    savedLayout = {
+      entries: [
+        { widget: "runs", span: "s8", rows: "r5" },
+        { widget: "spend", span: "s6", rows: "r2" },
+      ],
+    };
+    auth.role = "owner";
+
+    const { container } = render(<DashboardPage />, { wrapper });
+
+    // The stored height reaches the grid as a row-span class, not just the width.
+    await waitFor(() => expect(container.querySelector(".lg\\:row-span-5")).toBeTruthy());
+    expect(container.querySelector(".lg\\:row-span-2")).toBeTruthy();
+  });
+
+  it("edit mode shows the real cards, not placeholders, so arranging is not blind", async () => {
+    auth.role = "owner";
+
+    render(<DashboardPage />, { wrapper });
+    await screen.findByText("dashboard.widgets.runs.title");
+
+    await userEvent.click(screen.getByText("dashboard.edit.customize"));
+
+    // The editor mounts the live widget - its data-borne text is on screen while
+    // arranging, and the widget's own query was issued.
+    await waitFor(() => expect(callsTo("/stats/usage").length).toBeGreaterThan(0));
+    expect((await screen.findAllByText("dashboard.widgets.runs.title")).length).toBeGreaterThan(0);
+  });
+});
+
+describe("the saved-dashboards switcher", () => {
+  it("applies a preset by writing its entries as the active arrangement", async () => {
+    presets = {
+      items: [
+        {
+          id: "p1",
+          name: "Monday review",
+          entries: [{ widget: "spend", span: "s6", rows: "r3" }],
+        },
+      ],
+      total: 1,
+    };
+    auth.role = "owner";
+
+    render(<DashboardPage />, { wrapper });
+    await screen.findByText("dashboard.widgets.runs.title");
+
+    await userEvent.click(screen.getByText("dashboard.presets.menu"));
+    await userEvent.click(await screen.findByText("Monday review"));
+
+    // Applying is a PUT of the preset's entries - the one write path the active
+    // arrangement has.
+    await waitFor(() =>
+      expect(
+        vi.mocked(apiClient.put).mock.calls.some(([path]) => path === "/me/dashboard-layout"),
+      ).toBe(true),
+    );
+    const [, body] = vi
+      .mocked(apiClient.put)
+      .mock.calls.find(([path]) => path === "/me/dashboard-layout")!;
+    expect(body).toEqual({ entries: [{ widget: "spend", span: "s6", rows: "r3" }] });
+  });
+
+  it("drops a retired widget when applying a preset saved before it was retired", async () => {
+    presets = {
+      items: [
+        {
+          id: "p1",
+          name: "Old setup",
+          entries: [
+            { widget: "a-widget-that-was-removed", span: "s6", rows: "r3" },
+            { widget: "runs", span: "s8", rows: "r3" },
+          ],
+        },
+      ],
+      total: 1,
+    };
+    auth.role = "owner";
+
+    render(<DashboardPage />, { wrapper });
+    await screen.findByText("dashboard.widgets.runs.title");
+
+    await userEvent.click(screen.getByText("dashboard.presets.menu"));
+    await userEvent.click(await screen.findByText("Old setup"));
+
+    // The unknown id is sanitized out before the write, so the apply succeeds
+    // with the widgets that still exist rather than 422-ing the whole preset.
+    await waitFor(() =>
+      expect(
+        vi.mocked(apiClient.put).mock.calls.some(([path]) => path === "/me/dashboard-layout"),
+      ).toBe(true),
+    );
+    const [, body] = vi
+      .mocked(apiClient.put)
+      .mock.calls.find(([path]) => path === "/me/dashboard-layout")!;
+    expect(body).toEqual({ entries: [{ widget: "runs", span: "s8", rows: "r3" }] });
+  });
+
+  it("returns to the audience default from the switcher", async () => {
+    savedLayout = { entries: [{ widget: "spend", span: "s6", rows: "r3" }] };
+    presets = { items: [], total: 0 };
+    auth.role = "owner";
+
+    render(<DashboardPage />, { wrapper });
+    await screen.findByText("dashboard.widgets.spend.title");
+
+    await userEvent.click(screen.getByText("dashboard.presets.menu"));
+    await userEvent.click(await screen.findByText("dashboard.presets.default"));
+
+    await waitFor(() =>
+      expect(
+        vi.mocked(apiClient.delete).mock.calls.some(([path]) => path === "/me/dashboard-layout"),
+      ).toBe(true),
+    );
+  });
+
+  it("saves the current arrangement as a named preset without leaving edit mode", async () => {
+    auth.role = "owner";
+
+    render(<DashboardPage />, { wrapper });
+    await screen.findByText("dashboard.widgets.runs.title");
+
+    await userEvent.click(screen.getByText("dashboard.edit.customize"));
+    await userEvent.click(screen.getByText("dashboard.edit.saveAsPreset"));
+
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.type(within(dialog).getByLabelText("dashboard.presets.nameLabel"), "Q3 review");
+    await userEvent.click(within(dialog).getByText("dashboard.edit.save"));
+
+    await waitFor(() =>
+      expect(
+        vi
+          .mocked(apiClient.post)
+          .mock.calls.some(([path]) => path === "/me/dashboard-layout/presets"),
+      ).toBe(true),
+    );
+    const [, body] = vi
+      .mocked(apiClient.post)
+      .mock.calls.find(([path]) => path === "/me/dashboard-layout/presets")!;
+    expect((body as { name: string }).name).toBe("Q3 review");
+    // Still in edit mode - Save as… does not leave.
+    expect(screen.getByText("dashboard.edit.saveAsPreset")).toBeInTheDocument();
   });
 });

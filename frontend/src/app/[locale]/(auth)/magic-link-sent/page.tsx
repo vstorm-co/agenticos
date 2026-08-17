@@ -43,30 +43,30 @@ export default async function MagicLinkSentPage({ searchParams }: PageProps) {
       <div className="space-y-2">
         <span className="eyebrow text-foreground/55">{t("magicLink")}</span>
         <h1 className="text-display-md text-foreground [&_em]:font-normal [&_em]:italic">
-          Inbox, <em>{t("incoming")}</em>
+          {t.rich("inboxIncoming", { em: (chunks) => <em>{chunks}</em> })}
         </h1>
         <p className="text-foreground/70 text-sm">
-          We sent a sign-in link
-          {email ? (
-            <>
-              {" "}
-              to <span className="text-foreground font-medium">{email}</span>
-            </>
-          ) : null}
-          . Click it to continue - expires in 15 minutes.
+          {email
+            ? t.rich("magicLinkSentTo", {
+                email,
+                strong: (chunks) => <span className="text-foreground font-medium">{chunks}</span>,
+              })
+            : t("magicLinkSent")}
         </p>
       </div>
 
       <div className="border-foreground/10 bg-foreground/[0.03] rounded-2xl border px-5 py-4 text-left">
         <p className="text-foreground/70 text-xs leading-relaxed">
-          Don&apos;t see it? Check your spam folder, or{" "}
-          <Link
-            href={ROUTES.LOGIN}
-            className="text-foreground hover:text-foreground/80 font-medium underline-offset-4 hover:underline"
-          >
-            {t("tryAgain")}
-          </Link>
-          .
+          {t.rich("checkSpamFolder", {
+            link: (chunks) => (
+              <Link
+                href={ROUTES.LOGIN}
+                className="text-foreground hover:text-foreground/80 font-medium underline-offset-4 hover:underline"
+              >
+                {chunks}
+              </Link>
+            ),
+          })}
         </p>
       </div>
 

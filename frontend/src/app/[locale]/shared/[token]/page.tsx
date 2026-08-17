@@ -20,7 +20,7 @@ async function fetchSharedConversation(token: string) {
 
 export default async function SharedConversationPage({ params }: SharedConversationPageProps) {
   const t = await getTranslations("pages.root");
-  const { token } = await params;
+  const { token, locale } = await params;
   const data = await fetchSharedConversation(token);
 
   if (!data || !data.conversation) {
@@ -29,9 +29,7 @@ export default async function SharedConversationPage({ params }: SharedConversat
         <div className="text-center">
           <MessageSquare className="text-muted-foreground mx-auto h-12 w-12" />
           <h1 className="mt-4 text-xl font-semibold">{t("shareLinkNotFound")}</h1>
-          <p className="text-muted-foreground mt-2">
-            This share link may have expired or been revoked.
-          </p>
+          <p className="text-muted-foreground mt-2">{t("shareLinkExpired")}</p>
         </div>
       </div>
     );
@@ -43,7 +41,7 @@ export default async function SharedConversationPage({ params }: SharedConversat
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
       <div className="mb-6 border-b pb-4">
-        <h1 className="text-xl font-semibold">{conversation.title || "Shared Conversation"}</h1>
+        <h1 className="text-xl font-semibold">{conversation.title || t("sharedConversation")}</h1>
         <p className="text-muted-foreground text-sm">
           {t(
             share.permission === "view"
@@ -65,15 +63,13 @@ export default async function SharedConversationPage({ params }: SharedConversat
               }`}
             >
               <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-              <p className="mt-1 text-xs opacity-60">{formatDateTime(msg.created_at)}</p>
+              <p className="mt-1 text-xs opacity-60">{formatDateTime(msg.created_at, locale)}</p>
             </div>
           </div>
         ))}
 
         {messages.length === 0 && (
-          <p className="text-muted-foreground py-12 text-center">
-            This conversation has no messages yet.
-          </p>
+          <p className="text-muted-foreground py-12 text-center">{t("noMessagesYet")}</p>
         )}
       </div>
     </div>

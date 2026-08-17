@@ -6,16 +6,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   useApprovals,
   useDelegatedRuns,
+  useResumeRun,
   useRun,
   useRuns,
   useRunTranscript,
   useSpend,
 } from "./use-runs";
-import { apiClient } from "@/lib/api-client";
+import { ApiError, apiClient } from "@/lib/api-client";
 
-vi.mock("@/lib/api-client", () => ({
-  apiClient: { get: vi.fn(), post: vi.fn() },
-}));
+// `ApiError` stays real: the auto-resume path decides what to swallow by
+// reading the refusal's class, status and details.
+vi.mock("@/lib/api-client", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
+  return { ...actual, apiClient: { get: vi.fn(), post: vi.fn() } };
+});
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -84,6 +88,31 @@ describe("useRuns", () => {
     });
   });
 
+  it("narrows by status set, surface, model and cost order on the wire", async () => {
+    // The model is matched as the run recorded it - the label the dashboard's
+    // card counts, which is what makes the hand-off from that bar one set.
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    const { result } = renderHook(
+      () =>
+        useRuns(undefined, {
+          orderBy: "cost",
+          statuses: ["failed", "budget_exceeded"],
+          surface: "slack",
+          modelLabel: "gpt-4o-mini",
+        }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith("/runs", {
+      params: {
+        order_by: "cost",
+        status: "failed,budget_exceeded",
+        surface: "slack",
+        model_label: "gpt-4o-mini",
+      },
+    });
+  });
+
   it("fetches nothing for a caller that is not ready to ask", () => {
     // The Activity tab mounts before the organization is resolved; a request sent
     // then reads another organization's runs or none at all.
@@ -110,6 +139,21 @@ describe("useRuns", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(apiClient.get).toHaveBeenCalledWith("/runs", { params: { rated: "down" } });
   });
+
+  it("narrows by person and version, and pages by rows to skip", async () => {
+    // The filter bar's two identity narrowings and the pager's offset, in the
+    // route's own names - each computed in SQL over the whole history.
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    const { result } = renderHook(
+      () => useRuns(undefined, { userId: "user-7", agentVersionId: "ver-2", skip: 50 }),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith("/runs", {
+      params: { user_id: "user-7", agent_version_id: "ver-2", skip: "50" },
+    });
+  });
 });
 
 describe("useRunTranscript", () => {
@@ -125,7 +169,24 @@ describe("useRunTranscript", () => {
     const { result } = renderHook(() => useRunTranscript("run-9"), { wrapper });
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(apiClient.get).toHaveBeenCalledWith("/runs/run-9/transcript");
+    expect(apiClient.get).toHaveBeenCalledWith("/runs/run-9/transcript", undefined);
+  });
+
+  it("reads the whole thread when asked for the conversation scope", async () => {
+    // The detail view shows the run in context, so it asks for the thread and
+    // scrolls to the run - the run-only scope stays the wire's default.
+    vi.mocked(apiClient.get).mockResolvedValue({
+      run_id: "run-9",
+      conversation_id: "c1",
+      items: [],
+      total: 0,
+    });
+    const { result } = renderHook(() => useRunTranscript("run-9", "conversation"), { wrapper });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith("/runs/run-9/transcript", {
+      params: { scope: "conversation" },
+    });
   });
 
   it("hands back the failure rather than an empty transcript", async () => {
@@ -221,6 +282,127 @@ describe("useApprovals", () => {
     expect(toast.success).toHaveBeenCalledWith("Approved");
   });
 
+  it("says a rejection as a rejection, in the catalog's words", async () => {
+    const { toast } = await import("sonner");
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(apiClient.post).mockResolvedValue({ status: "rejected" });
+    const { result } = renderHook(() => useApprovals(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.decide.mutateAsync({ id: "ap1", approved: false });
+
+    expect(toast.success).toHaveBeenCalledWith("Rejected");
+  });
+
+  it("resumes the run once its last outstanding call is decided", async () => {
+    // A decision is a click; continuing the run is a separate call the backend
+    // keeps apart on purpose. The queue used to make only the first, which left
+    // a run approved, undisputed, and parked forever (found on a live run).
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(apiClient.post).mockResolvedValue({ status: "approved", run_id: "run-9" });
+    const { result } = renderHook(() => useApprovals(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.decide.mutateAsync({ id: "ap1", approved: true });
+
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalledWith("/runs/run-9/resume"));
+  });
+
+  it("does not resume while another call on the same run is still parked", async () => {
+    // Resuming with a decision outstanding is a refusal the backend would make;
+    // more importantly the run is not ready - the second call still needs its
+    // answer, and the queue is where it gets one.
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [{ id: "ap2", run_id: "run-9", status: "pending" }],
+      total: 1,
+    });
+    vi.mocked(apiClient.post).mockResolvedValue({ status: "approved", run_id: "run-9" });
+    const { result } = renderHook(() => useApprovals(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.decide.mutateAsync({ id: "ap1", approved: true });
+
+    expect(apiClient.post).toHaveBeenCalledTimes(1);
+    expect(apiClient.post).not.toHaveBeenCalledWith("/runs/run-9/resume");
+  });
+
+  it("swallows only the still-parked refusal when the cached page misled it", async () => {
+    // The "anything still pending?" check reads one cached page of fifty, so a
+    // run whose other parked call sits past those fifty reads as clear and the
+    // resume is attempted. The backend's refusal is that check's answer
+    // arriving late - toasted, it lands on the innocent person who just
+    // decided correctly.
+    const { toast } = await import("sonner");
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 51 });
+    vi.mocked(apiClient.post).mockImplementation((path: string) =>
+      path === "/runs/run-9/resume"
+        ? Promise.reject(
+            new ApiError(400, "1 tool call(s) on this run are still awaiting a decision", {
+              error: {
+                code: "BAD_REQUEST",
+                message: "1 tool call(s) on this run are still awaiting a decision",
+                details: { run_id: "run-9", pending: ["ap-51"] },
+              },
+            }),
+          )
+        : Promise.resolve({ status: "approved", run_id: "run-9" }),
+    );
+    const { result } = renderHook(() => useApprovals(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.decide.mutateAsync({ id: "ap1", approved: true });
+
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalledWith("/runs/run-9/resume"));
+    await waitFor(() => expect(toast.error).not.toHaveBeenCalled());
+  });
+
+  it("still toasts an auto-resume that failed for any other reason", async () => {
+    // Only the still-parked refusal is the check's own answer; a spec that can
+    // no longer be built leaves the run parked with nothing outstanding, and
+    // silence there is a run stuck forever with nobody told.
+    const { toast } = await import("sonner");
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(apiClient.post).mockImplementation((path: string) =>
+      path === "/runs/run-9/resume"
+        ? Promise.reject(
+            new ApiError(400, "The version this run parked on can no longer be built", {
+              error: {
+                code: "BAD_REQUEST",
+                message: "The version this run parked on can no longer be built",
+                details: { run_id: "run-9" },
+              },
+            }),
+          )
+        : Promise.resolve({ status: "approved", run_id: "run-9" }),
+    );
+    const { result } = renderHook(() => useApprovals(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.decide.mutateAsync({ id: "ap1", approved: true });
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "The version this run parked on can no longer be built",
+      ),
+    );
+  });
+
+  it("still toasts an auto-resume the network dropped", async () => {
+    const { toast } = await import("sonner");
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(apiClient.post).mockImplementation((path: string) =>
+      path === "/runs/run-9/resume"
+        ? Promise.reject(new Error("Failed to fetch"))
+        : Promise.resolve({ status: "approved", run_id: "run-9" }),
+    );
+    const { result } = renderHook(() => useApprovals(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.decide.mutateAsync({ id: "ap1", approved: true });
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Failed to fetch"));
+  });
+
   it("surfaces a refused second decision instead of leaving the queue silent", async () => {
     // The server refuses a decision on an approval somebody else already decided,
     // which is exactly what two people opening the queue at once produces.
@@ -238,6 +420,35 @@ describe("useApprovals", () => {
   });
 });
 
+describe("useResumeRun", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("continues the parked run and says so", async () => {
+    const { toast } = await import("sonner");
+    vi.mocked(apiClient.post).mockResolvedValue({ run_id: "run-9", status: "running" });
+    const { result } = renderHook(() => useResumeRun(), { wrapper });
+
+    await result.current.mutateAsync("run-9");
+
+    expect(apiClient.post).toHaveBeenCalledWith("/runs/run-9/resume");
+    expect(toast.success).toHaveBeenCalledWith(
+      "Run resumed - the agent picked up where it parked.",
+    );
+  });
+
+  it("says a resume was refused rather than leaving the run looking picked up", async () => {
+    const { toast } = await import("sonner");
+    vi.mocked(apiClient.post).mockRejectedValue(new Error("Approvals are still pending"));
+    const { result } = renderHook(() => useResumeRun(), { wrapper });
+
+    await expect(result.current.mutateAsync("run-9")).rejects.toThrow(
+      "Approvals are still pending",
+    );
+
+    expect(toast.error).toHaveBeenCalledWith("Approvals are still pending");
+  });
+});
+
 describe("useSpend", () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -251,6 +462,14 @@ describe("useSpend", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(apiClient.get).toHaveBeenCalledWith("/spend", { params: { days: "7" } });
     expect(result.current.spend?.month_to_date_usd).toBe("1.23");
+  });
+
+  it("asks for nothing when the caller opted out", () => {
+    // The Activity page disables this for a caller without runs:view - the
+    // route refuses them, and the 403 would render as nothing spent.
+    renderHook(() => useSpend(7, { enabled: false }), { wrapper });
+
+    expect(apiClient.get).not.toHaveBeenCalled();
   });
 });
 

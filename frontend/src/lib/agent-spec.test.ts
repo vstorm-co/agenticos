@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CONTEXT_ID,
   DEFAULT_SUBAGENTS_CONFIG,
   delegationNameClashes,
   duplicateDelegateIds,
@@ -12,6 +13,7 @@ import {
   SUBAGENTS_ID,
   VERSION_HISTORY_LIMIT,
   withCapability,
+  withContextFiles,
   withSkills,
 } from "./agent-spec";
 import type { AgentSpec, AgentVersion, CapabilityBindingSpec } from "@/types/agents";
@@ -43,6 +45,7 @@ function spec(overrides: Partial<AgentSpec> = {}): AgentSpec {
     capabilities: [],
     collection_ids: [],
     skill_ids: [],
+    context_ids: [],
     mcp_server_ids: [],
     budget: null,
     ...overrides,
@@ -113,6 +116,33 @@ describe("withSkills", () => {
     const bound = spec({ skill_ids: ["skill-1"], capabilities: [configured] });
 
     expect(withSkills(bound, ["skill-1", "skill-2"]).capabilities).toEqual([configured]);
+  });
+});
+
+describe("withContextFiles", () => {
+  it("gives the agent the capability that injects and reads the file it just bound", () => {
+    const updated = withContextFiles(spec(), ["ctx-1"]);
+
+    expect(updated.context_ids).toEqual(["ctx-1"]);
+    expect(updated.capabilities?.map((entry) => entry.id)).toEqual([CONTEXT_ID]);
+  });
+
+  it("takes the capability away with the last file", () => {
+    const bound = spec({ context_ids: ["ctx-1"], capabilities: [binding(CONTEXT_ID)] });
+
+    const updated = withContextFiles(bound, []);
+
+    expect(updated.context_ids).toEqual([]);
+    expect(updated.capabilities).toEqual([]);
+  });
+
+  it("does not disturb the other capabilities", () => {
+    const bound = spec({ capabilities: [binding("charts", { approval: "required" })] });
+
+    const updated = withContextFiles(bound, ["ctx-1"]);
+
+    expect(updated.capabilities?.map((entry) => entry.id)).toEqual(["charts", CONTEXT_ID]);
+    expect(updated.capabilities?.[0]).toMatchObject({ approval: "required" });
   });
 });
 

@@ -61,6 +61,26 @@ class OAuthError(Exception):
     """A recoverable failure in the OAuth flow (surfaced to the user)."""
 
 
+def _flow_failed(exc: Exception, *, summary: str, advice: str) -> str:
+    """The sentence a failed OAuth step may show, for an exception it may not.
+
+    Three of these refusals used to be built by interpolating whatever raised.
+    `httpx` puts the failing request in its message, and the requests this flow
+    makes are a token grant and a client registration - so that message carries
+    the token endpoint, and a token endpoint is reached with credentials in the
+    body. A pydantic `ValidationError` over the token payload is worse again:
+    its `str()` echoes the input it rejected, and that input is the tokens. All
+    three reach the browser, as a toast since #657 (#686).
+
+    So the exception's own text stays in the `logger.exception` beside the raise
+    and goes no further, and what is shown names the step that gave up, what
+    class of thing raised, and what the reader can do. The class still goes out:
+    it separates a server we could not reach from one that refused us, and a
+    class name has never carried an endpoint or a key.
+    """
+    return f"{summary} ({type(exc).__name__}) - {advice}. The server log has the full error."
+
+
 async def _send(client: httpx.AsyncClient, request: httpx.Request) -> httpx.Response:
     """Send *request*, SSRF-checking every hop, redirects included.
 
@@ -243,7 +263,14 @@ async def register_client(server: DiscoveredServer, redirect_uri: str) -> tuple[
         try:
             info = await handle_registration_response(await _send(client, request))
         except httpx.HTTPError as exc:
-            raise OAuthError(f"Dynamic client registration failed: {exc}") from exc
+            logger.exception("MCP dynamic client registration failed at %s", request.url)
+            raise OAuthError(
+                _flow_failed(
+                    exc,
+                    summary="Client registration with this server did not complete",
+                    advice="check the server URL, then try again",
+                )
+            ) from exc
         except OAuthFlowError as exc:
             # The SDK puts the server's response body in the message - keep it
             # in the log, hand the user a fixed string.
@@ -344,7 +371,14 @@ async def _token_request(token_endpoint: str, data: dict[str, str]) -> OAuthToke
                 ),
             )
         except httpx.HTTPError as exc:
-            raise OAuthError(f"Token request failed: {exc}") from exc
+            logger.exception("MCP token request to %s failed", token_endpoint)
+            raise OAuthError(
+                _flow_failed(
+                    exc,
+                    summary="The token request did not complete",
+                    advice="start the connection again",
+                )
+            ) from exc
     if response.status_code != 200:
         # The body is whatever the endpoint chose to return, and this message
         # ends up in the user's browser - log the detail, show the status.
@@ -358,4 +392,13 @@ async def _token_request(token_endpoint: str, data: dict[str, str]) -> OAuthToke
     try:
         return OAuthToken.model_validate_json(response.content)
     except ValueError as exc:
-        raise OAuthError(f"Invalid token response: {exc}") from exc
+        logger.exception(
+            "MCP token endpoint %s returned an unreadable token response", token_endpoint
+        )
+        raise OAuthError(
+            _flow_failed(
+                exc,
+                summary="This server's token response could not be read",
+                advice="check that it implements OAuth 2.1",
+            )
+        ) from exc

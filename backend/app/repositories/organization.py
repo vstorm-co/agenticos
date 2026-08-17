@@ -93,6 +93,7 @@ async def create(
     created_by_user_id: UUID,
     is_personal: bool = False,
     avatar_url: str | None = None,
+    monthly_budget_usd: Decimal | None = None,
 ) -> Organization:
     org = Organization(
         name=name,
@@ -100,6 +101,7 @@ async def create(
         created_by_user_id=created_by_user_id,
         is_personal=is_personal,
         avatar_url=avatar_url,
+        monthly_budget_usd=monthly_budget_usd,
     )
     db.add(org)
     await db.flush()
@@ -134,6 +136,20 @@ async def set_monthly_budget(
     arrive as `None`, and the second is the one that costs money.
     """
     org.monthly_budget_usd = limit_usd
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
+async def set_avatar_color(
+    db: AsyncSession, org: Organization, *, color: int | None
+) -> Organization:
+    """Set or clear the organization's default-avatar colour.
+
+    Its own function for the same reason as :func:`set_monthly_budget`:
+    :func:`update` skips a `None` argument, so it cannot express "reset to auto".
+    """
+    org.avatar_color = color
     await db.flush()
     await db.refresh(org)
     return org

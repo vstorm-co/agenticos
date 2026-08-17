@@ -81,7 +81,7 @@ class TestRedisClient:
 
         await redis_client.set("test_key", "test_value")
 
-        mock_aioredis.set.assert_called_once_with("test_key", "test_value", ex=None)
+        mock_aioredis.set.assert_called_once_with("test_key", "test_value", ex=None, nx=False)
 
     @pytest.mark.anyio
     async def test_set_with_ttl(self, redis_client: RedisClient, mock_aioredis: MagicMock):
@@ -90,7 +90,23 @@ class TestRedisClient:
 
         await redis_client.set("test_key", "test_value", ttl=60)
 
-        mock_aioredis.set.assert_called_once_with("test_key", "test_value", ex=60)
+        mock_aioredis.set.assert_called_once_with("test_key", "test_value", ex=60, nx=False)
+
+    @pytest.mark.anyio
+    async def test_set_nx_reports_who_won(
+        self, redis_client: RedisClient, mock_aioredis: MagicMock
+    ):
+        """SET NX answers True to the caller that wrote the key and False to
+        the one Redis refused - the nil reply the driver surfaces as None."""
+        redis_client.client = mock_aioredis
+
+        mock_aioredis.set.return_value = True
+        assert await redis_client.set("test_key", "1", ttl=60, nx=True) is True
+
+        mock_aioredis.set.return_value = None
+        assert await redis_client.set("test_key", "1", ttl=60, nx=True) is False
+
+        mock_aioredis.set.assert_called_with("test_key", "1", ex=60, nx=True)
 
     @pytest.mark.anyio
     async def test_set_not_connected(self, redis_client: RedisClient):
@@ -99,6 +115,36 @@ class TestRedisClient:
 
         with pytest.raises(RuntimeError, match="not connected"):
             await redis_client.set("test_key", "test_value")
+
+    @pytest.mark.anyio
+    async def test_count_in_window_increments_and_sets_a_deadline_only_once(
+        self, redis_client: RedisClient, mock_aioredis: MagicMock
+    ):
+        """`EXPIRE … NX` is what makes the window fixed rather than sliding.
+
+        A plain `EXPIRE` on every hit pushes the deadline out with each call, so a
+        caller who never stops never resets and their allowance is gone until they
+        do - the opposite of what a per-minute limit means.
+        """
+        pipeline = MagicMock()
+        pipeline.execute = AsyncMock(return_value=[3, True])
+        mock_aioredis.pipeline = MagicMock(return_value=pipeline)
+        redis_client.client = mock_aioredis
+
+        used = await redis_client.count_in_window("ratelimit:s:c", ttl=60)
+
+        assert used == 3
+        pipeline.incr.assert_called_once_with("ratelimit:s:c")
+        pipeline.expire.assert_called_once_with("ratelimit:s:c", 60, nx=True)
+
+    @pytest.mark.anyio
+    async def test_count_in_window_not_connected(self, redis_client: RedisClient):
+        """Refused rather than counted into nothing: a limiter that silently
+        counts nowhere is a limit that reads as holding."""
+        redis_client.client = None
+
+        with pytest.raises(RuntimeError, match="not connected"):
+            await redis_client.count_in_window("k", ttl=60)
 
     @pytest.mark.anyio
     async def test_delete(self, redis_client: RedisClient, mock_aioredis: MagicMock):

@@ -27,6 +27,7 @@ from app.api import deps
 from app.core.config import settings
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
+from app.services import skill_library
 from app.services.skills import SkillService
 
 pytestmark = pytest.mark.anyio
@@ -85,6 +86,13 @@ def client(repo: MagicMock, mock_redis: MagicMock) -> Iterator[OpenClient]:
     with (
         patch("app.services.skills.skill_repo.list_visible", repo.list_visible),
         patch("app.services.skills.skill_repo.list_categories", repo.list_categories),
+        # The whole catalog already present, so the listing's top-up stays
+        # quiet - it has its own tests, and here it would reach for the
+        # database this suite deliberately does not have.
+        patch(
+            "app.services.skills.skill_repo.list_names",
+            AsyncMock(return_value={entry.name for entry in skill_library.library()}),
+        ),
     ):
         yield open_client
     app.dependency_overrides.clear()

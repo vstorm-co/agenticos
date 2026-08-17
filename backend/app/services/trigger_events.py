@@ -51,10 +51,11 @@ _SIGNATURE_HEADER = {
     EventSource.WEBHOOK.value: "x-signature-256",
 }
 
-# How much of an arbitrary payload the generic webhook forwards to the agent. A
-# model does not need forty kilobytes of somebody's JSON to know what arrived,
-# and an unbounded paste would spend the run's budget on reading it.
-_WEBHOOK_CONTEXT_LIMIT = 2000
+# How much of a free-text field - a webhook payload, or an issue, email or post
+# body - is forwarded to the agent. A model does not need forty kilobytes of
+# somebody's text to know what arrived, and an unbounded paste would spend the
+# run's budget on reading it.
+_CONTEXT_LIMIT = 2000
 
 # The one GitHub webhook this integration acts on. The event type is in the header,
 # not the body, so a `pull_request` or a `push` delivery is refused before its
@@ -123,12 +124,30 @@ def _github_matches(
 
 
 def _email_matches(payload: Mapping[str, Any], config: Mapping[str, Any]) -> bool:
+    # Substring filters are case-insensitive: an email domain is case-insensitive by
+    # spec, so a `@Vstorm.co` filter that never matched `john@vstorm.co`, or a
+    # `subject_contains` of "invoice" that missed "Invoice", would fail silently -
+    # the trigger simply never fires, with nothing to tell the user why.
     parsed = EmailTriggerConfig.model_validate(dict(config))
-    subject = str(payload.get("subject") or "")
-    sender = str(payload.get("from") or "")
-    if parsed.subject_contains is not None and parsed.subject_contains not in subject:
+    subject = str(payload.get("subject") or "").casefold()
+    sender = str(payload.get("from") or "").casefold()
+    if parsed.subject_contains is not None and parsed.subject_contains.casefold() not in subject:
         return False
-    return parsed.sender_contains is None or parsed.sender_contains in sender
+    return parsed.sender_contains is None or parsed.sender_contains.casefold() in sender
+
+
+def _clip(text: str) -> str:
+    """A free-text field, truncated so one paste cannot dominate the run's message.
+
+    A GitHub issue body runs to 65,536 characters and its author is anyone who can
+    open an issue on the watched repo; an email or LinkedIn body is whatever the
+    relay forwards, also unbounded. The run's budget bounds the spend either way,
+    but the cap keeps a single delivery from filling the fired run's prompt with
+    text nobody chose to send - the same reason the generic webhook is clipped.
+    """
+    if len(text) > _CONTEXT_LIMIT:
+        return text[:_CONTEXT_LIMIT] + "\n… (truncated)"
+    return text
 
 
 def _github_context(payload: Mapping[str, Any]) -> str:
@@ -139,7 +158,7 @@ def _github_context(payload: Mapping[str, Any]) -> str:
         f"in {repository.get('full_name', 'a repository')}.\n"
         f"Issue #{issue.get('number', '?')}: {issue.get('title', '')}\n"
         f"{issue.get('html_url', '')}\n\n"
-        f"{issue.get('body') or ''}"
+        f"{_clip(str(issue.get('body') or ''))}"
     ).strip()
 
 
@@ -148,17 +167,18 @@ def _email_context(payload: Mapping[str, Any]) -> str:
         "An email arrived.\n"
         f"From: {payload.get('from', '')}\n"
         f"Subject: {payload.get('subject', '')}\n\n"
-        f"{payload.get('body') or payload.get('text') or ''}"
+        f"{_clip(str(payload.get('body') or payload.get('text') or ''))}"
     ).strip()
 
 
 def _linkedin_matches(payload: Mapping[str, Any], config: Mapping[str, Any]) -> bool:
+    # Case-insensitive substrings, like the email filter above.
     parsed = LinkedinTriggerConfig.model_validate(dict(config))
-    author = str(payload.get("author") or "")
-    text = str(payload.get("text") or payload.get("body") or "")
-    if parsed.author_contains is not None and parsed.author_contains not in author:
+    author = str(payload.get("author") or "").casefold()
+    text = str(payload.get("text") or payload.get("body") or "").casefold()
+    if parsed.author_contains is not None and parsed.author_contains.casefold() not in author:
         return False
-    return parsed.text_contains is None or parsed.text_contains in text
+    return parsed.text_contains is None or parsed.text_contains.casefold() in text
 
 
 def _linkedin_context(payload: Mapping[str, Any]) -> str:
@@ -166,12 +186,10 @@ def _linkedin_context(payload: Mapping[str, Any]) -> str:
         "A LinkedIn post arrived.\n"
         f"Author: {payload.get('author', '')}\n"
         f"{payload.get('url', '')}\n\n"
-        f"{payload.get('text') or payload.get('body') or ''}"
+        f"{_clip(str(payload.get('text') or payload.get('body') or ''))}"
     ).strip()
 
 
 def _webhook_context(payload: Mapping[str, Any]) -> str:
     rendered = json.dumps(dict(payload), indent=2, ensure_ascii=False, default=str)
-    if len(rendered) > _WEBHOOK_CONTEXT_LIMIT:
-        rendered = rendered[:_WEBHOOK_CONTEXT_LIMIT] + "\n… (truncated)"
-    return f"A webhook delivery arrived.\n\n{rendered}"
+    return f"A webhook delivery arrived.\n\n{_clip(rendered)}"

@@ -4,11 +4,11 @@ import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
+import { getErrorMessage } from "@/lib/api-error";
 import { PAGE_SIZE } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
-import { getErrorMessage } from "@/lib/utils";
-import type { LibrarySkillList, Skill, SkillList, SkillResource } from "@/types/providers";
+import type { Skill, SkillList, SkillResource } from "@/types/providers";
 
 export interface NewSkill {
   name: string;
@@ -50,10 +50,11 @@ export function useSkills({
   skip = 0,
   limit = PAGE_SIZE,
 }: SkillQuery = {}) {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("skills");
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.skills.list({ search, category: (categories ?? []).join(","), sort, skip, limit }),
     // The query string is built by hand because `category` repeats - the
     // server reads `?category=devops&category=data` as "either shelf" - and
@@ -95,7 +96,7 @@ export function useSkills({
       // Skills are bound by reference, so an edit reaches every agent at once.
       toast.success(t("savedAgentsCurrent"));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   const remove = useMutation({
@@ -104,7 +105,7 @@ export function useSkills({
       await invalidate();
       toast.success(t("deleted"));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   return {
@@ -113,6 +114,8 @@ export function useSkills({
     categories: data?.categories ?? [],
     suggestedCategories: data?.suggested_categories ?? [],
     isLoading,
+    error,
+    refetch,
     create,
     update,
     remove,
@@ -138,6 +141,7 @@ export interface SkillEdit {
  * model both use, and `enabled` only means something once it exists.
  */
 export function useSkill(skillId: string | null) {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("skills");
   const queryClient = useQueryClient();
 
@@ -154,7 +158,7 @@ export function useSkill(skillId: string | null) {
       // Agents bind to the skill, not to a version of it, so this is already live.
       toast.success(t("savedAgentsCurrent"));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   /**
@@ -172,7 +176,7 @@ export function useSkill(skillId: string | null) {
       await queryClient.invalidateQueries({ queryKey: qk.skills.all() });
       toast.success(t("fileAdded"));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   const saveResource = useMutation({
@@ -182,7 +186,7 @@ export function useSkill(skillId: string | null) {
       await queryClient.invalidateQueries({ queryKey: qk.skills.all() });
       toast.success(t("fileSaved"));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   const removeResource = useMutation({
@@ -192,7 +196,7 @@ export function useSkill(skillId: string | null) {
       await queryClient.invalidateQueries({ queryKey: qk.skills.all() });
       toast.success(t("fileRemoved"));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   /**
@@ -216,7 +220,7 @@ export function useSkill(skillId: string | null) {
       await queryClient.invalidateQueries({ queryKey: qk.skills.all() });
       toast.success(t("filesUploaded", { count: result.items.length }));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   return {
@@ -238,35 +242,6 @@ export function useSkillResource(skillId: string | null, resourceId: string | nu
     enabled: skillId !== null && resourceId !== null,
   });
   return { resource: data, isLoading };
-}
-
-/**
- * The skills this deployment ships with.
- *
- * Bundled in the repository rather than fetched from a registry, so the list
- * changes on redeploy and not between requests - hence the indefinite cache.
- * Installing copies: from that moment it is an ordinary skill the organization
- * owns and edits.
- */
-export function useSkillLibrary() {
-  const t = useTranslations("skills");
-  const queryClient = useQueryClient();
-
-  const { data, isLoading } = useQuery({
-    queryKey: qk.skills.library(),
-    queryFn: () => apiClient.get<LibrarySkillList>("/skills/library"),
-  });
-
-  const install = useMutation({
-    mutationFn: (key: string) => apiClient.post<Skill>(`/skills/library/${key}/install`, {}),
-    onSuccess: async (skill) => {
-      await queryClient.invalidateQueries({ queryKey: qk.skills.all() });
-      toast.success(t("installed", { name: skill.name }));
-    },
-    onError: (error) => toast.error(getErrorMessage(error)),
-  });
-
-  return { library: data?.items ?? [], isLoading, install };
 }
 
 export interface NewSkillResource {

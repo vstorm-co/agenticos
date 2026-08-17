@@ -6,11 +6,10 @@ instead and never exposes anything. Both end up in the same router.
 
 Answers 200 before the work runs, not after: Mattermost retries a webhook it
 judged slow, so acknowledging first stops the agent's own latency from
-provoking a retry. It does not yet drop a redelivery whose 200 was lost in
-transit - that message runs the agent again on the sender's budget. The
-per-chat lock in the router only serialises the two runs, it does not drop one;
-dropping the duplicate needs a persisted `(bot, message_id)` guard and is
-tracked as #167.
+provoking a retry. A redelivery whose 200 was lost in transit is a different
+thing and is dropped in the router, which claims each delivery in Redis before
+it runs anything - the per-chat lock only serialises two runs, it never drops
+one (`app/services/channels/dedupe.py`, #167).
 """
 
 import logging
@@ -22,7 +21,7 @@ from app.api.deps import ChannelBotSvc
 from app.core.background import spawn
 from app.services.channel_bot import unseal_webhook_secret
 from app.services.channels import get_adapter
-from app.services.channels.mattermost import decode_webhook_body
+from app.services.channels.mattermost import MattermostAdapter, decode_webhook_body
 from app.worker.background.channel import process_channel_event
 
 logger = logging.getLogger(__name__)
@@ -53,6 +52,14 @@ async def mattermost_webhook(
     secret = unseal_webhook_secret(bot)
     if not secret or not adapter.verify_webhook_signature(dict(request.headers), secret, raw):
         raise HTTPException(status_code=403, detail="Invalid webhook token")
+
+    # A webhook-mode bot opens no stream, so this is the only place its server
+    # can reach the adapter - and the parser resolves attachment handles from
+    # it (#692). Mirrored even when empty, so clearing the row's address does
+    # not leave a stale one in the singleton map. The isinstance narrows the
+    # registry's base type.
+    if isinstance(adapter, MattermostAdapter):
+        adapter.remember_server(str(bot_id), bot.api_base_url or "")
 
     incoming = adapter.parse_incoming(decode_webhook_body(raw), str(bot_id))
     if incoming is None:

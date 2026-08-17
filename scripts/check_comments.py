@@ -25,6 +25,7 @@ Exits 1 when a banner is found, 0 when clean.
 
 from __future__ import annotations
 
+import os
 import re
 from collections.abc import Iterator
 from pathlib import Path
@@ -52,16 +53,30 @@ SKIP_DIRS = {
 BANNER = re.compile(r"^\s*(?:#|//)\s*([-=~*])\1{2,}")
 
 
+def _is_nested_checkout(directory: Path) -> bool:
+    """Another checkout — a worktree holds a `.git` file, a clone a `.git` directory.
+
+    Detected rather than named, for the reasons `check_backticks.is_nested_checkout`
+    spells out: a worktree can be placed anywhere, and a directory merely called
+    `worktrees` is part of this branch.
+    """
+    return (directory / ".git").exists()
+
+
 def _iter_files(root: Path) -> Iterator[Path]:
-    for path in root.rglob("*"):
-        if path.is_dir():
-            continue
-        # Parts relative to the root, so a checkout that itself lives under a
-        # skipped name (a worktree under `.claude/`) is not skipped wholesale.
-        if any(part in SKIP_DIRS for part in path.relative_to(root).parts):
-            continue
-        if path.suffix in SUFFIXES:
-            yield path
+    for directory, subdirectories, filenames in os.walk(root):
+        here = Path(directory)
+        # Pruned in place, which is what `os.walk` reads to decide where to descend -
+        # `rglob` filtered after descending, ~7 minutes on a tree with worktrees (#635).
+        subdirectories[:] = [
+            name
+            for name in subdirectories
+            if name not in SKIP_DIRS and not _is_nested_checkout(here / name)
+        ]
+        for name in sorted(filenames):
+            path = here / name
+            if path.suffix in SUFFIXES:
+                yield path
 
 
 def main() -> int:

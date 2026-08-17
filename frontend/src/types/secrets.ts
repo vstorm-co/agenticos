@@ -132,6 +132,12 @@ export interface Secret {
   owner_user_id?: string | null;
   /** Whose key it is, when it belongs to one person rather than the team. */
   owner_email?: string | null;
+  /**
+   * Who stored it, by id - the seed the fallback avatar's colour comes from, so
+   * the author wears the same hue here as in member and run lists. Still set once
+   * they have left the organization, when `created_by_email` is null.
+   */
+  created_by_user_id?: string | null;
   /** Who stored it; null once that account has left the organization. */
   created_by_email?: string | null;
   created_by_avatar_url?: string | null;

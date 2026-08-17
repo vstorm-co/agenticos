@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { useApprovals } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
@@ -17,12 +17,14 @@ import type { DashboardWidgetProps } from "./types";
  * runs page shows and a dashboard row cannot. This card earns its place by
  * being empty.
  */
-export function ApprovalsWidget({ title, seeAll }: DashboardWidgetProps) {
+export function ApprovalsWidget({ title, hint, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.approvals");
+  const tTime = useTranslations("time");
+  const locale = useLocale();
   const { approvals, total, isLoading, error, refetch } = useApprovals();
 
   return (
-    <WidgetFrame title={title} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {isLoading ? (
         <WidgetSkeleton />
       ) : error ? (
@@ -40,7 +42,7 @@ export function ApprovalsWidget({ title, seeAll }: DashboardWidgetProps) {
                   </span>
                   {approval.created_at ? (
                     <span className="text-muted-foreground block text-xs">
-                      {t("waiting", { ago: timeAgo(approval.created_at) })}
+                      {t("waiting", { ago: timeAgo(approval.created_at, tTime, locale) })}
                     </span>
                   ) : null}
                 </span>

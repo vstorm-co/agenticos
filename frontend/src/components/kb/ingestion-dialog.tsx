@@ -43,6 +43,7 @@ export function IngestionDialog({
   collectionName,
   onSave,
 }: IngestionDialogProps) {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("kb");
   const [draft, setDraft] = useState<IngestionConfig>(config);
   const [isSaving, setIsSaving] = useState(false);
@@ -73,7 +74,7 @@ export function IngestionDialog({
       await onSave(draft);
       onOpenChange(false);
     } catch (error) {
-      const failure = submitFailure(error, { fields: [...INGESTION_FORM_FIELDS] });
+      const failure = submitFailure(error, { fields: [...INGESTION_FORM_FIELDS] }, tErrors);
       setErrors(failure.fields);
       if (failure.toast) toast.error(failure.toast);
     } finally {
@@ -90,13 +91,14 @@ export function IngestionDialog({
         <DialogHeader>
           <DialogTitle>{t("ingestionSettings")}</DialogTitle>
           <DialogDescription>
-            How documents added to{" "}
-            <span className="text-foreground font-mono text-xs">{collectionName}</span>
-            {t("areReadFromHere")}
+            {t.rich("ingestionSettingsDescription", {
+              name: collectionName,
+              mono: (chunks) => <span className="text-foreground font-mono text-xs">{chunks}</span>,
+            })}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1">
+        <div className="-mx-1 min-h-0 flex-1 scrollbar-thin overflow-y-auto px-1">
           <IngestionSettings
             idPrefix="kb-ingestion"
             value={draft}

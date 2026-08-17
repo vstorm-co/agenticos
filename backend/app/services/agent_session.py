@@ -6,23 +6,12 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import WebSocket, WebSocketDisconnect
-from pydantic_ai import (
-    Agent,
-    FinalResultEvent,
-    FunctionToolCallEvent,
-    FunctionToolResultEvent,
-    PartDeltaEvent,
-    PartStartEvent,
-    TextPartDelta,
-)
-from pydantic_ai.messages import (
-    TextPart,
-    ThinkingPart,
-    ThinkingPartDelta,
-)
+from pydantic_ai.messages import ModelMessage
 
 from app.agents.ask_user import QuestionItem, render_answer
 from app.agents.capabilities.budget import BudgetExceeded
+from app.agents.capabilities.guardrails import GuardrailBlocked
+from app.agents.compaction_events import CompactionEvent
 from app.agents.subagent_events import SubagentEvent
 from app.core.exceptions import AppException
 from app.db.models.chat_file import ChatFile
@@ -31,21 +20,22 @@ from app.db.models.user import User
 from app.db.session import get_db_context
 from app.schemas.conversation import MessagePart
 from app.services.agent import (
-    build_message_history,
     persist_assistant_turn,
     persist_user_turn,
     send_event,
 )
 from app.services.agent_chat import (
     ChatAgentRunner,
+    ChatTurn,
     OpenedRun,
-    display_output,
     requested_agent_id,
     requested_environment_id,
     requested_model_profile_id,
 )
 from app.services.attachments import load_attached_files
 from app.services.chat_timeline import TurnTimeline
+from app.services.conversation import ConversationService
+from app.services.run_stream import RunFrames
 from app.services.usage_report import usage_frame
 
 logger = logging.getLogger(__name__)
@@ -54,6 +44,42 @@ logger = logging.getLogger(__name__)
 # the general assistant the template shipped is gone, and guessing an agent on
 # the user's behalf would mean something they never picked answering them.
 _PICK_AN_AGENT = "Pick an agent to chat with. If none is listed, publish one in the Builder first."
+
+HISTORY_MESSAGES = 200
+"""How many of a thread's turns the model is reminded of.
+
+The channel router's number, not the widget's 40: both surfaces are signed-in
+members working in a thread that never rolls over, where the widget's is a
+public visitor whose session is a page view. See `channels.router.HISTORY_MESSAGES`
+and `embed_session.HISTORY_MESSAGES`.
+
+This is a count of messages, not of tokens, and nothing here compacts it: the
+`compaction` capability rewrites the messages of one *run*, and a conversation
+is replayed as text.
+"""
+
+
+def _turn_failed(exc: Exception) -> str:
+    """What a crashed turn is allowed to tell the client.
+
+    The `error` frame used to carry `str(exc)` of whatever came out of the run.
+    A provider SDK puts the failing request in its message, so that routinely
+    means an endpoint, an internal host, or a URL with a key still in its query
+    string - the leak #342 fixed in an HTTP body, reaching a member's chat panel
+    and their browser console instead (#659).
+
+    So the exception's own text stays in the `logger.exception` beside the send
+    and goes no further, and the frame names only what the reader can act on.
+    The class still goes out: it separates an upstream that timed out from one
+    that refused a credential, and a class name has never carried a URL. Our own
+    refusals do not come here at all - an `AppException`, a `BudgetExceeded` and a
+    `GuardrailBlocked` are caught above and passed through whole, because their
+    messages are written in this repository.
+    """
+    return (
+        f"The agent could not finish this turn ({type(exc).__name__}). "
+        "Try again; the server log has the full error."
+    )
 
 
 class AgentSession:
@@ -68,7 +94,6 @@ class AgentSession:
         self.websocket = websocket
         self.user = user
         self.organization_id = organization.id
-        self.conversation_history: list[dict[str, str]] = []
         self.current_conversation_id: str | None = None
         self._turn_task: asyncio.Task[None] | None = None
         self._ask_user_future: asyncio.Future[list[dict[str, Any]]] | None = None
@@ -200,11 +225,12 @@ class AgentSession:
         # stored, so a reloaded conversation is the one somebody watched rather
         # than a reconstruction of it; see `chat_timeline.TurnTimeline`.
         #
-        # It also holds what the model has said so far, for the turn that does not
-        # finish. On the success path `turn.output` is the answer and `.text` is
-        # never read; nothing can tell in advance which path a turn is on, and the
-        # alternative is throwing away a half-written answer on exactly the runs
-        # somebody opens afterwards.
+        # It also holds what the model has said so far, for every turn that does
+        # not end with an answer: one that failed, was stopped or lost its socket,
+        # and one that parked on an approval. `turn.output` is the answer where
+        # there is one and empty where there is not; nothing can tell in advance
+        # which path a turn is on, and the alternative is throwing away a
+        # half-written answer on exactly the runs somebody opens afterwards.
         timeline = TurnTimeline()
         # The run row, as soon as `prepare` opens one. A list because the
         # callback is `list.append` and a turn opens at most one run - it is
@@ -219,19 +245,18 @@ class AgentSession:
         # failure inside it - the history, the attachment lookup - must not turn
         # a lost answer into a `NameError`.
         try:
-            model_history = build_message_history(self.conversation_history)
+            model_history = await self._history(prompt.message_id)
             # The files, not a prompt built from them. Where an attachment goes
             # depends on whether the agent has a workspace, and only `prepare`
             # knows that - so the routing happens one layer down.
             attachments = await self._attached_files(file_ids)
 
-            async def stream(agent_run: Any) -> None:
-                await self._stream_agent_run(
-                    agent_run,
-                    user_message,
-                    collected_tool_calls,
-                    timeline,
-                )
+            frames = RunFrames(
+                emit=self._frame,
+                timeline=timeline,
+                tool_calls=collected_tool_calls,
+                prompt=user_message,
+            )
 
             # One session for the whole turn: the run row, the approvals it
             # parks and the cost it books are a single unit of work, and
@@ -249,21 +274,22 @@ class AgentSession:
                     ),
                     prompt_message_id=prompt.message_id,
                     ask_user=self._ask_one,
-                    stream=stream,
+                    stream=frames.drive,
                     on_run_open=opened.append,
                     subagent_events=self._subagent_event,
+                    on_compaction=self._compaction_event,
                     # The chat may run a published agent on another of the
                     # organization's models. Only the model changes; the run
                     # records which one, and the budget is the agent's.
                     model_profile_id=requested_model_profile_id(data),
                     environment_id=requested_environment_id(data),
                 )
-            output = turn.output
+            # `turn.output` is what the run *ended* with; a turn that parked ended
+            # with nothing, so its words are on the timeline (#509).
+            output = turn.output or timeline.text
             model_label = turn.model_label
             agent_version_id = turn.agent_version_id
 
-            self.conversation_history.append({"role": "user", "content": user_message})
-            self.conversation_history.append({"role": "assistant", "content": output})
             assistant_msg_id: str | None = None
             if self.current_conversation_id:
                 assistant_msg_id = await persist_assistant_turn(
@@ -278,11 +304,16 @@ class AgentSession:
                     agent_version_id=agent_version_id,
                     usage=turn.usage,
                     run_id=turn.run_id,
+                    # Stored as `awaiting_approval`, so reloading the page keeps
+                    # saying the step is waiting on a person (#601). The frame
+                    # below carries the same calls to whoever is watching live.
+                    parked_tool_call_ids={parked.tool_call_id for parked in turn.parked},
                 )
                 # Written, so the `finally` below has nothing left to save. It
                 # cannot read `turn` to work that out - the whole point of it is
                 # the paths where `turn` was never assigned.
                 answered = True
+                await self._remember_context(turn)
 
             if assistant_msg_id:
                 await send_event(
@@ -336,16 +367,16 @@ class AgentSession:
             )
         except WebSocketDisconnect:
             raise
-        except (AppException, BudgetExceeded) as exc:
+        except (AppException, BudgetExceeded, GuardrailBlocked) as exc:
             # A refusal - an agent that is unpublished, archived, or not theirs
-            # to see - and a budget stop are the platform working, not a crash.
-            # The client is told plainly; nothing answers in the named agent's
-            # place.
+            # to see - a budget stop, and a guardrail block are the platform
+            # working, not a crash. The client is told plainly; nothing answers
+            # in the named agent's place.
             logger.info("Agent turn refused: %s", exc)
             await send_event(self.websocket, "error", {"message": str(exc)})
-        except Exception as e:
+        except Exception as exc:
             logger.exception("Error processing agent request")
-            await send_event(self.websocket, "error", {"message": str(e)})
+            await send_event(self.websocket, "error", {"message": _turn_failed(exc)})
         finally:
             if not answered:
                 await self._persist_partial_turn(
@@ -461,6 +492,91 @@ class AgentSession:
             frame["cost_usd"] = float(cost)
         await send_event(self.websocket, event.kind, frame)
 
+    async def _compaction_event(self, event: CompactionEvent) -> None:
+        """Forward one frame from a summary in progress, under the frame's own name.
+
+        The wire `type` *is* the frame's `kind`, for the reason
+        :meth:`_subagent_event` gives: two spellings of one frame is a drift
+        nothing catches, and the client would keep waiting on a case the server
+        had stopped sending.
+
+        Nothing is awaited on the client's behalf - `send_event` answers `False`
+        on a closed socket rather than raising, so a tab that went away mid-summary
+        does not take the run down with it.
+        """
+        frame = event.model_dump(mode="json")
+        await send_event(self.websocket, event.kind, frame)
+
+    async def _remember_context(self, turn: ChatTurn) -> None:
+        """Record what this turn learned about the thread's own context.
+
+        The summary it produced, so the next turn starts from it rather than
+        buying another; and what a request here carries before a single message,
+        so the next turn can tell a window with no room for a summary from one
+        that works before it has a response of its own to measure.
+
+        After the turn's own rows, never before: what is stored beside the
+        history is how far it reaches, and reaching short of the answer would
+        replay that answer twice.
+
+        Its own session because the turn's has been committed and closed by the
+        time this runs, and its own for a second reason - a failure to record
+        either must cost the record, not the answer somebody is reading.
+        """
+        if turn.summarized_history is None and turn.overhead_tokens is None:
+            return
+        # Called from inside the branch that has one, which is also the branch
+        # that has just written the rows this is measured against.
+        conversation_id = UUID(str(self.current_conversation_id))
+        async with get_db_context() as db:
+            conversations = ConversationService(db)
+            if turn.summarized_history is not None:
+                await conversations.keep_summary(conversation_id, turn.summarized_history)
+            if turn.overhead_tokens is not None:
+                await conversations.keep_overhead(conversation_id, turn.overhead_tokens)
+
+    async def _history(self, prompt_message_id: UUID | None) -> list[ModelMessage]:
+        """What has already been said in this thread, without the turn being run.
+
+        **The summary counts as what was said.** Where one has run, the thread
+        starts from the history it reduced the older turns to rather than from
+        the transcript, which is what stops the next turn buying the same summary
+        again (#49) - see `ConversationService.model_history`.
+
+        **Read from the database, not from this session.** It used to be a list on
+        the socket, appended to as turns went by and loaded from nowhere - so a
+        conversation the socket did not itself produce had no history at all. A
+        page reload, a second tab, or a dropped connection was enough: the person
+        was looking at the whole thread on screen while the model was handed an
+        empty one, and the agent answered the follow-up as though the
+        conversation had started with it. Nothing errored, and the symptom reads
+        as the agent forgetting rather than as the platform not telling it (#771).
+
+        The prompt is excluded by id because it is already a row by the time this
+        runs - `persist_user_turn` writes it before the run so a message nothing
+        answers is still in the transcript. Handing it back as history *and* as
+        the prompt would ask the model the same question twice.
+
+        Read on its own session, like `_attached_files`: the turn's session is
+        opened later and held for the run, and this is a lookup rather than part
+        of that unit of work.
+
+        The repository call carries no tenant predicate, which is safe here for
+        one reason only: `current_conversation_id` is what `persist_user_turn`
+        resolved a moment ago, and that refuses a conversation belonging to
+        another organization before anything is written. The id never arrives
+        here as the client sent it. The channel router and the embed session read
+        their history unscoped on the same grounds.
+        """
+        if self.current_conversation_id is None:
+            return []
+        async with get_db_context() as db:
+            return await ConversationService(db).model_history(
+                UUID(self.current_conversation_id),
+                limit=HISTORY_MESSAGES,
+                exclude_message_id=prompt_message_id,
+            )
+
     async def _attached_files(self, file_ids: list[Any]) -> list[ChatFile]:
         """The rows for the files this frame attached.
 
@@ -471,154 +587,13 @@ class AgentSession:
         if not file_ids:
             return []
         async with get_db_context() as file_db:
-            return await load_attached_files(file_db, file_ids)
+            return await load_attached_files(file_db, file_ids, user_id=self.user.id)
 
-    async def _stream_agent_run(
-        self,
-        agent_run: Any,
-        user_message: str,
-        collected_tool_calls: list[dict[str, Any]],
-        timeline: TurnTimeline,
-    ) -> None:
-        """Drive the agent_run iterator, dispatching each node to its streaming helper."""
-        async for node in agent_run:
-            if Agent.is_user_prompt_node(node):
-                prompt_text = (
-                    node.user_prompt if isinstance(node.user_prompt, str) else user_message
-                )
-                await send_event(self.websocket, "user_prompt_processed", {"prompt": prompt_text})
-            elif Agent.is_model_request_node(node):
-                await send_event(self.websocket, "model_request_start", {})
-                async with node.stream(agent_run.ctx) as request_stream:
-                    await self._stream_request_events(request_stream, timeline)
-            elif Agent.is_call_tools_node(node):
-                await send_event(self.websocket, "call_tools_start", {})
-                async with node.stream(agent_run.ctx) as handle_stream:
-                    await self._stream_tool_events(handle_stream, collected_tool_calls, timeline)
-            else:
-                # The end node, and the only kind left. Iterating an `AgentRun`
-                # yields a user-prompt, a model-request or a call-tools node, or
-                # `End` - `AgentRun._task_to_node` has no fourth answer, and the
-                # graph's one other node is reachable only through
-                # `agent_run.next()`, which this does not use. `End` also means
-                # the graph run holds its `EndMarker`, so `agent_run.result` is
-                # populated there. `is_end_node(node) and agent_run.result is not
-                # None` was therefore a condition that could not be false, and
-                # had it ever been it would have dropped the frame carrying the
-                # answer without saying anything. Whatever made it false now
-                # raises instead, and reaches the client as `error`.
-                await send_event(
-                    self.websocket,
-                    "final_result",
-                    {"output": display_output(agent_run.result.output)},
-                )
+    async def _frame(self, kind: str, payload: dict[str, Any]) -> None:
+        """Where this surface's frames go: to the member who is watching.
 
-    async def _stream_request_events(self, request_stream: Any, timeline: TurnTimeline) -> None:
-        """Forward model-request events (text/thinking/tool deltas + final-result start).
-
-        `timeline` records exactly what was sent as `text_delta` and
-        `thinking_delta`, and where each block sat, so a turn that never finishes
-        can still be written down as what the person watching it actually saw -
-        and a turn that does finish reloads in the order it was watched in.
+        The sink `RunFrames` is handed. Unfiltered, because a signed-in member of
+        the organization that owns the agent may see everything it did - which is
+        exactly the decision a public surface makes differently.
         """
-        async for event in request_stream:
-            if isinstance(event, PartStartEvent):
-                await send_event(
-                    self.websocket,
-                    "part_start",
-                    {"index": event.index, "part_type": type(event.part).__name__},
-                )
-                if isinstance(event.part, TextPart) and event.part.content:
-                    timeline.add_text(event.part.content)
-                    await send_event(
-                        self.websocket,
-                        "text_delta",
-                        {"index": event.index, "content": event.part.content},
-                    )
-                elif isinstance(event.part, ThinkingPart) and event.part.content:
-                    timeline.add_thinking(event.part.content)
-                    await send_event(
-                        self.websocket,
-                        "thinking_delta",
-                        {"index": event.index, "content": event.part.content},
-                    )
-            elif isinstance(event, PartDeltaEvent):
-                delta = event.delta
-                if isinstance(delta, TextPartDelta):
-                    timeline.add_text(delta.content_delta)
-                    await send_event(
-                        self.websocket,
-                        "text_delta",
-                        {"index": event.index, "content": delta.content_delta},
-                    )
-                elif isinstance(delta, ThinkingPartDelta):
-                    # Only when there is something to show. A reasoning delta can
-                    # carry a `signature_delta` alone - the provider's proof it
-                    # produced the reasoning - and forwarding that would put
-                    # base64 in the reasoning pane and in the stored trace.
-                    if delta.content_delta:
-                        timeline.add_thinking(delta.content_delta)
-                        await send_event(
-                            self.websocket,
-                            "thinking_delta",
-                            {"index": event.index, "content": delta.content_delta},
-                        )
-                else:
-                    # A tool-call delta, and the only kind left:
-                    # `ModelResponsePartDelta` is text, thinking or tool-call, so
-                    # an `isinstance` here was a third condition that could not be
-                    # false.
-                    await send_event(
-                        self.websocket,
-                        "tool_call_delta",
-                        {"index": event.index, "args_delta": delta.args_delta},
-                    )
-            elif isinstance(event, FinalResultEvent):
-                await send_event(
-                    self.websocket,
-                    "final_result_start",
-                    {"tool_name": event.tool_name},
-                )
-
-    async def _stream_tool_events(
-        self,
-        handle_stream: Any,
-        collected_tool_calls: list[dict[str, Any]],
-        timeline: TurnTimeline,
-    ) -> None:
-        """Forward tool-call/result events; collect tool calls (with results) for persistence.
-
-        The call is recorded on `timeline` when it is *requested*, which is where it
-        sat in the turn. Recording it on its result instead would reorder any two
-        calls that did not come back in the order they were made.
-        """
-        pending: dict[str, dict[str, Any]] = {}
-        async for tool_event in handle_stream:
-            if isinstance(tool_event, FunctionToolCallEvent):
-                tc = {
-                    "tool_call_id": tool_event.part.tool_call_id,
-                    "tool_name": tool_event.part.tool_name,
-                    "args": tool_event.part.args_as_dict(raise_if_invalid=False),
-                }
-                collected_tool_calls.append(tc)
-                timeline.add_tool(tool_event.part.tool_call_id)
-                pending[tool_event.part.tool_call_id] = tc
-                await send_event(self.websocket, "tool_call", tc)
-            elif isinstance(tool_event, FunctionToolResultEvent):
-                # `.part`, not `.result`. Pydantic AI 2 renamed the field when
-                # `ToolResultEvent` became the shared base of the function and
-                # output events; reading the old name raised `AttributeError`
-                # inside the stream, which reached the user as
-                # "❌ Error: 'FunctionToolResultEvent' object has no attribute
-                # 'result'" on every tool call in web chat. A `RetryPromptPart`
-                # arrives here too and also carries `content` - the retry message -
-                # so a failed call is reported rather than swallowed.
-                content = str(tool_event.part.content)
-                tc = pending.get(tool_event.tool_call_id)
-                if tc is not None:
-                    tc["result"] = content
-                await send_event(
-                    self.websocket,
-                    "tool_result",
-                    {"tool_call_id": tool_event.tool_call_id, "content": content},
-                )
+        await send_event(self.websocket, kind, payload)

@@ -30,6 +30,7 @@ export interface RawMessage {
   agent_id?: string | null;
   /** The run that produced this turn. Null for a turn written outside one. */
   run_id?: string | null;
+  run_status?: string | null;
   /** The version number of the frozen spec that produced it. */
   agent_version?: number | null;
   tool_calls?: RawToolCall[] | null;
@@ -119,11 +120,16 @@ export function buildAssistantParts(
  *
  * A call still marked *running* is the interesting one. Nothing on this screen can
  * finish it: the frames that would have are long gone, and some rows never get an
- * outcome at all - an approval that expired, a run that broke while a tool was in
- * flight. Left as `running` the step pulsed forever under a conversation that ended
- * days ago, in the present tense, promising a result that was never coming. So a
- * replayed call in flight is `unfinished`: not an error, not a success, just the
- * outcome nobody wrote down.
+ * outcome at all - a run that broke while a tool was in flight. Left as `running`
+ * the step pulsed forever under a conversation that ended days ago, in the present
+ * tense, promising a result that was never coming. So a replayed call in flight is
+ * `unfinished`: not an error, not a success, just the outcome nobody wrote down.
+ *
+ * A stored *awaiting_approval* passes through unchanged, and must (#601): the run
+ * parked on that call and a person can still decide it, so it is a present-tense
+ * state rather than an unwritten outcome. It does not outlive the run either way -
+ * a resume settles the row with what the call returned, an expiry settles it with
+ * the timeout notice.
  */
 function replayedStatus(stored: string): ToolCall["status"] {
   if (stored === "failed") return "error";
@@ -159,6 +165,9 @@ export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
     agentId: msg.agent_id ?? undefined,
     agentVersion: msg.agent_version ?? undefined,
     runId: msg.run_id ?? undefined,
+    // Only the one worth drawing. A completed run needs no marker, and a run
+    // still going has no answer on screen to mark.
+    wasStopped: msg.run_status === "cancelled",
     usage: storedUsage(msg) ?? undefined,
     toolCalls,
     parts,

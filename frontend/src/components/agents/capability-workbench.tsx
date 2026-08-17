@@ -143,7 +143,7 @@ export function CapabilityWorkbench({
           />
         )}
 
-        <div className="min-h-0 space-y-4 lg:flex-1 lg:overflow-y-auto lg:pr-1">
+        <div className="min-h-0 scrollbar-thin space-y-4 lg:flex-1 lg:overflow-y-auto lg:pr-1">
           {categories.length === 0 && (
             <p className="text-muted-foreground px-1 py-6 text-sm">
               {t("noCapabilityOrToolMatches", { query })}
@@ -197,7 +197,7 @@ export function CapabilityWorkbench({
           the workspace panel - the one capability with tiles, two selects, a
           warning and a nested settings form - set the height of the whole
           Builder. */}
-      <div className="min-h-0 min-w-0 lg:overflow-y-auto lg:pr-1">
+      <div className="min-h-0 min-w-0 scrollbar-thin lg:overflow-y-auto lg:pr-1">
         {focused && (
           <div className="space-y-3">
             {/* The switch travels with the panel as well as sitting in the row.
@@ -222,7 +222,7 @@ export function CapabilityWorkbench({
                 // is fine; two switches answering to the same name is not - a
                 // screen reader announces them identically and neither says
                 // which capability it belongs to.
-                aria-label={`${focused.name} enabled`}
+                aria-label={t("namedEnabled", { name: focused.name })}
                 onCheckedChange={() => onToggle(focused.id)}
               />
             </div>

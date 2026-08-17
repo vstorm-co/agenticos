@@ -40,9 +40,10 @@ class RunStatus(enum.StrEnum):
 
     `AWAITING_APPROVAL` is a real terminal-ish state, not a transient one: the
     run is parked until a human decides, which may be tomorrow. `BUDGET_EXCEEDED`
-    is separated from `FAILED` because it is not a malfunction - it is the
-    platform working - and an operator filtering for problems should not have to
-    wade through it.
+    and `GUARDRAIL_BLOCKED` are separated from `FAILED` for the same reason - each
+    is not a malfunction but the platform working, and an operator filtering for
+    problems should not have to wade through them. A guardrail that redacted rather
+    than blocked leaves no trace here: the run `COMPLETED`, which is the point.
     """
 
     RUNNING = "running"
@@ -51,6 +52,7 @@ class RunStatus(enum.StrEnum):
     CANCELLED = "cancelled"
     AWAITING_APPROVAL = "awaiting_approval"
     BUDGET_EXCEEDED = "budget_exceeded"
+    GUARDRAIL_BLOCKED = "guardrail_blocked"
 
     @classmethod
     def parse_csv(cls, raw: str | None) -> list[str] | None:
@@ -112,9 +114,10 @@ class RunSurface(enum.StrEnum):
 class RunOrder(enum.StrEnum):
     """What run history is sorted by.
 
-    Two, rather than a column name a caller supplies: an `ORDER BY` assembled
-    from a query string is an injection surface, and these are the two orders the
-    page has a reason to offer. Newest-first is the default because run history
+    A closed set, rather than a column name a caller supplies: an `ORDER BY`
+    assembled from a query string is an injection surface, and these are the
+    orders the page has a reason to offer - the feed, the slowest, the most
+    expensive and the heaviest. Newest-first is the default because run history
     is read as a feed.
 
     Here beside the statuses rather than with the query it parameterises, because
@@ -124,6 +127,8 @@ class RunOrder(enum.StrEnum):
 
     STARTED_AT = "started_at"
     DURATION = "duration"
+    COST = "cost"
+    TOKENS = "tokens"
 
 
 class RunRating(enum.StrEnum):
@@ -179,6 +184,20 @@ class AgentRun(Base, TimestampMixin):
         PG_UUID(as_uuid=True),
         ForeignKey("conversations.id", ondelete="SET NULL"),
         nullable=True,
+    )
+    # Who asked, when who asked is not a person: the chat account a channel turn
+    # arrived from. In a group chat `user_id` is the binding's creator - the role
+    # the turn ran as - and without this column three of four speakers in a
+    # channel are unattributable, because `channel_sessions` is one row per chat
+    # and its identity is whoever opened it (#639).
+    #
+    # Linking an account later sets `channel_identities.user_id`, which is what
+    # makes attribution retroactive through this column without a backfill.
+    channel_identity_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("channel_identities.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     # Which binding admitted this run, when one did. Null for the dashboard, the
     # playground and the API, which are reached as a person rather than through

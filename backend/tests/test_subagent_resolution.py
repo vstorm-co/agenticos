@@ -1003,7 +1003,11 @@ class TestASpecialistTheModelInvents:
             [],
             [],
         )
-        assert built["resources"] == {"kb_collection_names": [], "skills": []}
+        assert built["resources"] == {
+            "kb_collection_names": [],
+            "skills": [],
+            "context_files": [],
+        }
         assert built["secrets"] == {}
         assert built["extra_toolsets"] == []
         # Its own agent is the run's, as an inline specialist's is: nothing

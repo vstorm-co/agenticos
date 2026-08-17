@@ -21,6 +21,16 @@ class AgentRunRead(BaseSchema):
     surface: str
     status: str
     model_label: str | None = None
+    provider: str | None = Field(
+        default=None,
+        description=(
+            "The vendor this run's model actually ran at, as the provider "
+            "catalog spells it - what run history keys a brand mark on. Null "
+            "for runs recorded before it was tracked. `model_label` names the "
+            "profile; this names the vendor, which a repointed profile can "
+            "change under the same label"
+        ),
+    )
     input_tokens: int
     output_tokens: int
     cost_usd: Decimal
@@ -48,7 +58,29 @@ class AgentRunRead(BaseSchema):
             "than a promise this schema is failing to keep"
         ),
     )
+    prev_run_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The run before this one in its own conversation, by start time - "
+            "how a run detail walks to its neighbours. Sent on the single-run "
+            "read only, like `logfire_url`; null at the history's edge, and on "
+            "a run that never started or ran with no conversation"
+        ),
+    )
+    next_run_id: UUID | None = Field(
+        default=None,
+        description="The run after this one in its own conversation. See `prev_run_id`",
+    )
     error: str | None = None
+    conversation_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The thread the run ran inside, or null when nothing conversational "
+            "started it - an API call, a resumed run. What the run table's "
+            "open-chat link names; without it on the wire the frontend once "
+            "built /chat?id=undefined from the absence"
+        ),
+    )
     down_rated: bool = Field(
         default=False,
         description=(
@@ -141,14 +173,19 @@ class RunTranscriptMessage(MessageRead):
 class RunTranscript(BaseSchema):
     """One run's turns, in the order they happened, as the run detail view reads them.
 
-    The messages are the same rows `GET /conversations/{id}/messages` returns, but
-    narrowed to a single run by `messages.run_id` and reached under a different
-    authorization: reading a run is the organization's right, not its owner's, so a
-    colleague holding `runs:view` reads a run somebody else started - which the
-    conversation route deliberately refuses.
+    The messages are the same rows `GET /conversations/{id}/messages` returns -
+    under `scope=run` narrowed to the one run by `messages.run_id`, under
+    `scope=conversation` the whole thread, turns nobody's run wrote included -
+    and reached under a different authorization: reading a run is the
+    organization's right, not its owner's, so a colleague holding `runs:view`
+    reads a run somebody else started - which the conversation route
+    deliberately refuses.
 
     Attributes:
-        run_id: The run these turns belong to.
+        run_id: The run that was asked about. Under `scope=conversation` the
+            items are the whole thread, so this is the anchor of the read rather
+            than the author of every turn - each item carries its own `run_id`,
+            null for a turn no run wrote.
         conversation_id: The thread the run ran inside, or `None` when it ran
             with no conversation - an API call that passed no `conversation_id`.
             A null here is the answer "this run has no transcript", which a client
@@ -279,10 +316,15 @@ class CostByAgent(BaseSchema):
     partial_run_count: int = Field(
         default=0,
         description=(
-            "How many of those runs had a model with no price. The cost is a "
-            "floor by exactly that much, and '3 of 40 runs could not be priced' "
-            "is the difference between a figure a reader can act on and one "
-            "they have to take on trust"
+            "How many of those runs could not be fully priced - some model in "
+            "the run had no price, its delegates' included, because a tree "
+            "shares one ledger. The cost is a floor by exactly that many runs, "
+            "and '3 of 40 runs could not be priced' is the difference between a "
+            "figure a reader can act on and one they have to take on trust. It "
+            "can exceed `run_count`: an unpriced tree that straddles the start "
+            "of the window counts on the agent its delegate ran as, whose "
+            "top-level runs the delegation is not among, because the parent's "
+            "row is outside the window (agenticos#620)"
         ),
     )
     month_to_date_usd: Decimal | None = Field(
@@ -350,8 +392,19 @@ class CostSummary(BaseSchema):
     partial_run_count: int = Field(
         default=0,
         description=(
-            "Runs in the window whose cost is a floor because some model in "
-            "them had no price. How much of everything below is a fact"
+            "Top-level runs in the window whose cost is a floor because some "
+            "model in the run had no price - the run's own or any it delegated "
+            "to, which share one spend ledger. How much of everything below is "
+            "a fact: an unpriced delegate is in its parent's ledger too, so a "
+            "floor under `by_provider` or `by_key` is marked here even though "
+            "neither is measured here. It counts *trees* rather than the rows "
+            "those two sum, so one parent with three unpriced delegates reads "
+            "1, and it measures `by_agent`, which counts the same rows. A tree "
+            "that straddles the start of the window - the delegate's row inside "
+            "it, its parent's before it - is counted through the delegate's "
+            "agent, once per straddling tree, because the parent row that would "
+            "otherwise carry the mark is outside every window here while the "
+            "delegate's own spend is inside both splits (agenticos#620)"
         ),
     )
     by_agent: list[CostByAgent]

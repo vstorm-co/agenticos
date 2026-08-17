@@ -38,6 +38,7 @@ function spec(overrides: Partial<AgentSpec> = {}): AgentSpec {
     capabilities: [],
     collection_ids: [],
     skill_ids: [],
+    context_ids: [],
     mcp_server_ids: [],
     ...overrides,
   };
@@ -323,7 +324,9 @@ describe("the diff", () => {
   it("counts a single collapsed line in the singular", () => {
     // Two edits seven lines apart: three lines of context either side leave
     // exactly one line hidden between them, which is the smallest gap the diff
-    // can produce and the only one that reads wrong in the plural.
+    // can produce and the only one that reads wrong in the plural. The unchanged
+    // top matter of the spec produces its own single-line gaps, so there may be
+    // more than one - what matters is that a one-line gap is rendered singular.
     const middle = Array.from({ length: 7 }, (_, index) => `line ${index}`).join("\n");
     specs.set("v1-id", spec({ instructions: `first\n${middle}\nlast` }));
     mount({
@@ -332,7 +335,8 @@ describe("the diff", () => {
       draftSpec: spec({ instructions: `FIRST\n${middle}\nLAST` }),
     });
 
-    expect(screen.getByText("1 unchanged line")).toBeInTheDocument();
+    expect(screen.getAllByText("1 unchanged line").length).toBeGreaterThan(0);
+    expect(screen.queryByText("1 unchanged lines")).not.toBeInTheDocument();
   });
 
   it("collapses long runs of unchanged lines", () => {

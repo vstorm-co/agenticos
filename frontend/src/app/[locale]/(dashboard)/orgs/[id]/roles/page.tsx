@@ -59,10 +59,10 @@ export default function RolesPage({ params }: PageProps) {
       <div className="space-y-6">
         {breadcrumbHeader}
         <Card>
-          <CardHeader>
-            <CardTitle>{t("permissionMatrix")}</CardTitle>
+          <CardHeader className="border-b px-5 py-4">
+            <CardTitle className="text-sm">{t("permissionMatrix")}</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-5">
             {/* The permission name plus one column per role - six roles ship in
                 the catalog. A wrong guess costs a column of width, not the
                 page's height, which is what the reader is waiting on. */}
@@ -95,22 +95,24 @@ export default function RolesPage({ params }: PageProps) {
       {breadcrumbHeader}
 
       <Card>
-        <CardHeader>
-          <CardTitle>{t("permissionMatrix2")}</CardTitle>
-          <CardDescription>
-            Resource permissions carry a scope - <strong>{t("own")}</strong> is what you created,{" "}
-            <strong>{t("shared")}</strong>
-            {t("addsWhatWasShared")}
-            <strong>{t("all")}</strong> is the whole organization. Sharing a single resource can
-            widen access beyond the role, never narrow it.
+        <CardHeader className="border-b px-5 py-4">
+          <CardTitle className="text-sm">{t("permissionMatrix2")}</CardTitle>
+          <CardDescription className="text-xs">
+            {t.rich("scopeDescription", {
+              strong: (chunks) => <strong>{chunks}</strong>,
+            })}
             {myRole ? (
               <>
                 {" "}
-                Your role here is{" "}
-                <Badge variant="secondary" className="capitalize">
-                  {myRole}
-                </Badge>
-                {isAppAdmin ? " (platform superadmin - everything is permitted)" : null}.
+                {t.rich("yourRoleHere", {
+                  role: myRole,
+                  badge: (chunks) => (
+                    <Badge variant="secondary" className="capitalize">
+                      {chunks}
+                    </Badge>
+                  ),
+                })}
+                {isAppAdmin ? t("platformSuperadmin") : null}.
               </>
             ) : null}
           </CardDescription>

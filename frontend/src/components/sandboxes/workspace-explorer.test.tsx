@@ -72,7 +72,7 @@ vi.mock("@/components/chat/markdown-content", () => ({
 }));
 
 function file(path: string, overrides: Partial<WorkspaceFile> = {}): WorkspaceFile {
-  return { path, size: 128, is_dir: false, ...overrides };
+  return { path, size: 128, is_dir: false, modified_at: null, ...overrides };
 }
 
 function listing(items: WorkspaceFile[], overrides: Partial<WorkspaceFiles> = {}): WorkspaceFiles {

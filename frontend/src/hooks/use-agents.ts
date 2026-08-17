@@ -5,9 +5,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
-import { problemList } from "@/lib/api-error";
+import { getErrorMessage, problemList } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
-import { getErrorMessage } from "@/lib/utils";
 import type {
   Agent,
   AgentDetail,
@@ -17,6 +16,7 @@ import type {
   AgentVersionDetail,
   AgentVersionList,
   CapabilityCatalog,
+  DelegationTree,
   SpecialistSpec,
 } from "@/types/agents";
 
@@ -35,7 +35,11 @@ export interface PromoteSpecialist {
  * version pointer change as a side effect of publishing, and guessing what the
  * server did is how a Builder starts showing a draft as published.
  */
-export function useAgents({ includeArchived = false }: { includeArchived?: boolean } = {}) {
+export function useAgents({
+  includeArchived = false,
+  enabled = true,
+}: { includeArchived?: boolean; enabled?: boolean } = {}) {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
   const queryClient = useQueryClient();
 
@@ -46,6 +50,9 @@ export function useAgents({ includeArchived = false }: { includeArchived?: boole
         "/agents",
         includeArchived ? { params: { include_archived: "true" } } : undefined,
       ),
+    // How a surface without agents:view stays out of the network log - the
+    // run table's agent column and the filter bar both read this gated.
+    enabled,
   });
 
   const invalidate = useCallback(
@@ -80,7 +87,7 @@ export function useAgents({ includeArchived = false }: { includeArchived?: boole
       await invalidate();
       toast.success(t("createdDraft", { name: agent.name }));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   /**
@@ -109,7 +116,7 @@ export function useAgents({ includeArchived = false }: { includeArchived?: boole
       await invalidate();
       toast.success(t("archived"));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   const unarchive = useMutation({
@@ -122,7 +129,7 @@ export function useAgents({ includeArchived = false }: { includeArchived?: boole
           : t("backAsDraft", { name: agent.name }),
       );
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   const remove = useMutation({
@@ -131,7 +138,7 @@ export function useAgents({ includeArchived = false }: { includeArchived?: boole
       await invalidate();
       toast.success(t("deleted"));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   return {
@@ -155,6 +162,8 @@ export function useAgents({ includeArchived = false }: { includeArchived?: boole
 
 /** One agent, with the spec currently being edited. */
 export function useAgent(agentId: string | null) {
+  const tErrors = useTranslations("errors");
+
   const queryClient = useQueryClient();
   const t = useTranslations("agents");
 
@@ -181,7 +190,7 @@ export function useAgent(agentId: string | null) {
   const saveDraft = useMutation({
     mutationFn: (spec: AgentSpec) => apiClient.put<Agent>(`/agents/${agentId}/draft`, { spec }),
     onSuccess: invalidate,
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   /**
@@ -201,9 +210,9 @@ export function useAgent(agentId: string | null) {
       // always thrown away and replaced with one line. `problemList` reads the
       // envelope; the fallback is for the failures that are not a verdict on
       // the spec at all - a refused permission, a dropped connection.
-      return problemList(error) ?? [getErrorMessage(error)];
+      return problemList(error) ?? [getErrorMessage(error, tErrors)];
     }
-  }, [agentId]);
+  }, [agentId, tErrors]);
 
   const publish = useMutation({
     mutationFn: (note: string | null) =>
@@ -213,7 +222,7 @@ export function useAgent(agentId: string | null) {
       await invalidateEnvironments();
       toast.success(t("publishedVersion", { version: version.version }));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   const rollback = useMutation({
@@ -226,7 +235,7 @@ export function useAgent(agentId: string | null) {
       // backwards, so run history keeps telling the truth about what was live.
       toast.success(t("rolledBack", { version: version.version }));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
   /**
@@ -243,10 +252,23 @@ export function useAgent(agentId: string | null) {
       await invalidate();
       toast.success(t("avatarUpdated"));
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
-  return { agent: data, isLoading, saveDraft, validate, publish, rollback, setAvatar };
+  /**
+   * Choose the colour of the agent's fallback avatar, or null for auto. A
+   * column like the picture, not the spec, for the same reason `setAvatar` is.
+   */
+  const setColor = useMutation({
+    mutationFn: (color: number | null) =>
+      apiClient.patch<Agent>(`/agents/${agentId}/avatar-color`, { color }),
+    onSuccess: async () => {
+      await invalidate();
+    },
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+  });
+
+  return { agent: data, isLoading, saveDraft, validate, publish, rollback, setAvatar, setColor };
 }
 
 export function useAgentVersions(agentId: string | null) {
@@ -256,6 +278,24 @@ export function useAgentVersions(agentId: string | null) {
     enabled: !!agentId,
   });
   return { versions: data?.items ?? [], isLoading };
+}
+
+/**
+ * The delegation tree under an agent's draft - what the map draws recursively.
+ *
+ * Fetched only while something shows it (`enabled`), because the walk resolves
+ * and access-checks every pinned version server-side; the map dialog is the one
+ * caller and it opens rarely. Saving the draft invalidates `qk.agents.all()`,
+ * which this key sits under, so a re-pinned delegate is re-walked without
+ * anything here knowing why.
+ */
+export function useDelegationTree(agentId: string | null, { enabled = true } = {}) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: qk.agents.delegationTree(agentId ?? ""),
+    queryFn: () => apiClient.get<DelegationTree>(`/agents/${agentId}/delegation-tree`),
+    enabled: enabled && !!agentId,
+  });
+  return { tree: data ?? null, isLoading, error };
 }
 
 /**

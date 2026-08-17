@@ -59,6 +59,16 @@ export interface ModelProfile {
   params: Record<string, unknown>;
   allow_byo: boolean;
   fallback_profile_ids: string[];
+  /**
+   * Tokens this model accepts, as its provider's listing said when the profile
+   * was created.
+   *
+   * Null means *not recorded* - a profile older than the column, a provider that
+   * publishes no length, a listing that could not be reached - and not that the
+   * model accepts none. Re-adding the model records it; nothing backfills a row
+   * that already exists.
+   */
+  context_length?: number | null;
   created_at?: string;
 }
 
@@ -99,23 +109,6 @@ export interface Skill {
   resources?: SkillResourceSummary[];
 }
 
-/** One skill this deployment ships with, as the gallery shows it. */
-export interface LibrarySkill {
-  key: string;
-  name: string;
-  description: string;
-  category: string | null;
-  content: string;
-  resources: SkillResourceSummary[];
-  /** Whether this organization already has a skill by that name. */
-  installed: boolean;
-}
-
-export interface LibrarySkillList {
-  items: LibrarySkill[];
-  total: number;
-}
-
 export interface SkillSummary {
   id: string;
   name: string;
@@ -138,4 +131,37 @@ export interface SkillList {
   categories: string[];
   /** The deployment's predefined shelf names - picker suggestions, never a constraint. */
   suggested_categories: string[];
+}
+
+/** How a context file reaches the model - injected into the prompt, or read on demand. */
+export type ContextMode = "inject" | "link";
+
+/** One piece of an organization's standing context, body included. */
+export interface ContextFile {
+  id: string;
+  name: string;
+  description: string | null;
+  content: string;
+  /** A rendering hint (`md`, `txt`, `json`, `yaml`, `csv`), not a constraint. */
+  format: string;
+  mode: ContextMode;
+  enabled: boolean;
+  visibility: string;
+  owner_user_id: string | null;
+}
+
+/** A context file as the listing shows it - the body is a byte count only. */
+export interface ContextFileSummary {
+  id: string;
+  name: string;
+  description: string | null;
+  format: string;
+  mode: ContextMode;
+  enabled: boolean;
+  size_bytes: number;
+}
+
+export interface ContextFileList {
+  items: ContextFileSummary[];
+  total: number;
 }

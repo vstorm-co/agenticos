@@ -1,6 +1,5 @@
 "use client";
 
-import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 
 import { formatMs, formatUsd } from "@/components/dashboard/format";
@@ -15,7 +14,7 @@ import {
   Skeleton,
 } from "@/components/ui";
 import { useAgent, useVersionUsage } from "@/hooks";
-import { DEFAULT_PRESET, resolvePreset } from "@/lib/dashboard/period";
+import type { Period } from "@/lib/dashboard/period";
 import { completedShare, formatCompletedShare, versionTally } from "@/lib/run-outcomes";
 import type { VersionUsageRow } from "@/types/stats";
 
@@ -34,9 +33,8 @@ import type { VersionUsageRow } from "@/types/stats";
  * average of the agent's own rows, so it never counts a delegation twice the
  * way a sum across a parent and its child would (activity-plan.md §2a, §6).
  */
-export function VersionStrip({ agentId }: { agentId: string }) {
+export function VersionStrip({ agentId, period }: { agentId: string; period: Period }) {
   const t = useTranslations("pages.runs");
-  const period = useMemo(() => resolvePreset(DEFAULT_PRESET), []);
   const { byVersion, isLoading, error, refetch } = useVersionUsage(agentId, period);
   const { agent } = useAgent(agentId);
   const currentVersionId = agent?.current_version_id ?? null;

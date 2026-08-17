@@ -1,8 +1,12 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { usePeopleUsage, useUsageStats } from "@/hooks";
+import Link from "next/link";
+
+import { MemberIdentity } from "@/components/orgs/member-identity";
+import { runsHref } from "@/lib/runs/filter-params";
 import { timeAgo } from "@/lib/utils";
 import { formatUsd } from "../format";
 import { WidgetFrame } from "../widget-frame";
@@ -22,20 +26,25 @@ const ROWS = 6;
  * Ordered by runs. Sorted by cost the same rows would read as a league table,
  * and the question is adoption.
  */
-export function TopPeopleWidget({ title, period, seeAll }: DashboardWidgetProps) {
+export function TopPeopleWidget({ title, hint, period, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.top-people");
+  const tTime = useTranslations("time");
+  const locale = useLocale();
   const { byUser, isLoading, error, refetch } = usePeopleUsage(
     { from: period.from, to: period.to },
-    { limit: ROWS },
+    { limit: ROWS, filter: { agentId: options?.agentId } },
   );
   // The composed answer for this window is already in the cache - reading the
   // headcount from it costs no request and keeps this card and the count above
   // it from ever disagreeing.
-  const { usage } = useUsageStats({ from: period.from, to: period.to });
+  const { usage } = useUsageStats(
+    { from: period.from, to: period.to },
+    { filter: { agentId: options?.agentId } },
+  );
   const others = Math.max((usage?.active_users?.active ?? 0) - byUser.length, 0);
 
   return (
-    <WidgetFrame title={title} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {isLoading ? (
         <WidgetSkeleton />
       ) : error ? (
@@ -57,8 +66,24 @@ export function TopPeopleWidget({ title, period, seeAll }: DashboardWidgetProps)
               <tbody>
                 {byUser.map((person) => (
                   <tr key={person.user_id} className="border-border/60 border-b last:border-0">
-                    <td className="text-foreground max-w-0 truncate py-1.5 pr-2">
-                      {person.full_name ?? person.email}
+                    {/* The same row the members table and the admin lists draw:
+                        a face, the name, and the address under it when there is
+                        one. A bare name cannot tell two colleagues apart, which
+                        is the one thing a card of names owes its reader. */}
+                    <td className="max-w-0 py-1.5 pr-2">
+                      {/* The runs behind the count beside it. Every row on this
+                          page can reach its own slice now that Activity's
+                          facets travel in the URL (#768). */}
+                      <Link
+                        href={runsHref({
+                          period,
+                          filters: { userId: person.user_id },
+                          ...(options?.agentId ? { agentId: options.agentId } : {}),
+                        })}
+                        className="rounded-sm hover:underline"
+                      >
+                        <MemberIdentity member={person} />
+                      </Link>
                     </td>
                     <td className="text-foreground py-1.5 text-right tabular-nums">
                       {person.runs}
@@ -67,7 +92,7 @@ export function TopPeopleWidget({ title, period, seeAll }: DashboardWidgetProps)
                       {formatUsd(Number(person.cost_usd))}
                     </td>
                     <td className="text-muted-foreground py-1.5 text-right">
-                      {timeAgo(person.last_run_at)}
+                      {timeAgo(person.last_run_at, tTime, locale)}
                     </td>
                   </tr>
                 ))}
@@ -76,6 +101,10 @@ export function TopPeopleWidget({ title, period, seeAll }: DashboardWidgetProps)
           </div>
           <div className="text-muted-foreground space-y-1 text-xs">
             {others > 0 ? <p>{t("others", { count: others })}</p> : null}
+            {/* On screen rather than behind the header's info icon, like the
+                sandbox card's missing figure. This is the one card that answers
+                with colleagues' names, and who else can see it is not a detail
+                a reader should have to hover to find. */}
             <p>{t("disclosure")}</p>
           </div>
         </div>

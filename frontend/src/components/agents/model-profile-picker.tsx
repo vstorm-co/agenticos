@@ -1,11 +1,13 @@
 "use client";
 
+import { useId } from "react";
 import { Check, ChevronRight, KeyRound, Trash2 } from "lucide-react";
 
 import { AddModel } from "@/components/agents/add-model";
 import { ProviderIcon } from "@/components/vault/provider-icon";
 import { Badge, Button } from "@/components/ui";
 import { useModelProviders } from "@/hooks";
+import { modelDetail } from "@/lib/model-profiles";
 import { cn } from "@/lib/utils";
 import type { ModelProfile } from "@/types/providers";
 import { useTranslations } from "next-intl";
@@ -83,6 +85,10 @@ export function ModelProfilePicker({
   const t = useTranslations("agents");
   const { deleteProfile } = useModelProviders();
   const selected = profiles.find((profile) => profile.id === value);
+  // Generated rather than a constant: the Builder and a dialog can both have a
+  // picker mounted, and two elements answering to one id makes the second group's
+  // accessible name the first one's caption.
+  const captionId = useId();
 
   const list = (
     <div role="radiogroup" aria-label={t("model2")} className="space-y-1">
@@ -92,7 +98,7 @@ export function ModelProfilePicker({
           selected={value === profile.id}
           onSelect={() => onChange(profile.id)}
           title={profile.label}
-          subtitle={`${profile.provider} · ${profile.model}`}
+          subtitle={modelDetail(profile)}
           provider={profile.provider}
           // A picker that omits this lets somebody publish an agent onto a model
           // that cannot answer. Read from `secret_id` alone: this used to also
@@ -108,29 +114,28 @@ export function ModelProfilePicker({
     </div>
   );
 
-  // What this runs on today, stated above whatever would change it: the form
-  // where there is one, the list where there is not. It is the fact somebody
-  // opens this panel to check, and in a list of a dozen saved models the chosen
-  // one's `no key` badge is a badge among twelve - which of them is chosen is
-  // what decides whether anything runs at all.
+  // Which of the organization's models this agent runs on, by name.
+  //
+  // **The name and nothing else**, which is the whole history of this line: it used
+  // to print `provider · model` after a label that already *was* `provider · model`,
+  // so it read the pair twice. Then it was deleted, and four things turned out to be
+  // reading it - three journeys and the knowledge-base dialog's "this model cannot
+  // run" - because it is the only place that answers *which named profile* is in
+  // use. The two fields below answer the technical pair; this answers the name, and
+  // between them nothing is said twice.
   const current = selected ? (
     <div
-      // Named, because the same label also appears in the saved-model list
-      // below: without it there are two identical strings on this panel and
-      // nothing distinguishes "what this agent runs on" from "one of the
-      // options".
       role="group"
-      aria-label={t("currentModel")}
+      aria-labelledby={captionId}
       className="border-border bg-muted/20 flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2"
     >
-      <ProviderIcon provider={selected.provider} />
-      <span className="min-w-0 flex-1 truncate text-sm">
-        <span className="font-medium">{selected.label}</span>
-        <span className="text-muted-foreground font-mono text-xs">
-          {" "}
-          {selected.provider} · {selected.model}
-        </span>
+      <span id={captionId} className="text-muted-foreground text-xs">
+        {t("currentModel")}
       </span>
+      <ProviderIcon provider={selected.provider} />
+      <span className="min-w-0 flex-1 truncate text-sm font-medium">{selected.label}</span>
+      {/* The badge that decides whether the agent can run at all. In a list of a
+          dozen saved models the chosen one's badge is a badge among twelve. */}
       {!selected.secret_id && <Badge variant="destructive">{t("noKey")}</Badge>}
     </div>
   ) : null;
@@ -158,12 +163,26 @@ export function ModelProfilePicker({
     <div className="space-y-3">
       {current}
 
-      {/* Provider, model and key, always. Choosing a model is picking those three
-          things; the named profile is a consequence of the choice rather than the
-          way it is made, and a list of previous consequences is not where anybody
-          starts. It stays reachable below, because rotating a key or repointing
-          every agent at once is exactly what a named profile is for. */}
+      {/* Provider, model and key, always - and starting on the model in use, so the
+          panel says what that is in the same two fields that change it rather than
+          in a line above them. Choosing a model *is* picking those three things; the
+          named profile is a consequence of the choice rather than the way it is
+          made. It stays reachable below, because rotating a key or repointing every
+          agent at once is exactly what a named profile is for.
+
+          Keyed on the selection so the fields follow it: picking a saved model from
+          the disclosure below has to move them, and derived state that only reads
+          its prop once would leave them on whatever was selected at mount.
+
+          On the *profile*, not on `value`, because the two are not available at the
+          same moment: an agent already pointed at one renders with `value` set while
+          the profiles are still in flight, so a key of `value` never changes once
+          they land and the form keeps the empty fields it mounted with. Which is
+          "Choose a provider" above an agent that plainly has one, for as long as the
+          list took - green on a warm laptop and red in CI. */}
       <AddModel
+        key={selected?.id ?? "none"}
+        selected={selected}
         disabled={disabled}
         onCreated={(profile) => {
           // Selected, not merely added: somebody who came here to choose a
@@ -202,7 +221,8 @@ function ProfileRow({
   selected: boolean;
   onSelect: () => void;
   title: string;
-  subtitle: string;
+  /** `null` where the title already names the provider and the model. */
+  subtitle: string | null;
   provider: string;
   noKey?: boolean;
   disabled?: boolean;
@@ -210,6 +230,7 @@ function ProfileRow({
   onRemove?: () => void;
 }) {
   const t = useTranslations("agents");
+  const tc = useTranslations("common");
   return (
     // The radio and the delete are siblings, not nested: a button inside a
     // button is invalid, and the browser resolves it by dropping one of them.
@@ -233,9 +254,11 @@ function ProfileRow({
             <span className="truncate text-sm font-medium">{title}</span>
             {noKey && <Badge variant="destructive">{t("noKey2")}</Badge>}
           </span>
-          <span className="text-muted-foreground mt-0.5 block truncate font-mono text-xs">
-            {subtitle}
-          </span>
+          {subtitle !== null && (
+            <span className="text-muted-foreground mt-0.5 block truncate font-mono text-xs">
+              {subtitle}
+            </span>
+          )}
         </span>
         {selected && <Check className="text-foreground h-4 w-4 shrink-0" />}
       </button>
@@ -245,7 +268,7 @@ function ProfileRow({
           variant="ghost"
           size="icon"
           disabled={disabled}
-          aria-label={`Remove ${title}`}
+          aria-label={tc("removeNamed", { name: title })}
           onClick={onRemove}
         >
           <Trash2 className="h-4 w-4" />

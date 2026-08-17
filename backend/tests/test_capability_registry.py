@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
+from uuid import UUID, uuid4
 
 import pytest
 from pydantic import ValidationError
@@ -45,6 +46,7 @@ from app.agents.subagent_runtime import (
     SubagentRuntime,
 )
 from app.core.exceptions import BadRequestError
+from app.core.secret_kinds import ApiKeySecret, SecretKind, StorableSecret
 
 
 @pytest.fixture(autouse=True)
@@ -154,6 +156,17 @@ class TestToolDeclarations:
                 resources=[],
             )
         ],
+        # A linked file, so `context` offers both its tools - the widest shape,
+        # for the same reason the delegate below is at its widest.
+        "context_files": [
+            SimpleNamespace(
+                name="glossary",
+                description="What the words mean.",
+                content="SLA: service level agreement.",
+                mode="link",
+                format="md",
+            )
+        ],
         # A delegating agent at its widest: one resolved delegate *and* permission
         # to invent specialists, because `subagents` is the one capability whose
         # tool list is not fixed - `create_agent` and `delegate` are offered only
@@ -225,6 +238,19 @@ class TestToolDeclarations:
         # subagents resource above is at its widest - an undeclared tool can only
         # appear where the most tools do.
         "channel_tools": {"tools": sorted(get("channel_tools").tool_ids)},
+        # Builds `None` from an empty blob on purpose - enabling the capability
+        # without turning on an edge attaches no guardrail. One edge on is what
+        # makes it build here; it offers no tools either way.
+        "guardrails": {"blocked_keywords_in": "secret"},
+        # Its three subtask tools are offered only when this is set, so the widest
+        # configuration is the one that switches them on. The default (a flat
+        # checklist) offers the six core tools and would hide the other three from
+        # the comparison rather than check them.
+        "planning": {"enable_subtasks": True},
+        # Builds `None` from an empty blob on purpose - binding the capability
+        # without setting a reminder attaches nothing. One reminder on is what
+        # makes it build here; it offers no tools either way.
+        "system_reminders": {"goal_reanchor": {}},
     }
     """Configurations a capability needs before it offers anything.
 
@@ -245,6 +271,25 @@ class TestToolDeclarations:
                 resources=self.RESOURCES,
             )
         )
+
+    @staticmethod
+    def _secret_binding(
+        definition: Any, config: dict[str, Any]
+    ) -> tuple[UUID | None, dict[UUID, StorableSecret]]:
+        """A secret this capability's default config makes it require, if any.
+
+        The parallel of `RESOURCES`: a capability that cannot build without a
+        credential is given one here, so the drift check goes through `build()`
+        for it too rather than skipping it. Only `API_KEY` is handled because it
+        is the only kind any capability requires unconditionally; another kind
+        arriving unconditionally should fail here loudly rather than be skipped.
+        """
+        requirement = definition.secret
+        if requirement is None or not definition.needs_secret(definition.validate_config(config)):
+            return None, {}
+        assert requirement.kind is SecretKind.API_KEY, definition.id
+        secret_id = uuid4()
+        return secret_id, {secret_id: ApiKeySecret(api_key="test-key")}
 
     def test_no_capability_escapes_the_drift_check(self):
         """A capability that cannot be built here is a capability nothing checks.
@@ -337,15 +382,19 @@ class TestToolDeclarations:
                 tool.id: ToolOverride(name=f"{tool.id}_as_this_agent_calls_it")
                 for tool in definition.tools
             }
+            config = self.CONFIGS.get(definition.id, {})
+            secret_id, secrets = self._secret_binding(definition, config)
             built = build(
                 [
                     CapabilityBinding(
                         capability_id=definition.id,
-                        config=self.CONFIGS.get(definition.id, {}),
+                        config=config,
                         tool_overrides=overrides,
+                        secret_id=secret_id,
                     )
                 ],
                 resources=self.RESOURCES,
+                secrets=secrets,
             )
             assert built, definition.id
             offered = await self._offered(built[0])
@@ -401,6 +450,7 @@ class TestRegistration:
             "clock",
             "skills",
             "thinking",
+            "tool_search",
         } <= set(REGISTRY)
 
     def test_catalog_is_ordered_for_a_stable_picker(self):

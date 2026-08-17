@@ -33,19 +33,6 @@ async def get_by_name(db: AsyncSession, name: str, *, organization_id: UUID) -> 
     return result.scalar_one_or_none()
 
 
-async def names_in_use(db: AsyncSession, *, organization_id: UUID) -> set[str]:
-    """Every skill name taken in one organization.
-
-    Unpaged and visibility-blind, which is what makes it the same question
-    :func:`get_by_name` asks one name at a time. Uniqueness is a property of the
-    organization rather than of what a caller may see: a skill a member cannot
-    read is still a name they cannot take, and a name past the hundredth row of
-    a listing is not a free one.
-    """
-    result = await db.execute(select(Skill.name).where(Skill.organization_id == organization_id))
-    return set(result.scalars().all())
-
-
 async def get_many(
     db: AsyncSession, skill_ids: list[UUID], *, organization_id: UUID
 ) -> dict[UUID, Skill]:
@@ -158,6 +145,12 @@ async def list_categories(db: AsyncSession, *, organization_id: UUID) -> list[st
     return [category for category in result.scalars().all() if category is not None]
 
 
+async def list_names(db: AsyncSession, *, organization_id: UUID) -> set[str]:
+    """Every skill name in one organization - what the catalog top-up compares against."""
+    result = await db.execute(select(Skill.name).where(Skill.organization_id == organization_id))
+    return set(result.scalars().all())
+
+
 async def create(
     db: AsyncSession,
     *,
@@ -167,6 +160,7 @@ async def create(
     description: str,
     content: str,
     category: str | None = None,
+    visibility: str = Visibility.PRIVATE.value,
 ) -> Skill:
     skill = Skill(
         organization_id=organization_id,
@@ -175,6 +169,7 @@ async def create(
         description=description,
         content=content,
         category=category,
+        visibility=visibility,
     )
     db.add(skill)
     await db.flush()

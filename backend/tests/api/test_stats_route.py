@@ -32,6 +32,7 @@ def _service() -> MagicMock:
     service.usage = AsyncMock(return_value=envelope)
     service.usage_by_version = AsyncMock(return_value=envelope)
     service.usage_by_user = AsyncMock(return_value=envelope)
+    service.usage_by_hour = AsyncMock(return_value=envelope)
     return service
 
 
@@ -116,6 +117,18 @@ async def test_an_unbounded_person_table_is_refused():
 
     assert resp.status_code == 422
     service.usage_by_user.assert_not_called()
+
+
+async def test_group_by_hour_asks_the_rhythm_question_with_no_other_argument():
+    """Neither an agent nor a limit: the grid is fixed at seven days by twenty-four."""
+    service = _service()
+
+    async with _client(service) as client:
+        resp = await client.get("/api/v1/stats/usage", params={"group_by": "hour"})
+
+    assert resp.status_code == 200
+    service.usage_by_hour.assert_awaited_once()
+    service.usage.assert_not_called()
 
 
 async def test_a_dimension_outside_the_contract_is_a_422_not_an_empty_answer():

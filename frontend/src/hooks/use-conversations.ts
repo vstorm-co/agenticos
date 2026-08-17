@@ -4,11 +4,17 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
+import { getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
-import { getErrorMessage, setUrlParam } from "@/lib/utils";
+import { setUrlParam } from "@/lib/utils";
 import { useAgentSelectionStore, useAuthStore, useConversationStore, useChatStore } from "@/stores";
-import type { Conversation, ConversationMessage, ConversationListResponse } from "@/types";
+import type {
+  Conversation,
+  ConversationCost,
+  ConversationListResponse,
+  ConversationMessage,
+} from "@/types";
 
 interface CreateConversationResponse {
   id: string;
@@ -21,6 +27,8 @@ interface CreateConversationResponse {
 interface MessagesResponse {
   items: ConversationMessage[];
   total: number;
+  /** What the whole thread cost, summed server-side. Null when nothing was measured. */
+  cost: ConversationCost | null;
 }
 
 const PAGE_SIZE = 30;
@@ -85,6 +93,7 @@ function listParams(query: ConversationQuery): string {
 }
 
 export function useConversations(query: Partial<ConversationQuery> = {}) {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("chat");
   const queryClient = useQueryClient();
   const { view, search, agentId, sortBy, sortDir } = { ...DEFAULT_QUERY, ...query };
@@ -233,7 +242,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       try {
         const msgs = await apiClient.get<MessagesResponse>(`/conversations/${urlId}/messages`);
         if (!stillSameAccount(startedAs)) return;
-        setCurrentMessages(msgs.items);
+        setCurrentMessages(msgs.items, msgs.cost);
       } catch {
         // The failure belongs to whoever asked. A refusal answering after
         // somebody else has signed in says nothing about the conversation they
@@ -293,14 +302,14 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
           is_archived: response.is_archived,
         };
       } catch (err) {
-        const message = getErrorMessage(err, t("failedCreateConversation"));
+        const message = getErrorMessage(err, tErrors, t("failedCreateConversation"));
         setError(message);
         return null;
       } finally {
         setLoading(false);
       }
     },
-    [invalidateLists, setLoading, setError, t],
+    [invalidateLists, setLoading, setError, t, tErrors],
   );
 
   const selectConversation = useCallback(
@@ -323,7 +332,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
         });
         // Guard against a superseded request resolving after a newer select.
         if (controller.signal.aborted || !stillSameAccount(startedAs)) return;
-        setCurrentMessages(response.items);
+        setCurrentMessages(response.items, response.cost);
       } catch (err) {
         // Ignore aborted/superseded requests - they're expected on rapid switch.
         if (
@@ -334,7 +343,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
         ) {
           return;
         }
-        const message = getErrorMessage(err, t("failedFetchMessages"));
+        const message = getErrorMessage(err, tErrors, t("failedFetchMessages"));
         setError(message);
       } finally {
         // Only the most recent request owns the loading flag.
@@ -344,7 +353,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
         }
       }
     },
-    [setCurrentConversationId, clearMessages, setCurrentMessages, setLoading, setError, t],
+    [setCurrentConversationId, clearMessages, setCurrentMessages, setLoading, setError, t, tErrors],
   );
 
   const archiveConversation = useCallback(
@@ -354,12 +363,12 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
         await invalidateLists();
         toast.success(t("archivedToast"));
       } catch (err) {
-        const message = getErrorMessage(err, t("failedArchiveConversation"));
+        const message = getErrorMessage(err, tErrors, t("failedArchiveConversation"));
         setError(message);
         toast.error(message);
       }
     },
-    [invalidateLists, setError, t],
+    [invalidateLists, setError, t, tErrors],
   );
 
   const unarchiveConversation = useCallback(
@@ -369,12 +378,12 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
         await invalidateLists();
         toast.success(t("conversationRestored"));
       } catch (err) {
-        const message = getErrorMessage(err, t("failedRestoreConversation"));
+        const message = getErrorMessage(err, tErrors, t("failedRestoreConversation"));
         setError(message);
         toast.error(message);
       }
     },
-    [invalidateLists, setError, t],
+    [invalidateLists, setError, t, tErrors],
   );
 
   const deleteConversation = useCallback(
@@ -389,12 +398,12 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
         }
         toast.success(t("conversationDeleted"));
       } catch (err) {
-        const message = getErrorMessage(err, t("failedDeleteConversation"));
+        const message = getErrorMessage(err, tErrors, t("failedDeleteConversation"));
         setError(message);
         toast.error(message);
       }
     },
-    [invalidateLists, setCurrentConversationId, setError, t],
+    [invalidateLists, setCurrentConversationId, setError, t, tErrors],
   );
 
   const renameConversation = useCallback(
@@ -404,12 +413,12 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
         await invalidateLists();
         toast.success(t("conversationRenamed"));
       } catch (err) {
-        const message = getErrorMessage(err, t("failedRenameConversation"));
+        const message = getErrorMessage(err, tErrors, t("failedRenameConversation"));
         setError(message);
         toast.error(message);
       }
     },
-    [invalidateLists, setError, t],
+    [invalidateLists, setError, t, tErrors],
   );
   const startNewChat = useCallback(async () => {
     // A new chat starts with the user's default agent, when one is starred.

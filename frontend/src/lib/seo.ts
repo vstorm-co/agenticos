@@ -25,6 +25,7 @@ export const SITE = {
   tagline: "The operating system for your company's AI agents",
   /** One-paragraph default description (≤160 chars for SERP truncation). */
   description:
+    // i18n-exempt: the tagline's reason, one line up - metadata read above `[locale]`.
     "Self-hosted, open source, and yours: agents are configuration you own, running on your infrastructure, against your keys.",
   /** Canonical absolute origin. NO trailing slash. */
   url:

@@ -43,7 +43,30 @@ explicitly is also what lets stored secrets survive a `SECRET_KEY` rotation.
 | `TIMEZONE` | `UTC` | IANA timezone (e.g. `UTC`, `Europe/Warsaw`, `America/New_York`) |
 | `MODELS_CACHE_DIR` | `./models_cache` | Directory for cached ML models |
 | `MEDIA_DIR` | `./media` | Directory for uploaded files |
-| `MAX_UPLOAD_SIZE_MB` | `50` | Maximum file upload size in megabytes |
+| `MAX_UPLOAD_SIZE_MB` | `50` | Knowledge-base document cap, and the number the whole-request ceiling below is derived from. Chat and embed uploads are bounded by the hardcoded `MAX_UPLOAD_SIZE` (10 MiB in `file_storage.py`), not by this |
+| `EMBED_MAX_UPLOAD_SIZE_MB` | `5` | What a **stranger** may upload to a hosted page. A ceiling on top of the chat path's `MAX_UPLOAD_SIZE`, never a way past it |
+| `DEFAULT_ORG_MONTHLY_BUDGET_USD` | `100` | The monthly spend ceiling a **new** organization starts with, in USD, so it is not one runaway agent away from a surprise bill. Applies at creation only; existing organizations are untouched and any organization can be cleared back to no cap afterwards. Must be positive; leave **empty** to start organizations uncapped (the older opt-in posture) |
+
+### The size of a request, as opposed to the size of a file
+
+Every limit above is measured on bytes that have already arrived. FastAPI parses a
+multipart body to resolve the `UploadFile` parameter *before* the handler runs, so
+by the time one of those caps is compared against `len(data)` the body has been
+spooled to a temporary file and read into memory. Behind a session that is not much
+of a risk; on `POST /api/v1/embed/{key}/files`, which a stranger holding a link may
+reach, it is.
+
+So a request declaring a `Content-Length` larger than `MAX_UPLOAD_SIZE_MB` plus a
+5 MiB allowance for the multipart envelope is answered **413** before its body is
+read. There is no setting: it follows `MAX_UPLOAD_SIZE_MB`, because a second number
+to keep in step with the first is a number that ends up below it.
+
+**It is the cheap half of the answer, not the whole one.** `Content-Length` is set
+by the caller, and a chunked request declares none at all — those are let through
+and bounded by the per-route caps, which measure real bytes. A deployment that wants
+the guarantee rather than the courtesy sets `client_max_body_size` (nginx) or the
+equivalent on whatever terminates its connections; the compose files run uvicorn
+with no such limit of its own.
 
 ## Authentication
 
@@ -436,9 +459,11 @@ which reads as "there are no files". Two wrong answers at once. Reading *one fil
 from such a host is refused with the same sentence rather than reported as "no such
 file", which would say the file is missing when it is not.
 
-**What is running is read from the service too.** The Sandboxes screen lists this
-organization's open sandboxes on its default host — runtime, what shares each one,
-idle time, and memory against its own ceiling when asked — plus the activity log
+**What is running is read from the service too.** The Sandboxes screen keeps it on
+its own tab, apart from the connections table, and lists this organization's open
+sandboxes on the host it names — the default connection until the operator picks
+another — sortable by idle time and memory: runtime, what shares each one, idle
+time, and memory against its own ceiling when asked — plus the activity log
 per sandbox: which paths were read, which commands ran, and how each went. Neither
 file contents nor command output is recorded by the service, which is what keeps
 an audit trail from becoming a way to read another agent's work. The dashboard
@@ -512,10 +537,80 @@ Production validation: `CORS_ORIGINS` cannot contain `"*"` in
 
 ## Rate Limiting
 
+Applied to the surfaces a stranger can reach, and only those: the public run API,
+the widget's script, its config, either surface's socket handshake, a hosted
+page's config and logo, and a visitor's upload. The console's own routes are
+behind a session and are not metered — whether the whole API should carry a
+ceiling is a separate decision, not this one.
+
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `RATE_LIMIT_REQUESTS` | `100` | Maximum requests per period |
-| `RATE_LIMIT_PERIOD` | `60` | Period in seconds |
+| `RATE_LIMIT_RUN_PER_MINUTE` | `30` | `POST /api/v1/agents/{id}/run`, per caller |
+| `RATE_LIMIT_EMBED_PER_MINUTE` | `20` | Per address, and **two separate counters of this size**: one for `widget.js`, one for admission — the widget's `/config` plus either surface's socket handshake. See below |
+| `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | A hosted page's config, **per page** — and its logo, on a counter of its own. See below |
+| `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Files a visitor may store on a hosted page. Counted **per address and per visitor key**, and both have to allow it — the key is minted by the browser, so counting only that bounds nothing |
+| `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Whether `X-Forwarded-For` names the caller |
+
+**What a refused caller gets** is this API's own error envelope with
+`code: "RATE_LIMIT_EXCEEDED"`, the interval in
+`error.details.retry_after_seconds`, and the same interval in the `Retry-After`
+header — which is the one a fetch wrapper or a CDN actually backs off on. The
+socket handshake is the exception, because a WebSocket has no status to answer
+with: it closes with `4029` (see [channels](channels.md#the-raw-websocket)).
+
+**Two counters, not one, and the reason is arithmetic.** Loading a page with a
+widget on it costs three requests to this API: the script, the config, and the
+socket. Counted together, `20` bought about seven page loads for a cold browser
+rather than twenty admissions, and a limit wrong by a factor of three is worse
+than no limit because it reads as the number you set. So `widget.js` has its own
+bucket — it is cacheable, and a refusal there breaks the widget outright instead
+of delaying one message. The config and the handshake stay together, because
+together they *are* one admission: a browser that read a config and opened no
+socket did not get in.
+
+The counts live in the deployment's Redis, so they hold across workers —
+production runs four, and a count kept per process would let through four times
+what it says. If Redis cannot be reached the limit is not applied and a warning
+is logged: refusing a visitor their answer because a cache blipped is the worse
+failure of the two.
+
+What a visitor may *say* once admitted is a different number, set per widget in
+the Builder (`rate_limit_per_minute`) and counted per visitor. These two are the
+ceiling on getting in.
+
+### `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE`, and why it is not per address
+
+A hosted page's config is fetched **server-side**, by the frontend, so the page
+paints branded on the first frame. That means the address on the request is the
+frontend container's and not the visitor's — so counting it put every hosted page
+load in the deployment in a single bucket, and the visitor who tripped it was
+served a 404 with nothing saying why. `RATE_LIMIT_TRUST_FORWARDED_FOR` cannot
+help: a server-side `fetch` sends no such header for anyone to trust.
+
+So this one is counted per public key. It bounds a single page rather than
+rationing a visitor, which is why the default is wide — **it is not what limits
+spend.** Spend starts at the socket the page opens next, which the browser makes,
+which is counted per address under `RATE_LIMIT_EMBED_PER_MINUTE`. And guessing a
+key is not a strategy against 192 bits of `secrets.token_urlsafe`.
+
+### `RATE_LIMIT_TRUST_FORWARDED_FOR`, and why it is off
+
+Per-address limits count `request.client.host`. **Behind a proxy or a CDN that
+is the proxy's address, not the visitor's** — every visitor shares one bucket, so
+a busy site behind Cloudflare exhausts the widget's twenty admissions a minute
+for everybody at once. Turning this on reads the **rightmost** `X-Forwarded-For`
+hop instead — the address the trusted proxy itself appended.
+
+It is off by default because the header is set by whoever is calling: trusted
+unconditionally, a per-address limit becomes a per-header limit that anybody
+bypasses by varying one string. The rightmost hop is read rather than the
+leftmost for the same reason — `X-Forwarded-For` is a list the client starts and
+each proxy appends to, so the head is what the client typed and only the tail is
+what a proxy you control wrote. **Turn it on only when a single proxy you control
+is the only thing that can reach the API** — if the container's port is published
+as well, a caller can set the header themselves and the limit stops meaning
+anything; and with two proxies in front, collapse the header to one hop at your
+edge, because only the last hop is trustworthy.
 
 ## A worker whose event loop has stopped turning
 

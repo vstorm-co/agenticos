@@ -6,7 +6,7 @@ import { WorkspaceToolResult, isWorkspaceTool } from "./workspace";
 import type { ToolCall } from "@/types";
 
 const state = vi.hoisted(() => ({
-  items: [] as { path: string; size: number | null; is_dir: boolean }[],
+  items: [] as { path: string; size: number | null; is_dir: boolean; modified_at: string | null }[],
   downloaded: [] as string[],
   downloadError: null as string | null,
 }));
@@ -44,9 +44,16 @@ vi.mock("@/lib/workspace-files", () => ({
 // that opens it.
 vi.mock("@/components/files", () => ({
   FileIcon: () => <span data-testid="icon" />,
-  FileViewer: ({ file, onClose }: { file: { path?: string | null }; onClose: () => void }) => (
+  FileViewer: ({
+    file,
+    onClose,
+  }: {
+    file: { path?: string | null; modifiedAt?: string | null };
+    onClose: () => void;
+  }) => (
     <div data-testid="viewer">
       {file.path}
+      {file.modifiedAt}
       <button type="button" onClick={onClose}>
         close the viewer
       </button>
@@ -65,7 +72,7 @@ function call(overrides: Partial<ToolCall> = {}): ToolCall {
 }
 
 beforeEach(() => {
-  state.items = [{ path: "/test.md", size: 3, is_dir: false }];
+  state.items = [{ path: "/test.md", size: 3, is_dir: false, modified_at: null }];
   state.downloaded = [];
   state.downloadError = null;
 });
@@ -119,6 +126,22 @@ describe("a workspace tool call", () => {
     await userEvent.click(screen.getByRole("button", { name: "Open" }));
 
     expect(screen.getByTestId("viewer")).toHaveTextContent("/test.md");
+  });
+
+  it("hands the viewer the listing's modified time, which only the listing knows (#500)", async () => {
+    // The listing row is already in hand for the size; the time rides along the same
+    // way, so the card's header matches what the workspace panel shows for this file.
+    state.items = [
+      { path: "/test.md", size: 3, is_dir: false, modified_at: "2026-08-16T12:00:00Z" },
+    ];
+
+    render(
+      <WorkspaceToolResult toolCall={call()} resultText="Wrote 1 lines" conversationId="c-1" />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Open" }));
+
+    expect(screen.getByTestId("viewer")).toHaveTextContent("2026-08-16T12:00:00Z");
   });
 
   it("saves the file the listing knows about, not the path in the arguments", async () => {

@@ -1,20 +1,26 @@
 """When an agent runs itself - the Builder's "Schedules" for one agent.
 
-Every route here acts on *one* agent, so none carries a `require(...)` gate. That
-is the access layer's rule, not an oversight: a role gate cannot see the grants on
-a row, so a Viewer holding an explicit run grant on a single agent would be refused
-before `resolve_access` ever widened their access. The decision is handed to
+Almost every route here acts on *one* agent, so it carries no `require(...)` gate.
+That is the access layer's rule, not an oversight: a role gate cannot see the grants
+on a row, so a Viewer holding an explicit run grant on a single agent would be
+refused before `resolve_access` ever widened their access. The decision is handed to
 `AgentTriggerService`, which reads the role scope *and* the grant through
 `agents:run`, and reports a refusal as "not found" so agent ids stay unprobeable.
-`tests/api/test_platform_routes.py` enforces both halves.
+
+The one exception is the org-wide listing on `org_router` (`GET /triggers`): a
+collection route with no single resource whose grants could widen the answer, so it
+carries `require(agents:view)` as its coarse first door, exactly as `GET /agents`
+and the org-wide `GET /runs` do. The per-agent visibility filtering still happens in
+the service. `tests/api/test_platform_routes.py` enforces both halves.
 """
 
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Query, Response, status
+from fastapi import APIRouter, Depends, Query, Response, status
 
-from app.api.deps import AgentTriggerSvc, Auth
+from app.api.deps import AgentTriggerSvc, Auth, require
+from app.core.permissions import Perm
 from app.schemas.agent_trigger import TriggerCreate, TriggerList, TriggerRead, TriggerUpdate
 
 router = APIRouter()
@@ -27,7 +33,9 @@ router = APIRouter()
 org_router = APIRouter()
 
 
-@org_router.get("/triggers", response_model=TriggerList)
+@org_router.get(
+    "/triggers", response_model=TriggerList, dependencies=[Depends(require(Perm.AGENTS_VIEW))]
+)
 async def list_org_triggers(
     ctx: Auth,
     service: AgentTriggerSvc,
@@ -56,11 +64,20 @@ async def create_trigger(
     return await service.create(ctx, agent_id, data)
 
 
-@router.post("/{agent_id}/triggers/{trigger_id}/run", response_model=TriggerRead)
+@router.post(
+    "/{agent_id}/triggers/{trigger_id}/run",
+    response_model=TriggerRead,
+    status_code=status.HTTP_202_ACCEPTED,
+)
 async def run_trigger_now(
     agent_id: UUID, trigger_id: UUID, ctx: Auth, service: AgentTriggerSvc
 ) -> Any:
-    """Fire this schedule now, as its creator, without disturbing its cadence."""
+    """Accept one extra fire of this schedule, as its creator, cadence untouched.
+
+    202, not 200: the fire is dispatched once this request commits rather than run
+    inside it, so the trigger comes back as it stands and its `last_run_id` still
+    names the previous run (#658).
+    """
     return await service.run_now(ctx, agent_id, trigger_id)
 
 

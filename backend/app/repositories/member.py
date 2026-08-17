@@ -25,23 +25,59 @@ async def get(
     return result.scalar_one_or_none()
 
 
+async def get_active(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+) -> OrganizationMember | None:
+    """The membership, but only while the account behind it can still sign in.
+
+    Deactivating a user leaves their membership row exactly where it was, so
+    anything reading a role off `get` alone answers with the authority of an account
+    that is refused everywhere a person signs in. That is only a difference on the
+    paths where nobody is signed in - see `access.publisher_context`, which is the
+    one caller and the reason this exists.
+
+    Joined rather than a second read: it is answered on every turn a public surface
+    takes, and two round trips for one decision is one of them that can be true
+    while the other is stale.
+    """
+    result = await db.execute(
+        select(OrganizationMember)
+        .join(User, User.id == OrganizationMember.user_id)
+        .where(
+            OrganizationMember.organization_id == organization_id,
+            OrganizationMember.user_id == user_id,
+            User.is_active.is_(True),
+        )
+    )
+    return result.scalar_one_or_none()
+
+
 async def list_for_org(
     db: AsyncSession,
     organization_id: UUID,
     *,
     skip: int = 0,
     limit: int = 100,
-) -> list[tuple[OrganizationMember, str, str | None, str | None]]:
-    """Return (member, email, full_name, avatar_url) tuples ordered by join date."""
+) -> list[tuple[OrganizationMember, str, str | None, str | None, int | None]]:
+    """Return (member, email, full_name, avatar_url, avatar_color) tuples by join date."""
     result = await db.execute(
-        select(OrganizationMember, User.email, User.full_name, User.avatar_url)
+        select(
+            OrganizationMember,
+            User.email,
+            User.full_name,
+            User.avatar_url,
+            User.avatar_color,
+        )
         .join(User, User.id == OrganizationMember.user_id)
         .where(OrganizationMember.organization_id == organization_id)
         .order_by(OrganizationMember.joined_at.asc())
         .offset(skip)
         .limit(limit)
     )
-    return [(row[0], row[1], row[2], row[3]) for row in result.all()]
+    return [(row[0], row[1], row[2], row[3], row[4]) for row in result.all()]
 
 
 class MemberIdentity(NamedTuple):
@@ -206,6 +242,19 @@ async def count_for_org(db: AsyncSession, organization_id: UUID) -> int:
         )
     )
     return result.scalar() or 0
+
+
+async def first_owner_id(db: AsyncSession, *, organization_id: UUID) -> UUID | None:
+    """The earliest-joined owner - who system-made rows are attributed to."""
+    return await db.scalar(
+        select(OrganizationMember.user_id)
+        .where(
+            OrganizationMember.organization_id == organization_id,
+            OrganizationMember.role == OrgRole.OWNER.value,
+        )
+        .order_by(OrganizationMember.joined_at.asc())
+        .limit(1)
+    )
 
 
 async def create(

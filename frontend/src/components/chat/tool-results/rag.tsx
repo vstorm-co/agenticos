@@ -115,7 +115,7 @@ function RAGSourceGroup({
         {collection && (
           <span
             className="border-foreground/15 text-foreground/55 hidden shrink-0 rounded-full border px-1.5 py-0.5 font-mono text-[9px] tracking-wider uppercase sm:inline"
-            title={`Collection: ${collection}`}
+            title={t("collectionNamed", { name: collection })}
           >
             {collection}
           </span>
@@ -178,6 +178,7 @@ function RAGSourceGroup({
 
 /** Tiny dot indicating chunk relevance - neutral palette, no warning colors. */
 function ScoreDot({ score }: { score: number }) {
+  const t = useTranslations("chat.tools");
   // Map score to brand-tone opacity instead of red/yellow/green so the UI
   // reads as a quality signal, not an alert.
   const tone =
@@ -185,7 +186,7 @@ function ScoreDot({ score }: { score: number }) {
   return (
     <span
       className={cn("h-1.5 w-1.5 shrink-0 rounded-full", tone)}
-      title={`Relevance: ${score.toFixed(2)}`}
+      title={t("relevanceScore", { score: score.toFixed(2) })}
     />
   );
 }

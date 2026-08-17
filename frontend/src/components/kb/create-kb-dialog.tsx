@@ -60,6 +60,7 @@ interface CreateKBDialogProps {
 }
 
 export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialogProps) {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("kb");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -137,9 +138,13 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
       // it arrives as the toast below carrying the server's own sentence. The
       // picker inside the images section says the same thing earlier, by badging
       // a profile that has no key.
-      const failure = submitFailure(error, {
-        fields: ["name", "description", ...INGESTION_FORM_FIELDS],
-      });
+      const failure = submitFailure(
+        error,
+        {
+          fields: ["name", "description", ...INGESTION_FORM_FIELDS],
+        },
+        tErrors,
+      );
       setErrors(failure.fields);
       if (failure.toast) toast.error(failure.toast);
     } finally {
@@ -156,7 +161,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
           <DialogTitle>{t("createKnowledgeBase")}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-4">
-          <div className="-mx-1 min-h-0 flex-1 space-y-4 overflow-y-auto px-1">
+          <div className="-mx-1 min-h-0 flex-1 scrollbar-thin space-y-4 overflow-y-auto px-1">
             <FormField label={t("name")} htmlFor="kb-name" error={errors.name}>
               <Input
                 id="kb-name"

@@ -228,6 +228,7 @@ export function WorkspaceFiles({ conversationId, revision, attachments }: Worksp
             name: reading.path.split("/").filter(Boolean).pop() ?? reading.path,
             path: reading.path,
             size: reading.size,
+            modifiedAt: reading.modified_at,
           }}
           access={workspaceFileAccess(source, reading.path)}
           onClose={() => setReading(null)}

@@ -76,7 +76,7 @@ export function UploadOverrideDialog({
           <DialogDescription>{t("appliesEachFileYou")}</DialogDescription>
         </DialogHeader>
 
-        <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1">
+        <div className="-mx-1 min-h-0 flex-1 scrollbar-thin overflow-y-auto px-1">
           <IngestionSettings
             idPrefix="kb-upload-override"
             value={draft}
@@ -96,7 +96,7 @@ export function UploadOverrideDialog({
           >
             {/* The way back, and the only one: a departure nobody can undo is a
                 departure that quietly applies to the next thing dropped here. */}
-            Use the collection&apos;s settings
+            {t("useCollectionSettings")}
           </Button>
           <Button
             type="button"
@@ -106,11 +106,7 @@ export function UploadOverrideDialog({
               onOpenChange(false);
             }}
           >
-            {count === 0
-              ? t("nothingChanged2")
-              : count === 1
-                ? t("apply1Change")
-                : `Apply ${count} changes`}
+            {count === 0 ? t("nothingChanged2") : t("applyChanges", { count })}
           </Button>
         </DialogFooter>
       </DialogContent>

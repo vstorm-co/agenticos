@@ -111,6 +111,8 @@ _PATTERN_ALLOWED: dict[str, str] = {
     "tokens_used": "an LLM usage count - 'token' means something else here",
     "input_tokens": "the same count, split: prompt tokens billed for one turn",
     "output_tokens": "the same, for the completion",
+    "context_used_tokens": "the same word again: how much of a context window a turn filled",
+    "context_window_tokens": "how many tokens a model accepts, which is a capacity not a key",
 }
 
 # A property whose type is one of these cannot be carrying a credential

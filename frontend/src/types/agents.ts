@@ -196,6 +196,7 @@ export interface SpecialistSpec {
   capabilities: CapabilityBindingSpec[];
   collection_ids: string[];
   skill_ids: string[];
+  context_ids: string[];
   max_steps?: number | null;
   preferred_mode?: DelegationMode | null;
 }
@@ -240,6 +241,7 @@ export interface AgentSpec {
   capabilities: CapabilityBindingSpec[];
   collection_ids: string[];
   skill_ids: string[];
+  context_ids: string[];
   mcp_server_ids: string[];
   /**
    * Delegates, each pinned to a published version.
@@ -276,6 +278,8 @@ export interface Agent {
   current_version_id: string | null;
   /** Whether `/api/agents/{id}/avatar` will answer with an image. */
   has_avatar?: boolean;
+  /** Chosen default-avatar colour slot (1..10); null/absent is auto from the id. */
+  avatar_color?: number | null;
   /** How many members hold an explicit grant. Filled by the listing only. */
   shared_user_count?: number;
   /** Surfaces with an active binding ("slack", "telegram", ...). Listing only. */
@@ -285,6 +289,20 @@ export interface Agent {
    * the draft's promise. Null for drafts and uncapped agents. Listing only.
    */
   budget_monthly_usd?: number | null;
+  /**
+   * How many tokens the model this agent publishes on accepts.
+   *
+   * What a chat draws its context gauge against. The *share* is resolved where
+   * the model is known rather than stored with the reading, because the window
+   * belongs to whichever model answers next and the chat lets somebody switch
+   * that between turns - a share carried over from a 1M-context model reads
+   * "50%" for a history that is really at 390% of a 128K one.
+   *
+   * Null when neither the profile nor the pricing registry could say, and a
+   * surface then draws no share at all rather than one against a guess. Listing
+   * only.
+   */
+  context_window_tokens?: number | null;
   created_at?: string;
   /**
    * `null` until the row is first updated - `TimestampSchema.updated_at` is
@@ -302,6 +320,43 @@ export interface AgentDetail extends Agent {
 export interface AgentList {
   items: Agent[];
   total: number;
+}
+
+/**
+ * One hop of the delegation tree, as `GET /agents/{id}/delegation-tree` answers.
+ *
+ * `status` says how far the server's walk got: `ok` resolved and `children`
+ * holds what the delegate itself delegates to; `restricted` is a delegate the
+ * caller may not see - no name, no children, indistinguishable from one that
+ * does not exist; `unpinned` is a pin whose version is gone; `cycle` returns to
+ * an agent already on this branch and is never expanded; `archived` is a
+ * delegate somebody has retired since the pin was published, which every run
+ * reaching it is refused for. `truncated` marks a roster a run from this root
+ * would never reach.
+ */
+export interface DelegationTreeNode {
+  key: string;
+  kind: "delegate" | "specialist";
+  status: "ok" | "restricted" | "unpinned" | "cycle" | "archived";
+  agent_id: string | null;
+  name: string | null;
+  mode: DelegationMode | null;
+  pinned_version: number | null;
+  stale: boolean;
+  truncated: boolean;
+  children: DelegationTreeNode[];
+}
+
+/**
+ * The whole delegation tree under one agent's draft, in one response.
+ *
+ * No `max_depth` / `max_fanout`: the Builder holds the draft those live on and
+ * already renders them beside the hub, so a second copy read out of the stored
+ * draft would only ever be the half that disagrees.
+ */
+export interface DelegationTree {
+  truncated: boolean;
+  nodes: DelegationTreeNode[];
 }
 
 /** One named environment of an agent, pinned to one published version. */
@@ -460,6 +515,29 @@ export interface JsonSchemaProperty {
    * masked while they are typed.
    */
   format?: string;
+  /**
+   * What each enum value is called in a picker, keyed by the value.
+   *
+   * An extension keyword, because JSON Schema has none for this. Emitted by a
+   * capability's `config_schema` through Pydantic's `json_schema_extra`, and
+   * there rather than in a table here for the same reason `description` is:
+   * `clear_tool_results` in a dropdown says nothing, and a label kept on this
+   * side outlives the value it was written for without anyone noticing.
+   */
+  "x-enum-labels"?: Record<string, string>;
+  /**
+   * Whether this string is paragraphs rather than a value.
+   *
+   * An extension keyword, like `x-enum-labels`: Pydantic has no notion of
+   * multiline, and a one-line box for a prompt is a field nobody can read what
+   * they are editing in.
+   */
+  "x-multiline"?: boolean;
   /** A `Literal | None` arrives as branches, one carrying the values. */
-  anyOf?: { type?: string; enum?: unknown[]; format?: string }[];
+  anyOf?: {
+    type?: string;
+    enum?: unknown[];
+    format?: string;
+    "x-enum-labels"?: Record<string, string>;
+  }[];
 }

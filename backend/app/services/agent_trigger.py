@@ -37,11 +37,13 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
+from app.core.background import spawn_after_commit
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.core.vault import VaultScope, seal, unseal
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.agent_trigger import AgentTrigger, ScheduleKind, TriggerType
+from app.db.updates import writable
 from app.repositories import (
     agent_environment_repo,
     agent_run_repo,
@@ -351,7 +353,7 @@ class AgentTriggerService:
         cannot silently move it back to the default environment.
         """
         trigger = await self._owned(ctx, agent_id, trigger_id)
-        changes = data.model_dump(exclude_unset=True)
+        changes = writable(data, over=AgentTrigger)
 
         # Cadence edits: a schedule may be retimed in place - a new interval, a new
         # cron, or a switch between the two - rather than deleted and recreated. An
@@ -411,7 +413,7 @@ class AgentTriggerService:
         )
 
     async def run_now(self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID) -> AgentTrigger:
-        """Fire this schedule now, without waiting for or disturbing its cadence.
+        """Accept one extra fire of this schedule, without disturbing its cadence.
 
         The caller needs `agents:run` on the agent - the floor for scheduling it
         at all, checked by `_owned`. The fire runs as the trigger's creator, the
@@ -425,9 +427,17 @@ class AgentTriggerService:
         this, a member with `agents:run` could set off a run recorded entirely
         under someone else's name.
 
-        Returns the trigger with its `last_run_id` advanced: `_owned` and `fire`
-        read the same session, so they share one instance and the fire's stamp is
-        visible on the row this returns.
+        **The fire is dispatched, not awaited** (#658). Awaiting it ran the whole
+        agent inside the HTTP request, so an agent slower than a proxy's read
+        timeout - 60s by default on nginx - answered the caller 504 while the run
+        carried on and committed server-side: a failure reported for something that
+        was working, and an invitation to press the button again and fire the
+        schedule twice. `spawn_after_commit`, not `spawn`, because the fire opens a
+        session of its own and must not outrun this request's transaction.
+
+        Returns the trigger as it stands, which is why the route answers 202: the
+        run has not happened yet, so `last_run_id` still names the previous one. The
+        fire appends to the trigger's run-log conversation as it goes.
         """
         trigger = await self._owned(ctx, agent_id, trigger_id)
         await record_audit(
@@ -439,11 +449,10 @@ class AgentTriggerService:
             target_id=str(agent_id),
             details={"trigger_id": str(trigger.id)},
         )
-        await self.fire(trigger.id)
-        # Reload for the same reason `create` does: the fire flushed a
-        # `last_run_id` update whose server-side `updated_at` is now expired, and
-        # the response serialization would lazy-load it into a `MissingGreenlet`.
-        await self.db.refresh(trigger)
+        # Local: the handler imports this module, so hoisting this is a cycle.
+        from app.worker.background.trigger_fire import fire_trigger
+
+        spawn_after_commit(self.db, fire_trigger(trigger.id), name=f"trigger-run-now-{trigger.id}")
         return trigger
 
     async def prepare_event_fire(

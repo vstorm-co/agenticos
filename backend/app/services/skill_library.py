@@ -56,7 +56,7 @@ class LibraryResource:
 
 @dataclass(frozen=True, slots=True)
 class LibrarySkill:
-    """One folder in the library, as the gallery shows it."""
+    """One folder in the library, as the seeding paths and the skills listing read it."""
 
     key: str
     """The directory name - how an install request names it."""
@@ -75,8 +75,9 @@ def library() -> tuple[LibrarySkill, ...]:
     Cached for the process: the directory ships with the image and changes on
     redeploy, not between requests.
 
-    A folder that cannot be read is logged and skipped rather than failing the
-    gallery - one malformed manifest must not take the other skills with it.
+    A folder that cannot be read is logged and skipped rather than failing
+    seeding or the skills listing - one malformed manifest must not take the
+    other skills with it.
     """
     if not LIBRARY_ROOT.is_dir():
         logger.warning("Skill library directory is missing: %s", LIBRARY_ROOT)

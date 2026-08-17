@@ -32,14 +32,14 @@ import type { DashboardWidgetProps } from "./types";
  *
  * Ignores the period filter: a sandbox is either open now or it is not.
  */
-export function SandboxSessionsWidget({ title, seeAll }: DashboardWidgetProps) {
+export function SandboxSessionsWidget({ title, hint, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.sandbox-sessions");
   const [usage, setUsage] = useState(false);
   const { connections, isLoading, error, refresh } = useSandboxConnections();
   const host = primaryConnection(connections);
 
   return (
-    <WidgetFrame title={title} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {isLoading ? (
         <WidgetSkeleton />
       ) : error !== null ? (

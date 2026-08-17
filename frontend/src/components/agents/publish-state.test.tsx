@@ -33,6 +33,7 @@ function spec(overrides: Partial<AgentSpec> = {}): AgentSpec {
     capabilities: [],
     collection_ids: [],
     skill_ids: [],
+    context_ids: [],
     mcp_server_ids: [],
     ...overrides,
   };

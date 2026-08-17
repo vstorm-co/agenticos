@@ -212,6 +212,32 @@ class TelegramAdapter(ChannelAdapter):
             for entry in administrators[:limit]
         ]
 
+    async def is_channel_member(
+        self, bot_token: str, channel_id: str, platform_user_id: str, *, api_base_url: str | None
+    ) -> bool:
+        """`getChatMember`, read for its status.
+
+        The one membership question Telegram does answer per account, where
+        enumerating ordinary members is refused outright. `left` and `kicked`
+        are Telegram's words for "was here, is not"; every other status - down
+        to `restricted`, which is a member who may not speak - is still in the
+        room. An account Telegram cannot place in the chat at all raises
+        `TelegramBadRequest`, which is the same answer as `left` for the
+        question being asked.
+        """
+        try:
+            member_id = int(platform_user_id)
+        except ValueError:
+            return False
+        bot = Bot(token=bot_token)
+        try:
+            found = await bot.get_chat_member(chat_id=channel_id, user_id=member_id)
+        except TelegramBadRequest:
+            return False
+        finally:
+            await bot.session.close()
+        return found.status not in ("left", "kicked")
+
     async def start_polling(self, bot_id: str, bot_token: str) -> None:
         """Start a supervised polling loop for this bot."""
         if bot_id in self._polling_tasks and not self._polling_tasks[bot_id].done():
@@ -298,10 +324,19 @@ class TelegramAdapter(ChannelAdapter):
         return hmac.compare_digest(received.encode(), secret.encode())
 
     def parse_incoming(self, raw_payload: dict[str, Any], bot_id: str) -> IncomingMessage | None:
-        """Parse a Telegram update payload into IncomingMessage.
+        """Normalise one Telegram update, whichever transport delivered it.
 
-        Handles `message` and `edited_message` update types; text only (V1).
-        Returns None for non-text updates.
+        The webhook receiver and the polling loop both arrive here, so the rules
+        about what counts as a message are stated once. They were stated twice
+        until #547, and the copies disagreed about files.
+
+        `message` and `edited_message` only. A file with no caption is a message;
+        a message with no sender is not. The Bot API leaves `from` empty for a
+        message sent to a channel, and a run has to be somebody's - answering one
+        would key a single shared identity on an empty user id. A post made on
+        behalf of a chat elsewhere carries a stand-in sender rather than nothing,
+        so this refuses less than it sounds like: it refuses the case where there
+        is genuinely nobody to link the run to.
         """
         msg_data: dict[str, Any] | None = raw_payload.get("message") or raw_payload.get(
             "edited_message"
@@ -310,13 +345,16 @@ class TelegramAdapter(ChannelAdapter):
         if not msg_data:
             return None
 
+        from_user: dict[str, Any] = msg_data.get("from") or {}
+        if not from_user.get("id"):
+            return None
+
         attachments = self._attachments(msg_data)
         text: str = msg_data.get("text") or msg_data.get("caption") or ""
         if not text and not attachments:
             return None
 
         chat = msg_data.get("chat", {})
-        from_user = msg_data.get("from", {})
 
         chat_type: str = chat.get("type", "private")
         platform_chat_id: str = str(chat.get("id", ""))
@@ -407,30 +445,31 @@ class TelegramAdapter(ChannelAdapter):
             await bot.session.close()
 
     async def _handle_update(self, message: AiogramMessage, bot_id: str) -> None:
-        """Handle an incoming aiogram Message inside the polling loop."""
-        if not message.text:
-            return
+        """Route one update from the polling loop, through the one parser.
 
-        chat = message.chat
-        from_user = message.from_user
+        aiogram has already decoded what Telegram POSTs to the webhook receiver,
+        so the update is put back into that shape and normalised by
+        `parse_incoming` rather than by a second copy of it - which is what this
+        was, and the copy read no files (#547): a spreadsheet dropped on a bot in
+        polling mode, the mode a self-hosted deployment runs, was discarded and
+        the agent answered about a document it never received.
 
-        if from_user is None:
-            return
+        `by_alias` because the Bot API's `from` is a Python keyword and aiogram
+        renames it - without it nothing here finds a sender and every polled
+        message is refused. `exclude_none` because Telegram omits a field it has
+        nothing for while aiogram holds a `None`: left in, a sender with no
+        surname is displayed as "Ada None".
 
-        chat_type: str = chat.type.value if hasattr(chat.type, "value") else str(chat.type)
-
-        incoming = IncomingMessage(
-            platform="telegram",
-            bot_id=bot_id,
-            platform_user_id=str(from_user.id),
-            platform_chat_id=str(chat.id),
-            chat_type=chat_type,
-            text=message.text,
-            raw={},
-            platform_username=from_user.username,
-            platform_display_name=from_user.full_name,
-            message_id=str(message.message_id),
+        Only `message` reaches this. `@dp.message()` is the sole handler, so
+        aiogram asks Telegram for that update type alone and an edit is never
+        delivered - unlike the webhook receiver, which is sent whatever the
+        platform has and reads `edited_message` too.
+        """
+        incoming = self.parse_incoming(
+            {"message": message.model_dump(mode="json", by_alias=True, exclude_none=True)}, bot_id
         )
+        if incoming is None:
+            return
 
         router = ChannelMessageRouter()
 

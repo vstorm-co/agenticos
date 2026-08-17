@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getErrorMessage } from "@/lib/api-error";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { Copy, Link2, Loader2, Trash2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
@@ -25,7 +26,6 @@ import { useTranslations } from "next-intl";
 import { useConversationShares, useMembers } from "@/hooks";
 import { useOrgStore } from "@/stores";
 import type { ConversationShare, OrganizationMember } from "@/types";
-import { getErrorMessage } from "@/lib/utils";
 
 interface ShareDialogProps {
   conversationId: string;
@@ -57,6 +57,7 @@ export function matchingMembers(
 }
 
 export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogProps) {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("chat");
   const { shares, isLoading, shareConversation, fetchShares, revokeShare } =
     useConversationShares();
@@ -89,7 +90,7 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
       setEmail("");
       toast.success(t("conversationShared"));
     } catch (err) {
-      toast.error(getErrorMessage(err, t("failedToShare")));
+      toast.error(getErrorMessage(err, tErrors, t("failedToShare")));
     } finally {
       setIsSharing(false);
     }
@@ -108,7 +109,7 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
         toast.success(t("linkGenerated"));
       }
     } catch (err) {
-      toast.error(getErrorMessage(err, t("failedToGenerateLink")));
+      toast.error(getErrorMessage(err, tErrors, t("failedToGenerateLink")));
     } finally {
       setIsGeneratingLink(false);
     }
@@ -127,7 +128,7 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
       await revokeShare(conversationId, share.id);
       toast.success(t("accessRevoked"));
     } catch (err) {
-      toast.error(getErrorMessage(err, t("failedToRevoke")));
+      toast.error(getErrorMessage(err, tErrors, t("failedToRevoke")));
     } finally {
       setRevokingId(null);
     }
@@ -155,7 +156,7 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
                 }}
                 onFocus={() => setSuggestionsOpen(true)}
                 onBlur={() => setSuggestionsOpen(false)}
-                onKeyDown={(e) => e.key === t("enter8") && handleShare()}
+                onKeyDown={(e) => e.key === "Enter" && handleShare()}
               />
               {suggestionsOpen && suggestions.length > 0 && (
                 <div

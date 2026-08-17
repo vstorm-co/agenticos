@@ -20,8 +20,8 @@ export const ROUTES = {
   RAG_SEARCH: "/rag?tab=search",
   ADMIN: "/admin",
   ADMIN_USERS: "/admin/users",
+  ADMIN_ORGANIZATIONS: "/admin/organizations",
   ADMIN_CONVERSATIONS: "/admin/conversations",
-  ADMIN_RATINGS: "/admin/ratings",
   ADMIN_SYSTEM: "/admin/system",
   ORGS: "/orgs",
   ORGS_CREATE: "/orgs?create=1",
@@ -35,6 +35,7 @@ export const ROUTES = {
   WORKSPACES: "/workspaces",
   WORKSPACE_DETAIL: (id: string) => `/workspaces/${id}`,
   SKILLS: "/skills",
+  CONTEXT: "/context",
   ORG_SETTINGS: (id: string) => `/orgs/${id}/settings`,
   BILLING: "/billing",
   BILLING_USAGE: "/billing/usage",
@@ -53,3 +54,20 @@ export const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000";
 
 // Backend API URL (public, for direct links like API docs)
 export const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+// The published documentation. A self-hosted deployment can serve its own copy
+// with `make docs`, but a panel cannot know whether one is running - so the
+// links point at the canonical site.
+export const DOCS_URL = "https://vstorm-co.github.io/agenticos";
+
+/**
+ * Documentation a control links to, anchored on the section that answers it.
+ *
+ * The top of a page is not an answer: somebody who followed a link from the
+ * socket URL wants the frame table, and finding it themselves is the reading
+ * this link exists to save.
+ */
+export const DOCS = {
+  RAW_WEBSOCKET: `${DOCS_URL}/channels/#the-raw-websocket`,
+  PUBLIC_API: `${DOCS_URL}/channels/#the-public-api`,
+} as const;

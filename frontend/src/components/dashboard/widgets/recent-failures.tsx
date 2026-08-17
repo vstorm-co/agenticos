@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { useAgents, useRecentFailures } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
@@ -15,14 +15,16 @@ import type { DashboardWidgetProps } from "./types";
  * something needs a look, asked of /runs as a list because that is the
  * operator's actual question.
  */
-export function RecentFailuresWidget({ title, seeAll }: DashboardWidgetProps) {
+export function RecentFailuresWidget({ title, hint, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.recent-failures");
+  const tTime = useTranslations("time");
+  const locale = useLocale();
   const { failures, isLoading, error, refetch } = useRecentFailures(5);
   const { agents } = useAgents();
   const names = new Map(agents.map((agent) => [agent.id, agent.name]));
 
   return (
-    <WidgetFrame title={title} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {isLoading ? (
         <WidgetSkeleton />
       ) : error ? (
@@ -41,7 +43,7 @@ export function RecentFailuresWidget({ title, seeAll }: DashboardWidgetProps) {
                   {run.status === "budget_exceeded"
                     ? t("budgetExceeded")
                     : (run.error ?? t("failed"))}
-                  {run.started_at ? ` · ${timeAgo(run.started_at)}` : ""}
+                  {run.started_at ? ` · ${timeAgo(run.started_at, tTime, locale)}` : ""}
                 </span>
               </span>
               <Link

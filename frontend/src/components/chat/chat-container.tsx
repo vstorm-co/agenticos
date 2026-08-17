@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useCallback, useMemo } from "react";
+import { useEffect, useLayoutEffect, useRef, useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { ChatMessageFile } from "@/types";
-import { useChat, useConversationWorkspace } from "@/hooks";
+import { useAgents, useChat, useConversationWorkspace, useModelProviders } from "@/hooks";
 import { AgentPicker } from "./agent-picker";
 import { ChatControls } from "./chat-controls";
 import { ChatEmptyState } from "./chat-empty-state";
@@ -14,6 +14,7 @@ import { FilePreviewPanel } from "./file-preview-panel";
 import { SourcesPanel } from "./sources-panel";
 import { MessageList } from "./message-list";
 import { DelegationPanels } from "./delegation-panel";
+import { CompactionNotice } from "./compaction-notice";
 import { PendingMessages } from "./pending-messages";
 import { ToolApprovalDialog } from "./tool-approval-dialog";
 import { QuestionPrompt } from "@/components/ui";
@@ -21,25 +22,58 @@ import type {
   PendingApproval,
   AskUserQuestion,
   AskUserAnswer,
+  Compaction,
+  ConversationCost,
   Decision,
   Delegation,
   TurnUsage,
 } from "@/types";
 import { conversationMessageToChatMessage } from "@/lib/conversation-to-chat";
 import { latestUsage } from "@/lib/message-usage";
-import { useConversationStore, useChatStore } from "@/stores";
+import { useAgentSelectionStore, useConversationStore, useChatStore } from "@/stores";
 import { useConversations } from "@/hooks";
 import { useSlashCommands } from "@/hooks";
 
 const SCROLL_NEAR_BOTTOM_THRESHOLD_PX = 150;
 
+/**
+ * How many tokens the model that will answer next accepts, or `null`.
+ *
+ * The denominator of the context gauge, and deliberately not stored with the
+ * reading it divides: how much history there is survives a model change, what
+ * share of a window that is does not. A history of 500,000 tokens is half of a
+ * 1M-context model and 390% of a 128K one, and the second is a request the
+ * provider refuses outright — so the figure has to move the moment somebody
+ * switches, which it does because this is read from the current selection.
+ *
+ * The override the picker holds first, then the agent's own published model.
+ * `null` where neither can say, and the gauge is then not drawn at all: a share
+ * against an assumed window is a guess presented as a measurement, and the guess
+ * errs in the direction that lets a run reach the ceiling.
+ */
+function useContextWindow(modelProfileId: string | null): number | null {
+  const { profiles } = useModelProviders();
+  const { agents } = useAgents({ includeArchived: true });
+  const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
+
+  if (modelProfileId !== null) {
+    return profiles.find((profile) => profile.id === modelProfileId)?.context_length ?? null;
+  }
+  return agents.find((agent) => agent.id === selectedAgentId)?.context_window_tokens ?? null;
+}
+
 export function ChatContainer() {
   const {
     currentConversationId,
     currentMessages,
+    currentCost,
     isLoading: isConversationLoading,
   } = useConversationStore();
   const { addMessage: addChatMessage } = useChatStore();
+  // The model override the picker holds, mirrored here because the context gauge
+  // is a share of *its* window rather than of the agent's default.
+  const [modelProfileId, setModelProfileId] = useState<string | null>(null);
+  const contextWindow = useContextWindow(modelProfileId);
   // Deliberately unfiltered, which is what calling this with no arguments
   // means. The sidebar's copy of this list is narrowed by whatever is in its
   // search box, and reading the two facts below off *that* would flip the
@@ -69,6 +103,8 @@ export function ChatContainer() {
     messages,
     isConnected,
     isProcessing,
+    compacting,
+    compactionImpossible,
     lastUsage,
     delegations,
     sendMessage,
@@ -217,10 +253,18 @@ export function ChatContainer() {
       messages={messages}
       isConnected={isConnected}
       isProcessing={isProcessing}
+      compacting={compacting}
+      compactionImpossible={compactionImpossible}
       // The live turn's cost while there is one, and the newest measured answer in
       // the transcript otherwise - which is what makes the strip appear on a
       // conversation somebody has just reopened instead of after their next message.
       lastUsage={lastUsage ?? latestUsage(currentMessages, currentConversationId)}
+      contextWindow={contextWindow}
+      // Only for the thread that is actually open. The store keeps the transcript
+      // it last loaded, so between clicking another conversation and its messages
+      // arriving this figure belongs to the one just left - the same reason
+      // `latestUsage` is given the id rather than trusting the list.
+      conversationCost={currentConversationId === null ? null : currentCost}
       delegations={delegations}
       conversationId={currentConversationId}
       turns={turns}
@@ -230,7 +274,14 @@ export function ChatContainer() {
       }
       isArchived={isArchived}
       sendMessage={sendMessage}
-      onModelProfileChange={setModelProfile}
+      // Kept here as well as pushed into the hook, because the context gauge is a
+      // share of *this* model's window: a switch has to move the figure at once,
+      // and one carried over from a 1M-context model reads "50%" for a history
+      // that is really at 390% of a 128K one.
+      onModelProfileChange={(profileId) => {
+        setModelProfile(profileId);
+        setModelProfileId(profileId);
+      }}
       onTemperatureChange={setTemperature}
       onThinkingEffortChange={setThinkingEffort}
       onRegenerate={handleRegenerate}
@@ -253,8 +304,16 @@ interface ChatUIProps {
   messages: import("@/types").ChatMessage[];
   isConnected: boolean;
   isProcessing: boolean;
+  /** The summary in flight, drawn above the composer. Null when none is. */
+  compacting: Compaction | null;
+  /** A window with no room for a summary, drawn in its place. Null when there is. */
+  compactionImpossible: Compaction | null;
   /** What the last turn cost, drawn under the input. Null until one has run. */
   lastUsage: TurnUsage | null;
+  /** What the whole thread has cost, from the server. Null until a transcript loads. */
+  conversationCost: ConversationCost | null;
+  /** The window the context gauge is a share of, or null when nobody knows it. */
+  contextWindow: number | null;
   /**
    * The turn's delegations, drawn under the transcript.
    *
@@ -302,7 +361,11 @@ function ChatUI({
   messages,
   isConnected,
   isProcessing,
+  compacting,
+  compactionImpossible,
   lastUsage,
+  conversationCost,
+  contextWindow,
   delegations,
   conversationId,
   turns,
@@ -332,14 +395,32 @@ function ChatUI({
   // input costs nothing extra - and appears when a conversation is *opened* rather than
   // after the next turn reports one.
   const { workspace } = useConversationWorkspace(conversationId);
+  // The composer floats over the transcript so the glass has something to blur,
+  // which means the scroll area must end where the dock begins or the last
+  // message hides behind it. The dock's height is not a constant - attachments,
+  // banners and a growing textarea all change it - so it is measured.
+  const dockRef = useRef<HTMLDivElement | null>(null);
+  const [dockHeight, setDockHeight] = useState(0);
+  useLayoutEffect(() => {
+    const dock = dockRef.current;
+    if (!dock) return;
+    const observer = new ResizeObserver(() => setDockHeight(dock.offsetHeight));
+    observer.observe(dock);
+    setDockHeight(dock.offsetHeight);
+    return () => observer.disconnect();
+  }, []);
   return (
     <div className="flex h-full w-full">
       {/* The column no longer carries the width. The scroller does, and the
           content is centred inside it - so the scrollbar sits at the edge of the
           pane where a scrollbar belongs, rather than a hundred pixels to the
           right of the text with white on both sides of it. */}
-      <div className="flex h-full min-w-0 flex-1 flex-col">
-        <div ref={scrollContainerRef} className="flex-1 scrollbar-thin overflow-y-auto">
+      <div className="relative flex h-full min-w-0 flex-1 flex-col">
+        <div
+          ref={scrollContainerRef}
+          className="flex-1 scrollbar-thin overflow-y-auto"
+          style={{ paddingBottom: dockHeight }}
+        >
           <div className="mx-auto max-w-5xl px-2 py-4 sm:px-4 sm:py-6">
             {isLoadingConversation ? (
               <ConversationSkeleton />
@@ -357,82 +438,102 @@ function ChatUI({
             <div ref={messagesEndRef} />
           </div>
         </div>
-        {pendingApproval && onResumeDecisions && (
-          <div className="mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
-            <ToolApprovalDialog
-              actionRequests={pendingApproval.actionRequests}
-              reviewConfigs={pendingApproval.reviewConfigs}
-              onDecisions={onResumeDecisions}
-              disabled={!isConnected}
-            />
-          </div>
-        )}
-        {pendingQuestions && pendingQuestions.length > 0 && onAnswerQuestions && (
-          <div className="mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
-            <QuestionPrompt
-              questions={pendingQuestions}
-              disabled={!isConnected}
-              onComplete={onAnswerQuestions}
-            />
-          </div>
-        )}
-        <div className="mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-4">
-          {queuedMessages && queuedMessages.length > 0 && onCancelQueued && (
-            <PendingMessages messages={queuedMessages} onCancel={onCancelQueued} />
-          )}
-          <div className="bg-card border-border focus-within:border-foreground/30 rounded-2xl border transition-colors">
-            <div className="px-3 pt-3 sm:px-4 sm:pt-4">
-              {isArchived && (
-                <p className="text-muted-foreground pb-2 text-center font-mono text-[11px] tracking-wider uppercase">
-                  {t("conversationArchived")}
-                </p>
-              )}
-              {/* Under the input rather than over the transcript: it is about
-                  the turn that just finished, and a strip above the messages
-                  would move the conversation every time a number changed. */}
-              <UsageStrip usage={lastUsage} workspace={workspace} />
-              <ChatInput
-                onSend={sendMessage}
-                disabled={
-                  !isConnected ||
-                  isArchived ||
-                  !!pendingApproval ||
-                  !!(pendingQuestions && pendingQuestions.length)
-                }
-                isProcessing={isProcessing}
-                onStop={onStop}
-                slashContext={slashContext}
-                commands={slashCommands}
+        {/* The floating dock: banners, the glass composer, the caption. Over
+            the transcript, not under it - the messages scrolling beneath are
+            what the blur works on. `pointer-events-none` on the wrapper so the
+            transparent gutters beside the column do not swallow clicks and the
+            scrollbar's bottom stays draggable; each child takes its own
+            pointer-events back. */}
+        {/* z-20: a message avatar carries z-10 of its own, and without a higher
+            index here it rides over the glass instead of blurring under it. */}
+        <div ref={dockRef} className="pointer-events-none absolute inset-x-0 bottom-0 z-20">
+          {pendingApproval && onResumeDecisions && (
+            <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
+              <ToolApprovalDialog
+                actionRequests={pendingApproval.actionRequests}
+                reviewConfigs={pendingApproval.reviewConfigs}
+                onDecisions={onResumeDecisions}
+                disabled={!isConnected}
               />
             </div>
-            <div className="border-foreground/8 flex items-center justify-between border-t px-3 py-2 sm:px-4">
-              <div className="flex items-center gap-2">
-                <span
-                  className={`inline-flex items-center gap-1.5 font-mono text-[10px] tracking-wider uppercase ${isConnected ? "text-muted-foreground" : "text-destructive"}`}
-                >
-                  <span
-                    className={`inline-block h-1.5 w-1.5 rounded-full ${
-                      isConnected ? "bg-success" : "bg-destructive"
-                    }`}
-                  />
-                  {isConnected ? tc("live") : tc("offline")}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                {/* Who answers, first and largest: it is the most consequential
-                    choice in the composer and it was a tab inside a popover. */}
-                <AgentPicker />
-                <ChatControls
-                  onModelProfileChange={onModelProfileChange}
-                  onTemperatureChange={onTemperatureChange}
-                  onThinkingEffortChange={onThinkingEffortChange}
+          )}
+          {pendingQuestions && pendingQuestions.length > 0 && onAnswerQuestions && (
+            <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
+              <QuestionPrompt
+                questions={pendingQuestions}
+                disabled={!isConnected}
+                onComplete={onAnswerQuestions}
+              />
+            </div>
+          )}
+          <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-4">
+            <CompactionNotice compacting={compacting} impossible={compactionImpossible} />
+            {queuedMessages && queuedMessages.length > 0 && onCancelQueued && (
+              <PendingMessages messages={queuedMessages} onCancel={onCancelQueued} />
+            )}
+            <div className="glass focus-within:border-foreground/30 rounded-2xl transition-colors">
+              <div className="px-3 pt-3 sm:px-4 sm:pt-4">
+                {isArchived && (
+                  <p className="text-muted-foreground pb-2 text-center font-mono text-[11px] tracking-wider uppercase">
+                    {t("conversationArchived")}
+                  </p>
+                )}
+                {/* Under the input rather than over the transcript: it is about
+                  the turn that just finished, and a strip above the messages
+                  would move the conversation every time a number changed. */}
+                <UsageStrip
+                  usage={lastUsage}
+                  workspace={workspace}
+                  total={conversationCost}
+                  contextWindow={contextWindow}
+                />
+                <ChatInput
+                  onSend={sendMessage}
+                  disabled={
+                    !isConnected ||
+                    isArchived ||
+                    !!pendingApproval ||
+                    !!(pendingQuestions && pendingQuestions.length)
+                  }
+                  isProcessing={isProcessing}
+                  onStop={onStop}
+                  slashContext={slashContext}
+                  commands={slashCommands}
                 />
               </div>
+              <div className="border-foreground/8 flex items-center justify-between border-t px-3 py-2 sm:px-4">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`inline-flex items-center gap-1.5 font-mono text-[10px] tracking-wider uppercase ${isConnected ? "text-muted-foreground" : "text-destructive"}`}
+                  >
+                    <span
+                      className={`inline-block h-1.5 w-1.5 rounded-full ${
+                        isConnected ? "bg-success" : "bg-destructive"
+                      }`}
+                    />
+                    {isConnected ? tc("live") : tc("offline")}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {/* Who answers, first and largest: it is the most consequential
+                    choice in the composer and it was a tab inside a popover. */}
+                  <AgentPicker />
+                  <ChatControls
+                    onModelProfileChange={onModelProfileChange}
+                    onTemperatureChange={onTemperatureChange}
+                    onThinkingEffortChange={onThinkingEffortChange}
+                  />
+                </div>
+              </div>
             </div>
+            {/* Text floating over a transcript needs its own pane behind it,
+                or it collides with whatever scrolls past. */}
+            <p className="text-center">
+              <span className="text-foreground/40 bg-background/55 mt-2 inline-block rounded-full px-3 py-0.5 text-center font-mono text-[10px] tracking-wider uppercase backdrop-blur-md">
+                {t("aiCanMakeMistakes")}
+              </span>
+            </p>
           </div>
-          <p className="text-foreground/40 mt-2 text-center font-mono text-[10px] tracking-wider uppercase">
-            {t("aiCanMakeMistakes")}
-          </p>
         </div>
       </div>
       <FilePreviewPanel />

@@ -36,7 +36,9 @@ from pydantic_ai.tools import DeferredToolRequests
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
-from app.agents.deps import AgentDeps, AskUserCallback
+from app.agents.capabilities.guardrails import GuardrailBlocked
+from app.agents.deps import AgentDeps, AskUserCallback, CompactionSink
+from app.agents.failures import run_failure_summary
 from app.agents.subagent_events import SubagentEventSink
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import AuthContext
@@ -53,7 +55,7 @@ from app.services.agent_runner import (
     _outcome,
 )
 from app.services.attachments import AttachmentRouter
-from app.services.usage_report import UsageReport, UsageReportService
+from app.services.usage_report import UsageReport, UsageReportService, context_fill
 
 logger = logging.getLogger(__name__)
 
@@ -68,14 +70,6 @@ type ChatStream = Callable[[AgentRun[AgentDeps, str | DeferredToolRequests]], Aw
 # no membership has no role, and a run with no role has none of the checks a
 # role implies.
 _NOT_A_MEMBER = "You are no longer a member of this organization."
-
-# What the person is told when the run stopped on an approval instead of an
-# answer. Silence would read as the agent ignoring them, and the run does not
-# continue in this conversation - it continues when somebody decides, from the
-# approvals queue.
-_AWAITING_APPROVAL = (
-    "This run needs approval before it can go further - it is waiting in the approvals queue."
-)
 
 
 def requested_agent_id(frame: Mapping[str, Any]) -> UUID | None:
@@ -152,8 +146,18 @@ def display_output(output: str | DeferredToolRequests) -> str:
     side-effecting call, Pydantic AI ends the run with the calls waiting on a
     human. There is no model text to show then, and the object itself is not
     something a client can render.
+
+    Empty, then - and deliberately not a sentence about the queue. This value
+    becomes the assistant message's `content`, so a notice put here is stored as
+    the agent's words: false the moment somebody approves, and false for good, in
+    the middle of a turn that plainly did go further (#509). That a run is parked
+    is state, and it is already carried by things that stop carrying it when the
+    decision is made - the step the run stopped on, and the approval panel put in
+    front of whoever is looking. Every surface that does not stream records an
+    empty answer here too (:meth:`AgentRunnerService._run`), so this is the whole
+    platform's answer rather than this one's.
     """
-    return output if isinstance(output, str) else _AWAITING_APPROVAL
+    return output if isinstance(output, str) else ""
 
 
 @dataclass(frozen=True)
@@ -182,6 +186,10 @@ class ChatTurn:
     """What one published-agent turn produced, for the surface to persist."""
 
     output: str
+    """The answer, or empty for a turn that parked on an approval - see
+    :func:`display_output`. A surface that streamed the turn holds what the model
+    said before it stopped; this carries only what the run *ended* with."""
+
     model_label: str
     agent_id: UUID
     agent_version_id: UUID | None
@@ -199,6 +207,22 @@ class ChatTurn:
     looking, instead of only naming a queue. The queue stays the record - these
     are the same rows - so a decision made here and one made there are the same
     decision.
+    """
+
+    summarized_history: list[dict[str, Any]] | None = None
+    """The history a summary reduced this turn to, or `None` if none ran.
+
+    Carried out rather than written here because the surface writes the turn's
+    own rows *after* this returns, and what is recorded alongside it is how far
+    the summary reaches - see `ConversationService.keep_summary`.
+    """
+
+    overhead_tokens: int | None = None
+    """What this turn measured a request to carry before a single message.
+
+    Recorded against the conversation so the *next* turn starts knowing it. It
+    comes off a response, so within one run it is unknown until one arrives -
+    and a one-request turn, which is most of them, never gets that far (#49).
     """
 
     usage: UsageReport | None = None
@@ -246,6 +270,7 @@ class ChatAgentRunner:
         stream: ChatStream,
         on_run_open: Callable[[OpenedRun], None] | None = None,
         subagent_events: SubagentEventSink | None = None,
+        on_compaction: CompactionSink | None = None,
         model_profile_id: UUID | None = None,
         environment_id: UUID | None = None,
     ) -> ChatTurn:
@@ -289,8 +314,8 @@ class ChatAgentRunner:
 
         Returns:
             The answer to show and persist, and the model that produced it. A
-            run parked on an approval returns the queue's explanation instead of
-            an answer - it did not fail, and it has not finished either.
+            run parked on an approval returns no answer at all - it did not fail,
+            and it has not finished either - and `parked` is what says so.
 
         Raises:
             AuthorizationError: If the user is not a member of this organization.
@@ -298,6 +323,9 @@ class ChatAgentRunner:
             BadRequestError: If the agent is unpublished or archived.
             BudgetExceeded: If a limit stopped the run. Surfaced rather than
                 swallowed so the client can say why the answer stopped.
+            GuardrailBlocked: If a guardrail refused the run at one of its edges.
+                Surfaced rather than swallowed so the client sees the guard's
+                safe refusal, not a generic failure.
         """
         ctx = await self._context(user, organization_id)
         prepared = await self.runner.prepare(
@@ -317,6 +345,10 @@ class ChatAgentRunner:
         # delegation is a tool call named `task` that goes quiet for thirty seconds.
         prepared.deps.ask_user = ask_user
         prepared.deps.subagent_events = subagent_events
+        # And the third: summarising a long history is a whole model request
+        # between two of this turn's own, where nothing streams. Without this the
+        # chat stops dead for the length of it with nothing said.
+        prepared.deps.on_compaction = on_compaction
 
         # Before the run, not after: this run may fail, park or be cancelled, and
         # a transcript that holds the answer but not the question is the one shape
@@ -348,6 +380,7 @@ class ChatAgentRunner:
         paused: PausedRunState | None = None
         budget_scope: BudgetScope | None = None
         output = ""
+        summarized: list[dict[str, Any]] | None = None
         try:
             async with prepared.iterate(
                 user_input,
@@ -356,6 +389,13 @@ class ChatAgentRunner:
                 await stream(agent_run)
 
             result = _outcome(agent_run)
+            # Before the branch, so a turn that parked on an approval keeps its
+            # summary too: the resume replays the parked state, but the *next*
+            # turn reads the conversation and would otherwise summarise again.
+            if prepared.built.context.summarized:
+                summarized = ModelMessagesTypeAdapter.dump_python(
+                    result.all_messages(), mode="json"
+                )
             if isinstance(result.output, DeferredToolRequests):
                 paused = PausedRunState(
                     messages=ModelMessagesTypeAdapter.dump_python(
@@ -365,8 +405,8 @@ class ChatAgentRunner:
                 )
                 status = RunStatus.AWAITING_APPROVAL
             else:
+                output = result.output
                 status = RunStatus.COMPLETED
-            output = display_output(result.output)
         except asyncio.CancelledError:
             # The user pressed stop, or the socket went away mid-run. Cancelled
             # is not failed, and the tokens spent up to here were still spent.
@@ -382,8 +422,17 @@ class ChatAgentRunner:
             budget_scope = exc.scope
             logger.info("Chat run %s stopped by budget: %s", prepared.run.id, exc)
             raise
-        except Exception as exc:
+        except GuardrailBlocked as exc:
+            # A refusal, not a malfunction - its own status for the same reason
+            # `BUDGET_EXCEEDED` is. The message names the edge and the refusal, not
+            # the content that tripped it, so it is safe to store and to surface.
+            # Raised on so the visitor is told the guard's plain reason.
+            status = RunStatus.GUARDRAIL_BLOCKED
             error = str(exc)
+            logger.info("Chat run %s blocked by a %s guardrail", prepared.run.id, exc.edge)
+            raise
+        except Exception as exc:
+            error = run_failure_summary(exc)
             logger.exception("Chat run %s failed", prepared.run.id)
             raise
         finally:
@@ -409,6 +458,8 @@ class ChatAgentRunner:
             run_id=prepared.run.id,
             parked=tuple(prepared.approvals.requested),
             usage=await self._usage(ctx, prepared),
+            summarized_history=summarized,
+            overhead_tokens=prepared.built.context.overhead,
         )
 
     async def _usage(self, ctx: AuthContext, prepared: PreparedRun) -> UsageReport | None:
@@ -438,6 +489,11 @@ class ChatAgentRunner:
                     else self._as_decimal(prepared.spec.budget.monthly_usd)
                 ),
                 include_sandbox=True,
+                # Read off the run's own gauge rather than recomputed: the
+                # compaction capability's estimator has already counted these
+                # tokens for its own trigger, against the window the profile
+                # recorded. A second count here would be a second answer.
+                context=context_fill(prepared.built.context),
             )
         except Exception:
             logger.warning("chat_usage_report_failed", extra={"run_id": str(prepared.run.id)})

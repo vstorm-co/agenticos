@@ -69,6 +69,7 @@ export function AddChannelDialog({
   onSubmit,
   isPending,
 }: AddChannelDialogProps) {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("pages.channels");
   const [platform, setPlatform] = useState<ChannelPlatform>("mattermost");
   const [name, setName] = useState("");
@@ -128,10 +129,14 @@ export function AddChannelDialog({
       onOpenChange(false);
       reset();
     } catch (error) {
-      const failure = submitFailure(error, {
-        fields: ["name", "token", "api_base_url", "webhook_secret"],
-        identifiedBy: "name",
-      });
+      const failure = submitFailure(
+        error,
+        {
+          fields: ["name", "token", "api_base_url", "webhook_secret"],
+          identifiedBy: "name",
+        },
+        tErrors,
+      );
       setErrors(failure.fields);
       if (failure.toast) toast.error(failure.toast);
     }
@@ -151,7 +156,7 @@ export function AddChannelDialog({
           <DialogDescription>{t("addChannelDescription")}</DialogDescription>
         </DialogHeader>
 
-        <div className="max-h-[65vh] space-y-5 overflow-y-auto px-1">
+        <div className="max-h-[65vh] scrollbar-thin space-y-5 overflow-y-auto px-1">
           {/* A caption over a group of buttons, not a `Label`: a label names one
               control and this one names three. */}
           <div className="space-y-2">

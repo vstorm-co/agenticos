@@ -316,6 +316,15 @@ class ModelRequestSpec:
     # run row, a cost query and an audit trail all want. Null for a keyless
     # provider, where there is no key to attribute spend to.
     secret_id: UUID | None = None
+    # How many tokens this model accepts, as its provider's listing said when the
+    # profile was created. `None` where it was never recorded, which is what a
+    # capability needing the window falls back from - see `compaction`.
+    #
+    # It travels here rather than being resolved from the model because a
+    # `FallbackModel`'s `model_id` is a composite `fallback:...` that resolves to
+    # nothing, and the pricing snapshot the alternative reads is wrong for
+    # Sonnet-class Anthropic models in the direction that breaks a run (#773).
+    context_length: int | None = None
 
     def build(self) -> Model:
         return build_with_fallbacks((self.credential, self.model), self.fallbacks)

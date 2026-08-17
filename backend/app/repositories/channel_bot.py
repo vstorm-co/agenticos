@@ -19,6 +19,20 @@ async def get_for_inbound(db: AsyncSession, bot_id: UUID) -> ChannelBot | None:
     return await db.get(ChannelBot, bot_id)
 
 
+async def get_by_ids(db: AsyncSession, bot_ids: set[UUID]) -> dict[UUID, ChannelBot]:
+    """The bots behind a batch of participation claims, keyed by id.
+
+    Deliberately unscoped for the same reason :func:`get_for_inbound` is: the
+    caller holds session rows, and the bot row is where each one's organization
+    comes from. A bot deleted since the claim was recorded is simply absent, and
+    the claim it anchored goes unconfirmed.
+    """
+    if not bot_ids:
+        return {}
+    result = await db.execute(select(ChannelBot).where(ChannelBot.id.in_(bot_ids)))
+    return {bot.id: bot for bot in result.scalars().all()}
+
+
 async def get_for_org(
     db: AsyncSession,
     bot_id: UUID,

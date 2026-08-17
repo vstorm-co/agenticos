@@ -32,6 +32,7 @@ from app.main import app
 pytestmark = pytest.mark.anyio
 
 _ORGANIZATION_ID = uuid4()
+_CONVERSATION_ID = uuid4()
 
 
 @asynccontextmanager
@@ -125,6 +126,14 @@ class TestSortingIsChosenFromTwoOrdersAndNotFromAColumnName:
         assert service.list_runs.await_args.kwargs["order_by"].value == "duration"
         assert service.list_runs.await_args.kwargs["descending"] is True
 
+    async def test_the_heaviest_first(self):
+        service = _service()
+        async with _client(service) as client:
+            response = await client.get("/api/v1/runs?order_by=tokens")
+
+        assert response.status_code == 200
+        assert service.list_runs.await_args.kwargs["order_by"].value == "tokens"
+
     async def test_a_column_name_is_not_an_order(self):
         async with _client(_service()) as client:
             response = await client.get("/api/v1/runs?order_by=cost_usd")
@@ -212,6 +221,8 @@ class TestTheDownRatedMarkerReachesTheRow:
             output_tokens=5,
             cost_usd=Decimal("0.01"),
             cost_is_partial=False,
+            provider="openrouter",
+            conversation_id=_CONVERSATION_ID,
         )
 
     async def test_a_run_rated_down_is_marked_and_an_unrated_one_is_not(self):
@@ -228,6 +239,13 @@ class TestTheDownRatedMarkerReachesTheRow:
         assert by_id[str(disliked.id)] is True
         assert by_id[str(clean.id)] is False
         assert service.down_rated_run_ids.await_args.args[1] == [disliked.id, clean.id]
+        # The vendor and the thread ride the row too: the brand mark keys on
+        # one, the open-chat link names the other - absent from the wire, the
+        # frontend once built /chat?id=undefined out of the gap.
+        assert {item["provider"] for item in response.json()["items"]} == {"openrouter"}
+        assert {item["conversation_id"] for item in response.json()["items"]} == {
+            str(_CONVERSATION_ID)
+        }
 
     async def test_an_empty_page_asks_for_no_marker_at_all(self):
         """Nothing to mark, so the marker query is skipped rather than asked with
@@ -240,3 +258,35 @@ class TestTheDownRatedMarkerReachesTheRow:
 
         assert response.status_code == 200
         service.down_rated_run_ids.assert_not_awaited()
+
+
+class TestTheDetailReadCarriesItsNeighbours:
+    """`prev_run_id`/`next_run_id` ride the single-run read, like `logfire_url` -
+    a detail view walks to its neighbours, a list already is the neighbours."""
+
+    async def test_prev_and_next_ride_the_single_run_read(self):
+        run = AgentRun(
+            id=uuid4(),
+            organization_id=_ORGANIZATION_ID,
+            agent_id=uuid4(),
+            surface="web",
+            status="completed",
+            input_tokens=10,
+            output_tokens=5,
+            cost_usd=Decimal("0.01"),
+            cost_is_partial=False,
+        )
+        prev_id, next_id = uuid4(), uuid4()
+        service = _service()
+        service.get_run = AsyncMock(return_value=run)
+        service.down_rated_run_ids = AsyncMock(return_value=set())
+        service.trace_url = AsyncMock(return_value=None)
+        service.neighbor_run_ids = AsyncMock(return_value=(prev_id, next_id))
+
+        async with _client(service) as client:
+            response = await client.get(f"/api/v1/runs/{run.id}")
+
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["prev_run_id"] == str(prev_id)
+        assert body["next_run_id"] == str(next_id)

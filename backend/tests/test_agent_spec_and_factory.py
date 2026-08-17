@@ -8,14 +8,23 @@ it never carries a secret.
 
 import uuid
 from decimal import Decimal
+from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
 from pydantic import ValidationError
+from pydantic_ai._run_context import RunContext
+from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
+from pydantic_ai.models import ModelRequestContext, ModelRequestParameters
+from pydantic_ai.models.function import AgentInfo, FunctionModel
+from pydantic_ai.models.test import TestModel
+from pydantic_ai.toolsets import FunctionToolset
+from pydantic_ai.usage import RequestUsage, RunUsage
 
 from app.agents.capabilities import load_builtins
 from app.agents.capabilities.budget import BudgetScope
-from app.agents.factory import DEFAULT_MAX_STEPS, build_agent
+from app.agents.capabilities.compaction import ReportContextSize
+from app.agents.factory import DEFAULT_MAX_STEPS, BuiltAgent, build_agent
 from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
 from app.agents.spec import (
     AgentSpec,
@@ -30,6 +39,19 @@ from app.core.secret_kinds import ApiKeySecret
 @pytest.fixture(autouse=True)
 def _builtins_loaded():
     load_builtins()
+
+
+def _run_context() -> RunContext[None]:
+    return RunContext(deps=None, model=TestModel(), usage=RunUsage())
+
+
+def _request_context() -> ModelRequestContext:
+    return ModelRequestContext(
+        model=TestModel(),
+        messages=[],
+        model_settings=None,
+        model_request_parameters=ModelRequestParameters(),
+    )
 
 
 def _model_spec(params: dict | None = None) -> ModelRequestSpec:
@@ -107,6 +129,63 @@ class TestFactory:
         assert built.model_label == "GPT-4.1 (prod)"
         assert [type(c).__name__ for c in built.capabilities] == ["Clock", "Knowledge"]
 
+    @pytest.mark.anyio
+    async def test_an_agent_that_binds_nothing_still_reports_its_context(self):
+        """The gauge is attached whatever the spec says, and this is the point.
+
+        An agent with no `compaction` binding is the one that reaches the context
+        ceiling and is refused by the provider mid-answer - there is no strategy
+        to save it, so the reading is the whole of what it gets. Bound to the
+        capability list beside the budget guard rather than inside `*configured`,
+        which is what makes it independent of the spec.
+        """
+        built = build_agent(
+            AgentSpec(name="Bare", instructions="Be brief."),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+        )
+
+        attached: list[object] = []
+        built.agent.root_capability.apply(attached.append)
+        gauge = next(c for c in attached if isinstance(c, ReportContextSize))
+
+        assert built.capabilities == []
+        await gauge.after_model_request(
+            _run_context(),
+            request_context=_request_context(),
+            response=ModelResponse(
+                parts=[TextPart(content="ok")], usage=RequestUsage(input_tokens=41_806)
+            ),
+        )
+        assert built.context.latest == 41_806
+
+    def test_an_earlier_turns_measurement_starts_the_gauge_off(self):
+        """The gauge is per run and filled by a *response*, so on a one-request
+        turn it is empty for the whole of it - and compaction, which reads it to
+        decide whether the window has room for a summary at all, could never tell
+        that case from a working one. The overhead is a property of the agent's
+        instructions and tool schemas rather than of one run, so what an earlier
+        turn measured is where this one starts (#49)."""
+        built = build_agent(
+            AgentSpec(name="Bare", instructions="Be brief."),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+            recorded_overhead=3_865,
+        )
+
+        assert built.context.overhead == 3_865
+
+    def test_a_thread_that_has_measured_nothing_starts_empty(self):
+        """A first turn. Nothing is guessed here - a made-up overhead would move
+        a refusal that costs an agent its compaction."""
+        built = build_agent(
+            AgentSpec(name="Bare", instructions="Be brief."),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+        )
+
+        assert built.context.overhead is None
+
     def test_agent_settings_override_the_profile(self):
         """The agent is the more specific statement of intent."""
         spec = AgentSpec(name="x", model_settings={"temperature": 0.9})
@@ -152,6 +231,106 @@ class TestFactory:
             resources={"kb_collection_names": ["kb_1"]},
         )
         assert built.capabilities == []
+
+
+class TestToolSearchDefersMcp:
+    """Binding `tool_search` is what hides the MCP toolsets behind discovery.
+
+    The capability and the deferral are two halves of one decision: `ToolSearch`
+    is inert with nothing deferred, and a deferred toolset with no `ToolSearch`
+    to find it is a set of tools the model can never call. So what is pinned here
+    is the pairing - the MCP toolsets are deferred exactly when the capability is
+    bound, and left alone when it is not.
+
+    A `DeferredLoadingToolset` on the agent proves the wrapper is *present*; it
+    does not prove the tools are actually hidden from the model, which is the
+    whole point of the capability - one could exist and still leak every MCP
+    schema through, and the wrapper assertions would stay green (#50). So the
+    behaviour is pinned end to end with a `FunctionModel` that records the tools
+    it is offered: when bound the MCP schemas are gone and `search_tools` stands
+    in their place, and when unbound every schema is in front of the model.
+    """
+
+    @staticmethod
+    def _mcp_toolset() -> FunctionToolset[Any]:
+        """Two named tools standing in for the schemas an MCP server exposes."""
+        toolset: FunctionToolset[Any] = FunctionToolset()
+
+        def fetch_invoice(invoice_id: str) -> str:
+            """Fetch an invoice by id."""
+            return "invoice"
+
+        def refund_payment(payment_id: str) -> str:
+            """Refund a payment by id."""
+            return "refunded"
+
+        toolset.add_function(fetch_invoice, takes_ctx=False)
+        toolset.add_function(refund_payment, takes_ctx=False)
+        return toolset
+
+    @classmethod
+    def _agent_with_mcp(cls, capabilities: list[dict[str, Any]]) -> BuiltAgent:
+        spec = AgentSpec(name="x", capabilities=capabilities)
+        return build_agent(
+            spec,
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+            extra_toolsets=[cls._mcp_toolset()],
+        )
+
+    @staticmethod
+    async def _tools_the_model_sees(built: BuiltAgent) -> list[str]:
+        """The function-tool names put in front of the model on its first request."""
+        seen: list[list[str]] = []
+
+        async def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            seen.append([tool.name for tool in info.function_tools])
+            return ModelResponse(parts=[TextPart("noted")])
+
+        with built.agent.override(model=FunctionModel(respond)):
+            await built.agent.run("hello", deps=built.deps)
+        return seen[0]
+
+    def test_the_mcp_toolsets_are_deferred_when_it_is_bound(self):
+        from pydantic_ai.toolsets.deferred_loading import DeferredLoadingToolset
+
+        built = self._agent_with_mcp([{"id": "tool_search"}])
+
+        assert any(isinstance(ts, DeferredLoadingToolset) for ts in built.agent.toolsets)
+
+    def test_the_mcp_toolsets_are_untouched_when_it_is_not(self):
+        """An agent that does not enable it pays nothing: its tools stay visible."""
+        from pydantic_ai.toolsets.deferred_loading import DeferredLoadingToolset
+
+        built = self._agent_with_mcp([])
+
+        assert not any(isinstance(ts, DeferredLoadingToolset) for ts in built.agent.toolsets)
+
+    @pytest.mark.anyio
+    async def test_the_mcp_schemas_are_hidden_behind_search_when_bound(self):
+        """The behaviour the wrapper only implies: on the first request the model
+        is offered `search_tools` and none of the MCP schemas it exists to hide.
+
+        `keywords` is chosen for determinism - it keeps the local `search_tools`
+        function on the wire on every provider, where `auto` would defer to a
+        provider-native builtin a `FunctionModel` does not implement and so offer
+        the model nothing to capture.
+        """
+        built = self._agent_with_mcp([{"id": "tool_search", "config": {"strategy": "keywords"}}])
+
+        offered = await self._tools_the_model_sees(built)
+
+        assert offered == ["search_tools"]
+
+    @pytest.mark.anyio
+    async def test_every_mcp_schema_is_visible_when_it_is_not_bound(self):
+        """The other direction: with nothing to defer to, every MCP schema is in
+        front of the model on the first request and there is no `search_tools`."""
+        built = self._agent_with_mcp([])
+
+        offered = await self._tools_the_model_sees(built)
+
+        assert offered == ["fetch_invoice", "refund_payment"]
 
 
 class TestBudgetComposition:

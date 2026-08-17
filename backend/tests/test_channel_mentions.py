@@ -23,10 +23,10 @@ import pytest
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import RunSurface
+from app.services.channels.base import ROOM_HANDLES, channel_key
 from app.services.channels.mentions import (
     ChannelAgentRouter,
     UnaddressedMessage,
-    channel_key,
     parse_mention,
 )
 from app.services.usage_report import UsageReport
@@ -209,6 +209,24 @@ class TestParseMention:
         """Slugs are capped at 64 characters, so nothing longer can exist."""
         assert parse_mention("@" + "a" * 65 + " hello") is None
 
+    @pytest.mark.parametrize("handle", sorted(ROOM_HANDLES))
+    def test_a_handle_that_addresses_the_room_is_not_an_agent(self, handle):
+        """`@channel deploying at five` matched the slug pattern, so it read as a
+        mention of an agent called `channel`. And a channel-wide mention puts every
+        member including the bot in the platform's own mention list, so the bot
+        considered itself named and posted "No agent here answers to @channel" under
+        every announcement - the interruption #634 exists to end.
+        """
+        assert parse_mention(f"@{handle} deploying at five") is None
+
+    def test_a_handle_that_merely_starts_with_one_is_still_an_agent(self):
+        """The set is exact, not a prefix: an agent may perfectly well be called
+        `channel-bot` or `all-hands`."""
+        mention = parse_mention("@channel-bot what is the refund window")
+
+        assert mention is not None
+        assert mention.slug == "channel-bot"
+
 
 class TestAnswer:
     async def test_an_unaddressed_message_is_handed_back_to_the_caller(self):
@@ -243,7 +261,11 @@ class TestAnswer:
 
     async def test_a_linked_sender_who_left_the_organization_is_refused_the_same_way(self):
         """Their account exists; their standing in this workspace does not."""
-        with patch("app.services.channels.mentions.member_repo") as members:
+        with (
+            patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.access.member_repo", new=members),
+            patch("app.services.access.member_repo", new=members),
+        ):
             members.get = AsyncMock(return_value=None)
 
             with pytest.raises(AuthorizationError) as refused:
@@ -260,6 +282,7 @@ class TestAnswer:
     async def test_an_unknown_handle_is_reported_as_missing(self):
         with (
             patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.access.member_repo", new=members),
             patch("app.services.channels.mentions.agent_repo") as agents,
             patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
         ):
@@ -291,6 +314,7 @@ class TestAnswer:
 
         with (
             patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.access.member_repo", new=members),
             patch("app.services.channels.mentions.agent_repo") as agents,
             patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
             patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
@@ -318,6 +342,7 @@ class TestAnswer:
         """Pausing is how a binding is switched off without losing who made it."""
         with (
             patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.access.member_repo", new=members),
             patch("app.services.channels.mentions.agent_repo") as agents,
             patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
             patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
@@ -349,6 +374,7 @@ class TestAnswer:
 
         with (
             patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.access.member_repo", new=members),
             patch("app.services.channels.mentions.agent_repo") as agents,
             patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
             patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
@@ -378,11 +404,13 @@ class TestAnswer:
 
         with (
             patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.access.member_repo", new=members),
             patch("app.services.channels.mentions.agent_repo") as agents,
             patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
             patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
         ):
             members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.MEMBER))
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.MEMBER))
             agents.get_by_slug = AsyncMock(return_value=agent)
             exposures.get_for_bot = _bound()
             runner_cls.return_value.execute = AsyncMock(return_value=("hi", MagicMock()))
@@ -404,6 +432,7 @@ class TestAnswer:
 
         with (
             patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.access.member_repo", new=members),
             patch("app.services.channels.mentions.agent_repo") as agents,
             patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
             patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
@@ -443,6 +472,7 @@ class TestAnswer:
         """An unknown platform is recorded as API rather than guessed at."""
         with (
             patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.access.member_repo", new=members),
             patch("app.services.channels.mentions.agent_repo") as agents,
             patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
             patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
@@ -469,6 +499,7 @@ class TestAnswer:
 
         with (
             patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.access.member_repo", new=members),
             patch("app.services.channels.mentions.agent_repo") as agents,
             patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
             patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
@@ -560,6 +591,7 @@ class TestAnswerDefault:
 
         with (
             patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.access.member_repo", new=members),
             patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
             patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
         ):
@@ -585,3 +617,230 @@ class TestAnswerDefault:
         assert execute.call_args.kwargs["message_history"] is history
         assert execute.call_args.kwargs["exposure"] is exposure
         assert answer.text == "42 days"
+
+
+class TestWhatARoomRunsAs:
+    """A channel admits somebody this platform cannot name (#639).
+
+    A direct message is a conversation with a person and keeps asking for a
+    linked account. A channel is a room: whoever could invite the bot chose the
+    audience, so the turn runs under the *binding* - and what it may reach is
+    the binding creator's role, never more.
+    """
+
+    @staticmethod
+    def _binding(creator: uuid.UUID | None, organization_id: uuid.UUID) -> MagicMock:
+        return MagicMock(created_by_user_id=creator, organization_id=organization_id)
+
+    async def _ran_as(self, exposure: MagicMock, **kwargs) -> AuthContext:
+        """The context a turn ran under, admitting an unnamed sender.
+
+        `membership` is what `member_repo.get_active` answers with, so it stands for
+        an account that is both still a member and still able to sign in: `None`
+        covers having left *and* having been deactivated, which is the same answer
+        for the same reason (`access.publisher_context`).
+        """
+        agent = MagicMock(id=uuid.uuid4(), slug="support")
+        with (
+            patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.access.member_repo", new=members),
+            patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
+            patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
+        ):
+            membership = kwargs.pop("membership", None)
+            members.get = AsyncMock(return_value=membership)
+            members.get_active = AsyncMock(return_value=membership)
+            exposures.list_active_for_bot = AsyncMock(return_value=[(exposure, agent)])
+            execute = AsyncMock(return_value=("hello", MagicMock()))
+            runner_cls.return_value.execute = execute
+
+            await ChannelAgentRouter(MagicMock()).answer_default(
+                "what is the refund window",
+                platform="mattermost",
+                organization_id=exposure.organization_id,
+                bot_id=_BOT_ID,
+                admit_unlinked=True,
+                **kwargs,
+            )
+
+        return execute.call_args.args[0]
+
+    async def test_a_sender_nobody_can_name_runs_under_the_binding_creator(self):
+        organization_id, creator = uuid.uuid4(), uuid.uuid4()
+        exposure = self._binding(creator, organization_id)
+
+        ctx = await self._ran_as(
+            exposure,
+            user_id=None,
+            membership=MagicMock(role=OrgRoleName.BUILDER),
+        )
+
+        assert ctx.user_id == creator
+        assert ctx.role == OrgRoleName.BUILDER
+        assert ctx.organization_id == organization_id
+
+    async def test_a_creator_who_left_the_organization_drops_the_turn_to_viewer(self):
+        """Their departure must not silently widen what a channel can reach."""
+        exposure = self._binding(uuid.uuid4(), uuid.uuid4())
+
+        ctx = await self._ran_as(exposure, user_id=None, membership=None)
+
+        assert ctx.role == OrgRoleName.VIEWER
+
+    async def test_the_creators_role_is_read_off_a_membership_that_can_sign_in(self):
+        """Deactivation leaves the membership row in place, so the plain read kept a
+        binding answering at its creator's Owner role after their account stopped
+        being able to sign in at all. `get` here is the defect, so it raises."""
+        exposure = self._binding(uuid.uuid4(), uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), slug="support")
+
+        with (
+            patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.access.member_repo", new=members),
+            patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
+            patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
+        ):
+            members.get = AsyncMock(side_effect=AssertionError("the joined read decides this"))
+            members.get_active = AsyncMock(return_value=None)
+            exposures.list_active_for_bot = AsyncMock(return_value=[(exposure, agent)])
+            execute = AsyncMock(return_value=("hello", MagicMock()))
+            runner_cls.return_value.execute = execute
+
+            await ChannelAgentRouter(MagicMock()).answer_default(
+                "what is the refund window",
+                platform="mattermost",
+                organization_id=exposure.organization_id,
+                bot_id=_BOT_ID,
+                admit_unlinked=True,
+                user_id=None,
+            )
+
+        assert execute.call_args.args[0].role == OrgRoleName.VIEWER
+
+    async def test_a_binding_nobody_is_recorded_against_runs_as_viewer(self):
+        """A row old enough to predate the column is not a row with an owner."""
+        exposure = self._binding(None, uuid.uuid4())
+
+        ctx = await self._ran_as(exposure, user_id=None)
+
+        assert ctx.user_id is None
+        assert ctx.role == OrgRoleName.VIEWER
+
+    async def test_the_chat_account_is_recorded_even_though_it_is_not_the_subject(self):
+        """Who asked, beside who it ran as - the two are different in a room."""
+        identity_id, creator = uuid.uuid4(), uuid.uuid4()
+        exposure = self._binding(creator, uuid.uuid4())
+
+        ctx = await self._ran_as(
+            exposure,
+            user_id=None,
+            channel_identity_id=identity_id,
+            membership=MagicMock(role=OrgRoleName.MEMBER),
+        )
+
+        assert ctx.channel_identity_id == identity_id
+        assert ctx.user_id == creator
+
+    async def test_a_linked_member_in_a_room_still_runs_as_themselves(self):
+        """Admitting strangers must not stop naming the people it can name."""
+        user_id, identity_id = uuid.uuid4(), uuid.uuid4()
+        exposure = self._binding(uuid.uuid4(), uuid.uuid4())
+
+        ctx = await self._ran_as(
+            exposure,
+            user_id=user_id,
+            channel_identity_id=identity_id,
+            membership=MagicMock(role=OrgRoleName.OPERATOR),
+        )
+
+        assert ctx.user_id == user_id
+        assert ctx.role == OrgRoleName.OPERATOR
+        assert ctx.channel_identity_id == identity_id
+
+    async def test_a_former_member_in_a_room_is_no_more_entitled_than_a_stranger(self):
+        """An account that exists and a standing in this workspace are not the
+        same thing, and only the second one carries a role."""
+        creator = uuid.uuid4()
+        exposure = self._binding(creator, uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), slug="support")
+
+        with (
+            patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.access.member_repo", new=members),
+            patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
+            patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
+        ):
+            # The departed sender, read by the router; the creator's own standing is
+            # the joined read, which is what decides the role.
+            members.get = AsyncMock(return_value=None)
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.ADMIN))
+            exposures.list_active_for_bot = AsyncMock(return_value=[(exposure, agent)])
+            execute = AsyncMock(return_value=("hello", MagicMock()))
+            runner_cls.return_value.execute = execute
+
+            await ChannelAgentRouter(MagicMock()).answer_default(
+                "hello",
+                platform="mattermost",
+                organization_id=exposure.organization_id,
+                bot_id=_BOT_ID,
+                user_id=uuid.uuid4(),
+                admit_unlinked=True,
+            )
+
+        ctx = execute.call_args.args[0]
+        assert ctx.user_id == creator, "the turn runs under the binding, not under them"
+        assert ctx.role == OrgRoleName.ADMIN
+
+    async def test_a_room_that_asks_for_a_link_refuses_instead(self):
+        """`require_link` is the opt-out, and this is the layer that honours it:
+        the caller passes what its policy decided."""
+        with (
+            patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
+            patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
+        ):
+            exposures.list_active_for_bot = _serving("support")
+            runner_cls.return_value.execute = AsyncMock()
+
+            with pytest.raises(AuthorizationError) as refused:
+                await ChannelAgentRouter(MagicMock()).answer_default(
+                    "hello there",
+                    platform="mattermost",
+                    organization_id=uuid.uuid4(),
+                    bot_id=_BOT_ID,
+                    user_id=None,
+                    admit_unlinked=False,
+                )
+
+        assert "/link" in refused.value.message
+        runner_cls.return_value.execute.assert_not_called()
+
+    async def test_a_mention_in_a_room_runs_under_the_binding_too(self):
+        """The `@handle` path and the ordinary one admit the same people."""
+        creator = uuid.uuid4()
+        exposure = self._binding(creator, uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), slug="support")
+
+        with (
+            patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.access.member_repo", new=members),
+            patch("app.services.channels.mentions.agent_repo") as agents,
+            patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
+            patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
+        ):
+            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.MEMBER))
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.MEMBER))
+            agents.get_by_slug = AsyncMock(return_value=agent)
+            exposures.get_for_bot = AsyncMock(return_value=exposure)
+            execute = AsyncMock(return_value=("hello", MagicMock()))
+            runner_cls.return_value.execute = execute
+
+            await ChannelAgentRouter(MagicMock()).answer(
+                "@support hello",
+                platform="mattermost",
+                organization_id=exposure.organization_id,
+                bot_id=_BOT_ID,
+                user_id=None,
+                admit_unlinked=True,
+            )
+
+        assert execute.call_args.args[0].user_id == creator

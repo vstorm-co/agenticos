@@ -12,7 +12,7 @@ import { useMembers } from "./use-members";
 import { apiClient } from "@/lib/api-client";
 
 vi.mock("@/lib/api-client", () => ({
-  apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
+  apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn(), upload: vi.fn() },
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -29,6 +29,7 @@ beforeEach(() => {
   vi.mocked(apiClient.post).mockResolvedValue({ id: "x", name: "X", is_active: true });
   vi.mocked(apiClient.patch).mockResolvedValue({ id: "x" });
   vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+  vi.mocked(apiClient.upload).mockResolvedValue({ id: "x" });
 });
 
 /**
@@ -80,6 +81,19 @@ describe("an agent's environments", () => {
     expect(toast.success).toHaveBeenCalledWith("Promoted");
   });
 
+  it("renames an environment without touching its pin", async () => {
+    // The same PATCH as promotion, carrying only the name - sending a
+    // version_id here would silently repoint what somebody meant to relabel.
+    const { result } = renderHook(() => useAgentEnvironments("a1"), { wrapper });
+
+    await result.current.rename.mutateAsync({ environmentId: "env-1", name: "canary" });
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/agents/a1/environments/env-1", {
+      name: "canary",
+    });
+    expect(toast.success).toHaveBeenCalledWith("Renamed");
+  });
+
   it("removes an environment", async () => {
     const { result } = renderHook(() => useAgentEnvironments("a1"), { wrapper });
 
@@ -89,7 +103,7 @@ describe("an agent's environments", () => {
   });
 
   it("says which action was refused, not just that something was", async () => {
-    // Three mutations, three sentences: "failed to promote" and "failed to
+    // Four mutations, four sentences: "failed to promote" and "failed to
     // remove" send somebody to different places.
     const refused = new Error("Missing required permission: agents:publish");
     vi.mocked(apiClient.post).mockRejectedValue(refused);
@@ -101,9 +115,13 @@ describe("an agent's environments", () => {
     await expect(
       result.current.promote.mutateAsync({ environmentId: "e", versionId: "v" }),
     ).rejects.toThrow();
+    await expect(
+      result.current.rename.mutateAsync({ environmentId: "e", name: "x" }),
+    ).rejects.toThrow();
     await expect(result.current.remove.mutateAsync("e")).rejects.toThrow();
 
     expect(vi.mocked(toast.error).mock.calls.flat()).toEqual([
+      "Missing required permission: agents:publish",
       "Missing required permission: agents:publish",
       "Missing required permission: agents:publish",
       "Missing required permission: agents:publish",
@@ -150,6 +168,19 @@ describe("an agent's embedded widgets", () => {
     expect(apiClient.patch).toHaveBeenCalledWith("/agents/embeds/e-1", { is_active: false });
   });
 
+  it("uploads a page's own picture by the embed's id", async () => {
+    // A multipart upload rather than a path in the config: the stored path is a
+    // column written by this route, because one accepted from a request body
+    // would be a caller naming any file the process can open.
+    const { result } = renderHook(() => useEmbeds("a1"), { wrapper });
+    const file = new File(["x"], "logo.png", { type: "image/png" });
+
+    await result.current.uploadLogo.mutateAsync({ id: "e-1", file });
+
+    expect(apiClient.upload).toHaveBeenCalledWith("/agents/embeds/e-1/logo", file);
+    expect(toast.success).toHaveBeenCalledWith("Logo uploaded");
+  });
+
   it("says out loud that removing a widget breaks every page carrying its key", async () => {
     // The key cannot be reissued, so the toast is the last thing standing between
     // somebody and a broken production page.
@@ -168,6 +199,7 @@ describe("an agent's embedded widgets", () => {
     vi.mocked(apiClient.post).mockRejectedValue(refused);
     vi.mocked(apiClient.patch).mockRejectedValue(refused);
     vi.mocked(apiClient.delete).mockRejectedValue(refused);
+    vi.mocked(apiClient.upload).mockRejectedValue(refused);
     const { result } = renderHook(() => useEmbeds("a1"), { wrapper });
 
     await expect(
@@ -177,8 +209,14 @@ describe("an agent's embedded widgets", () => {
     ).rejects.toThrow();
     await expect(result.current.update.mutateAsync({ id: "e" })).rejects.toThrow();
     await expect(result.current.remove.mutateAsync("e")).rejects.toThrow();
+    await expect(
+      result.current.uploadLogo.mutateAsync({
+        id: "e",
+        file: new File(["x"], "logo.png", { type: "image/png" }),
+      }),
+    ).rejects.toThrow();
 
-    expect(toast.error).toHaveBeenCalledTimes(3);
+    expect(toast.error).toHaveBeenCalledTimes(4);
   });
 });
 

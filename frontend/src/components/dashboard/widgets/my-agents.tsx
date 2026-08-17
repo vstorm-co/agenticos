@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 
+import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { useAgents, usePermissions, useUsageStats } from "@/hooks";
 import { useAuthStore } from "@/stores";
 import { agentTag, filterAgentRows, myAgentsPolicy } from "@/lib/dashboard/my-agents";
@@ -19,7 +20,7 @@ import type { DashboardWidgetProps } from "./types";
  * (and only then is the usage query even issued), and the chat link only
  * under agents:run - a control the caller may not use is not rendered.
  */
-export function MyAgentsWidget({ title, period, seeAll }: DashboardWidgetProps) {
+export function MyAgentsWidget({ title, hint, period, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.my-agents");
   const { can } = usePermissions();
   const userId = useAuthStore((state) => state.user?.id ?? null);
@@ -34,7 +35,7 @@ export function MyAgentsWidget({ title, period, seeAll }: DashboardWidgetProps) 
   const rows = filterAgentRows(agents, policy, userId).slice(0, 6);
 
   return (
-    <WidgetFrame title={title} seeAll={seeAll}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {isLoading ? (
         <WidgetSkeleton />
       ) : error ? (
@@ -48,10 +49,27 @@ export function MyAgentsWidget({ title, period, seeAll }: DashboardWidgetProps) 
             return (
               <li
                 key={agent.id}
-                className="border-border flex min-w-0 flex-col gap-1 rounded-lg border p-3"
+                className="border-border flex min-w-0 flex-col gap-2 rounded-lg border p-3"
               >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-foreground truncate text-sm font-medium">{agent.name}</span>
+                <div className="flex items-center gap-2.5">
+                  {/* The agent's own face, the same one the catalog, the run
+                      table and the chat picker draw - a list of agents told
+                      apart by six lines of text is a list nobody scans. */}
+                  <AgentAvatar
+                    agentId={agent.id}
+                    name={agent.name}
+                    hasAvatar={agent.has_avatar ?? false}
+                    size="sm"
+                  />
+                  {/* The name reaches the agent. Every other card on this page
+                      hands over to the page behind its number; this one named
+                      six agents and offered no way to open any of them. */}
+                  <Link
+                    href={ROUTES.AGENT_DETAIL(agent.id)}
+                    className="text-foreground min-w-0 flex-1 truncate text-sm font-medium hover:underline"
+                  >
+                    {agent.name}
+                  </Link>
                   <span
                     className={cn(
                       "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium",

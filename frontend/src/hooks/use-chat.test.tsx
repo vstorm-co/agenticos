@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -20,8 +20,8 @@ import {
 // A decision on a parked call goes to the same REST endpoints the approvals queue
 // uses. It used to be a WebSocket `resume` frame the server silently discarded, so
 // asserting on the frame is exactly what let that pass.
-const { post } = vi.hoisted(() => ({ post: vi.fn() }));
-vi.mock("@/lib/api-client", () => ({ apiClient: { post } }));
+const { post, get } = vi.hoisted(() => ({ post: vi.fn(), get: vi.fn() }));
+vi.mock("@/lib/api-client", () => ({ apiClient: { post, get } }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const { sent, socket, connect, disconnect } = vi.hoisted(() => ({
@@ -40,18 +40,32 @@ const { sent, socket, connect, disconnect } = vi.hoisted(() => ({
 /**
  * `useChat` resolves the tenant through the organizations query, so it needs a
  * client - it clears a queued message when the organization moves, and a
- * message queued in one organization must not be sent as another.
+ * message queued in one organization must not be sent as another. It reads the
+ * caller's permissions the same way, for whether a reloaded parked run may have
+ * its approval panel rebuilt.
  */
-function wrapper({ children }: { children: ReactNode }) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false, staleTime: Infinity } },
-  });
-  // Seeded rather than fetched: these tests count requests, and an
-  // organizations query going out for the tenant would be a request none of
-  // them made.
-  client.setQueryData(qk.organizations.list(), []);
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+function makeWrapper(permissions: string[] = []) {
+  return function Wrapper({ children }: { children: ReactNode }) {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    });
+    // Seeded rather than fetched: these tests count requests, and an
+    // organizations or permissions query going out would be a request none of
+    // them made.
+    client.setQueryData(qk.organizations.list(), []);
+    client.setQueryData(qk.organizations.permissions("current"), {
+      organization_id: "org-1",
+      role: "member",
+      is_app_admin: false,
+      permissions: permissions.map((permission) => ({ permission, scope: "all" })),
+    });
+    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  };
 }
+
+const wrapper = makeWrapper();
+/** The same wrapper for a caller who may decide approvals. */
+const decider = makeWrapper(["approvals:decide"]);
 
 vi.mock("./use-websocket", () => ({
   useWebSocket: (options: {
@@ -94,6 +108,19 @@ function frame(nth = 0): Record<string, unknown> {
 /** The assistant message being streamed. */
 function streaming() {
   return useChatStore.getState().messages.find((message) => message.role === "assistant");
+}
+
+/** A stored assistant turn whose run is parked - what a reloaded conversation holds. */
+function parkedTurn() {
+  return {
+    id: "m-1",
+    role: "assistant" as const,
+    content: "",
+    timestamp: new Date(),
+    conversationId: "c-1",
+    runId: "r-1",
+    toolCalls: [{ id: "tc-1", name: "send_email", args: {}, status: "awaiting_approval" as const }],
+  };
 }
 
 beforeEach(() => {
@@ -653,6 +680,76 @@ describe("useChat - the conversation a turn belongs to", () => {
     expect(streaming()).toMatchObject({ id: "m-real", isTemporaryId: false });
   });
 
+  it("re-reads what the thread has cost once a turn has added to it", async () => {
+    // The total is read when the transcript loads, so without this it is a
+    // conversation out of date by the second message. Re-read rather than added
+    // to: a run that parked reports its cost so far and the resume reports the
+    // run's total, so the obvious arithmetic counts the approved half twice.
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    get.mockResolvedValueOnce({
+      cost: { input_tokens: 40, output_tokens: 4, cost_usd: "0.9", cost_is_partial: false },
+    });
+    renderHook(() => useChat(), { wrapper });
+
+    receive("complete", {
+      usage: {
+        input_tokens: 1200,
+        output_tokens: 300,
+        cost_usd: 0.0125,
+        budget_percent: null,
+        sandbox: null,
+      },
+    });
+
+    await waitFor(() =>
+      expect(useConversationStore.getState().currentCost).toMatchObject({ input_tokens: 40 }),
+    );
+    expect(get).toHaveBeenCalledWith("/conversations/c-1/messages?skip=0&limit=1");
+  });
+
+  it("leaves the total alone when the re-read fails", async () => {
+    // Stale is not wrong, and losing an answer to a failed accounting read would
+    // be the worse trade.
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useConversationStore.getState().setCurrentMessages([], {
+      input_tokens: 7,
+      output_tokens: 1,
+      cost_usd: "0.1",
+      cost_is_partial: false,
+    });
+    get.mockRejectedValueOnce(new Error("gone"));
+    renderHook(() => useChat(), { wrapper });
+
+    receive("complete", {
+      usage: {
+        input_tokens: 1,
+        output_tokens: 1,
+        cost_usd: 0.01,
+        budget_percent: null,
+        sandbox: null,
+      },
+    });
+
+    await waitFor(() => expect(get).toHaveBeenCalled());
+    expect(useConversationStore.getState().currentCost).toMatchObject({ input_tokens: 7 });
+  });
+
+  it("asks for nothing when a turn finished outside any conversation", () => {
+    renderHook(() => useChat(), { wrapper });
+
+    receive("complete", {
+      usage: {
+        input_tokens: 1,
+        output_tokens: 1,
+        cost_usd: 0.01,
+        budget_percent: null,
+        sandbox: null,
+      },
+    });
+
+    expect(get).not.toHaveBeenCalled();
+  });
+
   it("keeps what the last turn cost, and does not clear it when a turn reports none", () => {
     // A turn the server could not measure must not blank a number the previous
     // one legitimately reported - the strip would flicker to nothing mid-chat.
@@ -794,6 +891,118 @@ describe("useChat - the conversation a turn belongs to", () => {
     expect(listener).toHaveBeenCalled();
     expect(result.current.isProcessing).toBe(false);
     window.removeEventListener("billing:refresh", listener);
+  });
+});
+
+describe("useChat - the summary of its own history", () => {
+  it("reports a summary while it is being written", () => {
+    // Compaction runs between two of the turn's model requests, where nothing
+    // else streams: no token, no tool step. Without this frame the screen is
+    // indistinguishable from a broken one, and reloading it cancels the turn.
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    receive("compaction_started", {
+      kind: "compaction_started",
+      messages_before: 62,
+      messages_after: null,
+    });
+
+    expect(result.current.compacting).toMatchObject({ messages_before: 62 });
+  });
+
+  it("clears it when the summary finishes", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("compaction_started", {
+      kind: "compaction_started",
+      messages_before: 62,
+      messages_after: null,
+    });
+
+    receive("compaction_finished", {
+      kind: "compaction_finished",
+      messages_before: 62,
+      messages_after: 9,
+    });
+
+    expect(result.current.compacting).toBeNull();
+  });
+
+  it("keeps a window that cannot work on screen after the turn", () => {
+    // A setting, not a state: clearing it when the turn ends would flash the one
+    // message explaining why nothing happened.
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    receive("compaction_impossible", {
+      kind: "compaction_impossible",
+      messages_before: null,
+      messages_after: null,
+      overhead_tokens: 3_843,
+      window_tokens: 5_000,
+    });
+    receive("complete", {});
+
+    expect(result.current.compactionImpossible).toMatchObject({ overhead_tokens: 3_843 });
+  });
+
+  it("drops the warning once a summary actually runs", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("compaction_impossible", {
+      kind: "compaction_impossible",
+      messages_before: null,
+      messages_after: null,
+      overhead_tokens: 3_843,
+      window_tokens: 5_000,
+    });
+
+    receive("compaction_started", {
+      kind: "compaction_started",
+      messages_before: 8,
+      messages_after: null,
+    });
+
+    expect(result.current.compactionImpossible).toBeNull();
+  });
+
+  it("clears it when the turn ends without one", () => {
+    // A run that failed between the two frames would otherwise leave the notice
+    // up until the next message, over a composer somebody is typing into.
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("compaction_started", {
+      kind: "compaction_started",
+      messages_before: 62,
+      messages_after: null,
+    });
+
+    receive("complete", {});
+
+    expect(result.current.compacting).toBeNull();
+  });
+
+  it("leaves neither frame behind when another conversation is opened", () => {
+    // Both survived a conversation switch: switch away mid-summary and
+    // "Summarising…" drew over the thread just opened, and the "cannot run"
+    // warning describes one agent's window against another's.
+    useConversationStore.getState().setCurrentConversationId("c-a");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("compaction_started", {
+      kind: "compaction_started",
+      messages_before: 62,
+      messages_after: null,
+    });
+    receive("compaction_impossible", {
+      kind: "compaction_impossible",
+      messages_before: null,
+      messages_after: null,
+      overhead_tokens: 3_843,
+      window_tokens: 5_000,
+    });
+
+    act(() => {
+      useConversationStore.getState().setCurrentConversationId("c-b");
+    });
+
+    expect(result.current.compacting).toBeNull();
+    expect(result.current.compactionImpossible).toBeNull();
   });
 });
 
@@ -1055,6 +1264,151 @@ describe("useChat - approvals and questions", () => {
     });
 
     expect(result.current.pendingApproval).toBeNull();
+  });
+
+  it("puts the approval panel back when a reloaded conversation is still parked", async () => {
+    // The live `tool_approval_required` frame exists only for whoever was watching
+    // when the run parked. The stored step says "waiting for approval" after a
+    // reload, but the panel with the decision was gone, so the only way to finish
+    // the run was the approvals queue on another page (#601).
+    get.mockResolvedValue([
+      { id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", tool_args: { to: "a@b.c" } },
+      // A run parked before the tool-call mapping was stored has no id to
+      // resolve a card with; the decision is still offered.
+      { id: "ar-2", tool_call_id: null, tool_name: "execute", tool_args: {} },
+    ]);
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(parkedTurn());
+
+    const { result } = renderHook(() => useChat(), { wrapper: decider });
+    await act(async () => {});
+
+    expect(get.mock.calls).toEqual([["/runs/r-1/parked"]]);
+    expect(result.current.pendingApproval).toEqual({
+      actionRequests: [
+        { id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", args: { to: "a@b.c" } },
+        { id: "ar-2", tool_call_id: "", tool_name: "execute", args: {} },
+      ],
+      reviewConfigs: [
+        { tool_name: "send_email", allow_edit: false },
+        { tool_name: "execute", allow_edit: false },
+      ],
+      runId: "r-1",
+      messageId: "m-1",
+    });
+  });
+
+  it("asks nothing without approvals:decide", async () => {
+    // The endpoint is gated on the permission deciding takes, so a caller
+    // without it would 403 on every reopened conversation. The stored step
+    // still says the run is waiting; there is just no decision to offer.
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(parkedTurn());
+
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await act(async () => {});
+
+    expect(get).not.toHaveBeenCalled();
+    expect(result.current.pendingApproval).toBeNull();
+  });
+
+  it("asks about a run once, not on every store update", async () => {
+    get.mockResolvedValue([]);
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(parkedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper: decider });
+    await act(async () => {});
+    expect(result.current.pendingApproval).toBeNull();
+
+    act(() => {
+      useChatStore.getState().addMessage({
+        id: "m-2",
+        role: "user",
+        content: "hello?",
+        timestamp: new Date(),
+      });
+    });
+    await act(async () => {});
+
+    // Once for the run - and an answer of "nothing pending" leaves the panel
+    // down rather than inventing one: the calls were decided somewhere else.
+    expect(get).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves a parked step from before runs were stamped on messages alone", async () => {
+    // The step still reads "waiting for approval", but there is no run on the
+    // message to ask about.
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage({ ...parkedTurn(), runId: undefined });
+
+    const { result } = renderHook(() => useChat(), { wrapper: decider });
+    await act(async () => {});
+
+    expect(get).not.toHaveBeenCalled();
+    expect(result.current.pendingApproval).toBeNull();
+  });
+
+  it("stays quiet when the parked rows cannot be read", async () => {
+    // The approvals queue holds the same rows, so a panel that could not be
+    // rebuilt is not worth an error over the transcript somebody is reading.
+    get.mockRejectedValue(new Error("offline"));
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(parkedTurn());
+
+    const { result } = renderHook(() => useChat(), { wrapper: decider });
+    await act(async () => {});
+
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(result.current.pendingApproval).toBeNull();
+  });
+
+  it("drops an answer that lands after another conversation was opened", async () => {
+    // The fetch can resolve on the far side of a conversation switch, and a
+    // panel drawn under another transcript is the stale, actionable state the
+    // switch effect exists to prevent - Approve would decide a call the person
+    // is no longer looking at.
+    let resolveParked!: (rows: unknown) => void;
+    get.mockReturnValue(
+      new Promise((resolve) => {
+        resolveParked = resolve;
+      }),
+    );
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(parkedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper: decider });
+    await act(async () => {});
+    expect(get).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      useConversationStore.getState().setCurrentConversationId("c-2");
+      // What the container does on a switch - the messages on screen are the
+      // new conversation's.
+      useChatStore.getState().clearMessages();
+    });
+    await act(async () => {
+      resolveParked([{ id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", tool_args: {} }]);
+    });
+
+    expect(result.current.pendingApproval).toBeNull();
+  });
+
+  it("waits for the turn in flight before asking", async () => {
+    // While a turn is processing the parked state on screen is the live one,
+    // and the live frame is what will carry the panel.
+    get.mockResolvedValue([]);
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const { result } = renderHook(() => useChat(), { wrapper: decider });
+    act(() => result.current.sendMessage("do it"));
+    act(() => {
+      useChatStore.getState().addMessage(parkedTurn());
+    });
+    await act(async () => {});
+    expect(get).not.toHaveBeenCalled();
+
+    receive("complete", {});
+    await act(async () => {});
+
+    expect(get).toHaveBeenCalledTimes(1);
   });
 
   it("takes a pending question off screen when another conversation is opened", () => {

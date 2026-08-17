@@ -10,6 +10,7 @@ import {
   useAgentVersions,
   useAgents,
   useCapabilityCatalog,
+  useDelegationTree,
 } from "./use-agents";
 import { useAgentEnvironments } from "./use-agent-environments";
 import { apiClient } from "@/lib/api-client";
@@ -26,12 +27,20 @@ const SPEC: AgentSpec = {
   capabilities: [],
   collection_ids: [],
   skill_ids: [],
+  context_ids: [],
   mcp_server_ids: [],
   budget: null,
 };
 
 vi.mock("@/lib/api-client", () => ({
-  apiClient: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn(), upload: vi.fn() },
+  apiClient: {
+    get: vi.fn(),
+    post: vi.fn(),
+    put: vi.fn(),
+    patch: vi.fn(),
+    delete: vi.fn(),
+    upload: vi.fn(),
+  },
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -212,6 +221,33 @@ describe("useAgent rollback", () => {
   });
 });
 
+describe("useAgent avatar colour", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("sends the chosen slot to the agent's colour endpoint", async () => {
+    // A column, not the spec: it patches the row directly, like the picture.
+    vi.mocked(apiClient.get).mockResolvedValue({ id: "a1", draft_spec: {} });
+    vi.mocked(apiClient.patch).mockResolvedValue({ id: "a1", avatar_color: 3 });
+
+    const { result } = renderHook(() => useAgent("a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.setColor.mutateAsync(3);
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/agents/a1/avatar-color", { color: 3 });
+  });
+
+  it("reports a failed colour change rather than swallowing it", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ id: "a1", draft_spec: {} });
+    vi.mocked(apiClient.patch).mockRejectedValue(new Error("nope"));
+
+    const { result } = renderHook(() => useAgent("a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await expect(result.current.setColor.mutateAsync(null)).rejects.toThrow();
+  });
+});
+
 describe("useCapabilityCatalog", () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -297,6 +333,7 @@ describe("useAgents mutations", () => {
       capabilities: [],
       collection_ids: [],
       skill_ids: [],
+      context_ids: [],
       max_steps: null,
       preferred_mode: null,
     };
@@ -545,5 +582,42 @@ describe("an agent's versions", () => {
 
     await waitFor(() => expect(result.current.error).toBeTruthy());
     expect(result.current.version).toBeUndefined();
+  });
+});
+
+describe("the delegation tree", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("reads the tree from its own endpoint", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ truncated: true, nodes: [] });
+
+    const { result } = renderHook(() => useDelegationTree("a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(apiClient.get).toHaveBeenCalledWith("/agents/a1/delegation-tree");
+    expect(result.current.tree?.truncated).toBe(true);
+  });
+
+  it("does not walk the tree while nothing shows it", () => {
+    // The server resolves and access-checks every pinned version to answer
+    // this; the map dialog is the one caller, so a closed dialog costs nothing.
+    renderHook(() => useDelegationTree("a1", { enabled: false }), { wrapper });
+
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it("does not fetch before an agent is chosen", () => {
+    renderHook(() => useDelegationTree(null), { wrapper });
+
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it("hands back the failure so the map can say the tree is partial", async () => {
+    vi.mocked(apiClient.get).mockRejectedValue(new Error("boom"));
+
+    const { result } = renderHook(() => useDelegationTree("a1"), { wrapper });
+
+    await waitFor(() => expect(result.current.error).toBeTruthy());
+    expect(result.current.tree).toBeNull();
   });
 });

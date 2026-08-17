@@ -48,7 +48,11 @@ logger = logging.getLogger(__name__)
 # with a default, so every stored document keeps loading unchanged and there is no
 # migration to write: this is the free half of the table in the `agent-spec`
 # skill, and the bump is here so a reader can tell when the field appeared.
-SPEC_VERSION = 8
+#
+# 9 adds `context_ids` - context files the agent injects into its instructions or
+# exposes through the `context` capability's tool. Same free half of the table:
+# a list with an empty default, so every stored spec loads unchanged.
+SPEC_VERSION = 9
 
 ApprovalMode = Literal["default", "required", "never"]
 
@@ -599,6 +603,15 @@ class SpecialistSpec(BaseModel):
             "wrote, and a private one bound here would be read by every run."
         ),
     )
+    context_ids: list[UUID] = Field(
+        default_factory=list,
+        description=(
+            "Context files it injects or links. Checked at publish against the "
+            "publisher's own access, exactly as `skill_ids` is - a file's body "
+            "reaches every run, so a specialist can only lend what its publisher "
+            "could read."
+        ),
+    )
     max_steps: int | None = Field(
         default=None,
         ge=1,
@@ -666,6 +679,7 @@ class SpecialistSpec(BaseModel):
             capabilities=self.capabilities,
             collection_ids=self.collection_ids,
             skill_ids=self.skill_ids,
+            context_ids=self.context_ids,
             max_steps=self.max_steps,
         )
 
@@ -738,6 +752,16 @@ class AgentSpec(BaseModel):
             "publisher's own access: binding a skill hands its body and its files "
             "to every run of the agent, so it can only lend what the publisher "
             "could read themselves."
+        ),
+    )
+    context_ids: list[UUID] = Field(
+        default_factory=list,
+        description=(
+            "Context files this agent injects into its instructions or exposes "
+            "through the `context` capability's read tool. Checked at publish "
+            "against the publisher's own access, exactly as `skill_ids` is: a "
+            "file's body reaches every run, so the agent can only lend what the "
+            "publisher could read themselves."
         ),
     )
     mcp_server_ids: list[UUID] = Field(

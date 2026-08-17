@@ -11,24 +11,26 @@ from __future__ import annotations
 import logging
 from collections.abc import Sequence
 from typing import Annotated
-from uuid import NAMESPACE_URL, UUID, uuid5
+from uuid import UUID
 
 from pydantic import StringConstraints, TypeAdapter
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import catalog
 from app.core.audit import record_audit
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
-from app.core.permissions import AuthContext, Perm
+from app.core.permissions import AuthContext, OrgRoleName, Perm
+from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill, SkillResource
-from app.repositories import resource_grant_repo, skill_repo
+from app.db.updates import writable
+from app.repositories import member_repo, resource_grant_repo, skill_repo
 from app.repositories.skill import SkillSort
 from app.schemas.skill import (
-    LibrarySkillList,
-    LibrarySkillRead,
     SkillList,
-    SkillResourceSummary,
+    SkillResourceUpdate,
     SkillSummary,
+    SkillUpdate,
 )
 from app.services import skill_library
 from app.services.access import SKILL, resolve_access, visible_resource_ids
@@ -213,6 +215,7 @@ class SkillService:
         chips describe what can be filtered to, and narrowing them to the
         shared subset would make the filter disappear as soon as it was used.
         """
+        await self._ensure_bundled(ctx)
         items, total = await self.list_skills(
             ctx,
             shared_with_me=shared_with_me,
@@ -230,59 +233,49 @@ class SkillService:
             suggested_categories=list(SUGGESTED_CATEGORIES),
         )
 
-    async def list_library(self, ctx: AuthContext) -> LibrarySkillList:
-        """The skills this deployment ships with, each marked installed or not.
-
-        `installed` answers exactly one question - is this name already taken in
-        this organization - because that is the only question the Install button
-        leads to. It used to be derived from `list_skills(ctx, limit=100)`, which
-        is a *page* of what *this caller may see*, and both halves of that were
-        wrong:
-
-        - a page. An organization past its alphabetically hundredth skill lost
-          every name after it, so a taken name read as free.
-        - visibility-scoped. An install lands `private`
-          (:class:`app.db.models.skill.Skill`), so a skill another member
-          installed is invisible to anyone whose `SKILLS_VIEW` scope is not
-          `ALL`. Their gallery offered an Install, and
-          :meth:`install_from_library` refused it with a 409 naming a skill they
-          cannot open.
-
-        The rule behind that refusal is `skill_repo.get_by_name` - organization
-        wide, visibility-blind - so this asks the same query rather than a
-        listing that happens to overlap with it.
-
-        The gallery drops what is installed rather than greying it out, so a name
-        somebody else took simply stops being offered. There is deliberately no
-        link to the existing skill: the caller may have no access to it, and a
-        card that leads to a 404 is a worse answer than no card.
-        """
-        taken = await skill_repo.names_in_use(self.db, organization_id=ctx.organization_id)
-        items = [
-            LibrarySkillRead(
-                key=bundled.key,
-                name=bundled.name,
-                description=bundled.description,
-                category=bundled.category,
-                content=bundled.content,
-                resources=[
-                    SkillResourceSummary(
-                        id=uuid5(NAMESPACE_URL, f"{bundled.key}/{resource.name}"),
-                        name=resource.name,
-                        description=None,
-                        size_bytes=resource.size_bytes,
-                    )
-                    for resource in bundled.resources
-                ],
-                installed=bundled.name in taken,
-            )
-            for bundled in skill_library.library()
-        ]
-        return LibrarySkillList(items=items, total=len(items))
-
     async def list_categories(self, ctx: AuthContext) -> list[str]:
         """Every distinct category in this organization, for the listing's filter."""
         return await skill_repo.list_categories(self.db, organization_id=ctx.organization_id)
+
+    async def _ensure_bundled(self, ctx: AuthContext) -> None:
+        """Materialize any bundled skill this organization does not have yet.
+
+        Organizations are seeded at creation (#281), but the catalog grows with
+        deploys, and a skill added later never reached an existing organization
+        - its page showed one bundled skill where the deployment ships three.
+        The listing is where that gap is visible, so it is where it closes.
+
+        Matched by name, so an edited copy is left exactly as it is. A deleted
+        one returns on the next listing - the catalog is always present, and
+        *disabling* is how a bundled skill is retired. Attributed to the
+        organization's first owner, the same shape creation-time seeding
+        writes: the reader whose visit triggers the top-up may be a viewer,
+        and ownership would widen what they could edit.
+
+        Each install under its own savepoint: two first listings can race, and
+        the loser's unique-name violation must cost that one row, never the
+        reader's whole page.
+        """
+        names = await skill_repo.list_names(self.db, organization_id=ctx.organization_id)
+        missing = [entry for entry in skill_library.library() if entry.name not in names]
+        if not missing:
+            return
+        owner_id = await member_repo.first_owner_id(self.db, organization_id=ctx.organization_id)
+        if owner_id is None:
+            return
+        owner_ctx = AuthContext(
+            user_id=owner_id,
+            organization_id=ctx.organization_id,
+            role=OrgRoleName.OWNER,
+        )
+        for entry in missing:
+            try:
+                async with self.db.begin_nested():
+                    await self.install_from_library(owner_ctx, entry.key)
+            except (AlreadyExistsError, IntegrityError):
+                logger.warning(
+                    "Bundled skill %r arrived while the listing topped up; skipped", entry.key
+                )
 
     async def resolve_for_agent(self, ctx: AuthContext, skill_ids: list[UUID]) -> list[Skill]:
         """The enabled skills an agent is bound to.
@@ -332,6 +325,7 @@ class SkillService:
         description: str,
         content: str,
         category: str | None = None,
+        visibility: Visibility = Visibility.PRIVATE,
     ) -> Skill:
         """Create a skill.
 
@@ -357,6 +351,7 @@ class SkillService:
             description=description,
             content=content,
             category=category,
+            visibility=visibility.value,
         )
         await record_audit(
             self.db,
@@ -369,7 +364,7 @@ class SkillService:
         )
         return skill
 
-    async def update(self, ctx: AuthContext, skill_id: UUID, update_data: dict) -> Skill:
+    async def update(self, ctx: AuthContext, skill_id: UUID, data: SkillUpdate) -> Skill:
         """Edit a skill, bumping its version.
 
         The version is informational - agents bind to a skill, not a version, so
@@ -377,7 +372,7 @@ class SkillService:
         fix the policy once.
         """
         skill = await self.get(ctx, skill_id, perm=Perm.SKILLS_EDIT)
-        update_data = {**update_data, "version": skill.version + 1}
+        update_data = {**writable(data, over=Skill), "version": skill.version + 1}
         updated = await skill_repo.update(self.db, skill=skill, update_data=update_data)
         await record_audit(
             self.db,
@@ -400,10 +395,20 @@ class SkillService:
         organization owns and can edit - which is the whole point of skills, and
         would be taken away by a live reference back to the shipped folder.
 
+        Always organization-visible, set at creation rather than by a follow-up
+        edit: a bundled skill is for everybody, and the only callers left are
+        the seeding paths - organization creation, the listing's top-up and
+        `seed-skills` - since the per-person Install button was dropped (#281).
+
+        All three seed as the organization's first owner, so the audit entry's
+        actor is an attribution rather than a person who acted. `seeded: true`
+        in its details is what keeps that honest - it is how a reader tells
+        "the platform seeded this as the owner" from a write the owner made.
+
         Raises:
             NotFoundError: If no such skill ships with this deployment.
             AlreadyExistsError: If the organization already has one by that
-                name - installing twice would otherwise produce a second skill
+                name - seeding twice would otherwise produce a second skill
                 the model cannot tell from the first.
         """
         bundled = skill_library.get(key)
@@ -416,6 +421,7 @@ class SkillService:
             description=bundled.description,
             content=bundled.content,
             category=bundled.category,
+            visibility=Visibility.ORG,
         )
         for resource in bundled.resources:
             await skill_repo.create_resource(
@@ -432,7 +438,12 @@ class SkillService:
             action="skill.installed",
             target_type="skill",
             target_id=str(skill.id),
-            details={"key": key, "name": bundled.name, "resources": len(bundled.resources)},
+            details={
+                "key": key,
+                "name": bundled.name,
+                "resources": len(bundled.resources),
+                "seeded": True,
+            },
         )
         return skill
 
@@ -562,14 +573,14 @@ class SkillService:
         return resource
 
     async def update_resource(
-        self, ctx: AuthContext, skill_id: UUID, resource_id: UUID, update_data: dict
+        self, ctx: AuthContext, skill_id: UUID, resource_id: UUID, data: SkillResourceUpdate
     ) -> SkillResource:
         skill = await self.get(ctx, skill_id, perm=Perm.SKILLS_EDIT)
         resource = await skill_repo.get_resource(self.db, resource_id, skill_id=skill.id)
         if resource is None:
             raise NotFoundError(message="File not found", details={"resource_id": str(resource_id)})
         updated = await skill_repo.update_resource(
-            self.db, resource=resource, update_data=update_data
+            self.db, resource=resource, update_data=writable(data, over=SkillResource)
         )
         await self._bump_version(skill)
         await record_audit(

@@ -10,7 +10,7 @@ of the database, so they are asserted against one.
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -193,7 +193,7 @@ class TestDayBuckets:
             db, organization_id=organization.id, start=START, end=END
         )
 
-        assert [(day.isoformat(), count) for day, count in buckets] == [
+        assert [(day.isoformat(), count) for day, count, _completed, _cost in buckets] == [
             ("2026-07-01", 1),
             ("2026-07-02", 1),
         ]
@@ -215,6 +215,85 @@ class TestDayBuckets:
         )
 
         assert total == 2
+
+
+class TestHourBuckets:
+    async def test_a_cell_is_a_weekday_and_an_hour_in_utc(self, db) -> None:
+        # 2026-07-01 is a Wednesday, which Postgres' `dow` calls 3.
+        organization, owner = await _org_with_owner(db, "Rhythm")
+        agent = await _agent(db, organization, owner)
+        for minute in (0, 30):
+            await _run(
+                db,
+                organization=organization,
+                agent=agent,
+                started_at=datetime(2026, 7, 1, 14, minute, tzinfo=UTC),
+            )
+        await _run(
+            db,
+            organization=organization,
+            agent=agent,
+            started_at=datetime(2026, 7, 5, 9, 15, tzinfo=UTC),
+        )
+
+        cells = await agent_run_repo.runs_by_hour(
+            db, organization_id=organization.id, start=START, end=END
+        )
+
+        # Sparse: the other 166 slots are absent rather than present with zero.
+        assert cells == [(0, 9, 1), (3, 14, 2)]
+
+    async def test_a_run_in_another_organization_is_not_in_the_grid(self, db) -> None:
+        organization, owner = await _org_with_owner(db, "Ours")
+        agent = await _agent(db, organization, owner)
+        other, other_owner = await _org_with_owner(db, "Theirs")
+        other_agent = await _agent(db, other, other_owner, slug="theirs")
+        await _run(
+            db,
+            organization=organization,
+            agent=agent,
+            started_at=datetime(2026, 7, 1, 14, 0, tzinfo=UTC),
+        )
+        await _run(
+            db,
+            organization=other,
+            agent=other_agent,
+            started_at=datetime(2026, 7, 1, 14, 0, tzinfo=UTC),
+        )
+
+        cells = await agent_run_repo.runs_by_hour(
+            db, organization_id=organization.id, start=START, end=END
+        )
+
+        assert cells == [(3, 14, 1)]
+
+
+class TestDayMeasures:
+    async def test_a_day_carries_its_completed_count_and_its_cost(self, db) -> None:
+        organization, owner = await _org_with_owner(db, "Measured")
+        agent = await _agent(db, organization, owner)
+        await _run(
+            db,
+            organization=organization,
+            agent=agent,
+            started_at=datetime(2026, 7, 3, 10, 0, tzinfo=UTC),
+            cost=Decimal("0.40"),
+        )
+        await _run(
+            db,
+            organization=organization,
+            agent=agent,
+            started_at=datetime(2026, 7, 3, 11, 0, tzinfo=UTC),
+            status=RunStatus.FAILED.value,
+            cost=Decimal("0.10"),
+        )
+
+        buckets = await agent_run_repo.runs_by_day(
+            db, organization_id=organization.id, start=START, end=END
+        )
+
+        # A failed run cost money and counts as a run; it is not completed.
+        assert buckets == [(date(2026, 7, 3), 2, 1, Decimal("0.50"))]
 
 
 class TestTenantAndScopeBoundaries:

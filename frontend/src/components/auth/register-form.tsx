@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { ArrowRight, Check, X } from "lucide-react";
 
+import { getErrorMessage } from "@/lib/api-error";
 import { OAuthBlock } from "@/components/auth/oauth-buttons";
 import { Button, Input, Label } from "@/components/ui";
 import { useAuth } from "@/hooks";
@@ -15,6 +16,8 @@ import { ROUTES } from "@/lib/constants";
 import { EMAIL_RE, getPasswordStrength } from "@/lib/utils";
 
 export function RegisterForm() {
+  const tErrors = useTranslations("errors");
+
   const t = useTranslations("auth");
   const router = useRouter();
   const { register } = useAuth();
@@ -55,7 +58,8 @@ export function RegisterForm() {
       toast.success(t("registerSuccess"));
       router.push(ROUTES.LOGIN + "?registered=true");
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : t("registrationFailedPleaseTry");
+      const message =
+        err instanceof ApiError ? getErrorMessage(err, tErrors) : t("registrationFailedPleaseTry");
       setError(message);
       toast.error(message);
     } finally {
@@ -225,21 +229,24 @@ export function RegisterForm() {
         </Button>
 
         <p className="text-foreground/50 text-center text-xs">
-          By creating an account, you agree to our{" "}
-          <Link
-            href={ROUTES.LEGAL_TERMS}
-            className="text-foreground/70 hover:text-foreground underline-offset-4 hover:underline"
-          >
-            {t("terms")}
-          </Link>{" "}
-          and{" "}
-          <Link
-            href={ROUTES.LEGAL_PRIVACY}
-            className="text-foreground/70 hover:text-foreground underline-offset-4 hover:underline"
-          >
-            {t("privacyPolicy")}
-          </Link>
-          .
+          {t.rich("agreeToTerms", {
+            terms: (chunks) => (
+              <Link
+                href={ROUTES.LEGAL_TERMS}
+                className="text-foreground/70 hover:text-foreground underline-offset-4 hover:underline"
+              >
+                {chunks}
+              </Link>
+            ),
+            privacy: (chunks) => (
+              <Link
+                href={ROUTES.LEGAL_PRIVACY}
+                className="text-foreground/70 hover:text-foreground underline-offset-4 hover:underline"
+              >
+                {chunks}
+              </Link>
+            ),
+          })}
         </p>
       </form>
 

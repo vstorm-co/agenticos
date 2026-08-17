@@ -60,6 +60,17 @@ class TestCustomIcons:
 
         assert catalog.custom_icon("gamma") == icons_dir / "gamma.svg"
 
+    def test_a_name_matching_no_mark_passes_over_the_ones_present(self, icons_dir: Path):
+        """Whether the test above reaches the skip is the filesystem's decision:
+        `glob` yields `scandir` order, so a directory answering `gamma` first
+        returns on the first iteration and leaves the skip unexecuted - a 99.98%
+        gate on a branch that touched no Python (#625). Asking for a name that
+        matches nothing passes over every candidate in any order."""
+        for stem in ("acme", "beta"):
+            (icons_dir / f"{stem}.svg").write_text("<svg/>")
+
+        assert catalog.custom_icon("ghost") is None
+
     def test_a_missing_icon_resolves_to_none(self, icons_dir: Path):
         assert catalog.custom_icon("ghost") is None
 

@@ -19,6 +19,8 @@ export default function AuthCallbackPage() {
   // a flag - keeping the message here means neither is written from an effect
   // synchronously, and the URL case is shown a render earlier than it was.
   const [exchangeFailed, setExchangeFailed] = useState(false);
+  // i18n-exempt: a sentinel nothing renders - what the branch below shows is
+  // `t("signInFailedRedirecting")`, and the provider's own code is discarded the same way.
   const error = searchParams.get("error") ?? (exchangeFailed ? "Sign-in failed" : null);
 
   const adoptSession = useAdoptSession();
@@ -75,7 +77,7 @@ export default function AuthCallbackPage() {
         // so this is a spinner rather than a skeleton of a page nobody stays on.
         <p className="text-foreground/65 flex items-center gap-3 text-sm">
           <Spinner className="h-4 w-4" aria-hidden />
-          Completing sign-in…
+          {t("completingSignIn")}
         </p>
       )}
     </div>

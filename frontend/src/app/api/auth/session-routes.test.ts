@@ -130,7 +130,7 @@ describe("signing in", () => {
 
     const response = await login(request({}, { email: "a@example.com", password: "x" }));
 
-    await expect(response.json()).resolves.toEqual({ detail: "Login failed" });
+    await expect(response.json()).resolves.toEqual({ code: "LOGIN_FAILED" });
   });
 
   it("answers 500 for a failure that is not the backend refusing", async () => {
@@ -140,7 +140,7 @@ describe("signing in", () => {
     const response = await login(request({}, { email: "a@example.com", password: "x" }));
 
     expect(response.status).toBe(500);
-    await expect(response.json()).resolves.toEqual({ detail: "Internal server error" });
+    await expect(response.json()).resolves.toEqual({ code: "INTERNAL_SERVER_ERROR" });
   });
 });
 
@@ -236,7 +236,7 @@ describe("refreshing the token", () => {
     const response = await refresh(request({ refresh_token: "stale" }));
 
     expect(response.status).toBe(401);
-    await expect(response.json()).resolves.toEqual({ detail: "Session expired" });
+    await expect(response.json()).resolves.toEqual({ code: "SESSION_EXPIRED" });
     expect(cookie(response, "access_token")?.attributes).toContain("Max-Age=0");
     expect(cookie(response, "refresh_token")?.attributes).toContain("Max-Age=0");
   });
@@ -318,7 +318,7 @@ describe("reading the session", () => {
     const response = await get({ access_token: "at", refresh_token: "rt" });
 
     expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toEqual({ detail: "Failed to get user" });
+    await expect(response.json()).resolves.toEqual({ code: "FAILED_TO_GET_USER" });
   });
 
   it("answers 500 when the backend could not be reached at all", async () => {
@@ -465,7 +465,7 @@ describe("finishing an OAuth sign-in", () => {
 
     const response = await oauthCallback(request({}, { access_token: "x", refresh_token: "y" }));
 
-    await expect(response.json()).resolves.toEqual({ detail: "Sign-in failed" });
+    await expect(response.json()).resolves.toEqual({ code: "LOGIN_FAILED" });
   });
 
   it("answers 500 when the check could not be made", async () => {
@@ -507,7 +507,7 @@ describe("registering, and resetting a password", () => {
 
     const response = await register(request({}, { email: "a@example.com", password: "x" }));
 
-    await expect(response.json()).resolves.toEqual({ detail: "Registration failed" });
+    await expect(response.json()).resolves.toEqual({ code: "REGISTRATION_FAILED" });
   });
 
   it("answers 500 for a registration that could not be attempted", async () => {

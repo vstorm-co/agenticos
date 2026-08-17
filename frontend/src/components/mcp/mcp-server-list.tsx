@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { ReactNode } from "react";
 import { Building2, ChevronDown, ExternalLink, Plug, Plus, User } from "lucide-react";
 import { toast } from "sonner";
 
@@ -10,9 +9,6 @@ import {
   Button,
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   Dialog,
   DialogContent,
   DialogFooter,
@@ -25,6 +21,7 @@ import {
   DropdownMenuTrigger,
   Input,
   Label,
+  ListCard,
   Pager,
   SearchInput,
   Select,
@@ -32,14 +29,13 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Skeleton,
   Switch,
   useListControls,
 } from "@/components/ui";
 import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
 import { useMcpServers } from "@/hooks";
 import { cn } from "@/lib/utils";
-import { ApiError } from "@/lib/api-client";
+import { getErrorMessage } from "@/lib/api-error";
 import type { McpConnectionRecord, McpToolInfo } from "@/lib/mcp-connections-api";
 import { startMcpOAuth } from "@/lib/mcp-connections-api";
 import {
@@ -76,9 +72,10 @@ const AUTH_CHOICES: { value: DraftAuth; labelKey: string; hintKey: string }[] = 
   { value: "oauth", labelKey: "authOauth", hintKey: "authOauthHint" },
 ];
 
+/** Keys, like `AUTH_CHOICES` above: a module constant has no translator to reach. */
 const SCOPE_LABEL: Record<Scope, string> = {
-  organization: "Organization",
-  personal: "You",
+  organization: "scopeOrganization",
+  personal: "scopeYou",
 };
 
 /**
@@ -98,12 +95,6 @@ function rowDescription(row: McpServerRow, t: (key: string) => string): string {
   return row.description ?? "";
 }
 
-function errorMessage(error: unknown, fallback: string): string {
-  if (error instanceof ApiError) return error.message;
-  if (error instanceof Error) return error.message;
-  return fallback;
-}
-
 interface DraftState {
   scope: Scope;
   row: McpServerRow;
@@ -114,31 +105,6 @@ interface DraftState {
 interface McpServerListProps {
   /** False for a member without `connections:manage` - the organization column reads only. */
   canManageOrganization: boolean;
-}
-
-/**
- * The catalog's frame, drawn whether or not there is anything in it - the
- * always-visible container the vault draws around its keys. The page uses it
- * for the loading and empty states too, so the panel never disappears; only
- * what is inside it changes.
- */
-export function ServersCard({ count, children }: { count: number | null; children: ReactNode }) {
-  const t = useTranslations("mcp");
-  return (
-    <Card>
-      <CardHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-4">
-        <div className="space-y-1">
-          <CardTitle className="text-sm">{t("servers")}</CardTitle>
-          <CardDescription className="text-xs">
-            {/* `null` is "the request has not answered". Rendering "0 servers"
-                there would state something nothing has said yet. */}
-            {count === null ? <Skeleton className="h-3 w-20" /> : t("serverCount", { count })}
-          </CardDescription>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4 p-4">{children}</CardContent>
-    </Card>
-  );
 }
 
 /**
@@ -165,6 +131,7 @@ export function ServersCard({ count, children }: { count: number | null; childre
  */
 export function McpServerList({ canManageOrganization }: McpServerListProps) {
   const t = useTranslations("mcp");
+  const tErrors = useTranslations("errors");
   const { rows, organization, personal, recordTools } = useMcpServers();
   const [category, setCategory] = useState<string>("all");
   const [state, setState] = useState<StateFilter>("all");
@@ -256,7 +223,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
       recordTools(connection.id, result.tools);
       return result.tools;
     } catch (caught) {
-      toast.error(errorMessage(caught, t("checkFailed")));
+      toast.error(getErrorMessage(caught, tErrors, t("checkFailed")));
       return null;
     } finally {
       setBusyId(null);
@@ -284,7 +251,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
       const { authorization_url } = await startMcpOAuth({ name, url: row.url ?? "" }, scope);
       window.location.href = authorization_url;
     } catch (caught) {
-      toast.error(errorMessage(caught, t("couldNotStartSign")));
+      toast.error(getErrorMessage(caught, tErrors, t("couldNotStartSign")));
       setBusyId(null);
     }
     // On success the browser navigates away - leave the row busy.
@@ -302,7 +269,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
       return;
     }
     if (!/^https?:\/\//.test(url)) {
-      toast.error("URL must start with http:// or https://");
+      toast.error(t("urlMustStartWithHttp"));
       return;
     }
     const { scope, row, existing } = draft;
@@ -344,11 +311,11 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
           ...(url !== existing.url ? { url } : {}),
           ...(token ? { auth_token: token } : clearToken ? { auth_token: "" } : {}),
         });
-        toast.success(`${name} updated.`);
+        toast.success(t("serverUpdated", { name }));
         setDraft(null);
       }
     } catch (caught) {
-      toast.error(errorMessage(caught, t("couldNotSaveServer")));
+      toast.error(getErrorMessage(caught, tErrors, t("couldNotSaveServer")));
     } finally {
       setSubmitting(false);
     }
@@ -357,14 +324,14 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
   const handleDisconnect = async (scope: Scope, connection: McpConnectionRecord) => {
     const warning =
       scope === "organization"
-        ? `Disconnect "${connection.name}"? Agents bound to it keep running, without its tools.`
-        : `Disconnect "${connection.name}"?`;
+        ? t("disconnectOrgWarning", { name: connection.name })
+        : t("disconnectWarning", { name: connection.name });
     if (!confirm(warning)) return;
     try {
       await api(scope).remove(connection.id);
-      toast.success(`${connection.name} disconnected.`);
+      toast.success(t("serverDisconnected", { name: connection.name }));
     } catch (caught) {
-      toast.error(errorMessage(caught, t("couldNotDisconnect")));
+      toast.error(getErrorMessage(caught, tErrors, t("couldNotDisconnect")));
     }
   };
 
@@ -383,86 +350,96 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
       toast.success(t("toolSelectionSaved"));
       setToolPicker(null);
     } catch (caught) {
-      toast.error(errorMessage(caught, t("couldNotSaveTool")));
+      toast.error(getErrorMessage(caught, tErrors, t("couldNotSaveTool")));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <SearchInput value={list.query} onChange={list.setQuery} placeholder={t("searchServers")} />
-        <Select value={category} onValueChange={setCategory}>
-          <SelectTrigger className="w-auto min-w-40" aria-label={t("category")}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("allCategories")}</SelectItem>
-            {categories.map((entry) => (
-              <SelectItem key={entry} value={entry}>
-                {categoryLabel(entry)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={state} onValueChange={(value) => setState(value as StateFilter)}>
-          <SelectTrigger className="w-auto min-w-36" aria-label={t("connectionState")}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("anyState")}</SelectItem>
-            <SelectItem value="connected">{t("connected")}</SelectItem>
-            <SelectItem value="not-connected">{t("notConnected")}</SelectItem>
-          </SelectContent>
-        </Select>
-        <div className="flex-1" />
-        {canManageOrganization && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() =>
-              openDraft(
-                "organization",
-                {
-                  key: "new",
-                  name: t("customServer"),
-                  description: null,
-                  descriptionKey: null,
-                  category: CUSTOM_CATEGORY,
-                  auth: "token",
-                  url: null,
-                  docsUrl: null,
-                  tokenHint: null,
-                  entry: null,
-                  organization: null,
-                  personal: null,
-                },
-                null,
-              )
-            }
-          >
-            <Plus className="mr-1 h-3.5 w-3.5" />
-            {t("addCustomServer")}
-          </Button>
-        )}
-      </div>
+    <>
+      <ListCard
+        title={t("servers")}
+        counted={t("serverCount", { count: rows.length })}
+        controls={
+          <SearchInput
+            value={list.query}
+            onChange={list.setQuery}
+            placeholder={t("searchServers")}
+          />
+        }
+        contentClassName="space-y-4 p-4"
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={category} onValueChange={setCategory}>
+            <SelectTrigger className="w-auto min-w-40" aria-label={t("category")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("allCategories")}</SelectItem>
+              {categories.map((entry) => (
+                <SelectItem key={entry} value={entry}>
+                  {categoryLabel(entry)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={state} onValueChange={(value) => setState(value as StateFilter)}>
+            <SelectTrigger className="w-auto min-w-36" aria-label={t("connectionState")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("anyState")}</SelectItem>
+              <SelectItem value="connected">{t("connected")}</SelectItem>
+              <SelectItem value="not-connected">{t("notConnected")}</SelectItem>
+            </SelectContent>
+          </Select>
+          <div className="flex-1" />
+          {canManageOrganization && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                openDraft(
+                  "organization",
+                  {
+                    key: "new",
+                    name: t("customServer"),
+                    description: null,
+                    descriptionKey: null,
+                    category: CUSTOM_CATEGORY,
+                    auth: "token",
+                    url: null,
+                    docsUrl: null,
+                    tokenHint: null,
+                    entry: null,
+                    organization: null,
+                    personal: null,
+                  },
+                  null,
+                )
+              }
+            >
+              <Plus className="mr-1 h-3.5 w-3.5" />
+              {t("addCustomServer")}
+            </Button>
+          )}
+        </div>
 
-      {/*
-       * One grid over the whole catalog, and no per-category sections.
-       *
-       * The categories were headings until it was a grid, and a grid made the
-       * arithmetic obvious: this catalog has six entries under six distinct
-       * categories, so every section held exactly one card and the page was a
-       * column of headings down the left quarter of the screen. A category that
-       * groups one thing is not a group - so it moves onto the card, where it
-       * still says what the server is for without claiming to sort anything.
-       *
-       * Three columns at a normal window, four on a wide one. Six to a dozen
-       * cards then land in two or three rows with no scrolling, which is the
-       * only reason to lay a catalog out as a grid rather than as rows.
-       */}
-      <ServersCard count={rows.length}>
+        {/*
+         * One grid over the whole catalog, and no per-category sections.
+         *
+         * The categories were headings until it was a grid, and a grid made the
+         * arithmetic obvious: this catalog has six entries under six distinct
+         * categories, so every section held exactly one card and the page was a
+         * column of headings down the left quarter of the screen. A category that
+         * groups one thing is not a group - so it moves onto the card, where it
+         * still says what the server is for without claiming to sort anything.
+         *
+         * Three columns at a normal window, four on a wide one. Six to a dozen
+         * cards then land in two or three rows with no scrolling, which is the
+         * only reason to lay a catalog out as a grid rather than as rows.
+         */}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {list.visible.map((row) => (
             <Card key={row.key} role="group" aria-label={row.name} className="h-full">
@@ -597,7 +574,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
           onPage={list.setPage}
           counted={t("serverCount", { count: list.total })}
         />
-      </ServersCard>
+      </ListCard>
 
       <Dialog open={draft !== null} onOpenChange={(open) => !open && !submitting && setDraft(null)}>
         <DialogContent>
@@ -606,8 +583,8 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
               {draft === null
                 ? ""
                 : draft.existing
-                  ? `Edit "${draft.existing.name}"`
-                  : `Connect ${draft.row.name} for ${draft.scope === "organization" ? t("organization") : "yourself"}`}
+                  ? t("editNamed", { name: draft.existing.name })
+                  : t("connectForScope", { name: draft.row.name, scope: draft.scope })}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
@@ -666,7 +643,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                         )}
                       >
                         <Icon className="h-3.5 w-3.5" />
-                        {SCOPE_LABEL[scope]}
+                        {t(SCOPE_LABEL[scope])}
                       </button>
                     );
                   })}
@@ -782,7 +759,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
         open={toolPicker !== null}
         onOpenChange={(open) => !open && !submitting && setToolPicker(null)}
       >
-        <DialogContent className="max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-h-[80vh] scrollbar-thin overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t("toolsFrom", { name: toolPicker?.connection.name ?? "" })}</DialogTitle>
           </DialogHeader>
@@ -813,7 +790,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                       return { ...previous, checked: next };
                     })
                   }
-                  aria-label={`Toggle ${tool.name}`}
+                  aria-label={t("toggleNamed", { name: tool.name })}
                 />
               </li>
             ))}
@@ -831,7 +808,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }
 
@@ -865,10 +842,10 @@ function ScopeChip({
             ? "border-destructive/40 bg-destructive/10 text-foreground"
             : "border-border text-muted-foreground",
       )}
-      title={`${SCOPE_LABEL[scope]}: ${t(MCP_STATE_LABEL[state])}`}
+      title={`${t(SCOPE_LABEL[scope])}: ${t(MCP_STATE_LABEL[state])}`}
     >
       <Icon className="h-3 w-3 shrink-0" aria-hidden />
-      {SCOPE_LABEL[scope]}
+      {t(SCOPE_LABEL[scope])}
       <span aria-hidden>·</span>
       {t(MCP_STATE_LABEL[state])}
     </span>
@@ -918,7 +895,7 @@ function ConnectionMenu({
   const t = useTranslations("mcp");
   const state = connectionState(connection);
   const busy = busyId === connection.id || busyId === row.key;
-  const owner = SCOPE_LABEL[scope];
+  const owner = t(SCOPE_LABEL[scope]);
   const Icon = scope === "organization" ? Building2 : User;
 
   return (
@@ -928,7 +905,7 @@ function ConnectionMenu({
           size="sm"
           variant="outline"
           disabled={busy}
-          aria-label={`Manage ${owner}`}
+          aria-label={t("manageNamed", { name: owner })}
           title={`${owner}: ${t(MCP_STATE_LABEL[state])}`}
         >
           <Icon className="mr-1 h-3.5 w-3.5" />

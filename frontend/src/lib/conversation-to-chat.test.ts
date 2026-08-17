@@ -234,6 +234,22 @@ describe("which run a replayed turn belongs to", () => {
   });
 });
 
+describe("a replayed turn whose run was stopped", () => {
+  it("says so, because a truncated answer reads like a finished one", () => {
+    expect(conversationMessageToChatMessage(raw({ run_status: "cancelled" })).wasStopped).toBe(
+      true,
+    );
+  });
+
+  it("marks only a cancelled run", () => {
+    // A completed run needs no marker; a run still going has no answer on screen
+    // to mark; a failed one already says so through the error frame.
+    for (const status of ["completed", "running", "failed", "budget_exceeded", null]) {
+      expect(conversationMessageToChatMessage(raw({ run_status: status })).wasStopped).toBe(false);
+    }
+  });
+});
+
 describe("a stored tool call that never finished", () => {
   it("stops looking like it is running", () => {
     // Nothing on this screen can finish it: the frames that would have are long
@@ -264,5 +280,21 @@ describe("a stored tool call that never finished", () => {
     );
 
     expect(message.toolCalls?.map((call) => call.status)).toEqual(["completed", "error"]);
+  });
+
+  it("keeps a parked call saying it waits for approval", () => {
+    // Not an unwritten outcome: the run parked on this call and a person can
+    // still decide it. Mapped to `unfinished` the one step somebody has to act
+    // on read as a step that ran, and the reloaded page said nothing about
+    // waiting (#601).
+    const message = conversationMessageToChatMessage(
+      raw({
+        tool_calls: [
+          { tool_call_id: "tc-1", tool_name: "send_email", args: {}, status: "awaiting_approval" },
+        ],
+      }),
+    );
+
+    expect(message.toolCalls?.map((call) => call.status)).toEqual(["awaiting_approval"]);
   });
 });

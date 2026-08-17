@@ -182,10 +182,18 @@ upload answered `{"status": "processing"}` that stays that way forever.
 
 `spawn_after_commit` queues the coroutine on the session instead. Nothing starts
 it until step 3, two statements after `commit()` returns, so a flow dispatched
-this way reads a row the database has already agreed to. Three call sites use
-it: the document upload, the local sync, and a manually triggered source sync.
-The ordering is proved against a real database in
-`tests/integration/test_flow_starts_after_commit.py`.
+this way reads a row the database has already agreed to. It is how a document
+upload, a sync somebody started, a channel connection's stream and a trigger's
+manual "run now" are all handed over. The ordering is proved against a real
+database in `tests/integration/test_flow_starts_after_commit.py`.
+
+The trigger's manual fire is there for a second reason worth naming, because it
+is the other half of why a request hands work over at all: `POST
+/agents/{id}/triggers/{id}/run` used to *await* the run it started, so an agent
+slower than a proxy's read timeout answered 504 while the run carried on and
+committed — a failure reported for something that was working, and an invitation
+to press the button again and fire the schedule twice ([#658][658]). The route
+answers `202` and the fire starts after the commit.
 
 Two things follow from where the queue lives:
 
@@ -205,6 +213,7 @@ deployment.
 
 [353]: https://github.com/vstorm-co/agenticos/issues/353
 [417]: https://github.com/vstorm-co/agenticos/issues/417
+[658]: https://github.com/vstorm-co/agenticos/issues/658
 
 ## Agent runs: a capability never fetches
 
@@ -326,6 +335,34 @@ return await service.usage(ctx, scope=scope, ...)
     gate lives in the service. `tests/api/test_platform_routes.py` enforces
     all of it.
 
+!!! note "A personal preference carries no gate at all"
+
+    A row scoped to `(user_id, organization_id)` that only its owner reads and
+    writes is not org data, so no permission gates it and there is no route that
+    reaches somebody else's. `GET`/`PUT`/`DELETE /me/dashboard-layout` (the
+    saved dashboard arrangement) and its `/presets` shelf underneath (the named
+    arrangements a person switches between) are the pattern: `CurrentUser` +
+    `ActiveOrg`, every query filtered on **both** ids. The composite key is the
+    whole tenant boundary — a layout or preset saved in one organization is
+    invisible in another *even to its owner*, which a per-user check alone would
+    wave through, so `tests/integration/test_dashboard_layout.py` and
+    `tests/integration/test_dashboard_preset.py` cover exactly that. There is no
+    *apply-a-preset* route: applying one is the client's `PUT` of the preset's
+    entries as the active arrangement, so the dashboard keeps one write path and
+    one validation for what it renders.
+
+    A placement may also carry `options` — the card's own window (`period`),
+    presentation (`style`), and narrowing (`agent_id`, `user_id`). **A stored
+    option is a request, never an authorisation**: it reaches `GET /stats/usage`
+    as a query parameter and is refused there if the caller may not read what it
+    asks for, the same as if they had typed the URL. Narrowing to a colleague is
+    reading somebody else's rows, so it is `scope=org` and behind `runs:view`;
+    `scope=own` with a `user_id` is a 422 rather than a silent reinterpretation.
+    On write, the style and the window are validated against the closed sets the
+    frontend registry declares (`tests/test_dashboard_registry.py` keeps the two
+    mirrors equal); on read, options come back verbatim, because an agent that
+    has since been deleted must not take a whole arrangement down with it.
+
 `UserRole`, `User.has_role()`, `RoleChecker`, `CurrentAdmin` and
 `CurrentSuperuser` were the template's model and are gone, along with the
 `users.role` column (migration `0066`). They were a third answer to a question
@@ -347,7 +384,10 @@ bounds a read; the user is what narrows it further.**
   enriches each message with the caller's own rating. That overload is why its
   authorizing half went missing for so long: the route passed it, the argument
   was plainly there in review, and it was doing the other job.
-- File downloads verify `chat_file.user_id == current_user.id`.
+- File downloads verify `chat_file.user_id == current_user.id`, and attaching a
+  file to a message carries the same owner in the `WHERE`: a turn naming
+  another user's file id — or a file already on a message — is refused, never
+  silently applied.
 
 `ConversationService` makes the distinction impossible to omit: `organization_id`
 is a **required** keyword, and a caller that genuinely reads across tenants

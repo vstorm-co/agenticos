@@ -2,12 +2,17 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MessageItem, mustShowEveryStep, runsOf } from "./message-item";
+import { MessageItem } from "./message-item";
+import { mustShowEveryStep, runsOf } from "./turn-parts";
 import { useAuthStore, useChatStore, useFilePreviewStore } from "@/stores";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import type { Agent } from "@/types/agents";
 import type { ChatMessage, ChatMessageFile, MessagePart, ToolCall, TurnUsage } from "@/types";
 
+// The MCP connections a step is named from. `MessageItem` reads them once per turn
+// and hands them to each step, so a public surface can render the same step without
+// a session - the fetch would need one, and a query client to run it in.
+vi.mock("@/hooks", () => ({ useMcpToolServers: () => [] }));
 vi.mock("./markdown-content", () => ({
   MarkdownContent: ({
     content,
@@ -109,6 +114,29 @@ beforeEach(() => {
  * is a question about one frozen spec rather than about the agent as it is now.
  */
 describe("a turn in the transcript", () => {
+  it("marks an answer whose run was stopped part-way through", () => {
+    // A cancelled run leaves whatever had been written when the socket closed,
+    // and that reads exactly like a finished answer - so a reader takes a
+    // truncated one as everything the agent had to say.
+    item({ role: "assistant", content: "The refund window is", wasStopped: true });
+
+    expect(screen.getByText("stopped")).toBeVisible();
+  });
+
+  it("says nothing about a turn that finished", () => {
+    item({ role: "assistant", content: "Refunds run to thirty days." });
+
+    expect(screen.queryByText("stopped")).toBeNull();
+  });
+
+  it("never marks the question, only the answer", () => {
+    // A user's turn is not produced by a run; a marker there would attribute the
+    // agent's failure to what somebody typed.
+    item({ role: "user", content: "How long?", wasStopped: true });
+
+    expect(screen.queryByText("stopped")).toBeNull();
+  });
+
   it("renders an answer as Markdown and a question as plain text", () => {
     const { unmount } = item();
     expect(screen.getByTestId("markdown")).toHaveTextContent("Refunds run to thirty days.");
@@ -598,9 +626,11 @@ describe("what a turn cost, under the turn", () => {
     input_tokens: 1200,
     output_tokens: 300,
     cost_usd: 0.0125,
+    cost_is_partial: false,
     budget_percent: null,
     agent_budget_percent: null,
     sandbox: null,
+    context: null,
   };
 
   it("prices an assistant answer where the answer is", () => {
@@ -750,9 +780,11 @@ describe("the footer of a turn drawn in several messages", () => {
     input_tokens: 6603,
     output_tokens: 189,
     cost_usd: 0.0133,
+    cost_is_partial: false,
     budget_percent: null,
     agent_budget_percent: null,
     sandbox: null,
+    context: null,
   };
 
   it("says nothing under a segment the turn continues past", () => {

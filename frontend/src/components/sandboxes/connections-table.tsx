@@ -1,17 +1,9 @@
 "use client";
 
+import { useMemo } from "react";
 import { Box, Cloud, Pencil, Star, Trash2 } from "lucide-react";
 
-import {
-  Badge,
-  Button,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui";
+import { Badge, Button, DataTable, type Column } from "@/components/ui";
 import type { SandboxConnectionRecord } from "@/lib/sandbox-connections-api";
 import { useTranslations } from "next-intl";
 
@@ -53,88 +45,120 @@ export function ConnectionsTable({
   onDelete,
 }: ConnectionsTableProps) {
   const t = useTranslations("sandboxes.table");
+  const tc = useTranslations("common");
+
+  const rows = useMemo(() => [...connections], [connections]);
+
+  const columns = useMemo<Column<SandboxConnectionRecord>[]>(
+    () => [
+      {
+        key: "name",
+        className: "pl-5",
+        header: t("name"),
+        sortable: true,
+        sortValue: (connection) => connection.name,
+        cell: (connection) => (
+          <div className="flex items-center gap-2">
+            {connection.kind === "daytona" ? (
+              <Cloud className="text-muted-foreground h-4 w-4" aria-hidden />
+            ) : (
+              <Box className="text-muted-foreground h-4 w-4" aria-hidden />
+            )}
+            <span className="font-medium">{connection.name}</span>
+            {connection.is_default && (
+              <Badge variant="secondary" className="gap-1">
+                <Star className="h-3 w-3" aria-hidden />
+                {t("default")}
+              </Badge>
+            )}
+            {!connection.is_active && <Badge variant="outline">{t("off")}</Badge>}
+          </div>
+        ),
+      },
+      {
+        key: "kind",
+        header: t("kind"),
+        cell: (connection) => (
+          <span className="text-muted-foreground">{kindLabel(connection.kind, t)}</span>
+        ),
+      },
+      {
+        key: "address",
+        header: t("address"),
+        cell: (connection) => (
+          <span className="text-muted-foreground font-mono text-xs">
+            {addressLabel(connection)}
+          </span>
+        ),
+      },
+      {
+        key: "credential",
+        header: t("credential"),
+        cell: (connection) =>
+          connection.secret_id === null ? (
+            // Not cosmetic: a connection with no credential resolves and
+            // then refuses every session, which surfaces inside somebody's
+            // conversation rather than here.
+            <Badge variant="destructive">{t("missing")}</Badge>
+          ) : (
+            <Badge variant="secondary">{t("inTheVault")}</Badge>
+          ),
+      },
+      {
+        key: "defaultRuntime",
+        header: t("defaultRuntime"),
+        cell: (connection) => (
+          <span className="text-muted-foreground font-mono text-xs">
+            {connection.default_runtime ?? t("serviceSOwn")}
+          </span>
+        ),
+      },
+      {
+        key: "actions",
+        className: "pr-5",
+        header: t("actions"),
+        align: "right",
+        cell: (connection) => (
+          <div className="flex justify-end gap-1">
+            {connection.kind !== "daytona" && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onInspect(connection)}
+                aria-label={t("whatNamedAllows", { name: connection.name })}
+              >
+                {t("whatAllows")}
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onEdit(connection)}
+              aria-label={tc("editNamed", { name: connection.name })}
+            >
+              <Pencil className="h-4 w-4" aria-hidden />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onDelete(connection)}
+              aria-label={tc("deleteNamed", { name: connection.name })}
+            >
+              <Trash2 className="h-4 w-4" aria-hidden />
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [t, tc, onEdit, onInspect, onDelete],
+  );
+
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>{t("name")}</TableHead>
-          <TableHead>{t("kind")}</TableHead>
-          <TableHead>{t("address")}</TableHead>
-          <TableHead>{t("credential")}</TableHead>
-          <TableHead>{t("defaultRuntime")}</TableHead>
-          <TableHead className="text-right">{t("actions")}</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {connections.map((connection) => (
-          <TableRow key={connection.id} data-testid={`connection-${connection.id}`}>
-            <TableCell>
-              <div className="flex items-center gap-2">
-                {connection.kind === "daytona" ? (
-                  <Cloud className="text-muted-foreground h-4 w-4" aria-hidden />
-                ) : (
-                  <Box className="text-muted-foreground h-4 w-4" aria-hidden />
-                )}
-                <span className="font-medium">{connection.name}</span>
-                {connection.is_default && (
-                  <Badge variant="secondary" className="gap-1">
-                    <Star className="h-3 w-3" aria-hidden />
-                    {t("default")}
-                  </Badge>
-                )}
-                {!connection.is_active && <Badge variant="outline">{t("off")}</Badge>}
-              </div>
-            </TableCell>
-            <TableCell className="text-muted-foreground">{kindLabel(connection.kind, t)}</TableCell>
-            <TableCell className="text-muted-foreground font-mono text-xs">
-              {addressLabel(connection)}
-            </TableCell>
-            <TableCell>
-              {connection.secret_id === null ? (
-                // Not cosmetic: a connection with no credential resolves and
-                // then refuses every session, which surfaces inside somebody's
-                // conversation rather than here.
-                <Badge variant="destructive">{t("missing")}</Badge>
-              ) : (
-                <Badge variant="secondary">{t("inTheVault")}</Badge>
-              )}
-            </TableCell>
-            <TableCell className="text-muted-foreground font-mono text-xs">
-              {connection.default_runtime ?? t("serviceSOwn")}
-            </TableCell>
-            <TableCell className="text-right">
-              <div className="flex justify-end gap-1">
-                {connection.kind !== "daytona" && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onInspect(connection)}
-                    aria-label={`What ${connection.name} allows`}
-                  >
-                    {t("whatAllows")}
-                  </Button>
-                )}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => onEdit(connection)}
-                  aria-label={`Edit ${connection.name}`}
-                >
-                  <Pencil className="h-4 w-4" aria-hidden />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => onDelete(connection)}
-                  aria-label={`Delete ${connection.name}`}
-                >
-                  <Trash2 className="h-4 w-4" aria-hidden />
-                </Button>
-              </div>
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+    <DataTable<SandboxConnectionRecord>
+      columns={columns}
+      rows={rows}
+      getRowKey={(connection) => connection.id}
+      className="rounded-none border-0 bg-transparent"
+    />
   );
 }

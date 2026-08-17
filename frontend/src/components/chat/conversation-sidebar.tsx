@@ -105,8 +105,8 @@ function ConversationItem({
           onChange={(e) => setEditTitle(e.target.value)}
           onBlur={handleRename}
           onKeyDown={(e) => {
-            if (e.key === t("enter3")) handleRename();
-            if (e.key === t("escape3")) setIsEditing(false);
+            if (e.key === "Enter") handleRename();
+            if (e.key === "Escape") setIsEditing(false);
           }}
           className="text-foreground flex-1 bg-transparent outline-none"
           autoFocus
@@ -579,7 +579,10 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
   return (
     <>
       <aside
-        className={cn("bg-background hidden w-64 shrink-0 flex-col border-r md:flex", className)}
+        className={cn(
+          "bg-background/55 hidden w-64 shrink-0 flex-col border-r backdrop-blur-2xl md:flex",
+          className,
+        )}
       >
         <div className="flex h-12 items-center justify-between border-b px-4 py-3">
           <h2 className="text-sm font-semibold">{t("conversations")}</h2>
@@ -657,7 +660,7 @@ function CollapsedSidebar({
   return (
     <div
       className={cn(
-        "bg-background hidden w-12 shrink-0 flex-col items-center border-r py-4 md:flex",
+        "bg-background/55 hidden w-12 shrink-0 flex-col items-center border-r py-4 backdrop-blur-2xl md:flex",
         className,
       )}
     >

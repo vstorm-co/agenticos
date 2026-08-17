@@ -42,6 +42,7 @@ vi.mock("@/hooks", () => ({
         capabilities: [],
         collection_ids: [],
         skill_ids: [],
+        context_ids: [],
         mcp_server_ids: [],
         subagents: [],
       } satisfies AgentSpec,
@@ -52,6 +53,7 @@ vi.mock("@/hooks", () => ({
     publish: { mutateAsync: vi.fn(), isPending: false },
     rollback: { mutateAsync: vi.fn() },
     setAvatar: { mutateAsync: vi.fn(), isPending: false },
+    setColor: { mutate: vi.fn(), isPending: false },
   }),
   useAgentEnvironments: () => ({ environments: [], promote: { mutateAsync: vi.fn() } }),
   useAgents: () => ({
@@ -64,7 +66,9 @@ vi.mock("@/hooks", () => ({
   useAgentVersion: () => ({ version: undefined, isLoading: false }),
   useAgentVersions: () => ({ versions: [] }),
   useCapabilityCatalog: () => ({ capabilities: [] }),
+  useDelegationTree: () => ({ tree: null, isLoading: false, error: null }),
   useExposures: () => ({ exposures: [] }),
+  useEmbeds: () => ({ embeds: [] }),
   useKnowledgeBases: () => ({ kbs: [] }),
   useMcpCatalog: () => ({ servers: [] }),
   useModelProviders: () => ({
@@ -90,6 +94,10 @@ vi.mock("@/hooks", () => ({
   useSecretPurposes: () => ({ purposes: [] }),
   useSecrets: () => ({ secrets: [] }),
   useSkills: () => ({ skills: [], total: 0 }),
+}));
+
+vi.mock("@/hooks/use-context", () => ({
+  useContextFiles: () => ({ files: [], total: 0 }),
 }));
 
 vi.mock("@/stores", () => ({

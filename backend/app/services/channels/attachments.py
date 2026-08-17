@@ -34,6 +34,7 @@ from uuid import UUID
 from pydantic_ai_backends import AsyncBackendProtocol, BackendProtocol, ensure_async
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.tool_output_limits import OVERFLOW_PREFIX
 from app.db.models.chat_file import ChatFile
 from app.services.channels.base import (
     ChannelAdapter,
@@ -58,10 +59,12 @@ MAX_OUTBOUND_BYTES = 8 * 1024 * 1024
 be explained. Telegram's is 50 MB, Slack's depends on the workspace plan, and a
 platform-side rejection arrives as an opaque API error the agent cannot act on."""
 
-# Where the platform itself put things. Neither is the agent's work, and neither
-# should come back out: `/uploads` is the user's own file, and `/skills` is
-# organizational know-how materialised for the run.
-_NOT_THE_AGENTS = ("/uploads/", "/skills/")
+# Where the platform itself put things. None of it is the agent's work, and none
+# of it should come back out: `/uploads` is the user's own file, `/skills` is
+# organizational know-how materialised for the run, and `/tool_output` is a
+# spilled tool return `tool_output_limits` parked for the model to page through -
+# an internal artefact, not an answer (#803).
+_NOT_THE_AGENTS = ("/uploads/", "/skills/", f"/{OVERFLOW_PREFIX}/")
 
 
 @dataclass(frozen=True)
@@ -159,6 +162,29 @@ class ChannelAttachmentService:
             )
 
         return stored, refusals
+
+    async def discard(self, files: list[ChatFile]) -> None:
+        """Delete what was stored for a turn that was refused before it ran.
+
+        A `ChatFile` is written before the agent is resolved, so a refusal - an
+        unlinked sender, no agent exposed on this bot - used to leave the row and
+        the bytes behind with no message that will ever link them and nothing that
+        collects them. `chat_files` carries no organization, so an unlinked row is
+        scoped by `user_id` alone (#661).
+
+        Never raises. The sender is owed the refusal, and a file that could not be
+        deleted is worth a log line rather than a second failure on top of the
+        first.
+        """
+        for stored in files:
+            try:
+                await self.uploads.discard(stored)
+            except Exception:
+                logger.warning(
+                    "channel_attachment_discard_failed",
+                    extra={"chat_file_id": str(stored.id)},
+                    exc_info=True,
+                )
 
 
 def _why(attachment: IncomingAttachment, error: str | None) -> str:

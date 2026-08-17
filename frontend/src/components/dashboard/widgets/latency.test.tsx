@@ -32,7 +32,7 @@ function withLatency(latency_ms: { p50: number; p95: number } | null) {
 function renderWidget() {
   return render(
     <NextIntlClientProvider locale="en" messages={messages}>
-      <LatencyWidget title="Latency" period={PERIOD} />
+      <LatencyWidget title="Latency" hint="" period={PERIOD} />
     </NextIntlClientProvider>,
   );
 }
@@ -49,9 +49,29 @@ describe("the latency widget's p95 figure", () => {
 
     expect(href).toContain("/runs?");
     expect(href).toContain("sort=duration");
-    expect(href).toContain("started_from=2026-07-07T00:00:00.000Z");
-    expect(href).toContain("started_to=2026-08-05T23:59:59.999Z");
+    // The preset id, not resolved dates: the Activity page re-resolves it, so
+    // the link means "the last 30 days" on the day it is clicked, like the
+    // widget it came from.
+    expect(href).toContain("period=30d");
     expect(link).toHaveTextContent("14.8 s");
+  });
+
+  it("carries a custom range as the range itself", () => {
+    withLatency({ p50: 3200, p95: 14800 });
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <LatencyWidget
+          title="Latency"
+          hint=""
+          period={{ preset: "custom", from: "2026-07-07", to: "2026-08-05" }}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    const link = screen.getByRole("link", { name: messages.dashboard.widgets.latency.viewSlowest });
+    expect(decodeURIComponent(link.getAttribute("href") ?? "")).toContain(
+      "period=2026-07-07..2026-08-05",
+    );
   });
 
   it("does not link when nothing finished, because there is nothing to reach", () => {

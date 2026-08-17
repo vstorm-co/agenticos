@@ -38,6 +38,7 @@ from app.core.exceptions import NotFoundError, RunExecutionError
 from app.core.permissions import ROLE_PERMS, AuthContext, OrgRoleName, Perm, Scope
 from app.db.models.resource_grant import Visibility
 from app.main import app
+from app.schemas.agent import ParkedCall
 from app.services.agent_runner import RunSegment
 from app.services.sharing import SharingService
 from app.services.stats import StatsService
@@ -117,6 +118,10 @@ class _Absent:
 
 _SERVICE_DEPS = (
     deps.get_agent_registry_service,
+    # The org-wide `GET /triggers` is the one gated trigger route, so past its gate
+    # the stub answers 404 like the rest; the per-agent routes are ungated and never
+    # reach this sweep.
+    deps.get_agent_trigger_service,
     deps.get_agent_exposure_service,
     # Same shape again: a widget is one agent's public face, so who may publish
     # or take one down is `agents:publish` on that agent, resolved against its
@@ -125,6 +130,7 @@ _SERVICE_DEPS = (
     deps.get_agent_runner_service,
     deps.get_approval_service,
     deps.get_skill_service,
+    deps.get_context_service,
     deps.get_model_profile_service,
     deps.get_sharing_service,
     deps.get_mcp_connection_service,
@@ -229,6 +235,10 @@ CALLS: tuple[Call, ...] = (
             }
         },
     ),
+    # The org-wide trigger listing: a collection route gated on seeing agents, the
+    # same coarse door as `GET /agents`. Per-agent trigger routes stay ungated and
+    # let the service resolve `agents:run` per row.
+    Call("GET", "/triggers", Perm.AGENTS_VIEW),
     Call("GET", "/runs", Perm.RUNS_VIEW),
     Call(
         "GET",
@@ -237,6 +247,7 @@ CALLS: tuple[Call, ...] = (
         query="?started_from=2020-01-01T00:00:00&started_to=2020-01-02T00:00:00",
     ),
     Call("GET", "/runs/{run_id}", Perm.RUNS_VIEW),
+    Call("GET", "/runs/{run_id}/parked", Perm.APPROVALS_DECIDE),
     Call("POST", "/runs/{run_id}/resume", Perm.APPROVALS_DECIDE),
     Call("GET", "/approvals", Perm.APPROVALS_DECIDE),
     Call(
@@ -254,13 +265,18 @@ CALLS: tuple[Call, ...] = (
         query="?from=2020-01-01T00:00:00&to=2020-01-02T00:00:00",
     ),
     Call("GET", "/skills", Perm.SKILLS_VIEW),
-    Call("GET", "/skills/library", Perm.SKILLS_VIEW),
-    Call("POST", "/skills/library/{key}/install", Perm.SKILLS_EDIT),
     Call(
         "POST",
         "/skills",
         Perm.SKILLS_EDIT,
         body={"name": "refunds", "description": "How refunds work"},
+    ),
+    Call("GET", "/context", Perm.CONTEXT_VIEW),
+    Call(
+        "POST",
+        "/context",
+        Perm.CONTEXT_EDIT,
+        body={"name": "glossary", "description": "What the words mean"},
     ),
     # Which providers exist and what shape of credential each takes is read by
     # the Builder's model picker, so it is gated on seeing agents rather than on
@@ -614,6 +630,9 @@ _PLATFORM_PREFIXES = (
     "/stats",
     "/ratings",
     "/skills",
+    # Context files, shaped exactly like skills: the collection routes gate on
+    # context:view/edit, the per-file routes resolve grants in the service.
+    "/context",
     "/providers",
     "/audit",
     # The organization's MCP servers. `/me/mcp-connections` is a different
@@ -633,10 +652,11 @@ _PLATFORM_PREFIXES = (
     "/sandbox-connections",
     "/sandbox-workspaces",
     "/skill-changes",
-    # The org-wide trigger listing, which mirrors `/runs`: no `require()`, the
-    # service resolves scope and grants per agent. Without the prefix the sweep
-    # would pass over `GET /triggers` and its "gated or resource-aware" claim
-    # would not actually cover it. (Per-agent triggers live under `/agents`.)
+    # The org-wide trigger listing, gated on `agents:view` like its siblings
+    # `GET /agents` and `GET /runs`, with the service still resolving scope and
+    # grants per agent behind the gate. Without the prefix the sweep would pass
+    # over `GET /triggers` and its "gated or resource-aware" claim would not
+    # actually cover it. (Per-agent triggers live under `/agents`.)
     "/triggers",
 )
 
@@ -734,6 +754,10 @@ RESOURCE_AWARE_SERVICES = (
     deps.get_agent_embed_service,
     deps.get_agent_runner_service,
     deps.get_skill_service,
+    # A context file is a shared resource shaped like a skill: who may read, edit
+    # or delete one is its grants' answer, resolved inside the service. Every
+    # per-file route (`GET/PATCH/DELETE /context/{id}`) depends on it.
+    deps.get_context_service,
     # A knowledge base is a shared resource like the rest: reads resolve
     # through `readable_kb`, writes through `get_for_write`, both of which end
     # at `resolve_access` for org rows. Every per-KB route depends on it.
@@ -897,6 +921,67 @@ class TestSharingRoutesRefuseWithoutAGrant:
         assert response.status_code == (404 if method == "GET" else 403)
 
 
+class TestReadingWhatARunIsParkedOn:
+    """`GET /runs/{run_id}/parked` hands a reloaded surface what the live frame had.
+
+    The `tool_approval_required` frame exists only for whoever was watching the
+    run park; reloading the conversation lost the panel and the only way to
+    finish the run was the approvals queue on another page (#601). This is the
+    same payload, read back off the rows.
+    """
+
+    async def test_the_parked_calls_come_back_with_the_approval_to_decide(
+        self, as_role: ClientFactory, synthetic_roles: None
+    ) -> None:
+        run = MagicMock(id=uuid4())
+        approval_id = uuid4()
+
+        class _Parked:
+            async def get_run(self, *args: Any, **kwargs: Any) -> Any:
+                return run
+
+            async def parked_calls(self, *args: Any, **kwargs: Any) -> list[ParkedCall]:
+                return [
+                    ParkedCall(
+                        id=approval_id,
+                        tool_call_id="call-1",
+                        tool_name="send_email",
+                        tool_args={"to": "ada@example.com"},
+                    )
+                ]
+
+        overrides = {deps.get_agent_runner_service: lambda: _Parked()}
+        async with as_role(only(Perm.APPROVALS_DECIDE), overrides) as client:
+            response = await client.get(_url(f"/runs/{run.id}/parked"))
+
+        assert response.status_code == 200
+        assert response.json() == [
+            {
+                "id": str(approval_id),
+                "tool_call_id": "call-1",
+                "tool_name": "send_email",
+                "tool_args": {"to": "ada@example.com"},
+            }
+        ]
+
+    async def test_a_run_in_another_organization_reads_as_absent(
+        self, as_role: ClientFactory, synthetic_roles: None
+    ) -> None:
+        """The service resolves the run against the caller's organization before
+        anything is read off it, so a foreign id answers the same 404 an unknown
+        one does - the response cannot be used to learn that a run exists."""
+
+        class _Elsewhere:
+            async def get_run(self, *args: Any, **kwargs: Any) -> Any:
+                raise NotFoundError(message="Run not found", details={})
+
+        overrides = {deps.get_agent_runner_service: lambda: _Elsewhere()}
+        async with as_role(only(Perm.APPROVALS_DECIDE), overrides) as client:
+            response = await client.get(_url(f"/runs/{uuid4()}/parked"))
+
+        assert response.status_code == 404
+
+
 class TestResumeConveysAFailedContinuation:
     """A resume whose continuation raised is a 5xx that still names the run's status.
 
@@ -1027,6 +1112,13 @@ class TestStatsScopeIsDecidedInTheService:
             )
         monkeypatch.setattr(
             "app.services.stats.member_repo.count_for_org", AsyncMock(return_value=0)
+        )
+        # The window's cost is runs plus ingestion, so the second ledger is
+        # stubbed alongside the first - otherwise a 500 from an unmocked query
+        # would read as the gate refusing.
+        monkeypatch.setattr(
+            "app.services.stats.ingestion_spend_repo.sum_cost_window",
+            AsyncMock(return_value=Decimal(0)),
         )
         monkeypatch.setattr(
             "app.services.stats.message_rating_repo.get_rating_summary_scoped",
@@ -1261,6 +1353,28 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("GET", f"{V1}/embed/{{public_key}}/config"),
         ("GET", f"{V1}/embed/{{public_key}}/widget.js"),
         ("WEBSOCKET", f"{V1}/embed/{{public_key}}/ws"),
+        # The hosted page (#517), and the difference is worth writing down
+        # rather than filing under the three above: it has **no origin check**.
+        # An allow-list is a rule about other people's sites, and this page is
+        # ours, so what protects a hosted link in `public` mode is the key's
+        # unguessability, the embed's rate bucket, its budget and its pause
+        # switch - nothing else. `jwt` mode cannot be hosted at all, refused by
+        # the service and by a CHECK constraint, because the token would have to
+        # travel in the URL. `/logo` serves one image the operator already
+        # uploaded through the authenticated avatar paths, which stay
+        # authenticated; hosting adds a way to read that one file and no way to
+        # write any.
+        ("GET", f"{V1}/embed/{{public_key}}/hosted"),
+        ("GET", f"{V1}/embed/{{public_key}}/logo"),
+        # The one open route on this surface that *writes*, and the only one whose
+        # exemption is about more than a read. It exists because a page whose
+        # operator ticked "a visitor may attach a file" has to accept bytes from
+        # somebody with no account; what bounds it is the page's own switch, a cap
+        # of this surface's own, the MIME allowlist every upload goes through, and
+        # a per-visitor-per-page limit in the shared Redis. The row is attributed
+        # to whoever published the page, because `chat_files.user_id` is NOT NULL
+        # and a stranger has nobody to be.
+        ("POST", f"{V1}/embed/{{public_key}}/files"),
     }
 )
 

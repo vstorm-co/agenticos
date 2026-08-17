@@ -5,20 +5,24 @@ import { useRef, useState } from "react";
 import { Camera } from "lucide-react";
 import { toast } from "sonner";
 
-import { Button, FormField, Input } from "@/components/ui";
+import { ApiError, getErrorMessage, parseErrorMessage } from "@/lib/api-error";
+import { AvatarColorPicker, Button, FormField, Input } from "@/components/ui";
+import { avatarInitials, avatarPalette } from "@/lib/avatar-color";
 import { ActiveSessions } from "@/components/dashboard/active-sessions";
 import { ChatAccounts } from "@/components/settings/chat-accounts";
 import { SectionCard } from "@/components/settings/settings-section";
 import { useAuth } from "@/hooks";
-import { apiClient, ApiError } from "@/lib/api-client";
-import { formatDate, getErrorMessage, isAppAdmin, MAX_AVATAR_SIZE_BYTES } from "@/lib/utils";
+import { apiClient } from "@/lib/api-client";
+import { cn, formatDate, isAppAdmin, MAX_AVATAR_SIZE_BYTES } from "@/lib/utils";
 import { useAuthStore } from "@/stores";
 import type { User } from "@/types";
 import { useChanged } from "@/hooks/use-changed";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 export default function ProfileSettingsPage() {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("pages.settings");
+  const locale = useLocale();
   const { user } = useAuth();
   const { setUser, bumpAvatarVersion, avatarVersion } = useAuthStore();
 
@@ -51,7 +55,9 @@ export default function ProfileSettingsPage() {
       setUser(updated);
       toast.success(t("profileUpdated"));
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : t("failedUpdateProfile"));
+      toast.error(
+        err instanceof ApiError ? getErrorMessage(err, tErrors) : t("failedUpdateProfile"),
+      );
     } finally {
       setSaving(false);
     }
@@ -71,23 +77,37 @@ export default function ProfileSettingsPage() {
       formData.append("file", file);
       const res = await fetch("/api/users/me/avatar", { method: "POST", body: formData });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: t("uploadFailed3") }));
-        throw new Error(err.detail || t("uploadFailed4"));
+        const body: unknown = await res.json().catch(() => null);
+        throw new ApiError(res.status, parseErrorMessage(body, t("uploadFailed4")), body);
       }
       const updated = await res.json();
       setUser(updated);
       bumpAvatarVersion();
       toast.success(t("avatarUpdated"));
     } catch (err) {
-      toast.error(getErrorMessage(err, t("failedUploadAvatar2")));
+      toast.error(getErrorMessage(err, tErrors, t("failedUploadAvatar2")));
     } finally {
       setAvatarUploading(false);
+    }
+  };
+
+  const handleColorChange = async (slot: number | null) => {
+    if (!user || slot === (user.avatar_color ?? null)) return;
+    try {
+      const updated = await apiClient.patch<User>("/users/me", { avatar_color: slot });
+      setUser(updated);
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? getErrorMessage(err, tErrors) : t("failedUpdateProfile"),
+      );
     }
   };
 
   if (!user) {
     return null;
   }
+
+  const fallback = avatarPalette(user.id, user.avatar_color);
 
   return (
     <div className="space-y-6">
@@ -98,7 +118,10 @@ export default function ProfileSettingsPage() {
             onClick={() => avatarInputRef.current?.click()}
             disabled={avatarUploading}
             aria-label={user.avatar_url ? t("replaceAvatar3") : t("uploadAvatar3")}
-            className="border-border bg-muted hover:bg-accent group relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border transition-colors"
+            className={cn(
+              "border-border hover:bg-accent group relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border transition-colors",
+              user.avatar_url ? "bg-muted" : fallback.bg,
+            )}
           >
             {user.avatar_url ? (
               <Image
@@ -110,8 +133,8 @@ export default function ProfileSettingsPage() {
                 unoptimized
               />
             ) : (
-              <span className="text-foreground text-lg font-semibold">
-                {(user.full_name || user.email).slice(0, 2).toUpperCase()}
+              <span className={cn(fallback.fg, "text-lg font-semibold")}>
+                {avatarInitials(user.full_name || user.email)}
               </span>
             )}
             <span className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
@@ -141,9 +164,14 @@ export default function ProfileSettingsPage() {
             </Button>
             <p className="text-muted-foreground mt-2 text-xs">
               {isAppAdmin(user) ? t("admin") : ""}
-              {t("memberSince", { date: formatDate(user.created_at) })}
+              {t("memberSince", { date: formatDate(user.created_at, locale) })}
             </p>
           </div>
+        </div>
+        <div className="mt-5">
+          <p className="text-foreground mb-2 text-sm font-medium">{t("avatarColour")}</p>
+          <p className="text-muted-foreground mb-3 text-xs">{t("avatarColourHint")}</p>
+          <AvatarColorPicker value={user.avatar_color ?? null} onChange={handleColorChange} />
         </div>
       </SectionCard>
 

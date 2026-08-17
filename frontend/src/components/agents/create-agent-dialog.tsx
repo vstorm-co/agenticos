@@ -59,6 +59,7 @@ interface CreateAgentDialogProps {
  * taken"; one who has not is being told about a value they never entered.
  */
 export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgentDialogProps) {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
   const { create } = useAgents();
   const [name, setName] = useState("");
@@ -85,6 +86,7 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
         capabilities: [],
         collection_ids: [],
         skill_ids: [],
+        context_ids: [],
         mcp_server_ids: [],
         budget: null,
       });
@@ -96,10 +98,14 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
     } catch (error) {
       // The dialog stays open with everything still in it: the usual reason to
       // be here is a handle that is taken, which is one word away from working.
-      const failure = submitFailure(error, {
-        fields: ["name", "description"],
-        identifiedBy: "name",
-      });
+      const failure = submitFailure(
+        error,
+        {
+          fields: ["name", "description"],
+          identifiedBy: "name",
+        },
+        tErrors,
+      );
       setErrors(failure.fields);
       if (failure.toast) toast.error(failure.toast);
     }

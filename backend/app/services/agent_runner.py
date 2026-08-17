@@ -60,7 +60,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -90,11 +90,21 @@ from app.agents.capabilities.channel_tools import (
     CHANNEL_TOOLS_CAPABILITY_ID,
     ChannelDirectory,
 )
+from app.agents.capabilities.context import CONTEXT_FILES_RESOURCE
+from app.agents.capabilities.guardrails import GuardrailBlocked
+from app.agents.capabilities.planning import (
+    PLANNING_STORE_RESOURCE,
+    dump_plan,
+    new_plan_store,
+    open_plan_store,
+)
 from app.agents.capabilities.sandbox import WORKSPACE_BACKEND_RESOURCE, WorkspaceIdentity
 from app.agents.capabilities.sandbox._identity import SessionScope
 from app.agents.capabilities.subagents import SubagentsConfig, acting_delegate
+from app.agents.capabilities.tool_output_limits import SPILL_LOG_RESOURCE
 from app.agents.deps import AgentDeps
 from app.agents.factory import BuiltAgent, build_agent
+from app.agents.failures import run_failure_summary
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.observability import current_trace_id
 from app.agents.spec import (
@@ -155,6 +165,8 @@ from app.services.attachments import AttachmentRouter
 from app.services.channels.attachments import files_written, workspace_snapshot
 from app.services.channels.base import OutgoingAttachment
 from app.services.channels.prompt_variables import resolve as resolve_prompt_variables
+from app.services.context import ContextService
+from app.services.conversation import ConversationService
 from app.services.mcp_connection import build_toolsets_for_agent
 from app.services.model_profile import ModelProfileService
 from app.services.notifications import NotificationService
@@ -176,6 +188,9 @@ from app.services.transcript import (
     settled_calls_in,
     tool_calls_in,
 )
+
+if TYPE_CHECKING:
+    from pydantic_ai_harness.planning import PlanStore
 
 logger = logging.getLogger(__name__)
 
@@ -467,6 +482,15 @@ class PausedRunState(BaseModel):
             "The specialists the run's own agent kept with `create_agent`, so a "
             "park does not lose them. Empty for a run that kept none, and for one "
             "parked before this existed"
+        ),
+    )
+    plan: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description=(
+            "The planning capability's checklist as of the park, each entry a JSON "
+            "`PlanItem`. Re-seeded into a fresh store on resume so a run that parked "
+            "mid-plan does not resume with an empty checklist. Empty for a run "
+            "without the capability, and for one parked before this existed"
         ),
     )
 
@@ -915,6 +939,17 @@ class PreparedRun:
     `finally` where the request may already be gone.
     """
 
+    plan_store: PlanStore = field(default_factory=new_plan_store)
+    """The planning capability's store for this run, read by `finish` to snapshot
+    the checklist into the parked state.
+
+    Carried here for the same reason the delegation stash is: `finish` has to fold
+    it into `PausedRunState`, and a surface that had to remember it would resume the
+    next turn with a plan nobody continued. Defaulted to an empty store so a
+    `PreparedRun` built outside the runner (a test) still answers an empty plan
+    rather than `None`; `_assemble` replaces it with the run's seeded one.
+    """
+
     @property
     def deps(self) -> AgentDeps:
         return self.built.deps
@@ -1260,7 +1295,7 @@ def _dynamic_builder(
             ),
             model=profiles[model],
             agent_id=delegation.agent_id,
-            resources={"kb_collection_names": [], "skills": []},
+            resources={"kb_collection_names": [], "skills": [], CONTEXT_FILES_RESOURCE: []},
             secrets={},
             extra_toolsets=[],
         )()
@@ -1336,23 +1371,6 @@ class RunSegment:
     settled: dict[str, str]
 
 
-def _prompt_text(user_prompt: str | list[Any] | None) -> str | None:
-    """The words to record as the user's turn, if there are any.
-
-    `None` stays `None`: a resumed run has no new prompt - it picks up at the
-    tool call it stopped on - and writing a turn there would put words in
-    somebody's mouth.
-
-    A list is a prompt an attachment was folded into, where the non-text parts
-    are the file itself. Only the text is recorded; the transcript's own file
-    rows are where an attachment belongs, and a `repr` of `BinaryContent` in the
-    message body is worse than nothing.
-    """
-    if user_prompt is None or isinstance(user_prompt, str):
-        return user_prompt
-    return "".join(part for part in user_prompt if isinstance(part, str))
-
-
 class AgentRunnerService:
     """Prepare, execute and account for agent runs."""
 
@@ -1361,6 +1379,7 @@ class AgentRunnerService:
         self.registry = AgentRegistryService(db)
         self.models = ModelProfileService(db)
         self.skills = SkillService(db)
+        self.context = ContextService(db)
         self.secrets = OrganizationSecretService(db)
         self.approvals = ApprovalService(db)
         self.organizations = OrganizationService(db)
@@ -1388,6 +1407,31 @@ class AgentRunnerService:
                 continue
             names.append(collection.collection_name)
         return names
+
+    async def _recorded_conversation_state(
+        self, conversation_id: UUID | None
+    ) -> tuple[int | None, dict[str, Any] | None]:
+        """What an earlier turn of this thread recorded, in one read.
+
+        Two things the build seeds from the conversation - the request overhead
+        (instructions and tool schemas) and how far the system-reminders cadence
+        has advanced. Both are properties of the agent rather than of the
+        conversation, strictly, but the conversation is where a run finds them
+        without asking every surface to carry them, and an agent answering one
+        thread answers with the instructions and tools it has now.
+
+        Read together because they are seeded together: without the overhead a
+        one-request turn cannot tell a window with no room for a summary from one
+        that works (#49), and without the cadence a reminder set to fire every N
+        requests never reaches N in a chat of one-request turns. One row, so one
+        SELECT rather than one each.
+        """
+        if conversation_id is None:
+            return None, None
+        conversation = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
+        if conversation is None:
+            return None, None
+        return conversation.overhead_tokens, conversation.reminder_state
 
     async def prepare(
         self,
@@ -1488,6 +1532,7 @@ class AgentRunnerService:
         model_profile_id: UUID | None = None,
         version_id: UUID | None = None,
         environment_id: UUID | None = None,
+        plan_items: list[dict[str, Any]] | None = None,
     ) -> PreparedRun:
         """Build the agent for a run, opening its row unless one is being resumed.
 
@@ -1541,7 +1586,15 @@ class AgentRunnerService:
         resources: dict[str, Any] = {
             "kb_collection_names": await self._collection_names(spec, ctx),
             "skills": await self.skills.resolve_for_agent(ctx, spec.skill_ids),
+            CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(ctx, spec.context_ids),
         }
+        # Always present, like the two above and unlike the conditional resources
+        # below: the planning capability reads it only when bound, but the runner
+        # owns the store either way so `finish` can snapshot the checklist into the
+        # parked state. Seeded from `PausedRunState.plan` on a resume and empty on a
+        # fresh run - which is what carries a plan across an approval park.
+        plan_store = await open_plan_store(plan_items)
+        resources[PLANNING_STORE_RESOURCE] = plan_store
         # Only on a channel run, and bound to the channel the message arrived in
         # before it got here. Absent everywhere else, and `channel_tools` then
         # builds nothing at all - an agent in the dashboard has no channel to
@@ -1575,6 +1628,7 @@ class AgentRunnerService:
                 conversation_id=conversation_id,
                 environment_id=environment_id,
                 exposure_id=exposure.id if exposure else None,
+                channel_identity_id=ctx.channel_identity_id,
                 surface=surface.value,
                 model_label=model_spec.label,
                 provider=model_spec.provider,
@@ -1622,6 +1676,7 @@ class AgentRunnerService:
         started_with: set[str] | None = None
         if workspace is not None:
             resources[WORKSPACE_BACKEND_RESOURCE] = workspace.backend
+            resources[SPILL_LOG_RESOURCE] = workspace.spills
             # Skills as files, beside the shell that can run them. A skill whose
             # resource is a script was previously handed to the model as text it
             # could quote and not execute, while the same agent had `execute` one
@@ -1667,6 +1722,9 @@ class AgentRunnerService:
         if runtime is not None:
             resources[SUBAGENT_RUNTIME_RESOURCE] = runtime
 
+        recorded_overhead, recorded_reminder_state = await self._recorded_conversation_state(
+            conversation_id
+        )
         built = build_agent(
             spec,
             model_spec,
@@ -1688,6 +1746,13 @@ class AgentRunnerService:
             org_period_spend=org_period_spend,
             org_monthly_budget_usd=organization.monthly_budget_usd,
             request_approval=channel,
+            # Both from one read of the conversation (see
+            # `_recorded_conversation_state`): the request overhead, without which
+            # a one-request turn cannot tell a window with no room for a summary
+            # from one that works (#49), and how far the reminder cadence has
+            # advanced, so it counts across turns rather than resetting each one.
+            recorded_overhead=recorded_overhead,
+            recorded_reminder_state=recorded_reminder_state,
         )
 
         # Both only assignable now, and both before the run starts. The guard and
@@ -1712,6 +1777,7 @@ class AgentRunnerService:
             delegations=delegations,
             stash=stash,
             ctx=ctx,
+            plan_store=plan_store,
         )
 
     async def _delegation_runtime(
@@ -2217,9 +2283,14 @@ class AgentRunnerService:
         resources: dict[str, Any] = {
             "kb_collection_names": await self._collection_names(spec, ctx),
             "skills": await self.skills.resolve_for_agent(ctx, spec.skill_ids),
+            CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(ctx, spec.context_ids),
         }
         if any(binding.id == SANDBOX_CAPABILITY_ID for binding in shared):
             resources[WORKSPACE_BACKEND_RESOURCE] = parent_resources.get(WORKSPACE_BACKEND_RESOURCE)
+            # And the spill log with it: a delegate spilling to the shared
+            # filesystem must record its handles where the workspace's close can
+            # delete them (#803).
+            resources[SPILL_LOG_RESOURCE] = parent_resources.get(SPILL_LOG_RESOURCE)
         return resources
 
     @staticmethod
@@ -2554,7 +2625,11 @@ class AgentRunnerService:
         # so the rows the `paused_state` names exist by the time it is stored.
         await self._write_approvals(prepared)
 
-        parked = None if paused_state is None else self._parked_tree(prepared, paused_state)
+        parked = (
+            None
+            if paused_state is None
+            else self._parked_tree(prepared, paused_state, await dump_plan(prepared.plan_store))
+        )
         ledger = prepared.built.ledger
         finished = await agent_run_repo.finish_run(
             self.db,
@@ -2591,7 +2666,9 @@ class AgentRunnerService:
         return finished
 
     @staticmethod
-    def _parked_tree(prepared: PreparedRun, paused_state: PausedRunState) -> PausedRunState:
+    def _parked_tree(
+        prepared: PreparedRun, paused_state: PausedRunState, plan: list[dict[str, Any]]
+    ) -> PausedRunState:
         """The parked state a surface reported, plus the delegations underneath it.
 
         A surface knows its own agent's position and nothing about the tree below
@@ -2611,6 +2688,10 @@ class AgentRunnerService:
         level was delegated from. The run's own agent's (`None`) go flat on
         `dynamic_specialists`; a nested delegate's ride on its own `DelegationFrame`,
         which is what carries them across a park too (agenticos#254, agenticos#175).
+
+        `plan` is the planning checklist read from the run's store just before this,
+        so a run that parked mid-plan resumes with the steps it had rather than an
+        empty list. Empty for a run without the capability.
         """
         return paused_state.model_copy(
             update={
@@ -2629,6 +2710,7 @@ class AgentRunnerService:
                     )
                     for specialist in prepared.stash.registered.get(None, [])
                 ],
+                "plan": plan,
             }
         )
 
@@ -2685,6 +2767,7 @@ class AgentRunnerService:
         agent_id: UUID,
         prompt: str,
         *,
+        said: str | None = None,
         surface: RunSurface = RunSurface.API,
         conversation_id: UUID | None = None,
         channel_key: str | None = None,
@@ -2710,7 +2793,15 @@ class AgentRunnerService:
         here rather than by the caller because where an attachment *goes* depends
         on whether the agent has a workspace, and only `prepare` knows that - the
         same reason the streaming path routes them after preparing rather than
-        before.
+        before. They are also linked to the turn they arrived with, so a file
+        posted in a channel is a file in the transcript rather than a sentence
+        about one.
+
+        `said` is what the person actually wrote, when `prompt` is something this
+        caller assembled around it - a widget's placement note, a channel's
+        restored slash. It is what goes in the transcript; `prompt` is what goes
+        to the model. Defaults to `prompt`, which is right for every surface that
+        assembles nothing.
 
         `outbound` and `outbound_refused` are filled with what the agent produced
         and what a reply cannot carry. Lists the caller passes in rather than a
@@ -2743,6 +2834,11 @@ class AgentRunnerService:
         segment = await self._run(
             prepared,
             user_prompt=assembled,
+            # The prompt as it was *given*, not as it was assembled: the files
+            # are recorded as rows below, and a surface that prepends its own
+            # note passes what the person typed.
+            said=prompt if said is None else said,
+            attachments=attachments or (),
             message_history=message_history,
             deferred_tool_results=None,
             stream=stream,
@@ -2906,6 +3002,11 @@ class AgentRunnerService:
                 ],
                 **plan.specialists,
             },
+            # The planning checklist the run parked with, re-seeded into a fresh
+            # store so the resumed turn sees the steps it left rather than starting
+            # the plan over. `plan` here is the delegation resume plan; this is the
+            # planning capability's, off `PausedRunState.plan`.
+            plan_items=state.plan,
         )
         prepared.built.ledger.book(_spend_already_booked(run))
 
@@ -2938,6 +3039,7 @@ class AgentRunnerService:
                 # No new prompt: the conversation resumes at the tool call it stopped
                 # on, and inventing a user turn here would put words in their mouth.
                 user_prompt=None,
+                said=None,
                 message_history=ModelMessagesTypeAdapter.validate_python(state.messages),
                 deferred_tool_results=plan.results,
             )
@@ -3097,11 +3199,20 @@ class AgentRunnerService:
         prepared: PreparedRun,
         *,
         user_prompt: str | list[Any] | None,
+        said: str | None,
+        attachments: Sequence[ChatFile] = (),
         message_history: list[Any] | None,
         deferred_tool_results: DeferredToolResults | None,
         stream: RunStream | None = None,
     ) -> RunSegment:
         """Execute the agent and account for it, however it ends.
+
+        `user_prompt` is what the model is given and `said` is what the person
+        wrote, which are not the same string on any surface that assembles one:
+        `AttachmentRouter` appends a briefing about each file, and an embedded
+        widget prepends the operator's placement note. Recording the assembled
+        version put the model's own briefing in the transcript as the user's words.
+        `said` is `None` on a resume, where nothing new was said at all.
 
         The one place a run is executed, so a parked call, a budget stop, a
         cancellation and a crash are all recorded the same way whether the run is
@@ -3136,6 +3247,7 @@ class AgentRunnerService:
         budget_scope: BudgetScope | None = None
         called: list[RecordedToolCall] = []
         settled: dict[str, str] = {}
+        summarized: list[dict[str, Any]] | None = None
         try:
             result = await self._answer(
                 prepared,
@@ -3147,6 +3259,10 @@ class AgentRunnerService:
             # `new_messages`, not `all_messages`: a resumed run is handed
             # everything up to the park as history, and the wider list would
             # write the first attempt's calls again under the same run.
+            if prepared.built.context.summarized:
+                summarized = ModelMessagesTypeAdapter.dump_python(
+                    result.all_messages(), mode="json"
+                )
             new_messages = result.new_messages()
             called = tool_calls_in(new_messages)
             # And what the *inherited* calls returned. On a resume the approved
@@ -3183,8 +3299,15 @@ class AgentRunnerService:
             error = str(exc)
             budget_scope = exc.scope
             logger.info("Run %s stopped by budget: %s", prepared.run.id, exc)
-        except Exception as exc:
+        except GuardrailBlocked as exc:
+            # A refusal, not a malfunction - its own status for the same reason
+            # `BUDGET_EXCEEDED` is. The message names the edge and the refusal, not
+            # the content that tripped it, so it is safe to store on the row.
+            status = RunStatus.GUARDRAIL_BLOCKED
             error = str(exc)
+            logger.info("Run %s blocked by a %s guardrail", prepared.run.id, exc.edge)
+        except Exception as exc:
+            error = run_failure_summary(exc)
             logger.exception("Agent run %s failed", prepared.run.id)
             raise
         finally:
@@ -3200,12 +3323,44 @@ class AgentRunnerService:
             # somebody opens.
             await self.transcript.record(
                 prepared.run,
-                prompt=_prompt_text(user_prompt),
+                prompt=said,
                 answer=output,
+                attachments=attachments,
                 tool_calls=called,
                 settled=settled,
+                # So the step the run stopped on reads "awaiting approval" when
+                # the conversation is read back, not as a call that ran (#601).
+                parked=frozenset(paused.tool_call_ids.values()) if paused else frozenset(),
                 model_label=prepared.built.model_label,
+                # The last request's own size, for the anchor a replayed history
+                # is measured against - see `build_message_history`.
+                context_used_tokens=prepared.built.context.latest,
             )
+            # After the rows, because what is stored beside a summary is how far
+            # it reaches: recorded before them it would stop short of this turn
+            # and replay it twice. A channel thread is long-lived and never rolls
+            # over, so without this every message past the window buys its own
+            # summary of a history one turn longer (#49).
+            if prepared.run.conversation_id is not None:
+                conversations = ConversationService(self.db)
+                if summarized is not None:
+                    await conversations.keep_summary(prepared.run.conversation_id, summarized)
+                # On every turn, not only a summarising one: it is what the *next*
+                # turn needs before it has a response of its own to measure.
+                if prepared.built.context.overhead is not None:
+                    await conversations.keep_overhead(
+                        prepared.run.conversation_id, prepared.built.context.overhead
+                    )
+                # How far the reminder cadence advanced this turn, so the next one
+                # resumes it. Only when the counter has moved off zero, which it
+                # does exactly when a reminders capability ran this turn or a
+                # previous one recorded it - so an agent that has none never writes
+                # an empty blob, and `keep_reminder_state` skips a value unchanged
+                # since it was seeded.
+                if prepared.built.reminder_state.request_count:
+                    await conversations.keep_reminder_state(
+                        prepared.run.conversation_id, prepared.built.reminder_state.snapshot()
+                    )
             # Committed here rather than left to the session context: that exit
             # rolls back on any exception, and cancellation never reaches it at
             # all, since `CancelledError` is not an `Exception`. A run that
@@ -3289,10 +3444,39 @@ class AgentRunnerService:
             raise NotFoundError(message="Run not found", details={"run_id": str(run_id)})
         return run
 
+    async def neighbor_run_ids(
+        self, ctx: AuthContext, run: AgentRun
+    ) -> tuple[UUID | None, UUID | None]:
+        """The runs either side of `run` in its conversation, for the detail view.
+
+        Its conversation, not its agent's history - the repository explains why
+        the walk stays inside the thread, and inside the run's own level of it.
+
+        Takes the run rather than an id because every caller has already been
+        through :meth:`get_run`, whose organization filter is the authorization -
+        the row in hand is proof the caller may ask about its neighbours.
+        """
+        return await agent_run_repo.neighbor_run_ids(self.db, run)
+
     async def get_run_transcript(
-        self, ctx: AuthContext, run_id: UUID, *, skip: int = 0, limit: int = 100
+        self,
+        ctx: AuthContext,
+        run_id: UUID,
+        *,
+        skip: int = 0,
+        limit: int = 100,
+        whole_conversation: bool = False,
     ) -> tuple[AgentRun, list[Message], int]:
         """One run, and the turns it produced - authorized, not owned.
+
+        `whole_conversation` widens the read to every turn of the thread the run
+        sits in, for a detail view that shows the run *in context* and scrolls to
+        it. That includes turns no run wrote - a message a member appended by
+        hand carries `run_id: null` and iterating the thread's runs would never
+        reach it. The reach is deliberate: those turns were the run's context,
+        so a reviewer of the run must be able to read them, and `runs:view` is
+        the wider lens that authorizes it - which is exactly why the whole-thread
+        read lives on this route and not on the owner-scoped conversation one.
 
         Reading a run is the organization's right rather than its starter's: a
         colleague holding `runs:view` reads a run somebody else began, which is
@@ -3336,10 +3520,16 @@ class AgentRunnerService:
             )
         if run.conversation_id is None:
             return run, [], 0
-        messages = await conversation_repo.get_messages_by_run(
-            self.db, run.id, skip=skip, limit=limit, include_tool_calls=True
-        )
-        total = await conversation_repo.count_messages_by_run(self.db, run.id)
+        if whole_conversation:
+            messages = await conversation_repo.get_messages_by_conversation(
+                self.db, run.conversation_id, skip=skip, limit=limit, include_tool_calls=True
+            )
+            total = await conversation_repo.count_messages(self.db, run.conversation_id)
+        else:
+            messages = await conversation_repo.get_messages_by_run(
+                self.db, run.id, skip=skip, limit=limit, include_tool_calls=True
+            )
+            total = await conversation_repo.count_messages_by_run(self.db, run.id)
         return run, messages, total
 
     async def transcript_ratings(

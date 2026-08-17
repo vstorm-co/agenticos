@@ -13,8 +13,10 @@ once, none of them visible to anybody reading either file alone:
     runs all three.
   - `check` ran neither `next build`, the docs build nor the dependency audit -
     three entire CI jobs with no local equivalent at all.
-  - And in the other direction, CI never ran `scripts/check_i18n.py`, which
-    `make lint` did: a hardcoded string failed locally and passed the build.
+  - And in the other direction, CI never ran the i18n guard, which `make lint`
+    did: a hardcoded string failed locally and passed the build. It was
+    `scripts/check_i18n.py` then; #395 replaced it with
+    `frontend/scripts/check-i18n.ts`, run by `lint-frontend`.
 
 The fix is structural rather than clerical - the workflow calls the Makefile's
 targets instead of repeating their commands, so there is one definition of each
@@ -274,7 +276,7 @@ class TestInstallPreparesWhatTheChecksNeed:
 
 
 class TestCheckRunsNothingCIDoesNot:
-    """The reverse direction, which is how `check_i18n.py` was missed for months.
+    """The reverse direction, which is how the i18n guard was missed for months.
 
     A local-only check is the milder failure - it costs a developer time rather
     than shipping a defect - but it still means the two commands disagree, and

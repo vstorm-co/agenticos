@@ -1,61 +1,40 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  ArrowDown,
-  ArrowUp,
-  ArrowUpDown,
-  ChevronLeft,
-  ChevronRight,
-  Search,
-  Shield,
-} from "lucide-react";
+import { Shield } from "lucide-react";
 
 import { UserDetailDrawer } from "@/components/admin/user-detail-drawer";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ErrorState } from "@/components/states";
+import { EntityAvatar } from "@/components/ui/entity-avatar";
 import {
   Badge,
   Button,
   DataTable,
-  Input,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  ListCard,
+  ListCardFootRow,
+  PaginationBar,
+  SearchInput,
   type Column,
 } from "@/components/ui";
-import { useAdminUsers } from "@/hooks";
+import { useAdminUsers, useUrlSort } from "@/hooks";
 import type { AdminUser } from "@/types";
-import { cn, formatDate } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 import { useChanged } from "@/hooks/use-changed";
 
-import { useTranslations } from "next-intl";
-const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
-type SortDir = "asc" | "desc";
+import { useLocale, useTranslations } from "next-intl";
+/** One server page - the same fixed size every other paged list uses. */
+const PAGE_SIZE = 50;
 // Keys the backend can sort on (route → service → repo).
-type SortKey = "email" | "full_name" | "conversations" | "created_at";
-
-function getInitials(nameOrEmail: string): string {
-  return nameOrEmail
-    .split(/[\s@]/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((s) => s[0]?.toUpperCase() ?? "")
-    .join("");
-}
+const SORT_KEYS = ["email", "full_name", "conversations", "created_at"] as const;
 
 export default function AdminUsersPage() {
   const t = useTranslations("pages.admin");
-  const { users, total, isLoading, fetchUsers, updateUser, deleteUser, impersonateUser } =
+  const locale = useLocale();
+  const { users, total, isLoading, error, fetchUsers, updateUser, deleteUser, impersonateUser } =
     useAdminUsers();
   const [search, setSearch] = useState("");
-  const [pageSize, setPageSize] = useState(50);
   const [page, setPage] = useState(0);
-  const [sort, setSort] = useState<{ by: SortKey; dir: SortDir }>({
-    by: "created_at",
-    dir: "desc",
-  });
+  const { sort, setSort } = useUrlSort(SORT_KEYS, { by: "created_at", dir: "desc" });
   // The id, not the row. Holding the object meant it went stale the moment the
   // list refetched, which an effect then copied back over - a second render
   // every time, to arrive where deriving it gets in one.
@@ -65,15 +44,15 @@ export default function AdminUsersPage() {
 
   // Back to the first page whenever the filters move - see the conversations
   // page for the same reasoning.
-  if (useChanged(`${search}|${pageSize}|${sort.by}|${sort.dir}`)) {
+  if (useChanged(`${search}|${sort.by}|${sort.dir}`)) {
     setPage(0);
   }
 
   const load = useCallback(
-    (pg: number, q: string, ps: number, sortBy: SortKey, sortDir: SortDir) => {
+    (pg: number, q: string, sortBy: string, sortDir: "asc" | "desc") => {
       fetchUsers({
-        skip: pg * ps,
-        limit: ps,
+        skip: pg * PAGE_SIZE,
+        limit: PAGE_SIZE,
         search: q || undefined,
         sortBy,
         sortDir,
@@ -85,44 +64,32 @@ export default function AdminUsersPage() {
   // Debounced fetch - the server does filtering, sorting, and pagination.
   useEffect(() => {
     const timer = setTimeout(() => {
-      load(page, search, pageSize, sort.by, sort.dir);
+      load(page, search, sort.by, sort.dir);
     }, 300);
     return () => clearTimeout(timer);
-  }, [load, page, search, pageSize, sort.by, sort.dir]);
+  }, [load, page, search, sort.by, sort.dir]);
 
   const handleOpenUser = useCallback((user: AdminUser) => {
     setDrawerUserId(user.id);
     setDrawerOpen(true);
   }, []);
 
-  const toggleSort = (key: SortKey) =>
-    setSort((s) =>
-      s.by === key ? { by: key, dir: s.dir === "asc" ? "desc" : "asc" } : { by: key, dir: "desc" },
-    );
-
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-
   const columns = useMemo<Column<AdminUser>[]>(
     () => [
       {
         key: "email",
-        header: (
-          <SortHeader
-            active={sort.by === "email"}
-            dir={sort.dir}
-            onClick={() => toggleSort("email")}
-          >
-            {t("user")}
-          </SortHeader>
-        ),
+        header: t("user"),
+        className: "pl-5",
+        sortable: true,
         cell: (u) => (
           <div className="flex min-w-0 items-center gap-3">
-            <Avatar className="h-8 w-8 shrink-0">
-              <AvatarImage src={`/api/users/avatar/${u.id}`} alt={u.email} />
-              <AvatarFallback className="text-[10px]">
-                {getInitials(u.full_name || u.email)}
-              </AvatarFallback>
-            </Avatar>
+            <EntityAvatar
+              seed={u.id}
+              name={u.full_name || u.email}
+              imageSrc={`/api/users/avatar/${u.id}`}
+              className="h-8 w-8 shrink-0 text-[10px]"
+              ariaHidden
+            />
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
                 <p className="text-foreground truncate text-sm font-medium">
@@ -148,15 +115,8 @@ export default function AdminUsersPage() {
         key: "conversations",
         align: "right",
         hideBelow: "md",
-        header: (
-          <SortHeader
-            active={sort.by === "conversations"}
-            dir={sort.dir}
-            onClick={() => toggleSort("conversations")}
-          >
-            {t("conversations")}
-          </SortHeader>
-        ),
+        header: t("conversations"),
+        sortable: true,
         // The count the list query has always paid a join for and nothing read.
         cell: (u) => <span className="tabular-nums">{u.conversation_count}</span>,
       },
@@ -181,24 +141,17 @@ export default function AdminUsersPage() {
       {
         key: "created_at",
         hideBelow: "md",
-        header: (
-          <SortHeader
-            active={sort.by === "created_at"}
-            dir={sort.dir}
-            onClick={() => toggleSort("created_at")}
-          >
-            {t("joined")}
-          </SortHeader>
-        ),
+        header: t("joined"),
+        sortable: true,
         cell: (u) => (
-          <span className="text-muted-foreground text-sm">{formatDate(u.created_at)}</span>
+          <span className="text-muted-foreground text-sm">{formatDate(u.created_at, locale)}</span>
         ),
       },
       {
         key: "actions",
         header: "",
         align: "right",
-        className: "w-0",
+        className: "w-0 pr-5",
         cell: (u) => (
           <Button
             variant="outline"
@@ -213,82 +166,44 @@ export default function AdminUsersPage() {
         ),
       },
     ],
-    [sort.by, sort.dir, handleOpenUser],
+    [t, locale, handleOpenUser],
   );
-
-  const start = total === 0 ? 0 : page * pageSize + 1;
-  const end = Math.min(total, (page + 1) * pageSize);
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[240px] flex-1">
-          <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
-          <Input
-            placeholder={t("searchByEmailName")}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-10"
-          />
-        </div>
+      <ListCard
+        title={t("usersCard")}
+        counted={isLoading && users.length === 0 ? null : t("totalCount", { count: total })}
+        controls={
+          <SearchInput value={search} onChange={setSearch} placeholder={t("searchByEmailName")} />
+        }
+        contentClassName="p-0"
+      >
+        <DataTable<AdminUser>
+          columns={columns}
+          rows={users}
+          getRowKey={(u) => u.id}
+          loading={isLoading && users.length === 0}
+          onRowClick={handleOpenUser}
+          sort={sort}
+          onSort={setSort}
+          error={error ? <ErrorState description={error} className="m-5" /> : null}
+          empty={search ? t("noUsersMatch", { query: search }) : t("noUsersYet")}
+          className="rounded-none border-0 bg-transparent"
+        />
 
-        <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
-          <SelectTrigger className="w-[120px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {PAGE_SIZE_OPTIONS.map((n) => (
-              <SelectItem key={n} value={String(n)}>
-                {n} / page
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <span className="text-muted-foreground ml-auto text-xs">
-          {t("totalCount", { count: total })}
-        </span>
-      </div>
-
-      <DataTable<AdminUser>
-        columns={columns}
-        rows={users}
-        getRowKey={(u) => u.id}
-        loading={isLoading && users.length === 0}
-        onRowClick={handleOpenUser}
-        empty={search ? t("noUsersMatch", { query: search }) : t("noUsersYet")}
-      />
-
-      {total > 0 && (
-        <div className="border-border bg-card flex items-center justify-between rounded-xl border px-4 py-3">
-          <span className="text-muted-foreground text-sm">
-            {start}–{end} of {total.toLocaleString()}
-          </span>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-              disabled={page === 0 || isLoading}
-              aria-label={t("previousPage2")}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span className="text-muted-foreground px-2 text-sm">
-              {page + 1} / {totalPages}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-              disabled={page >= totalPages - 1 || isLoading}
-              aria-label={t("nextPage2")}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      )}
+        {total > 0 && (
+          <ListCardFootRow>
+            <PaginationBar
+              page={page}
+              pageSize={PAGE_SIZE}
+              total={total}
+              isLoading={isLoading}
+              onPage={setPage}
+            />
+          </ListCardFootRow>
+        )}
+      </ListCard>
 
       <UserDetailDrawer
         user={drawerUser}
@@ -299,32 +214,5 @@ export default function AdminUsersPage() {
         onImpersonate={impersonateUser}
       />
     </div>
-  );
-}
-
-function SortHeader({
-  active,
-  dir,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  dir: SortDir;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  const Icon = !active ? ArrowUpDown : dir === "asc" ? ArrowUp : ArrowDown;
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "hover:text-foreground inline-flex items-center gap-1 text-left font-mono text-[11px] font-medium tracking-wider uppercase transition-colors",
-        active ? "text-foreground" : "text-muted-foreground",
-      )}
-    >
-      {children}
-      <Icon className={cn("h-3 w-3", !active && "opacity-40")} aria-hidden />
-    </button>
   );
 }

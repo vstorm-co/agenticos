@@ -42,7 +42,12 @@ test.describe("Activity", () => {
       expect(response.status(), `${QUERIES[index]} did not answer`).toBe(200);
     }
 
-    await expect(page.getByText("Spend this month", { exact: true })).toBeVisible();
+    // The spend figure's caption, not its "Spend" label - the tab strip says
+    // "Spend" too, and an exact-text locator would match both (#760 renamed the
+    // figure from "Spend this month" to the page's shared window).
+    await expect(
+      page.getByText("Over the window above, so the two figures agree.", { exact: true }),
+    ).toBeVisible();
     await expect(page.getByText("Waiting on a person", { exact: true })).toBeVisible();
   });
 
@@ -56,15 +61,20 @@ test.describe("Activity", () => {
     await expect(page.getByText("Run history")).toBeVisible();
 
     await page.getByRole("tab", { name: "Spend", exact: true }).click();
-    await expect(page.getByText("Spend by agent")).toBeVisible();
+    // The facet table's own title - "Spend by agent" died with the tile cards.
+    await expect(page.getByText("Where the money went")).toBeVisible();
   });
 
   test("an empty approval queue says so", async ({ page }) => {
     await page.goto("/runs");
     await expect(pageHeading(page, "Activity")).toBeVisible();
 
+    // The page opens on Runs now; the queue is one tab over. The panel is one
+    // table for the queue and the decided record together - the old
+    // "Waiting for a decision" card died with the split.
     const approvals = page.getByRole("tab", { name: /^Approvals/ });
-    await expect(page.getByText("Waiting for a decision")).toBeVisible();
+    await approvals.click();
+    await expect(page.getByRole("tabpanel")).toBeVisible();
 
     // The tab carries a count badge only when something is queued, so its label
     // is the cheapest read of whether this environment can prove the empty case.
@@ -74,9 +84,12 @@ test.describe("Activity", () => {
     }
 
     // An operator seeing a blank panel cannot tell "no agent needed you" from
-    // "the approvals request failed". The empty state has to state which.
+    // "the approvals request failed", so the empty queue is said in words
+    // either way: the standalone empty state when the whole table is empty,
+    // the counted line above it when the window still holds decided rows
+    // (which earlier specs in this suite legitimately leave behind). A failed
+    // request draws neither sentence.
     const panel = page.getByRole("tabpanel");
-    await expect(panel.getByRole("heading", { name: "Nothing waiting" })).toBeVisible();
-    await expect(panel.getByText("Agents are running without needing you.")).toBeVisible();
+    await expect(panel.getByText("Nothing waiting").first()).toBeVisible();
   });
 });

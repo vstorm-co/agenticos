@@ -99,15 +99,7 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
         <CardTitle>{t("whereAgentAvailable")}</CardTitle>
         <CardDescription>
           {t("mentionableOnBoundBots")}
-          {hasWorkspace && (
-            <>
-              {" "}
-              A tool that asks for approval parks the run until somebody answers in this dashboard,
-              so on a chat platform the thread sits there meanwhile - which reads as the bot being
-              broken. For an agent people reach from a channel, the workable setting is a shell that
-              is not gated, inside a container with no network.
-            </>
-          )}
+          {hasWorkspace && <> {t("approvalParksTheRun")}</>}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">

@@ -4,8 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
-import { getErrorMessage } from "@/lib/utils";
 import { qk } from "@/lib/query-keys";
 import type { AgentEnvironment, AgentEnvironmentList } from "@/types/agents";
 
@@ -16,6 +16,7 @@ import type { AgentEnvironment, AgentEnvironmentList } from "@/types/agents";
  * somebody chose.
  */
 export function useAgentEnvironments(agentId: string | null) {
+  const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
   const queryClient = useQueryClient();
   const base = `/agents/${agentId}/environments`;
@@ -33,7 +34,7 @@ export function useAgentEnvironments(agentId: string | null) {
     mutationFn: (input: { name: string; version_id?: string }) =>
       apiClient.post<AgentEnvironment>(base, input),
     onSuccess: invalidate,
-    onError: (error) => toast.error(getErrorMessage(error, t("failedCreateEnvironment"))),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors, t("failedCreateEnvironment"))),
   });
 
   const promote = useMutation({
@@ -43,13 +44,23 @@ export function useAgentEnvironments(agentId: string | null) {
       invalidate();
       toast.success(t("promoted"));
     },
-    onError: (error) => toast.error(getErrorMessage(error, t("failedPromote"))),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors, t("failedPromote"))),
+  });
+
+  const rename = useMutation({
+    mutationFn: ({ environmentId, name }: { environmentId: string; name: string }) =>
+      apiClient.patch<AgentEnvironment>(`${base}/${environmentId}`, { name }),
+    onSuccess: () => {
+      invalidate();
+      toast.success(t("renamed"));
+    },
+    onError: (error) => toast.error(getErrorMessage(error, tErrors, t("failedRenameEnvironment"))),
   });
 
   const remove = useMutation({
     mutationFn: (environmentId: string) => apiClient.delete<void>(`${base}/${environmentId}`),
     onSuccess: invalidate,
-    onError: (error) => toast.error(getErrorMessage(error, t("failedRemoveEnvironment"))),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors, t("failedRemoveEnvironment"))),
   });
 
   return {
@@ -57,6 +68,7 @@ export function useAgentEnvironments(agentId: string | null) {
     isLoading,
     create,
     promote,
+    rename,
     remove,
   };
 }

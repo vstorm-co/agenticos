@@ -471,7 +471,11 @@ class PgVectorStore(BaseVectorStore):
             return []
         table = self._table(collection_name)
         async with self.async_session() as session:
-            result = await session.execute(text(f"SELECT parent_doc_id, metadata FROM {table}"))
+            # Ordered so a lookup that falls back to a filename match does not
+            # depend on heap order (#548).
+            result = await session.execute(
+                text(f"SELECT parent_doc_id, metadata FROM {table} ORDER BY parent_doc_id, id")
+            )
             rows = result.fetchall()
         results = [
             {

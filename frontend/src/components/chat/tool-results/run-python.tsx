@@ -66,6 +66,8 @@ export function RunPythonResult({
   const isRunning = toolCall.status !== "completed" && toolCall.status !== "error" && !resultText;
 
   const { stdout, result, error } = parseResult(resultText);
+  // i18n-exempt: the capability's own wire format, which `parseResult` above matches
+  // literally - translating it would break the round-trip it is reassembling
   const outputText = [stdout, result ? `result: ${result}` : null].filter(Boolean).join("\n\n");
   // Open until there is something better to read, and open again when the run failed
   // because then the code is what is being read. "Nothing better" covers the whole of
