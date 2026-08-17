@@ -17,6 +17,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.176] - 2026-08-17
+
+### Changed
+
+- **Pydantic AI's floor moves to 2.30.0**, with `genai-prices` at 0.1.2 — the
+  agent-frameworks dependency group.
+- **A group bump no longer rolls the lock backwards.** The bump resolved
+  `pydantic-ai-slim` and `pydantic-graph` to 2.30.0 while `main` already held
+  2.31.0, and `backend/Dockerfile` installs the lockfile verbatim
+  (`uv sync --frozen`), so the "upgrade" would have shipped an image with an
+  older Pydantic AI than the one before it. Re-resolved to 2.31.0, with
+  `genai-prices` at 0.1.3, and the note above the floor now names that failure
+  rather than a version it had already outlived. (#837)
+
 ## [0.0.175] - 2026-08-17
 
 One mechanism draws every third-party mark, and 471 MB leaves the install.
