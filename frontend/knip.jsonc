@@ -1,0 +1,17 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": ["e2e/*.setup.ts", "e2e/stub-model-server.ts", "e2e/screenshot.ts"],
+  "project": ["src/**/*.{ts,tsx}", "e2e/**/*.ts"],
+  "ignore": ["src/components/ui/**"],
+  // Each entry says what reaches the package, the same bargain `[tool.vulture]`
+  // `ignore_names` takes in `backend/pyproject.toml`. `make lint` gates on this
+  // list, so an entry added to silence a finding is an unused dependency nobody
+  // will find again - `date-fns` sat here for as long as it sat in
+  // `package.json`, unimported, and the ignore is what hid it (#156).
+  "ignoreDependencies": [
+    // Spread into the flat config by `eslint.config.mjs`, which knip does not read.
+    "eslint-config-prettier",
+    // Reached from CSS (`@import "tailwindcss"`) and from postcss, neither parsed.
+    "tailwindcss",
+  ],
+}

@@ -232,3 +232,19 @@ class TestSeedSkillsSurvivesARacingListing:
         # One savepoint per install, so the rollback of the loser's is what the
         # winner's flush runs after.
         assert db.begin_nested.call_count == 2
+
+
+class TestTheConsoleScript:
+    """`agenticos` lives in `cli/`, which the unit suite never imported, so its
+    dependencies were only ever exercised by the e2e seed step - 45 seconds into
+    CI and long after this suite had gone green. Deleting `tabulate` as unimported
+    is what found that out (#155)."""
+
+    def test_the_entry_point_runs_with_every_dependency_its_module_names(self):
+        from app import __version__
+        from cli.commands import cli
+
+        result = CliRunner().invoke(cli, ["--version"])
+
+        assert result.exit_code == 0, result.output
+        assert __version__ in result.output
