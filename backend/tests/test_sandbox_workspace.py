@@ -1342,6 +1342,48 @@ def _png(size: tuple[int, int] = (600, 400)) -> bytes:
     return buffer.getvalue()
 
 
+def _png_declaring(size: tuple[int, int]) -> bytes:
+    """A PNG whose header claims `size` while its pixels are one red dot.
+
+    A decompression bomb in miniature. What the header declares is what a decoder
+    would allocate, and it is all this needs, because the point of the test is that
+    nothing ever reaches the pixels.
+    """
+    import struct
+    import zlib
+
+    raw = _png((1, 1))
+    start = raw.index(b"IHDR") + 4
+    ihdr = struct.pack(">II", *size) + raw[start + 8 : start + 13]
+    crc = struct.pack(">I", zlib.crc32(b"IHDR" + ihdr))
+    return raw[:start] + ihdr + crc + raw[start + 17 :]
+
+
+def _rotated_jpeg() -> bytes:
+    """A landscape JPEG a camera tagged as portrait, the commonest photograph there is."""
+    from io import BytesIO
+
+    from PIL import Image
+
+    image = Image.new("RGB", (600, 400), "red")
+    exif = Image.Exif()
+    exif[0x0112] = 6
+    buffer = BytesIO()
+    image.save(buffer, format="JPEG", exif=exif)
+    return buffer.getvalue()
+
+
+def _transparent_png() -> bytes:
+    """A logo on nothing: every pixel is black, and every pixel is invisible."""
+    from io import BytesIO
+
+    from PIL import Image
+
+    buffer = BytesIO()
+    Image.new("RGBA", (600, 400), (0, 0, 0, 0)).save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
 class TestATileDrawsAStoredImage:
     """An image used to be listed under the same grey glyph as a `.parquet` (#827).
 
@@ -1400,6 +1442,53 @@ class TestATileDrawsAStoredImage:
             sandbox_workspace.stored_thumbnail("/photo.png", dict(stored.files["/photo.png"]))
             is None
         )
+
+    def test_an_image_declaring_more_pixels_than_it_holds_is_never_decoded(self, caplog):
+        """The byte limit is no bound on what a decode costs: this one is under a
+        kilobyte and claims 64 megapixels, which `thumbnail()` would allocate on a
+        request somebody made by opening a page - and which is well under the 89 that
+        Pillow's own ceiling refuses, so nothing else here would stop it. The header
+        is read before any pixel is, and the absent decoder complaint is the evidence
+        that none was.
+        """
+        from app.services.sandbox_workspace import stored_thumbnail
+
+        stored = StateBackend()
+        stored.write("/bomb.png", _png_declaring((8000, 8000)))
+
+        with caplog.at_level(logging.WARNING):
+            assert stored_thumbnail("/bomb.png", dict(stored.files["/bomb.png"])) is None
+
+        assert "workspace_thumbnail_failed" not in caplog.text
+
+    def test_a_photograph_is_turned_upright_before_it_is_scaled(self):
+        """Orientation lives in EXIF rather than in the pixels, so a scale that
+        ignores it draws a portrait photograph on its side."""
+        from app.services.sandbox_workspace import stored_thumbnail
+
+        stored = StateBackend()
+        stored.write("/holiday.jpg", _rotated_jpeg())
+
+        uri = stored_thumbnail("/holiday.jpg", dict(stored.files["/holiday.jpg"]))
+
+        assert uri is not None
+        drawn = _decoded(uri)
+        assert drawn.height > drawn.width
+
+    def test_a_transparent_image_is_not_flattened_onto_black(self):
+        """Converting to RGB does not remove what the alpha channel hid - it paints
+        it, so a logo drawn on nothing arrives as a black rectangle."""
+        from app.services.sandbox_workspace import stored_thumbnail
+
+        stored = StateBackend()
+        stored.write("/logo.png", _transparent_png())
+
+        uri = stored_thumbnail("/logo.png", dict(stored.files["/logo.png"]))
+
+        assert uri is not None
+        drawn = _decoded(uri)
+        assert drawn.mode == "RGBA"
+        assert drawn.getpixel((0, 0))[3] == 0
 
     def test_a_png_that_is_not_one_is_logged_and_drawn_as_a_mark(self, caplog):
         """An agent that wrote nonsense under a `.png` name must not take out the

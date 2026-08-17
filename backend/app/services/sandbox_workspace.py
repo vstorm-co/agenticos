@@ -35,7 +35,7 @@ from pathlib import PurePosixPath
 from typing import Any
 from uuid import UUID
 
-from PIL import Image
+from PIL import Image, ImageOps
 from pydantic_ai_backends import FileInfo
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -1190,6 +1190,17 @@ A listing reads up to 25 workspaces, so the work here is per file and has to sta
 small. Above this the tile keeps its mark: a photograph nobody has resized is the
 one case where decoding costs more than the hint is worth."""
 
+THUMBNAIL_PIXEL_LIMIT = 16 * 1024 * 1024
+"""The largest stored image this will decode, counted in pixels rather than bytes.
+
+`THUMBNAIL_SOURCE_LIMIT` bounds what arrives, and compressed bytes are no bound on
+what a decode costs: a 30 KB PNG may declare 8000x8000 and allocate a quarter of a
+gigabyte the moment a pixel is asked for, on a request a person made by opening a
+page. Pillow's own ceiling does not cover this - it refuses at 89 megapixels, which
+catches the absurd and lets the merely expensive through, twenty times over. The
+header is read before any pixel is, so the size it declares is checked here while
+the decode is still hypothetical. A 12 MP photograph passes; that PNG does not."""
+
 THUMBNAIL_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif", ".webp"})
 """What is offered a thumbnail, and it is the raster half of `INLINE_TYPES`.
 
@@ -1211,6 +1222,12 @@ def stored_thumbnail(path: str, data: dict[str, Any] | None) -> str | None:
     request per tile in a grid of thirty, which is what `FileCard` was written not to
     do. It is scaled rather than sent whole for the same reason: a chart an agent drew
     is tens of kilobytes and would be sent in full to fill 64 pixels.
+
+    What is drawn is what the file looks like, which takes two steps a scale alone
+    does not: a camera's orientation lives in EXIF rather than in the pixels, so it is
+    applied before the scale or the photograph is sideways on the tile; and an alpha
+    channel is kept, because flattening a logo or a chart to RGB paints whatever was
+    hidden under the transparency - usually black - across the card.
 
     Failure is a mark, not an error. A file whose suffix says PNG and whose bytes are
     not one is an agent's mistake at write time, and it must not take out the listing
@@ -1236,9 +1253,14 @@ def stored_thumbnail(path: str, data: dict[str, Any] | None) -> str | None:
         return None
     try:
         with Image.open(BytesIO(raw)) as image:
+            width, height = image.size
+            if width * height > THUMBNAIL_PIXEL_LIMIT:
+                return None
+            ImageOps.exif_transpose(image, in_place=True)
             image.thumbnail(THUMBNAIL_BOX)
             scaled = BytesIO()
-            image.convert("RGB").save(scaled, format="WEBP", quality=70)
+            mode = "RGBA" if image.has_transparency_data else "RGB"
+            image.convert(mode).save(scaled, format="WEBP", quality=70)
     except Exception as exc:
         logger.warning(
             "workspace_thumbnail_failed",
