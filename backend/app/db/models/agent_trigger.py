@@ -228,6 +228,28 @@ class AgentTrigger(Base, TimestampMixin):
         nullable=True,
     )
 
+    # How an event trigger was set up, when it came from a portal preset rather
+    # than the raw source picker. All nullable: every schedule, and every
+    # hand-wired event trigger, leaves them null and behaves exactly as before -
+    # these only carry the portal lineage and the provider-side registration.
+    #
+    # `connection_id` is the connected account whose token registered the webhook
+    # (and, being an MCP connection, also powers the agent's tools). SET NULL so
+    # disconnecting the account leaves the trigger firing on the hook that already
+    # exists, marked orphaned rather than deleted. `provider_webhook_id` is the
+    # hook the provider handed back, kept so `delete` can deregister it.
+    # `delivery_mode` records whether the platform registered the hook
+    # (`auto_webhook`) or the user pasted it (`manual`); `portal_key` the portal
+    # the preset came from, for display and adapter dispatch.
+    connection_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("mcp_connections.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    delivery_mode: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    provider_webhook_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    portal_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
     # Declared here as well as in the migration: the integration tests build the
     # schema from the models, so a constraint stated only in the migration would
     # be absent from exactly the tests written to prove it rejects a row.
@@ -262,6 +284,13 @@ class AgentTrigger(Base, TimestampMixin):
         CheckConstraint(
             f"interval_seconds IS NULL OR interval_seconds >= {MIN_INTERVAL_SECONDS}",
             name="ck_trigger_interval_floor",
+        ),
+        # An auto-registered hook must remember which account owns it, or `delete`
+        # has no token to deregister it with and the provider keeps delivering to
+        # a dead trigger. A manual row carries neither and passes.
+        CheckConstraint(
+            "provider_webhook_id IS NULL OR connection_id IS NOT NULL",
+            name="ck_trigger_registered_hook_has_connection",
         ),
         # The claim query filters on `is_active` and `next_fire_at` together.
         Index("ix_agent_triggers_due", "is_active", "next_fire_at"),

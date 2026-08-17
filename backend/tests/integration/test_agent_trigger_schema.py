@@ -134,6 +134,16 @@ class TestTheConstraintsRejectABadRow:
         with pytest.raises(IntegrityError):
             await db.flush()
 
+    async def test_a_registered_hook_without_a_connection_is_refused(self, db):
+        """ck_trigger_registered_hook_has_connection: a provider webhook id and no
+        connection is a hook a delete could never deregister - the account whose
+        token registered it is exactly what `delete_webhook` needs."""
+        org = await _org(db)
+        agent = await _agent(db, org)
+        db.add(_trigger(org, agent, provider_webhook_id="12345678", connection_id=None))
+        with pytest.raises(IntegrityError):
+            await db.flush()
+
 
 class TestTheEventShapeRejectsABadRow:
     async def test_a_valid_event_trigger_is_accepted(self, db):

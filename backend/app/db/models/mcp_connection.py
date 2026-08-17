@@ -133,6 +133,12 @@ class McpConnection(Base, TimestampMixin):
     # not.
     secret_key_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     allowed_tools: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
+    # The OAuth scopes actually consented to, when the account was authorized for
+    # more than tool-reading. NULL on every existing connection and read only by
+    # the trigger-portal webhook path, which registers a hook and so needs a
+    # scope the plain tool connection never asked for; the tool path never looks
+    # at it, so an ordinary MCP connect is untouched.
+    granted_scopes: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
     is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     auth_type: Mapped[str] = mapped_column(String(16), nullable=False, default="bearer")
