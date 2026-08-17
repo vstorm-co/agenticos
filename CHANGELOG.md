@@ -17,6 +17,52 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.175] - 2026-08-17
+
+One mechanism draws every third-party mark, and 471 MB leaves the install.
+
+### Changed
+
+- **Every brand and provider mark comes from one generated glyph set.**
+  `frontend/scripts/gen-brand-icons.ts` fetches each mark from the set that owns
+  it and writes 89 of them as raw path data; `components/icons/glyph.tsx` is the
+  one thing that turns that data into an `<svg>`, so `BrandIcon` and
+  `ProviderIcon` draw identically rather than agreeing by accident. Adding a mark
+  is a row in the generator's table and a re-run — never an import, never a
+  hand-authored `d`. Three mechanisms answered this question before, and
+  `@lobehub/icons` dragged in a second copy of `lucide-react` besides. Each of
+  the 89 marks was rendered from the removed packages and diffed against its
+  glyph: 89 identical, 0 differ. (#156, #836)
+- **`bun run analyze` produces a report again.** `@next/bundle-analyzer` is a
+  webpack plugin and Next 16 builds with Turbopack, so every run printed "no
+  report will be generated" and exited 0. It is `next experimental-analyze` now.
+  (#156)
+
+### Added
+
+- **`make lint` fails on a frontend dependency nothing imports.** knip, narrowed
+  to the one question it is never wrong about, moves from `bunx knip@5` to a
+  pinned devDependency with its ignores in `knip.jsonc`, each carrying its reason
+  on the line above. `date-fns` sat unused for months *and* was listed in knip's
+  own ignores, so the report that would have found it had been told not to look.
+  (#156)
+- **The frontend's OpenTelemetry spans can leave the process.** The SDK
+  registered on every boot, but no compose file, Dockerfile or CI job passed
+  `OTEL_EXPORTER_OTLP_ENDPOINT` through, so the spans were built and dropped
+  in-process. The variable is passed through now, and the code says plainly what
+  leaving it unset means. (#156)
+
+### Removed
+
+- **Four frontend dependencies — 471 MB and 290 packages off every install.**
+  `react-icons` and `@lobehub/icons` (replaced by the generated set),
+  `@next/bundle-analyzer` (see above), and `date-fns`, which nothing imported.
+  `nanoid`'s four call sites all wanted a client-side id, which `chat-store.ts`
+  already had; both now call `clientId()` in `src/lib/ids.ts`, keeping the
+  non-secure-context fallback that an embedded widget on a plain-HTTP internal
+  host depends on. `node_modules` goes from 1.2 GB / 1012 packages to 729 MB /
+  722. (#156, #836)
+
 ## [0.0.174] - 2026-08-17
 
 A delegate's provider text no longer reaches the parent's transcript through a
