@@ -17,6 +17,90 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.173] - 2026-08-17
+
+A dependency nothing imports is now a failing build, not a thing somebody
+notices by reading all 46 lines.
+
+### Added
+
+- **`deptry` runs in `make lint`, over `app`, `cli` and `alembic`.** vulture
+  reads the code and finds what is written but unused; deptry reads the manifest
+  and finds what is declared but unimported. The scope is the point rather than a
+  detail: scanning `app` alone called `tabulate` dead when `cli/commands.py`
+  imports it, and removing it took the e2e seed down before a single product spec
+  ran. A tree that ships and is not scanned is a tree whose imports do not count.
+  (#155)
+
+### Removed
+
+- **Three distributions nothing imports.** `fastapi-cache2` and the eleven-line
+  `app/core/cache.py` that called `FastAPICache.init()` on every boot — there is
+  no `@cache` decorator on any route; `jinja2`, whose email templates are
+  compiled ahead of time and read off disk; and the duplicate, weaker-floored
+  `python-multipart` and `httpx` declarations. (#155)
+- **The `try/except ImportError` around `rank-bm25`.** It guarded a case that
+  cannot happen — hybrid retrieval fuses BM25 with the vector search and a
+  deployment cannot choose otherwise — so the import moved to module scope. The
+  24 MB of `numpy` behind it is the price of that, taken deliberately and now
+  recorded in the manifest. (#155)
+
+### Fixed
+
+- **`anyio` was imported and undeclared.** `app/services/rag_document.py` imports
+  it at module scope while the manifest declared it only in the `dev` group, so
+  the image — built with `uv sync --no-dev` — was relying on Starlette to pull it
+  in. Found by the new gate on its first run. (#155)
+- **The manifest says why the ones that read as dead are alive.** `psycopg2-binary`
+  (alembic builds a *sync* engine from a bare `postgresql://` URL, so removing it
+  breaks every migration), `itsdangerous` (Starlette signs our `SessionMiddleware`
+  cookies with it), `tabulate` and `pillow` — the last two listed as zero-import
+  in the audit and both wrong, with call sites in `cli/commands.py` and
+  `app/services/channels/chart_png.py`. (#155)
+
+## [0.0.172] - 2026-08-17
+
+All files answers "what is that file", not only "who is holding a copy of it".
+
+### Added
+
+- **Search and sort on the All files grid.** The same `useListControls` +
+  `SearchInput` pair the five galleries use, filtering on path, agent name and
+  extension — `.csv` matches the suffix rather than the string — and ordering by
+  name, size, modified or agent. Size and modified descend, because "what is
+  biggest" and "what changed" are the questions those orders answer. The bound
+  stays on screen while a filter is applied, with a line saying the filter
+  searched only what was read: a client-side filter over a truncated listing
+  searched a sample, and "3 results" with no caveat would claim the search was
+  exhaustive. (#138)
+- **A tile is the file card every other surface draws.** The three-line row is
+  gone; the grid now uses `components/files`' `FileCard`, so a CSV looks like the
+  same thing in the composer, the transcript and here — including the suffix and
+  size band (`CSV · 2.0 KB`) that was the extension-legibility half of the issue.
+  The line under each card carries what only this view knows: the agent holding
+  the file, who else can see it, and the download. (#138)
+- **A stored text file previews its first lines, and a stored image draws
+  itself.** Both come out of the JSONB document the listing already reads, so a
+  grid of thirty tiles is still one request: eight lines capped at 200 characters
+  for text, and a 160×128 `data:` URI for a raster image. A container-backed
+  workspace answers `null` for both — its bytes are on a host, and one round trip
+  per file is exactly what this listing refuses. (#827)
+
+### Fixed
+
+- **A thumbnail's decode is bounded by pixels, not by bytes.** A PNG under a
+  kilobyte can declare 8000×8000, and scaling it allocates all 64 megapixels on a
+  request somebody made by opening a page. Pillow's own ceiling does not catch
+  it — it refuses at 89 megapixels — so the declared size is checked against a
+  16 Mpx limit in the header, before any pixel is read. (#827)
+- **A thumbnail is drawn as the image is.** Transparency survives (converting to
+  `RGB` does not remove what the alpha channel hid, it paints it — usually
+  black), and a camera's EXIF orientation is applied before the scale, so a
+  portrait photograph is no longer sideways on its tile. (#827)
+- **A file's React key joins its workspace and path with a separator.** Without
+  one, `{workspace: "ab", path: "c"}` and `{workspace: "a", path: "bc"}`
+  collided into a single key. (#138)
+
 ## [0.0.171] - 2026-08-16
 
 Tool search's scale guarantee is pinned by a fixture, not a claim.

@@ -37,7 +37,14 @@ interface FileCardProps {
   size?: number | null;
   /** The first lines of it, for anything textual. Absent is normal, not a failure. */
   preview?: string | null;
-  /** A thumbnail for an image, where the surface can address the bytes. */
+  /**
+   * A thumbnail for an image, from whichever source the surface already has.
+   *
+   * The composer has an address (`/api/files/{id}`); All files has a `data:` URI
+   * the listing scaled server-side, because a workspace file is behind an
+   * authenticated route and one address per tile is one request per tile (#827).
+   * Either way the card is handed something to draw and never goes looking.
+   */
   imageUrl?: string | null;
   /**
    * What to call the type, when the suffix is not the answer.
