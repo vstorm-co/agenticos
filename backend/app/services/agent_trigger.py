@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 import logging
+import secrets
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -38,6 +39,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
 from app.core.background import spawn_after_commit
+from app.core.config import settings
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.core.vault import VaultScope, seal, unseal
@@ -50,10 +52,17 @@ from app.repositories import (
     conversation_repo,
     member_repo,
 )
-from app.schemas.agent_trigger import TriggerCreate, TriggerRead, TriggerUpdate
-from app.services import trigger_events
+from app.schemas.agent_trigger import (
+    _EVENT_CONFIG_MODELS,
+    TriggerCreate,
+    TriggerRead,
+    TriggerUpdate,
+)
+from app.services import portal_catalog, portals, trigger_events
 from app.services.access import AGENT, visible_resource_ids
 from app.services.agent_registry import AgentRegistryService
+from app.services.mcp_connection import McpConnectionService
+from app.services.portal_catalog import DeliveryMode
 
 logger = logging.getLogger(__name__)
 
@@ -198,6 +207,7 @@ class AgentTriggerService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
         self.agents = AgentRegistryService(db)
+        self.connections = McpConnectionService(db)
 
     async def list_for_agent(self, ctx: AuthContext, agent_id: UUID) -> list[AgentTrigger]:
         """Every schedule on this agent.
@@ -271,21 +281,49 @@ class AgentTriggerService:
             await self._environment_of(ctx, agent.id, data.environment_id)
 
         now = datetime.now(UTC)
+        event_source: str | None = None
+        event_config: dict[str, Any] = {}
+        event_secret_encrypted: str | None = None
+        secret_key_version: int | None = None
+        next_fire_at: datetime | None = None
+        connection_id: UUID | None = None
+        portal_key: str | None = None
+        delivery_mode: str | None = None
+        portal: portal_catalog.PortalEntry | None = None
+        plaintext_secret: str | None = None
+
         if data.trigger_type == TriggerType.EVENT.value:
-            sealed = seal(
-                cast(str, data.event_secret),
-                scope=VaultScope.organization(ctx.organization_id),
-            )
-            event_source = data.event_source
-            event_config = data.event_config or {}
-            event_secret_encrypted: str | None = sealed.ciphertext
-            secret_key_version: int | None = sealed.key_version
-            next_fire_at: datetime | None = None
+            if data.portal_key is not None:
+                # A preset: the source and filter come from the catalog and the
+                # secret is minted here, so the caller handles neither.
+                resolved = portal_catalog.get_preset(data.portal_key, cast(str, data.preset_key))
+                if resolved is None:
+                    raise BadRequestError(
+                        message="Unknown portal or preset",
+                        details={"portal_key": data.portal_key, "preset_key": data.preset_key},
+                    )
+                portal, preset = resolved
+                event_source = portal.event_source
+                event_config = (
+                    _EVENT_CONFIG_MODELS[event_source]
+                    .model_validate(dict(preset.event_config))
+                    .model_dump()
+                )
+                plaintext_secret = secrets.token_urlsafe(32)
+                portal_key = portal.key
+                connection_id = data.connection_id
+            else:
+                event_source = data.event_source
+                event_config = data.event_config or {}
+                plaintext_secret = cast(str, data.event_secret)
+            sealed = seal(plaintext_secret, scope=VaultScope.organization(ctx.organization_id))
+            event_secret_encrypted = sealed.ciphertext
+            secret_key_version = sealed.key_version
+            # Manual until an auto-registration below succeeds, so a preset whose
+            # account lacks the scope or whose provider refuses degrades to the
+            # pasted-URL path rather than a half-set trigger.
+            delivery_mode = "manual"
         else:
-            event_source = None
-            event_config = {}
-            event_secret_encrypted = None
-            secret_key_version = None
             next_fire_at = _next_fire(
                 schedule_kind=data.schedule_kind,
                 interval_seconds=data.interval_seconds,
@@ -310,7 +348,26 @@ class AgentTriggerService:
             secret_key_version=secret_key_version,
             environment_id=data.environment_id,
             next_fire_at=next_fire_at,
+            connection_id=connection_id,
+            portal_key=portal_key,
+            delivery_mode=delivery_mode,
         )
+        # Auto-register the provider webhook for a preset whose portal supports it
+        # and whose connected account carries the scope; any miss leaves the
+        # trigger `manual` and the caller pastes the URL the response exposes.
+        if (
+            portal is not None
+            and portal.delivery is DeliveryMode.AUTO_WEBHOOK
+            and connection_id is not None
+        ):
+            await self._auto_register_webhook(
+                ctx,
+                trigger,
+                portal=portal,
+                connection_id=connection_id,
+                target=data.target,
+                secret=cast(str, plaintext_secret),
+            )
         # Open the run-log conversation now, not on the first fire, so a new
         # trigger is a clickable item in the sidebar the moment it exists - empty
         # until a fire appends to it. `_run_log` stays the idempotent fallback for
@@ -342,6 +399,77 @@ class AgentTriggerService:
         # cannot see, since it never serializes a live row.
         await self.db.refresh(trigger)
         return trigger
+
+    async def _auto_register_webhook(
+        self,
+        ctx: AuthContext,
+        trigger: AgentTrigger,
+        *,
+        portal: portal_catalog.PortalEntry,
+        connection_id: UUID,
+        target: str | None,
+        secret: str,
+    ) -> None:
+        """Register the trigger's webhook at the provider, or leave it manual.
+
+        Best-effort by design: no adapter, no scope-bearing token, or a provider
+        that refuses all leave the trigger `manual` and the caller pastes the URL.
+        A registered hook records its id and target so `delete` can remove it.
+        """
+        adapter = portals.get_adapter(portal.key)
+        if adapter is None:
+            return
+        token = await self.connections.webhook_access_token(
+            ctx, connection_id, required_scopes=portal.webhook_admin_scopes
+        )
+        if token is None:
+            return
+        base = settings.PUBLIC_BASE_URL.rstrip("/")
+        webhook_url = f"{base}/api/v1/webhooks/triggers/{trigger.event_source}/{trigger.id}"
+        try:
+            registered = await adapter.register_webhook(
+                access_token=token, target=target, webhook_url=webhook_url, secret=secret
+            )
+        except portals.PortalError:
+            logger.info(
+                "trigger_webhook_manual_fallback",
+                extra={"trigger_id": str(trigger.id), "portal": portal.key},
+            )
+            return
+        trigger.provider_webhook_id = registered.provider_webhook_id
+        trigger.provider_target = target
+        trigger.delivery_mode = "auto_webhook"
+        await self.db.flush()
+
+    async def _deregister_webhook(self, ctx: AuthContext, trigger: AgentTrigger) -> None:
+        """Remove a trigger's provider webhook, best-effort, before it is deleted.
+
+        Never blocks the delete: an orphaned hook that now 401s on delivery is
+        harmless, but a delete that fails because the provider is down is not. A
+        manual or schedule trigger has no hook and this is a no-op.
+        """
+        if not (trigger.provider_webhook_id and trigger.connection_id and trigger.portal_key):
+            return
+        portal = portal_catalog.get_portal(trigger.portal_key)
+        adapter = portals.get_adapter(trigger.portal_key)
+        if portal is None or adapter is None:
+            return
+        try:
+            token = await self.connections.webhook_access_token(
+                ctx, trigger.connection_id, required_scopes=portal.webhook_admin_scopes
+            )
+            if token is None:
+                return
+            await adapter.delete_webhook(
+                access_token=token,
+                target=trigger.provider_target,
+                provider_webhook_id=trigger.provider_webhook_id,
+            )
+        except Exception:
+            logger.warning(
+                "trigger_webhook_deregister_failed",
+                extra={"trigger_id": str(trigger.id)},
+            )
 
     async def update(
         self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID, data: TriggerUpdate
@@ -400,6 +528,9 @@ class AgentTriggerService:
     async def delete(self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID) -> None:
         """Remove a schedule entirely - the agent stops running itself."""
         trigger = await self._owned(ctx, agent_id, trigger_id)
+        # Take the provider hook down first, so a deleted trigger stops receiving
+        # deliveries; best-effort, never blocking the delete.
+        await self._deregister_webhook(ctx, trigger)
         await agent_trigger_repo.delete(self.db, trigger)
         await record_audit(
             self.db,

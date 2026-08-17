@@ -2007,3 +2007,36 @@ class TestReadSchema:
             conn, _base_payload(code_verifier="v").model_dump_json()
         )
         assert McpConnectionRead.from_model(conn).oauth_authorized is True
+
+
+class TestWebhookAccessToken:
+    """The token the trigger portals use to register a webhook - handed back only
+    when the account was re-authorized for the scope, so a plain tool connection
+    falls back to manual rather than registering with a scope it never had."""
+
+    @staticmethod
+    def _ctx() -> AuthContext:
+        return AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER.value)
+
+    @pytest.mark.anyio
+    async def test_a_connection_without_the_scope_yields_no_token(self, monkeypatch):
+        service = McpConnectionService(AsyncMock())
+        conn = _connection(scope="org", granted_scopes=["repo"])
+        monkeypatch.setattr(McpConnectionService, "_get_org", AsyncMock(return_value=conn))
+        token = await service.webhook_access_token(
+            self._ctx(), uuid4(), required_scopes=["admin:repo_hook"]
+        )
+        assert token is None
+
+    @pytest.mark.anyio
+    async def test_a_scoped_connection_yields_its_live_token(self, monkeypatch):
+        service = McpConnectionService(AsyncMock())
+        conn = _connection(scope="org", granted_scopes=["repo", "admin:repo_hook"])
+        monkeypatch.setattr(McpConnectionService, "_get_org", AsyncMock(return_value=conn))
+        monkeypatch.setattr(
+            mcp_connection_service, "_oauth_access_token", AsyncMock(return_value="live-token")
+        )
+        token = await service.webhook_access_token(
+            self._ctx(), uuid4(), required_scopes=["admin:repo_hook"]
+        )
+        assert token == "live-token"

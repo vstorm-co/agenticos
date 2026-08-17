@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import logging
 import secrets
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
@@ -719,6 +719,23 @@ class McpConnectionService:
         """Probe an organization server, persist the result, return its tools."""
         db_connection = await self._get_org(ctx, connection_id)
         return await self._probe(db_connection)
+
+    async def webhook_access_token(
+        self, ctx: AuthContext, connection_id: UUID, *, required_scopes: Sequence[str]
+    ) -> str | None:
+        """A live token for an org connection that consented to `required_scopes`.
+
+        For the trigger portals: registering a provider webhook needs a scope a
+        plain tool connection never requested, so this hands back a token only
+        when the account was re-authorized for it. `None` - the connection lacks
+        the scope, or its token cannot be refreshed - is the signal to fall back
+        to manual setup, never an error. A connection in another tenant is still
+        a `NotFoundError`, because a bad id is a client mistake, not a fallback.
+        """
+        connection = await self._get_org(ctx, connection_id)
+        if not set(required_scopes).issubset(connection.granted_scopes or ()):
+            return None
+        return await _oauth_access_token(self.db, connection)
 
     async def _get_org(self, ctx: AuthContext, connection_id: UUID) -> McpConnection:
         """One organization connection, or a refusal that reveals nothing.

@@ -136,6 +136,9 @@ async def create(
     secret_key_version: int | None,
     environment_id: UUID | None,
     next_fire_at: datetime | None,
+    connection_id: UUID | None = None,
+    portal_key: str | None = None,
+    delivery_mode: str | None = None,
 ) -> AgentTrigger:
     trigger = AgentTrigger(
         organization_id=organization_id,
@@ -153,6 +156,9 @@ async def create(
         secret_key_version=secret_key_version,
         environment_id=environment_id,
         next_fire_at=next_fire_at,
+        connection_id=connection_id,
+        portal_key=portal_key,
+        delivery_mode=delivery_mode,
     )
     db.add(trigger)
     await db.flush()

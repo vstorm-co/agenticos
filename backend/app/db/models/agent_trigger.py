@@ -248,6 +248,10 @@ class AgentTrigger(Base, TimestampMixin):
     )
     delivery_mode: Mapped[str | None] = mapped_column(String(16), nullable=True)
     provider_webhook_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # The target the hook was registered against (a `owner/repo`), kept because
+    # deregistering it on delete needs the target as well as the id - GitHub has
+    # no delete-hook-by-id-alone. Null on a manual or schedule row.
+    provider_target: Mapped[str | None] = mapped_column(String(255), nullable=True)
     portal_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     # Declared here as well as in the migration: the integration tests build the
