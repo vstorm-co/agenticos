@@ -9,7 +9,6 @@ import { ActivityFigures } from "@/components/runs/activity-figures";
 import { ApprovalsTab } from "@/components/runs/approvals-tab";
 import { FocusedRun } from "@/components/runs/focused-run";
 import { RunHistoryTab } from "@/components/runs/run-history-tab";
-import { ScheduledTab } from "@/components/runs/scheduled-tab";
 import { SpendTab } from "@/components/runs/spend-tab";
 import { LoadingState } from "@/components/states";
 import {
@@ -32,7 +31,8 @@ import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 
 /**
- * What the agents did: three figures, and three tabs that each answer separately.
+ * What the agents did: three figures, and the tabs that each answer separately -
+ * the run history, the approvals queue when the caller may decide one, and spend.
  *
  * The page owns only what is genuinely shared - which query parameters narrowed
  * it, and the permission that decides whether there is an approvals queue at all.
@@ -135,7 +135,6 @@ export default function RunsPage() {
                   )}
                 </TabsTrigger>
               )}
-              <TabsTrigger value="scheduled">{t("scheduled")}</TabsTrigger>
               <TabsTrigger value="spend">{t("spend")}</TabsTrigger>
             </TabsList>
 
@@ -157,10 +156,6 @@ export default function RunsPage() {
                 onFocusRun={focusRun}
                 initialDurationSort={sortParam === "duration"}
               />
-            </TabsContent>
-
-            <TabsContent value="scheduled">
-              <ScheduledTab />
             </TabsContent>
 
             <TabsContent value="spend">
