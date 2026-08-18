@@ -86,6 +86,7 @@ PLATFORM_MODULES = (
     "app/services/collection_access.py",
     "app/services/embed_session.py",
     "app/services/embedding_resolution.py",
+    "app/services/rerank_resolution.py",
     "app/services/health.py",
     "app/services/ingestion_config.py",
     "app/services/mcp_catalog.py",

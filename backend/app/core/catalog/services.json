@@ -53,5 +53,13 @@
     "kind": "api_key",
     "help_url": "https://app.daytona.io/dashboard/keys",
     "description": "Cloud sandboxes an agent works in, billed to this organization's own Daytona account."
+  },
+  {
+    "id": "cohere",
+    "label": "Cohere",
+    "category": "other",
+    "kind": "api_key",
+    "help_url": "https://dashboard.cohere.com/api-keys",
+    "description": "Rerank knowledge-search results with Cohere, billed to this organization's own key."
   }
 ]
