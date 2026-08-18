@@ -17,6 +17,27 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.196] - 2026-08-18
+
+### Fixed
+
+- **An MCP server that writes an address nothing can dial is refused, not
+  crashed on.** `httpx.InvalidURL` does not subclass `httpx.HTTPError`, so it
+  escaped all three catches in the OAuth flow and answered 500 — one layer
+  further out than 0.0.190's fix could reach, because `httpx` refuses to build
+  the URL before this project's validator is ever called. Discovery treats an
+  unusable candidate as ending *that candidate*: a server with a broken
+  `WWW-Authenticate` hint and correct well-known documents still connects. The
+  two sites below it raise a refusal of their own. (#889)
+- **"Nothing can dial this" and "we will not go there" stay two different
+  claims.** The refusal for an unbuildable address is deliberately distinct from
+  the blocked-address one, so a failure never misattributes whose fault it was.
+  The address itself goes to the log: `InvalidURL`'s message quotes the text it
+  could not cast, and on this flow that text is written by the server being
+  refused. (#889)
+- **`create_client_registration_request` is guarded at all** — it sat outside the
+  try it appeared to be inside. (#889)
+
 ## [0.0.195] - 2026-08-18
 
 A refusal that names a field marks that field.
