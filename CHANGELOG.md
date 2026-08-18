@@ -17,6 +17,35 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.197] - 2026-08-18
+
+The `e2e` job stopped stalling for twenty-five minutes on an apt mirror.
+
+### Fixed
+
+- **Nothing was cancelling those jobs.** GitHub records a job it ends on its own
+  `timeout-minutes` as `cancelled` rather than as a failure, and a `cancelled`
+  required check is not a pass the way a `skipped` one is — so the merge stayed
+  blocked on a diff that was fine. Across 300 runs, 15 jobs ended that way, and
+  the jobs API names the same step in fourteen of them: `Install Playwright
+  browsers`. `--with-deps` shells out to `apt-get`, the runner's mirror answers
+  `Ign` for every index, and apt stops dead on the fallback — 22 minutes of
+  silence. The flag bought nothing: on a healthy run every library Chromium
+  links against is already the newest version, and the 21 MB it does install is
+  fonts no spec renders. It is gone, and the full suite still passes. (#879)
+- **A stall now fails the step that stalled, by name.** Step-level bounds sit
+  under the job's, so a residual hang says which step rather than ending the job
+  at its outer limit with no explanation. `test_ci_workflow.py` refuses any step
+  that installs system packages, so the flag cannot come back quietly. (#879)
+
+### Changed
+
+- **`make coverage-all` runs across worker processes**, like `test` and
+  `test-fast` already did. It was the one suite still single-process, which is
+  what made 25 minutes reachable on a slow runner: 14m46s of a job for a number
+  that does not gate anything. Measured on the branch's own run, the step went
+  from 4m31s to 2m41s, and `Install Playwright browsers` from 70s to 1s. (#879)
+
 ## [0.0.196] - 2026-08-18
 
 ### Fixed
