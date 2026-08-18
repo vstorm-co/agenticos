@@ -67,8 +67,12 @@ export function BarList({ items, className }: { items: BarListItem[]; className?
                 whole. */}
             <Row href={item.href} label={item.label}>
               <span className="text-muted-foreground flex w-36 shrink-0 items-center gap-1.5">
+                {/* 20px, the size the run table draws an agent at. A mark here
+                    is sometimes a glyph and sometimes initials, and initials
+                    need the room: two of them in a 16px circle had to be set at
+                    8px, which is a smudge rather than a face. */}
                 {item.icon ? (
-                  <span className="flex size-4 shrink-0 items-center justify-center" aria-hidden>
+                  <span className="flex size-5 shrink-0 items-center justify-center" aria-hidden>
                     {item.icon}
                   </span>
                 ) : null}
