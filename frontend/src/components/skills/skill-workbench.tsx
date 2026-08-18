@@ -12,13 +12,8 @@ import {
   Label,
   Switch,
 } from "@/components/ui";
-import {
-  FilePane,
-  FileTree,
-  FileViewer,
-  NewFileForm,
-  UploadButton,
-} from "@/components/skills/skill-files";
+import { FileEditor } from "@/components/files";
+import { FilePane, FileTree, NewFileForm, UploadButton } from "@/components/skills/skill-files";
 import { CategoryInput } from "@/components/skills/category-input";
 import { buildTree } from "@/lib/file-tree";
 import { cn } from "@/lib/utils";
@@ -218,7 +213,7 @@ export function SkillWorkbench({
               }}
             />
           ) : (
-            <FileViewer
+            <FileEditor
               name={BODY}
               content={content}
               canEdit={canEdit}

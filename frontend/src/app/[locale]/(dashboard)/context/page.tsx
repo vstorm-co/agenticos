@@ -4,10 +4,14 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 import { FileText, Lock, Plus } from "lucide-react";
 
+import { toast } from "sonner";
+
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ContextCard } from "@/components/context/context-card";
 import { ContextEditor } from "@/components/context/context-editor";
 import { CreateContextDialog } from "@/components/context/create-context-dialog";
+import { draftFromFilename, type ContextDraft } from "@/components/context/file-name";
+import { FileDropOverlay } from "@/components/files";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import {
   Button,
@@ -25,10 +29,13 @@ import {
   useDebounced,
 } from "@/components/ui";
 import { usePermissions } from "@/hooks";
+import { useFileDrop } from "@/hooks/use-file-drop";
 import { useContextFile, useContextFiles } from "@/hooks/use-context";
 import type { ContextEdit, ContextSort } from "@/hooks/use-context";
 import { getErrorMessage } from "@/lib/api-error";
-import { cn } from "@/lib/utils";
+import { readsAsText, resolveFileKind } from "@/lib/file-kinds";
+import { clientId } from "@/lib/ids";
+import { cn, formatBytes } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 import type { ContextFileSummary } from "@/types/providers";
 import { useTranslations } from "next-intl";
@@ -60,8 +67,20 @@ function Chip({
   );
 }
 
+/**
+ * A dropped file bigger than this is not a context file.
+ *
+ * An injected file is spliced into every run's prompt and a linked one is read
+ * whole when the tool is called, so the interesting limit here is the model's
+ * window rather than the disk's - a megabyte of text is a quarter of a million
+ * tokens. The refusal points at the knowledge base, which is what a document
+ * that large is for.
+ */
+const MAX_DROP_BYTES = 1024 * 1024;
+
 export default function ContextPage() {
   const t = useTranslations("pages.context");
+  const tCtx = useTranslations("context");
   const tc = useTranslations("common");
   const tErrors = useTranslations("errors");
   const [query, setQuery] = useState("");
@@ -80,6 +99,11 @@ export default function ContextPage() {
   const [pendingDelete, setPendingDelete] = useState<ContextFileSummary | null>(null);
   const { file, save } = useContextFile(selected?.id ?? null);
   const [createOpen, setCreateOpen] = useState(false);
+  // Files somebody dropped, oldest first. Each one opens the create dialog
+  // prefilled and is taken off the queue once it has been created, because the
+  // decision the dialog exists to ask - inject or link - is per file and a drop
+  // must not answer it for anybody.
+  const [dropped, setDropped] = useState<ContextDraft[]>([]);
 
   const canEdit = can(Perm.contextEdit);
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -89,6 +113,43 @@ export default function ContextPage() {
     await save.mutateAsync(edit);
     setSelected(null);
   }
+
+  /**
+   * Files dropped on the page, as drafts for the dialog.
+   *
+   * Read here rather than uploaded: a context file is a body in a column, so
+   * there is nothing to upload - the text becomes the field somebody is about to
+   * edit. What is refused is refused with a reason, one toast per cause rather
+   * than one per file, and whatever is left is still queued: dropping a folder
+   * with a PDF in it should not throw away the three Markdown files beside it.
+   */
+  async function acceptDropped(files: File[]) {
+    const text = files.filter((entry) => readsAsText(resolveFileKind(entry.name, entry.type)));
+    const small = text.filter((entry) => entry.size <= MAX_DROP_BYTES);
+    if (text.length < files.length) {
+      toast.error(tCtx("droppedNotText", { count: files.length - text.length }));
+    }
+    if (small.length < text.length) {
+      toast.error(
+        tCtx("droppedTooLarge", {
+          count: text.length - small.length,
+          max: formatBytes(MAX_DROP_BYTES),
+        }),
+      );
+    }
+    if (small.length === 0) return;
+    const drafts = await Promise.all(
+      small.map(async (entry) => ({
+        key: clientId(),
+        ...draftFromFilename(entry.name),
+        content: await entry.text(),
+      })),
+    );
+    setDropped(drafts);
+  }
+
+  const { isDragging } = useFileDrop({ onFiles: acceptDropped, disabled: !canEdit });
+  const draft = dropped[0] ?? null;
 
   const isBusy = isLoading || isLoadingPermissions;
 
@@ -263,7 +324,33 @@ export default function ContextPage() {
         )}
       </Dialog>
 
-      <CreateContextDialog open={createOpen} onOpenChange={setCreateOpen} />
+      {/* Keyed on the draft, so a queued file seeds the fields on mount rather
+          than being written into a form somebody may already be editing. */}
+      <CreateContextDialog
+        key={draft?.key ?? "blank"}
+        open={createOpen || draft !== null}
+        initial={draft ?? undefined}
+        remaining={Math.max(0, dropped.length - 1)}
+        onCreated={() => {
+          setDropped((queue) => queue.slice(1));
+          setCreateOpen(false);
+        }}
+        onOpenChange={(next) => {
+          if (next) return;
+          setCreateOpen(false);
+          // Cancelling abandons the whole drop rather than advancing through it:
+          // whoever closed the dialog closed it, and offering them the next file
+          // of nine is a dialog that will not go away.
+          setDropped([]);
+        }}
+      />
+
+      {/* Only for somebody who could act on a drop - see `disabled` above. */}
+      <FileDropOverlay
+        active={isDragging}
+        title={tCtx("dropToCreate")}
+        hint={tCtx("dropWhatIsTaken", { max: formatBytes(MAX_DROP_BYTES) })}
+      />
 
       {pendingDelete !== null && (
         <ConfirmDialog
