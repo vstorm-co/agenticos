@@ -10,13 +10,14 @@ from __future__ import annotations
 
 from decimal import Decimal
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from app.agents.capabilities.budget import SpendLedger, metered_by
 from app.services.rag.models import SearchResult
-from app.services.rag.reranker import CohereReranker
+from app.services.rag.reranker import CohereReranker, build_reranker
+from app.services.rerank_resolution import ResolvedReranker
 
 pytestmark = pytest.mark.anyio
 
@@ -108,3 +109,48 @@ class TestClientConstruction:
         reranker = CohereReranker(model="rerank-v3.5", api_key="co-key")
         assert reranker._client is None
         assert reranker.client is not None
+
+
+class TestBuildReranker:
+    """The one composition point both retrieval paths share."""
+
+    async def test_an_unconfigured_collection_gets_no_reranker(self):
+        with patch(
+            "app.services.rag.reranker.reranker_for_collection",
+            new=AsyncMock(return_value=None),
+        ):
+            assert await build_reranker("handbook") is None
+
+    async def test_a_configured_collection_gets_a_cohere_reranker(self):
+        with patch(
+            "app.services.rag.reranker.reranker_for_collection",
+            new=AsyncMock(return_value=ResolvedReranker(model="rerank-v3.5", api_key="co-key")),
+        ):
+            reranker = await build_reranker("handbook")
+        assert isinstance(reranker, CohereReranker)
+        assert reranker.model == "rerank-v3.5"
+
+
+class TestBothPathsRerankThroughOneResolver:
+    """Done-when #3: spend is recorded on the agent-run path AND /rag/search.
+
+    Both build their RetrievalService with the same `build_reranker`, so an
+    agent's knowledge search reranks exactly as the route does. Before this the
+    agent-run path built a RetrievalService with no resolver and never reranked.
+    """
+
+    def test_the_request_route_wires_build_reranker(self):
+        from app.api.deps import get_retrieval_service
+
+        service = get_retrieval_service(MagicMock())
+        assert service._reranker_resolver is build_reranker
+
+    def test_the_agent_run_knowledge_tool_wires_build_reranker(self):
+        from app.agents.capabilities.knowledge import _search
+
+        _search._retrieval_service = None
+        try:
+            service = _search.get_retrieval_service()
+            assert service._reranker_resolver is build_reranker
+        finally:
+            _search._retrieval_service = None

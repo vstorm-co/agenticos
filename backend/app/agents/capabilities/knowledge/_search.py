@@ -8,6 +8,7 @@ from app.core.config import settings
 from app.core.exceptions import AppException, ExternalServiceError
 from app.services.embedding_resolution import embeddings_for_collection
 from app.services.rag.embeddings import EmbeddingService
+from app.services.rag.reranker import build_reranker
 from app.services.rag.retrieval import RetrievalService
 from app.services.rag.vectorstore import PgVectorStore
 
@@ -30,7 +31,13 @@ def get_retrieval_service() -> "BaseRetrievalService":
     vector_store = PgVectorStore(
         rag_settings, embedding_service, resolver=embeddings_for_collection
     )
-    _retrieval_service = RetrievalService(vector_store, rag_settings)
+    # The reranker resolver is wired here too, not only on the /rag/search
+    # route: an agent's knowledge search reranks when its collection is
+    # configured, and the run's open ledger books the cost - which is the
+    # agent-run half of "spend recorded on both paths".
+    _retrieval_service = RetrievalService(
+        vector_store, rag_settings, reranker_resolver=build_reranker
+    )
     return _retrieval_service
 
 
