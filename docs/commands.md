@@ -29,7 +29,8 @@ Run these from the project root directory.
 | `make dead-code` | Unused functions and methods — vulture at a lower confidence than the `lint` gate, plus knip's full report on the frontend. A report to read, not a gate: on a registry-driven codebase it comes with false positives (a CLI command, a capability hook), so read each before deleting. The same role `dependency-freshness` plays for dependencies. Its one unambiguous half — a package in `package.json` that nothing imports — gates in `lint-frontend` instead (`bun run lint:deps`), because a dependency that survived being unused for months is what motivated it |
 | `make lint-spelling` | codespell over every tracked file. The pre-commit hook reads only the files a commit touches, so a misspelling that lands with its file waits there to refuse somebody else's unrelated commit |
 | `make build-frontend` | `next build`. Type-checks the route tree and fails on a server component that cannot render — which neither tsc nor vitest sees |
-| `make audit` | Audit the locked dependency set for known vulnerabilities (needs the network) |
+| `make audit` | Audit the locked dependency set for known vulnerabilities. Needs the network — one request per locked distribution — so a network failure is separated from a finding rather than sharing an exit code with it. See below |
+| `make sandbox-token` | Generate the sandbox service's own `SANDBOXD_TOKEN` into `backend/.env`, once. `make dev` runs it for you; it never regenerates, because a new token orphans every workspace the service is holding. The connection form offers to store the same value in the vault, so it does not have to be pasted anywhere |
 | `make clean` | Remove cache files (__pycache__, .pytest_cache, etc.) |
 
 ### Before a pull request
@@ -55,8 +56,36 @@ One gap no command can close: CI's `test` job has a Postgres beside it, so
 `tests/integration/` runs there, and locally it skips itself when nothing answers
 on 5432. `make check` says so at the end when that happens — `make docker-db`
 first if the change is anywhere near the database.
-| `make sandbox-token` | Generate the sandbox service's own `SANDBOXD_TOKEN` into `backend/.env`, once. `make dev` runs it for you; it never regenerates, because a new token orphans every workspace the service is holding. The connection form offers to store the same value in the vault, so it does not have to be pasted anywhere |
 
+### What a red `make audit` means
+
+`make audit` exports what the lockfile resolves to — which is what a deployment
+installs — and hands it to `pip-audit`, which asks the vulnerability feed about
+each of the 254 locked distributions in turn. It answers in three ways, and the
+third is why `scripts/audit_dependencies.py` stands between pip-audit and the job:
+
+| Exit | Means |
+|---|---|
+| `0` | Every locked dependency was audited and none has a known advisory |
+| `1` | A locked dependency has a known advisory. The ids, the fixed versions and the CVE aliases are printed |
+| `75` | **No audit happened.** The first line says `NETWORK:` or `NOT AUDITED:` and pip-audit's own output follows |
+
+`pip-audit` alone cannot make that third distinction: it exits 1 whether it found
+an advisory or died on a `ReadTimeout` reaching for one, and `Security Scan` is a
+required check, so one slow answer out of 254 blocks a merge while reading exactly
+like a real finding until somebody opens the log
+([#855](https://github.com/vstorm-co/agenticos/issues/855)). The verdict is
+therefore taken from pip-audit's JSON report rather than from its exit code —
+that file is written only once every dependency has been queried, so its absence
+means the run never reached a conclusion, whatever it exited. A failure that names
+the network is retried (`AUDIT_ATTEMPTS`, default 3, with a backoff); one that does
+not — a rejected flag, an unreadable requirements file — is reported straight away,
+because trying it twice more only delays the same answer.
+
+It never reports green on an audit that did not run. An unaudited dependency set
+called clean is the same defect facing the other way, so exit 75 still fails the
+job — it just cannot be mistaken for a finding. `AUDIT_TIMEOUT` (default 30s) is
+the per-request socket timeout, raised from pip-audit's own 15.
 
 ### Database
 

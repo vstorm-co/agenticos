@@ -411,10 +411,19 @@ build-frontend:
 # virtualenv. The export is fully pinned, so `--no-deps --disable-pip` skips a
 # resolution round-trip pip-audit would otherwise do in a throwaway virtualenv.
 #
-# Needs the network: the advisory database is fetched, not vendored.
+# Needs the network: the advisory database is fetched, not vendored - one request
+# per locked distribution, 254 of them, none of which pip-audit retries and all of
+# which exit 1 the way a real advisory does. `scripts/audit_dependencies.py` is
+# what stops a single slow answer reading as a finding on a required check (#855):
+# it retries a network-shaped failure and exits 75 with the word NETWORK when the
+# feed never answered, so exit 1 keeps meaning "a locked dependency is vulnerable".
+AUDIT_ATTEMPTS ?= 3
+AUDIT_TIMEOUT ?= 30
+
 audit:
 	cd backend && uv export --frozen --no-emit-project --no-hashes -o requirements-audit.txt
-	cd backend && uv tool run pip-audit -r requirements-audit.txt --no-deps --disable-pip --progress-spinner=off
+	python3 scripts/audit_dependencies.py backend/requirements-audit.txt \
+		--attempts $(AUDIT_ATTEMPTS) --timeout $(AUDIT_TIMEOUT)
 
 # Playwright starts the frontend itself; the backend and its seed are on you.
 # Checked rather than assumed: against a backend that is not there the suite
