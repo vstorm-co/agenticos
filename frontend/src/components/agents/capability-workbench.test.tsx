@@ -257,20 +257,25 @@ describe("the capability workbench", () => {
 });
 
 describe("the frame the two panes sit in", () => {
-  it("is one height whichever capability is showing", () => {
-    // The page used to be as tall as whatever was selected: opening the
-    // workspace - the tallest panel by far - and then clicking a short one left
-    // the document scrolled past its own content, with hundreds of pixels of
-    // nothing below the section beneath it.
+  it("lets the panel grow rather than fixing the frame's height", () => {
+    // It was `lg:h-[36rem]`, to stop a shorter panel leaving the page scrolled
+    // past its own content - which the browser clamps anyway: measured on this
+    // page, switching away from the workspace panel at the bottom moves scrollTop
+    // 2080 -> 0. What the fixed frame did leave was 400px of empty card under a
+    // short panel, and a scrollbar inside the page beside the page's own.
     const { container } = renderWorkbench({ catalog: [CHARTS] });
 
-    expect(container.querySelector(".grid")?.className).toContain("lg:h-[36rem]");
+    expect(container.querySelector(".grid")?.className).not.toContain("lg:h-[36rem]");
   });
 
-  it("scrolls each pane rather than the page", () => {
+  it("scrolls the list alone, so the page keeps one scrollbar", () => {
+    // The list is a catalog of thirty and has to stay reachable beside a long
+    // panel, so it is the one bounded column - sticky, capped, scrolling. The
+    // panel is not: a gallery of collections is taller than any frame worth
+    // fixing, and a wheel over it should move the page.
     const { container } = renderWorkbench({ catalog: [CHARTS] });
 
-    expect(container.querySelectorAll('[class*="overflow-y-auto"]').length).toBe(2);
+    expect(container.querySelectorAll('[class*="overflow-y-auto"]').length).toBe(1);
   });
 });
 

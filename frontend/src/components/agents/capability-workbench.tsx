@@ -132,14 +132,18 @@ export function CapabilityWorkbench({
   if (catalog.length === 0) return null;
 
   return (
-    // One frame, one height, whichever capability is showing. The page used to be
-    // as tall as whatever was selected: opening the workspace - the tallest panel
-    // by far - and then clicking a short one left the document scrolled past its
-    // own content, hundreds of pixels of nothing below the MCP section. Both
-    // columns now scroll inside a fixed pane, so choosing a capability moves
-    // nothing on the page around it.
-    <div className="grid gap-4 lg:h-[36rem] lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
-      <div className="flex min-h-0 flex-col gap-3">
+    // The panel grows with what it holds; only the list is a bounded, scrolling
+    // column. It was a fixed 36rem frame with *both* columns scrolling inside it,
+    // for a reason that no longer holds: choosing a shorter capability was said to
+    // leave "the document scrolled past its own content, hundreds of pixels of
+    // nothing below the MCP section", and the browser in fact clamps that -
+    // measured on this page, switching from the workspace panel at the bottom of
+    // the page moves scrollTop 2080 -> 0, and paging the server catalog 2080 ->
+    // 400, neither overshooting. What the frame did cost was real: a scrollbar
+    // inside the page beside the page's own, which is what a picker in a panel now
+    // meets every time, and 400px of dead card under a short panel.
+    <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
+      <div className="flex flex-col gap-3 lg:sticky lg:top-4 lg:max-h-[36rem]">
         {catalog.length > 8 && (
           <SearchInput
             value={query}
@@ -149,6 +153,9 @@ export function CapabilityWorkbench({
           />
         )}
 
+        {/* The one bounded column: a catalog of thirty has to stay reachable
+            beside a long panel, so it is capped and scrolls, and the column is
+            sticky so it does not leave with the page. */}
         <div className="min-h-0 scrollbar-thin space-y-4 lg:flex-1 lg:overflow-y-auto lg:pr-1">
           {categories.length === 0 && (
             <p className="text-muted-foreground px-1 py-6 text-sm">
@@ -203,7 +210,10 @@ export function CapabilityWorkbench({
           the workspace panel - the one capability with tiles, two selects, a
           warning and a nested settings form - set the height of the whole
           Builder. */}
-      <div className="min-h-0 min-w-0 scrollbar-thin lg:overflow-y-auto lg:pr-1">
+      {/* No scroller of its own: the page is the one scrollbar a reader should
+          meet, and a panel holding a gallery of collections is taller than any
+          frame worth fixing. */}
+      <div className="min-w-0">
         {focused && (
           <div className="space-y-3">
             {/* The workspace's configuration is a choice between three
