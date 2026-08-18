@@ -605,7 +605,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
               </a>
             </Button>
             {canPublish && (
-              <Button onClick={handlePublish} disabled={publish.isPending}>
+              <Button
+                onClick={handlePublish}
+                disabled={publish.isPending}
+                data-tour="agent-publish"
+              >
                 <Upload className="h-4 w-4" />
                 {t("publish")}
               </Button>
@@ -781,17 +785,31 @@ export default function AgentBuilderPage({ params }: PageProps) {
           Grouped by the question being answered, not by implementation. */}
       <Tabs defaultValue="build">
         <TabsList>
-          <TabsTrigger value="build">{t("build")}</TabsTrigger>
-          <TabsTrigger value="toolbox">{t("toolbox")}</TabsTrigger>
-          <TabsTrigger value="knowledge">{t("knowledge")}</TabsTrigger>
-          <TabsTrigger value="skills">{t("skills")}</TabsTrigger>
-          <TabsTrigger value="limits">{t("limits")}</TabsTrigger>
-          <TabsTrigger value="availability">{t("availability")}</TabsTrigger>
-          <TabsTrigger value="history">{t("history")}</TabsTrigger>
+          <TabsTrigger value="build" data-tour="agent-tab-build">
+            {t("build")}
+          </TabsTrigger>
+          <TabsTrigger value="toolbox" data-tour="agent-tab-toolbox">
+            {t("toolbox")}
+          </TabsTrigger>
+          <TabsTrigger value="knowledge" data-tour="agent-tab-knowledge">
+            {t("knowledge")}
+          </TabsTrigger>
+          <TabsTrigger value="skills" data-tour="agent-tab-skills">
+            {t("skills")}
+          </TabsTrigger>
+          <TabsTrigger value="limits" data-tour="agent-tab-limits">
+            {t("limits")}
+          </TabsTrigger>
+          <TabsTrigger value="availability" data-tour="agent-tab-availability">
+            {t("availability")}
+          </TabsTrigger>
+          <TabsTrigger value="history" data-tour="agent-tab-history">
+            {t("history")}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="build" className="mt-4 space-y-6">
-          <Card>
+          <Card data-tour="agent-instructions">
             <CardHeader>
               <CardTitle>{t("instructions")}</CardTitle>
               <CardDescription>{t("agentAposSBehaviour")}</CardDescription>
@@ -808,7 +826,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 disabled={!canEdit}
                 placeholder={t("youAreSupportCopilot")}
               />
-              <div className="space-y-2">
+              <div className="space-y-2" data-tour="agent-model-picker">
                 <Label>{t("model")}</Label>
                 <ModelProfilePicker
                   // A model profile is `connections:manage`, which somebody who
@@ -835,7 +853,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card data-tour="agent-model">
             <CardHeader>
               <CardTitle>{t("modelSettings")}</CardTitle>
               <CardDescription>{t("howAgentAsksIts")}</CardDescription>
@@ -858,7 +876,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
         </TabsContent>
 
         <TabsContent value="toolbox" className="mt-4 space-y-6">
-          <Card>
+          <Card data-tour="agent-capabilities">
             <CardHeader>
               <CardTitle>{t("capabilities")}</CardTitle>
               <CardDescription>{t("whatAgentCanDo")}</CardDescription>
@@ -882,8 +900,15 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
+          <Card data-tour="agent-mcp">
+            {/* The passive tour points here rather than at the card: the picker
+                below embeds the whole server catalog, so the card runs well past
+                the bottom of the screen and a spotlight on it lit the entire
+                viewport — a highlight that highlights nothing, with the caption
+                stranded in the one dim strip left (#624). The card keeps its own
+                anchor for the guided flow, which needs the list itself reachable
+                so the reader can tick a server. */}
+            <CardHeader data-tour="agent-mcp-intro">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 space-y-1.5">
                   <CardTitle>{t("mcpServers")}</CardTitle>
@@ -905,7 +930,12 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     of refusals, and the connection it creates lands in the same
                     cache this picker reads. */}
                 {can(Perm.connectionsManage) && (
-                  <Button variant="outline" size="sm" onClick={() => setConnectingMcp(true)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    data-tour="agent-mcp-connect"
+                    onClick={() => setConnectingMcp(true)}
+                  >
                     <Plug className="h-3.5 w-3.5" />
                     {t("connectServer")}
                   </Button>
@@ -928,7 +958,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
         </TabsContent>
 
         <TabsContent value="knowledge" className="mt-4 space-y-6">
-          <Card>
+          <Card data-tour="agent-collections">
             <CardHeader>
               <CardTitle>{t("collections")}</CardTitle>
               <CardDescription>{t("whatAgentMaySearch")}</CardDescription>
@@ -952,7 +982,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             the same decision, and put the two things with the most to read on
             one scroll. */}
         <TabsContent value="skills" className="mt-4 space-y-6">
-          <Card>
+          <Card data-tour="agent-skills">
             <CardHeader>
               <CardTitle>{t("skills2")}</CardTitle>
               <CardDescription>{t("writtenKnowHowAgent")}</CardDescription>
@@ -989,7 +1019,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
         </TabsContent>
 
         <TabsContent value="limits" className="mt-4 space-y-6">
-          <Card>
+          <Card data-tour="agent-limits">
             <CardHeader>
               <CardTitle>{t("runLimits")}</CardTitle>
               <CardDescription>{t("agentAposSOwn")}</CardDescription>
@@ -1052,19 +1082,21 @@ export default function AgentBuilderPage({ params }: PageProps) {
         </TabsContent>
 
         <TabsContent value="availability" className="mt-4 space-y-6">
-          <ExposuresPanel
-            agentId={id}
-            canManage={canPublish}
-            hasWorkspace={spec.capabilities.some(
-              (binding) => binding.id === SANDBOX_ID && binding.enabled !== false,
-            )}
-          />
+          <div data-tour="agent-availability">
+            <ExposuresPanel
+              agentId={id}
+              canManage={canPublish}
+              hasWorkspace={spec.capabilities.some(
+                (binding) => binding.id === SANDBOX_ID && binding.enabled !== false,
+              )}
+            />
+          </div>
           <EmbedsPanel agentId={id} canManage={canPublish} />
           <SharingPanel resourceType="agent" resourceId={id} canManage={canEdit} />
         </TabsContent>
 
         <TabsContent value="history" className="mt-4 space-y-6">
-          <Card>
+          <Card data-tour="agent-history">
             <CardHeader>
               <CardTitle>{t("environments")}</CardTitle>
               <CardDescription>{t("namedPointersAtPublished")}</CardDescription>

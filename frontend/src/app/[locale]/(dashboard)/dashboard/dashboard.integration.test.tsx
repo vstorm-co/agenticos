@@ -48,7 +48,11 @@ vi.mock("@/hooks/use-permissions", () => ({
 }));
 
 const params = new URLSearchParams();
-vi.mock("next/navigation", () => ({ useSearchParams: () => params }));
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => params,
+  // The header's "?" reads the path to decide whether this page has tips.
+  usePathname: () => "/dashboard",
+}));
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({

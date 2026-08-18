@@ -83,7 +83,7 @@ export default function RAGPage() {
         description={t("groupRelatedDocumentsInto")}
         actions={
           mayEdit ? (
-            <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <Button data-tour="knowledge-new" size="sm" onClick={() => setCreateOpen(true)}>
               <Plus className="h-4 w-4" />
               {t("newKnowledgeBase")}
             </Button>
@@ -93,7 +93,7 @@ export default function RAGPage() {
 
       {/* The shared underline strip - this page's look, now the primitive's. */}
       <Tabs value={tab} onValueChange={(next) => setTab(next as RagTab)}>
-        <TabsList>
+        <TabsList data-tour="knowledge-tabs">
           <TabsTrigger value="bases">{t("knowledgeBases")}</TabsTrigger>
           <TabsTrigger value="search">{t("search")}</TabsTrigger>
         </TabsList>
@@ -172,7 +172,9 @@ export default function RAGPage() {
 
           {/* Below the collections, because it is the thing they are fed from: a
           connector configured once and cloned into each base that needs it. */}
-          <ReusableIntegrations targets={kbs} />
+          <div data-tour="knowledge-integrations">
+            <ReusableIntegrations targets={kbs} />
+          </div>
         </>
       )}
 

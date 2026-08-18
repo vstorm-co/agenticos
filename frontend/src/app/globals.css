@@ -1108,6 +1108,335 @@
   }
 }
 
+/*
+ * Onboarding tour — pin the driver.js popover to a fixed spot at the bottom.
+ *
+ * The text and its Next button stay in one place for the whole walk; only the
+ * spotlight cut-out moves. driver.js positions the popover inline against the
+ * highlighted element, so the pin has to win with `!important`, and the arrow
+ * (which would point at nothing from a fixed spot) is hidden.
+ *
+ * `display: block !important` is what keeps the caption from blinking as the
+ * spotlight glides. With `animate` on, driver hides the popover at the start of
+ * every transition (an inline `display: none`) and only rebuilds it at the
+ * halfway point, so a pinned caption would vanish for ~200ms each step. The
+ * `!important` overrides that inline hide, so the old caption holds until the
+ * rebuilt one replaces it in the same frame — an invisible swap, no blink.
+ */
+.driver-popover.tour-popover {
+  display: block !important;
+  position: fixed !important;
+  bottom: 1.5rem !important;
+  top: auto !important;
+  left: 50% !important;
+  right: auto !important;
+  transform: translateX(-50%) !important;
+  margin: 0 !important;
+  max-width: min(28rem, calc(100vw - 2rem));
+  border-radius: 0.75rem;
+  /* driver.css hard-codes a white card and near-black text, which reads as a light
+     popover beside the coach's own card in dark mode. Both onboarding surfaces are
+     the same material as the chat composer instead: a frosted pane over the page
+     it is describing, at the near-opaque strength dialogs use, because this one
+     also floats over a dimmed backdrop and would go murky at the lighter one.
+     Written out rather than reached for as `.glass-strong`, because driver.js owns
+     this element's class list and rebuilds it every step. */
+  color: var(--color-popover-foreground);
+  border: 1px solid color-mix(in oklab, var(--color-foreground) 16%, transparent);
+  background: color-mix(in oklab, var(--color-card) 85%, transparent);
+  -webkit-backdrop-filter: blur(24px) saturate(1.8);
+  backdrop-filter: blur(24px) saturate(1.8);
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in oklab, white 20%, transparent),
+    0 1px 2px 0 rgb(0 0 0 / 0.08),
+    0 12px 40px -12px rgb(0 0 0 / 0.3);
+  /* The caption is pinned, so the only thing that changes between steps is its
+     text. Easing the box means a step whose copy is a line longer grows into the
+     extra height instead of jumping, which — with the text swapped in the same
+     frame — is the whole of the transition the reader sees. */
+  transition:
+    height 0.28s ease,
+    width 0.28s ease;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .driver-popover.tour-popover {
+    background: var(--color-popover);
+  }
+}
+
+/* The top-pinned variant, for chat: the composer is at the bottom, so a caption
+   pinned there would cover the prompt box it points at (#624). */
+.driver-popover.tour-popover.tour-popover-top {
+  top: 1.5rem !important;
+  bottom: auto !important;
+}
+
+.driver-popover.tour-popover .driver-popover-progress-text,
+.driver-popover.tour-popover .driver-popover-close-btn {
+  color: var(--color-muted-foreground);
+}
+
+/*
+ * Back and Next arrived as two identical bordered grey boxes, which says nothing
+ * about which one continues the walk. They are the app's own button pair instead:
+ * Next carries the brand, Back is quiet beside it. driver.js renders them as bare
+ * `<button>`s it owns, so this is written out rather than composed from the
+ * `Button` component the rest of the product uses.
+ */
+.driver-popover.tour-popover .driver-popover-footer button {
+  border-radius: 9999px;
+  padding: 0.3rem 0.85rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  text-shadow: none;
+  border: 1px solid transparent;
+  background-color: transparent;
+  color: var(--color-muted-foreground);
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.driver-popover.tour-popover .driver-popover-footer button:hover:not(:disabled) {
+  background-color: var(--color-accent);
+  color: var(--color-foreground);
+}
+
+.driver-popover.tour-popover .driver-popover-footer .driver-popover-next-btn {
+  background-color: var(--color-brand);
+  color: var(--color-brand-foreground);
+}
+
+.driver-popover.tour-popover .driver-popover-footer .driver-popover-next-btn:hover:not(:disabled) {
+  background-color: var(--color-brand-hover);
+  color: var(--color-brand-foreground);
+}
+
+.driver-popover.tour-popover .driver-popover-footer button:disabled {
+  opacity: 0.45;
+}
+
+.driver-popover.tour-popover .driver-popover-title {
+  color: var(--color-popover-foreground);
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.driver-popover.tour-popover .driver-popover-description {
+  color: var(--color-muted-foreground);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.driver-popover.tour-popover .driver-popover-arrow {
+  display: none !important;
+}
+
+/*
+ * The other half of keeping the caption still: driver rebuilds the popover each
+ * step while the body carries `driver-fade`, so its fade-in keyframe would replay
+ * and flash the pinned text. Suppressed here. The overlay is a different element,
+ * animated by its cut-out path rather than this keyframe, so the light still
+ * glides smoothly from one control to the next.
+ */
+.driver-fade .driver-popover.tour-popover {
+  animation: none;
+}
+
+/*
+ * The interactive coach's highlight: a ring in the brand accent that travels and
+ * grows from one control to the next rather than snapping there, so the eye
+ * follows it across the screen. It is a fixed element, not an outline on the
+ * control — the coach freezes the page and scrolls the control into view, so
+ * there is no scrolling for a fixed ring to lag behind, and a fixed element can
+ * animate its own position and size where an outline cannot. The size/position
+ * transition is the travel; the opacity keyframe is a slow, full blink — the ring
+ * fades out completely and back — so it is impossible to miss. A reader who asks
+ * for reduced motion gets a steady ring: no travel, no blink.
+ */
+.onboarding-coach-ring {
+  position: fixed;
+  z-index: 1000000001;
+  pointer-events: none;
+  /* Three spread shadows rather than one, which is the whole difference between a
+     frame and an outline. A single 3px band of solid brand, sat on the control's
+     own box, is exactly what a form draws around an invalid field — and on a plain
+     `div` it drew square corners too, so it read as an error box rather than as
+     guidance (#624). So: a hairline edge at not-quite-full strength, a wide soft
+     band just outside it giving that edge depth, and a coloured drop that lifts the
+     framed control off the dimmed page. The box itself stands off the control and
+     keeps a soft corner — see `RING_OFFSET` in `onboarding-coach.tsx`. Spread
+     shadows rather than `outline`, still, because they follow the radius exactly
+     where `outline-offset` left a gap that read differently on a pill and a card. */
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 1.5px color-mix(in oklab, var(--color-brand) 90%, transparent),
+    0 0 0 7px color-mix(in oklab, var(--color-brand) 15%, transparent),
+    0 10px 34px -8px color-mix(in oklab, var(--color-brand) 55%, transparent);
+  transition:
+    top 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    left 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    width 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    height 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: onboarding-coach-pulse 2.8s ease-in-out infinite;
+}
+
+/*
+ * The ring breathes rather than blinks. It used to animate opacity 1 → 0, so the
+ * whole highlight flickered out for half of every cycle — which read as the ring
+ * malfunctioning rather than as "look here". The hairline now holds perfectly
+ * still and only the soft band around it swells and settles, slowly: the frame is
+ * the thing that says *where*, and something that keeps redrawing its own edge
+ * cannot be read as a border on the control it is framing.
+ */
+@keyframes onboarding-coach-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1.5px color-mix(in oklab, var(--color-brand) 90%, transparent),
+      0 0 0 6px color-mix(in oklab, var(--color-brand) 16%, transparent),
+      0 10px 30px -10px color-mix(in oklab, var(--color-brand) 45%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1.5px color-mix(in oklab, var(--color-brand) 90%, transparent),
+      0 0 0 11px color-mix(in oklab, var(--color-brand) 7%, transparent),
+      0 12px 40px -8px color-mix(in oklab, var(--color-brand) 65%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-coach-ring {
+    transition: none;
+    animation: none;
+  }
+}
+
+/*
+ * The coach's card, arriving. The ring travels between controls, so the card
+ * should not also fly — it rises a few pixels and fades in, once per step, which
+ * reads as "new instruction" without competing with the light that is moving. It
+ * is keyed on the step id in the component, so React remounts it and the keyframe
+ * replays; nothing else re-triggers it.
+ */
+@keyframes onboarding-coach-card-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 6px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.onboarding-coach-card {
+  animation: onboarding-coach-card-in 0.24s ease-out both;
+}
+
+/* Inside a dialog the card is in normal flow, so it must not be dragged half its
+   own width to the left the way the floating one is. */
+@keyframes onboarding-coach-card-in-flow {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.onboarding-coach-card-in-flow {
+  animation: onboarding-coach-card-in-flow 0.24s ease-out both;
+}
+
+/*
+ * The page-help "?" breathing until it is first used. Deliberately small: this
+ * control sits in every page header, so anything louder than a slow swell of the
+ * icon's own colour would be a permanent distraction on twenty screens. It stops
+ * for good at the first press (`lib/onboarding/help-hint`), and never starts for a
+ * reader who asked for less motion.
+ */
+@keyframes onboarding-help-hint {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.onboarding-help-hint {
+  /* Opacity, slowly, and nothing else — no colour, no tint, no ring. This one
+     never stops, and a permanent cue has to be quiet or it becomes something the
+     reader has to actively ignore on twenty screens. A brand-coloured pill that
+     pulsed a ripple was right for a hint that ended at the first press and far too
+     loud for one that does not: it read as an unread badge. Fading the icon in and
+     out over four seconds is noticed in peripheral vision and invisible the moment
+     you look straight at it, which is the whole job. */
+  animation: onboarding-help-hint 4s ease-in-out infinite;
+}
+
+/* Settled the moment the reader goes for it — nothing should be moving under a
+   cursor that is about to click it. */
+.onboarding-help-hint:hover,
+.onboarding-help-hint:focus-visible {
+  animation: none;
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-coach-card,
+  .onboarding-coach-card-in-flow {
+    animation: none;
+  }
+  /* Full strength rather than mid-breath: the animation is the only thing setting
+     this element's opacity, so stopping it without saying so would freeze the icon
+     at whatever the browser had painted. */
+  .onboarding-help-hint {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+/*
+ * The "clicked" flourish on the control a transition fires from. The spotlight
+ * lands on it, it pulses — grows then presses in and settles, the way a tapped
+ * control does — and only then does the tour navigate or switch tabs, so the
+ * reader sees which control was pressed rather than the page changing under
+ * them. The peak stays inside the 8px `stagePadding` so the pulse plays within
+ * the spotlight cut-out. Honoured only when the reader has not asked for less
+ * motion; the transition itself still happens, just without the flourish.
+ */
+@keyframes tour-click-pulse {
+  0% {
+    transform: scale(1);
+  }
+  25% {
+    transform: scale(1.03);
+  }
+  55% {
+    transform: scale(0.95);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.tour-click-pulse {
+  animation: tour-click-pulse 0.45s ease-in-out both;
+  transform-origin: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-click-pulse {
+    animation: none;
+  }
+}
+
 /* The theme switch as a sweep: the new theme's snapshot grows as a circle
    anchored at the bottom-left corner, reaching the top-right last. Driven by
    `document.startViewTransition` in theme-provider.tsx, which already skips

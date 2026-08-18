@@ -94,6 +94,7 @@ export function useModelProviders() {
      */
     profilesLoaded: profiles.isSuccess,
     isLoading: catalog.isLoading || profiles.isLoading,
+    isFetching: catalog.isFetching || profiles.isFetching,
     createProfile,
     deleteProfile,
   };

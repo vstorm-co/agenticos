@@ -142,6 +142,10 @@ export function AgentCard({
               icon={Pencil}
               label={tc("editNamed", { name: agent.name })}
               href={ROUTES.AGENT_DETAIL(agent.id)}
+              // The onboarding coach's return leg points here to reopen the very
+              // agent a guided flow just built — resolved by this id, so a gallery
+              // of many still returns to the right one.
+              agentId={agent.id}
             />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -201,16 +205,20 @@ function IconAction({
   icon: Icon,
   label,
   href,
+  agentId,
 }: {
   icon: LucideIcon;
   label: string;
   href: string;
+  agentId: string;
 }) {
   return (
     <Link
       href={href}
       aria-label={label}
       title={label}
+      data-tour="agent-card-edit"
+      data-agent-id={agentId}
       className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-2"
     >
       <Icon className="h-4 w-4" />

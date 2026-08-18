@@ -29,13 +29,34 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 const DialogContent = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => {
+>(({ className, children, onInteractOutside, onEscapeKeyDown, ...props }, ref) => {
   const t = useTranslations("common");
   return (
     <DialogPortal>
       <DialogOverlay />
       <DialogPrimitive.Content
         ref={ref}
+        onInteractOutside={(event) => {
+          onInteractOutside?.(event);
+          // While the onboarding coach is guiding this dialog, its freeze is the whole
+          // point — the reader operates only the field being pointed at. Radix would
+          // dismiss on any outside interaction (the backdrop, or the coach's own card,
+          // which sits outside the dialog), stranding the walk on a step whose dialog
+          // is gone. Keep it open; the coach's close button ends the walk, and the
+          // dialog's own Cancel still closes it. A no-op when no coach is active
+          // (`[data-coach-card]` renders only while a flow runs). The check is global
+          // on purpose: while any flow runs — a `roam` step included, where the page
+          // is fully interactive — every dialog in the app ignores Escape and
+          // outside-click, not only the one being guided. Deliberate, and X and Cancel
+          // still close, so nobody is trapped.
+          if (document.querySelector("[data-coach-card]")) event.preventDefault();
+        }}
+        onEscapeKeyDown={(event) => {
+          onEscapeKeyDown?.(event);
+          // Escape strands the coach the same way an outside click does — block it too
+          // while a flow is guiding this dialog.
+          if (document.querySelector("[data-coach-card]")) event.preventDefault();
+        }}
         className={cn(
           // Solid, unlike the drawers and menus: a centred modal sits directly
           // over the dimmed page, and any translucency reads as a stain of

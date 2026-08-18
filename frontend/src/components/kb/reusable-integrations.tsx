@@ -98,7 +98,12 @@ export function ReusableIntegrations({ targets }: ReusableIntegrationsProps) {
           <p className="text-muted-foreground mt-0.5 text-xs">{t("configuredOnceUsedAs")}</p>
         </div>
         {connectors.length > 0 && (
-          <Button variant="outline" size="sm" onClick={() => setWizardOpen(true)}>
+          <Button
+            data-tour="knowledge-add-integration"
+            variant="outline"
+            size="sm"
+            onClick={() => setWizardOpen(true)}
+          >
             <Plug className="h-4 w-4" />
             {t("addIntegration")}
           </Button>

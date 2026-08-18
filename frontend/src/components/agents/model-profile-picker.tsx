@@ -144,10 +144,17 @@ export function ModelProfilePicker({
   // saying which of them is in use.
   if (!allowAdd) {
     if (profiles.length === 0) {
+      // No models, and this caller cannot add one — the Builder hid the form
+      // above. Say why and where the fix is, rather than leave them to discover it
+      // at publish: an agent with no model is refused there, and the only ways to
+      // one are a permission they lack or an admin who holds it.
       return (
         <div className="border-border rounded-lg border border-dashed p-6 text-center">
           <KeyRound className="text-muted-foreground mx-auto h-5 w-5" />
           <p className="text-muted-foreground mt-2 text-sm">{t("organizationHasNoModels")}</p>
+          <p className="text-muted-foreground mx-auto mt-1 max-w-sm text-xs">
+            {t("noModelAskAdmin")}
+          </p>
         </div>
       );
     }

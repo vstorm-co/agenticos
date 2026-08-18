@@ -334,6 +334,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
   return (
     <>
       <ListCard
+        data-tour="mcp-catalog"
         title={t("servers")}
         counted={t("serverCount", { count: rows.length })}
         controls={
@@ -345,7 +346,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
         }
         contentClassName="space-y-4 p-4"
       >
-        <div className="flex flex-wrap items-center gap-2">
+        <div data-tour="mcp-filter" className="flex flex-wrap items-center gap-2">
           <Select value={category} onValueChange={setCategory}>
             <SelectTrigger className="w-auto min-w-40" aria-label={t("category")}>
               <SelectValue />
@@ -374,6 +375,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
             <Button
               size="sm"
               variant="outline"
+              data-tour="mcp-add"
               onClick={() =>
                 openDraft(
                   "organization",
@@ -416,8 +418,14 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
          * only reason to lay a catalog out as a grid rather than as rows.
          */}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {list.visible.map((row) => (
-            <Card key={row.key} role="group" aria-label={row.name} className="h-full">
+          {list.visible.map((row, index) => (
+            <Card
+              key={row.key}
+              role="group"
+              aria-label={row.name}
+              className="h-full"
+              data-tour={index === 0 ? "mcp-connect" : undefined}
+            >
               {/* No hover state, unlike the agents grid: there a card is a link and
                 the border lighting up says so. Here the actions are inside the
                 card, and a card that responds to a hover but does nothing when

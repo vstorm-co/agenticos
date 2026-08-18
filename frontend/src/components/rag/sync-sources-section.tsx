@@ -53,7 +53,7 @@ export function SyncSourcesSection({
   const visible = expanded ? syncSources : syncSources.slice(0, SYNC_SOURCES_VISIBLE);
 
   return (
-    <section>
+    <section data-tour="kb-sync">
       <div className="mb-3 flex items-center justify-between gap-2">
         <h2 className="text-foreground text-sm font-semibold">{t("syncSources")}</h2>
         {mayEdit && connectors.length > 0 && (

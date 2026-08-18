@@ -282,7 +282,10 @@ export default function OrgMembersPage({ params }: PageProps) {
       />
 
       {org && (
-        <section className="border-border bg-card flex flex-wrap items-start gap-5 rounded-xl border p-5 sm:p-6">
+        <section
+          data-tour="org-profile"
+          className="border-border bg-card flex flex-wrap items-start gap-5 rounded-xl border p-5 sm:p-6"
+        >
           <button
             type="button"
             onClick={() => avatarInputRef.current?.click()}
@@ -376,6 +379,7 @@ export default function OrgMembersPage({ params }: PageProps) {
           a stand-in list could only approximate them. The shared list card
           keeps the page's shape whether it is empty, loading or full. */}
       <ListCard
+        data-tour="org-members"
         title={t("membersCard")}
         counted={
           isLoading || permissionsLoading || error

@@ -13,7 +13,9 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
   return (
     <div className="space-y-6 pb-8">
       <PageHeader title={t("settings")} description={t("manageYourAccountIntegrations")} />
-      <PageTabs tabs={SETTINGS_TABS} />
+      <div data-tour="settings-tabs">
+        <PageTabs tabs={SETTINGS_TABS} />
+      </div>
       <div className="min-w-0">{children}</div>
     </div>
   );

@@ -84,7 +84,7 @@ export default function VaultPage() {
         description={t(VAULT_DESCRIPTION)}
         actions={
           canManage ? (
-            <Button onClick={() => setSecretOpen(true)}>
+            <Button data-tour="vault-new" onClick={() => setSecretOpen(true)}>
               <Plus className="h-4 w-4" />
               {t("addKey")}
             </Button>
@@ -93,6 +93,7 @@ export default function VaultPage() {
       />
 
       <ListCard
+        data-tour="vault-keys"
         title={t("keys")}
         // With the list refused, "0 keys stored" would state as fact something
         // the request never answered - the skeleton stays.

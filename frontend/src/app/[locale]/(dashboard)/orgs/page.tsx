@@ -78,7 +78,7 @@ export default function OrgsPage() {
         title={t("organizations")}
         description={t("switchBetweenWorkspacesManage")}
         actions={
-          <Button onClick={() => setCreateOpen(true)}>
+          <Button data-tour="orgs-new" onClick={() => setCreateOpen(true)}>
             <Plus className="h-4 w-4" />
             {t("newOrganization")}
           </Button>

@@ -28,7 +28,11 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => true }) }));
 
 const params = new URLSearchParams();
-vi.mock("next/navigation", () => ({ useSearchParams: () => params }));
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => params,
+  // The header's "?" reads the path to decide whether this page has tips.
+  usePathname: () => "/runs",
+}));
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({

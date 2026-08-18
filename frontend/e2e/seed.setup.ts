@@ -80,6 +80,24 @@ import {
 
 setup.use({ storageState: AUTH_STATE });
 
+setup("the owner has finished onboarding", async ({ page }) => {
+  // The first-run tour auto-opens on /dashboard for a user whose
+  // onboarding_completed_at is null (`useOnboardingTour`), and its full-page
+  // driver.js overlay intercepts every click behind it. Bootstrap leaves the
+  // owner mid-onboarding, so a product spec that lands on the dashboard and
+  // reaches for the sidebar, the account menu or a period toggle times out
+  // against the "Welcome to AgenticOS" popover instead. Mark it done — exactly
+  // as the product does on dismiss — so every product spec runs as a returning
+  // user. A spec that wants the tour nulls the flag itself.
+  const me = await json<{ onboarding_completed_at: string | null }>(page.request, "/api/users/me");
+  if (me.onboarding_completed_at) return;
+
+  const response = await page.request.patch("/api/users/me", {
+    data: { onboarding_completed_at: new Date().toISOString() },
+  });
+  expect(response.ok(), `marking onboarding done answered ${response.status()}`).toBe(true);
+});
+
 setup("a skill exists", async ({ page }) => {
   if (await alreadyThere(page.request, "/api/skills", "name", SEEDED_SKILL_NAME)) return;
 

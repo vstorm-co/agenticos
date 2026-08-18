@@ -20,6 +20,8 @@ import { qk } from "@/lib/query-keys";
 interface UseOrgMcpConnectionsResult {
   connections: OrgMcpConnectionRecord[];
   isLoading: boolean;
+  /** True for a background refresh of a cached list as well as a first load. */
+  isFetching: boolean;
   error: string | null;
   refresh: () => Promise<void>;
   create: (input: OrgMcpConnectionInput) => Promise<OrgMcpConnectionRecord>;
@@ -51,6 +53,7 @@ export function useOrgMcpConnections(): UseOrgMcpConnectionsResult {
   const {
     data: connections = [],
     isLoading,
+    isFetching,
     error: queryError,
     refetch,
   } = useQuery({
@@ -112,5 +115,5 @@ export function useOrgMcpConnections(): UseOrgMcpConnectionsResult {
     [refetch],
   );
 
-  return { connections, isLoading, error, refresh, create, update, remove, test };
+  return { connections, isLoading, isFetching, error, refresh, create, update, remove, test };
 }

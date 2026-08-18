@@ -19,6 +19,7 @@ function BotsCard({ count, children }: { count: number | null; children: ReactNo
   const t = useTranslations("pages.channels");
   return (
     <ListCard
+      data-tour="channels-list"
       title={t("bots")}
       counted={count === null ? null : t("registeredCount", { count })}
       contentClassName="p-0"
@@ -97,7 +98,7 @@ export default function ChannelsPage() {
         title={t("channels")}
         description={t("pageDescription")}
         actions={
-          <Button onClick={() => setAdding(true)}>
+          <Button data-tour="channels-new" onClick={() => setAdding(true)}>
             <Plus className="h-4 w-4" />
             {t("addChannel")}
           </Button>

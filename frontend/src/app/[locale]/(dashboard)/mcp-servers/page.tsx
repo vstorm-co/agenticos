@@ -75,7 +75,11 @@ export default function McpServersPage() {
           <ErrorState description={getErrorMessage(error, tErrors)} />
         </ListCard>
       ) : rows.length === 0 ? (
-        <ListCard title={tMcp("servers")} counted={tMcp("serverCount", { count: 0 })}>
+        <ListCard
+          data-tour="mcp-catalog"
+          title={tMcp("servers")}
+          counted={tMcp("serverCount", { count: 0 })}
+        >
           <ListCardEmpty
             icon={Plug}
             title={t("noServersConnect")}

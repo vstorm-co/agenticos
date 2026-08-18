@@ -80,7 +80,7 @@ export function McpConnectionDialog({
                 : t("connectForScope", { name: draft.row.name, scope: draft.scope })}
           </DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className="space-y-4" data-tour="mcp-dialog-form">
           <div>
             <Label htmlFor="mcp-name">{t("name")}</Label>
             <Input
@@ -237,7 +237,7 @@ export function McpConnectionDialog({
           <Button variant="ghost" onClick={() => setDraft(null)} disabled={submitting}>
             {t("cancel")}
           </Button>
-          <Button onClick={onSubmit} disabled={submitting}>
+          <Button onClick={onSubmit} disabled={submitting} data-tour="mcp-dialog-connect">
             {submitting ? t("saving") : draft?.existing ? t("save") : t("connectCheck")}
           </Button>
         </DialogFooter>

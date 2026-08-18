@@ -43,6 +43,7 @@ export function useKnowledgeBases() {
   const {
     data: kbs = [],
     isLoading,
+    isFetching,
     error: listError,
   } = useQuery({
     queryKey: qk.kb.list(),
@@ -112,7 +113,7 @@ export function useKnowledgeBases() {
   // page, where the document count is on screen - `useKBDetail.deleteCollection`
   // - and a second path that swallowed the refusal and patched this cache
   // optimistically was two answers to one question.
-  return { kbs, isLoading, listError, fetchKBs, createKB, patchKB };
+  return { kbs, isLoading, isFetching, listError, fetchKBs, createKB, patchKB };
 }
 
 /**

@@ -21,6 +21,7 @@ export { useMcpConnections } from "./use-mcp-connections";
 export { useOrgMcpConnections } from "./use-org-mcp-connections";
 export { useMcpToolServers } from "./use-mcp-tool-servers";
 export { usePermissions, useRoleCatalog, useAssignableRoles } from "./use-permissions";
+export { useOnboardingTour, type OnboardingTourState } from "./use-onboarding";
 export {
   useAgent,
   useAgents,

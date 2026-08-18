@@ -127,7 +127,7 @@ export default function SkillsPage() {
       description={t("skillKnowHowWritten")}
       actions={
         canEdit ? (
-          <Button onClick={() => setCreateOpen(true)}>
+          <Button data-tour="skills-new" onClick={() => setCreateOpen(true)}>
             <Plus className="h-4 w-4" />
             {t("newSkill")}
           </Button>
@@ -189,6 +189,7 @@ export default function SkillsPage() {
       <ProposedChanges canEdit={canEdit} />
 
       <ListCard
+        data-tour="skills-list"
         title={t("skills")}
         // The count is a claim about the organization, and a failed request has
         // made none - so an error draws the skeleton, not "0 skills".
