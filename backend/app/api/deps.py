@@ -857,9 +857,11 @@ from app.services.rag.embeddings import EmbeddingService
 from app.services.embedding_resolution import embeddings_for_collection
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.documents import DocumentProcessor
+from app.services.rag.reranker import BaseReranker, CohereReranker
 from app.services.rag.retrieval import RetrievalService
 from app.services.rag.vectorstore import PgVectorStore
 from app.services.rag.vectorstore import BaseVectorStore
+from app.services.rerank_resolution import reranker_for_collection
 
 
 def get_embedding_service(request: Request) -> EmbeddingService:
@@ -884,9 +886,27 @@ def get_vectorstore(request: Request, embedder: EmbeddingSvc) -> BaseVectorStore
 VectorStoreSvc = Annotated[BaseVectorStore, Depends(get_vectorstore)]
 
 
+async def _reranker_for_collection(collection_name: str) -> BaseReranker | None:
+    """Bind a collection's resolved reranker credential to a concrete reranker.
+
+    The composition root for reranking: resolution answers whether a collection
+    is configured and with whose key, and this turns that into the one
+    implementation there is. A second provider is a branch here, not a change to
+    retrieval.
+    """
+    resolved = await reranker_for_collection(collection_name)
+    if resolved is None:
+        return None
+    return CohereReranker(model=resolved.model, api_key=resolved.api_key)
+
+
 def get_retrieval_service(vector_store: VectorStoreSvc) -> RetrievalService:
     """Create RetrievalService instance."""
-    return RetrievalService(vector_store=vector_store, settings=settings.rag)
+    return RetrievalService(
+        vector_store=vector_store,
+        settings=settings.rag,
+        reranker_resolver=_reranker_for_collection,
+    )
 
 
 RetrievalSvc = Annotated[RetrievalService, Depends(get_retrieval_service)]

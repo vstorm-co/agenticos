@@ -4,14 +4,28 @@ import hashlib
 import logging
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Awaitable, Callable
 
 from rank_bm25 import BM25Okapi
 
 from app.services.rag.config import RAGSettings
 from app.services.rag.models import SearchResult
+from app.services.rag.reranker import BaseReranker
 from app.services.rag.vectorstore import BaseVectorStore
 
 logger = logging.getLogger(__name__)
+
+# How a retrieval service learns whether a collection reranks, and with what.
+# Async because the answer lives in the database, injected so the store never
+# imports platform policy - the same shape as the embedding resolver.
+RerankerResolver = Callable[[str], Awaitable[BaseReranker | None]]
+
+# Recall overfetches so min-score filtering and dedup still leave `limit`
+# results. A reranker wants a wider net than that - the point of it is to
+# surface a good answer sitting well below the top by distance - so it fetches
+# more and truncates after reordering.
+_DEFAULT_FETCH_MULTIPLIER = 2
+_RERANK_FETCH_MULTIPLIER = 4
 
 
 def _result_key(r: SearchResult) -> str:
@@ -38,10 +52,14 @@ class RetrievalService(BaseRetrievalService):
         self,
         vector_store: BaseVectorStore,
         settings: RAGSettings,
+        reranker_resolver: RerankerResolver | None = None,
     ):
         self.store = vector_store
         self.settings = settings
         self._hybrid_enabled = settings.enable_hybrid_search
+        # None leaves retrieval byte-for-byte its pre-reranker self: every path
+        # resolves no reranker and truncates by distance, exactly as before.
+        self._reranker_resolver = reranker_resolver
 
     @staticmethod
     def _rrf_fuse(
@@ -105,6 +123,40 @@ class RetrievalService(BaseRetrievalService):
             if s > 0
         ]
 
+    async def _reranker_for(self, collection_name: str) -> BaseReranker | None:
+        """The reranker one collection uses, or None when none is configured.
+
+        None whenever no resolver was injected, so a service built without one
+        never reranks and never touches the database looking for a key.
+        """
+        if self._reranker_resolver is None:
+            return None
+        return await self._reranker_resolver(collection_name)
+
+    @staticmethod
+    async def _rank_and_truncate(
+        reranker: BaseReranker | None,
+        query: str,
+        candidates: list[SearchResult],
+        limit: int,
+    ) -> list[SearchResult]:
+        """Rerank the candidates and keep the top `limit`, or just keep the top.
+
+        A reranker failure degrades to the by-distance order rather than failing
+        the search: reranking is an improvement on a working retrieval, and a
+        Cohere outage must not take knowledge search down with it. The
+        misconfiguration cases never reach here - resolution already turned
+        those into no reranker at all - so a raise here is a runtime fault worth
+        a log line.
+        """
+        if reranker is None:
+            return candidates[:limit]
+        try:
+            return await reranker.rerank(query, candidates, limit)
+        except Exception:
+            logger.warning("[RETRIEVAL] Reranking failed; falling back to distance order")
+            return candidates[:limit]
+
     async def retrieve(
         self,
         query: str,
@@ -113,9 +165,31 @@ class RetrievalService(BaseRetrievalService):
         min_score: float = 0.0,
         filter: str = "",
     ) -> list[SearchResult]:
-        # Overfetch so min-score filtering and dedup still leave `limit` results.
-        fetch_multiplier = 2
+        reranker = await self._reranker_for(collection_name)
+        multiplier = _RERANK_FETCH_MULTIPLIER if reranker else _DEFAULT_FETCH_MULTIPLIER
+        candidates = await self._recall(
+            query, collection_name, limit, min_score, filter, fetch_multiplier=multiplier
+        )
+        return await self._rank_and_truncate(reranker, query, candidates, limit)
 
+    async def _recall(
+        self,
+        query: str,
+        collection_name: str,
+        limit: int,
+        min_score: float,
+        filter: str,
+        *,
+        fetch_multiplier: int,
+    ) -> list[SearchResult]:
+        """Vector (and optionally BM25) recall, filtered and deduplicated.
+
+        Everything retrieval does before ranking: the candidate set, tagged with
+        the collection each result came from, not yet truncated to `limit`. Held
+        apart from `retrieve` so a multi-collection search can gather candidates
+        from several collections and rerank the union once, rather than reranking
+        each collection and merging the winners.
+        """
         logger.info(
             "[RETRIEVAL] Query: '%.50s...', collection: %s, limit: %d, filter: '%s'",
             query,
@@ -179,23 +253,23 @@ class RetrievalService(BaseRetrievalService):
                 r.content,
             )
 
-        final_results = deduped_results[:limit]
-
         # Which collection answered, on every result rather than only when several
         # were searched. A caller cannot derive it - one search may span bases and
         # two bases may share a collection - and a chunk whose origin is unknown
-        # cannot be cited, which is the whole job of a retrieval result.
-        for r in final_results:
+        # cannot be cited, which is the whole job of a retrieval result. Stamped
+        # here on every candidate so it survives reranking, which builds fresh
+        # results carrying this metadata forward.
+        for r in deduped_results:
             r.metadata["collection"] = collection_name
 
         total_time = time.time() - start_time
         logger.info(
-            "[RETRIEVAL] Total retrieval time: %.3fs, returning %d results",
+            "[RETRIEVAL] Total recall time: %.3fs, %d candidates",
             total_time,
-            len(final_results),
+            len(deduped_results),
         )
 
-        return final_results
+        return deduped_results
 
     async def retrieve_multi(
         self,
@@ -214,17 +288,23 @@ class RetrievalService(BaseRetrievalService):
 
         A collection nobody has ingested into is not a failure: its table does
         not exist yet, and the store reports that as no results.
+
+        When a reranker is configured it runs once over the union of every
+        collection's candidates, not per collection: the bound collections of
+        one agent share one organization and so one reranker, and reranking each
+        collection separately then merging the winners would rank against the
+        wrong pool. Absent a reranker this is byte-for-byte the previous merge -
+        each collection's top `limit`, fused, sorted, deduplicated, truncated.
         """
+        reranker = await self._reranker_for(collection_names[0]) if collection_names else None
+        multiplier = _RERANK_FETCH_MULTIPLIER if reranker else _DEFAULT_FETCH_MULTIPLIER
+
         all_results: list[SearchResult] = []
         for name in collection_names:
-            all_results.extend(
-                await self.retrieve(
-                    query=query,
-                    collection_name=name,
-                    limit=limit,
-                    min_score=min_score,
-                )
+            recalled = await self._recall(
+                query, name, limit, min_score, "", fetch_multiplier=multiplier
             )
+            all_results.extend(recalled if reranker else recalled[:limit])
 
         all_results.sort(key=lambda r: r.score, reverse=True)
 
@@ -236,4 +316,4 @@ class RetrievalService(BaseRetrievalService):
                 seen_keys.add(key)
                 deduped.append(r)
 
-        return deduped[:limit]
+        return await self._rank_and_truncate(reranker, query, deduped, limit)
